@@ -1,8 +1,8 @@
 /** @odoo-module native */
-import { EmbedCode } from "./embed_code.js";
+import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
 
-import { _t } from "@web/core/l10n/translation";
+import { EmbedCode } from "./embed_code.js";
 
 const EmbedCodeEdit = (I) =>
     class extends I {
@@ -16,10 +16,10 @@ const EmbedCodeEdit = (I) =>
                     "alert",
                     "alert-info",
                     "pt16",
-                    "pb16"
+                    "pb16",
                 );
                 placeholderEl.textContent = _t(
-                    "Your Embed Code snippet doesn't have anything to display. Click on Edit to modify it."
+                    "Your Embed Code snippet doesn't have anything to display. Click on Edit to modify it.",
                 );
                 this.embedCodeEl.appendChild(placeholderEl);
             }

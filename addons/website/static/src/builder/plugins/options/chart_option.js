@@ -26,7 +26,7 @@ export class ChartOption extends BaseOptionComponent {
 
         // Here for compatibility with previous versions (< 18.3).
         this.env.getEditingElement().dataset.data = JSON.stringify(
-            this.prepareData(this.env.getEditingElement())
+            this.prepareData(this.env.getEditingElement()),
         );
 
         this.state = useState({ currentCell: {} });
@@ -44,7 +44,7 @@ export class ChartOption extends BaseOptionComponent {
      */
     setDefaultState() {
         const { backgroundLabel, borderLabel } = this.getColorpickersLabels(
-            this.domState.isPieChart
+            this.domState.isPieChart,
         );
         this.updateCurrentCell({
             backgroundLabel,
@@ -78,11 +78,13 @@ export class ChartOption extends BaseOptionComponent {
         return data;
     }
     isPieChart(editingElement) {
-        const isPieChart = this.dependencies.chartOptionPlugin.isPieChart(editingElement);
+        const isPieChart =
+            this.dependencies.chartOptionPlugin.isPieChart(editingElement);
         if (!this.domState || this.domState.isPieChart !== isPieChart) {
             // Pie charts set color on a data cell basis, whereas the
             // other ones set it on a dataset basis
-            const { backgroundLabel, borderLabel } = this.getColorpickersLabels(isPieChart);
+            const { backgroundLabel, borderLabel } =
+                this.getColorpickersLabels(isPieChart);
             this.updateCurrentCell({ backgroundLabel, borderLabel });
         }
         return isPieChart;
@@ -106,8 +108,12 @@ export class ChartOption extends BaseOptionComponent {
         const colorSet = new Set();
         for (const dataset of data.datasets) {
             if (this.isPieChart(editingElement)) {
-                dataset.backgroundColor.forEach((color) => colorSet.add(this.getColor(color)));
-                dataset.borderColor.forEach((color) => colorSet.add(this.getColor(color)));
+                dataset.backgroundColor.forEach((color) =>
+                    colorSet.add(this.getColor(color)),
+                );
+                dataset.borderColor.forEach((color) =>
+                    colorSet.add(this.getColor(color)),
+                );
             } else {
                 colorSet.add(this.getColor(dataset.backgroundColor));
                 colorSet.add(this.getColor(dataset.borderColor));
@@ -157,7 +163,7 @@ export class ChartOption extends BaseOptionComponent {
 
     isTableButton(target) {
         return !!target.closest(
-            ".o_builder_matrix_remove_row, .add_row, .o_builder_matrix_remove_col, .add_column"
+            ".o_builder_matrix_remove_row, .add_row, .o_builder_matrix_remove_col, .add_column",
         );
     }
     /**
@@ -190,7 +196,10 @@ export class ChartOption extends BaseOptionComponent {
             });
         }
         // click on a table inner cell
-        else if (datasetIndex !== -1 && datasetIndex !== cellRowEl.children.length - 2) {
+        else if (
+            datasetIndex !== -1 &&
+            datasetIndex !== cellRowEl.children.length - 2
+        ) {
             this.updateCurrentCell({ datasetIndex, dataIndex });
         }
     }
@@ -215,7 +224,9 @@ export class ChartOption extends BaseOptionComponent {
             else if (datasetIndex === this.state.currentCell.datasetIndex) {
                 this.setDefaultState();
             } else if (datasetIndex < this.state.currentCell.datasetIndex) {
-                this.updateCurrentCell({ datasetIndex: this.state.currentCell.datasetIndex - 1 });
+                this.updateCurrentCell({
+                    datasetIndex: this.state.currentCell.datasetIndex - 1,
+                });
             }
             return;
         }
@@ -228,7 +239,9 @@ export class ChartOption extends BaseOptionComponent {
             else if (dataIndex === this.state.currentCell.dataIndex) {
                 this.setDefaultState();
             } else if (dataIndex < this.state.currentCell.dataIndex) {
-                this.updateCurrentCell({ dataIndex: this.state.currentCell.dataIndex - 1 });
+                this.updateCurrentCell({
+                    dataIndex: this.state.currentCell.dataIndex - 1,
+                });
             }
         }
     }
@@ -248,10 +261,14 @@ export class ChartOption extends BaseOptionComponent {
 
     onTableMouseoutOrFocusout(ev) {
         ev.currentTarget
-            .querySelector(".o_builder_matrix_remove_col:not(.visually-hidden-focusable)")
+            .querySelector(
+                ".o_builder_matrix_remove_col:not(.visually-hidden-focusable)",
+            )
             ?.classList.add("visually-hidden-focusable");
         ev.currentTarget
-            .querySelector(".o_builder_matrix_remove_row:not(.visually-hidden-focusable)")
+            .querySelector(
+                ".o_builder_matrix_remove_row:not(.visually-hidden-focusable)",
+            )
             ?.classList.add("visually-hidden-focusable");
     }
     /**

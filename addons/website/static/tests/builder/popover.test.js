@@ -1,5 +1,6 @@
 import { setSelection } from "@html_editor/../tests/_helpers/selection";
 import { expandToolbar } from "@html_editor/../tests/_helpers/toolbar";
+import { expectElementCount } from "@html_editor/../tests/_helpers/ui_expectations";
 import { expect, test } from "@odoo/hoot";
 import {
     click,
@@ -12,10 +13,10 @@ import {
     waitForNone,
     waitUntil,
 } from "@odoo/hoot-dom";
-import { contains } from "@web/../tests/web_test_helpers";
-import { defineWebsiteModels, setupWebsiteBuilder } from "./website_helpers.js";
 import { animationFrame } from "@odoo/hoot-mock";
-import { expectElementCount } from "@html_editor/../tests/_helpers/ui_expectations";
+import { contains } from "@web/../tests/web_test_helpers";
+
+import { defineWebsiteModels, setupWebsiteBuilder } from "./website_helpers.js";
 
 defineWebsiteModels();
 
@@ -89,7 +90,9 @@ test("Floating toolbar visual consistency and usability", async () => {
     // Verify animation option dropdown matches font style popover design
     await contains(".o-we-toolbar button[title='Animate Text']").click();
     await contains(".o_animate_text_popover .hb-row-content button").click();
-    const animationPopover = await waitFor(".o_popover:has([data-action-value='onAppearance'])");
+    const animationPopover = await waitFor(
+        ".o_popover:has([data-action-value='onAppearance'])",
+    );
     expect(animationPopover).not.toHaveClass("o-hb-select-dropdown");
 
     // Verify highlight picker grid is scrollable and scrollbar is hidden
@@ -97,7 +100,10 @@ test("Floating toolbar visual consistency and usability", async () => {
     await waitForNone(".o_popover:has([data-action-value='onAppearance'])");
     await pointerUp(".o-we-toolbar button[title='Apply highlight']");
     const textHighlightPopover = await waitFor(".o_popover .grid");
-    expect(textHighlightPopover).toHaveStyle({ overflow: "auto", scrollbarWidth: "thin" });
+    expect(textHighlightPopover).toHaveStyle({
+        overflow: "auto",
+        scrollbarWidth: "thin",
+    });
 
     // Verify highlight color picker has sublevel rows for hierarchy
     await contains(".o_popover .o_text_highlight_underline").click();

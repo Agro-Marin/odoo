@@ -1,7 +1,13 @@
 import { describe, expect, test } from "@odoo/hoot";
-import { click, manuallyDispatchProgrammaticEvent, press, queryOne } from "@odoo/hoot-dom";
+import {
+    click,
+    manuallyDispatchProgrammaticEvent,
+    press,
+    queryOne,
+} from "@odoo/hoot-dom";
 import { animationFrame, tick } from "@odoo/hoot-mock";
 import { patchWithCleanup } from "@web/../tests/web_test_helpers";
+
 import { setupEditor, testEditor } from "../_helpers/editor.js";
 import { unformat } from "../_helpers/format.js";
 import { getContent } from "../_helpers/selection.js";
@@ -67,13 +73,13 @@ test("should make qweb tag bold (2)", async () => {
 
 test("should make qweb tag bold and create a step even with partial selection inside contenteditable false", async () => {
     const { editor, el } = await setupEditor(
-        `<div><p t-esc="'Test'" contenteditable="false">T[e]st</p></div>`
+        `<div><p t-esc="'Test'" contenteditable="false">T[e]st</p></div>`,
     );
     bold(editor);
     expect(getContent(el)).toBe(
         '<p data-selection-placeholder=""><br></p>' +
             `<div>[<p t-esc="'Test'" contenteditable="false" style="font-weight: bolder;">Test</p>]</div>` +
-            '<p data-selection-placeholder=""><br></p>'
+            '<p data-selection-placeholder=""><br></p>',
     );
     expect(queryOne(`p[contenteditable="false"]`).childNodes.length).toBe(1);
     const historySteps = editor.shared.history.getHistorySteps();
@@ -105,7 +111,9 @@ test("should make a whole heading not bold after a triple click (heading is cons
     });
     await tripleClick(el.querySelector("h1"));
     bold(editor);
-    expect(getContent(el)).toBe(`<h1><span style="font-weight: normal;">[ab]</span></h1><p>cd</p>`);
+    expect(getContent(el)).toBe(
+        `<h1><span style="font-weight: normal;">[ab]</span></h1><p>cd</p>`,
+    );
 });
 
 test("should make a selection starting with bold text fully bold", async () => {
@@ -321,7 +329,9 @@ test("should insert a span zws when toggling a formatting command twice", () =>
 // default behaviour when typing in a contenteditable=true zone.
 test("should type in bold", async () => {
     async function typeChar(editor, char) {
-        await manuallyDispatchProgrammaticEvent(editor.editable, "keydown", { key: char });
+        await manuallyDispatchProgrammaticEvent(editor.editable, "keydown", {
+            key: char,
+        });
         await manuallyDispatchProgrammaticEvent(editor.editable, "beforeinput", {
             inputType: "insertText",
             data: char,
@@ -329,7 +339,9 @@ test("should type in bold", async () => {
         // Simulate text insertion as done by the contenteditable.
         editor.document.execCommand("insertText", false, char);
         // Input event is dispatched and handlers are called synchronously.
-        await manuallyDispatchProgrammaticEvent(editor.editable, "keyup", { key: char });
+        await manuallyDispatchProgrammaticEvent(editor.editable, "keyup", {
+            key: char,
+        });
     }
 
     const { editor, el } = await setupEditor("<p>ab[]cd</p>");
@@ -339,7 +351,9 @@ test("should type in bold", async () => {
 
     // Toggle bold on.
     bold(editor);
-    expect(getContent(el)).toBe(`<p>ab<strong data-oe-zws-empty-inline="">\u200B[]</strong>cd</p>`);
+    expect(getContent(el)).toBe(
+        `<p>ab<strong data-oe-zws-empty-inline="">\u200B[]</strong>cd</p>`,
+    );
 
     // Simulate text insertion as done by the contenteditable.
     await typeChar(editor, "x");
@@ -353,7 +367,7 @@ test("should type in bold", async () => {
     // Toggle bold off and type more.
     bold(editor);
     expect(getContent(el)).toBe(
-        `<p>ab<strong>xy</strong><span data-oe-zws-empty-inline="">\u200B[]</span>cd</p>`
+        `<p>ab<strong>xy</strong><span data-oe-zws-empty-inline="">\u200B[]</span>cd</p>`,
     );
     await typeChar(editor, "z");
     expect(getContent(el)).toBe(`<p>ab<strong>xy</strong>z[]cd</p>`);
@@ -363,19 +377,25 @@ test.tags("desktop");
 test("create bold with shortcut + selected with arrow", async () => {
     const { editor, el } = await setupEditor("<p>ab[]cd</p>");
     await press(["control", "b"]);
-    expect(getContent(el)).toBe(`<p>ab<strong data-oe-zws-empty-inline="">\u200B[]</strong>cd</p>`);
+    expect(getContent(el)).toBe(
+        `<p>ab<strong data-oe-zws-empty-inline="">\u200B[]</strong>cd</p>`,
+    );
 
     await simulateArrowKeyPress(editor, ["Shift", "ArrowRight"]);
     await tick(); // await selectionchange
     await animationFrame();
     await expectElementCount(".o-we-toolbar", 1);
-    expect(getContent(el)).toBe(`<p>ab<strong data-oe-zws-empty-inline="">\u200B</strong>[c]d</p>`);
+    expect(getContent(el)).toBe(
+        `<p>ab<strong data-oe-zws-empty-inline="">\u200B</strong>[c]d</p>`,
+    );
 
     await simulateArrowKeyPress(editor, ["Shift", "ArrowLeft"]);
     await tick(); // await selectionchange
     await animationFrame();
     await expectElementCount(".o-we-toolbar", 0);
-    expect(getContent(el)).toBe(`<p>ab<strong data-oe-zws-empty-inline="">\u200B[]</strong>cd</p>`);
+    expect(getContent(el)).toBe(
+        `<p>ab<strong data-oe-zws-empty-inline="">\u200B[]</strong>cd</p>`,
+    );
 });
 
 const styleContentBold = `.boldClass { font-weight: bold; }`;
@@ -442,7 +462,9 @@ test("should remove empty bold tag when changing selection", async () => {
 
     bold(editor);
     await tick();
-    expect(getContent(el)).toBe(`<p>ab<strong data-oe-zws-empty-inline="">\u200B[]</strong>cd</p>`);
+    expect(getContent(el)).toBe(
+        `<p>ab<strong data-oe-zws-empty-inline="">\u200B[]</strong>cd</p>`,
+    );
 
     await simulateArrowKeyPress(editor, "ArrowLeft");
     await tick(); // await selectionchange
@@ -456,7 +478,7 @@ test("should remove multiple formatted empty bold tag when changing selection", 
     italic(editor);
     await tick();
     expect(getContent(el)).toBe(
-        `<p>ab<strong data-oe-zws-empty-inline=""><em data-oe-zws-empty-inline="">\u200B[]</em></strong>cd</p>`
+        `<p>ab<strong data-oe-zws-empty-inline=""><em data-oe-zws-empty-inline="">\u200B[]</em></strong>cd</p>`,
     );
 
     await simulateArrowKeyPress(editor, "ArrowLeft");
@@ -470,13 +492,13 @@ test("should not remove empty bold tag in an empty block when changing selection
     bold(editor);
     await tick();
     expect(getContent(el)).toBe(
-        `<p>abcd</p><p o-we-hint-text='Type "/" for commands' class="o-we-hint"><strong data-oe-zws-empty-inline="">\u200B[]</strong></p>`
+        `<p>abcd</p><p o-we-hint-text='Type "/" for commands' class="o-we-hint"><strong data-oe-zws-empty-inline="">\u200B[]</strong></p>`,
     );
 
     await simulateArrowKeyPress(editor, "ArrowUp");
     await tick(); // await selectionchange
     expect(getContent(el)).toBe(
-        `<p>[]abcd</p><p><strong data-oe-zws-empty-inline="">\u200B</strong></p>`
+        `<p>[]abcd</p><p><strong data-oe-zws-empty-inline="">\u200B</strong></p>`,
     );
 });
 
@@ -489,7 +511,9 @@ test("should not add history step for bold on collapsed selection", async () => 
     // step. The empty inline tag is temporary: auto-cleaned if unused. We want
     // to avoid having a phantom step in the history.
     await press(["ctrl", "b"]);
-    expect(getContent(el)).toBe(`<p>abcd<strong data-oe-zws-empty-inline="">\u200B[]</strong></p>`);
+    expect(getContent(el)).toBe(
+        `<p>abcd<strong data-oe-zws-empty-inline="">\u200B[]</strong></p>`,
+    );
 
     await insertText(editor, "A");
     expect(getContent(el)).toBe(`<p>abcd<strong>A[]</strong></p>`);
@@ -513,7 +537,7 @@ test("Should properly apply bold format if closest element is bold but not close
                     font-weight: 300;   
                 }
             `,
-        }
+        },
     );
     await animationFrame();
     await expectElementCount('.o-we-toolbar [name="bold"].active', 1);
@@ -525,8 +549,8 @@ test("Should properly apply bold format if closest element is bold but not close
                 <em class="h4">
                     a<span style="font-weight: normal;">b</span>c
                 </em>
-            </blockquote>`
-        )
+            </blockquote>`,
+        ),
     );
     await expectElementCount('.o-we-toolbar [name="bold"]:not(.active)', 1);
     await click('.o-we-toolbar [name="bold"]:not(.active)');
@@ -537,8 +561,8 @@ test("Should properly apply bold format if closest element is bold but not close
                 <em class="h4">
                     abc
                 </em>
-            </blockquote>`
-        )
+            </blockquote>`,
+        ),
     );
 });
 
@@ -552,7 +576,7 @@ test("should not apply bold to selection placeholder nodes", async () => {
                     </tr>
                 </tbody>
             </table>
-        `)
+        `),
     );
     await press(["ctrl", "a"]);
     await animationFrame();
@@ -567,7 +591,7 @@ test("should not apply bold to selection placeholder nodes", async () => {
                 </tbody>
             </table>
             <p data-selection-placeholder="">]<br></p>
-        `)
+        `),
     );
     await press(["ctrl", "b"]);
     expect(getContent(el)).toBe(
@@ -581,7 +605,7 @@ test("should not apply bold to selection placeholder nodes", async () => {
                 </tbody>
             </table>
             <p data-selection-placeholder="">]<br></p>
-        `)
+        `),
     );
 });
 
@@ -589,16 +613,18 @@ test("should not apply bold formatting for partial selection inside contentedita
     const { editor, el } = await setupEditor(`<p contenteditable="false">T[e]st</p>`);
     bold(editor);
     expect(getContent(el)).toBe(
-        `<p data-selection-placeholder=""><br></p><p contenteditable="false">T[e]st</p><p data-selection-placeholder="" style="margin: -9px 0px 8px;"><br></p>`
+        `<p data-selection-placeholder=""><br></p><p contenteditable="false">T[e]st</p><p data-selection-placeholder="" style="margin: -9px 0px 8px;"><br></p>`,
     );
     expect(queryOne(`p[contenteditable="false"]`).childNodes.length).toBe(1);
 });
 
 test("should toggle bold around non editable", async () => {
-    const { el, editor } = await setupEditor(`<p>[a</p><p contenteditable="false">b</p><p>c]</p>`);
+    const { el, editor } = await setupEditor(
+        `<p>[a</p><p contenteditable="false">b</p><p>c]</p>`,
+    );
     bold(editor);
     expect(getContent(el)).toBe(
-        `<p><strong>[a</strong></p><p contenteditable="false">b</p><p><strong>c]</strong></p>`
+        `<p><strong>[a</strong></p><p contenteditable="false">b</p><p><strong>c]</strong></p>`,
     );
     bold(editor);
     expect(getContent(el)).toBe(`<p>[a</p><p contenteditable="false">b</p><p>c]</p>`);
@@ -622,10 +648,12 @@ test("should toggle bold across indented list items", async () => {
 });
 
 test("should toggle bold across nested spans", async () => {
-    const { el, editor } = await setupEditor(`<p><span><span>[A</span> </span></p><p>B]</p>`);
+    const { el, editor } = await setupEditor(
+        `<p><span><span>[A</span> </span></p><p>B]</p>`,
+    );
     bold(editor);
     expect(getContent(el)).toBe(
-        `<p><span><span><strong>[A</strong></span> </span></p><p><strong>B]</strong></p>`
+        `<p><span><span><strong>[A</strong></span> </span></p><p><strong>B]</strong></p>`,
     );
     bold(editor);
     expect(getContent(el)).toBe(`<p><span><span>[A</span> </span></p><p>B]</p>`);

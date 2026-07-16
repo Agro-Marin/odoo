@@ -3,7 +3,6 @@ import {
     loadDefaultEmbedConfig,
 } from "@im_livechat/../tests/livechat_test_helpers";
 import { expirableStorage } from "@im_livechat/core/common/expirable_storage";
-
 import {
     click,
     contains,
@@ -12,9 +11,7 @@ import {
     start,
     startServer,
 } from "@mail/../tests/mail_test_helpers";
-
 import { describe, test } from "@odoo/hoot";
-
 import { Command, serverState } from "@web/../tests/web_test_helpers";
 
 defineLivechatModels();
@@ -23,7 +20,9 @@ describe.current.tags("desktop");
 test("user custom live chat user name for message reactions", async () => {
     const pyEnv = await startServer();
     const livechatChannelId = await loadDefaultEmbedConfig();
-    pyEnv["res.partner"].write([serverState.partnerId], { user_livechat_username: "Michou" });
+    pyEnv["res.partner"].write([serverState.partnerId], {
+        user_livechat_username: "Michou",
+    });
     const guestId = pyEnv["mail.guest"].create({ name: "Visitor 11" });
     const channelId = pyEnv["discuss.channel"].create({
         channel_member_ids: [
@@ -52,11 +51,14 @@ test("user custom live chat user name for message reactions", async () => {
             store: { "discuss.channel": [{ id: channelId }] },
             persisted: true,
             livechatUserId: serverState.publicUserId,
-        })
+        }),
     );
     setupChatHub({ opened: [channelId] });
     await start({
-        authenticateAs: { ...pyEnv["mail.guest"].read(guestId)[0], _name: "mail.guest" },
+        authenticateAs: {
+            ...pyEnv["mail.guest"].read(guestId)[0],
+            _name: "mail.guest",
+        },
     });
     await hover(".o-mail-MessageReaction");
     await click(".o-mail-MessageReactionList-preview", {

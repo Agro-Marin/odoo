@@ -1,8 +1,9 @@
 /** @odoo-module native */
+import { withSequence } from "@html_editor/utils/resource";
+
 import { Plugin } from "../plugin.js";
 import { isProtecting, isUnprotecting } from "../utils/dom_info.js";
 import { childNodes } from "../utils/dom_traversal.js";
-import { withSequence } from "@html_editor/utils/resource";
 
 const PROTECTED_SELECTOR = `[data-oe-protected="true"],[data-oe-protected=""]`;
 const UNPROTECTED_SELECTOR = `[data-oe-protected="false"]`;
@@ -22,7 +23,8 @@ export class ProtectedNodePlugin extends Plugin {
         /** Handlers */
         clean_for_save_handlers: ({ root }) => this.cleanForSave(root),
         normalize_handlers: withSequence(0, this.normalize.bind(this)),
-        before_filter_mutation_record_handlers: this.beforeFilteringMutationRecords.bind(this),
+        before_filter_mutation_record_handlers:
+            this.beforeFilteringMutationRecords.bind(this),
 
         unsplittable_node_predicates: [
             isProtecting, // avoid merge

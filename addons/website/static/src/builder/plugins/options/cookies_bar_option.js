@@ -39,7 +39,8 @@ export class SelectLayoutAction extends BuilderAction {
     static id = "selectLayout";
     static dependencies = ["CookiesBarOptionPlugin"];
     apply({ editingElement, value: layout }) {
-        const savedSelectors = this.dependencies.CookiesBarOptionPlugin.getSavedSelectors();
+        const savedSelectors =
+            this.dependencies.CookiesBarOptionPlugin.getSavedSelectors();
         const templateEl = renderToElement(`website.cookies_bar.${layout}`, {
             websiteId: this.services.website.currentWebsite.id,
         });
@@ -104,4 +105,6 @@ export class SelectLayoutAction extends BuilderAction {
     }
 }
 
-registry.category("website-plugins").add(CookiesBarOptionPlugin.id, CookiesBarOptionPlugin);
+registry
+    .category("website-plugins")
+    .add(CookiesBarOptionPlugin.id, CookiesBarOptionPlugin);

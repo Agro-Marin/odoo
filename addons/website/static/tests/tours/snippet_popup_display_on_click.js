@@ -1,12 +1,12 @@
+import { browser } from "@web/core/browser/browser";
 import {
     clickOnEditAndWaitEditMode,
     clickOnElement,
     clickOnSave,
     insertSnippet,
-    registerWebsitePreviewTour,
     openLinkPopup,
+    registerWebsitePreviewTour,
 } from "@website/js/tours/tour_utils";
-import { browser } from "@web/core/browser/browser";
 
 const oldWriteText = browser.navigator.clipboard.writeText;
 
@@ -17,7 +17,11 @@ registerWebsitePreviewTour(
         edition: true,
     },
     () => [
-        ...insertSnippet({ id: "s_text_image", name: "Image - Text", groupName: "Content" }),
+        ...insertSnippet({
+            id: "s_text_image",
+            name: "Image - Text",
+            groupName: "Content",
+        }),
         ...insertSnippet({ id: "s_popup", name: "Popup", groupName: "Content" }),
         {
             content: "Click inside the popup to access its options menu.",
@@ -50,7 +54,9 @@ registerWebsitePreviewTour(
                 browser.navigator.clipboard.writeText = oldWriteText;
 
                 const notificationContent = this.anchor.innerText;
-                const anchor = notificationContent.substring(notificationContent.indexOf("#"));
+                const anchor = notificationContent.substring(
+                    notificationContent.indexOf("#"),
+                );
 
                 if (anchor !== "#Win-%2420") {
                     console.error("The popup anchor is not '#Win-%2420' as expected.");
@@ -59,7 +65,10 @@ registerWebsitePreviewTour(
         },
         clickOnElement("button to close the popup", ":iframe .s_popup_close"),
         ...openLinkPopup(":iframe .s_text_image a.btn-secondary", "Button", 1),
-        clickOnElement("text image snippet button", ".o-we-linkpopover .o_we_edit_link"),
+        clickOnElement(
+            "text image snippet button",
+            ".o-we-linkpopover .o_we_edit_link",
+        ),
         {
             content: "Add a link to the popup in the URL input",
             trigger: ".o-we-linkpopover .o_we_href_input_link",
@@ -70,7 +79,10 @@ registerWebsitePreviewTour(
             content: "Wait content of iframe is loaded",
             trigger: ":iframe main:contains(enhance your)",
         },
-        clickOnElement("text image snippet button", ":iframe .s_text_image .btn-secondary"),
+        clickOnElement(
+            "text image snippet button",
+            ":iframe .s_text_image .btn-secondary",
+        ),
         {
             content: "Verify that the popup opens after clicked the button.",
             trigger: ":iframe .s_popup .modal[id='Win-%2420'].show",
@@ -87,14 +99,21 @@ registerWebsitePreviewTour(
             trigger: ":iframe [data-view-xmlid='website.contactus']",
         },
         ...clickOnEditAndWaitEditMode(),
-        ...insertSnippet({ id: "s_text_image", name: "Image - Text", groupName: "Content" }),
+        ...insertSnippet({
+            id: "s_text_image",
+            name: "Image - Text",
+            groupName: "Content",
+        }),
         {
             content: "Click on the text image snippet to edit it.",
             trigger: ":iframe .s_text_image",
             run: "click",
         },
         ...openLinkPopup(":iframe .s_text_image a.btn-secondary", "Button", 1),
-        clickOnElement("text image snippet button", ".o-we-linkpopover .o_we_edit_link"),
+        clickOnElement(
+            "text image snippet button",
+            ".o-we-linkpopover .o_we_edit_link",
+        ),
         {
             content: "Add a link to the homepage in the URL input",
             trigger: ".o-we-linkpopover .o_we_href_input_link",
@@ -107,9 +126,13 @@ registerWebsitePreviewTour(
         },
         {
             content: "Wait form is patched",
-            trigger: ":iframe form#contactus_form input[name=company]:value(yourcompany)",
+            trigger:
+                ":iframe form#contactus_form input[name=company]:value(yourcompany)",
         },
-        clickOnElement("text image snippet button", ":iframe .s_text_image .btn-secondary"),
+        clickOnElement(
+            "text image snippet button",
+            ":iframe .s_text_image .btn-secondary",
+        ),
         {
             trigger: ":iframe [data-view-xmlid='website.homepage']",
         },
@@ -117,5 +140,5 @@ registerWebsitePreviewTour(
             content: "Verify that the popup opens when the homepage page loads.",
             trigger: ":iframe .s_popup .modal[id='Win-%2420'].show",
         },
-    ]
+    ],
 );

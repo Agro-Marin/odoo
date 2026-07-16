@@ -1,12 +1,12 @@
 /** @odoo-module native */
+import "@mail/discuss/core/common/thread_model_patch";
+
 import { fields } from "@mail/core/common/record";
 import { Thread } from "@mail/core/common/thread_model";
-import "@mail/discuss/core/common/thread_model_patch";
 import { generateEmojisOnHtml } from "@mail/utils/common/format";
-
-import { patch } from "@web/core/utils/patch";
 import { _t } from "@web/core/l10n/translation";
 import { Deferred } from "@web/core/utils/concurrency";
+import { patch } from "@web/core/utils/patch";
 
 /** @type {typeof Thread} */
 const threadStaticPatch = {
@@ -40,7 +40,8 @@ patch(Thread.prototype, {
         this.livechatWelcomeMessage = fields.One("mail.message", {
             compute() {
                 if (this.hasWelcomeMessage) {
-                    const livechatService = this.store.env.services["im_livechat.livechat"];
+                    const livechatService =
+                        this.store.env.services["im_livechat.livechat"];
                     return {
                         id: -0.2 - this.id,
                         body: livechatService.options.default_message,
@@ -89,7 +90,9 @@ patch(Thread.prototype, {
     },
 
     get membersThatCanSeen() {
-        return super.membersThatCanSeen.filter((member) => member.livechat_member_type !== "bot");
+        return super.membersThatCanSeen.filter(
+            (member) => member.livechat_member_type !== "bot",
+        );
     },
 
     get avatarUrl() {
@@ -105,7 +108,11 @@ patch(Thread.prototype, {
         return super.displayName;
     },
     get hasWelcomeMessage() {
-        return this.channel_type === "livechat" && !this.chatbot && !this.requested_by_operator;
+        return (
+            this.channel_type === "livechat" &&
+            !this.chatbot &&
+            !this.requested_by_operator
+        );
     },
     /** @returns {Promise<import("models").Message} */
     async post(body, postData, extraData = {}) {
@@ -122,9 +129,9 @@ patch(Thread.prototype, {
             // typing (2 ** 31 - 1 is the greatest value supported by
             // `setTimeout`).
             if (this.chatbot && extraData.selected_answer_id) {
-                this.chatbot.currentStep.selectedAnswer = this.store["chatbot.script.answer"].get(
-                    extraData.selected_answer_id
-                );
+                this.chatbot.currentStep.selectedAnswer = this.store[
+                    "chatbot.script.answer"
+                ].get(extraData.selected_answer_id);
             }
             const authorModelName = this.store.self?.Model.getName();
             const temporaryMsg = this.store["mail.message"].insert({
@@ -140,7 +147,8 @@ patch(Thread.prototype, {
             });
             this.messages.push(temporaryMsg);
             this?.chatbot?._simulateTyping(2 ** 31 - 1);
-            const thread = await this.store.env.services["im_livechat.livechat"].persist(this);
+            const thread =
+                await this.store.env.services["im_livechat.livechat"].persist(this);
             if (this.store.self_partner) {
                 temporaryMsg.author_id = this.store.self_partner; // Might have been created after persist.
             } else {
@@ -150,7 +158,9 @@ patch(Thread.prototype, {
                 return;
             }
             await thread.isLoadedDeferred;
-            return thread.post(...arguments).then(() => thread.readyToSwapDeferred.resolve());
+            return thread
+                .post(...arguments)
+                .then(() => thread.readyToSwapDeferred.resolve());
         }
         const message = await super.post(...arguments);
         await this.chatbot?.processAnswer(message);

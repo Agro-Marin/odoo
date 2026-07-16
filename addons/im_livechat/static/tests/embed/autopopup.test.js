@@ -2,10 +2,15 @@ import {
     defineLivechatModels,
     loadDefaultEmbedConfig,
 } from "@im_livechat/../tests/livechat_test_helpers";
-import { contains, setupChatHub, start, startServer } from "@mail/../tests/mail_test_helpers";
+import {
+    contains,
+    setupChatHub,
+    start,
+    startServer,
+} from "@mail/../tests/mail_test_helpers";
+import { mailDataHelpers } from "@mail/../tests/mock_server/mail_mock_server";
 import { describe, test } from "@odoo/hoot";
 import { Command, patchWithCleanup, serverState } from "@web/../tests/web_test_helpers";
-import { mailDataHelpers } from "@mail/../tests/mock_server/mail_mock_server";
 
 describe.current.tags("desktop");
 defineLivechatModels();
@@ -25,7 +30,10 @@ test("persisted session", async () => {
     });
     setupChatHub({ opened: [channelId] });
     await start({
-        authenticateAs: { ...pyEnv["mail.guest"].read(guestId)[0], _name: "mail.guest" },
+        authenticateAs: {
+            ...pyEnv["mail.guest"].read(guestId)[0],
+            _name: "mail.guest",
+        },
     });
     await contains(".o-mail-ChatWindow");
 });

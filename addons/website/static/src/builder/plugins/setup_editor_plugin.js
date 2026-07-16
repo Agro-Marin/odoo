@@ -10,4 +10,6 @@ export class WebsiteSetupEditorPlugin extends Plugin {
     };
 }
 
-registry.category("website-plugins").add(WebsiteSetupEditorPlugin.id, WebsiteSetupEditorPlugin);
+registry
+    .category("website-plugins")
+    .add(WebsiteSetupEditorPlugin.id, WebsiteSetupEditorPlugin);

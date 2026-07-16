@@ -1,4 +1,3 @@
-import { Command, serverState } from "@web/../tests/web_test_helpers";
 import { defineLivechatModels } from "@im_livechat/../tests/livechat_test_helpers";
 import {
     click,
@@ -9,10 +8,12 @@ import {
     startServer,
     triggerHotkey,
 } from "@mail/../tests/mail_test_helpers";
-import { describe, test } from "@odoo/hoot";
 import { withGuest } from "@mail/../tests/mock_server/mail_mock_server";
-import { rpc } from "@web/core/network/rpc";
+import { describe, test } from "@odoo/hoot";
+import { Command, serverState } from "@web/../tests/web_test_helpers";
 import { serializeDate, today } from "@web/core/l10n/dates";
+import { rpc } from "@web/core/network/rpc";
+
 import { livechatLastAgentLeaveFromChatWindow } from "./im_livechat_shared_tests.js";
 
 describe.current.tags("desktop");
@@ -41,7 +42,10 @@ test("from the discuss app", async () => {
                     partner_id: serverState.partnerId,
                     livechat_member_type: "agent",
                 }),
-                Command.create({ guest_id: guestId_1, livechat_member_type: "visitor" }),
+                Command.create({
+                    guest_id: guestId_1,
+                    livechat_member_type: "visitor",
+                }),
             ],
             livechat_end_dt: false,
             livechat_channel_id: livechatChannelId,
@@ -55,7 +59,10 @@ test("from the discuss app", async () => {
                     partner_id: serverState.partnerId,
                     livechat_member_type: "agent",
                 }),
-                Command.create({ guest_id: guestId_2, livechat_member_type: "visitor" }),
+                Command.create({
+                    guest_id: guestId_2,
+                    livechat_member_type: "visitor",
+                }),
             ],
             livechat_end_dt: serializeDate(today()),
             livechat_channel_id: livechatChannelId,
@@ -66,20 +73,20 @@ test("from the discuss app", async () => {
     await start();
     await openDiscuss();
     await contains(
-        ".o-mail-DiscussSidebarCategory-livechat:has(:text('HR')) .fa-circle[title='You have joined this live chat channel']"
+        ".o-mail-DiscussSidebarCategory-livechat:has(:text('HR')) .fa-circle[title='You have joined this live chat channel']",
     );
     await click("[title='Leave HR']", {
         parent: [".o-mail-DiscussSidebarCategory-livechat", { text: "HR" }],
     });
     await contains(
         ".o-mail-DiscussSidebarCategory-livechat:has(:text('HR')) .fa-circle[title='You have joined this live chat channel']",
-        { count: 0 }
+        { count: 0 },
     );
     await click("[title='Join HR']", {
         parent: [".o-mail-DiscussSidebarCategory-livechat", { text: "HR" }],
     });
     await contains(
-        ".o-mail-DiscussSidebarCategory-livechat:has(:text('HR')) .fa-circle[title='You have joined this live chat channel']"
+        ".o-mail-DiscussSidebarCategory-livechat:has(:text('HR')) .fa-circle[title='You have joined this live chat channel']",
     );
     await click("[title='Chat Actions']", {
         parent: [".o-mail-DiscussSidebarChannel", { text: "guest_1" }],
@@ -133,7 +140,10 @@ test("visitor leaving ends the livechat conversation", async () => {
     const channel_id = pyEnv["discuss.channel"].create({
         channel_type: "livechat",
         channel_member_ids: [
-            Command.create({ partner_id: serverState.partnerId, livechat_member_type: "agent" }),
+            Command.create({
+                partner_id: serverState.partnerId,
+                livechat_member_type: "agent",
+            }),
             Command.create({ guest_id: guestId, livechat_member_type: "visitor" }),
         ],
         livechat_channel_id: livechatChannelId,
@@ -144,7 +154,9 @@ test("visitor leaving ends the livechat conversation", async () => {
     await start();
     await contains(".o-mail-ChatWindow");
     // simulate visitor leaving
-    await withGuest(guestId, () => rpc("/im_livechat/visitor_leave_session", { channel_id }));
+    await withGuest(guestId, () =>
+        rpc("/im_livechat/visitor_leave_session", { channel_id }),
+    );
     await contains("span", { text: "This livechat conversation has ended" });
     await click("button[title*='Close Chat Window']");
     await contains(".o-mail-ChatWindow", { count: 0 });

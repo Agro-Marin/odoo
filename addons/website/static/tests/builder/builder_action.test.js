@@ -1,4 +1,13 @@
-import { xml } from "@odoo/owl";
+import {
+    addBuilderAction,
+    addBuilderOption,
+    waitForEndOfOperation,
+} from "@html_builder/../tests/helpers";
+import { BuilderAction } from "@html_builder/core/builder_action";
+import { BaseOptionComponent } from "@html_builder/core/utils";
+import { setSelection } from "@html_editor/../tests/_helpers/selection";
+import { expandToolbar } from "@html_editor/../tests/_helpers/toolbar";
+import { Plugin } from "@html_editor/plugin";
 import { beforeEach, describe, expect, test } from "@odoo/hoot";
 import {
     advanceTime,
@@ -9,16 +18,7 @@ import {
     queryOne,
     waitFor,
 } from "@odoo/hoot-dom";
-import { Plugin } from "@html_editor/plugin";
-import { setSelection } from "@html_editor/../tests/_helpers/selection";
-import { expandToolbar } from "@html_editor/../tests/_helpers/toolbar";
-import {
-    addBuilderAction,
-    addBuilderOption,
-    waitForEndOfOperation,
-} from "@html_builder/../tests/helpers";
-import { BuilderAction } from "@html_builder/core/builder_action";
-import { BaseOptionComponent } from "@html_builder/core/utils";
+import { xml } from "@odoo/owl";
 import {
     contains,
     defineModels,
@@ -27,8 +27,13 @@ import {
     onRpc,
     patchWithCleanup,
 } from "@web/../tests/web_test_helpers";
-import { addPlugin, defineWebsiteModels, setupWebsiteBuilder } from "./website_helpers.js";
 import { WebsiteBuilderClientAction } from "@website/client_actions/website_preview/website_builder_action";
+
+import {
+    addPlugin,
+    defineWebsiteModels,
+    setupWebsiteBuilder,
+} from "./website_helpers.js";
 
 beforeEach(defineWebsiteModels);
 
@@ -95,7 +100,9 @@ test("getRecordInfo retrieves the info from the #wrap element", async () => {
     await expandToolbar();
     await click(".o-we-toolbar .btn[name=test_btn]");
 
-    expect.verifySteps(['getRecordInfo {"resModel":"ir.ui.view","resId":"539","field":"arch"}']);
+    expect.verifySteps([
+        'getRecordInfo {"resModel":"ir.ui.view","resId":"539","field":"arch"}',
+    ]);
 });
 
 test("elements within iframe can't be clicked while the builder is being set up", async () => {
@@ -108,7 +115,7 @@ test("elements within iframe can't be clicked while the builder is being set up"
     });
     await setupWebsiteBuilder(
         `<section class="test-section"><button onclick="window.step()">Click me</button></section>`,
-        { openEditor: false }
+        { openEditor: false },
     );
     const iframeEl = queryOne("iframe");
     iframeEl.contentWindow.step = () => expect.step("button clicked");
@@ -118,7 +125,7 @@ test("elements within iframe can't be clicked while the builder is being set up"
     await click(".o-website-btn-custo-primary");
     // The button should not be clickable.
     await expect(click(":iframe .test-section button")).rejects.toThrow(
-        `found 0 elements instead of 1: 1 matching ":iframe .test-section button" (1 iframe element), including 0 interactive elements`
+        `found 0 elements instead of 1: 1 matching ":iframe .test-section button" (1 iframe element), including 0 interactive elements`,
     );
     expect.verifySteps([]);
     def.resolve();
@@ -164,7 +171,7 @@ describe("BuilderMany2One: exit editor when previewing", () => {
             class extends BaseOptionComponent {
                 static selector = ".test-options-target";
                 static template = xml`<BuilderMany2One action="'testAction'" model="'test'" limit="10" preview="true"/>`;
-            }
+            },
         );
 
         await setupWebsiteBuilder(`<div class="test-options-target">Homepage</div>`);
@@ -189,7 +196,8 @@ describe("BuilderMany2One: exit editor when previewing", () => {
         await press(["alt", "j"]);
         await waitForEndOfOperation();
         expect(".o_dialog").toHaveCount(0, {
-            message: "There should be no confirmation dialog since we didn't modify anything",
+            message:
+                "There should be no confirmation dialog since we didn't modify anything",
         });
         expect(":iframe .test-options-target").toHaveText("Homepage", {
             message: "The preview should have been reverted",

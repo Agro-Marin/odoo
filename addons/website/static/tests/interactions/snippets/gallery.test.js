@@ -1,8 +1,10 @@
-import { startInteractions, setupInteractionWhiteList } from "@web/../tests/public/helpers";
-
 import { describe, expect, test } from "@odoo/hoot";
 import { animationFrame, click, press, queryAll } from "@odoo/hoot-dom";
 import { advanceTime } from "@odoo/hoot-mock";
+import {
+    setupInteractionWhiteList,
+    startInteractions,
+} from "@web/../tests/public/helpers";
 
 setupInteractionWhiteList("website.gallery");
 
@@ -56,7 +58,10 @@ async function checkLightbox({ next, previous, close }) {
         await advanceTime(1000);
         const lightboxActiveImgEl = lightboxEl.querySelector(".active img");
         expect(lightboxActiveImgEl).not.toBe(null);
-        expect(imgEls[expectedIndex]).toHaveAttribute("src", lightboxActiveImgEl.dataset.src);
+        expect(imgEls[expectedIndex]).toHaveAttribute(
+            "src",
+            lightboxActiveImgEl.dataset.src,
+        );
     }
 
     await checkActiveImage(3);
@@ -86,8 +91,10 @@ test("gallery interaction opens lightbox on click, then use keyboard", async () 
 
 test("gallery interaction opens lightbox on click, then use mouse", async () => {
     await checkLightbox({
-        close: async (lightboxEl) => await click(lightboxEl.querySelector(".btn-close")),
-        next: async (lightboxEl) => await click(lightboxEl.querySelector(".carousel-control-next")),
+        close: async (lightboxEl) =>
+            await click(lightboxEl.querySelector(".btn-close")),
+        next: async (lightboxEl) =>
+            await click(lightboxEl.querySelector(".carousel-control-next")),
         previous: async (lightboxEl) =>
             await click(lightboxEl.querySelector(".carousel-control-prev")),
     });

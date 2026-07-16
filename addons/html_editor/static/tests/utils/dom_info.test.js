@@ -1,3 +1,4 @@
+import { isBlock } from "@html_editor/utils/blocks";
 import {
     areSimilarElements,
     getDeepestEditablePosition,
@@ -10,8 +11,8 @@ import {
     previousLeaf,
 } from "@html_editor/utils/dom_info";
 import { describe, expect, test } from "@odoo/hoot";
+
 import { insertTestHtml } from "../_helpers/editor.js";
-import { isBlock } from "@html_editor/utils/blocks";
 import { unformat } from "../_helpers/format.js";
 
 const base64Img =
@@ -20,7 +21,7 @@ const base64Img =
 describe("previousLeaf", () => {
     test("should find the previous leaf of a deeply nested node", () => {
         const [div] = insertTestHtml(
-            "<div><div><p><b>ab<i>cd<u>ef</u>gh</i></b><span>ij</span>kl</p></div></div>"
+            "<div><div><p><b>ab<i>cd<u>ef</u>gh</i></b><span>ij</span>kl</p></div></div>",
         );
         const editable = div.parentElement;
         const p = div.firstChild.firstChild;
@@ -32,7 +33,7 @@ describe("previousLeaf", () => {
 
     test("should find no previous leaf and return undefined", () => {
         const [div] = insertTestHtml(
-            "<div><div><p><b>ab<i>cd<u>ef</u>gh</i></b><span>ij</span>kl</p></div></div>"
+            "<div><div><p><b>ab<i>cd<u>ef</u>gh</i></b><span>ij</span>kl</p></div></div>",
         );
         const editable = div.parentElement;
         const p = div.firstChild.firstChild;
@@ -52,7 +53,7 @@ describe("previousLeaf", () => {
                         <span>ij</span>kl
                     </p>
                 </div>
-            </div>`
+            </div>`,
         );
         const editable = div.parentElement;
         const p1 = div.childNodes[1].childNodes[1];
@@ -74,7 +75,7 @@ describe("previousLeaf", () => {
                         <span>ij</span>kl
                     </p>
                 </div>
-            </div>`
+            </div>`,
         );
         const editable = div.parentElement;
         const p1 = div.childNodes[1].childNodes[1];
@@ -94,7 +95,7 @@ describe("previousLeaf", () => {
                         <span>ij</span>kl
                     </p>
                 </div>
-            </div>`
+            </div>`,
         );
         const editable = div.parentElement;
         const p2 = div.childNodes[1].childNodes[3];
@@ -113,7 +114,7 @@ describe("nextLeaf", () => {
     // TODO @phoenix: add nextLeaf test cases when we add it in the code base
     test("should find the next leaf of a deeply nested node", () => {
         const [div] = insertTestHtml(
-            "<div><div><p><b>ab<i>cd<u>ef</u>gh</i></b><span>ij</span>kl</p></div></div>"
+            "<div><div><p><b>ab<i>cd<u>ef</u>gh</i></b><span>ij</span>kl</p></div></div>",
         );
         const editable = div.parentElement;
         const p = div.firstChild.firstChild;
@@ -125,7 +126,7 @@ describe("nextLeaf", () => {
 
     test("should find no next leaf and return undefined", () => {
         const [div] = insertTestHtml(
-            "<div><div><p><b>ab<i>cd<u>ef</u>gh</i></b><span>ij</span>kl</p></div></div>"
+            "<div><div><p><b>ab<i>cd<u>ef</u>gh</i></b><span>ij</span>kl</p></div></div>",
         );
         const editable = div.parentElement;
         const p = div.firstChild.firstChild;
@@ -145,7 +146,7 @@ describe("nextLeaf", () => {
                         <span>ij</span>kl
                     </p>
                 </div>
-            </div>`
+            </div>`,
         );
         const editable = div.parentElement;
         const p1 = div.childNodes[1].childNodes[1];
@@ -167,7 +168,7 @@ describe("nextLeaf", () => {
                         <span>ij</span>kl
                     </p>
                 </div>
-            </div>`
+            </div>`,
         );
         const editable = div.parentElement;
         const p2 = div.childNodes[1].childNodes[3];
@@ -187,7 +188,7 @@ describe("nextLeaf", () => {
                         <span>ij</span>kl
                     </p>
                 </div>
-            </div>`
+            </div>`,
         );
         const editable = div.parentElement;
         const p2 = div.childNodes[1].childNodes[3];
@@ -304,7 +305,7 @@ describe("isVisible", () => {
                             <tr><td><p><font>\u200b</font></p></td><td><p><font>\u200b</font></p></td></tr>
                         </tbody>
                     </table>
-                `)
+                `),
             );
             const result = isVisible(table);
             expect(result).toBe(true);
@@ -367,7 +368,7 @@ describe("getDeepestPosition", () => {
         const [p] = insertTestHtml(
             `<p>
                 <i>a</i>
-            </p>`
+            </p>`,
         );
         const editable = p.parentElement;
         const a = editable.firstChild.childNodes[1].firstChild;
@@ -387,7 +388,9 @@ describe("getDeepestPosition", () => {
 
 describe("getDeepestEditablePosition", () => {
     test("should get deepest editable position on the paragraph itself", () => {
-        const [p] = insertTestHtml(`<p><span contenteditable="false"><span>test</span></span></p>`);
+        const [p] = insertTestHtml(
+            `<p><span contenteditable="false"><span>test</span></span></p>`,
+        );
 
         expect(getDeepestEditablePosition(p, 0)).toEqual([p, 0]);
         expect(getDeepestEditablePosition(p, 1)).toEqual([p, 1]);
@@ -395,7 +398,7 @@ describe("getDeepestEditablePosition", () => {
 
     test("should get deepest editable position before or after a non-editable sibling", () => {
         const [p] = insertTestHtml(
-            `<p>abc<span contenteditable="false"><span>test</span></span>def</p>`
+            `<p>abc<span contenteditable="false"><span>test</span></span>def</p>`,
         );
 
         const abc = p.firstChild;
@@ -415,7 +418,7 @@ describe("getDeepestEditablePosition", () => {
                     <span contenteditable="false"><span>test</span></span>
                     <u><em>def</em></u>
                 </p>
-            `)
+            `),
         );
 
         const abc = p.querySelector("strong i").firstChild;
@@ -436,7 +439,7 @@ describe("getDeepestEditablePosition", () => {
                     </strong>
                     <span contenteditable="false">B</span>
                 </p>
-            `)
+            `),
         );
 
         const strong = p.firstChild;
@@ -450,7 +453,7 @@ describe("getDeepestEditablePosition", () => {
                     abc
                     <span contenteditable="false">B</span>
                 </p>
-            `)
+            `),
         );
 
         const abc = p.firstChild;
@@ -464,7 +467,7 @@ describe("getDeepestEditablePosition", () => {
                     <span contenteditable="false"><strong><u contenteditable="true">test</u></strong></span>
                     <span contenteditable="false">test</span>
                 </p>
-            `)
+            `),
         );
 
         const test = p.querySelector("u").firstChild;
@@ -480,7 +483,7 @@ describe("getDeepestEditablePosition", () => {
                     <span contenteditable="false">test</span>
                     <span contenteditable="false">test</span>
                 </p>
-            `)
+            `),
         );
 
         expect(getDeepestEditablePosition(p, 0)).toEqual([p, 0]);
@@ -495,7 +498,7 @@ describe("getDeepestEditablePosition", () => {
                     <span contenteditable="false"><strong>test</strong></span>
                     <span contenteditable="false">test</span>
                 </p>
-            `)
+            `),
         );
 
         expect(getDeepestEditablePosition(p, 0)).toEqual([p, 0]);
@@ -510,7 +513,7 @@ describe("getDeepestEditablePosition", () => {
                     <span contenteditable="false"></span>
                     <span contenteditable="false">test</span>
                 </p>
-            `)
+            `),
         );
 
         expect(getDeepestEditablePosition(p, 1)).toEqual([p, 1]);
@@ -524,7 +527,7 @@ describe("getDeepestEditablePosition", () => {
                         <span contenteditable="false">test</span>
                     </i>
                 </p>
-            `)
+            `),
         );
 
         const italic = p.firstChild;
@@ -542,7 +545,7 @@ describe("getDeepestEditablePosition", () => {
                         </u>
                     </i>
                 </p>
-            `)
+            `),
         );
 
         const underline = p.querySelector("u");
@@ -606,7 +609,7 @@ describe("isEmptyBlock", () => {
 
     test("should return false for a p containing media element", () => {
         const [p] = insertTestHtml(
-            '<p><span class="o_file_box" contenteditable="false"><a href="#" title="document" data-mimetype="application/pdf"></a></span></p>'
+            '<p><span class="o_file_box" contenteditable="false"><a href="#" title="document" data-mimetype="application/pdf"></a></span></p>',
         );
         const result = isEmptyBlock(p);
         expect(result).toBe(false);
@@ -635,35 +638,35 @@ describe("isShrunkBlock", () => {
 describe("areSimilarElements", () => {
     test("should consider elements with same classes and styles in different orders as similar", () => {
         const [span1, span2] = insertTestHtml(
-            "<span class='first second' style='color: red; color2: blue'>hello</span><span class='second first' style='color2: blue; color: red'>world</span>"
+            "<span class='first second' style='color: red; color2: blue'>hello</span><span class='second first' style='color2: blue; color: red'>world</span>",
         );
         const result = areSimilarElements(span1, span2);
         expect(result).toBe(true);
     });
     test("return false when the number of styles are different", () => {
         const [span1, span2] = insertTestHtml(
-            "<span class='first second' style='color: red; color2: blue'>hello</span><span class='second first' style='color2: blue;'>world</span>"
+            "<span class='first second' style='color: red; color2: blue'>hello</span><span class='second first' style='color2: blue;'>world</span>",
         );
         const result = areSimilarElements(span1, span2);
         expect(result).toBe(false);
     });
     test("return false when the number of classes are different", () => {
         const [span1, span2] = insertTestHtml(
-            "<span class='first' style='color: red; color2: blue'>hello</span><span class='second first' style='color2: blue;'>world</span>"
+            "<span class='first' style='color: red; color2: blue'>hello</span><span class='second first' style='color2: blue;'>world</span>",
         );
         const result = areSimilarElements(span1, span2);
         expect(result).toBe(false);
     });
     test("return false when classes are different", () => {
         const [span1, span2] = insertTestHtml(
-            "<span class='first' style='color: red; color2: blue'>hello</span><span class='second' style='color2: blue;'>world</span>"
+            "<span class='first' style='color: red; color2: blue'>hello</span><span class='second' style='color2: blue;'>world</span>",
         );
         const result = areSimilarElements(span1, span2);
         expect(result).toBe(false);
     });
     test("return false when styles are different", () => {
         const [span1, span2] = insertTestHtml(
-            "<span class='first second' style='color2: blue'>hello</span><span class='second first' style='color2: blue; color: red'>world</span>"
+            "<span class='first second' style='color2: blue'>hello</span><span class='second first' style='color2: blue; color: red'>world</span>",
         );
         const result = areSimilarElements(span1, span2);
         expect(result).toBe(false);

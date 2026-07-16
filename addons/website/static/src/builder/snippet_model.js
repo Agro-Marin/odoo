@@ -1,9 +1,9 @@
 /** @odoo-module native */
 import { SnippetModel } from "@html_builder/snippets/snippet_service";
-import { applyTextHighlight } from "@website/js/highlight_utils";
+import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
 import { patch } from "@web/core/utils/patch";
-import { _t } from "@web/core/l10n/translation";
+import { applyTextHighlight } from "@website/js/highlight_utils";
 
 patch(SnippetModel.prototype, {
     /**
@@ -29,7 +29,7 @@ patch(SnippetModel.prototype, {
             // snippet.
             if (isCustom) {
                 const originalSnippetLabel = this.getOriginalSnippet(
-                    contentEl.dataset.snippet
+                    contentEl.dataset.snippet,
                 )?.label;
                 if (originalSnippetLabel && originalSnippetLabel !== parallaxLabel) {
                     label = originalSnippetLabel;
@@ -41,7 +41,8 @@ patch(SnippetModel.prototype, {
             // that if a label is already set, we do not change it.
             if (
                 !label &&
-                (contentEl.matches(".parallax") || !!contentEl.querySelector(".parallax"))
+                (contentEl.matches(".parallax") ||
+                    !!contentEl.querySelector(".parallax"))
             ) {
                 label = parallaxLabel;
             }

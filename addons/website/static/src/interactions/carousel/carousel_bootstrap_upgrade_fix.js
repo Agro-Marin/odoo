@@ -1,7 +1,7 @@
 /** @odoo-module native */
-import { Interaction } from "@web/public/interaction";
-import { Carousel } from "@web/libs/bootstrap";
 import { registry } from "@web/core/registry";
+import { Carousel } from "@web/libs/bootstrap";
+import { Interaction } from "@web/public/interaction";
 
 /**
  * This class is used to fix carousel auto-slide behavior in Odoo 17.4 and up.
@@ -36,7 +36,9 @@ export class CarouselBootstrapUpgradeFix extends Interaction {
 
     setup() {
         this.sliding = false;
-        this.hasInterval = ![undefined, "false", "0"].includes(this.el.dataset.bsInterval);
+        this.hasInterval = ![undefined, "false", "0"].includes(
+            this.el.dataset.bsInterval,
+        );
     }
 
     async willStart() {
@@ -44,7 +46,9 @@ export class CarouselBootstrapUpgradeFix extends Interaction {
             // Wait for carousel to finish sliding.
             if (this.el.classList.contains("o_carousel_sliding")) {
                 await new Promise((resolve) => {
-                    this.addListener(this.el, "slid.bs.carousel", () => resolve(), { once: true });
+                    this.addListener(this.el, "slid.bs.carousel", () => resolve(), {
+                        once: true,
+                    });
                 });
             }
             Carousel.getInstance(this.el)?.dispose();
@@ -54,7 +58,10 @@ export class CarouselBootstrapUpgradeFix extends Interaction {
     start() {
         if (this.hasInterval || this.el.dataset.bsRide) {
             // Respawn carousel.
-            const carousel = Carousel.getOrCreateInstance(this.el, this.carouselOptions);
+            const carousel = Carousel.getOrCreateInstance(
+                this.el,
+                this.carouselOptions,
+            );
             this.registerCleanup(() => carousel.dispose());
         }
     }

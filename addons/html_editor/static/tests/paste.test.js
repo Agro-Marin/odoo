@@ -1,28 +1,51 @@
 import { CLIPBOARD_WHITELISTS } from "@html_editor/core/clipboard_plugin";
-import { beforeEach, describe, expect, test } from "@odoo/hoot";
-import { manuallyDispatchProgrammaticEvent as dispatch, press, waitFor } from "@odoo/hoot-dom";
-import { animationFrame, tick } from "@odoo/hoot-mock";
-import { dataURItoBlob, onRpc, patchWithCleanup } from "@web/../tests/web_test_helpers";
-import { setupEditor, testEditor } from "./_helpers/editor.js";
-import { cleanLinkArtifacts, unformat } from "./_helpers/format.js";
-import { getContent, setSelection } from "./_helpers/selection.js";
-import { pasteHtml, pasteOdooEditorHtml, pasteText, undo } from "./_helpers/user_actions.js";
-import { createBaseContainer } from "@html_editor/utils/base_container";
-import { expectElementCount } from "./_helpers/ui_expectations.js";
+import { MAIN_EMBEDDINGS } from "@html_editor/others/embedded_components/embedding_sets";
 import {
     EMBEDDED_COMPONENT_PLUGINS,
     MAIN_PLUGINS,
     NO_EMBEDDED_COMPONENTS_FALLBACK_PLUGINS,
 } from "@html_editor/plugin_sets";
-import { MAIN_EMBEDDINGS } from "@html_editor/others/embedded_components/embedding_sets";
+import { createBaseContainer } from "@html_editor/utils/base_container";
 import { nodeSize } from "@html_editor/utils/position";
+import { beforeEach, describe, expect, test } from "@odoo/hoot";
+import {
+    manuallyDispatchProgrammaticEvent as dispatch,
+    press,
+    waitFor,
+} from "@odoo/hoot-dom";
+import { animationFrame, tick } from "@odoo/hoot-mock";
+import { dataURItoBlob, onRpc, patchWithCleanup } from "@web/../tests/web_test_helpers";
+
+import { setupEditor, testEditor } from "./_helpers/editor.js";
+import { cleanLinkArtifacts, unformat } from "./_helpers/format.js";
+import { getContent, setSelection } from "./_helpers/selection.js";
+import { expectElementCount } from "./_helpers/ui_expectations.js";
+import {
+    pasteHtml,
+    pasteOdooEditorHtml,
+    pasteText,
+    undo,
+} from "./_helpers/user_actions.js";
 
 function isInline(node) {
-    return ["I", "B", "U", "S", "EM", "STRONG", "IMG", "BR", "A", "FONT"].includes(node);
+    return ["I", "B", "U", "S", "EM", "STRONG", "IMG", "BR", "A", "FONT"].includes(
+        node,
+    );
 }
 
 function toIgnore(node) {
-    return ["TABLE", "THEAD", "TH", "TBODY", "TR", "TD", "IMG", "BR", "LI", ".FA"].includes(node);
+    return [
+        "TABLE",
+        "THEAD",
+        "TH",
+        "TBODY",
+        "TR",
+        "TD",
+        "IMG",
+        "BR",
+        "LI",
+        ".FA",
+    ].includes(node);
 }
 
 describe("Html Paste cleaning - whitelist", () => {
@@ -71,7 +94,7 @@ describe("Html Paste cleaning - whitelist", () => {
             stepFunction: async (editor) => {
                 pasteHtml(
                     editor,
-                    "a<table><thead><tr><th>h</th></tr></thead><tbody><tr><td>b</td></tr></tbody></table>d"
+                    "a<table><thead><tr><th>h</th></tr></thead><tbody><tr><td>b</td></tr></tbody></table>d",
                 );
             },
             contentAfter:
@@ -95,7 +118,7 @@ describe("Html Paste cleaning - whitelist", () => {
                                 </tr>
                             </tbody>
                         </table>
-                    `)
+                    `),
                 );
             },
             contentAfter: unformat(`
@@ -154,7 +177,10 @@ describe("Html Paste cleaning - whitelist", () => {
         await testEditor({
             contentBefore: "<p>123[]</p>",
             stepFunction: async (editor) => {
-                pasteHtml(editor, 'a<span style="text-decoration: underline">bc</span>d');
+                pasteHtml(
+                    editor,
+                    'a<span style="text-decoration: underline">bc</span>d',
+                );
             },
             contentAfter: "<p>123abcd[]</p>",
         });
@@ -166,7 +192,7 @@ describe("Html Paste cleaning - whitelist", () => {
             stepFunction: async (editor) => {
                 pasteHtml(
                     editor,
-                    `<meta charset="utf-8"><b style="font-weight:normal;" id="docs-internal-guid-ddad60c5-7fff-0a8f-fdd5-c1107201fe26"><p dir="ltr" style="line-height:1.38;margin-top:0pt;margin-bottom:0pt;"><span style="font-size:11pt;font-family:Arial,sans-serif;color:#000000;background-color:transparent;font-weight:400;font-style:normal;font-variant:normal;text-decoration:none;vertical-align:baseline;white-space:pre;white-space:pre-wrap;">test1</span></p><p dir="ltr" style="line-height:1.38;margin-top:0pt;margin-bottom:0pt;"><span style="font-size:11pt;font-family:Arial,sans-serif;color:#000000;background-color:transparent;font-weight:400;font-style:normal;font-variant:normal;text-decoration:none;vertical-align:baseline;white-space:pre;white-space:pre-wrap;">test2</span></p></b>`
+                    `<meta charset="utf-8"><b style="font-weight:normal;" id="docs-internal-guid-ddad60c5-7fff-0a8f-fdd5-c1107201fe26"><p dir="ltr" style="line-height:1.38;margin-top:0pt;margin-bottom:0pt;"><span style="font-size:11pt;font-family:Arial,sans-serif;color:#000000;background-color:transparent;font-weight:400;font-style:normal;font-variant:normal;text-decoration:none;vertical-align:baseline;white-space:pre;white-space:pre-wrap;">test1</span></p><p dir="ltr" style="line-height:1.38;margin-top:0pt;margin-bottom:0pt;"><span style="font-size:11pt;font-family:Arial,sans-serif;color:#000000;background-color:transparent;font-weight:400;font-style:normal;font-variant:normal;text-decoration:none;vertical-align:baseline;white-space:pre;white-space:pre-wrap;">test2</span></p></b>`,
                 );
             },
             contentAfter: "<p>test1</p><p>test2[]</p>",
@@ -180,7 +206,7 @@ describe("Html Paste cleaning - whitelist", () => {
             stepFunction: async (editor) => {
                 pasteHtml(
                     editor,
-                    '<meta charset="utf-8"><b style="font-weight:normal;" id="docs-internal-guid-5d8bcf85-7fff-ebec-8604-eedd96f2d601"><ul style="margin-top:0;margin-bottom:0;padding-inline-start:48px;"><li dir="ltr" style="list-style-type:disc;font-size:11pt;font-family:Arial,sans-serif;color:#000000;background-color:transparent;font-weight:400;font-style:normal;font-variant:normal;text-decoration:none;vertical-align:baseline;white-space:pre;" aria-level="1"><p dir="ltr" style="line-height:1.38;margin-top:0pt;margin-bottom:0pt;" role="presentation"><span style="font-size:11pt;font-family:Arial,sans-serif;color:#000000;background-color:transparent;font-weight:400;font-style:normal;font-variant:normal;text-decoration:none;vertical-align:baseline;white-space:pre;white-space:pre-wrap;">Google</span></p></li><li dir="ltr" style="list-style-type:disc;font-size:11pt;font-family:Arial,sans-serif;color:#000000;background-color:transparent;font-weight:400;font-style:normal;font-variant:normal;text-decoration:none;vertical-align:baseline;white-space:pre;" aria-level="1"><p dir="ltr" style="line-height:1.38;margin-top:0pt;margin-bottom:0pt;" role="presentation"><span style="font-size:11pt;font-family:Arial,sans-serif;color:#000000;background-color:transparent;font-weight:400;font-style:normal;font-variant:normal;text-decoration:none;vertical-align:baseline;white-space:pre;white-space:pre-wrap;">Test</span></p></li><li dir="ltr" style="list-style-type:disc;font-size:11pt;font-family:Arial,sans-serif;color:#000000;background-color:transparent;font-weight:400;font-style:normal;font-variant:normal;text-decoration:none;vertical-align:baseline;white-space:pre;" aria-level="1"><p dir="ltr" style="line-height:1.38;margin-top:0pt;margin-bottom:0pt;" role="presentation"><span style="font-size:11pt;font-family:Arial,sans-serif;color:#000000;background-color:transparent;font-weight:400;font-style:normal;font-variant:normal;text-decoration:none;vertical-align:baseline;white-space:pre;white-space:pre-wrap;">test2</span></p></li></ul></b>'
+                    '<meta charset="utf-8"><b style="font-weight:normal;" id="docs-internal-guid-5d8bcf85-7fff-ebec-8604-eedd96f2d601"><ul style="margin-top:0;margin-bottom:0;padding-inline-start:48px;"><li dir="ltr" style="list-style-type:disc;font-size:11pt;font-family:Arial,sans-serif;color:#000000;background-color:transparent;font-weight:400;font-style:normal;font-variant:normal;text-decoration:none;vertical-align:baseline;white-space:pre;" aria-level="1"><p dir="ltr" style="line-height:1.38;margin-top:0pt;margin-bottom:0pt;" role="presentation"><span style="font-size:11pt;font-family:Arial,sans-serif;color:#000000;background-color:transparent;font-weight:400;font-style:normal;font-variant:normal;text-decoration:none;vertical-align:baseline;white-space:pre;white-space:pre-wrap;">Google</span></p></li><li dir="ltr" style="list-style-type:disc;font-size:11pt;font-family:Arial,sans-serif;color:#000000;background-color:transparent;font-weight:400;font-style:normal;font-variant:normal;text-decoration:none;vertical-align:baseline;white-space:pre;" aria-level="1"><p dir="ltr" style="line-height:1.38;margin-top:0pt;margin-bottom:0pt;" role="presentation"><span style="font-size:11pt;font-family:Arial,sans-serif;color:#000000;background-color:transparent;font-weight:400;font-style:normal;font-variant:normal;text-decoration:none;vertical-align:baseline;white-space:pre;white-space:pre-wrap;">Test</span></p></li><li dir="ltr" style="list-style-type:disc;font-size:11pt;font-family:Arial,sans-serif;color:#000000;background-color:transparent;font-weight:400;font-style:normal;font-variant:normal;text-decoration:none;vertical-align:baseline;white-space:pre;" aria-level="1"><p dir="ltr" style="line-height:1.38;margin-top:0pt;margin-bottom:0pt;" role="presentation"><span style="font-size:11pt;font-family:Arial,sans-serif;color:#000000;background-color:transparent;font-weight:400;font-style:normal;font-variant:normal;text-decoration:none;vertical-align:baseline;white-space:pre;white-space:pre-wrap;">test2</span></p></li></ul></b>',
                 );
             },
             contentAfter:
@@ -195,7 +221,7 @@ describe("Html Paste cleaning - whitelist", () => {
             stepFunction: async (editor) => {
                 pasteHtml(
                     editor,
-                    '<meta charset="utf-8"><b style="font-weight:normal;" id="docs-internal-guid-477946a8-7fff-f959-18a4-05014997e161"><ul style="margin-top:0;margin-bottom:0;padding-inline-start:48px;"><li dir="ltr" style="list-style-type:disc;font-size:20pt;font-family:Arial,sans-serif;color:#000000;background-color:transparent;font-weight:400;font-style:normal;font-variant:normal;text-decoration:none;vertical-align:baseline;white-space:pre;" aria-level="1"><h1 dir="ltr" style="line-height:1.38;margin-top:20pt;margin-bottom:0pt;" role="presentation"><span style="font-size:20pt;font-family:Arial,sans-serif;color:#000000;background-color:transparent;font-weight:400;font-style:normal;font-variant:normal;text-decoration:none;vertical-align:baseline;white-space:pre;white-space:pre-wrap;">Google</span></h1></li><li dir="ltr" style="list-style-type:disc;font-size:20pt;font-family:Arial,sans-serif;color:#000000;background-color:transparent;font-weight:400;font-style:normal;font-variant:normal;text-decoration:none;vertical-align:baseline;white-space:pre;" aria-level="1"><h1 dir="ltr" style="line-height:1.38;margin-top:0pt;margin-bottom:6pt;" role="presentation"><span style="font-size:20pt;font-family:Arial,sans-serif;color:#000000;background-color:transparent;font-weight:400;font-style:normal;font-variant:normal;text-decoration:none;vertical-align:baseline;white-space:pre;white-space:pre-wrap;">Test</span></h1></li><li dir="ltr" style="list-style-type:disc;font-size:20pt;font-family:Arial,sans-serif;color:#000000;background-color:transparent;font-weight:400;font-style:normal;font-variant:normal;text-decoration:none;vertical-align:baseline;white-space:pre;" aria-level="1"><h1 dir="ltr" style="line-height:1.38;margin-top:20pt;margin-bottom:0pt;" role="presentation"><span style="font-size:20pt;font-family:Arial,sans-serif;color:#000000;background-color:transparent;font-weight:400;font-style:normal;font-variant:normal;text-decoration:none;vertical-align:baseline;white-space:pre;white-space:pre-wrap;">test2</span></h1></li></ul></b>'
+                    '<meta charset="utf-8"><b style="font-weight:normal;" id="docs-internal-guid-477946a8-7fff-f959-18a4-05014997e161"><ul style="margin-top:0;margin-bottom:0;padding-inline-start:48px;"><li dir="ltr" style="list-style-type:disc;font-size:20pt;font-family:Arial,sans-serif;color:#000000;background-color:transparent;font-weight:400;font-style:normal;font-variant:normal;text-decoration:none;vertical-align:baseline;white-space:pre;" aria-level="1"><h1 dir="ltr" style="line-height:1.38;margin-top:20pt;margin-bottom:0pt;" role="presentation"><span style="font-size:20pt;font-family:Arial,sans-serif;color:#000000;background-color:transparent;font-weight:400;font-style:normal;font-variant:normal;text-decoration:none;vertical-align:baseline;white-space:pre;white-space:pre-wrap;">Google</span></h1></li><li dir="ltr" style="list-style-type:disc;font-size:20pt;font-family:Arial,sans-serif;color:#000000;background-color:transparent;font-weight:400;font-style:normal;font-variant:normal;text-decoration:none;vertical-align:baseline;white-space:pre;" aria-level="1"><h1 dir="ltr" style="line-height:1.38;margin-top:0pt;margin-bottom:6pt;" role="presentation"><span style="font-size:20pt;font-family:Arial,sans-serif;color:#000000;background-color:transparent;font-weight:400;font-style:normal;font-variant:normal;text-decoration:none;vertical-align:baseline;white-space:pre;white-space:pre-wrap;">Test</span></h1></li><li dir="ltr" style="list-style-type:disc;font-size:20pt;font-family:Arial,sans-serif;color:#000000;background-color:transparent;font-weight:400;font-style:normal;font-variant:normal;text-decoration:none;vertical-align:baseline;white-space:pre;" aria-level="1"><h1 dir="ltr" style="line-height:1.38;margin-top:20pt;margin-bottom:0pt;" role="presentation"><span style="font-size:20pt;font-family:Arial,sans-serif;color:#000000;background-color:transparent;font-weight:400;font-style:normal;font-variant:normal;text-decoration:none;vertical-align:baseline;white-space:pre;white-space:pre-wrap;">test2</span></h1></li></ul></b>',
                 );
             },
             contentAfter:
@@ -264,7 +290,8 @@ describe("Simple text", () => {
                 stepFunction: async (editor) => {
                     pasteText(editor, "a\nb\nc\nd");
                 },
-                contentAfter: "<div>a</div>" + "<div>b</div>" + "<div>c</div>" + "<p>d[]</p>",
+                contentAfter:
+                    "<div>a</div>" + "<div>b</div>" + "<div>c</div>" + "<p>d[]</p>",
             });
         });
 
@@ -275,7 +302,8 @@ describe("Simple text", () => {
                 stepFunction: async (editor) => {
                     pasteText(editor, "a\r\nb\r\nc\r\nd");
                 },
-                contentAfter: "<div>a</div>" + "<div>b</div>" + "<div>c</div>" + "<p>d[]</p>",
+                contentAfter:
+                    "<div>a</div>" + "<div>b</div>" + "<div>c</div>" + "<p>d[]</p>",
             });
         });
 
@@ -315,7 +343,7 @@ describe("Simple text", () => {
                 stepFunction: async (editor) => {
                     pasteText(
                         editor,
-                        "function example() {\n    console.log('Hello,    world!');\n    // Indented    comment\n}"
+                        "function example() {\n    console.log('Hello,    world!');\n    // Indented    comment\n}",
                     );
                 },
                 contentAfter:
@@ -367,7 +395,8 @@ describe("Simple text", () => {
 
         test("should paste a text when selection across two span (1)", async () => {
             await testEditor({
-                contentBefore: '<p>a<span class="a">b[c</span><span class="a">d]e</span>f</p>',
+                contentBefore:
+                    '<p>a<span class="a">b[c</span><span class="a">d]e</span>f</p>',
                 stepFunction: async (editor) => {
                     pasteText(editor, "x");
                 },
@@ -377,7 +406,8 @@ describe("Simple text", () => {
 
         test("should paste a text when selection across two span (2)", async () => {
             await testEditor({
-                contentBefore: '<p>a<span class="a">b[c</span>- -<span class="a">d]e</span>f</p>',
+                contentBefore:
+                    '<p>a<span class="a">b[c</span>- -<span class="a">d]e</span>f</p>',
                 stepFunction: async (editor) => {
                     pasteText(editor, "y");
                 },
@@ -525,7 +555,8 @@ describe("Simple html span", () => {
 
         test("should paste a text when selection across two span (1)", async () => {
             await testEditor({
-                contentBefore: '<p>a<span class="a">b[c</span><span class="a">d]e</span>f</p>',
+                contentBefore:
+                    '<p>a<span class="a">b[c</span><span class="a">d]e</span>f</p>',
                 stepFunction: async (editor) => {
                     pasteHtml(editor, simpleHtmlCharX);
                 },
@@ -535,7 +566,8 @@ describe("Simple html span", () => {
 
         test("should paste a text when selection across two span (2)", async () => {
             await testEditor({
-                contentBefore: '<p>a<span class="a">b[c</span>- -<span class="a">d]e</span>f</p>',
+                contentBefore:
+                    '<p>a<span class="a">b[c</span>- -<span class="a">d]e</span>f</p>',
                 stepFunction: async (editor) => {
                     pasteHtml(editor, simpleHtmlCharX);
                 },
@@ -673,7 +705,8 @@ describe("Simple html p", () => {
 
         test("should paste a text when selection across two span (1)", async () => {
             await testEditor({
-                contentBefore: '<p>a<span class="a">b[c</span><span class="a">d]e</span>f</p>',
+                contentBefore:
+                    '<p>a<span class="a">b[c</span><span class="a">d]e</span>f</p>',
                 stepFunction: async (editor) => {
                     pasteHtml(editor, simpleHtmlCharX);
                 },
@@ -683,7 +716,8 @@ describe("Simple html p", () => {
 
         test("should paste a text when selection across two span (2)", async () => {
             await testEditor({
-                contentBefore: '<p>a<span class="a">b[c</span>- -<span class="a">d]e</span>f</p>',
+                contentBefore:
+                    '<p>a<span class="a">b[c</span>- -<span class="a">d]e</span>f</p>',
                 stepFunction: async (editor) => {
                     pasteHtml(editor, simpleHtmlCharX);
                 },
@@ -849,9 +883,13 @@ describe("Simple html elements containing <br>", () => {
             await testEditor({
                 contentBefore: "<p>[]<br></p>",
                 stepFunction: async (editor) => {
-                    pasteHtml(editor, "<p>abc<br>def<br>ghi<br>jkl</p><p><br></p><p>mno</p>");
+                    pasteHtml(
+                        editor,
+                        "<p>abc<br>def<br>ghi<br>jkl</p><p><br></p><p>mno</p>",
+                    );
                 },
-                contentAfter: "<p>abc</p><p>def</p><p>ghi</p><p>jkl</p><p><br></p><p>mno[]</p>",
+                contentAfter:
+                    "<p>abc</p><p>def</p><p>ghi</p><p>jkl</p><p><br></p><p>mno[]</p>",
             });
         });
 
@@ -871,7 +909,7 @@ describe("Simple html elements containing <br>", () => {
                 stepFunction: async (editor) => {
                     pasteHtml(
                         editor,
-                        "<p>abc<br>def</p><h1>ghi<br>jkl</h1><h2><br></h2><h3>mno<br>pqr</h3>"
+                        "<p>abc<br>def</p><h1>ghi<br>jkl</h1><h2><br></h2><h3>mno<br>pqr</h3>",
                     );
                 },
                 contentAfter:
@@ -1085,9 +1123,13 @@ describe("Unwrapping html element", () => {
 
     test("should unwrap a node when pasting in between same node (6)", async () => {
         await testEditor({
-            contentBefore: '<p><font style="background-color: rgb(255, 0, 0);">[]test</font></p>',
+            contentBefore:
+                '<p><font style="background-color: rgb(255, 0, 0);">[]test</font></p>',
             stepFunction: async (editor) => {
-                pasteHtml(editor, '<font style="background-color: rgb(255, 0, 0);">nested </font>');
+                pasteHtml(
+                    editor,
+                    '<font style="background-color: rgb(255, 0, 0);">nested </font>',
+                );
             },
             contentAfter:
                 '<p><font style="background-color: rgb(255, 0, 0);">nested []test</font></p>',
@@ -1144,7 +1186,8 @@ describe("Unwrapping html element", () => {
 
     test("should unwrap a node when pasting at start of same node (3)", async () => {
         await testEditor({
-            contentBefore: '<h1><font style="background-color: rgb(255, 0, 0);">[]mn</font></h1>',
+            contentBefore:
+                '<h1><font style="background-color: rgb(255, 0, 0);">[]mn</font></h1>',
             stepFunction: async (editor) => {
                 pasteHtml(editor, "<h1>abc</h1><h1>def</h1><h1>ghi</h1>");
             },
@@ -1203,7 +1246,8 @@ describe("Unwrapping html element", () => {
 
     test("should unwrap a node when pasting at end of same node (3)", async () => {
         await testEditor({
-            contentBefore: '<h1><font style="background-color: rgb(255, 0, 0);">mn[]</font></h1>',
+            contentBefore:
+                '<h1><font style="background-color: rgb(255, 0, 0);">mn[]</font></h1>',
             stepFunction: async (editor) => {
                 pasteHtml(editor, "<h1>abc</h1><h1>def</h1><h1>ghi</h1>");
             },
@@ -1246,10 +1290,11 @@ describe("Unwrapping html element", () => {
             stepFunction: async (editor) => {
                 pasteOdooEditorHtml(
                     editor,
-                    '<p><font style="background-color: rgb(255, 0, 0);">abc</font></p>'
+                    '<p><font style="background-color: rgb(255, 0, 0);">abc</font></p>',
                 );
             },
-            contentAfter: '<h1><font style="background-color: rgb(255, 0, 0);">abc</font>[]</h1>',
+            contentAfter:
+                '<h1><font style="background-color: rgb(255, 0, 0);">abc</font>[]</h1>',
         });
     });
 
@@ -1259,10 +1304,11 @@ describe("Unwrapping html element", () => {
             stepFunction: async (editor) => {
                 pasteOdooEditorHtml(
                     editor,
-                    '<div class="o-paragraph"><font style="background-color: rgb(255, 0, 0);">abc</font></div>'
+                    '<div class="o-paragraph"><font style="background-color: rgb(255, 0, 0);">abc</font></div>',
                 );
             },
-            contentAfter: '<h1><font style="background-color: rgb(255, 0, 0);">abc</font>[]</h1>',
+            contentAfter:
+                '<h1><font style="background-color: rgb(255, 0, 0);">abc</font>[]</h1>',
         });
     });
 
@@ -1280,7 +1326,10 @@ describe("Unwrapping html element", () => {
         await testEditor({
             contentBefore: "<p>[]<br></p>",
             stepFunction: async (editor) => {
-                pasteOdooEditorHtml(editor, "<li><h1>abc</h1></li><li><h1>def</h1></li");
+                pasteOdooEditorHtml(
+                    editor,
+                    "<li><h1>abc</h1></li><li><h1>def</h1></li",
+                );
             },
             contentAfter: "<h1>abc</h1><h1>def[]</h1>",
         });
@@ -1292,7 +1341,7 @@ describe("Unwrapping html element", () => {
             stepFunction: async (editor) => {
                 pasteOdooEditorHtml(
                     editor,
-                    "<li><blockquote>abc</blockquote></li><li><blockquote>def</blockquote></li>"
+                    "<li><blockquote>abc</blockquote></li><li><blockquote>def</blockquote></li>",
                 );
             },
             contentAfter: "<blockquote>abc</blockquote><blockquote>def[]</blockquote>",
@@ -1304,7 +1353,7 @@ describe("Unwrapping html element", () => {
             stepFunction: async (editor) => {
                 pasteOdooEditorHtml(
                     editor,
-                    "<li><p>abc</p><p>def</p></li><li><p>abc</p><p>def</p></li>"
+                    "<li><p>abc</p><p>def</p></li><li><p>abc</p><p>def</p></li>",
                 );
             },
             contentAfter: "<p>abc</p><p>def</p><p>abc</p><p>def[]</p>",
@@ -1317,7 +1366,7 @@ describe("Unwrapping html element", () => {
             stepFunction: async (editor) => {
                 pasteOdooEditorHtml(
                     editor,
-                    "<li><h1>abc</h1><h1>def</h1></li><li><h1>abc</h1><h1>def</h1></li"
+                    "<li><h1>abc</h1><h1>def</h1></li><li><h1>abc</h1><h1>def</h1></li",
                 );
             },
             contentAfter: "<h1>abc</h1><h1>def</h1><h1>abc</h1><h1>def[]</h1>",
@@ -1330,7 +1379,7 @@ describe("Unwrapping html element", () => {
             stepFunction: async (editor) => {
                 pasteOdooEditorHtml(
                     editor,
-                    "<li><blockquote>abc</blockquote><blockquote>def</blockquote></li><li><blockquote>abc</blockquote><blockquote>def</blockquote></li>"
+                    "<li><blockquote>abc</blockquote><blockquote>def</blockquote></li><li><blockquote>abc</blockquote><blockquote>def</blockquote></li>",
                 );
             },
             contentAfter:
@@ -1361,7 +1410,7 @@ describe("Unwrapping html element", () => {
                             <li>ghi</li>
                         </ul>
                     </li>
-                `)
+                `),
                 );
             },
             contentAfter: unformat(`
@@ -1441,7 +1490,8 @@ describe("Complex html span", () => {
 
         test("should paste a text when selection across two span (1)", async () => {
             await testEditor({
-                contentBefore: '<p>a<span class="a">b[c</span><span class="a">d]e</span>f</p>',
+                contentBefore:
+                    '<p>a<span class="a">b[c</span><span class="a">d]e</span>f</p>',
                 stepFunction: async (editor) => {
                     pasteHtml(editor, complexHtmlData);
                 },
@@ -1451,7 +1501,8 @@ describe("Complex html span", () => {
 
         test("should paste a text when selection across two span (2)", async () => {
             await testEditor({
-                contentBefore: '<p>a<span class="a">b[c</span>- -<span class="a">d]e</span>f</p>',
+                contentBefore:
+                    '<p>a<span class="a">b[c</span>- -<span class="a">d]e</span>f</p>',
                 stepFunction: async (editor) => {
                     pasteHtml(editor, complexHtmlData);
                 },
@@ -1485,7 +1536,8 @@ describe("Complex html span", () => {
                 stepFunction: async (editor) => {
                     pasteHtml(editor, complexHtmlData);
                 },
-                contentAfter: '<div>ab<span class="a">c1<b>23</b>&nbsp;4[]</span>f</div>',
+                contentAfter:
+                    '<div>ab<span class="a">c1<b>23</b>&nbsp;4[]</span>f</div>',
             });
         });
 
@@ -1495,7 +1547,8 @@ describe("Complex html span", () => {
                 stepFunction: async (editor) => {
                     pasteHtml(editor, complexHtmlData);
                 },
-                contentAfter: '<div>a1<b>23</b>&nbsp;4[]<span class="a">d</span>ef</div>',
+                contentAfter:
+                    '<div>a1<b>23</b>&nbsp;4[]<span class="a">d</span>ef</div>',
             });
         });
 
@@ -1505,7 +1558,8 @@ describe("Complex html span", () => {
                 stepFunction: async (editor) => {
                     pasteHtml(editor, complexHtmlData);
                 },
-                contentAfter: '<div>1a<p>b1<b>23</b>&nbsp;4[]<span class="a">e</span>f</p></div>',
+                contentAfter:
+                    '<div>1a<p>b1<b>23</b>&nbsp;4[]<span class="a">e</span>f</p></div>',
             });
         });
 
@@ -1515,7 +1569,8 @@ describe("Complex html span", () => {
                 stepFunction: async (editor) => {
                     pasteHtml(editor, complexHtmlData);
                 },
-                contentAfter: '<div>2a<span class="a">b1<b>23</b>&nbsp;4[]</span>e<br>f</div>',
+                contentAfter:
+                    '<div>2a<span class="a">b1<b>23</b>&nbsp;4[]</span>e<br>f</div>',
             });
         });
 
@@ -1592,7 +1647,8 @@ describe("Complex html p", () => {
 
         test("should paste a text when selection across two span (1)", async () => {
             await testEditor({
-                contentBefore: '<p>1a<span class="a">b[c</span><span class="a">d]e</span>f</p>',
+                contentBefore:
+                    '<p>1a<span class="a">b[c</span><span class="a">d]e</span>f</p>',
                 stepFunction: async (editor) => {
                     pasteHtml(editor, complexHtmlData);
                 },
@@ -1603,7 +1659,8 @@ describe("Complex html p", () => {
 
         test("should paste a text when selection across two span (2)", async () => {
             await testEditor({
-                contentBefore: '<p>2a<span class="a">b[c</span>- -<span class="a">d]e</span>f</p>',
+                contentBefore:
+                    '<p>2a<span class="a">b[c</span>- -<span class="a">d]e</span>f</p>',
                 stepFunction: async (editor) => {
                     pasteHtml(editor, complexHtmlData);
                 },
@@ -1702,7 +1759,8 @@ describe("Complex html p", () => {
                 // FIXME: Bringing `e` and `f` into the `<p>` is a tradeOff
                 // Should we change it ? How ? Might warrant a discussion.
                 // possible alt contentAfter : <div>1a<p>b12</p>34[]<span>e</span>f</div>
-                contentAfter: '<div>1a<p>b12</p><p>34[]<span class="a">e</span>f</p></div>',
+                contentAfter:
+                    '<div>1a<p>b12</p><p>34[]<span class="a">e</span>f</p></div>',
             });
         });
 
@@ -1738,7 +1796,8 @@ describe("Complex html 3 p", () => {
                 stepFunction: async (editor) => {
                     pasteHtml(editor, complexHtmlData);
                 },
-                contentAfter: "<p>1<i>X</i>2</p><p>3<i>X</i>4</p><p>5<i>X</i>6[]abcd</p>",
+                contentAfter:
+                    "<p>1<i>X</i>2</p><p>3<i>X</i>4</p><p>5<i>X</i>6[]abcd</p>",
             });
         });
 
@@ -1748,7 +1807,8 @@ describe("Complex html 3 p", () => {
                 stepFunction: async (editor) => {
                     pasteHtml(editor, complexHtmlData);
                 },
-                contentAfter: "<p>ab1<i>X</i>2</p><p>3<i>X</i>4</p><p>5<i>X</i>6[]cd</p>",
+                contentAfter:
+                    "<p>ab1<i>X</i>2</p><p>3<i>X</i>4</p><p>5<i>X</i>6[]cd</p>",
             });
         });
 
@@ -1788,7 +1848,8 @@ describe("Complex html 3 p", () => {
 
         test("should paste a text when selection across two span (1)", async () => {
             await testEditor({
-                contentBefore: '<p>1a<span class="a">b[c</span><span class="a">d]e</span>f</p>',
+                contentBefore:
+                    '<p>1a<span class="a">b[c</span><span class="a">d]e</span>f</p>',
                 stepFunction: async (editor) => {
                     pasteHtml(editor, complexHtmlData);
                 },
@@ -1799,7 +1860,8 @@ describe("Complex html 3 p", () => {
 
         test("should paste a text when selection across two span (2)", async () => {
             await testEditor({
-                contentBefore: '<p>2a<span class="a">b[c</span>- -<span class="a">d]e</span>f</p>',
+                contentBefore:
+                    '<p>2a<span class="a">b[c</span>- -<span class="a">d]e</span>f</p>',
                 stepFunction: async (editor) => {
                     pasteHtml(editor, complexHtmlData);
                 },
@@ -1854,7 +1916,8 @@ describe("Complex html 3 p", () => {
 
         test("should paste a text when selection leave a span unbreakable (1)", async () => {
             await testEditor({
-                contentBefore: '<div class="oe_unbreakable">1ab<span class="a">c[d</span>e]f</div>',
+                contentBefore:
+                    '<div class="oe_unbreakable">1ab<span class="a">c[d</span>e]f</div>',
                 stepFunction: async (editor) => {
                     pasteHtml(editor, complexHtmlData);
                 },
@@ -1865,7 +1928,8 @@ describe("Complex html 3 p", () => {
 
         test("should paste a text when selection leave a span unbreakable (2)", async () => {
             await testEditor({
-                contentBefore: '<div class="oe_unbreakable">2a[b<span class="a">c]d</span>ef</div>',
+                contentBefore:
+                    '<div class="oe_unbreakable">2a[b<span class="a">c]d</span>ef</div>',
                 stepFunction: async (editor) => {
                     pasteHtml(editor, complexHtmlData);
                 },
@@ -1981,7 +2045,8 @@ describe("Complex html p+i", () => {
 
         test("should paste a text when selection across two span (1)", async () => {
             await testEditor({
-                contentBefore: '<p>a<span class="a">b[c</span><span class="a">d]e</span>f</p>',
+                contentBefore:
+                    '<p>a<span class="a">b[c</span><span class="a">d]e</span>f</p>',
                 stepFunction: async (editor) => {
                     pasteHtml(editor, complexHtmlData);
                 },
@@ -1992,7 +2057,8 @@ describe("Complex html p+i", () => {
 
         test("should paste a text when selection across two span (2)", async () => {
             await testEditor({
-                contentBefore: '<p>a<span class="a">b[c</span>x<span class="a">d]e</span>f</p>',
+                contentBefore:
+                    '<p>a<span class="a">b[c</span>x<span class="a">d]e</span>f</p>',
                 stepFunction: async (editor) => {
                     pasteHtml(editor, complexHtmlData);
                 },
@@ -2043,7 +2109,8 @@ describe("Complex html p+i", () => {
 
         test("should paste a text when selection leave a span unbreakable (1)", async () => {
             await testEditor({
-                contentBefore: '<div class="oe_unbreakable">1ab<span class="a">c[d</span>e]f</div>',
+                contentBefore:
+                    '<div class="oe_unbreakable">1ab<span class="a">c[d</span>e]f</div>',
                 stepFunction: async (editor) => {
                     pasteHtml(editor, complexHtmlData);
                 },
@@ -2054,7 +2121,8 @@ describe("Complex html p+i", () => {
 
         test("should paste a text when selection leave a span unbreakable (2)", async () => {
             await testEditor({
-                contentBefore: '<div class="oe_unbreakable">2a[b<span class="a">c]d</span>ef</div>',
+                contentBefore:
+                    '<div class="oe_unbreakable">2a[b<span class="a">c]d</span>ef</div>',
                 stepFunction: async (editor) => {
                     pasteHtml(editor, complexHtmlData);
                 },
@@ -2090,7 +2158,8 @@ describe("Complex html p+i", () => {
                 stepFunction: async (editor) => {
                     pasteHtml(editor, complexHtmlData);
                 },
-                contentAfter: '<div>1a<p>b12</p><p><i>ii</i>[]<span class="a">e</span>f</p></div>',
+                contentAfter:
+                    '<div>1a<p>b12</p><p><i>ii</i>[]<span class="a">e</span>f</p></div>',
             });
         });
 
@@ -2176,7 +2245,8 @@ describe("Complex html 3p+b", () => {
 
         test("should paste a text when selection across two span (1)", async () => {
             await testEditor({
-                contentBefore: '<p>a<span class="a">b[c</span><span class="a">d]e</span>f</p>',
+                contentBefore:
+                    '<p>a<span class="a">b[c</span><span class="a">d]e</span>f</p>',
                 stepFunction: async (editor) => {
                     pasteHtml(editor, complexHtmlData);
                 },
@@ -2187,7 +2257,8 @@ describe("Complex html 3p+b", () => {
 
         test("should paste a text when selection across two span (2)", async () => {
             await testEditor({
-                contentBefore: '<p>a<span class="a">b[c</span>- -<span class="a">d]e</span>f</p>',
+                contentBefore:
+                    '<p>a<span class="a">b[c</span>- -<span class="a">d]e</span>f</p>',
                 stepFunction: async (editor) => {
                     pasteHtml(editor, complexHtmlData);
                 },
@@ -2202,7 +2273,8 @@ describe("Complex html 3p+b", () => {
                 stepFunction: async (editor) => {
                     pasteHtml(editor, complexHtmlData);
                 },
-                contentAfter: "<div>a<p>b1<b>23</b></p><p>zzz</p><p>45<b>6</b>7[]e</p>f</div>",
+                contentAfter:
+                    "<div>a<p>b1<b>23</b></p><p>zzz</p><p>45<b>6</b>7[]e</p>f</div>",
             });
         });
 
@@ -2212,7 +2284,8 @@ describe("Complex html 3p+b", () => {
                 stepFunction: async (editor) => {
                     pasteHtml(editor, complexHtmlData);
                 },
-                contentAfter: "<div>a<p>b1<b>23</b></p><p>zzz</p><p>45<b>6</b>7[]e</p>f</div>",
+                contentAfter:
+                    "<div>a<p>b1<b>23</b></p><p>zzz</p><p>45<b>6</b>7[]e</p>f</div>",
             });
         });
 
@@ -2238,7 +2311,8 @@ describe("Complex html 3p+b", () => {
 
         test("should paste a text when selection leave a span unbreakable (1)", async () => {
             await testEditor({
-                contentBefore: '<div class="oe_unbreakable">1ab<span class="a">c[d</span>e]f</div>',
+                contentBefore:
+                    '<div class="oe_unbreakable">1ab<span class="a">c[d</span>e]f</div>',
                 stepFunction: async (editor) => {
                     pasteHtml(editor, complexHtmlData);
                 },
@@ -2249,7 +2323,8 @@ describe("Complex html 3p+b", () => {
 
         test("should paste a text when selection leave a span unbreakable (2)", async () => {
             await testEditor({
-                contentBefore: '<div class="oe_unbreakable">2a[b<span class="a">c]d</span>ef</div>',
+                contentBefore:
+                    '<div class="oe_unbreakable">2a[b<span class="a">c]d</span>ef</div>',
                 stepFunction: async (editor) => {
                     pasteHtml(editor, complexHtmlData);
                 },
@@ -2336,7 +2411,8 @@ describe("Special cases", () => {
                 stepFunction: async (editor) => {
                     pasteHtml(editor, "<ul><li>abc</li><li>def</li><li>ghi</li></ul>");
                 },
-                contentAfter: "<p>12</p><ul><li>abc</li><li>def</li><li>ghi[]</li></ul><p>34</p>",
+                contentAfter:
+                    "<p>12</p><ul><li>abc</li><li>def</li><li>ghi[]</li></ul><p>34</p>",
             });
         });
 
@@ -2356,7 +2432,8 @@ describe("Special cases", () => {
                 stepFunction: async (editor) => {
                     pasteHtml(editor, "<ul><li>123</li><li>456</li></ul>");
                 },
-                contentAfter: "<ul><li>abc</li><li>de123</li><li>456[]f</li><li>ghi</li></ul>",
+                contentAfter:
+                    "<ul><li>abc</li><li>de123</li><li>456[]f</li><li>ghi</li></ul>",
             });
         });
 
@@ -2377,7 +2454,8 @@ describe("Special cases", () => {
                 stepFunction: async (editor) => {
                     pasteHtml(editor, "<ul><li>123</li><li>456</li></ul>");
                 },
-                contentAfter: "<ul><li>abc</li><li>def</li><li>ghi123</li><li>456[]</li></ul>",
+                contentAfter:
+                    "<ul><li>abc</li><li>def</li><li>ghi123</li><li>456[]</li></ul>",
             });
         });
 
@@ -2387,7 +2465,8 @@ describe("Special cases", () => {
                 stepFunction: async (editor) => {
                     pasteHtml(editor, "<ul><li>123</li><li>456</li></ul>");
                 },
-                contentAfter: "<ul><li>123</li><li>456[]abc</li><li>def</li><li>ghi</li></ul>",
+                contentAfter:
+                    "<ul><li>123</li><li>456[]abc</li><li>def</li><li>ghi</li></ul>",
             });
         });
 
@@ -2429,7 +2508,7 @@ describe("Special cases", () => {
                                 <li>pqr</li>
                                 <li>stu</li>
                             </ol>
-                        `)
+                        `),
                     );
                 },
                 contentAfter: unformat(`
@@ -2472,7 +2551,7 @@ describe("Special cases", () => {
                                     </ul>
                                 </li>
                             </ul>
-                        `)
+                        `),
                     );
                 },
                 contentAfter: unformat(`
@@ -2515,7 +2594,7 @@ describe("Special cases", () => {
                                 </li>
                                 <li>jkl</li>
                             </ol>
-                        `)
+                        `),
                     );
                 },
                 contentAfter: unformat(`
@@ -2562,7 +2641,7 @@ describe("Special cases", () => {
                                     </ol>
                                 </li>
                             </ul>
-                        `)
+                        `),
                     );
                 },
                 contentAfter: unformat(`
@@ -2605,7 +2684,7 @@ describe("Special cases", () => {
                                     </ol>
                                 </li>
                             </ul>
-                        `)
+                        `),
                     );
                 },
                 contentAfter: unformat(`
@@ -2656,7 +2735,7 @@ describe("Special cases", () => {
                                 <li>mn</li>
                                 <li>op</li>
                             </ul>
-                        `)
+                        `),
                     );
                 },
                 contentAfter: unformat(`
@@ -2716,7 +2795,7 @@ describe("Special cases", () => {
                                     </ol>
                                 </ul>
                             </ol>
-                        `)
+                        `),
                     );
                 },
                 contentAfter: unformat(`
@@ -2766,7 +2845,7 @@ describe("Special cases", () => {
                                     </li>
                                 </ul>
                             </b>
-                        `)
+                        `),
                     );
                 },
                 contentAfter: `<ul class="o_checklist"><li><p>Abc</p></li><li class="o_checked"><p>def[]</p></li></ul>`,
@@ -2779,7 +2858,10 @@ describe("Special cases", () => {
             await testEditor({
                 contentBefore: "<ul><li>[]<br></li></ul>",
                 stepFunction: async (editor) => {
-                    pasteHtml(editor, "<p>abc</p><p>def</p><p>ghi</p><p>jkl</p><p>mno</p>");
+                    pasteHtml(
+                        editor,
+                        "<p>abc</p><p>def</p><p>ghi</p><p>jkl</p><p>mno</p>",
+                    );
                 },
                 contentAfter:
                     "<ul><li>abc</li><li>def</li><li>ghi</li><li>jkl</li><li>mno[]</li></ul>",
@@ -2795,7 +2877,8 @@ describe("pasting within blockquote", () => {
             stepFunction: async (editor) => {
                 pasteHtml(editor, "<h1>abc</h1><h2>def</h2><h3>ghi</h3>");
             },
-            contentAfter: "<blockquote><h1>abc</h1><h2>def</h2><h3>ghi[]</h3></blockquote>",
+            contentAfter:
+                "<blockquote><h1>abc</h1><h2>def</h2><h3>ghi[]</h3></blockquote>",
         });
     });
 
@@ -2805,7 +2888,8 @@ describe("pasting within blockquote", () => {
             stepFunction: async (editor) => {
                 pasteHtml(editor, "<h1>abc</h1><h2>def</h2><h3>ghi</h3>");
             },
-            contentAfter: "<blockquote>x<h1>abc</h1><h2>def</h2><h3>ghi[]</h3></blockquote>",
+            contentAfter:
+                "<blockquote>x<h1>abc</h1><h2>def</h2><h3>ghi[]</h3></blockquote>",
         });
     });
 
@@ -2815,7 +2899,8 @@ describe("pasting within blockquote", () => {
             stepFunction: async (editor) => {
                 pasteHtml(editor, "<h1>abc</h1><h2>def</h2><h3>ghi</h3>");
             },
-            contentAfter: "<blockquote><h1>abc</h1><h2>def</h2><h3>ghi[]</h3>x</blockquote>",
+            contentAfter:
+                "<blockquote><h1>abc</h1><h2>def</h2><h3>ghi[]</h3>x</blockquote>",
         });
     });
 
@@ -2825,7 +2910,8 @@ describe("pasting within blockquote", () => {
             stepFunction: async (editor) => {
                 pasteHtml(editor, "<h1>abc</h1><h2>def</h2><h3>ghi</h3>");
             },
-            contentAfter: "<blockquote>x<h1>abc</h1><h2>def</h2><h3>ghi[]</h3>y</blockquote>",
+            contentAfter:
+                "<blockquote>x<h1>abc</h1><h2>def</h2><h3>ghi[]</h3>y</blockquote>",
         });
     });
 });
@@ -2876,7 +2962,7 @@ describe("pasting within pre", () => {
             stepFunction: async (editor) => {
                 pasteHtml(
                     editor,
-                    '<div class="o-paragraph">a<strong>bcd</strong><font style="color: rgb(255, 0, 0);">efg</font><font style="background-color: rgba(255, 156, 0, 0.6);">hij</font><span class="display-3-fs">klm</span>no</div>'
+                    '<div class="o-paragraph">a<strong>bcd</strong><font style="color: rgb(255, 0, 0);">efg</font><font style="background-color: rgba(255, 156, 0, 0.6);">hij</font><span class="display-3-fs">klm</span>no</div>',
                 );
             },
             contentAfter: "<pre>abcdefghijklmno[]</pre>",
@@ -2888,7 +2974,7 @@ describe("pasting within pre", () => {
             stepFunction: async (editor) => {
                 pasteHtml(
                     editor,
-                    '<ol><li>abc</li><li>def</li><li class="oe-nested"><ol><li>ghi</li><li class="oe-nested"><ol><li>jkl</li></ol></li><li>mno</li></ol></li><li>pqr</li></ol>'
+                    '<ol><li>abc</li><li>def</li><li class="oe-nested"><ol><li>ghi</li><li class="oe-nested"><ol><li>jkl</li></ol></li><li>mno</li></ol></li><li>pqr</li></ol>',
                 );
             },
             contentAfter:
@@ -2902,10 +2988,11 @@ describe("pasting within pre", () => {
             stepFunction: async (editor) => {
                 pasteHtml(
                     editor,
-                    '<ul><li>abc</li><li>def</li><li class="oe-nested"><ul><li>ghi</li><li class="oe-nested"><ul><li>jkl</li></ul></li><li>mno</li></ul></li><li>pqr</li></ul>'
+                    '<ul><li>abc</li><li>def</li><li class="oe-nested"><ul><li>ghi</li><li class="oe-nested"><ul><li>jkl</li></ul></li><li>mno</li></ul></li><li>pqr</li></ul>',
                 );
             },
-            contentAfter: "<pre>* abc\n* def\n    * ghi\n        * jkl\n    * mno\n* pqr[]</pre>",
+            contentAfter:
+                "<pre>* abc\n* def\n    * ghi\n        * jkl\n    * mno\n* pqr[]</pre>",
         });
     });
 
@@ -2915,7 +3002,7 @@ describe("pasting within pre", () => {
             stepFunction: async (editor) => {
                 pasteHtml(
                     editor,
-                    '<ul class="o_checklist"><li>abc</li><li>def</li><li class="oe-nested"><ul class="o_checklist"><li>ghi</li><li class="oe-nested"><ul class="o_checklist"><li>jkl</li></ul class="o_checklist"></li><li>mno</li></ul class="o_checklist"></li><li>pqr</li></ul class="o_checklist">'
+                    '<ul class="o_checklist"><li>abc</li><li>def</li><li class="oe-nested"><ul class="o_checklist"><li>ghi</li><li class="oe-nested"><ul class="o_checklist"><li>jkl</li></ul class="o_checklist"></li><li>mno</li></ul class="o_checklist"></li><li>pqr</li></ul class="o_checklist">',
                 );
             },
             contentAfter:
@@ -2928,7 +3015,7 @@ describe("pasting within pre", () => {
             stepFunction: async (editor) => {
                 pasteHtml(
                     editor,
-                    '<ol><li>ab</li><li class="oe-nested"><ul><li>cd</li><li class="oe-nested"><ul class="o_checklist"><li>ef</li><li class="oe-nested"><ol><li>gh</li></ol></li><li>ij</li></ul></li><li>kl</li></ul></li><li>mn</li></ol>'
+                    '<ol><li>ab</li><li class="oe-nested"><ul><li>cd</li><li class="oe-nested"><ul class="o_checklist"><li>ef</li><li class="oe-nested"><ol><li>gh</li></ol></li><li>ij</li></ul></li><li>kl</li></ul></li><li>mn</li></ol>',
                 );
             },
             contentAfter:
@@ -2949,7 +3036,8 @@ describe("link", () => {
                 stepFunction: async (editor) => {
                     pasteText(editor, "http://www.xyz.com");
                 },
-                contentAfter: '<p>ab<a href="http://www.xyz.com">http://www.xyz.com</a>[]cd</p>',
+                contentAfter:
+                    '<p>ab<a href="http://www.xyz.com">http://www.xyz.com</a>[]cd</p>',
             });
         });
 
@@ -2970,7 +3058,8 @@ describe("link", () => {
                 stepFunction: async (editor) => {
                     pasteText(editor, "http://www.xyz.com");
                 },
-                contentAfter: '<p>a<a href="http://existing.com">bhttp://www.xyz.com[]c</a>d</p>',
+                contentAfter:
+                    '<p>a<a href="http://existing.com">bhttp://www.xyz.com[]c</a>d</p>',
             });
         });
 
@@ -2990,7 +3079,8 @@ describe("link", () => {
                 stepFunction: async (editor) => {
                     pasteText(editor, "https://www.xyz.xdc");
                 },
-                contentAfter: '<p>a<a href="http://existing.com">https://www.xyz.xdc[]c</a>d</p>',
+                contentAfter:
+                    '<p>a<a href="http://existing.com">https://www.xyz.xdc[]c</a>d</p>',
             });
         });
 
@@ -3027,22 +3117,22 @@ describe("link", () => {
 
         test("should replace link for new content (url) when pasting in an empty link (collapsed)", async () => {
             const { el, editor } = await setupEditor(
-                `<p>xy<a href="http://test.test/" oe-zws-empty-inline="">\u200B[]</a>z</p>`
+                `<p>xy<a href="http://test.test/" oe-zws-empty-inline="">\u200B[]</a>z</p>`,
             );
             pasteText(editor, "http://odoo.com");
             await animationFrame();
             await expectElementCount(".o-we-powerbox", 0);
             expect(cleanLinkArtifacts(getContent(el))).toBe(
-                `<p>xy<a href="http://odoo.com">http://odoo.com</a>[]z</p>`
+                `<p>xy<a href="http://odoo.com">http://odoo.com</a>[]z</p>`,
             );
         });
 
         test("should replace link for new content (imgUrl) when pasting in an empty link (collapsed) (1)", async () => {
             const { el, editor } = await setupEditor(
-                `<p>xy<a href="http://test.test/">[]</a>z</p>`
+                `<p>xy<a href="http://test.test/">[]</a>z</p>`,
             );
             expect(getContent(el)).toBe(
-                `<p>xy\ufeff<a href="http://test.test/" class="o_link_in_selection">\ufeff[]\ufeff</a>\ufeffz</p>`
+                `<p>xy\ufeff<a href="http://test.test/" class="o_link_in_selection">\ufeff[]\ufeff</a>\ufeffz</p>`,
             );
             pasteText(editor, imgUrl);
             await animationFrame();
@@ -3055,7 +3145,7 @@ describe("link", () => {
 
         test("should replace link for new content (url) when pasting in an empty link (collapsed) (2)", async () => {
             const { el, editor } = await setupEditor(
-                `<p>xy<a href="http://test.test/" oe-zws-empty-inline="">\u200B[]</a>z</p>`
+                `<p>xy<a href="http://test.test/" oe-zws-empty-inline="">\u200B[]</a>z</p>`,
             );
             pasteText(editor, imgUrl);
             await animationFrame();
@@ -3067,7 +3157,7 @@ describe("link", () => {
 
             await animationFrame();
             expect(cleanLinkArtifacts(getContent(el))).toBe(
-                `<p>xy<a href="${imgUrl}">${imgUrl}</a>[]z</p>`
+                `<p>xy<a href="${imgUrl}">${imgUrl}</a>[]z</p>`,
             );
         });
 
@@ -3077,7 +3167,8 @@ describe("link", () => {
                 stepFunction: async (editor) => {
                     pasteText(editor, "abc www.odoo.com xyz");
                 },
-                contentAfter: '<p>abc <a href="http://www.odoo.com">www.odoo.com</a> xyz[]</p>',
+                contentAfter:
+                    '<p>abc <a href="http://www.odoo.com">www.odoo.com</a> xyz[]</p>',
             });
         });
 
@@ -3099,7 +3190,7 @@ describe("link", () => {
                 stepFunction: async (editor) => {
                     pasteHtml(
                         editor,
-                        '<a href="www.odoo.com">odoo.com</a><br><a href="google.com">google.com</a>'
+                        '<a href="www.odoo.com">odoo.com</a><br><a href="google.com">google.com</a>',
                     );
                 },
                 contentAfter:
@@ -3112,7 +3203,7 @@ describe("link", () => {
                 stepFunction: async (editor) => {
                     pasteHtml(
                         editor,
-                        '<a href="www.odoo.com">odoo.com</a><br><a href="www.google.com">google.com</a>'
+                        '<a href="www.odoo.com">odoo.com</a><br><a href="www.google.com">google.com</a>',
                     );
                 },
                 contentAfter:
@@ -3126,11 +3217,11 @@ describe("link", () => {
             await animationFrame();
             await expectElementCount(".o-we-powerbox", 0);
             expect(cleanLinkArtifacts(getContent(el))).toBe(
-                `<p>abc <a href="${url}">${url}</a> def[]</p>`
+                `<p>abc <a href="${url}">${url}</a> def[]</p>`,
             );
             undo(editor);
             expect(cleanLinkArtifacts(getContent(el))).toBe(
-                `<p o-we-hint-text='Type "/" for commands' class="o-we-hint">[]</p>`
+                `<p o-we-hint-text='Type "/" for commands' class="o-we-hint">[]</p>`,
             );
         });
 
@@ -3140,7 +3231,7 @@ describe("link", () => {
             await animationFrame();
             await expectElementCount(".o-we-powerbox", 0);
             expect(cleanLinkArtifacts(getContent(el))).toBe(
-                `<p>abc <a href="${imgUrl}">${imgUrl}</a> def[]</p>`
+                `<p>abc <a href="${imgUrl}">${imgUrl}</a> def[]</p>`,
             );
         });
 
@@ -3150,7 +3241,7 @@ describe("link", () => {
             await animationFrame();
             await expectElementCount(".o-we-powerbox", 0);
             expect(cleanLinkArtifacts(getContent(el))).toBe(
-                `<p>abc <a href="${videoUrl}">${videoUrl}</a> def[]</p>`
+                `<p>abc <a href="${videoUrl}">${videoUrl}</a> def[]</p>`,
             );
         });
 
@@ -3160,11 +3251,11 @@ describe("link", () => {
             await animationFrame();
             await expectElementCount(".o-we-powerbox", 0);
             expect(cleanLinkArtifacts(getContent(el))).toBe(
-                `<p><a href="${url}">${url}</a> <a href="${videoUrl}">${videoUrl}</a> <a href="${imgUrl}">${imgUrl}</a>[]</p>`
+                `<p><a href="${url}">${url}</a> <a href="${videoUrl}">${videoUrl}</a> <a href="${imgUrl}">${imgUrl}</a>[]</p>`,
             );
             undo(editor);
             expect(cleanLinkArtifacts(getContent(el))).toBe(
-                `<p o-we-hint-text='Type "/" for commands' class="o-we-hint">[]</p>`
+                `<p o-we-hint-text='Type "/" for commands' class="o-we-hint">[]</p>`,
             );
         });
 
@@ -3174,11 +3265,11 @@ describe("link", () => {
             await animationFrame();
             await expectElementCount(".o-we-powerbox", 0);
             expect(cleanLinkArtifacts(getContent(el))).toBe(
-                `<p><a href="${url}">${url}</a> abc <a href="${videoUrl}">${videoUrl}</a> def <a href="${imgUrl}">${imgUrl}</a>[]</p>`
+                `<p><a href="${url}">${url}</a> abc <a href="${videoUrl}">${videoUrl}</a> def <a href="${imgUrl}">${imgUrl}</a>[]</p>`,
             );
             undo(editor);
             expect(cleanLinkArtifacts(getContent(el))).toBe(
-                `<p o-we-hint-text='Type "/" for commands' class="o-we-hint">[]</p>`
+                `<p o-we-hint-text='Type "/" for commands' class="o-we-hint">[]</p>`,
             );
         });
 
@@ -3220,7 +3311,8 @@ describe("link", () => {
                 stepFunction: async (editor) => {
                     pasteText(editor, "`http://www.xyz.com`");
                 },
-                contentAfter: '<p>ab`<a href="http://www.xyz.com">http://www.xyz.com</a>`[]cd</p>',
+                contentAfter:
+                    '<p>ab`<a href="http://www.xyz.com">http://www.xyz.com</a>`[]cd</p>',
             });
         });
     });
@@ -3232,7 +3324,8 @@ describe("link", () => {
                 stepFunction: async (editor) => {
                     pasteText(editor, "http://www.xyz.com");
                 },
-                contentAfter: '<p>ab<a href="http://www.xyz.com">http://www.xyz.com</a>[]cd</p>',
+                contentAfter:
+                    '<p>ab<a href="http://www.xyz.com">http://www.xyz.com</a>[]cd</p>',
             });
         });
 
@@ -3254,7 +3347,8 @@ describe("link", () => {
                 stepFunction: async (editor) => {
                     pasteText(editor, "http://www.xyz.com");
                 },
-                contentAfter: '<p>a<a href="http://existing.com">bhttp://www.xyz.com[]c</a>d</p>',
+                contentAfter:
+                    '<p>a<a href="http://existing.com">bhttp://www.xyz.com[]c</a>d</p>',
             });
         });
 
@@ -3297,7 +3391,7 @@ describe("link", () => {
                 stepFunction: async (editor) => {
                     pasteHtml(
                         editor,
-                        '<a href="www.odoo.com">odoo.com</a><br><a href="www.google.com">google.com</a>'
+                        '<a href="www.odoo.com">odoo.com</a><br><a href="www.google.com">google.com</a>',
                     );
                     undo(editor);
                 },
@@ -3311,7 +3405,7 @@ describe("link", () => {
             await animationFrame();
             await expectElementCount(".o-we-powerbox", 0);
             expect(cleanLinkArtifacts(getContent(el))).toBe(
-                `<p>abc <a href="${url}">${url}</a> def[]</p>`
+                `<p>abc <a href="${url}">${url}</a> def[]</p>`,
             );
         });
 
@@ -3321,7 +3415,7 @@ describe("link", () => {
             await animationFrame();
             await expectElementCount(".o-we-powerbox", 0);
             expect(cleanLinkArtifacts(getContent(el))).toBe(
-                `<p>abc <a href="${imgUrl}">${imgUrl}</a> def[]</p>`
+                `<p>abc <a href="${imgUrl}">${imgUrl}</a> def[]</p>`,
             );
         });
 
@@ -3331,7 +3425,7 @@ describe("link", () => {
             await animationFrame();
             await expectElementCount(".o-we-powerbox", 0);
             expect(cleanLinkArtifacts(getContent(el))).toBe(
-                `<p>abc <a href="${videoUrl}">${videoUrl}</a> def[]</p>`
+                `<p>abc <a href="${videoUrl}">${videoUrl}</a> def[]</p>`,
             );
         });
 
@@ -3341,27 +3435,31 @@ describe("link", () => {
             await animationFrame();
             await expectElementCount(".o-we-powerbox", 0);
             expect(cleanLinkArtifacts(getContent(el))).toBe(
-                `<p><a href="${url}">${url}</a> <a href="${videoUrl}">${videoUrl}</a> <a href="${imgUrl}">${imgUrl}</a>[]</p>`
+                `<p><a href="${url}">${url}</a> <a href="${videoUrl}">${videoUrl}</a> <a href="${imgUrl}">${imgUrl}</a>[]</p>`,
             );
         });
 
         test("should paste and transform URL over the existing url", async () => {
             await testEditor({
-                contentBefore: '<p>ab[<a href="http://www.xyz.com">http://www.xyz.com</a>]cd</p>',
+                contentBefore:
+                    '<p>ab[<a href="http://www.xyz.com">http://www.xyz.com</a>]cd</p>',
                 stepFunction: async (editor) => {
                     pasteText(editor, "https://www.xyz.xdc ");
                 },
-                contentAfter: '<p>ab<a href="https://www.xyz.xdc">https://www.xyz.xdc</a> []cd</p>',
+                contentAfter:
+                    '<p>ab<a href="https://www.xyz.xdc">https://www.xyz.xdc</a> []cd</p>',
             });
         });
 
         test("should paste and transform URL over the existing url (not collapsed)", async () => {
             await testEditor({
-                contentBefore: '<p>ab[<a href="http://www.xyz.com">http://www.xyz.com</a>]cd</p>',
+                contentBefore:
+                    '<p>ab[<a href="http://www.xyz.com">http://www.xyz.com</a>]cd</p>',
                 stepFunction: async (editor) => {
                     pasteText(editor, "https://www.xyz.xdc ");
                 },
-                contentAfter: '<p>ab<a href="https://www.xyz.xdc">https://www.xyz.xdc</a> []cd</p>',
+                contentAfter:
+                    '<p>ab<a href="https://www.xyz.xdc">https://www.xyz.xdc</a> []cd</p>',
             });
         });
 
@@ -3413,19 +3511,20 @@ describe("link", () => {
                 stepFunction: async (editor) => {
                     pasteText(editor, "abc www.odoo.com xyz");
                 },
-                contentAfter: '<p>abc <a href="http://www.odoo.com">www.odoo.com</a> xyz[]</p>',
+                contentAfter:
+                    '<p>abc <a href="http://www.odoo.com">www.odoo.com</a> xyz[]</p>',
             });
         });
 
         test("should paste and transform plain text content over an image link if all of its contents is selected (not collapsed) (1)", async () => {
             const { el, editor } = await setupEditor(
-                `<p>ab<a href="http://www.xyz.com">[http://www.xyz.com]</a>cd</p>`
+                `<p>ab<a href="http://www.xyz.com">[http://www.xyz.com]</a>cd</p>`,
             );
             pasteText(editor, imgUrl);
             await animationFrame();
             await expectElementCount(".o-we-powerbox", 1);
             expect(getContent(el)).toBe(
-                `<p>abhttps://download.odoocdn.com/icons/website/static/description/icon.png[]cd</p>`
+                `<p>abhttps://download.odoocdn.com/icons/website/static/description/icon.png[]cd</p>`,
             );
             await press("Enter");
             expect(getContent(el)).toBe(`<p>ab<img src="${imgUrl}">[]cd</p>`);
@@ -3433,18 +3532,18 @@ describe("link", () => {
 
         test("should paste and transform plain text content over an image link if all of its contents is selected (not collapsed) (2)", async () => {
             const { el, editor } = await setupEditor(
-                `<p>ab<a href="http://www.xyz.com">[http://www.xyz.com]</a>cd</p>`
+                `<p>ab<a href="http://www.xyz.com">[http://www.xyz.com]</a>cd</p>`,
             );
             pasteText(editor, imgUrl);
             await animationFrame();
             await expectElementCount(".o-we-powerbox", 1);
             expect(getContent(el)).toBe(
-                `<p>abhttps://download.odoocdn.com/icons/website/static/description/icon.png[]cd</p>`
+                `<p>abhttps://download.odoocdn.com/icons/website/static/description/icon.png[]cd</p>`,
             );
             await press("ArrowDown");
             await press("Enter");
             expect(cleanLinkArtifacts(getContent(el))).toBe(
-                `<p>ab<a href="${imgUrl}">${imgUrl}</a>[]cd</p>`
+                `<p>ab<a href="${imgUrl}">${imgUrl}</a>[]cd</p>`,
             );
         });
 
@@ -3454,7 +3553,7 @@ describe("link", () => {
                 stepFunction: async (editor) => {
                     pasteHtml(
                         editor,
-                        '<a href="www.odoo.com">odoo.com</a><br><a href="google.com">google.com</a>'
+                        '<a href="www.odoo.com">odoo.com</a><br><a href="google.com">google.com</a>',
                     );
                 },
                 contentAfter:
@@ -3467,7 +3566,7 @@ describe("link", () => {
                 stepFunction: async (editor) => {
                     pasteHtml(
                         editor,
-                        '<a href="www.odoo.com">odoo.com</a><br><a href="www.google.com">google.com</a>'
+                        '<a href="www.odoo.com">odoo.com</a><br><a href="www.google.com">google.com</a>',
                     );
                 },
                 contentAfter:
@@ -3489,26 +3588,28 @@ describe("images", () => {
         });
 
         test("should paste and transform an image URL in a span", async () => {
-            const { el, editor } = await setupEditor('<p>a<span class="a">b[]c</span>d</p>');
+            const { el, editor } = await setupEditor(
+                '<p>a<span class="a">b[]c</span>d</p>',
+            );
             pasteText(editor, imgUrl);
             await animationFrame();
             await expectElementCount(".o-we-powerbox", 1);
             await press("Enter");
             expect(getContent(el)).toBe(
-                `<p>a<span class="a">b<img src="${imgUrl}">[]c</span>d</p>`
+                `<p>a<span class="a">b<img src="${imgUrl}">[]c</span>d</p>`,
             );
         });
 
         test("should paste and transform an image URL in an existing link", async () => {
             const { el, editor } = await setupEditor(
-                '<p>a<a href="http://existing.com">b[]c</a>d</p>'
+                '<p>a<a href="http://existing.com">b[]c</a>d</p>',
             );
 
             pasteText(editor, imgUrl);
             await animationFrame();
             await expectElementCount(".o-we-powerbox", 0);
             expect(cleanLinkArtifacts(getContent(el))).toBe(
-                `<p>a<a href="http://existing.com">b<img src="${imgUrl}">[]c</a>d</p>`
+                `<p>a<a href="http://existing.com">b<img src="${imgUrl}">[]c</a>d</p>`,
             );
         });
 
@@ -3522,7 +3623,7 @@ describe("images", () => {
             await press("ArrowDown");
             await press("Enter");
             expect(cleanLinkArtifacts(getContent(el))).toBe(
-                `<p><a href="${imgUrl}">${imgUrl}</a>[]</p>`
+                `<p><a href="${imgUrl}">${imgUrl}</a>[]</p>`,
             );
         });
 
@@ -3538,7 +3639,7 @@ describe("images", () => {
             await press("ArrowDown");
             await press("Enter");
             expect(cleanLinkArtifacts(getContent(el))).toBe(
-                `<p>*should not disappear*<a href="${imgUrl}">${imgUrl}</a>[]</p>`
+                `<p>*should not disappear*<a href="${imgUrl}">${imgUrl}</a>[]</p>`,
             );
         });
     });
@@ -3551,12 +3652,14 @@ describe("images", () => {
             await animationFrame();
             await expectElementCount(".o-we-powerbox", 1);
             await press("Enter");
-            expect(cleanLinkArtifacts(getContent(el))).toBe(`<p>ab<img src="${imgUrl}">[]cd</p>`);
+            expect(cleanLinkArtifacts(getContent(el))).toBe(
+                `<p>ab<img src="${imgUrl}">[]cd</p>`,
+            );
         });
 
         test("should paste and transform an image URL in a span", async () => {
             const { el, editor } = await setupEditor(
-                '<p>a<span class="a">b[x<a href="http://existing.com">546</a>x]c</span>d</p>'
+                '<p>a<span class="a">b[x<a href="http://existing.com">546</a>x]c</span>d</p>',
             );
 
             pasteText(editor, imgUrl);
@@ -3564,20 +3667,20 @@ describe("images", () => {
             await expectElementCount(".o-we-powerbox", 1);
             await press("Enter");
             expect(getContent(el)).toBe(
-                `<p>a<span class="a">b<img src="${imgUrl}">[]c</span>d</p>`
+                `<p>a<span class="a">b<img src="${imgUrl}">[]c</span>d</p>`,
             );
         });
 
         test("should paste and transform an image URL inside an existing link", async () => {
             const { el, editor } = await setupEditor(
-                '<p>a<a href="http://existing.com">b[qsdqsd]c</a>d</p>'
+                '<p>a<a href="http://existing.com">b[qsdqsd]c</a>d</p>',
             );
 
             pasteText(editor, imgUrl);
             await animationFrame();
             await expectElementCount(".o-we-powerbox", 0);
             expect(cleanLinkArtifacts(getContent(el))).toBe(
-                `<p>a<a href="http://existing.com">b<img src="${imgUrl}">[]c</a>d</p>`
+                `<p>a<a href="http://existing.com">b<img src="${imgUrl}">[]c</a>d</p>`,
             );
         });
 
@@ -3591,7 +3694,7 @@ describe("images", () => {
             await press("ArrowDown");
             await press("Enter");
             expect(cleanLinkArtifacts(getContent(el))).toBe(
-                `<p>ab<a href="${imgUrl}">${imgUrl}</a>[]cd</p>`
+                `<p>ab<a href="${imgUrl}">${imgUrl}</a>[]cd</p>`,
             );
         });
 
@@ -3617,7 +3720,7 @@ describe("images", () => {
             await press("ArrowDown");
             await press("Enter");
             expect(cleanLinkArtifacts(getContent(el))).toBe(
-                `<p>ab<a href="${imgUrl}">${imgUrl}</a>[]cd</p>`
+                `<p>ab<a href="${imgUrl}">${imgUrl}</a>[]cd</p>`,
             );
         });
 
@@ -3650,7 +3753,9 @@ describe("images", () => {
 });
 
 describe("youtube video", () => {
-    const config = { Plugins: [...MAIN_PLUGINS, ...NO_EMBEDDED_COMPONENTS_FALLBACK_PLUGINS] };
+    const config = {
+        Plugins: [...MAIN_PLUGINS, ...NO_EMBEDDED_COMPONENTS_FALLBACK_PLUGINS],
+    };
     describe("range collapsed", () => {
         beforeEach(() => {
             onRpc("/html_editor/video_url/data", async (request) => {
@@ -3669,14 +3774,17 @@ describe("youtube video", () => {
             // Wait for the getYoutubeVideoElement promise to resolve.
             await tick();
             expect(getContent(el)).toBe(
-                `<p>ab</p><div data-oe-expression="${videoUrl}" class="media_iframe_video" contenteditable="false"><div class="css_editable_mode_display"></div><div class="media_iframe_video_size" contenteditable="false"></div><iframe frameborder="0" contenteditable="false" allowfullscreen="allowfullscreen" src="${videoUrl}"></iframe></div><p>[]cd</p>`
+                `<p>ab</p><div data-oe-expression="${videoUrl}" class="media_iframe_video" contenteditable="false"><div class="css_editable_mode_display"></div><div class="media_iframe_video_size" contenteditable="false"></div><iframe frameborder="0" contenteditable="false" allowfullscreen="allowfullscreen" src="${videoUrl}"></iframe></div><p>[]cd</p>`,
             );
         });
 
         test("should paste and transform a youtube URL in a span (1)", async () => {
-            const { el, editor } = await setupEditor('<p>a<span class="a">b[]c</span>d</p>', {
-                config,
-            });
+            const { el, editor } = await setupEditor(
+                '<p>a<span class="a">b[]c</span>d</p>',
+                {
+                    config,
+                },
+            );
             pasteText(editor, "https://youtu.be/dQw4w9WgXcQ");
             await animationFrame();
             await expectElementCount(".o-we-powerbox", 1);
@@ -3685,21 +3793,21 @@ describe("youtube video", () => {
             // Wait for the getYoutubeVideoElement promise to resolve.
             await tick();
             expect(getContent(el)).toBe(
-                '<p>a<span class="a">b</span></p><div data-oe-expression="https://youtu.be/dQw4w9WgXcQ" class="media_iframe_video" contenteditable="false"><div class="css_editable_mode_display"></div><div class="media_iframe_video_size" contenteditable="false"></div><iframe frameborder="0" contenteditable="false" allowfullscreen="allowfullscreen" src="https://youtu.be/dQw4w9WgXcQ"></iframe></div><p><span class="a">[]c</span>d</p>'
+                '<p>a<span class="a">b</span></p><div data-oe-expression="https://youtu.be/dQw4w9WgXcQ" class="media_iframe_video" contenteditable="false"><div class="css_editable_mode_display"></div><div class="media_iframe_video_size" contenteditable="false"></div><iframe frameborder="0" contenteditable="false" allowfullscreen="allowfullscreen" src="https://youtu.be/dQw4w9WgXcQ"></iframe></div><p><span class="a">[]c</span>d</p>',
             );
         });
 
         test("should paste and not transform a youtube URL in a existing link", async () => {
             const { el, editor, plugins } = await setupEditor(
                 '<p>a<a href="http://existing.com">b[]c</a>d</p>',
-                { config }
+                { config },
             );
             pasteText(editor, "https://youtu.be/dQw4w9WgXcQ");
             // Ensure the powerbox is active
             const powerbox = plugins.get("powerbox");
             expect(powerbox.overlay.isOpen).not.toBe(true);
             expect(cleanLinkArtifacts(getContent(el))).toBe(
-                '<p>a<a href="http://existing.com">bhttps://youtu.be/dQw4w9WgXcQ[]c</a>d</p>'
+                '<p>a<a href="http://existing.com">bhttps://youtu.be/dQw4w9WgXcQ[]c</a>d</p>',
             );
         });
 
@@ -3712,7 +3820,9 @@ describe("youtube video", () => {
             // Pick the second command (Paste as URL)
             await press("ArrowDown");
             await press("Enter");
-            expect(cleanLinkArtifacts(getContent(el))).toBe(`<p><a href="${url}">${url}</a>[]</p>`);
+            expect(cleanLinkArtifacts(getContent(el))).toBe(
+                `<p><a href="${url}">${url}</a>[]</p>`,
+            );
         });
 
         test("should not revert a history step when pasting a youtube URL as a link (1)", async () => {
@@ -3727,7 +3837,7 @@ describe("youtube video", () => {
             await press("ArrowDown");
             await press("Enter");
             expect(cleanLinkArtifacts(getContent(el))).toBe(
-                `<p>*should not disappear*<a href="${url}">${url}</a>[]</p>`
+                `<p>*should not disappear*<a href="${url}">${url}</a>[]</p>`,
             );
         });
     });
@@ -3750,14 +3860,14 @@ describe("youtube video", () => {
             // Wait for the getYoutubeVideoElement promise to resolve.
             await tick();
             expect(getContent(el)).toBe(
-                '<p>ab</p><div data-oe-expression="https://youtu.be/dQw4w9WgXcQ" class="media_iframe_video" contenteditable="false"><div class="css_editable_mode_display"></div><div class="media_iframe_video_size" contenteditable="false"></div><iframe frameborder="0" contenteditable="false" allowfullscreen="allowfullscreen" src="https://youtu.be/dQw4w9WgXcQ"></iframe></div><p>[]cd</p>'
+                '<p>ab</p><div data-oe-expression="https://youtu.be/dQw4w9WgXcQ" class="media_iframe_video" contenteditable="false"><div class="css_editable_mode_display"></div><div class="media_iframe_video_size" contenteditable="false"></div><iframe frameborder="0" contenteditable="false" allowfullscreen="allowfullscreen" src="https://youtu.be/dQw4w9WgXcQ"></iframe></div><p>[]cd</p>',
             );
         });
 
         test("should paste and transform a youtube URL in a span (2)", async () => {
             const { el, editor } = await setupEditor(
                 '<p>a<span class="a">b[x<a href="http://existing.com">546</a>x]c</span>d</p>',
-                { config }
+                { config },
             );
             pasteText(editor, videoUrl);
             await animationFrame();
@@ -3767,21 +3877,21 @@ describe("youtube video", () => {
             // Wait for the getYoutubeVideoElement promise to resolve.
             await tick();
             expect(getContent(el)).toBe(
-                `<p>a<span class="a">b</span></p><div data-oe-expression="${videoUrl}" class="media_iframe_video" contenteditable="false"><div class="css_editable_mode_display"></div><div class="media_iframe_video_size" contenteditable="false"></div><iframe frameborder="0" contenteditable="false" allowfullscreen="allowfullscreen" src="${videoUrl}"></iframe></div><p><span class="a">[]c</span>d</p>`
+                `<p>a<span class="a">b</span></p><div data-oe-expression="${videoUrl}" class="media_iframe_video" contenteditable="false"><div class="css_editable_mode_display"></div><div class="media_iframe_video_size" contenteditable="false"></div><iframe frameborder="0" contenteditable="false" allowfullscreen="allowfullscreen" src="${videoUrl}"></iframe></div><p><span class="a">[]c</span>d</p>`,
             );
         });
 
         test("should paste and not transform a youtube URL in a existing link", async () => {
             const { el, editor, plugins } = await setupEditor(
                 '<p>a<a href="http://existing.com">b[qsdqsd]c</a>d</p>',
-                { config }
+                { config },
             );
             pasteText(editor, videoUrl);
             // Ensure the powerbox is active
             const powerbox = plugins.get("powerbox");
             expect(powerbox.overlay.isOpen).not.toBe(true);
             expect(cleanLinkArtifacts(getContent(el))).toBe(
-                `<p>a<a href="http://existing.com">b${videoUrl}[]c</a>d</p>`
+                `<p>a<a href="http://existing.com">b${videoUrl}[]c</a>d</p>`,
             );
         });
 
@@ -3794,7 +3904,7 @@ describe("youtube video", () => {
             await press("ArrowDown");
             await press("Enter");
             expect(cleanLinkArtifacts(getContent(el))).toBe(
-                `<p>ab<a href="${videoUrl}">${videoUrl}</a>[]cd</p>`
+                `<p>ab<a href="${videoUrl}">${videoUrl}</a>[]cd</p>`,
             );
         });
 
@@ -3821,7 +3931,7 @@ describe("youtube video", () => {
             await press("ArrowDown");
             await press("Enter");
             expect(cleanLinkArtifacts(getContent(el))).toBe(
-                `<p>ab<a href="${videoUrl}">${videoUrl}</a>[]cd</p>`
+                `<p>ab<a href="${videoUrl}">${videoUrl}</a>[]cd</p>`,
             );
         });
 
@@ -3880,7 +3990,7 @@ describe("youtube video with embedded components", () => {
         await press("ArrowDown");
         await press("Enter");
         expect(cleanLinkArtifacts(getContent(el))).toBe(
-            `<p><a href="${videoUrl}">${videoUrl}</a>[]</p>`
+            `<p><a href="${videoUrl}">${videoUrl}</a>[]</p>`,
         );
     });
 });
@@ -3890,9 +4000,13 @@ describe("Odoo editor own html", () => {
         await testEditor({
             contentBefore: "<p>a[]b</p>",
             stepFunction: async (editor) => {
-                pasteOdooEditorHtml(editor, '<div class="custom-paste oe_unbreakable">b</div>');
+                pasteOdooEditorHtml(
+                    editor,
+                    '<div class="custom-paste oe_unbreakable">b</div>',
+                );
             },
-            contentAfter: '<p>a</p><div class="custom-paste oe_unbreakable">b</div><p>[]b</p>',
+            contentAfter:
+                '<p>a</p><div class="custom-paste oe_unbreakable">b</div><p>[]b</p>',
         });
     });
 
@@ -3900,7 +4014,10 @@ describe("Odoo editor own html", () => {
         await testEditor({
             contentBefore: "<p>a[]b</p>",
             stepFunction: async (editor) => {
-                pasteOdooEditorHtml(editor, `<script>console.log('xss attack')</script>`);
+                pasteOdooEditorHtml(
+                    editor,
+                    `<script>console.log('xss attack')</script>`,
+                );
             },
             contentAfter: "<p>a[]b</p>",
         });
@@ -3909,7 +4026,9 @@ describe("Odoo editor own html", () => {
 
 describe("editable in iframe", () => {
     test("should paste odoo-editor html", async () => {
-        const { el, editor } = await setupEditor("<p>[]</p>", { props: { iframe: true } });
+        const { el, editor } = await setupEditor("<p>[]</p>", {
+            props: { iframe: true },
+        });
         pasteOdooEditorHtml(editor, `<p>text<b>bold text</b>more text</p>`);
         expect(getContent(el)).toBe("<p>text<b>bold text</b>more text[]</p>");
     });
@@ -3918,35 +4037,35 @@ describe("editable in iframe", () => {
 describe("paste in contenteditable span", () => {
     test("should unwrap block when pasting inside a contenteditable span", async () => {
         const { el, editor } = await setupEditor(
-            `<p contenteditable="false"><span contenteditable="true">[]</span></p>`
+            `<p contenteditable="false"><span contenteditable="true">[]</span></p>`,
         );
         pasteOdooEditorHtml(editor, `<h1>text<b>bold text</b>more text</h1>`);
         expect(getContent(el)).toBe(
-            `<p data-selection-placeholder=""><br></p><p contenteditable="false"><span contenteditable="true">text<b>bold text</b>more text[]</span></p><p data-selection-placeholder="" style="margin: -9px 0px 8px;"><br></p>`
+            `<p data-selection-placeholder=""><br></p><p contenteditable="false"><span contenteditable="true">text<b>bold text</b>more text[]</span></p><p data-selection-placeholder="" style="margin: -9px 0px 8px;"><br></p>`,
         );
     });
     test("should unwrap block with br between them when pasting inside a contenteditable span", async () => {
         const { el, editor } = await setupEditor(
-            `<p contenteditable="false"><span contenteditable="true">[]</span></p>`
+            `<p contenteditable="false"><span contenteditable="true">[]</span></p>`,
         );
         pasteOdooEditorHtml(
             editor,
-            `<p>a paragraph</p><h1>text<b>bold text</b>more text</h1><p>another</p>`
+            `<p>a paragraph</p><h1>text<b>bold text</b>more text</h1><p>another</p>`,
         );
         expect(getContent(el)).toBe(
-            `<p data-selection-placeholder=""><br></p><p contenteditable="false"><span contenteditable="true">a paragraph<br>text<b>bold text</b>more text<br>another[]</span></p><p data-selection-placeholder="" style="margin: -9px 0px 8px;"><br></p>`
+            `<p data-selection-placeholder=""><br></p><p contenteditable="false"><span contenteditable="true">a paragraph<br>text<b>bold text</b>more text<br>another[]</span></p><p data-selection-placeholder="" style="margin: -9px 0px 8px;"><br></p>`,
         );
     });
     test("should unwrap block with br between them when pasting in text inside a contenteditable span", async () => {
         const { el, editor } = await setupEditor(
-            `<p contenteditable="false"><span contenteditable="true">ab[]cd</span></p>`
+            `<p contenteditable="false"><span contenteditable="true">ab[]cd</span></p>`,
         );
         pasteOdooEditorHtml(
             editor,
-            `<p>a paragraph</p><h1>text<b>bold text</b>more text</h1><p>another</p>`
+            `<p>a paragraph</p><h1>text<b>bold text</b>more text</h1><p>another</p>`,
         );
         expect(getContent(el)).toBe(
-            `<p data-selection-placeholder=""><br></p><p contenteditable="false"><span contenteditable="true">aba paragraph<br>text<b>bold text</b>more text<br>another[]cd</span></p><p data-selection-placeholder="" style="margin: -9px 0px 8px;"><br></p>`
+            `<p data-selection-placeholder=""><br></p><p contenteditable="false"><span contenteditable="true">aba paragraph<br>text<b>bold text</b>more text<br>another[]cd</span></p><p data-selection-placeholder="" style="margin: -9px 0px 8px;"><br></p>`,
         );
     });
 });
@@ -4159,7 +4278,7 @@ describe("Paste HTML tables", () => {
     </body>
 
     </html>
-</div>`
+</div>`,
                 );
             },
             contentAfter: `<table class="table table-bordered o_table">
@@ -4258,7 +4377,7 @@ ${"            "}
             </tr>
         </tbody>
     </table>
-</google-sheets-html-origin>`
+</google-sheets-html-origin>`,
                 );
             },
             contentAfter: `<table class="table table-bordered o_table">
@@ -4393,7 +4512,7 @@ ${"        "}
     </table>
 </body>
 
-</html>`
+</html>`,
                 );
             },
             contentAfter: `<table class="table table-bordered o_table">
@@ -4446,7 +4565,7 @@ ${"        "}
                                 </tr>
                             </tbody>
                         </table>
-                    `)
+                    `),
                 );
             },
             contentAfter: unformat(`
@@ -4486,7 +4605,7 @@ ${"        "}
                                 </tr>
                             </tbody>
                         </table>
-                    `)
+                    `),
                 );
             },
             contentAfter: unformat(`
@@ -4524,7 +4643,7 @@ ${"        "}
                                 </tr>
                             </thead>
                         </table>
-                    `)
+                    `),
                 );
             },
             contentAfter: unformat(`
@@ -4559,7 +4678,9 @@ describe("onDrop", () => {
         expect(getContent(el)).toBe("<p>b[]acd</p>");
     });
     test("should not be able to paste inside some branded node", async () => {
-        const { el } = await setupEditor(`<p data-oe-model="foo" data-oe-type="text">a[b]cd</p>`);
+        const { el } = await setupEditor(
+            `<p data-oe-model="foo" data-oe-type="text">a[b]cd</p>`,
+        );
         const pElement = el.firstChild;
         const textNode = pElement.firstChild;
 
@@ -4573,7 +4694,9 @@ describe("onDrop", () => {
         await dispatch(pElement, "drop", { dataTransfer: dropData });
         await tick();
 
-        expect(getContent(el)).toBe(`<p data-oe-model="foo" data-oe-type="text">a[b]cd</p>`);
+        expect(getContent(el)).toBe(
+            `<p data-oe-model="foo" data-oe-type="text">a[b]cd</p>`,
+        );
     });
     test("should add new images form fileTransferItems", async () => {
         const { el } = await setupEditor(`<p>ab[]cd</p>`);
@@ -4593,7 +4716,7 @@ describe("onDrop", () => {
         await dispatch(pElement, "drop", { dataTransfer: dropData });
         await waitFor("img");
         expect(getContent(el)).toBe(
-            `<p>abc<img class="img-fluid" data-file-name="image.png" src="${base64Image}">[]d</p>`
+            `<p>abc<img class="img-fluid" data-file-name="image.png" src="${base64Image}">[]d</p>`,
         );
     });
     test("should move an image if it originated from the editor", async () => {
@@ -4601,7 +4724,7 @@ describe("onDrop", () => {
             "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAgAAAAIAQMAAAD+wSzIAAAABlBMVEX///+/v7+jQ3Y5AAAADklEQVQI12P4AIX8EAgALgAD/aNpbtEAAAAASUVORK5CYII=";
 
         const { el } = await setupEditor(
-            `<p>a[<img class="img-fluid" data-file-name="image.png" src="${base64Image}">]bc</p>`
+            `<p>a[<img class="img-fluid" data-file-name="image.png" src="${base64Image}">]bc</p>`,
         );
         const pElement = el.firstChild;
         const imgElement = pElement.childNodes[1];
@@ -4616,13 +4739,13 @@ describe("onDrop", () => {
         await animationFrame();
         const imageHTML = dragdata.getData("application/vnd.odoo.odoo-editor");
         expect(imageHTML).toBe(
-            `<p><img class="img-fluid" data-file-name="image.png" src="${base64Image}"></p>`
+            `<p><img class="img-fluid" data-file-name="image.png" src="${base64Image}"></p>`,
         );
 
         const dropData = new DataTransfer();
         dropData.setData(
             "text/html",
-            `<meta http-equiv="Content-Type" content="text/html;charset=UTF-8"><img src="${base64Image}">`
+            `<meta http-equiv="Content-Type" content="text/html;charset=UTF-8"><img src="${base64Image}">`,
         );
         // Simulate the application/vnd.odoo.odoo-editor data that the browser would do.
         dropData.setData("application/vnd.odoo.odoo-editor", imageHTML);
@@ -4630,7 +4753,7 @@ describe("onDrop", () => {
         await animationFrame();
 
         expect(getContent(el)).toBe(
-            `<p>ab<img class="img-fluid" data-file-name="image.png" src="${base64Image}">[]c</p>`
+            `<p>ab<img class="img-fluid" data-file-name="image.png" src="${base64Image}">[]c</p>`,
         );
     });
     test("should drag and drop an image after another image", async () => {
@@ -4640,7 +4763,7 @@ describe("onDrop", () => {
             "data:image/png;base64, iVBORw0KGgoAAAANSUhEUgAAAAUA\n        AAAFCAYAAACNbyblAAAAHElEQVQI12P4//8/w38GIAXDIBKE0DHxgljNBAAO\n            9TXL0Y4OHwAAAABJRU5ErkJggg==";
 
         const { el } = await setupEditor(
-            `<p>[<img class="img-fluid" data-file-name="image.png" src="${base64Image}">]<img class="img-fluid" data-file-name="image.png" src="${base64Image2}"></p>`
+            `<p>[<img class="img-fluid" data-file-name="image.png" src="${base64Image}">]<img class="img-fluid" data-file-name="image.png" src="${base64Image2}"></p>`,
         );
         const pElement = el.firstChild;
         const firstImage = pElement.childNodes[0];
@@ -4657,13 +4780,13 @@ describe("onDrop", () => {
         await animationFrame();
         const imageHTML = dragdata.getData("application/vnd.odoo.odoo-editor");
         expect(imageHTML).toBe(
-            `<p><img class="img-fluid" data-file-name="image.png" src="${base64Image}"></p>`
+            `<p><img class="img-fluid" data-file-name="image.png" src="${base64Image}"></p>`,
         );
 
         const dropData = new DataTransfer();
         dropData.setData(
             "text/html",
-            `<meta http-equiv="Content-Type" content="text/html;charset=UTF-8"><img src="${base64Image}">`
+            `<meta http-equiv="Content-Type" content="text/html;charset=UTF-8"><img src="${base64Image}">`,
         );
         // Simulate the application/vnd.odoo.odoo-editor data that the browser would do.
         dropData.setData("application/vnd.odoo.odoo-editor", imageHTML);
@@ -4671,7 +4794,7 @@ describe("onDrop", () => {
         await animationFrame();
 
         expect(getContent(el)).toBe(
-            `<p><img class="img-fluid" data-file-name="image.png" src="${base64Image2}"><img class="img-fluid" data-file-name="image.png" src="${base64Image}">[]</p>`
+            `<p><img class="img-fluid" data-file-name="image.png" src="${base64Image2}"><img class="img-fluid" data-file-name="image.png" src="${base64Image}">[]</p>`,
         );
     });
     test("should drag and drop third image after first image", async () => {
@@ -4683,7 +4806,7 @@ describe("onDrop", () => {
             "data:image/png;base64, iVBORw0KGgoAAAANSUhEUgAAAAUA\n        AAAFCAYAAACNbyblAAAAHElEQVQI12P4//8/w38GIAXDIBKE0DHxgljNBAAO\n            9TXL0Y4OHwAAAABJRU5ErkJggg==";
 
         const { el } = await setupEditor(
-            `<p><img class="img-fluid" data-file-name="image.png" src="${base64Image1}"><img class="img-fluid" data-file-name="image.png" src="${base64Image2}">[<img class="img-fluid" data-file-name="image.png" src="${base64Image3}">]</p>`
+            `<p><img class="img-fluid" data-file-name="image.png" src="${base64Image1}"><img class="img-fluid" data-file-name="image.png" src="${base64Image2}">[<img class="img-fluid" data-file-name="image.png" src="${base64Image3}">]</p>`,
         );
         const pElement = el.firstChild;
         const firstImage = pElement.childNodes[0];
@@ -4697,13 +4820,13 @@ describe("onDrop", () => {
         await animationFrame();
         const imageHTML = dragdata.getData("application/vnd.odoo.odoo-editor");
         expect(imageHTML).toBe(
-            `<p><img class="img-fluid" data-file-name="image.png" src="${base64Image3}"></p>`
+            `<p><img class="img-fluid" data-file-name="image.png" src="${base64Image3}"></p>`,
         );
 
         const dropData = new DataTransfer();
         dropData.setData(
             "text/html",
-            `<meta http-equiv="Content-Type" content="text/html;charset=UTF-8"><img src="${base64Image3}">`
+            `<meta http-equiv="Content-Type" content="text/html;charset=UTF-8"><img src="${base64Image3}">`,
         );
         // Simulate the application/vnd.odoo.odoo-editor data that the browser would do.
         dropData.setData("application/vnd.odoo.odoo-editor", imageHTML);
@@ -4711,7 +4834,7 @@ describe("onDrop", () => {
         await animationFrame();
 
         expect(getContent(el)).toBe(
-            `<p><img class="img-fluid" data-file-name="image.png" src="${base64Image1}"><img class="img-fluid" data-file-name="image.png" src="${base64Image3}">[]<img class="img-fluid" data-file-name="image.png" src="${base64Image2}"></p>`
+            `<p><img class="img-fluid" data-file-name="image.png" src="${base64Image1}"><img class="img-fluid" data-file-name="image.png" src="${base64Image3}">[]<img class="img-fluid" data-file-name="image.png" src="${base64Image2}"></p>`,
         );
     });
     test("should drag and drop multiple images after another image", async () => {
@@ -4723,7 +4846,7 @@ describe("onDrop", () => {
             "data:image/png;base64, iVBORw0KGgoAAAANSUhEUgAAAAUA\n        AAAFCAYAAACNbyblAAAAHElEQVQI12P4//8/w38GIAXDIBKE0DHxgljNBAAO\n            9TXL0Y4OHwAAAABJRU5ErkJggg==";
 
         const { el } = await setupEditor(
-            `<p>[<img class="img-fluid" data-file-name="image.png" src="${base64Image1}"><img class="img-fluid" data-file-name="image.png" src="${base64Image2}">]<img class="img-fluid" data-file-name="image.png" src="${base64Image3}"></p>`
+            `<p>[<img class="img-fluid" data-file-name="image.png" src="${base64Image1}"><img class="img-fluid" data-file-name="image.png" src="${base64Image2}">]<img class="img-fluid" data-file-name="image.png" src="${base64Image3}"></p>`,
         );
         const pElement = el.firstChild;
         const firstImage = pElement.childNodes[0];
@@ -4740,13 +4863,13 @@ describe("onDrop", () => {
         await animationFrame();
         const imageHTML = dragdata.getData("application/vnd.odoo.odoo-editor");
         expect(imageHTML).toBe(
-            `<p><img class="img-fluid" data-file-name="image.png" src="${base64Image1}"><img class="img-fluid" data-file-name="image.png" src="${base64Image2}"></p>`
+            `<p><img class="img-fluid" data-file-name="image.png" src="${base64Image1}"><img class="img-fluid" data-file-name="image.png" src="${base64Image2}"></p>`,
         );
 
         const dropData = new DataTransfer();
         dropData.setData(
             "text/html",
-            `<meta http-equiv="Content-Type" content="text/html;charset=UTF-8"><img src="${base64Image1}"><img src="${base64Image2}">`
+            `<meta http-equiv="Content-Type" content="text/html;charset=UTF-8"><img src="${base64Image1}"><img src="${base64Image2}">`,
         );
         // Simulate the application/vnd.odoo.odoo-editor data that the browser would do.
         dropData.setData("application/vnd.odoo.odoo-editor", imageHTML);
@@ -4754,7 +4877,7 @@ describe("onDrop", () => {
         await animationFrame();
 
         expect(getContent(el)).toBe(
-            `<p><img class="img-fluid" data-file-name="image.png" src="${base64Image3}"><img class="img-fluid" data-file-name="image.png" src="${base64Image1}"><img class="img-fluid" data-file-name="image.png" src="${base64Image2}">[]</p>`
+            `<p><img class="img-fluid" data-file-name="image.png" src="${base64Image3}"><img class="img-fluid" data-file-name="image.png" src="${base64Image1}"><img class="img-fluid" data-file-name="image.png" src="${base64Image2}">[]</p>`,
         );
     });
     test("should drag and drop banner", async () => {
@@ -4767,7 +4890,7 @@ describe("onDrop", () => {
                 </div>
             </div>
             <p>b]</p>
-            <p>c</p>`
+            <p>c</p>`,
         );
 
         const bannerElement = el.querySelector(".o_editor_banner");
@@ -4798,12 +4921,12 @@ describe("onDrop", () => {
                 <div class="o_editor_banner_content o-contenteditable-true w-100 px-3" contenteditable="true">
                     <p>Test</p>
                 </div>
-            </div><p>b[]</p>`
+            </div><p>b[]</p>`,
         );
     });
     test("should drag and drop icon", async () => {
         const { el } = await setupEditor(
-            `<p>[a</p><p><span class="fa-solid fa-heart"></span>b]</p><p>c</p>`
+            `<p>[a</p><p><span class="fa-solid fa-heart"></span>b]</p><p>c</p>`,
         );
         const iconElement = el.querySelector(".fa-solid");
         const targetNodeForDrop = el.lastChild;
@@ -4829,7 +4952,7 @@ describe("onDrop", () => {
         await animationFrame();
 
         expect(getContent(el)).toBe(
-            '<p><br></p><p>ca</p><p>\ufeff<span class="fa-solid fa-heart" contenteditable="false">\u200b</span>\ufeffb[]</p>'
+            '<p><br></p><p>ca</p><p>\ufeff<span class="fa-solid fa-heart" contenteditable="false">\u200b</span>\ufeffb[]</p>',
         );
     });
 });

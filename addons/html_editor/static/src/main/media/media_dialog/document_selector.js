@@ -1,7 +1,8 @@
 /** @odoo-module native */
 import { _t } from "@web/core/l10n/translation";
-import { Attachment, FileSelector, IMAGE_MIMETYPES } from "./file_selector.js";
 import { renderToElement } from "@web/core/utils/render";
+
+import { Attachment, FileSelector, IMAGE_MIMETYPES } from "./file_selector.js";
 
 export class DocumentAttachment extends Attachment {
     static template = "html_editor.DocumentAttachment";
@@ -33,7 +34,11 @@ export class DocumentSelector extends FileSelector {
         domain.push(["mimetype", "not in", IMAGE_MIMETYPES]);
         // The assets should not be part of the documents.
         // All assets begin with '/web/assets/', see _get_asset_template_url().
-        domain.unshift("&", "|", ["url", "=", null], "!", ["url", "=like", "/web/assets/%"]);
+        domain.unshift("&", "|", ["url", "=", null], "!", [
+            "url",
+            "=like",
+            "/web/assets/%",
+        ]);
         return domain;
     }
 
@@ -49,7 +54,10 @@ export class DocumentSelector extends FileSelector {
             for (const attachment of attachments) {
                 if (
                     `/web/content/${attachment.id}` ===
-                    this.props.media.querySelector("a").getAttribute("href").replace(/[?].*/, "")
+                    this.props.media
+                        .querySelector("a")
+                        .getAttribute("href")
+                        .replace(/[?].*/, "")
                 ) {
                     this.selectAttachment(attachment);
                 }
@@ -65,19 +73,21 @@ export class DocumentSelector extends FileSelector {
         return Promise.all(
             selectedMedia.map(async (attachment) => {
                 let url = `/web/content/${encodeURIComponent(
-                    attachment.id
+                    attachment.id,
                 )}?unique=${encodeURIComponent(attachment.checksum)}&download=true`;
                 if (!attachment.public) {
                     let accessToken = attachment.access_token;
                     if (!accessToken) {
-                        [accessToken] = await orm.call("ir.attachment", "generate_access_token", [
-                            attachment.id,
-                        ]);
+                        [accessToken] = await orm.call(
+                            "ir.attachment",
+                            "generate_access_token",
+                            [attachment.id],
+                        );
                     }
                     url += `&access_token=${encodeURIComponent(accessToken)}`;
                 }
                 return this.renderFileElement(attachment, url);
-            })
+            }),
         );
     }
 
@@ -86,7 +96,7 @@ export class DocumentSelector extends FileSelector {
             attachment.name,
             attachment.mimetype,
             downloadUrl,
-            attachment.id
+            attachment.id,
         );
     }
 }

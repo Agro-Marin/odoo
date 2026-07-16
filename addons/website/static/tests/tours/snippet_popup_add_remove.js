@@ -41,11 +41,16 @@ registerWebsitePreviewTour(
                 const anchor = this.anchor;
                 // Trick the editor into keyboardType === 'PHYSICAL' and press
                 // enter.
-                anchor.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+                anchor.dispatchEvent(
+                    new KeyboardEvent("keydown", { key: "Enter", bubbles: true }),
+                );
                 // Trigger editor's '_onInput' handler, which leads to
                 // historyRollback.
                 anchor.dispatchEvent(
-                    new InputEvent("input", { inputType: "insertLineBreak", bubbles: true })
+                    new InputEvent("input", {
+                        inputType: "insertLineBreak",
+                        bubbles: true,
+                    }),
                 );
             },
         },
@@ -55,7 +60,8 @@ registerWebsitePreviewTour(
         },
         {
             content: `Remove the s_popup snippet`,
-            trigger: ".o_customize_tab [data-container-title='Popup'] button.oe_snippet_remove",
+            trigger:
+                ".o_customize_tab [data-container-title='Popup'] button.oe_snippet_remove",
             run: "click",
         },
         {
@@ -86,5 +92,5 @@ registerWebsitePreviewTour(
             content: "The invisible elements panel should also be removed.",
             trigger: ".o-snippets-menu:not(:has(.o_we_invisible_el_panel)",
         },
-    ]
+    ],
 );

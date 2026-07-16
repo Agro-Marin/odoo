@@ -1,15 +1,15 @@
 /** @odoo-module native */
-import { Plugin } from "@html_editor/plugin";
-import { _t } from "@web/core/l10n/translation";
-import { renderToElement } from "@web/core/utils/render";
+import { isHtmlContentSupported } from "@html_editor/core/selection_plugin";
+import { DISABLED_NAMESPACE } from "@html_editor/main/toolbar/toolbar_plugin";
 import {
     HEADINGS,
     TableOfContentManager,
 } from "@html_editor/others/embedded_components/core/table_of_content/table_of_content_manager";
-import { isHtmlContentSupported } from "@html_editor/core/selection_plugin";
-import { withSequence } from "@html_editor/utils/resource";
+import { Plugin } from "@html_editor/plugin";
 import { closestElement } from "@html_editor/utils/dom_traversal";
-import { DISABLED_NAMESPACE } from "@html_editor/main/toolbar/toolbar_plugin";
+import { withSequence } from "@html_editor/utils/resource";
+import { _t } from "@web/core/l10n/translation";
+import { renderToElement } from "@web/core/utils/render";
 
 export class TableOfContentPlugin extends Plugin {
     static id = "tableOfContent";
@@ -34,12 +34,17 @@ export class TableOfContentPlugin extends Plugin {
         ],
 
         /** Handlers */
-        restore_savepoint_handlers: () => this.delayedUpdateTableOfContents(this.editable),
+        restore_savepoint_handlers: () =>
+            this.delayedUpdateTableOfContents(this.editable),
         history_reset_handlers: () => this.delayedUpdateTableOfContents(this.editable),
-        history_reset_from_steps_handlers: () => this.delayedUpdateTableOfContents(this.editable),
+        history_reset_from_steps_handlers: () =>
+            this.delayedUpdateTableOfContents(this.editable),
         step_added_handlers: ({ stepCommonAncestor }) =>
             this.delayedUpdateTableOfContents(stepCommonAncestor),
-        external_step_added_handlers: this.delayedUpdateTableOfContents.bind(this, this.editable),
+        external_step_added_handlers: this.delayedUpdateTableOfContents.bind(
+            this,
+            this.editable,
+        ),
         clean_for_save_handlers: this.cleanForSave.bind(this),
         mount_component_handlers: this.setupNewToc.bind(this),
 
@@ -47,7 +52,7 @@ export class TableOfContentPlugin extends Plugin {
             if (
                 targetedNodes.length &&
                 targetedNodes.every((node) =>
-                    closestElement(node, `[data-embedded="tableOfContent"]`)
+                    closestElement(node, `[data-embedded="tableOfContent"]`),
                 )
             ) {
                 return DISABLED_NAMESPACE;
@@ -65,7 +70,9 @@ export class TableOfContentPlugin extends Plugin {
     }
 
     insertTableOfContent() {
-        const tableOfContentBlueprint = renderToElement("html_editor.TableOfContentBlueprint");
+        const tableOfContentBlueprint = renderToElement(
+            "html_editor.TableOfContentBlueprint",
+        );
         this.dependencies.dom.insert(tableOfContentBlueprint);
         this.dependencies.history.addStep();
     }
@@ -86,14 +93,12 @@ export class TableOfContentPlugin extends Plugin {
 
     delayedUpdateTableOfContents(element) {
         const selector = HEADINGS.join(",");
-        if (
-            !(
-                !element ||
-                this.manager.structure.headings.length ||
-                element.querySelector(selector) ||
-                element.closest(selector)
-            )
-        ) {
+        if (!(
+            !element ||
+            this.manager.structure.headings.length ||
+            element.querySelector(selector) ||
+            element.closest(selector)
+        )) {
             return;
         }
         if (this.updateTimeout) {

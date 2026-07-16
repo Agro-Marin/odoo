@@ -114,4 +114,6 @@ export class AlignCoverImageAction extends BuilderAction {
     }
 }
 
-registry.category("website-plugins").add(CardImageOptionPlugin.id, CardImageOptionPlugin);
+registry
+    .category("website-plugins")
+    .add(CardImageOptionPlugin.id, CardImageOptionPlugin);

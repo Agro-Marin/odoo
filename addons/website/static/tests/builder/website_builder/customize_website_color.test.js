@@ -152,7 +152,7 @@ test("BuilderColorPicker with action “customizeWebsiteColor” is correctly di
         "asset reload",
     ]);
     const colorPresetEl = document.querySelector(
-        'div[id^="builder_collapse_content_"] .o_cc_preview_wrapper div'
+        'div[id^="builder_collapse_content_"] .o_cc_preview_wrapper div',
     );
     const presetElStyles = window.getComputedStyle(colorPresetEl, "::before");
     expect(presetElStyles.backgroundImage).toInclude("transparent.png");

@@ -1,5 +1,6 @@
 /** @odoo-module native */
 import { useState } from "@odoo/owl";
+
 import { ChatGPTDialog } from "./chatgpt_dialog.js";
 
 export class ChatGPTTranslateDialog extends ChatGPTDialog {
@@ -53,7 +54,7 @@ export class ChatGPTTranslateDialog extends ChatGPTDialog {
                     {
                         role: "assistant",
                         content,
-                    }
+                    },
                 );
             }
             this.state.messages.push({

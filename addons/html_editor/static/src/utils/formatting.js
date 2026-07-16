@@ -1,9 +1,16 @@
 /** @odoo-module native */
 import { normalizeCSSColor } from "@web/core/utils/format/colors";
-import { removeClass } from "./dom.js";
-import { isBold, isDirectionSwitched, isItalic, isStrikeThrough, isUnderline } from "./dom_info.js";
-import { closestElement, closestPath, findNode, findUpTo } from "./dom_traversal.js";
+
 import { closestBlock, isBlock } from "./blocks.js";
+import { removeClass } from "./dom.js";
+import {
+    isBold,
+    isDirectionSwitched,
+    isItalic,
+    isStrikeThrough,
+    isUnderline,
+} from "./dom_info.js";
+import { closestElement, closestPath, findNode, findUpTo } from "./dom_traversal.js";
 
 /**
  * Array of all the classes used by the editor to change the font size.
@@ -24,7 +31,13 @@ export const FONT_SIZE_CLASSES = [
     "o_small-fs",
 ];
 
-export const TEXT_STYLE_CLASSES = ["display-1", "display-2", "display-3", "display-4", "lead"];
+export const TEXT_STYLE_CLASSES = [
+    "display-1",
+    "display-2",
+    "display-3",
+    "display-4",
+    "lead",
+];
 
 export const DEFAULT_FONT_SIZE_CLASSES = [
     "h1",
@@ -36,7 +49,17 @@ export const DEFAULT_FONT_SIZE_CLASSES = [
     "o_default_font_size",
 ];
 
-export const FORMATTABLE_TAGS = ["SPAN", "FONT", "B", "STRONG", "I", "EM", "U", "S", "CODE"];
+export const FORMATTABLE_TAGS = [
+    "SPAN",
+    "FONT",
+    "B",
+    "STRONG",
+    "I",
+    "EM",
+    "U",
+    "S",
+    "CODE",
+];
 
 export const formatsSpecs = {
     italic: {
@@ -74,7 +97,7 @@ export const formatsSpecs = {
                 node.style["text-decoration"].includes("underline")
                     ? "text-decoration"
                     : "text-decoration-line",
-                "underline"
+                "underline",
             ),
     },
     strikeThrough: {
@@ -92,7 +115,7 @@ export const formatsSpecs = {
                 node.style["text-decoration"].includes("line-through")
                     ? "text-decoration"
                     : "text-decoration-line",
-                "line-through"
+                "line-through",
             ),
     },
     fontFamily: {
@@ -129,21 +152,25 @@ export const formatsSpecs = {
                       findNode(
                           closestPath(node),
                           (el) => el.classList?.contains(props.className),
-                          (el) => el === closestBlock(node).parentElement
-                      ) || closestElement(node, "li")?.classList?.contains(props.className)
+                          (el) => el === closestBlock(node).parentElement,
+                      ) ||
+                      closestElement(node, "li")?.classList?.contains(props.className)
                   )
                 : !!findNode(
                       closestPath(node),
-                      (el) => FONT_SIZE_CLASSES.find((cls) => el.classList?.contains(cls)),
-                      (el) => el === closestBlock(node).parentElement
+                      (el) =>
+                          FONT_SIZE_CLASSES.find((cls) => el.classList?.contains(cls)),
+                      (el) => el === closestBlock(node).parentElement,
                   ) ||
                   FONT_SIZE_CLASSES.find((cls) =>
-                      closestElement(node, "li")?.classList.contains(cls)
+                      closestElement(node, "li")?.classList.contains(cls),
                   ),
         hasStyle: (node, props) =>
-            [...FONT_SIZE_CLASSES, ...TEXT_STYLE_CLASSES, ...DEFAULT_FONT_SIZE_CLASSES].find(
-                (cls) => node.classList.contains(cls)
-            ),
+            [
+                ...FONT_SIZE_CLASSES,
+                ...TEXT_STYLE_CLASSES,
+                ...DEFAULT_FONT_SIZE_CLASSES,
+            ].find((cls) => node.classList.contains(cls)),
         addStyle: (node, props) => {
             node.style.removeProperty("font-size");
             node.classList.add(props.className);
@@ -271,7 +298,7 @@ export function getFontSizeDisplayValue(sel, document) {
                 ${FONT_SIZE_CLASSES.map((className) => `.${className}`)},
                 ${TEXT_STYLE_CLASSES.map((className) => `.${className}`)},
                 ${tagNameRelatedToFontSize}
-            `)
+            `),
     );
     let remValue;
     const htmlStyle = getHtmlStyle(document);
@@ -290,7 +317,7 @@ export function getFontSizeDisplayValue(sel, document) {
         // font size because it can be different from the one displayed in
         // the toolbar because it's responsive.
         const fontSizeClass = FONT_SIZE_CLASSES.find((className) =>
-            closestFontSizedEl.classList.contains(className)
+            closestFontSizedEl.classList.contains(className),
         );
         let fsName;
         if (fontSizeClass) {
@@ -298,7 +325,7 @@ export function getFontSizeDisplayValue(sel, document) {
         } else {
             fsName =
                 TEXT_STYLE_CLASSES.find((className) =>
-                    closestFontSizedEl.classList.contains(className)
+                    closestFontSizedEl.classList.contains(className),
                 ) || closestFontSizedEl.tagName.toLowerCase();
         }
         remValue = parseFloat(getCSSVariableValue(`${fsName}-font-size`, htmlStyle));

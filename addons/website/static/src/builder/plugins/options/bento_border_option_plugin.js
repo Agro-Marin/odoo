@@ -1,12 +1,12 @@
 /** @odoo-module native */
-import { after } from "@html_builder/utils/option_sequence";
-import { WEBSITE_BACKGROUND_OPTIONS } from "@website/builder/option_sequence";
-import { withSequence } from "@html_editor/utils/resource";
-import { Plugin } from "@html_editor/plugin";
-import { registry } from "@web/core/registry";
 import { BaseOptionComponent } from "@html_builder/core/utils";
 import { BorderConfigurator } from "@html_builder/plugins/border_configurator_option";
 import { ShadowOption } from "@html_builder/plugins/shadow_option";
+import { after } from "@html_builder/utils/option_sequence";
+import { Plugin } from "@html_editor/plugin";
+import { withSequence } from "@html_editor/utils/resource";
+import { registry } from "@web/core/registry";
+import { WEBSITE_BACKGROUND_OPTIONS } from "@website/builder/option_sequence";
 
 export class BentoBorderOption extends BaseOptionComponent {
     static template = "html_builder.BentoBorderOption";
@@ -18,7 +18,11 @@ class BentoBorderOptionPlugin extends Plugin {
     static id = "BentoBorderOption";
     /** @type {import("plugins").WebsiteResources} */
     resources = {
-        builder_options: [withSequence(after(WEBSITE_BACKGROUND_OPTIONS), BentoBorderOption)],
+        builder_options: [
+            withSequence(after(WEBSITE_BACKGROUND_OPTIONS), BentoBorderOption),
+        ],
     };
 }
-registry.category("website-plugins").add(BentoBorderOptionPlugin.id, BentoBorderOptionPlugin);
+registry
+    .category("website-plugins")
+    .add(BentoBorderOptionPlugin.id, BentoBorderOptionPlugin);

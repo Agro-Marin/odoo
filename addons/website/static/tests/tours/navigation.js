@@ -1,5 +1,8 @@
 import { stepUtils } from "@web_tour/tour_utils";
-import { insertSnippet, registerWebsitePreviewTour } from "@website/js/tours/tour_utils";
+import {
+    insertSnippet,
+    registerWebsitePreviewTour,
+} from "@website/js/tours/tour_utils";
 
 registerWebsitePreviewTour(
     "website_editing_awaits_navigation",
@@ -20,7 +23,8 @@ registerWebsitePreviewTour(
         stepUtils.waitIframeIsReady(),
         {
             content: "Contact us page appears first before the builder sidebar",
-            trigger: ":iframe section h1:contains('Contact Us'), :not(.o-website-builder_sidebar)",
+            trigger:
+                ":iframe section h1:contains('Contact Us'), :not(.o-website-builder_sidebar)",
         },
         {
             content: "Can insert a snippet",
@@ -35,5 +39,5 @@ registerWebsitePreviewTour(
             content: "",
             trigger: ":iframe section.s_banner",
         },
-    ]
+    ],
 );

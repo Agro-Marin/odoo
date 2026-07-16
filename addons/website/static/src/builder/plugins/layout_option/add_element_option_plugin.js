@@ -1,6 +1,9 @@
 /** @odoo-module native */
 import { BuilderAction } from "@html_builder/core/builder_action";
-import { resizeGrid, setElementToMaxZindex } from "@html_builder/utils/grid_layout_utils";
+import {
+    resizeGrid,
+    setElementToMaxZindex,
+} from "@html_builder/utils/grid_layout_utils";
 import { Plugin } from "@html_editor/plugin";
 import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
@@ -38,7 +41,10 @@ export class AddElementOptionPlugin extends Plugin {
         // in the top left corner.
         const currentTime = new Date().getTime();
         if (this.lastAddTime && (currentTime - this.lastAddTime) / 1000 < 15) {
-            this.lastStartPosition = [this.lastStartPosition[0] + 1, this.lastStartPosition[1] + 1];
+            this.lastStartPosition = [
+                this.lastStartPosition[0] + 1,
+                this.lastStartPosition[1] + 1,
+            ];
         } else {
             this.lastStartPosition = [1, 1]; // [rowStart, columnStart]
         }
@@ -50,7 +56,7 @@ export class AddElementOptionPlugin extends Plugin {
         newColumnEl.classList.add(
             `g-col-lg-${columnSpan}`,
             `col-lg-${columnSpan}`,
-            `g-height-${rowSpan}`
+            `g-height-${rowSpan}`,
         );
         newColumnEl.appendChild(contentEl);
 
@@ -130,4 +136,6 @@ export class AddGridElementAction extends BuilderAction {
     }
 }
 
-registry.category("website-plugins").add(AddElementOptionPlugin.id, AddElementOptionPlugin);
+registry
+    .category("website-plugins")
+    .add(AddElementOptionPlugin.id, AddElementOptionPlugin);

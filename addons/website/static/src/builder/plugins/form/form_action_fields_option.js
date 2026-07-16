@@ -1,6 +1,6 @@
 /** @odoo-module native */
-import { onWillStart, onWillUpdateProps, useState } from "@odoo/owl";
 import { BaseOptionComponent } from "@html_builder/core/utils";
+import { onWillStart, onWillUpdateProps, useState } from "@odoo/owl";
 
 export class FormActionFieldsOption extends BaseOptionComponent {
     static template = "website.s_website_form_form_action_fields_option";
@@ -30,7 +30,7 @@ export class FormActionFieldsOption extends BaseOptionComponent {
                 formFields: [],
                 successPage: undefined,
             },
-            formInfo
+            formInfo,
         );
     }
 }

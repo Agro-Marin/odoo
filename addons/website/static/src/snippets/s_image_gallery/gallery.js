@@ -1,10 +1,9 @@
 /** @odoo-module native */
-import { Interaction } from "@web/public/interaction";
-import { Modal } from "@web/libs/bootstrap";
 import { registry } from "@web/core/registry";
-
 import { uniqueId } from "@web/core/utils/functions";
 import { renderToElement } from "@web/core/utils/render";
+import { Modal } from "@web/libs/bootstrap";
+import { Interaction } from "@web/public/interaction";
 
 export class Gallery extends Interaction {
     static selector = ".s_image_gallery:not(.o_slideshow)";
@@ -17,7 +16,7 @@ export class Gallery extends Interaction {
     setup() {
         this.modalEl = null;
         this.originalSources = [...this.el.querySelectorAll("img")].map((img) =>
-            img.getAttribute("src")
+            img.getAttribute("src"),
         );
     }
 
@@ -86,11 +85,13 @@ export class Gallery extends Interaction {
         this.modalEl.addEventListener(
             "shown.bs.modal",
             () => {
-                const slideshowEl = this.modalEl.querySelector(".modal-body.o_slideshow");
+                const slideshowEl = this.modalEl.querySelector(
+                    ".modal-body.o_slideshow",
+                );
                 this.services["public.interactions"].startInteractions(slideshowEl);
                 this.modalEl.addEventListener("keydown", this.onModalKeydownBound);
             },
-            { once: true }
+            { once: true },
         );
 
         this.insert(this.modalEl, document.body);

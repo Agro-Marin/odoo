@@ -1,5 +1,6 @@
 import { expect, test } from "@odoo/hoot";
 import { animationFrame, dblclick } from "@odoo/hoot-dom";
+
 import { defineWebsiteModels, setupWebsiteBuilder } from "./website_helpers.js";
 
 defineWebsiteModels();
@@ -17,5 +18,7 @@ test("double click on video", async () => {
     expect(".modal-content").toHaveCount(0);
     await dblclick(":iframe iframe");
     await animationFrame();
-    expect(".modal-content:contains(Select a media) .o_video_dialog_form").toHaveCount(1);
+    expect(".modal-content:contains(Select a media) .o_video_dialog_form").toHaveCount(
+        1,
+    );
 });

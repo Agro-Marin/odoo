@@ -46,11 +46,18 @@ export function serializeChanges(snapshot, current) {
     }
 
     if (snapshot.textContent !== current.textContent) {
-        pushChanges("modifiedText", { before: snapshot.textContent, after: current.textContent });
+        pushChanges("modifiedText", {
+            before: snapshot.textContent,
+            after: current.textContent,
+        });
     }
 
-    const oldChildren = [...snapshot.childNodes].filter((node) => node.nodeType !== Node.TEXT_NODE);
-    const newChildren = [...current.childNodes].filter((node) => node.nodeType !== Node.TEXT_NODE);
+    const oldChildren = [...snapshot.childNodes].filter(
+        (node) => node.nodeType !== Node.TEXT_NODE,
+    );
+    const newChildren = [...current.childNodes].filter(
+        (node) => node.nodeType !== Node.TEXT_NODE,
+    );
     oldChildren.forEach((oldNode, index) => {
         if (!newChildren[index] || !oldNode.isEqualNode(newChildren[index])) {
             pushChanges("removedNodes", { oldNode: serializeNode(oldNode) });
@@ -67,8 +74,10 @@ export function serializeChanges(snapshot, current) {
     new Set([...oldAttrNames, ...newAttrNames]).forEach((attributeName) => {
         const oldValue = snapshot.getAttribute(attributeName);
         const newValue = current.getAttribute(attributeName);
-        const before = oldValue !== newValue || !newAttrNames.has(attributeName) ? oldValue : null;
-        const after = oldValue !== newValue || !oldAttrNames.has(attributeName) ? newValue : null;
+        const before =
+            oldValue !== newValue || !newAttrNames.has(attributeName) ? oldValue : null;
+        const after =
+            oldValue !== newValue || !oldAttrNames.has(attributeName) ? newValue : null;
         if (before || after) {
             pushChanges("modifiedAttributes", { attributeName, before, after });
         }

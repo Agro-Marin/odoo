@@ -9,11 +9,16 @@ import { isImageSupportedForStyle } from "@html_builder/plugins/image/replace_me
 export class AnimateOption extends BaseOptionComponent {
     static template = "website.AnimateOption";
     static dependencies = ["animateOption"];
-    static selector = ".o_animable, section .row > div, img, :is(.fa-solid, .fa-regular, .fa-brands), .btn";
+    static selector =
+        ".o_animable, section .row > div, img, :is(.fa-solid, .fa-regular, .fa-brands), .btn";
     static exclude =
         "[data-oe-xpath], .o_not-animable, .s_col_no_resize.row > div, .s_col_no_resize, .s_website_form_submit";
     static props = {
-        dropdownClass: { type: String, optional: true, default: "o-hb-select-dropdown" },
+        dropdownClass: {
+            type: String,
+            optional: true,
+            default: "o-hb-select-dropdown",
+        },
         requireAnimation: { type: Boolean, optional: true },
         slots: { type: Object, optional: true },
     };
@@ -23,7 +28,8 @@ export class AnimateOption extends BaseOptionComponent {
         super.setup();
         this.state = useDomState(async (editingElement) => {
             const hasAnimateClass = editingElement.classList.contains("o_animate");
-            this.getDirectionsItems = this.dependencies.animateOption.getDirectionsItems;
+            this.getDirectionsItems =
+                this.dependencies.animateOption.getDirectionsItems;
             const { getEffectsItems } = this.dependencies.animateOption;
 
             return {
@@ -31,12 +37,15 @@ export class AnimateOption extends BaseOptionComponent {
                 hasAnimateClass: hasAnimateClass,
                 canHover: await this.canHaveHoverEffect(editingElement),
                 isLimitedEffect: this.limitedEffects.some((className) =>
-                    editingElement.classList.contains(className)
+                    editingElement.classList.contains(className),
                 ),
-                showIntensity: this.shouldShowIntensity(editingElement, hasAnimateClass),
+                showIntensity: this.shouldShowIntensity(
+                    editingElement,
+                    hasAnimateClass,
+                ),
                 effectItems: getEffectsItems(this.isActiveItem),
                 directionItems: this.getDirectionsItems(editingElement).filter(
-                    (i) => !i.check || i.check(editingElement)
+                    (i) => !i.check || i.check(editingElement),
                 ),
                 isInDropdown: editingElement.closest(".dropdown"),
             };
@@ -74,13 +83,15 @@ export class AnimateOption extends BaseOptionComponent {
             .map((i) => i.className)
             .filter(Boolean);
         const hasDirection = possibleDirections.some((direction) =>
-            editingElement.classList.contains(direction)
+            editingElement.classList.contains(direction),
         );
 
         return hasDirection;
     }
     async canHaveHoverEffect(el) {
-        const proms = this.getResource("hover_effect_allowed_predicates").map((p) => p(el));
+        const proms = this.getResource("hover_effect_allowed_predicates").map((p) =>
+            p(el),
+        );
         const settledProms = await Promise.all(proms);
         return settledProms.length && settledProms.every(Boolean);
     }

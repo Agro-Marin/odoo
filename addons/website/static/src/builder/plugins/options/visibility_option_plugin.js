@@ -1,13 +1,17 @@
 /** @odoo-module native */
-import { registry } from "@web/core/registry";
-import { Plugin } from "@html_editor/plugin";
-import { selectElements } from "@html_editor/utils/dom_traversal";
-import { pyToJsLocale } from "@web/core/l10n/utils";
-import { VisibilityOption } from "./visibility_option.js";
-import { withSequence } from "@html_editor/utils/resource";
-import { CONDITIONAL_VISIBILITY, DEVICE_VISIBILITY } from "@website/builder/option_sequence";
 import { BuilderAction } from "@html_builder/core/builder_action";
 import { BaseOptionComponent } from "@html_builder/core/utils";
+import { Plugin } from "@html_editor/plugin";
+import { selectElements } from "@html_editor/utils/dom_traversal";
+import { withSequence } from "@html_editor/utils/resource";
+import { pyToJsLocale } from "@web/core/l10n/utils";
+import { registry } from "@web/core/registry";
+import {
+    CONDITIONAL_VISIBILITY,
+    DEVICE_VISIBILITY,
+} from "@website/builder/option_sequence";
+
+import { VisibilityOption } from "./visibility_option.js";
 
 /**
  * @typedef {{
@@ -113,27 +117,38 @@ class VisibilityOptionPlugin extends Plugin {
         const hideAttributes = [];
         for (const attribute of this.optionsAttributes) {
             if (target.dataset[attribute.saveAttribute]) {
-                let records = JSON.parse(target.dataset[attribute.saveAttribute]).map((record) => ({
-                    id: record.id,
-                    value: record[attribute.callWith],
-                }));
+                let records = JSON.parse(target.dataset[attribute.saveAttribute]).map(
+                    (record) => ({
+                        id: record.id,
+                        value: record[attribute.callWith],
+                    }),
+                );
                 if (attribute.saveAttribute === "visibilityValueLang") {
                     records = records.map((lang) => {
                         lang.value = pyToJsLocale(lang.value);
                         return lang;
                     });
                 }
-                const hideFor = target.dataset[`${attribute.saveAttribute}Rule`] === "hide";
+                const hideFor =
+                    target.dataset[`${attribute.saveAttribute}Rule`] === "hide";
                 if (hideFor) {
-                    hideAttributes.push({ name: attribute.attributeName, records: records });
+                    hideAttributes.push({
+                        name: attribute.attributeName,
+                        records: records,
+                    });
                 } else {
-                    onlyAttributes.push({ name: attribute.attributeName, records: records });
+                    onlyAttributes.push({
+                        name: attribute.attributeName,
+                        records: records,
+                    });
                 }
                 // Create a visibilityId based on the options name and their
                 // values. eg : hide for en_US(id:1) -> lang1h
                 const type = attribute.attributeName.replace("data-", "");
                 const valueIDs = records.map((record) => record.id).sort();
-                visibilityIDParts.push(`${type}_${hideFor ? "h" : "o"}_${valueIDs.join("_")}`);
+                visibilityIDParts.push(
+                    `${type}_${hideFor ? "h" : "o"}_${valueIDs.join("_")}`,
+                );
             }
         }
         const visibilityId = visibilityIDParts.join("_");
@@ -145,8 +160,9 @@ class VisibilityOptionPlugin extends Plugin {
             // html:not([data-attr-1="valueAttr1"]):not([data-attr-1="valueAttr2"]) [data-visibility-id="ruleId"]
             const selector =
                 attribute.records.reduce(
-                    (acc, record) => (acc += `:not([${attribute.name}="${record.value}"])`),
-                    "html"
+                    (acc, record) =>
+                        acc + `:not([${attribute.name}="${record.value}"])`,
+                    "html",
                 ) + ` body:not(.editor_enable) [data-visibility-id="${visibilityId}"]`;
             selectors += selector + ", ";
         }
@@ -198,7 +214,7 @@ export class ToggleDeviceVisibilityAction extends BuilderAction {
             editingElement.classList.add(
                 `d-lg-${style["display"]}`,
                 "d-none",
-                "o_snippet_mobile_invisible"
+                "o_snippet_mobile_invisible",
             );
         }
 
@@ -219,7 +235,7 @@ export class ToggleDeviceVisibilityAction extends BuilderAction {
             "d-md-none",
             "d-lg-none",
             "o_snippet_mobile_invisible",
-            "o_snippet_desktop_invisible"
+            "o_snippet_desktop_invisible",
         );
         const style = getComputedStyle(editingElement);
         const display = style["display"];
@@ -250,4 +266,6 @@ export class ToggleDeviceVisibilityAction extends BuilderAction {
     }
 }
 
-registry.category("website-plugins").add(VisibilityOptionPlugin.id, VisibilityOptionPlugin);
+registry
+    .category("website-plugins")
+    .add(VisibilityOptionPlugin.id, VisibilityOptionPlugin);

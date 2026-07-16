@@ -2,6 +2,7 @@
 import { BaseOptionComponent, useDomState } from "@html_builder/core/utils";
 import { BorderConfigurator } from "@html_builder/plugins/border_configurator_option";
 import { ShadowOption } from "@html_builder/plugins/shadow_option";
+
 import { basicHeaderOptionSettings } from "./basicHeaderOptionSettings.js";
 
 export class HeaderBoxOption extends BaseOptionComponent {
@@ -13,7 +14,9 @@ export class HeaderBoxOption extends BaseOptionComponent {
     setup() {
         super.setup();
         this.domState = useDomState((editingElement) => ({
-            withRoundCorner: !editingElement.classList.contains("o_header_force_no_radius"),
+            withRoundCorner: !editingElement.classList.contains(
+                "o_header_force_no_radius",
+            ),
         }));
     }
 }

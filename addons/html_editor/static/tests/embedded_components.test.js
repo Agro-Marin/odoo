@@ -1,19 +1,26 @@
 import {
     Counter,
-    embedding,
     EmbeddedWrapper,
     EmbeddedWrapperMixin,
-    namedCounter,
+    embedding,
     NamedCounter,
+    namedCounter,
     OffsetCounter,
     offsetCounter,
     SavedCounter,
     savedCounter,
 } from "@html_editor/../tests/_helpers/embedded_component";
+// Must use the bare "@html_editor/..." specifier (not a relative "../src/..."
+// path): the import map routes it through the single-instance bridge so this is
+// the SAME class the editor helper checks in `config.Plugins.includes(...)`. A
+// relative import bypasses the import map and yields a second, distinct class
+// object, breaking the identity check (see editor.js `preparePlugins`).
+import { EmbeddedComponentPlugin } from "@html_editor/others/embedded_component_plugin";
 import {
     getEditableDescendants,
     StateChangeManager,
 } from "@html_editor/others/embedded_component_utils";
+import { Plugin } from "@html_editor/plugin";
 import { MAIN_PLUGINS } from "@html_editor/plugin_sets";
 import { parseHTML } from "@html_editor/utils/html";
 import { beforeEach, describe, expect, getFixture, test } from "@odoo/hoot";
@@ -31,22 +38,22 @@ import {
     useState,
     xml,
 } from "@odoo/owl";
-// Must use the bare "@html_editor/..." specifier (not a relative "../src/..."
-// path): the import map routes it through the single-instance bridge so this is
-// the SAME class the editor helper checks in `config.Plugins.includes(...)`. A
-// relative import bypasses the import map and yields a second, distinct class
-// object, breaking the identity check (see editor.js `preparePlugins`).
-import { EmbeddedComponentPlugin } from "@html_editor/others/embedded_component_plugin";
+import { makeMockEnv, patchWithCleanup } from "@web/../tests/web_test_helpers";
+import { Deferred } from "@web/core/utils/concurrency";
+import { renderToElement } from "@web/core/utils/render";
+
+import { cleanHints, dispatchCleanForSave } from "./_helpers/dispatch.js";
 import { setupEditor } from "./_helpers/editor.js";
 import { unformat } from "./_helpers/format.js";
 import { getContent, setSelection } from "./_helpers/selection.js";
-import { addStep, deleteBackward, deleteForward, redo, undo } from "./_helpers/user_actions.js";
-import { makeMockEnv, patchWithCleanup } from "@web/../tests/web_test_helpers";
-import { Deferred } from "@web/core/utils/concurrency";
-import { Plugin } from "@html_editor/plugin";
-import { cleanHints, dispatchCleanForSave } from "./_helpers/dispatch.js";
 import { expectElementCount } from "./_helpers/ui_expectations.js";
-import { renderToElement } from "@web/core/utils/render";
+import {
+    addStep,
+    deleteBackward,
+    deleteForward,
+    redo,
+    undo,
+} from "./_helpers/user_actions.js";
 
 function getConfig(components) {
     return {
@@ -59,16 +66,19 @@ function getConfig(components) {
 
 describe("Mount and Destroy embedded components", () => {
     test("can mount a embedded component", async () => {
-        const { el } = await setupEditor(`<p><span data-embedded="counter"></span></p>`, {
-            config: getConfig([embedding("counter", Counter)]),
-        });
+        const { el } = await setupEditor(
+            `<p><span data-embedded="counter"></span></p>`,
+            {
+                config: getConfig([embedding("counter", Counter)]),
+            },
+        );
         expect(getContent(el)).toBe(
-            `<p><span data-embedded="counter" data-oe-protected="true" contenteditable="false"><span class="counter">Counter:0</span></span></p>`
+            `<p><span data-embedded="counter" data-oe-protected="true" contenteditable="false"><span class="counter">Counter:0</span></span></p>`,
         );
         await click(".counter");
         await animationFrame();
         expect(getContent(el)).toBe(
-            `<p><span data-embedded="counter" data-oe-protected="true" contenteditable="false"><span class="counter">Counter:1</span></span></p>`
+            `<p><span data-embedded="counter" data-oe-protected="true" contenteditable="false"><span class="counter">Counter:1</span></span></p>`,
         );
     });
 
@@ -78,20 +88,20 @@ describe("Mount and Destroy embedded components", () => {
         });
         expect(getContent(el)).toBe(`<p>a[]b</p>`);
         editor.shared.dom.insert(
-            parseHTML(editor.document, `<span data-embedded="counter"></span>`)
+            parseHTML(editor.document, `<span data-embedded="counter"></span>`),
         );
         editor.shared.history.addStep();
         expect(getContent(el)).toBe(
-            `<p>a<span data-embedded="counter" data-oe-protected="true" contenteditable="false"></span>[]b</p>`
+            `<p>a<span data-embedded="counter" data-oe-protected="true" contenteditable="false"></span>[]b</p>`,
         );
         await animationFrame();
         expect(getContent(el)).toBe(
-            `<p>a<span data-embedded="counter" data-oe-protected="true" contenteditable="false"><span class="counter">Counter:0</span></span>[]b</p>`
+            `<p>a<span data-embedded="counter" data-oe-protected="true" contenteditable="false"><span class="counter">Counter:0</span></span>[]b</p>`,
         );
         await click(".counter");
         await animationFrame();
         expect(getContent(el)).toBe(
-            `<p>a<span data-embedded="counter" data-oe-protected="true" contenteditable="false"><span class="counter">Counter:1</span></span>[]b</p>`
+            `<p>a<span data-embedded="counter" data-oe-protected="true" contenteditable="false"><span class="counter">Counter:1</span></span>[]b</p>`,
         );
     });
 
@@ -110,15 +120,18 @@ describe("Mount and Destroy embedded components", () => {
                 onWillDestroy(() => steps.push("willdestroy"));
             }
         }
-        const { el, editor } = await setupEditor(`<p><span data-embedded="counter"></span></p>`, {
-            config: getConfig([embedding("counter", Test)]),
-        });
+        const { el, editor } = await setupEditor(
+            `<p><span data-embedded="counter"></span></p>`,
+            {
+                config: getConfig([embedding("counter", Test)]),
+            },
+        );
         expect(steps).toEqual(["mounted"]);
 
         editor.destroy();
         expect(steps).toEqual(["mounted", "willunmount", "willdestroy"]);
         expect(getContent(el)).toBe(
-            `<p><span data-embedded="counter" data-oe-protected="true" contenteditable="false"></span></p>`
+            `<p><span data-embedded="counter" data-oe-protected="true" contenteditable="false"></span></p>`,
         );
     });
 
@@ -140,11 +153,11 @@ describe("Mount and Destroy embedded components", () => {
             `<p>a<span data-embedded="counter"></span>[]</p>`,
             {
                 config: getConfig([embedding("counter", Test)]),
-            }
+            },
         );
 
         expect(getContent(el)).toBe(
-            `<p>a<span data-embedded="counter" data-oe-protected="true" contenteditable="false"><span class="counter">Counter:0</span></span>[]</p>`
+            `<p>a<span data-embedded="counter" data-oe-protected="true" contenteditable="false"><span class="counter">Counter:0</span></span>[]</p>`,
         );
         expect(steps).toEqual(["mounted"]);
 
@@ -170,13 +183,13 @@ describe("Mount and Destroy embedded components", () => {
             config: getConfig([embedding("counter", Test)]),
         });
         editor.shared.dom.insert(
-            parseHTML(editor.document, `<span data-embedded="counter"></span>`)
+            parseHTML(editor.document, `<span data-embedded="counter"></span>`),
         );
         editor.shared.history.addStep();
         await animationFrame();
         expect.verifySteps(["mounted"]);
         expect(getContent(el)).toBe(
-            `<p>a<span data-embedded="counter" data-oe-protected="true" contenteditable="false"><span class="counter">Counter:0</span></span>[]</p>`
+            `<p>a<span data-embedded="counter" data-oe-protected="true" contenteditable="false"><span class="counter">Counter:0</span></span>[]</p>`,
         );
         undo(editor);
         expect.verifySteps(["willunmount"]);
@@ -185,7 +198,7 @@ describe("Mount and Destroy embedded components", () => {
         await animationFrame();
         expect.verifySteps(["mounted"]);
         expect(getContent(el)).toBe(
-            `<p>a<span data-embedded="counter" data-oe-protected="true" contenteditable="false"><span class="counter">Counter:0</span></span>[]</p>`
+            `<p>a<span data-embedded="counter" data-oe-protected="true" contenteditable="false"><span class="counter">Counter:0</span></span>[]</p>`,
         );
         editor.destroy();
         expect.verifySteps(["willunmount"]);
@@ -208,13 +221,13 @@ describe("Mount and Destroy embedded components", () => {
             `<p>a<span data-embedded="counter"></span>[]</p>`,
             {
                 config: getConfig([embedding("counter", Test)]),
-            }
+            },
         );
 
         editor.shared.history.stageSelection();
 
         expect(getContent(el)).toBe(
-            `<p>a<span data-embedded="counter" data-oe-protected="true" contenteditable="false"><span class="counter">Counter:0</span></span>[]</p>`
+            `<p>a<span data-embedded="counter" data-oe-protected="true" contenteditable="false"><span class="counter">Counter:0</span></span>[]</p>`,
         );
         expect.verifySteps(["mounted"]);
 
@@ -225,17 +238,17 @@ describe("Mount and Destroy embedded components", () => {
         // now, we undo and check that component still works
         undo(editor);
         expect(getContent(el)).toBe(
-            `<p>a<span data-embedded="counter" data-oe-protected="true" contenteditable="false"></span>[]</p>`
+            `<p>a<span data-embedded="counter" data-oe-protected="true" contenteditable="false"></span>[]</p>`,
         );
         await animationFrame();
         expect.verifySteps(["mounted"]);
         expect(getContent(el)).toBe(
-            `<p>a<span data-embedded="counter" data-oe-protected="true" contenteditable="false"><span class="counter">Counter:0</span></span>[]</p>`
+            `<p>a<span data-embedded="counter" data-oe-protected="true" contenteditable="false"><span class="counter">Counter:0</span></span>[]</p>`,
         );
         await click(".counter");
         await animationFrame();
         expect(getContent(el)).toBe(
-            `<p>a<span data-embedded="counter" data-oe-protected="true" contenteditable="false"><span class="counter">Counter:1</span></span>[]</p>`
+            `<p>a<span data-embedded="counter" data-oe-protected="true" contenteditable="false"><span class="counter">Counter:1</span></span>[]</p>`,
         );
         redo(editor);
         expect.verifySteps(["willunmount"]);
@@ -257,11 +270,11 @@ describe("Mount and Destroy embedded components", () => {
             `<p>a<span data-embedded="counter"></span>[]</p>`,
             {
                 config: getConfig([embedding("counter", Test)]),
-            }
+            },
         );
         editor.shared.history.stageSelection();
         expect(getContent(el)).toBe(
-            `<p>a<span data-embedded="counter" data-oe-protected="true" contenteditable="false"><span class="counter">Counter:0</span></span>[]</p>`
+            `<p>a<span data-embedded="counter" data-oe-protected="true" contenteditable="false"><span class="counter">Counter:0</span></span>[]</p>`,
         );
         expect.verifySteps(["mounted"]);
         const savepoint = editor.shared.history.makeSavePoint();
@@ -269,20 +282,20 @@ describe("Mount and Destroy embedded components", () => {
         expect.verifySteps(["willunmount"]);
         expect(getContent(el)).toBe(`<p>a[]</p>`);
         editor.shared.dom.insert(
-            parseHTML(editor.document, `<span data-embedded="counter"></span>`)
+            parseHTML(editor.document, `<span data-embedded="counter"></span>`),
         );
         editor.shared.history.addStep();
         await animationFrame();
         expect.verifySteps(["mounted"]);
         expect(getContent(el)).toBe(
-            `<p>a<span data-embedded="counter" data-oe-protected="true" contenteditable="false"><span class="counter">Counter:0</span></span>[]</p>`
+            `<p>a<span data-embedded="counter" data-oe-protected="true" contenteditable="false"><span class="counter">Counter:0</span></span>[]</p>`,
         );
         savepoint();
         expect.verifySteps(["willunmount"]);
         await animationFrame();
         expect.verifySteps(["mounted"]);
         expect(getContent(el)).toBe(
-            `<p>a<span data-embedded="counter" data-oe-protected="true" contenteditable="false"><span class="counter">Counter:0</span></span>[]</p>`
+            `<p>a<span data-embedded="counter" data-oe-protected="true" contenteditable="false"><span class="counter">Counter:0</span></span>[]</p>`,
         );
         editor.destroy();
         expect.verifySteps(["willunmount"]);
@@ -302,9 +315,12 @@ describe("Mount and Destroy embedded components", () => {
                 });
             }
         }
-        const { editor } = await setupEditor(`<p>a<span data-embedded="counter"></span>[]</p>`, {
-            config: getConfig([embedding("counter", Test)]),
-        });
+        const { editor } = await setupEditor(
+            `<p>a<span data-embedded="counter"></span>[]</p>`,
+            {
+                config: getConfig([embedding("counter", Test)]),
+            },
+        );
         deleteBackward(editor);
         expect.verifySteps(["destroy from plugin", "willdestroy"]);
         editor.destroy();
@@ -372,8 +388,8 @@ describe("Mount and Destroy embedded components", () => {
                             </div>
                         </div>
                     </div>
-                `)
-            )
+                `),
+            ),
         );
         const indexOrder = [1, 0, 2];
         const orderedMountInfos = [];
@@ -425,7 +441,7 @@ describe("Mount and Destroy embedded components", () => {
                     </div>
                 </div>
                 <p data-selection-placeholder=""><br></p>
-            `)
+            `),
         );
         for (const index of indexOrder) {
             const host = orderedMountInfos[index][0];
@@ -452,7 +468,7 @@ describe("Mount and Destroy embedded components", () => {
                 <p data-selection-placeholder=""><br></p>
                 <div data-embedded="recursiveComponent" data-oe-protected="true" contenteditable="false">[]</div>
                 <p data-selection-placeholder=""><br></p>
-            `)
+            `),
         );
         // Verify that there is no potential host outside of the editable,
         // because removed hosts are put back in the DOM and destroyed next to
@@ -460,8 +476,8 @@ describe("Mount and Destroy embedded components", () => {
         const fixture = getFixture();
         expect(
             [...fixture.querySelectorAll("[data-embedded]")].filter(
-                (elem) => !elem.closest(".odoo-editor-editable")
-            )
+                (elem) => !elem.closest(".odoo-editor-editable"),
+            ),
         ).toEqual([]);
     });
 
@@ -477,7 +493,7 @@ describe("Mount and Destroy embedded components", () => {
             `<p><span data-embedded="counter"></span>ALONE</p>`,
             {
                 config: getConfig([embedding("counter", Counter)]),
-            }
+            },
         );
         const host = el.querySelector("[data-embedded='counter']");
         host.remove();
@@ -489,8 +505,8 @@ describe("Mount and Destroy embedded components", () => {
         const fixture = getFixture();
         expect(
             [...fixture.querySelectorAll("[data-embedded]")].filter(
-                (elem) => !elem.closest(".odoo-editor-editable")
-            )
+                (elem) => !elem.closest(".odoo-editor-editable"),
+            ),
         ).toEqual([]);
     });
 
@@ -508,7 +524,7 @@ describe("Mount and Destroy embedded components", () => {
             `<div><p class="parent"><span data-embedded="counter"></span></p>ALONE</div>`,
             {
                 config: getConfig([embedding("counter", Counter)]),
-            }
+            },
         );
         const parent = el.querySelector(".parent");
         parent.remove();
@@ -520,8 +536,8 @@ describe("Mount and Destroy embedded components", () => {
         const fixture = getFixture();
         expect(
             [...fixture.querySelectorAll("[data-embedded]")].filter(
-                (elem) => !elem.closest(".odoo-editor-editable")
-            )
+                (elem) => !elem.closest(".odoo-editor-editable"),
+            ),
         ).toEqual([]);
         expect(editor.editable.contains(parent)).toBe(false);
         expect(parent.contains(hostElement)).toBe(true);
@@ -534,12 +550,12 @@ describe("Selection after embedded component insertion", () => {
             config: getConfig([embedding("counter", Counter)]),
         });
         editor.shared.dom.insert(
-            parseHTML(editor.document, `<span data-embedded="counter">a</span>`)
+            parseHTML(editor.document, `<span data-embedded="counter">a</span>`),
         );
         editor.shared.history.addStep();
         await animationFrame();
         expect(getContent(el)).toBe(
-            `<p><span data-embedded="counter" data-oe-protected="true" contenteditable="false"><span class="counter">Counter:0</span></span>[]</p>`
+            `<p><span data-embedded="counter" data-oe-protected="true" contenteditable="false"><span class="counter">Counter:0</span></span>[]</p>`,
         );
     });
     test("inline at the end of paragraph", async () => {
@@ -547,12 +563,12 @@ describe("Selection after embedded component insertion", () => {
             config: getConfig([embedding("counter", Counter)]),
         });
         editor.shared.dom.insert(
-            parseHTML(editor.document, `<span data-embedded="counter"></span>`)
+            parseHTML(editor.document, `<span data-embedded="counter"></span>`),
         );
         editor.shared.history.addStep();
         await animationFrame();
         expect(getContent(el)).toBe(
-            `<p>a<span data-embedded="counter" data-oe-protected="true" contenteditable="false"><span class="counter">Counter:0</span></span>[]</p>`
+            `<p>a<span data-embedded="counter" data-oe-protected="true" contenteditable="false"><span class="counter">Counter:0</span></span>[]</p>`,
         );
     });
     test("inline at the start of paragraph", async () => {
@@ -560,12 +576,12 @@ describe("Selection after embedded component insertion", () => {
             config: getConfig([embedding("counter", Counter)]),
         });
         editor.shared.dom.insert(
-            parseHTML(editor.document, `<span data-embedded="counter"></span>`)
+            parseHTML(editor.document, `<span data-embedded="counter"></span>`),
         );
         editor.shared.history.addStep();
         await animationFrame();
         expect(getContent(el)).toBe(
-            `<p><span data-embedded="counter" data-oe-protected="true" contenteditable="false"><span class="counter">Counter:0</span></span>[]a</p>`
+            `<p><span data-embedded="counter" data-oe-protected="true" contenteditable="false"><span class="counter">Counter:0</span></span>[]a</p>`,
         );
     });
     test("inline in the middle of paragraph", async () => {
@@ -573,19 +589,21 @@ describe("Selection after embedded component insertion", () => {
             config: getConfig([embedding("counter", Counter)]),
         });
         editor.shared.dom.insert(
-            parseHTML(editor.document, `<span data-embedded="counter"></span>`)
+            parseHTML(editor.document, `<span data-embedded="counter"></span>`),
         );
         editor.shared.history.addStep();
         await animationFrame();
         expect(getContent(el)).toBe(
-            `<p>a<span data-embedded="counter" data-oe-protected="true" contenteditable="false"><span class="counter">Counter:0</span></span>[]b</p>`
+            `<p>a<span data-embedded="counter" data-oe-protected="true" contenteditable="false"><span class="counter">Counter:0</span></span>[]b</p>`,
         );
     });
     test("block in empty paragraph", async () => {
         const { el, editor } = await setupEditor(`<p>[]<br></p>`, {
             config: getConfig([embedding("counter", Counter)]),
         });
-        editor.shared.dom.insert(parseHTML(editor.document, `<div data-embedded="counter"></div>`));
+        editor.shared.dom.insert(
+            parseHTML(editor.document, `<div data-embedded="counter"></div>`),
+        );
         editor.shared.history.addStep();
         // Insertion triggers selectionchange & addStep creates selection
         // placeholder.fixSelectionInsideEditableRoot moves selection into it,
@@ -597,14 +615,16 @@ describe("Selection after embedded component insertion", () => {
             unformat(`
                 <p data-selection-placeholder=""><br></p>
                 <div data-embedded="counter" data-oe-protected="true" contenteditable="false"><span class="counter">Counter:0</span></div>
-                <p>[]<br></p>`)
+                <p>[]<br></p>`),
         );
     });
     test("block at the end of paragraph", async () => {
         const { el, editor } = await setupEditor(`<p>a[]</p>`, {
             config: getConfig([embedding("counter", Counter)]),
         });
-        editor.shared.dom.insert(parseHTML(editor.document, `<div data-embedded="counter"></div>`));
+        editor.shared.dom.insert(
+            parseHTML(editor.document, `<div data-embedded="counter"></div>`),
+        );
         editor.shared.history.addStep();
         // Insertion triggers selectionchange & addStep creates selection
         // placeholder.fixSelectionInsideEditableRoot moves selection into it,
@@ -616,14 +636,16 @@ describe("Selection after embedded component insertion", () => {
             unformat(`
                 <p>a</p>
                 <div data-embedded="counter" data-oe-protected="true" contenteditable="false"><span class="counter">Counter:0</span></div>
-                <p>[]<br></p>`)
+                <p>[]<br></p>`),
         );
     });
     test("block at the start of paragraph", async () => {
         const { el, editor } = await setupEditor(`<p>[]a</p>`, {
             config: getConfig([embedding("counter", Counter)]),
         });
-        editor.shared.dom.insert(parseHTML(editor.document, `<div data-embedded="counter"></div>`));
+        editor.shared.dom.insert(
+            parseHTML(editor.document, `<div data-embedded="counter"></div>`),
+        );
         editor.shared.history.addStep();
         await animationFrame();
         cleanHints(editor);
@@ -631,14 +653,16 @@ describe("Selection after embedded component insertion", () => {
             unformat(`
                 <p data-selection-placeholder=""><br></p>
                 <div data-embedded="counter" data-oe-protected="true" contenteditable="false"><span class="counter">Counter:0</span></div>
-                <p>[]a</p>`)
+                <p>[]a</p>`),
         );
     });
     test("block in the middle of paragraph", async () => {
         const { el, editor } = await setupEditor(`<p>a[]b</p>`, {
             config: getConfig([embedding("counter", Counter)]),
         });
-        editor.shared.dom.insert(parseHTML(editor.document, `<div data-embedded="counter"></div>`));
+        editor.shared.dom.insert(
+            parseHTML(editor.document, `<div data-embedded="counter"></div>`),
+        );
         editor.shared.history.addStep();
         await animationFrame();
         cleanHints(editor);
@@ -646,7 +670,7 @@ describe("Selection after embedded component insertion", () => {
             unformat(`
                 <p>a</p>
                 <div data-embedded="counter" data-oe-protected="true" contenteditable="false"><span class="counter">Counter:0</span></div>
-                <p>[]b</p>`)
+                <p>[]b</p>`),
         );
     });
 });
@@ -660,12 +684,17 @@ describe("Mount processing", () => {
                 this.state.value = this.props.initialCount;
             }
         }
-        const { el } = await setupEditor(`<p><span data-embedded="counter"></span></p>`, {
-            config: getConfig([embedding("counter", Test, () => ({ initialCount: 10 }))]),
-        });
+        const { el } = await setupEditor(
+            `<p><span data-embedded="counter"></span></p>`,
+            {
+                config: getConfig([
+                    embedding("counter", Test, () => ({ initialCount: 10 })),
+                ]),
+            },
+        );
 
         expect(getContent(el)).toBe(
-            `<p><span data-embedded="counter" data-oe-protected="true" contenteditable="false"><span class="counter">Counter:10</span></span></p>`
+            `<p><span data-embedded="counter" data-oe-protected="true" contenteditable="false"><span class="counter">Counter:10</span></span></p>`,
         );
     });
 
@@ -685,11 +714,11 @@ describe("Mount processing", () => {
                         initialCount: parseInt(host.dataset.count),
                     })),
                 ]),
-            }
+            },
         );
 
         expect(getContent(el)).toBe(
-            `<p><span data-embedded="counter" data-count="10" data-oe-protected="true" contenteditable="false"><span class="counter">Counter:10</span></span></p>`
+            `<p><span data-embedded="counter" data-count="10" data-oe-protected="true" contenteditable="false"><span class="counter">Counter:10</span></span></p>`,
         );
     });
 
@@ -709,17 +738,17 @@ describe("Mount processing", () => {
             `<p><span data-embedded="counter" data-count="10"></span></p>`,
             {
                 config: getConfig([embedding("counter", Test, (host) => ({ host }))]),
-            }
+            },
         );
 
         expect(getContent(el)).toBe(
-            `<p><span data-embedded="counter" data-count="10" data-oe-protected="true" contenteditable="false"><span class="counter">Counter:10</span></span></p>`
+            `<p><span data-embedded="counter" data-count="10" data-oe-protected="true" contenteditable="false"><span class="counter">Counter:10</span></span></p>`,
         );
 
         await click(".counter");
         await animationFrame();
         expect(getContent(el)).toBe(
-            `<p><span data-embedded="counter" data-count="11" data-oe-protected="true" contenteditable="false"><span class="counter">Counter:11</span></span></p>`
+            `<p><span data-embedded="counter" data-count="11" data-oe-protected="true" contenteditable="false"><span class="counter">Counter:11</span></span></p>`,
         );
     });
 
@@ -741,11 +770,14 @@ describe("Mount processing", () => {
     });
 
     test("Content within an embedded component host is removed when mounting", async () => {
-        const { el } = await setupEditor(`<p><span data-embedded="counter">hello</span></p>`, {
-            config: getConfig([embedding("counter", Counter)]),
-        });
+        const { el } = await setupEditor(
+            `<p><span data-embedded="counter">hello</span></p>`,
+            {
+                config: getConfig([embedding("counter", Counter)]),
+            },
+        );
         expect(getContent(el)).toBe(
-            `<p><span data-embedded="counter" data-oe-protected="true" contenteditable="false"><span class="counter">Counter:0</span></span></p>`
+            `<p><span data-embedded="counter" data-oe-protected="true" contenteditable="false"><span class="counter">Counter:0</span></span></p>`,
         );
     });
 
@@ -811,7 +843,7 @@ describe("Mount processing", () => {
                         label: host.querySelector("[data-prop-name='label']"),
                     })),
                 ]),
-            }
+            },
         );
         expect.verifySteps(["willstart"]);
         delayedWillStart.resolve();
@@ -829,7 +861,7 @@ describe("Mount processing", () => {
                     </span>
                     []a
                 </p>
-            `)
+            `),
         );
         expect.verifySteps([
             "html prop suppression",
@@ -854,14 +886,17 @@ describe("Mount processing", () => {
                 expect.step(`${host.dataset.embedded} mounted`);
             },
         });
-        const { el } = await setupEditor(`<div data-embedded="unknown"><p>UNKNOWN</p></div>`, {
-            config: getConfig([]),
-        });
+        const { el } = await setupEditor(
+            `<div data-embedded="unknown"><p>UNKNOWN</p></div>`,
+            {
+                config: getConfig([]),
+            },
+        );
         // "unknown" data-embedded should be considered once during the first
         // mounting wave.
         expect.verifySteps(["unknown handled"]);
         expect(getContent(el)).toBe(
-            `<p data-selection-placeholder=""><br></p><div data-embedded="unknown"><p>UNKNOWN</p></div><p data-selection-placeholder=""><br></p>`
+            `<p data-selection-placeholder=""><br></p><div data-embedded="unknown"><p>UNKNOWN</p></div><p data-selection-placeholder=""><br></p>`,
         );
     });
     test("Mount a component with a plugin that modifies the Component's env", async () => {
@@ -914,15 +949,17 @@ describe("Mount processing", () => {
         });
         const host = plugins
             .get("embeddedComponents")
-            .renderBlueprintToElement(xml`<span data-embedded="counter"></span>`, {}, () =>
-                expect.step("onComponentInserted")
+            .renderBlueprintToElement(
+                xml`<span data-embedded="counter"></span>`,
+                {},
+                () => expect.step("onComponentInserted"),
             );
         plugins.get("dom").insert(host);
         addStep(editor);
         await animationFrame();
         // First mount
         expect(getContent(el)).toBe(
-            `<p><span data-embedded="counter" data-oe-protected="true" contenteditable="false"><span class="counter">Counter:0</span></span>[]after</p>`
+            `<p><span data-embedded="counter" data-oe-protected="true" contenteditable="false"><span class="counter">Counter:0</span></span>[]after</p>`,
         );
         expect.verifySteps(["onComponentInserted"]);
         deleteBackward(editor);
@@ -932,7 +969,7 @@ describe("Mount processing", () => {
         await animationFrame();
         // Second mount, onComponentInserted was discarded
         expect(getContent(el)).toBe(
-            `<p><span data-embedded="counter" data-oe-protected="true" contenteditable="false"><span class="counter">Counter:0</span></span>[]after</p>`
+            `<p><span data-embedded="counter" data-oe-protected="true" contenteditable="false"><span class="counter">Counter:0</span></span>[]after</p>`,
         );
         expect.verifySteps([]);
     });
@@ -943,13 +980,15 @@ describe("Mount processing", () => {
         });
         const host = plugins
             .get("embeddedComponents")
-            .renderBlueprintToElement(xml`<span data-embedded="counter"></span>`, {}, () =>
-                expect.step("onComponentInserted")
+            .renderBlueprintToElement(
+                xml`<span data-embedded="counter"></span>`,
+                {},
+                () => expect.step("onComponentInserted"),
             );
         plugins.get("dom").insert(host);
         addStep(editor);
         expect(getContent(el)).toBe(
-            `<p><span data-embedded="counter" data-oe-protected="true" contenteditable="false"></span>[]after</p>`
+            `<p><span data-embedded="counter" data-oe-protected="true" contenteditable="false"></span>[]after</p>`,
         );
         // Don't wait for the component to mount, and remove the host
         deleteBackward(editor);
@@ -959,7 +998,7 @@ describe("Mount processing", () => {
         await animationFrame();
         // First mount, but onComponentInserted was discarded since the component was removed
         expect(getContent(el)).toBe(
-            `<p><span data-embedded="counter" data-oe-protected="true" contenteditable="false"><span class="counter">Counter:0</span></span>[]after</p>`
+            `<p><span data-embedded="counter" data-oe-protected="true" contenteditable="false"><span class="counter">Counter:0</span></span>[]after</p>`,
         );
         expect.verifySteps([]);
     });
@@ -971,20 +1010,25 @@ describe("In-editor manipulations", () => {
             `<div><p>[a]</p><span data-embedded="counter"></span></div>`,
             {
                 config: getConfig([embedding("counter", Counter)]),
-            }
+            },
         );
         await animationFrame();
         await expectElementCount(".o-we-toolbar", 1);
         expect(getContent(el)).toBe(
-            `<p data-selection-placeholder=""><br></p><div><p>[a]</p><span data-embedded="counter" data-oe-protected="true" contenteditable="false"><span class="counter">Counter:0</span></span></div><p data-selection-placeholder=""><br></p>`
+            `<p data-selection-placeholder=""><br></p><div><p>[a]</p><span data-embedded="counter" data-oe-protected="true" contenteditable="false"><span class="counter">Counter:0</span></span></div><p data-selection-placeholder=""><br></p>`,
         );
 
         const node = queryFirst(".counter", {}).firstChild;
-        setSelection({ anchorNode: node, anchorOffset: 1, focusNode: node, focusOffset: 3 });
+        setSelection({
+            anchorNode: node,
+            anchorOffset: 1,
+            focusNode: node,
+            focusOffset: 3,
+        });
         await tick();
         await animationFrame();
         expect(getContent(el)).toBe(
-            `<p data-selection-placeholder=""><br></p><div><p>a</p><span data-embedded="counter" data-oe-protected="true" contenteditable="false"><span class="counter">C[ou]nter:0</span></span></div><p data-selection-placeholder=""><br></p>`
+            `<p data-selection-placeholder=""><br></p><div><p>a</p><span data-embedded="counter" data-oe-protected="true" contenteditable="false"><span class="counter">C[ou]nter:0</span></span></div><p data-selection-placeholder=""><br></p>`,
         );
         await expectElementCount(".o-we-toolbar", 0);
     });
@@ -994,11 +1038,13 @@ describe("In-editor manipulations", () => {
             '<div><p>a</p></div><div data-embedded="counter"><p>a</p></div>',
             {
                 config: getConfig([embedding("counter", Counter)]),
-            }
+            },
         );
         const clone = el.cloneNode(true);
         dispatchCleanForSave(editor, { root: clone });
-        expect(getContent(clone)).toBe(`<div><p>a</p></div><div data-embedded="counter"></div>`);
+        expect(getContent(clone)).toBe(
+            `<div><p>a</p></div><div data-embedded="counter"></div>`,
+        );
     });
 
     test("should not remove embedded elements children during clean (not a clone)", async () => {
@@ -1006,11 +1052,11 @@ describe("In-editor manipulations", () => {
             '<div><p>a</p></div><div data-embedded="counter"><p>a</p></div>',
             {
                 config: getConfig([embedding("counter", Counter)]),
-            }
+            },
         );
         cleanHints(editor);
         expect(getContent(el)).toBe(
-            `<p data-selection-placeholder=""><br></p><div><p>a</p></div><p data-selection-placeholder=""><br></p><div data-embedded="counter" data-oe-protected="true" contenteditable="false"><span class="counter">Counter:0</span></div><p data-selection-placeholder=""><br></p>`
+            `<p data-selection-placeholder=""><br></p><div><p>a</p></div><p data-selection-placeholder=""><br></p><div data-embedded="counter" data-oe-protected="true" contenteditable="false"><span class="counter">Counter:0</span></div><p data-selection-placeholder=""><br></p>`,
         );
     });
 
@@ -1019,43 +1065,45 @@ describe("In-editor manipulations", () => {
             `<div><p>a</p></div><div data-embedded="counter"><p>a</p></div>`,
             {
                 config: getConfig([embedding("counter", Counter)]),
-            }
+            },
         );
         const historyPlugin = plugins.get("history");
         const node = historyPlugin._unserializeNode(historyPlugin.serializeNode(el))[0];
         expect(getContent(node, { sortAttrs: true })).toBe(
-            `<p data-selection-placeholder=""><br></p><div><p>a</p></div><p data-selection-placeholder=""><br></p><div contenteditable="false" data-embedded="counter" data-oe-protected="true"></div><p data-selection-placeholder=""><br></p>`
+            `<p data-selection-placeholder=""><br></p><div><p>a</p></div><p data-selection-placeholder=""><br></p><div contenteditable="false" data-embedded="counter" data-oe-protected="true"></div><p data-selection-placeholder=""><br></p>`,
         );
     });
 
     test("Ignore unknown data-embedded types for cleanforsave", async () => {
         const { editor, el } = await setupEditor(
             `<div data-embedded="unknown"><p>UNKNOWN</p></div>`,
-            { config: getConfig([]) }
+            { config: getConfig([]) },
         );
         dispatchCleanForSave(editor, { root: el });
-        expect(getContent(el)).toBe(`<div data-embedded="unknown"><p>UNKNOWN</p></div>`);
+        expect(getContent(el)).toBe(
+            `<div data-embedded="unknown"><p>UNKNOWN</p></div>`,
+        );
     });
 
     test("Ignore unknown data-embedded types for serialization", async () => {
         const { el, plugins } = await setupEditor(
             `<div data-embedded="unknown"><p>UNKNOWN</p></div>`,
-            { config: getConfig([]) }
+            { config: getConfig([]) },
         );
         const historyPlugin = plugins.get("history");
         const node = historyPlugin._unserializeNode(historyPlugin.serializeNode(el))[0];
         expect(getContent(node)).toBe(
-            `<p data-selection-placeholder=""><br></p><div data-embedded="unknown"><p>UNKNOWN</p></div><p data-selection-placeholder=""><br></p>`
+            `<p data-selection-placeholder=""><br></p><div data-embedded="unknown"><p>UNKNOWN</p></div><p data-selection-placeholder=""><br></p>`,
         );
     });
 
     test("Don't remove empty inline-block data-embedded elements during initElementForEdition, but wrap them in div instead", async () => {
         const { el } = await setupEditor(
             `<div data-embedded="counter" style="display:inline-block;"></div>`,
-            { config: getConfig([embedding("counter", Counter)]) }
+            { config: getConfig([embedding("counter", Counter)]) },
         );
         expect(getContent(el, { sortAttrs: true })).toBe(
-            `<p data-selection-placeholder=""><br></p><div><div contenteditable="false" data-embedded="counter" data-oe-protected="true" style="display:inline-block;"><span class="counter">Counter:0</span></div></div><p data-selection-placeholder=""><br></p>`
+            `<p data-selection-placeholder=""><br></p><div><div contenteditable="false" data-embedded="counter" data-oe-protected="true" style="display:inline-block;"><span class="counter">Counter:0</span></div></div><p data-selection-placeholder=""><br></p>`,
         );
     });
 });
@@ -1079,7 +1127,7 @@ describe("editable descendants", () => {
                         getEditableDescendants,
                     }),
                 ]),
-            }
+            },
         );
         expect(getContent(el)).toBe(
             unformat(`
@@ -1099,7 +1147,7 @@ describe("editable descendants", () => {
                     </div>
                 </div>
                 <p data-selection-placeholder=""><br></p>
-            `)
+            `),
         );
     });
 
@@ -1125,8 +1173,8 @@ describe("editable descendants", () => {
                             </div>
                         </div>
                     </div>
-                `)
-            )
+                `),
+            ),
         );
         addStep(editor);
         await animationFrame();
@@ -1149,7 +1197,7 @@ describe("editable descendants", () => {
                     </div>
                 </div>
                 <p>[]after</p>
-            `)
+            `),
         );
         undo(editor);
         await animationFrame();
@@ -1185,7 +1233,7 @@ describe("editable descendants", () => {
                         getEditableDescendants,
                     }),
                 ]),
-            }
+            },
         );
         wrapper.state.switch = true;
         await animationFrame();
@@ -1210,7 +1258,7 @@ describe("editable descendants", () => {
                     </div>
                 </div>
                 <p data-selection-placeholder=""><br></p>
-            `)
+            `),
         );
         // No mutation should be added to the next step
         editor.shared.history.addStep();
@@ -1238,7 +1286,7 @@ describe("editable descendants", () => {
                         getEditableDescendants,
                     }),
                 ]),
-            }
+            },
         );
         const clone = el.cloneNode(true);
         dispatchCleanForSave(editor, { root: clone });
@@ -1252,7 +1300,7 @@ describe("editable descendants", () => {
                         <p>deep</p>
                     </div>
                 </div>
-            `)
+            `),
         );
     });
 
@@ -1274,7 +1322,7 @@ describe("editable descendants", () => {
                         getEditableDescendants,
                     }),
                 ]),
-            }
+            },
         );
         const historyPlugin = plugins.get("history");
         const node = historyPlugin._unserializeNode(historyPlugin.serializeNode(el))[0];
@@ -1290,7 +1338,7 @@ describe("editable descendants", () => {
                     </div>
                 </div>
                 <p data-selection-placeholder=""><br></p>
-            `)
+            `),
         );
     });
 
@@ -1313,14 +1361,19 @@ describe("editable descendants", () => {
             `),
             {
                 config: getConfig([
-                    embedding("simpleWrapper", SimpleEmbeddedWrapper, (host) => ({ host }), {
-                        getEditableDescendants,
-                    }),
+                    embedding(
+                        "simpleWrapper",
+                        SimpleEmbeddedWrapper,
+                        (host) => ({ host }),
+                        {
+                            getEditableDescendants,
+                        },
+                    ),
                     embedding("wrapper", EmbeddedWrapper, (host) => ({ host }), {
                         getEditableDescendants,
                     }),
                 ]),
-            }
+            },
         );
         expect(getContent(el)).toBe(
             unformat(`
@@ -1348,11 +1401,13 @@ describe("editable descendants", () => {
                     </div>
                 </div>
                 <p data-selection-placeholder=""><br></p>
-            `)
+            `),
         );
         const wrapper = el.querySelector(`[data-embedded="wrapper"]`);
         const simple = el.querySelector(`[data-embedded="simpleWrapper"]`);
-        const editableDescendants = el.querySelectorAll(`[data-embedded-editable="deep"]`);
+        const editableDescendants = el.querySelectorAll(
+            `[data-embedded-editable="deep"]`,
+        );
         expect(getEditableDescendants(simple).deep).toBe(editableDescendants[0]);
         expect(getEditableDescendants(wrapper).deep).toBe(editableDescendants[1]);
     });
@@ -1373,11 +1428,13 @@ describe("editable descendants", () => {
                         <p>deep</p>
                     </div>
                 </div>
-            `)
+            `),
         );
         addStep(editor);
         // Set the selection before the component is mounted
-        plugins.get("selection").setCursorStart(el.querySelector("[data-embedded-editable] p"));
+        plugins
+            .get("selection")
+            .setCursorStart(el.querySelector("[data-embedded-editable] p"));
         expect(getContent(el)).toBe(
             unformat(`
                 <p data-selection-placeholder=""><br></p>
@@ -1387,7 +1444,7 @@ describe("editable descendants", () => {
                     </div>
                 </div>
                 <p>after</p>
-            `)
+            `),
         );
         await animationFrame();
         // Verify that the selection was preserved after insertion
@@ -1402,7 +1459,7 @@ describe("editable descendants", () => {
                     </div>
                 </div>
                 <p>after</p>
-            `)
+            `),
         );
     });
 });
@@ -1425,22 +1482,22 @@ describe("Embedded state", () => {
         });
         const { el } = await setupEditor(
             `<p><span data-embedded="counter" data-embedded-props='{"baseValue":0}'></span></p>`,
-            { config: getConfig([offsetCounter]) }
+            { config: getConfig([offsetCounter]) },
         );
         expect(getContent(el)).toBe(
-            `<p><span data-embedded="counter" data-embedded-props='{"baseValue":0}' data-oe-protected="true" contenteditable="false"><span class="counter">Counter:0</span></span></p>`
+            `<p><span data-embedded="counter" data-embedded-props='{"baseValue":0}' data-oe-protected="true" contenteditable="false"><span class="counter">Counter:0</span></span></p>`,
         );
 
         counter.embeddedState.baseValue = 2;
         await animationFrame();
         expect(getContent(el)).toBe(
-            `<p><span data-embedded="counter" data-embedded-props='{"baseValue":2}' data-oe-protected="true" contenteditable="false" data-embedded-state='{"stateChangeId":1,"previous":{"baseValue":0},"next":{"baseValue":2}}'><span class="counter">Counter:2</span></span></p>`
+            `<p><span data-embedded="counter" data-embedded-props='{"baseValue":2}' data-oe-protected="true" contenteditable="false" data-embedded-state='{"stateChangeId":1,"previous":{"baseValue":0},"next":{"baseValue":2}}'><span class="counter">Counter:2</span></span></p>`,
         );
 
         await click(".counter");
         await animationFrame();
         expect(getContent(el)).toBe(
-            `<p><span data-embedded="counter" data-embedded-props='{"baseValue":2}' data-oe-protected="true" contenteditable="false" data-embedded-state='{"stateChangeId":1,"previous":{"baseValue":0},"next":{"baseValue":2}}'><span class="counter">Counter:3</span></span></p>`
+            `<p><span data-embedded="counter" data-embedded-props='{"baseValue":2}' data-oe-protected="true" contenteditable="false" data-embedded-state='{"stateChangeId":1,"previous":{"baseValue":0},"next":{"baseValue":2}}'><span class="counter">Counter:3</span></span></p>`,
         );
         expect(counter.embeddedState).toEqual({
             baseValue: 2,
@@ -1458,23 +1515,26 @@ describe("Embedded state", () => {
                 counter = this;
             },
         });
-        const { el, editor } = await setupEditor(`<p><span data-embedded="counter"></span></p>`, {
-            config: getConfig([savedCounter]),
-        });
+        const { el, editor } = await setupEditor(
+            `<p><span data-embedded="counter"></span></p>`,
+            {
+                config: getConfig([savedCounter]),
+            },
+        );
         expect(getContent(el)).toBe(
-            `<p><span data-embedded="counter" data-oe-protected="true" contenteditable="false"><span class="counter">Counter:0</span></span></p>`
+            `<p><span data-embedded="counter" data-oe-protected="true" contenteditable="false"><span class="counter">Counter:0</span></span></p>`,
         );
         await click(".counter");
         await animationFrame();
         expect(getContent(el)).toBe(
-            `<p><span data-embedded="counter" data-oe-protected="true" contenteditable="false" data-embedded-state='{"stateChangeId":1,"previous":{},"next":{"value":1}}' data-embedded-props='{"value":1}'><span class="counter">Counter:1</span></span></p>`
+            `<p><span data-embedded="counter" data-oe-protected="true" contenteditable="false" data-embedded-state='{"stateChangeId":1,"previous":{},"next":{"value":1}}' data-embedded-props='{"value":1}'><span class="counter">Counter:1</span></span></p>`,
         );
         expect(counter.embeddedState).toEqual({
             value: 1,
         });
         // `data-embedded-state` should be removed from editor.getElContent result
         expect(getContent(editor.getElContent())).toBe(
-            `<p><span data-embedded="counter" data-embedded-props='{"value":1}'></span></p>`
+            `<p><span data-embedded="counter" data-embedded-props='{"value":1}'></span></p>`,
         );
     });
 
@@ -1488,20 +1548,20 @@ describe("Embedded state", () => {
         });
         const { el, editor } = await setupEditor(
             `<p><span data-embedded="counter" data-embedded-props='{"value":1}'></span></p>`,
-            { config: getConfig([savedCounter]) }
+            { config: getConfig([savedCounter]) },
         );
         expect(getContent(el)).toBe(
-            `<p><span data-embedded="counter" data-embedded-props='{"value":1}' data-oe-protected="true" contenteditable="false"><span class="counter">Counter:1</span></span></p>`
+            `<p><span data-embedded="counter" data-embedded-props='{"value":1}' data-oe-protected="true" contenteditable="false"><span class="counter">Counter:1</span></span></p>`,
         );
         delete counter.embeddedState.value;
         await animationFrame();
         expect(getContent(el)).toBe(
-            `<p><span data-embedded="counter" data-embedded-props="{}" data-oe-protected="true" contenteditable="false" data-embedded-state='{"stateChangeId":1,"previous":{"value":1},"next":{}}'><span class="counter">Counter:0</span></span></p>`
+            `<p><span data-embedded="counter" data-embedded-props="{}" data-oe-protected="true" contenteditable="false" data-embedded-state='{"stateChangeId":1,"previous":{"value":1},"next":{}}'><span class="counter">Counter:0</span></span></p>`,
         );
         expect(counter.embeddedState).toEqual({});
         // `data-embedded-state` should be removed from editor.getElContent result
         expect(getContent(editor.getElContent())).toBe(
-            `<p><span data-embedded="counter" data-embedded-props="{}"></span></p>`
+            `<p><span data-embedded="counter" data-embedded-props="{}"></span></p>`,
         );
     });
 
@@ -1515,15 +1575,15 @@ describe("Embedded state", () => {
         });
         const { el } = await setupEditor(
             `<p><span data-embedded="counter" data-embedded-props='{"value":1}'></span></p>`,
-            { config: getConfig([savedCounter]) }
+            { config: getConfig([savedCounter]) },
         );
         expect(getContent(el)).toBe(
-            `<p><span data-embedded="counter" data-embedded-props='{"value":1}' data-oe-protected="true" contenteditable="false"><span class="counter">Counter:1</span></span></p>`
+            `<p><span data-embedded="counter" data-embedded-props='{"value":1}' data-oe-protected="true" contenteditable="false"><span class="counter">Counter:1</span></span></p>`,
         );
         delete counter.embeddedState.notValue;
         await animationFrame();
         expect(getContent(el)).toBe(
-            `<p><span data-embedded="counter" data-embedded-props='{"value":1}' data-oe-protected="true" contenteditable="false"><span class="counter">Counter:1</span></span></p>`
+            `<p><span data-embedded="counter" data-embedded-props='{"value":1}' data-oe-protected="true" contenteditable="false"><span class="counter">Counter:1</span></span></p>`,
         );
         expect(counter.embeddedState).toEqual({
             value: 1,
@@ -1540,10 +1600,10 @@ describe("Embedded state", () => {
         });
         const { editor, el } = await setupEditor(
             `<p><span data-embedded="counter" data-embedded-props='{"baseValue":0}'></span></p>`,
-            { config: getConfig([offsetCounter]) }
+            { config: getConfig([offsetCounter]) },
         );
         expect(getContent(el)).toBe(
-            `<p><span data-embedded="counter" data-embedded-props='{"baseValue":0}' data-oe-protected="true" contenteditable="false"><span class="counter">Counter:0</span></span></p>`
+            `<p><span data-embedded="counter" data-embedded-props='{"baseValue":0}' data-oe-protected="true" contenteditable="false"><span class="counter">Counter:0</span></span></p>`,
         );
 
         counter.props.host.dataset.embeddedState = JSON.stringify({
@@ -1558,7 +1618,7 @@ describe("Embedded state", () => {
         editor.shared.history.addStep();
         await animationFrame();
         expect(getContent(el)).toBe(
-            `<p><span data-embedded="counter" data-embedded-props='{"baseValue":4}' data-oe-protected="true" contenteditable="false" data-embedded-state='{"stateChangeId":-1,"previous":{"baseValue":1},"next":{"baseValue":5}}'><span class="counter">Counter:4</span></span></p>`
+            `<p><span data-embedded="counter" data-embedded-props='{"baseValue":4}' data-oe-protected="true" contenteditable="false" data-embedded-state='{"stateChangeId":-1,"previous":{"baseValue":1},"next":{"baseValue":5}}'><span class="counter">Counter:4</span></span></p>`,
         );
         expect(counter.embeddedState).toEqual({
             baseValue: 4,
@@ -1567,7 +1627,7 @@ describe("Embedded state", () => {
         await click(".counter");
         await animationFrame();
         expect(getContent(el)).toBe(
-            `<p><span data-embedded="counter" data-embedded-props='{"baseValue":4}' data-oe-protected="true" contenteditable="false" data-embedded-state='{"stateChangeId":-1,"previous":{"baseValue":1},"next":{"baseValue":5}}'><span class="counter">Counter:5</span></span></p>`
+            `<p><span data-embedded="counter" data-embedded-props='{"baseValue":4}' data-oe-protected="true" contenteditable="false" data-embedded-state='{"stateChangeId":-1,"previous":{"baseValue":1},"next":{"baseValue":5}}'><span class="counter">Counter:5</span></span></p>`,
         );
         expect(counter.embeddedState).toEqual({
             baseValue: 4,
@@ -1588,16 +1648,19 @@ describe("Embedded state", () => {
                 });
             },
         });
-        const { el } = await setupEditor(`<p><span data-embedded="counter"></span></p>`, {
-            config: getConfig([savedCounter]),
-        });
+        const { el } = await setupEditor(
+            `<p><span data-embedded="counter"></span></p>`,
+            {
+                config: getConfig([savedCounter]),
+            },
+        );
         expect(getContent(el)).toBe(
-            `<p><span data-embedded="counter" data-oe-protected="true" contenteditable="false"><span class="counter">Counter:0</span></span></p>`
+            `<p><span data-embedded="counter" data-oe-protected="true" contenteditable="false"><span class="counter">Counter:0</span></span></p>`,
         );
         await click(".counter");
         await animationFrame();
         expect(getContent(el)).toBe(
-            `<p><span data-embedded="counter" data-oe-protected="true" contenteditable="false" data-embedded-state='{"stateChangeId":1,"previous":{},"next":{"value":1}}' data-embedded-props='{"value":1}'><span class="counter">Counter:1</span></span></p>`
+            `<p><span data-embedded="counter" data-oe-protected="true" contenteditable="false" data-embedded-state='{"stateChangeId":1,"previous":{},"next":{"value":1}}' data-embedded-props='{"value":1}'><span class="counter">Counter:1</span></span></p>`,
         );
         expect.verifySteps(["patched"]);
         counter.props.host.dataset.embeddedState = JSON.stringify({
@@ -1609,7 +1672,7 @@ describe("Embedded state", () => {
         });
         await animationFrame();
         expect(getContent(el)).toBe(
-            `<p><span data-embedded="counter" data-oe-protected="true" contenteditable="false" data-embedded-state='{"stateChangeId":1,"previous":{},"next":{"value":1}}' data-embedded-props='{"value":1}'><span class="counter">Counter:1</span></span></p>`
+            `<p><span data-embedded="counter" data-oe-protected="true" contenteditable="false" data-embedded-state='{"stateChangeId":1,"previous":{},"next":{"value":1}}' data-embedded-props='{"value":1}'><span class="counter">Counter:1</span></span></p>`,
         );
         expect.verifySteps([]);
     });
@@ -1625,22 +1688,25 @@ describe("Embedded state", () => {
                 });
             },
         });
-        const { el } = await setupEditor(`<p><span data-embedded="counter"></span></p>`, {
-            config: getConfig([savedCounter]),
-        });
+        const { el } = await setupEditor(
+            `<p><span data-embedded="counter"></span></p>`,
+            {
+                config: getConfig([savedCounter]),
+            },
+        );
         expect(getContent(el)).toBe(
-            `<p><span data-embedded="counter" data-oe-protected="true" contenteditable="false"><span class="counter">Counter:0</span></span></p>`
+            `<p><span data-embedded="counter" data-oe-protected="true" contenteditable="false"><span class="counter">Counter:0</span></span></p>`,
         );
         await click(".counter");
         await animationFrame();
         expect(getContent(el)).toBe(
-            `<p><span data-embedded="counter" data-oe-protected="true" contenteditable="false" data-embedded-state='{"stateChangeId":1,"previous":{},"next":{"value":1}}' data-embedded-props='{"value":1}'><span class="counter">Counter:1</span></span></p>`
+            `<p><span data-embedded="counter" data-oe-protected="true" contenteditable="false" data-embedded-state='{"stateChangeId":1,"previous":{},"next":{"value":1}}' data-embedded-props='{"value":1}'><span class="counter">Counter:1</span></span></p>`,
         );
         expect.verifySteps(["patched"]);
         counter.embeddedState.value = 1;
         await animationFrame();
         expect(getContent(el)).toBe(
-            `<p><span data-embedded="counter" data-oe-protected="true" contenteditable="false" data-embedded-state='{"stateChangeId":1,"previous":{},"next":{"value":1}}' data-embedded-props='{"value":1}'><span class="counter">Counter:1</span></span></p>`
+            `<p><span data-embedded="counter" data-oe-protected="true" contenteditable="false" data-embedded-state='{"stateChangeId":1,"previous":{},"next":{"value":1}}' data-embedded-props='{"value":1}'><span class="counter">Counter:1</span></span></p>`,
         );
         expect.verifySteps([]);
     });
@@ -1648,50 +1714,50 @@ describe("Embedded state", () => {
     test("Embedded state evolves during undo and redo", async () => {
         const { el, editor } = await setupEditor(
             `<p>a[]<span data-embedded="counter" data-embedded-props='{"value":1}'></span></p>`,
-            { config: getConfig([savedCounter]) }
+            { config: getConfig([savedCounter]) },
         );
         expect(getContent(el)).toBe(
-            `<p>a[]<span data-embedded="counter" data-embedded-props='{"value":1}' data-oe-protected="true" contenteditable="false"><span class="counter">Counter:1</span></span></p>`
-        );
-        await click(".counter");
-        await animationFrame();
-        expect(getContent(el)).toBe(
-            `<p>a[]<span data-embedded="counter" data-embedded-props='{"value":2}' data-oe-protected="true" contenteditable="false" data-embedded-state='{"stateChangeId":1,"previous":{"value":1},"next":{"value":2}}'><span class="counter">Counter:2</span></span></p>`
-        );
-        undo(editor);
-        await animationFrame();
-        expect(getContent(el)).toBe(
-            `<p>a[]<span data-embedded="counter" data-embedded-props='{"value":1}' data-oe-protected="true" contenteditable="false" data-embedded-state='{"stateChangeId":2,"previous":{"value":2},"next":{"value":1}}'><span class="counter">Counter:1</span></span></p>`
-        );
-        redo(editor);
-        await animationFrame();
-        expect(getContent(el)).toBe(
-            `<p>a[]<span data-embedded="counter" data-embedded-props='{"value":2}' data-oe-protected="true" contenteditable="false" data-embedded-state='{"stateChangeId":3,"previous":{"value":1},"next":{"value":2}}'><span class="counter">Counter:2</span></span></p>`
+            `<p>a[]<span data-embedded="counter" data-embedded-props='{"value":1}' data-oe-protected="true" contenteditable="false"><span class="counter">Counter:1</span></span></p>`,
         );
         await click(".counter");
         await animationFrame();
         expect(getContent(el)).toBe(
-            `<p>a[]<span data-embedded="counter" data-embedded-props='{"value":3}' data-oe-protected="true" contenteditable="false" data-embedded-state='{"stateChangeId":4,"previous":{"value":2},"next":{"value":3}}'><span class="counter">Counter:3</span></span></p>`
+            `<p>a[]<span data-embedded="counter" data-embedded-props='{"value":2}' data-oe-protected="true" contenteditable="false" data-embedded-state='{"stateChangeId":1,"previous":{"value":1},"next":{"value":2}}'><span class="counter">Counter:2</span></span></p>`,
         );
         undo(editor);
         await animationFrame();
         expect(getContent(el)).toBe(
-            `<p>a[]<span data-embedded="counter" data-embedded-props='{"value":2}' data-oe-protected="true" contenteditable="false" data-embedded-state='{"stateChangeId":5,"previous":{"value":3},"next":{"value":2}}'><span class="counter">Counter:2</span></span></p>`
+            `<p>a[]<span data-embedded="counter" data-embedded-props='{"value":1}' data-oe-protected="true" contenteditable="false" data-embedded-state='{"stateChangeId":2,"previous":{"value":2},"next":{"value":1}}'><span class="counter">Counter:1</span></span></p>`,
         );
         redo(editor);
         await animationFrame();
         expect(getContent(el)).toBe(
-            `<p>a[]<span data-embedded="counter" data-embedded-props='{"value":3}' data-oe-protected="true" contenteditable="false" data-embedded-state='{"stateChangeId":6,"previous":{"value":2},"next":{"value":3}}'><span class="counter">Counter:3</span></span></p>`
+            `<p>a[]<span data-embedded="counter" data-embedded-props='{"value":2}' data-oe-protected="true" contenteditable="false" data-embedded-state='{"stateChangeId":3,"previous":{"value":1},"next":{"value":2}}'><span class="counter">Counter:2</span></span></p>`,
+        );
+        await click(".counter");
+        await animationFrame();
+        expect(getContent(el)).toBe(
+            `<p>a[]<span data-embedded="counter" data-embedded-props='{"value":3}' data-oe-protected="true" contenteditable="false" data-embedded-state='{"stateChangeId":4,"previous":{"value":2},"next":{"value":3}}'><span class="counter">Counter:3</span></span></p>`,
+        );
+        undo(editor);
+        await animationFrame();
+        expect(getContent(el)).toBe(
+            `<p>a[]<span data-embedded="counter" data-embedded-props='{"value":2}' data-oe-protected="true" contenteditable="false" data-embedded-state='{"stateChangeId":5,"previous":{"value":3},"next":{"value":2}}'><span class="counter">Counter:2</span></span></p>`,
+        );
+        redo(editor);
+        await animationFrame();
+        expect(getContent(el)).toBe(
+            `<p>a[]<span data-embedded="counter" data-embedded-props='{"value":3}' data-oe-protected="true" contenteditable="false" data-embedded-state='{"stateChangeId":6,"previous":{"value":2},"next":{"value":3}}'><span class="counter">Counter:3</span></span></p>`,
         );
     });
 
     test("Embedded state evolves during the restoration of a savePoint after makeSavePoint, even if the component was destroyed", async () => {
         const { el, editor } = await setupEditor(
             `<p>a[]<span data-embedded="counter" data-embedded-props='{"value":1}'></span></p>`,
-            { config: getConfig([savedCounter]) }
+            { config: getConfig([savedCounter]) },
         );
         expect(getContent(el)).toBe(
-            `<p>a[]<span data-embedded="counter" data-embedded-props='{"value":1}' data-oe-protected="true" contenteditable="false"><span class="counter">Counter:1</span></span></p>`
+            `<p>a[]<span data-embedded="counter" data-embedded-props='{"value":1}' data-oe-protected="true" contenteditable="false"><span class="counter">Counter:1</span></span></p>`,
         );
         const savepoint1 = editor.shared.history.makeSavePoint();
         await click(".counter");
@@ -1700,14 +1766,14 @@ describe("Embedded state", () => {
         await click(".counter");
         await animationFrame();
         expect(getContent(el)).toBe(
-            `<p>a[]<span data-embedded="counter" data-embedded-props='{"value":3}' data-oe-protected="true" contenteditable="false" data-embedded-state='{"stateChangeId":2,"previous":{"value":2},"next":{"value":3}}'><span class="counter">Counter:3</span></span></p>`
+            `<p>a[]<span data-embedded="counter" data-embedded-props='{"value":3}' data-oe-protected="true" contenteditable="false" data-embedded-state='{"stateChangeId":2,"previous":{"value":2},"next":{"value":3}}'><span class="counter">Counter:3</span></span></p>`,
         );
         deleteForward(editor);
         expect(getContent(el)).toBe(`<p>a[]</p>`);
         savepoint2();
         await animationFrame();
         expect(getContent(el)).toBe(
-            `<p>a[]<span data-embedded="counter" data-embedded-props='{"value":2}' data-oe-protected="true" contenteditable="false" data-embedded-state='{"stateChangeId":3,"previous":{"value":3},"next":{"value":2}}'><span class="counter">Counter:2</span></span></p>`
+            `<p>a[]<span data-embedded="counter" data-embedded-props='{"value":2}' data-oe-protected="true" contenteditable="false" data-embedded-state='{"stateChangeId":3,"previous":{"value":3},"next":{"value":2}}'><span class="counter">Counter:2</span></span></p>`,
         );
         savepoint1();
         await animationFrame();
@@ -1717,22 +1783,22 @@ describe("Embedded state", () => {
         // 3 -> 2, revert mutations of the second click.
         // 2 -> 1, revert mutations of the first click.
         expect(getContent(el)).toBe(
-            `<p>a[]<span data-embedded="counter" data-embedded-props='{"value":1}' data-oe-protected="true" contenteditable="false" data-embedded-state='{"stateChangeId":6,"previous":{"value":2},"next":{"value":1}}'><span class="counter">Counter:1</span></span></p>`
+            `<p>a[]<span data-embedded="counter" data-embedded-props='{"value":1}' data-oe-protected="true" contenteditable="false" data-embedded-state='{"stateChangeId":6,"previous":{"value":2},"next":{"value":1}}'><span class="counter">Counter:1</span></span></p>`,
         );
     });
 
     test("Embedded state changes are discarded if the component is destroyed before they are applied", async () => {
         const { el, editor } = await setupEditor(
             `<p>a[]<span data-embedded="counter" data-embedded-props='{"value":1}'></span></p>`,
-            { config: getConfig([savedCounter]) }
+            { config: getConfig([savedCounter]) },
         );
         expect(getContent(el)).toBe(
-            `<p>a[]<span data-embedded="counter" data-embedded-props='{"value":1}' data-oe-protected="true" contenteditable="false"><span class="counter">Counter:1</span></span></p>`
+            `<p>a[]<span data-embedded="counter" data-embedded-props='{"value":1}' data-oe-protected="true" contenteditable="false"><span class="counter">Counter:1</span></span></p>`,
         );
         await click(".counter");
         await animationFrame();
         expect(getContent(el)).toBe(
-            `<p>a[]<span data-embedded="counter" data-embedded-props='{"value":2}' data-oe-protected="true" contenteditable="false" data-embedded-state='{"stateChangeId":1,"previous":{"value":1},"next":{"value":2}}'><span class="counter">Counter:2</span></span></p>`
+            `<p>a[]<span data-embedded="counter" data-embedded-props='{"value":2}' data-oe-protected="true" contenteditable="false" data-embedded-state='{"stateChangeId":1,"previous":{"value":1},"next":{"value":2}}'><span class="counter">Counter:2</span></span></p>`,
         );
         // Launch click sequence without awaiting it
         click(queryFirst(".counter"));
@@ -1741,7 +1807,7 @@ describe("Embedded state", () => {
         undo(editor);
         await animationFrame();
         expect(getContent(el)).toBe(
-            `<p>a[]<span data-embedded="counter" data-embedded-props='{"value":2}' data-oe-protected="true" contenteditable="false" data-embedded-state='{"stateChangeId":1,"previous":{"value":1},"next":{"value":2}}'><span class="counter">Counter:2</span></span></p>`
+            `<p>a[]<span data-embedded="counter" data-embedded-props='{"value":2}' data-oe-protected="true" contenteditable="false" data-embedded-state='{"stateChangeId":1,"previous":{"value":1},"next":{"value":2}}'><span class="counter">Counter:2</span></span></p>`,
         );
     });
 
@@ -1755,10 +1821,10 @@ describe("Embedded state", () => {
         });
         const { el, editor } = await setupEditor(
             `<p>a[]<span data-embedded="counter" data-embedded-props='{"name":"customName","value":1}'></span></p>`,
-            { config: getConfig([namedCounter]) }
+            { config: getConfig([namedCounter]) },
         );
         expect(getContent(el)).toBe(
-            `<p>a[]<span data-embedded="counter" data-embedded-props='{"name":"customName","value":1}' data-oe-protected="true" contenteditable="false"><span class="counter">customName:4</span></span></p>`
+            `<p>a[]<span data-embedded="counter" data-embedded-props='{"name":"customName","value":1}' data-oe-protected="true" contenteditable="false"><span class="counter">customName:4</span></span></p>`,
         );
         // Only consider props supposed to be extracted from `data-embedded-props`
         const props = {
@@ -1777,7 +1843,7 @@ describe("Embedded state", () => {
         counter.embeddedState.value = 2;
         await animationFrame();
         expect(getContent(el)).toBe(
-            `<p>a[]<span data-embedded="counter" data-embedded-props='{"name":"customName","value":2}' data-oe-protected="true" contenteditable="false" data-embedded-state='{"stateChangeId":1,"previous":{"baseValue":3,"value":1},"next":{"baseValue":5,"value":2}}'><span class="counter">customName:7</span></span></p>`
+            `<p>a[]<span data-embedded="counter" data-embedded-props='{"name":"customName","value":2}' data-oe-protected="true" contenteditable="false" data-embedded-state='{"stateChangeId":1,"previous":{"baseValue":3,"value":1},"next":{"baseValue":5,"value":2}}'><span class="counter">customName:7</span></span></p>`,
         );
         deleteForward(editor);
         undo(editor);
@@ -1788,7 +1854,7 @@ describe("Embedded state", () => {
             value: 2, // recovered from the props
         });
         expect(getContent(el)).toBe(
-            `<p>a[]<span data-embedded="counter" data-embedded-props='{"name":"customName","value":2}' data-oe-protected="true" contenteditable="false" data-embedded-state='{"stateChangeId":1,"previous":{"baseValue":3,"value":1},"next":{"baseValue":5,"value":2}}'><span class="counter">customName:5</span></span></p>`
+            `<p>a[]<span data-embedded="counter" data-embedded-props='{"name":"customName","value":2}' data-oe-protected="true" contenteditable="false" data-embedded-state='{"stateChangeId":1,"previous":{"baseValue":3,"value":1},"next":{"baseValue":5,"value":2}}'><span class="counter">customName:5</span></span></p>`,
         );
     });
 });

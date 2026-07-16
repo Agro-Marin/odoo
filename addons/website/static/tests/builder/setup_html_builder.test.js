@@ -1,9 +1,10 @@
-import { defineWebsiteModels, setupWebsiteBuilder } from "./website_helpers.js";
+import { exampleContent, modifyText } from "@html_builder/../tests/helpers";
 import { expect, test } from "@odoo/hoot";
 import { animationFrame, waitFor } from "@odoo/hoot-dom";
-import { patchWithCleanup, contains } from "@web/../tests/web_test_helpers";
+import { contains, patchWithCleanup } from "@web/../tests/web_test_helpers";
 import { WebsiteBuilder } from "@website/builder/website_builder";
-import { modifyText, exampleContent } from "@html_builder/../tests/helpers";
+
+import { defineWebsiteModels, setupWebsiteBuilder } from "./website_helpers.js";
 
 defineWebsiteModels();
 
@@ -26,19 +27,23 @@ test("history back", async () => {
     const { getEditor, getEditableContent } = await setupWebsiteBuilder(exampleContent);
     builder.onBeforeLeave();
     await animationFrame();
-    expect(".modal-content:contains('If you proceed, your changes will be lost')").toHaveCount(0);
+    expect(
+        ".modal-content:contains('If you proceed, your changes will be lost')",
+    ).toHaveCount(0);
     // Navigating back in the browser history should lead to a warning popup if
     // the website was edited.
     await modifyText(getEditor(), getEditableContent());
     await animationFrame();
     builder.onBeforeLeave();
     await animationFrame();
-    expect(".modal-content:contains('If you proceed, your changes will be lost')").toHaveCount(1);
+    expect(
+        ".modal-content:contains('If you proceed, your changes will be lost')",
+    ).toHaveCount(1);
 });
 
 test("Set and update the 'contenteditable' attribute on the editable elements", async () => {
     const { getEditor, getEditableContent } = await setupWebsiteBuilder(
-        "<section><p>TEST</p></section>"
+        "<section><p>TEST</p></section>",
     );
     const wrapwrapEl = getEditor().editable;
     const wrapEl = getEditableContent();

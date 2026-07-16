@@ -1,10 +1,12 @@
+import { BuilderAction } from "@html_builder/core/builder_action";
+import { setContent, setSelection } from "@html_editor/../tests/_helpers/selection";
 import { undo } from "@html_editor/../tests/_helpers/user_actions";
 import { Plugin } from "@html_editor/plugin";
-import { setContent, setSelection } from "@html_editor/../tests/_helpers/selection";
 import { expect, test } from "@odoo/hoot";
 import { Deferred, queryOne, tick, waitFor } from "@odoo/hoot-dom";
 import { xml } from "@odoo/owl";
 import { contains } from "@web/../tests/web_test_helpers";
+
 import {
     addActionOption,
     addOption,
@@ -13,7 +15,6 @@ import {
     setupWebsiteBuilder,
     setupWebsiteBuilderWithSnippet,
 } from "./website_helpers.js";
-import { BuilderAction } from "@html_builder/core/builder_action";
 
 defineWebsiteModels();
 
@@ -39,7 +40,7 @@ test("Use the 'move arrows' overlay buttons", async () => {
             <p>TEST</p>
         </section>
     `,
-        { loadIframeBundles: true }
+        { loadIframeBundles: true },
     );
 
     await contains(":iframe section").click();
@@ -81,7 +82,7 @@ test("Full-width columns use vertical move arrows", async () => {
             </div>
         </section>
     `,
-        { loadIframeBundles: true }
+        { loadIframeBundles: true },
     );
 
     await contains(":iframe .col-lg-12:nth-child(1)").click();
@@ -124,7 +125,7 @@ test("Use the 'move arrows' overlay buttons within an editable div", async () =>
         </section>
         </div>
     `,
-        { loadIframeBundles: true }
+        { loadIframeBundles: true },
     );
 
     await contains(":iframe section").click();
@@ -200,7 +201,7 @@ test("Refresh the overlay buttons when toggling the mobile preview", async () =>
             </div>
         </section>
     `,
-        { loadIframeBundles: true }
+        { loadIframeBundles: true },
     );
 
     await contains(":iframe .g-col-lg-4").click();
@@ -372,11 +373,13 @@ test("Applying an overlay button action should wait for the actions in progress"
     customActionDef.resolve();
     await tick();
     expect(editable).toHaveInnerHTML(
-        `<div class="test-options-target customAction overlayButton">plop</div>`
+        `<div class="test-options-target customAction overlayButton">plop</div>`,
     );
 
     undo(editor);
-    expect(editable).toHaveInnerHTML(`<div class="test-options-target customAction">plop</div>`);
+    expect(editable).toHaveInnerHTML(
+        `<div class="test-options-target customAction">plop</div>`,
+    );
 
     undo(editor);
     expect(editable).toHaveInnerHTML(`<div class="test-options-target">plop</div>`);
@@ -436,7 +439,7 @@ test("The overlay buttons should only appear for elements in editable areas, unl
         </div>
         <div class="content o_editable">
             <div class="test-editable">IN EDITABLE</div>
-        </div>`
+        </div>`,
     );
     editor.shared.history.addStep();
 
@@ -457,7 +460,7 @@ test("An inner snippet alone in a column should not have overlay options", async
     expect(".oe_overlay.oe_active").toHaveCount(2);
     // Clone the block so it is not alone anymore.
     await contains(
-        ".options-container[data-container-title='Blockquote'] .oe_snippet_clone"
+        ".options-container[data-container-title='Blockquote'] .oe_snippet_clone",
     ).click();
     // Only the "Blockquote" should have an overlay.
     expect(".oe_overlay").toHaveCount(3);

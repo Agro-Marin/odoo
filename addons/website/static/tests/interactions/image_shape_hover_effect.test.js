@@ -1,9 +1,10 @@
-import { setupInteractionWhiteList, startInteractions } from "@web/../tests/public/helpers";
-
 import { describe, expect, test } from "@odoo/hoot";
 import { hover, queryOne } from "@odoo/hoot-dom";
 import { advanceTime } from "@odoo/hoot-mock";
-
+import {
+    setupInteractionWhiteList,
+    startInteractions,
+} from "@web/../tests/public/helpers";
 import { onRpc, patchWithCleanup } from "@web/../tests/web_test_helpers";
 import { onceAllImagesLoaded } from "@website/utils/images";
 
@@ -41,7 +42,7 @@ test("image_shape_hover_effect changes image on enter & leave", async () => {
     onRpc(
         "/web/image/384-8a55a748/s_banner_3.svg",
         () =>
-            `<svg viewBox="0 0 300 100" width="500px"><g id="hoverEffects"><animate values="a=1;b=2"><rect width="100%" fill="red" height="100%" /></animate></g></svg>`
+            `<svg viewBox="0 0 300 100" width="500px"><g id="hoverEffects"><animate values="a=1;b=2"><rect width="100%" fill="red" height="100%" /></animate></g></svg>`,
     );
     expect(core.interactions).toHaveLength(1);
     await onceAllImagesLoaded(queryOne("#wrapwrap"));

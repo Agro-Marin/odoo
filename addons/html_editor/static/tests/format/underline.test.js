@@ -1,8 +1,10 @@
 import { describe, expect, test } from "@odoo/hoot";
-import { tick } from "@odoo/hoot-mock";
 import { press } from "@odoo/hoot-dom";
+import { tick } from "@odoo/hoot-mock";
 import { patchWithCleanup } from "@web/../tests/web_test_helpers";
+
 import { setupEditor, testEditor } from "../_helpers/editor.js";
+import { unformat } from "../_helpers/format.js";
 import { getContent } from "../_helpers/selection.js";
 import {
     insertText,
@@ -12,7 +14,6 @@ import {
     underline,
     undo,
 } from "../_helpers/user_actions.js";
-import { unformat } from "../_helpers/format.js";
 
 test("should make a few characters underline", async () => {
     await testEditor({
@@ -399,7 +400,9 @@ describe("with italic", () => {
 
         underline(editor);
         await tick();
-        expect(getContent(el)).toBe(`<p>ab<u data-oe-zws-empty-inline="">\u200B[]</u>cd</p>`);
+        expect(getContent(el)).toBe(
+            `<p>ab<u data-oe-zws-empty-inline="">\u200B[]</u>cd</p>`,
+        );
 
         await simulateArrowKeyPress(editor, "ArrowLeft");
         await tick(); // await selectionchange
@@ -416,7 +419,9 @@ test("should not add history step for underline on collapsed selection", async (
     // step. The empty inline tag is temporary: auto-cleaned if unused. We want
     // to avoid having a phantom step in the history.
     await press(["ctrl", "u"]);
-    expect(getContent(el)).toBe(`<p>abcd<u data-oe-zws-empty-inline="">\u200B[]</u></p>`);
+    expect(getContent(el)).toBe(
+        `<p>abcd<u data-oe-zws-empty-inline="">\u200B[]</u></p>`,
+    );
 
     await insertText(editor, "A");
     expect(getContent(el)).toBe(`<p>abcd<u>A[]</u></p>`);

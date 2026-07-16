@@ -1,7 +1,7 @@
 /** @odoo-module native */
-import { patch } from "@web/core/utils/patch";
 import { loadAssets } from "@im_livechat/embed/common/boot_helpers";
 import { mailPopoutService } from "@mail/core/common/mail_popout_service";
+import { patch } from "@web/core/utils/patch";
 
 const popoutPatch = {
     async addAssets(window) {

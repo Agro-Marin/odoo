@@ -1,8 +1,6 @@
 /** @odoo-module native */
 import { Discuss } from "@mail/core/public_web/discuss";
-
 import { onWillStart, onWillUpdateProps, useEffect, useState } from "@odoo/owl";
-
 import { useService } from "@web/core/utils/hooks";
 import { FormRenderer } from "@web/views/form/form_renderer";
 
@@ -23,7 +21,7 @@ export class LivechatSessionFormRenderer extends FormRenderer {
                     return () => thread.shadowedBySelf--;
                 }
             },
-            () => [this.thread]
+            () => [this.thread],
         );
         onWillStart(() => this.getChannel(this.props));
         onWillUpdateProps(async (nextProps) => {

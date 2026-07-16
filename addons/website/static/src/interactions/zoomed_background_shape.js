@@ -1,6 +1,6 @@
 /** @odoo-module native */
-import { Interaction } from "@web/public/interaction";
 import { registry } from "@web/core/registry";
+import { Interaction } from "@web/public/interaction";
 
 /**
  * @todo while this solution mitigates the issue, it is not fixing it entirely
@@ -57,7 +57,7 @@ export class ZoomedBackgroundShape extends Interaction {
         decimalPart = parseFloat(decimalPart.toFixed(2));
         // If the decimal part was 0.99, it was rounded to 1
         // In that case we consider there was no decimal part
-        decimalPart = decimalPart == 1 ? 0 : decimalPart;
+        decimalPart = decimalPart === 1 ? 0 : decimalPart;
         // If there is a decimal part. (e.g. Chrome + browser zoom enabled)
         if (decimalPart > 0) {
             // Compensate for the gap by giving an integer width value to the

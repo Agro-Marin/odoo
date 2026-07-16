@@ -30,13 +30,15 @@ registerWebsitePreviewTour(
             content: "add something in the page's default language version",
             trigger: 'div.ace_line .ace_xml:contains("rommelpot")',
             run: () => {
-                ace.edit(document.querySelector("#resource-editor div")).getSession().insert(
-                    {
-                        row: 1,
-                        column: 1,
-                    },
-                    '<div class="test_language"/>\n'
-                );
+                ace.edit(document.querySelector("#resource-editor div"))
+                    .getSession()
+                    .insert(
+                        {
+                            row: 1,
+                            column: 1,
+                        },
+                        '<div class="test_language"/>\n',
+                    );
             },
         },
         {
@@ -53,7 +55,7 @@ registerWebsitePreviewTour(
             content: "check that the page has not lost the original text",
             trigger: ':iframe #wrapwrap:contains("rommelpot")',
         },
-    ]
+    ],
 );
 
 registerWebsitePreviewTour(
@@ -108,11 +110,13 @@ registerWebsitePreviewTour(
         },
         {
             content: "open oe_structure_test_ui view",
-            trigger: ".o-dropdown--menu .o-dropdown-item:contains(oe_structure_test_ui)",
+            trigger:
+                ".o-dropdown--menu .o-dropdown-item:contains(oe_structure_test_ui)",
             run: "click",
         },
         {
-            trigger: '.o_resource_editor .o_select_menu_toggler:contains("oe_structure_test_ui")',
+            trigger:
+                '.o_resource_editor .o_select_menu_toggler:contains("oe_structure_test_ui")',
         },
         {
             content: "add something in the oe_structure specific view",
@@ -138,7 +142,7 @@ registerWebsitePreviewTour(
             content: "check that the page has both modification",
             trigger: ':iframe #wrapwrap:contains("somenewcontent")',
         },
-    ]
+    ],
 );
 
 registerWebsitePreviewTour(
@@ -164,7 +168,8 @@ registerWebsitePreviewTour(
         },
         {
             content: "open html editor",
-            trigger: '.o_popover a[data-menu-xmlid="website.menu_ace_editor"]:contains(/^HTML/)',
+            trigger:
+                '.o_popover a[data-menu-xmlid="website.menu_ace_editor"]:contains(/^HTML/)',
             run: "click",
         },
         {
@@ -179,7 +184,8 @@ registerWebsitePreviewTour(
         },
         {
             content: "select 'user_custom_rules'",
-            trigger: '.o_resource_editor .o_select_menu_toggler:contains("user_custom_rules")',
+            trigger:
+                '.o_resource_editor .o_select_menu_toggler:contains("user_custom_rules")',
         },
         // 2. Edit that file and ensure it was saved then reset it
         {
@@ -247,7 +253,7 @@ registerWebsitePreviewTour(
         {
             trigger: "nav img[src]:not([src=''])",
         },
-    ]
+    ],
 );
 
 registerWebsitePreviewTour(
@@ -270,7 +276,8 @@ registerWebsitePreviewTour(
         },
         {
             content: "open html editor",
-            trigger: '.o_popover a[data-menu-xmlid="website.menu_ace_editor"]:contains(/^HTML/)',
+            trigger:
+                '.o_popover a[data-menu-xmlid="website.menu_ace_editor"]:contains(/^HTML/)',
             run: "click",
         },
         {
@@ -285,7 +292,8 @@ registerWebsitePreviewTour(
         },
         {
             content: "select 'user_custom_rules'",
-            trigger: '.o_resource_editor .o_select_menu_toggler:contains("user_custom_rules")',
+            trigger:
+                '.o_resource_editor .o_select_menu_toggler:contains("user_custom_rules")',
         },
         // 5. Edit that file and ensure it was saved then reset it
         {
@@ -326,7 +334,7 @@ registerWebsitePreviewTour(
             trigger: `body:not(:has(div.ace_line:contains("${demoCssModif}")))`,
             timeout: 30000, // SCSS compilation might take some time
         },
-    ]
+    ],
 );
 
 registerWebsitePreviewTour(
@@ -346,7 +354,8 @@ registerWebsitePreviewTour(
         },
         {
             content: "Open HTML / CSS Editor",
-            trigger: '.o_popover a[data-menu-xmlid="website.menu_ace_editor"]:contains(/^HTML/)',
+            trigger:
+                '.o_popover a[data-menu-xmlid="website.menu_ace_editor"]:contains(/^HTML/)',
             run: "click",
         },
         {
@@ -390,7 +399,7 @@ registerWebsitePreviewTour(
                 },
             ])
             .flat(),
-    ]
+    ],
 );
 
 registerWebsitePreviewTour(
@@ -409,7 +418,8 @@ registerWebsitePreviewTour(
         },
         {
             content: "Open HTML / CSS Editor",
-            trigger: ".o_popover a[data-menu-xmlid='website.menu_ace_editor']:contains(/^HTML/)",
+            trigger:
+                ".o_popover a[data-menu-xmlid='website.menu_ace_editor']:contains(/^HTML/)",
             run: "click",
         },
         {
@@ -431,7 +441,8 @@ registerWebsitePreviewTour(
         },
         {
             content: "Discard edit mode",
-            trigger: ".o-website-builder_sidebar .o-snippets-top-actions button:contains(Discard)",
+            trigger:
+                ".o-website-builder_sidebar .o-snippets-top-actions button:contains(Discard)",
             run: "click",
         },
         {
@@ -441,7 +452,8 @@ registerWebsitePreviewTour(
         },
         {
             content: "Open HTML / CSS Editor",
-            trigger: ".o_popover a[data-menu-xmlid='website.menu_ace_editor']:contains(/^HTML/)",
+            trigger:
+                ".o_popover a[data-menu-xmlid='website.menu_ace_editor']:contains(/^HTML/)",
             run: "click",
         },
         {
@@ -454,8 +466,9 @@ registerWebsitePreviewTour(
             run: "click",
         },
         {
-            content: "Make sure the editor has been hidden after navigating to other page",
+            content:
+                "Make sure the editor has been hidden after navigating to other page",
             trigger: ":not(.o_resource_editor)",
         },
-    ]
+    ],
 );

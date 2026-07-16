@@ -1,10 +1,11 @@
 /** @odoo-module native */
 import { Plugin } from "@html_editor/plugin";
+import { isElement, PROTECTED_QWEB_SELECTOR } from "@html_editor/utils/dom_info";
 import { closestElement, selectElements } from "@html_editor/utils/dom_traversal";
 import { leftPos, rightPos } from "@html_editor/utils/position";
-import { QWebPicker } from "./qweb_picker.js";
-import { isElement, PROTECTED_QWEB_SELECTOR } from "@html_editor/utils/dom_info";
 import { withSequence } from "@html_editor/utils/resource";
+
+import { QWebPicker } from "./qweb_picker.js";
 
 const isUnsplittableQWebElement = (node) =>
     isElement(node) &&
@@ -27,7 +28,9 @@ const QWEB_DATA_ATTRIBUTES = [
     "data-oe-t-selectable",
     "data-oe-t-group-active",
 ];
-const dataAttributesSelector = QWEB_DATA_ATTRIBUTES.map((attr) => `[${attr}]`).join(", ");
+const dataAttributesSelector = QWEB_DATA_ATTRIBUTES.map((attr) => `[${attr}]`).join(
+    ", ",
+);
 
 export const isUnremovableQWebElement = (node) =>
     node.getAttribute?.("t-set") || node.getAttribute?.("t-call");
@@ -126,7 +129,7 @@ export class QWebPlugin extends Plugin {
         const groupId = branchNode.getAttribute("data-oe-t-group");
         const group = [];
         for (const node of branchNode.parentElement.querySelectorAll(
-            `[data-oe-t-group='${groupId}']`
+            `[data-oe-t-group='${groupId}']`,
         )) {
             let label = "";
             if (node.hasAttribute("t-if")) {
@@ -176,7 +179,8 @@ export class QWebPlugin extends Plugin {
     }
 
     selectNode(node) {
-        const editableSelection = this.dependencies.selection.getSelectionData().editableSelection;
+        const editableSelection =
+            this.dependencies.selection.getSelectionData().editableSelection;
         if (!editableSelection.isCollapsed) {
             return;
         }
@@ -211,14 +215,14 @@ export class QWebPlugin extends Plugin {
         }
         for (const groupId of groupsEncounter) {
             const isOneElementActive = root.querySelector(
-                `[data-oe-t-group='${groupId}'][data-oe-t-group-active]`
+                `[data-oe-t-group='${groupId}'][data-oe-t-group-active]`,
             );
             // If there is no element in groupId activated, activate the first
             // one.
             if (!isOneElementActive) {
                 const firstElementToActivate = selectElements(
                     root,
-                    `[data-oe-t-group='${groupId}']`
+                    `[data-oe-t-group='${groupId}']`,
                 ).next().value;
                 firstElementToActivate.setAttribute("data-oe-t-group-active", "true");
             }
@@ -228,7 +232,7 @@ export class QWebPlugin extends Plugin {
     select(node) {
         const groupId = node.getAttribute("data-oe-t-group");
         const activeElement = node.parentElement.querySelector(
-            `[data-oe-t-group='${groupId}'][data-oe-t-group-active]`
+            `[data-oe-t-group='${groupId}'][data-oe-t-group-active]`,
         );
         if (activeElement === node) {
             return;

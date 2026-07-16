@@ -1,6 +1,10 @@
 import { describe, expect, test } from "@odoo/hoot";
-import { setupInteractionWhiteList, startInteractions } from "@web/../tests/public/helpers";
+import {
+    setupInteractionWhiteList,
+    startInteractions,
+} from "@web/../tests/public/helpers";
 import { onRpc } from "@web/../tests/web_test_helpers";
+
 import { switchToEditMode } from "../../helpers.js";
 
 setupInteractionWhiteList("website.form");
@@ -59,17 +63,25 @@ function setupUser() {
 }
 
 test("form formats date in edit mode", async () => {
-    const { core } = await startInteractions(formXml, { waitForStart: true, editMode: true });
+    const { core } = await startInteractions(formXml, {
+        waitForStart: true,
+        editMode: true,
+    });
     await switchToEditMode(core);
     expect(core.interactions).toHaveLength(1);
     expect("form input[name=When]").toHaveValue("01/01/2025 10:00:00");
     // Verify that non-edit code did not run.
-    expect(".s_website_form_datetime").not.toHaveClass("s_website_form_datepicker_initialized");
+    expect(".s_website_form_datetime").not.toHaveClass(
+        "s_website_form_datepicker_initialized",
+    );
 });
 
 test("form is NOT prefilled in edit mode", async () => {
     setupUser();
-    const { core } = await startInteractions(formXml, { waitForStart: true, editMode: true });
+    const { core } = await startInteractions(formXml, {
+        waitForStart: true,
+        editMode: true,
+    });
     await switchToEditMode(core);
     expect(core.interactions).toHaveLength(1);
     expect("form input[name=company]").toHaveValue("");
@@ -77,7 +89,10 @@ test("form is NOT prefilled in edit mode", async () => {
 
 test("form is NOT prefilled in translate mode", async () => {
     setupUser();
-    const { core } = await startInteractions(formXml, { waitForStart: true, translateMode: true });
+    const { core } = await startInteractions(formXml, {
+        waitForStart: true,
+        translateMode: true,
+    });
     expect(core.interactions).toHaveLength(1);
     expect("form input[name=company]").toHaveValue("");
 });

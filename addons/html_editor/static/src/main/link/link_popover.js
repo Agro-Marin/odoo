@@ -1,12 +1,13 @@
 /** @odoo-module native */
-import { session } from "@web/session";
-import { _t } from "@web/core/l10n/translation";
-import { Component, useState, useRef, useEffect, useExternalListener } from "@odoo/owl";
-import { useService } from "@web/core/utils/hooks";
-import { browser } from "@web/core/browser/browser";
-import { cleanZWChars, deduceURLfromText } from "./utils.js";
-import { useColorPicker } from "@web/components/color_picker/color_picker";
+import { Component, useEffect, useExternalListener, useRef, useState } from "@odoo/owl";
 import { CheckBox } from "@web/components/checkbox/checkbox";
+import { useColorPicker } from "@web/components/color_picker/color_picker";
+import { browser } from "@web/core/browser/browser";
+import { _t } from "@web/core/l10n/translation";
+import { useService } from "@web/core/utils/hooks";
+import { session } from "@web/session";
+
+import { cleanZWChars, deduceURLfromText } from "./utils.js";
 
 const DEFAULT_CUSTOM_TEXT_COLOR = "#A855F7";
 const DEFAULT_CUSTOM_FILL_COLOR = "#ffffff";
@@ -98,7 +99,8 @@ export class LinkPopover extends Component {
             textContent === linkElement.getAttribute("href") ||
             textContent + "/" === linkElement.getAttribute("href");
 
-        const computedStyle = this.props.document.defaultView.getComputedStyle(linkElement);
+        const computedStyle =
+            this.props.document.defaultView.getComputedStyle(linkElement);
         const currentRelValues = linkElement.rel.split(" ");
         this.state = useState({
             editing: this.props.LinkPopoverState.editing,
@@ -116,7 +118,9 @@ export class LinkPopover extends Component {
             imgSrc: "",
             type:
                 this.props.type ||
-                linkElement.className.match(/btn(-[a-z0-9_-]*)(primary|secondary|custom)/)?.pop() ||
+                linkElement.className
+                    .match(/btn(-[a-z0-9_-]*)(primary|secondary|custom)/)
+                    ?.pop() ||
                 "",
             linkTarget: linkElement.target === "_blank" ? "_blank" : "",
             directDownload: true,
@@ -138,7 +142,9 @@ export class LinkPopover extends Component {
                 },
                 noreferrer: {
                     label: "noreferrer",
-                    description: _t("Removes referrer information sent to the target site"),
+                    description: _t(
+                        "Removes referrer information sent to the target site",
+                    ),
                     isChecked: currentRelValues.includes("noreferrer"),
                 },
                 sponsored: {
@@ -149,7 +155,7 @@ export class LinkPopover extends Component {
                 noopener: {
                     label: "noopener",
                     description: _t(
-                        "Prevents the new page from accessing the original window (security)"
+                        "Prevents the new page from accessing the original window (security)",
                     ),
                     isChecked: currentRelValues.includes("noopener"),
                 },
@@ -216,28 +222,30 @@ export class LinkPopover extends Component {
                         // overlay visibility in `iframe`, here we increment default sequence (50)
                         // by 1 and we add 1000 to have color picker always on top of all overlays.
                         sequence: 1051,
-                    }
+                    },
                 );
             this.customTextColorPicker = createCustomColorPicker(
                 "customTextColorButton",
                 "customTextColorState",
-                "customTextResetPreviewColor"
+                "customTextResetPreviewColor",
             );
             this.customFillColorPicker = createCustomColorPicker(
                 "customFillColorButton",
                 "customFillColorState",
-                "customFillResetPreviewColor"
+                "customFillResetPreviewColor",
             );
             this.customBorderColorPicker = createCustomColorPicker(
                 "customBorderColorButton",
                 "customBorderColorState",
-                "customBorderResetPreviewColor"
+                "customBorderResetPreviewColor",
             );
         }
         this.updateDocumentState();
         this.editingWrapper = useRef("editing-wrapper");
         this.inputRef = useRef(
-            this.state.isImage || (this.state.label && !this.state.url) ? "url" : "label"
+            this.state.isImage || (this.state.label && !this.state.url)
+                ? "url"
+                : "label",
         );
         useEffect(
             (el) => {
@@ -245,7 +253,7 @@ export class LinkPopover extends Component {
                     el.focus();
                 }
             },
-            () => [this.inputRef.el]
+            () => [this.inputRef.el],
         );
         if (!this.state.editing) {
             this.loadAsyncLinkPreview();
@@ -255,7 +263,10 @@ export class LinkPopover extends Component {
                 return;
             }
             this.state.url ||= "#";
-            if (this.editingWrapper?.el && !this.editingWrapper.el.contains(ev.target)) {
+            if (
+                this.editingWrapper?.el &&
+                !this.editingWrapper.el.contains(ev.target)
+            ) {
                 this.onClickApply();
             }
         };
@@ -288,7 +299,7 @@ export class LinkPopover extends Component {
             this.classes,
             this.customStyles,
             this.state.linkTarget,
-            this.state.attachmentId
+            this.state.attachmentId,
         );
         this.updateDocumentState();
     }
@@ -306,7 +317,7 @@ export class LinkPopover extends Component {
             this.customStyles,
             this.state.linkTarget,
             this.state.attachmentId,
-            relValue
+            relValue,
         );
     }
     applyDeducedUrl() {
@@ -356,7 +367,9 @@ export class LinkPopover extends Component {
     }
 
     onKeydownEnter(ev) {
-        const isAutoCompleteDropdownOpen = document.querySelector(".o-autocomplete--dropdown-menu");
+        const isAutoCompleteDropdownOpen = document.querySelector(
+            ".o-autocomplete--dropdown-menu",
+        );
         if (ev.key === "Enter" && !isAutoCompleteDropdownOpen && this.state.url) {
             ev.preventDefault();
             this.onClickApply();
@@ -368,10 +381,12 @@ export class LinkPopover extends Component {
             ev.preventDefault();
             ev.stopImmediatePropagation();
             this.onClickApply();
-        } else if (ev.key == "Tab") {
+        } else if (ev.key === "Tab") {
             ev.preventDefault();
             const focusableElements = [
-                ...this.editingWrapper.el.querySelectorAll("input, select, button:not([disabled])"),
+                ...this.editingWrapper.el.querySelectorAll(
+                    "input, select, button:not([disabled])",
+                ),
             ];
             const currentIndex = focusableElements.indexOf(document.activeElement);
             const nextIndex =
@@ -508,7 +523,9 @@ export class LinkPopover extends Component {
             return;
         }
         if (this.isAttachmentUrl()) {
-            const { name, mimetype } = await this.props.getAttachmentMetadata(this.state.url);
+            const { name, mimetype } = await this.props.getAttachmentMetadata(
+                this.state.url,
+            );
             this.resetPreview();
             this.state.urlTitle = name;
             this.state.previewIcon = { type: "mimetype", value: mimetype };
@@ -519,15 +536,21 @@ export class LinkPopover extends Component {
         } catch {
             // Invalid URL, might happen with editor unsuported protocol. eg type
             // `geo:37.786971,-122.399677`, become `http://geo:37.786971,-122.399677`
-            this.notificationService.add(_t("This URL is invalid. Preview couldn't be updated."), {
-                type: "danger",
-            });
+            this.notificationService.add(
+                _t("This URL is invalid. Preview couldn't be updated."),
+                {
+                    type: "danger",
+                },
+            );
             return;
         }
         this.resetPreview();
         const protocol = url.protocol;
         if (!protocol.startsWith("http")) {
-            const faMap = { "mailto:": "fa-regular fa-envelope", "tel:": "fa-solid fa-phone" };
+            const faMap = {
+                "mailto:": "fa-regular fa-envelope",
+                "tel:": "fa-solid fa-phone",
+            };
             const icon = faMap[protocol];
             if (icon) {
                 this.state.previewIcon.value = icon;
@@ -548,7 +571,10 @@ export class LinkPopover extends Component {
             const externalMetadata = await this.props
                 .getExternalMetaData(this.state.url)
                 .catch((error) => {
-                    console.warn(`Error fetching external metadata for ${url.href}:`, error);
+                    console.warn(
+                        `Error fetching external metadata for ${url.href}:`,
+                        error,
+                    );
                     return {};
                 });
 
@@ -570,7 +596,10 @@ export class LinkPopover extends Component {
                 .getInternalMetaData(url.href)
                 .catch((error) => {
                     if (!session.test_mode) {
-                        console.warn(`Error fetching internal metadata for ${url.href}:`, error);
+                        console.warn(
+                            `Error fetching internal metadata for ${url.href}:`,
+                            error,
+                        );
                     }
                     return {};
                 });
@@ -587,7 +616,7 @@ export class LinkPopover extends Component {
             } else if (internalMetadata.other_error_msg) {
                 console.error(
                     "Internal meta data retrieve error for link preview: " +
-                        internalMetadata.other_error_msg
+                        internalMetadata.other_error_msg,
                 );
             } else {
                 this.state.linkPreviewName =
@@ -613,7 +642,10 @@ export class LinkPopover extends Component {
 
     get classes() {
         const classes = [...this.props.linkElement.classList].filter(
-            (value) => !value.match(/^(btn.*|rounded-circle|flat|(text|bg)-(o-color-\d$|\d{3}$))$/)
+            (value) =>
+                !value.match(
+                    /^(btn.*|rounded-circle|flat|(text|bg)-(o-color-\d$|\d{3}$))$/,
+                ),
         );
 
         let stylePrefix = "";
@@ -682,7 +714,7 @@ export class LinkPopover extends Component {
         };
         const [attachment] = await upload(
             { resModel, resId },
-            { accessToken: true, setAbortCallback }
+            { accessToken: true, setAbortCallback },
         );
         delete this.cancelUpload;
         if (!attachment) {
@@ -690,7 +722,11 @@ export class LinkPopover extends Component {
             return;
         }
         this.props.onUpload?.(attachment);
-        this.state.url = getURL(attachment, { download: true, unique: true, accessToken: true });
+        this.state.url = getURL(attachment, {
+            download: true,
+            unique: true,
+            accessToken: true,
+        });
         this.state.label ||= attachment.name;
         this.state.attachmentId = attachment.id;
         this.onChange();
@@ -732,7 +768,9 @@ export class LinkPopover extends Component {
         // one, is always a bad practice anyway.
         return (
             urlObj.origin === window.location.origin ||
-            new RegExp(`^https?://${session.db}\\.odoo\\.com(/.*)?$`).test(urlObj.origin)
+            new RegExp(`^https?://${session.db}\\.odoo\\.com(/.*)?$`).test(
+                urlObj.origin,
+            )
         );
     }
 }

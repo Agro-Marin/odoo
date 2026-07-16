@@ -1,7 +1,7 @@
 /** @odoo-module native */
 
-import { delay } from "@web/core/utils/concurrency";
 import { registry } from "@web/core/registry";
+import { delay } from "@web/core/utils/concurrency";
 import {
     clickOnEditAndWaitEditMode,
     clickOnExtraMenuItem,
@@ -101,12 +101,14 @@ registerWebsitePreviewTour(
         },
         {
             content: "Write a label for the new menu item",
-            trigger: ".modal:not(.o_inactive_modal) .modal-dialog .o_website_dialog input",
+            trigger:
+                ".modal:not(.o_inactive_modal) .modal-dialog .o_website_dialog input",
             run: "edit Megaaaaa!",
         },
         {
             content: "Confirm the mega menu label",
-            trigger: ".modal:not(.o_inactive_modal) .modal-footer .btn-primary:contains(Continue)",
+            trigger:
+                ".modal:not(.o_inactive_modal) .modal-footer .btn-primary:contains(Continue)",
             run: "click",
         },
         {
@@ -127,7 +129,8 @@ registerWebsitePreviewTour(
         clickOnExtraMenuItem({}, true),
         {
             content: "There should be a new megamenu item.",
-            trigger: ':iframe .top_menu .nav-item a.o_mega_menu_toggle:contains("Megaaaaa!")',
+            trigger:
+                ':iframe .top_menu .nav-item a.o_mega_menu_toggle:contains("Megaaaaa!")',
         },
         // Add a menu item in edit mode.
         ...clickOnEditAndWaitEditMode(),
@@ -146,16 +149,19 @@ registerWebsitePreviewTour(
             run: "click",
         },
         {
-            trigger: ".modal:not(.o_inactive_modal) .modal-dialog .o_website_dialog input:eq(0)",
+            trigger:
+                ".modal:not(.o_inactive_modal) .modal-dialog .o_website_dialog input:eq(0)",
         },
         {
             content: "Confirm the new menu entry without a label",
-            trigger: ".modal:not(.o_inactive_modal) .modal-footer .btn-primary:contains(Continue)",
+            trigger:
+                ".modal:not(.o_inactive_modal) .modal-footer .btn-primary:contains(Continue)",
             run: "click",
         },
         {
             content: "It didn't save without a label. Fill label input.",
-            trigger: ".modal:not(.o_inactive_modal) .modal-dialog .o_website_dialog input:eq(0)",
+            trigger:
+                ".modal:not(.o_inactive_modal) .modal-dialog .o_website_dialog input:eq(0)",
             run: "edit Random!",
         },
         {
@@ -166,12 +172,14 @@ registerWebsitePreviewTour(
         },
         {
             content: "Confirm the new menu entry without a url",
-            trigger: ".modal:not(.o_inactive_modal) .modal-footer .btn-primary:contains(Continue)",
+            trigger:
+                ".modal:not(.o_inactive_modal) .modal-footer .btn-primary:contains(Continue)",
             run: "click",
         },
         {
             content: "Re-open the link dialog ",
-            trigger: '.modal .input-group:has(.js_menu_label:contains("Random!")) .js_edit_menu',
+            trigger:
+                '.modal .input-group:has(.js_menu_label:contains("Random!")) .js_edit_menu',
             run: "click",
         },
         {
@@ -180,7 +188,8 @@ registerWebsitePreviewTour(
         },
         {
             content: "Save the dialog",
-            trigger: ".modal:not(.o_inactive_modal) .modal-footer .btn-primary:contains(Continue)",
+            trigger:
+                ".modal:not(.o_inactive_modal) .modal-footer .btn-primary:contains(Continue)",
             run: "click",
         },
         {
@@ -196,10 +205,15 @@ registerWebsitePreviewTour(
         },
         // Edit the new menu item from the "edit link" popover button
         clickOnExtraMenuItem({}, true),
-        ...openLinkPopup(":iframe .top_menu .nav-item a:contains('Random!')", "Random!"),
+        ...openLinkPopup(
+            ":iframe .top_menu .nav-item a:contains('Random!')",
+            "Random!",
+        ),
         {
-            content: "navbar shouldn't have any zwnbsp and no o_link_in_selection class",
-            trigger: ':iframe nav.navbar:not(:has(.o_link_in_selection)):not(:contains("\ufeff"))',
+            content:
+                "navbar shouldn't have any zwnbsp and no o_link_in_selection class",
+            trigger:
+                ':iframe nav.navbar:not(:has(.o_link_in_selection)):not(:contains("\ufeff"))',
         },
         {
             content: "Click on Edit Link",
@@ -257,12 +271,14 @@ registerWebsitePreviewTour(
         },
         {
             content: "Change the label",
-            trigger: ".modal:not(.o_inactive_modal) .modal-dialog .o_website_dialog input:eq(0)",
+            trigger:
+                ".modal:not(.o_inactive_modal) .modal-dialog .o_website_dialog input:eq(0)",
             run: "edit Modnar !!",
         },
         {
             content: "Confirm the new menu label",
-            trigger: ".modal:not(.o_inactive_modal) .modal-footer button:contains(Continue)",
+            trigger:
+                ".modal:not(.o_inactive_modal) .modal-footer button:contains(Continue)",
             run: "click",
         },
         {
@@ -270,7 +286,8 @@ registerWebsitePreviewTour(
         },
         {
             content: "Save the website menu with the new menu label",
-            trigger: ".modal:not(.o_inactive_modal) .modal-footer button:contains(save)",
+            trigger:
+                ".modal:not(.o_inactive_modal) .modal-footer button:contains(save)",
             run: "click",
         },
         {
@@ -278,7 +295,11 @@ registerWebsitePreviewTour(
         },
         // Drag a block to be able to scroll later.
         goBackToBlocks(),
-        ...insertSnippet({ id: "s_media_list", name: "Media List", groupName: "Content" }),
+        ...insertSnippet({
+            id: "s_media_list",
+            name: "Media List",
+            groupName: "Content",
+        }),
         ...clickOnSave(),
         clickOnExtraMenuItem({}, true),
         {
@@ -323,12 +344,15 @@ registerWebsitePreviewTour(
             content: "Drag Mega at the top",
             trigger: '.oe_menu_editor li:contains("Megaaaaa!") .oi-draggable',
             run(helpers) {
-                return helpers.drag_and_drop('.oe_menu_editor li:contains("Home") .oi-draggable', {
-                    position: {
-                        top: 20,
+                return helpers.drag_and_drop(
+                    '.oe_menu_editor li:contains("Home") .oi-draggable',
+                    {
+                        position: {
+                            top: 20,
+                        },
+                        relative: true,
                     },
-                    relative: true,
-                });
+                );
             },
         },
         {
@@ -348,7 +372,8 @@ registerWebsitePreviewTour(
         // Check that with the auto close of dropdown menus, the dropdowns remain
         // openable.
         {
-            content: "When menu item is opened, child item must appear in the shown menu",
+            content:
+                "When menu item is opened, child item must appear in the shown menu",
             trigger:
                 ':iframe .top_menu .nav-item:contains("Home") ul.show li a.dropdown-item:contains("Contact us")[href="/contactus"]',
             run() {
@@ -356,7 +381,11 @@ registerWebsitePreviewTour(
                 this.anchor
                     .closest("body")
                     .querySelector(".o_footer_copyright_name")
-                    .scrollIntoView({ block: "start", inline: "nearest", behavior: "smooth" });
+                    .scrollIntoView({
+                        block: "start",
+                        inline: "nearest",
+                        behavior: "smooth",
+                    });
             },
         },
         {
@@ -379,7 +408,8 @@ registerWebsitePreviewTour(
         },
         {
             content: "Close the Home menu",
-            trigger: ':iframe .top_menu .nav-item:has(a.dropdown-toggle:contains("Home"))',
+            trigger:
+                ':iframe .top_menu .nav-item:has(a.dropdown-toggle:contains("Home"))',
             run: "click",
         },
         {
@@ -388,7 +418,8 @@ registerWebsitePreviewTour(
         },
         {
             content: "Open the mega menu",
-            trigger: ':iframe .top_menu .nav-item a.o_mega_menu_toggle:contains("Megaaaaa!")',
+            trigger:
+                ':iframe .top_menu .nav-item a.o_mega_menu_toggle:contains("Megaaaaa!")',
             run: "click",
         },
         {
@@ -396,7 +427,7 @@ registerWebsitePreviewTour(
             trigger: ":iframe .top_menu .o_mega_menu_toggle.show",
             run() {
                 const marginTopOfMegaMenu = getComputedStyle(
-                    this.anchor.closest(".dropdown").querySelector(".o_mega_menu")
+                    this.anchor.closest(".dropdown").querySelector(".o_mega_menu"),
                 )["margin-top"];
                 if (marginTopOfMegaMenu !== "0px") {
                     console.error("The margin-top of the mega menu should be 0px");
@@ -415,7 +446,8 @@ registerWebsitePreviewTour(
         },
         {
             content: "Open the mega menu after scroll",
-            trigger: ':iframe .top_menu .nav-item a.o_mega_menu_toggle:contains("Megaaaaa!")',
+            trigger:
+                ':iframe .top_menu .nav-item a.o_mega_menu_toggle:contains("Megaaaaa!")',
             run: "click",
         },
         {
@@ -426,7 +458,8 @@ registerWebsitePreviewTour(
         },
         ...clickOnEditAndWaitEditMode(),
         {
-            trigger: ":iframe main section.s_media_list .s_media_list_item:eq(2) h3:contains(post)",
+            trigger:
+                ":iframe main section.s_media_list .s_media_list_item:eq(2) h3:contains(post)",
         },
         {
             content: "Open nested menu item",
@@ -437,7 +470,8 @@ registerWebsitePreviewTour(
         {
             // If this step fails, it means that a patch inside bootstrap was lost.
             content: "Press the 'down arrow' key.",
-            trigger: ':iframe .top_menu .nav-item:contains("Home") li:contains("Contact us")',
+            trigger:
+                ':iframe .top_menu .nav-item:contains("Home") li:contains("Contact us")',
             run: "press ArrowDown",
         },
         ...clickOnSave(),
@@ -469,7 +503,8 @@ registerWebsitePreviewTour(
         },
         {
             content: "Confirm the new menu entry",
-            trigger: ".modal:not(.o_inactive_modal) .modal-footer .btn-primary:contains(Continue)",
+            trigger:
+                ".modal:not(.o_inactive_modal) .modal-footer .btn-primary:contains(Continue)",
             run: "click",
         },
         {
@@ -493,7 +528,8 @@ registerWebsitePreviewTour(
         },
         {
             content: "Confirm the new menu entry",
-            trigger: ".modal:not(.o_inactive_modal) .modal-footer .btn-primary:contains(Continue)",
+            trigger:
+                ".modal:not(.o_inactive_modal) .modal-footer .btn-primary:contains(Continue)",
             run: "click",
         },
         {
@@ -508,7 +544,7 @@ registerWebsitePreviewTour(
                     ".oe_menu_editor li:contains('new_menu') .form-control",
                     {
                         position: "bottom",
-                    }
+                    },
                 );
             },
         },
@@ -520,7 +556,7 @@ registerWebsitePreviewTour(
                     '.oe_menu_editor li:contains("new_menu") .oi-draggable',
                     {
                         position: "bottom",
-                    }
+                    },
                 );
             },
         },
@@ -532,12 +568,13 @@ registerWebsitePreviewTour(
                     ".oe_menu_editor li:contains('new_menu') .form-control",
                     {
                         position: "bottom",
-                    }
+                    },
                 );
             },
         },
         {
-            content: "Check if 'new_nested_menu' and 'Modnar !!' is nested under 'new_menu'",
+            content:
+                "Check if 'new_nested_menu' and 'Modnar !!' is nested under 'new_menu'",
             trigger:
                 '.oe_menu_editor li:contains("new_menu") > ul > li:contains("Modnar !!") + li:contains("new_nested_menu")',
         },
@@ -550,16 +587,17 @@ registerWebsitePreviewTour(
                     ".oe_menu_editor  li:contains('new_menu') > ul > li:contains('new_nested_menu') .oi-draggable",
                     {
                         position: "bottom",
-                    }
+                    },
                 );
             },
         },
         {
-            content: "Check if 'Modnar !!' is now below 'new_nested_menu' in 'new_menu'",
+            content:
+                "Check if 'Modnar !!' is now below 'new_nested_menu' in 'new_menu'",
             trigger:
                 '.oe_menu_editor li:contains("new_menu") > ul > li:last-child:contains("Modnar !!")',
         },
-    ]
+    ],
 );
 
 registerWebsitePreviewTour(
@@ -591,5 +629,5 @@ registerWebsitePreviewTour(
             trigger: ".modal-footer button:first-child",
             run: "click",
         },
-    ]
+    ],
 );

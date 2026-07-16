@@ -1,10 +1,10 @@
 /** @odoo-module native */
-import { Plugin } from "@html_editor/plugin";
-import { registry } from "@web/core/registry";
-import { withSequence } from "@html_editor/utils/resource";
-import { SNIPPET_SPECIFIC } from "@html_builder/utils/option_sequence";
 import { BuilderAction } from "@html_builder/core/builder_action";
 import { BaseOptionComponent, useDomState } from "@html_builder/core/utils";
+import { SNIPPET_SPECIFIC } from "@html_builder/utils/option_sequence";
+import { Plugin } from "@html_editor/plugin";
+import { withSequence } from "@html_editor/utils/resource";
+import { registry } from "@web/core/registry";
 
 /**
  * @typedef {((
@@ -24,7 +24,9 @@ export class GalleryElementOption extends BaseOptionComponent {
         ".s_image_gallery img, .s_carousel .carousel-item, .s_quotes_carousel .carousel-item, .s_carousel_intro .carousel-item, .s_carousel_cards .carousel-item";
     setup() {
         this.state = useDomState((editingElement) => {
-            const isImageWall = editingElement.closest('[data-snippet="s_images_wall"]');
+            const isImageWall = editingElement.closest(
+                '[data-snippet="s_images_wall"]',
+            );
             if (isImageWall) {
                 // Prevented disable reordering buttons for image wall.
                 return {
@@ -100,4 +102,6 @@ export class SetGalleryElementPositionAction extends BuilderAction {
     }
 }
 
-registry.category("website-plugins").add(GalleryElementOptionPlugin.id, GalleryElementOptionPlugin);
+registry
+    .category("website-plugins")
+    .add(GalleryElementOptionPlugin.id, GalleryElementOptionPlugin);

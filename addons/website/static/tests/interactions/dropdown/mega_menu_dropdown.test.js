@@ -1,7 +1,9 @@
-import { startInteractions, setupInteractionWhiteList } from "@web/../tests/public/helpers";
-
 import { describe, expect, test } from "@odoo/hoot";
 import { hover, pointerDown, queryFirst } from "@odoo/hoot-dom";
+import {
+    setupInteractionWhiteList,
+    startInteractions,
+} from "@web/../tests/public/helpers";
 
 setupInteractionWhiteList("website.mega_menu_dropdown");
 
@@ -53,7 +55,9 @@ test("[mousedown] moves content from mobile to desktop", async () => {
 
 test.tags("desktop");
 test("[hover] does not move content from desktop to mobile", async () => {
-    await startInteractions(getTemplate({ contentInDesktop: true, dropdownHoverable: true }));
+    await startInteractions(
+        getTemplate({ contentInDesktop: true, dropdownHoverable: true }),
+    );
 
     await hover("nav.o_header_mobile a.o_mega_menu_toggle");
     expect(queryFirst("nav.o_header_desktop div.o_mega_menu")).not.toBe(null);
@@ -62,7 +66,9 @@ test("[hover] does not move content from desktop to mobile", async () => {
 
 test.tags("desktop");
 test("[hover] moves content from mobile to desktop", async () => {
-    await startInteractions(getTemplate({ contentInDesktop: false, dropdownHoverable: true }));
+    await startInteractions(
+        getTemplate({ contentInDesktop: false, dropdownHoverable: true }),
+    );
 
     await hover("nav.o_header_desktop a.o_mega_menu_toggle");
     expect(queryFirst("nav.o_header_desktop div.o_mega_menu")).not.toBe(null);

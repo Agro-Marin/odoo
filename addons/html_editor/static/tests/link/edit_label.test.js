@@ -1,7 +1,13 @@
 import { describe, test } from "@odoo/hoot";
-import { deleteBackward, insertLineBreak, insertText, undo } from "../_helpers/user_actions.js";
-import { testEditor } from "../_helpers/editor.js";
 import { animationFrame } from "@odoo/hoot-mock";
+
+import { testEditor } from "../_helpers/editor.js";
+import {
+    deleteBackward,
+    insertLineBreak,
+    insertText,
+    undo,
+} from "../_helpers/user_actions.js";
 
 describe("range collapsed", () => {
     test("should not change the url when a link is not edited (1)", async () => {
@@ -65,11 +71,13 @@ describe("range collapsed", () => {
 
     test("should change the url when the label change (5)", async () => {
         await testEditor({
-            contentBefore: '<p>a<a href="mailto:hello@moto.com">hello@moto[].com</a></p>',
+            contentBefore:
+                '<p>a<a href="mailto:hello@moto.com">hello@moto[].com</a></p>',
             stepFunction: async (editor) => {
                 await insertText(editor, "r");
             },
-            contentAfter: '<p>a<a href="mailto:hello@motor.com">hello@motor[].com</a></p>',
+            contentAfter:
+                '<p>a<a href="mailto:hello@motor.com">hello@motor[].com</a></p>',
         });
     });
 
@@ -99,13 +107,15 @@ describe("range collapsed", () => {
             stepFunction: async (editor) => {
                 await insertText(editor, "@");
             },
-            contentAfter: '<p>a<a href="mailto:hello@moto.com">hello@[]moto.com</a></p>',
+            contentAfter:
+                '<p>a<a href="mailto:hello@moto.com">hello@[]moto.com</a></p>',
         });
     });
 
     test("should change the url when the label change, changing to the suitable protocol (2)", async () => {
         await testEditor({
-            contentBefore: '<p>a<a href="mailto:hello@moto.com">hello@[]moto.com</a></p>',
+            contentBefore:
+                '<p>a<a href="mailto:hello@moto.com">hello@[]moto.com</a></p>',
             stepFunction: async (editor) => {
                 deleteBackward(editor);
             },
@@ -142,7 +152,8 @@ describe("range collapsed", () => {
                 await insertLineBreak(editor);
                 await insertText(editor, "odoo.com");
             },
-            contentAfter: '<p>a<a href="https://google.com">google.com</a><br>odoo.com[]b</p>',
+            contentAfter:
+                '<p>a<a href="https://google.com">google.com</a><br>odoo.com[]b</p>',
         });
     });
 });

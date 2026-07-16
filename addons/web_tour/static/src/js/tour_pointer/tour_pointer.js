@@ -1,8 +1,8 @@
 /** @odoo-module native */
 import { Component, useEffect, useRef, useState } from "@odoo/owl";
-import { useBus, useService } from "@web/core/utils/hooks";
 import { browser } from "@web/core/browser/browser";
 import { usePosition } from "@web/core/position/position_hook";
+import { useBus, useService } from "@web/core/utils/hooks";
 
 /**
  * @typedef {import("./tour_pointer_state").TourPointerState} TourPointerState
@@ -77,7 +77,7 @@ export class TourPointer extends Component {
         const position = usePosition(
             "pointer",
             () => this.props.pointerState.anchor,
-            positionOptions
+            positionOptions,
         );
         const rootRef = useRef("pointer");
         const zoneRef = useRef("zone");
@@ -102,7 +102,7 @@ export class TourPointer extends Component {
                     let offsetTop = 0;
                     if (document !== anchor.ownerDocument) {
                         const iframe = [...document.querySelectorAll("iframe")].filter(
-                            (e) => e.contentDocument === anchor.ownerDocument
+                            (e) => e.contentDocument === anchor.ownerDocument,
                         )[0];
                         offsetLeft = iframe.getBoundingClientRect().left;
                         offsetTop = iframe.getBoundingClientRect().top;
@@ -146,13 +146,14 @@ export class TourPointer extends Component {
                         [anchorX, anchorY] = [x, y];
                         // Let's just say that the anchor is static if it moved less than 1px.
                         const delta = Math.sqrt(
-                            Math.pow(x - lastAnchorX, 2) + Math.pow(y - lastAnchorY, 2)
+                            Math.pow(x - lastAnchorX, 2) + Math.pow(y - lastAnchorY, 2),
                         );
                         if (delta < 1) {
                             position.lock();
                             return;
                         }
-                        const wouldOverflow = window.innerWidth - x - width / 2 < dimensions?.width;
+                        const wouldOverflow =
+                            window.innerWidth - x - width / 2 < dimensions?.width;
                         pointer.classList.toggle("o_expand_left", wouldOverflow);
                     }
                     lastAnchor = anchor;

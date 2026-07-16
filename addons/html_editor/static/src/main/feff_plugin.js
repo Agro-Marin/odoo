@@ -6,6 +6,7 @@ import { prepareUpdate } from "@html_editor/utils/dom_state";
 import { descendants, selectElements } from "@html_editor/utils/dom_traversal";
 import { leftPos, rightPos } from "@html_editor/utils/position";
 import { callbacksForCursorUpdate } from "@html_editor/utils/selection";
+
 import { withSequence } from "../utils/resource.js";
 
 /** @typedef {import("../core/selection_plugin").Cursors} Cursors */
@@ -61,9 +62,11 @@ export class FeffPlugin extends Plugin {
      * @param {Object} [options]
      */
     removeFeffs(root, cursors, { exclude = () => false } = {}) {
-        const hasFeff = (node) => isTextNode(node) && node.textContent.includes("\ufeff");
+        const hasFeff = (node) =>
+            isTextNode(node) && node.textContent.includes("\ufeff");
         const isEditable = (node) => node.parentElement.isContentEditable;
-        const composedFilter = (node) => hasFeff(node) && isEditable(node) && !exclude(node);
+        const composedFilter = (node) =>
+            hasFeff(node) && isEditable(node) && !exclude(node);
 
         for (const node of descendants(root).filter(composedFilter)) {
             // Remove all FEFF within a `prepareUpdate` to make sure to make <br>
@@ -77,8 +80,8 @@ export class FeffPlugin extends Plugin {
                 (node) =>
                     node.hasAttribute("data-oe-zws-empty-inline") ||
                     this.getResource("unremovable_node_predicates").some((predicate) =>
-                        predicate(node)
-                    )
+                        predicate(node),
+                    ),
             );
             restoreSpaces();
         }
@@ -144,12 +147,16 @@ export class FeffPlugin extends Plugin {
             .flatMap((el) => {
                 const addFeff = (position) => this.addFeff(el, position, cursors);
                 return [
-                    isZwnbsp(el.previousSibling) ? el.previousSibling : addFeff("before"),
+                    isZwnbsp(el.previousSibling)
+                        ? el.previousSibling
+                        : addFeff("before"),
                     isZwnbsp(el.nextSibling) ? el.nextSibling : addFeff("after"),
                 ];
             })
             // Avoid sequential FEFFs
-            .filter((feff, i, array) => !(i > 0 && areCloseSiblings(array[i - 1], feff)));
+            .filter(
+                (feff, i, array) => !(i > 0 && areCloseSiblings(array[i - 1], feff)),
+            );
         return feffNodes;
     }
 
@@ -160,12 +167,19 @@ export class FeffPlugin extends Plugin {
         // Custom feff adding
         // Each provider is responsible for adding (or keeping) FEFF nodes and
         // returning a list of them.
-        const customFeffNodes = this.getResource("feff_providers").flatMap((p) => p(root, cursors));
-        const feffNodesToKeep = new Set([...feffNodesBasedOnSelectors, ...customFeffNodes]);
+        const customFeffNodes = this.getResource("feff_providers").flatMap((p) =>
+            p(root, cursors),
+        );
+        const feffNodesToKeep = new Set([
+            ...feffNodesBasedOnSelectors,
+            ...customFeffNodes,
+        ]);
         this.removeFeffs(root, cursors, {
             exclude: (node) =>
                 feffNodesToKeep.has(node) ||
-                this.getResource("legit_feff_predicates").some((predicate) => predicate(node)),
+                this.getResource("legit_feff_predicates").some((predicate) =>
+                    predicate(node),
+                ),
         });
         cursors.restore();
     }
@@ -195,7 +209,9 @@ export class FeffPlugin extends Plugin {
         descendants(clonedContent)
             .filter(isTextNode)
             .filter((node) => node.textContent.includes("\ufeff"))
-            .forEach((node) => (node.textContent = node.textContent.replace(/\ufeff/g, "")));
+            .forEach(
+                (node) => (node.textContent = node.textContent.replace(/\ufeff/g, "")),
+            );
         return clonedContent;
     }
 }

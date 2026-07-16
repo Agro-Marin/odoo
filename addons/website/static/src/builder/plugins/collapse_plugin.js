@@ -28,7 +28,9 @@ export class CollapsePlugin extends Plugin {
     }
 
     onSnippetDropped({ snippetEl }) {
-        const accordionItemsEls = snippetEl.querySelectorAll(".accordion > .accordion-item");
+        const accordionItemsEls = snippetEl.querySelectorAll(
+            ".accordion > .accordion-item",
+        );
         accordionItemsEls.forEach((accordionItemEl) => {
             this.createIDs(accordionItemEl);
         });

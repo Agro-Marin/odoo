@@ -1,9 +1,9 @@
 import {
     changeOption,
+    changeOptionInPopover,
     clickOnSnippet,
     insertSnippet,
     registerWebsitePreviewTour,
-    changeOptionInPopover,
 } from "@website/js/tours/tour_utils";
 
 function removeSelectedBlock() {
@@ -84,5 +84,5 @@ registerWebsitePreviewTour(
             content: "Check that #wrap is empty",
             trigger: ":iframe #wrap:empty",
         },
-    ]
+    ],
 );

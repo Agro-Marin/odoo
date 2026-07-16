@@ -1,9 +1,9 @@
 /** @odoo-module native */
-import { makeDraggableHook } from "@web/core/utils/dnd/draggable_hook_builder";
-import { pick } from "@web/core/utils/collections/objects";
 import { reactive } from "@odoo/owl";
-import { throttleForAnimation } from "@web/core/utils/timing";
+import { pick } from "@web/core/utils/collections/objects";
+import { makeDraggableHook } from "@web/core/utils/dnd/draggable_hook_builder";
 import { closest, touching } from "@web/core/utils/dom/ui";
+import { throttleForAnimation } from "@web/core/utils/timing";
 
 /** @typedef {import("@web/core/utils/dnd/draggable_hook_builder").DraggableHandlerParams} DraggableHandlerParams */
 /** @typedef {import("@web/core/utils/dnd/draggable_hook_builder").DraggableBuilderParams} DraggableBuilderParams */
@@ -76,7 +76,9 @@ export function useNativeDraggable(hookParams, initialParams) {
     el.classList.add("o_draggable");
     cleanupFunctions.push(() => el.classList.remove("o_draggable"));
 
-    const draggableState = makeDraggableHook({ setupHooks, ...hookParams })(currentParams);
+    const draggableState = makeDraggableHook({ setupHooks, ...hookParams })(
+        currentParams,
+    );
     draggableState.enable = true;
     const draggableComponent = {
         state: draggableState,
@@ -136,14 +138,24 @@ const dragAndDropHookParams = {
 
         addCleanup(() => ctx.current.helper.remove());
 
-        updateElementPosition(ctx.current.helper, ctx.pointer, addStyle, ctx.current.helperOffset);
+        updateElementPosition(
+            ctx.current.helper,
+            ctx.pointer,
+            addStyle,
+            ctx.current.helperOffset,
+        );
 
         return pick(ctx.current, "element", "helper");
     },
     onDrag: ({ ctx, addStyle, callHandler }) => {
         ctx.current.helper.classList.add("o_draggable_dragging");
 
-        updateElementPosition(ctx.current.helper, ctx.pointer, addStyle, ctx.current.helperOffset);
+        updateElementPosition(
+            ctx.current.helper,
+            ctx.pointer,
+            addStyle,
+            ctx.current.helperOffset,
+        );
         // Unfortunately, DOMRect is not an Object, so spreading operator from
         // `touching` does not work, so convert DOMRect to plain object.
         let helperRect = ctx.current.helper.getBoundingClientRect();
@@ -153,7 +165,10 @@ const dragAndDropHookParams = {
             width: helperRect.width,
             height: helperRect.height,
         };
-        const dropzoneEl = closest(touching(ctx.getDropZones(), helperRect), helperRect);
+        const dropzoneEl = closest(
+            touching(ctx.getDropZones(), helperRect),
+            helperRect,
+        );
         // Update the drop zone if it's in grid mode
         if (
             ctx.current.dropzone?.el &&
@@ -165,7 +180,8 @@ const dragAndDropHookParams = {
             ctx.current.dropzone &&
             (ctx.current.dropzone.el === dropzoneEl ||
                 (!dropzoneEl &&
-                    touching([ctx.current.helper], ctx.current.dropzone.rect).length > 0))
+                    touching([ctx.current.helper], ctx.current.dropzone.rect).length >
+                        0))
         ) {
             // If no new dropzone but old one is still valid, return early.
             return pick(ctx.current, "element", "dropzone", "helper");

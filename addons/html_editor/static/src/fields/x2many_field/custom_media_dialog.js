@@ -15,11 +15,13 @@ export class CustomMediaDialog extends MediaDialog {
             });
             return;
         }
-        if (this.state.activeTab == "IMAGES") {
+        if (this.state.activeTab === "IMAGES") {
             const attachments = this.selectedMedia[this.state.activeTab];
-            const preloadedAttachments = attachments.filter((attachment) => attachment.res_model);
+            const preloadedAttachments = attachments.filter(
+                (attachment) => attachment.res_model,
+            );
             this.selectedMedia[this.state.activeTab] = attachments.filter(
-                (attachment) => !preloadedAttachments.includes(attachment)
+                (attachment) => !preloadedAttachments.includes(attachment),
             );
             if (this.selectedMedia[this.state.activeTab].length > 0) {
                 await super.save();

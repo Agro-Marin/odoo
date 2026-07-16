@@ -38,7 +38,8 @@ export class ChatbotStep extends Record {
             case "free_input_single":
             case "question_email":
             case "question_phone":
-                return createDocumentFragmentFromContent(this.rawAnswer).body.textContent;
+                return createDocumentFragmentFromContent(this.rawAnswer).body
+                    .textContent;
             case "question_selection":
                 return this.selectedAnswer?.label;
             default:

@@ -1,9 +1,9 @@
 /** @odoo-module native */
-import { Tab } from "@web/libs/bootstrap";
+import { getElementsWithOption } from "@html_builder/utils/utils";
 import { Plugin } from "@html_editor/plugin";
 import { registry } from "@web/core/registry";
 import { uniqueId } from "@web/core/utils/functions";
-import { getElementsWithOption } from "@html_builder/utils/utils";
+
 import { NavTabsHeaderMiddleButtons } from "./navtabs_header_buttons.js";
 
 const tabsSectionSelector = "section.s_tabs, section.s_tabs_images";

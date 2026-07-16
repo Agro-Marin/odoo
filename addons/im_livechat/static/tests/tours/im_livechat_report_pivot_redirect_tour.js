@@ -28,10 +28,14 @@ function makePivotRedirectTourSteps(singleRecordName, multiRecordName) {
     ];
 }
 
-registry.category("web_tour.tours").add("im_livechat_agents_report_pivot_redirect_tour", {
-    steps: () => makePivotRedirectTourSteps("test 1", "test 2"),
-});
+registry
+    .category("web_tour.tours")
+    .add("im_livechat_agents_report_pivot_redirect_tour", {
+        steps: () => makePivotRedirectTourSteps("test 1", "test 2"),
+    });
 
-registry.category("web_tour.tours").add("im_livechat_sessions_report_pivot_redirect_tour", {
-    steps: () => makePivotRedirectTourSteps("operator_1", "operator_2"),
-});
+registry
+    .category("web_tour.tours")
+    .add("im_livechat_sessions_report_pivot_redirect_tour", {
+        steps: () => makePivotRedirectTourSteps("operator_1", "operator_2"),
+    });

@@ -1,11 +1,11 @@
 /** @odoo-module native */
 import { Component, useState } from "@odoo/owl";
-import { useBus, useService } from "@web/core/utils/hooks";
-import { registry } from "@web/core/registry";
 import { Dropdown } from "@web/components/dropdown/dropdown";
 import { DropdownItem } from "@web/components/dropdown/dropdown_item";
-import { rpc } from "@web/core/network/rpc";
 import { _t } from "@web/core/l10n/translation";
+import { rpc } from "@web/core/network/rpc";
+import { registry } from "@web/core/registry";
+import { useBus, useService } from "@web/core/utils/hooks";
 
 const websiteSystrayRegistry = registry.category("website_systray");
 
@@ -26,7 +26,9 @@ export class EditWebsiteSystrayItem extends Component {
         this.notification = useService("notification");
         this.websiteContext = useState(this.websiteService.context);
         // TODO: website service should share a reactive
-        useBus(websiteSystrayRegistry, "CONTENT-UPDATED", () => this.checkPendingTranslations());
+        useBus(websiteSystrayRegistry, "CONTENT-UPDATED", () =>
+            this.checkPendingTranslations(),
+        );
         this.isEnteringTranslateMode = false;
     }
 
@@ -50,18 +52,21 @@ export class EditWebsiteSystrayItem extends Component {
     async attemptStartTranslate() {
         // TODO: move on the website part (not html_builder) and add a test tour
         if (this.websiteService.isRestrictedEditor && !this.websiteService.isDesigner) {
-            const pageModelAndId = this.websiteService.currentWebsite.metadata.mainObject;
+            const pageModelAndId =
+                this.websiteService.currentWebsite.metadata.mainObject;
             const recordsOnPage = {
                 [pageModelAndId.model]: pageModelAndId.id,
             };
             const otherRecordEls = this.props.iframeEl.querySelectorAll(
-                "[data-res-model][data-res-id]:not([data-res-model='ir.ui.view']), [data-oe-model][data-oe-id]:not([data-oe-model='ir.ui.view'])"
+                "[data-res-model][data-res-id]:not([data-res-model='ir.ui.view']), [data-oe-model][data-oe-id]:not([data-oe-model='ir.ui.view'])",
             );
             for (const el of otherRecordEls) {
                 const model = el.dataset.resModel || el.dataset.oeModel;
                 if (!recordsOnPage[model]) {
                     // Keep one record of each type.
-                    recordsOnPage[model] = parseInt(el.dataset.resId || el.dataset.oeId);
+                    recordsOnPage[model] = parseInt(
+                        el.dataset.resId || el.dataset.oeId,
+                    );
                 }
             }
             await rpc("/website/check_can_modify_any", {
@@ -117,8 +122,10 @@ export class EditWebsiteSystrayItem extends Component {
             const doc = parser.parseFromString(html, "text/html");
             if (doc.querySelector("#wrap .o_delay_translation")) {
                 this.closeNotification = this.notification.add(
-                    _t('Click on "Edit/Translate" to apply changes made on default language.'),
-                    { type: "info" }
+                    _t(
+                        'Click on "Edit/Translate" to apply changes made on default language.',
+                    ),
+                    { type: "info" },
                 );
             }
         }

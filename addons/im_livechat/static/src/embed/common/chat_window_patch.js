@@ -1,10 +1,8 @@
 /** @odoo-module native */
 import { CW_LIVECHAT_STEP } from "@im_livechat/core/common/chat_window_model_patch";
 import { FeedbackPanel } from "@im_livechat/embed/common/feedback_panel/feedback_panel";
-
 import { ChatWindow } from "@mail/core/common/chat_window";
 import { useState } from "@odoo/owl";
-
 import { useService } from "@web/core/utils/hooks";
 import { patch } from "@web/core/utils/patch";
 

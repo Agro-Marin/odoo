@@ -20,4 +20,6 @@ class WebsiteInfoPageOption extends Plugin {
     };
 }
 
-registry.category("website-plugins").add(WebsiteInfoPageOption.id, WebsiteInfoPageOption);
+registry
+    .category("website-plugins")
+    .add(WebsiteInfoPageOption.id, WebsiteInfoPageOption);

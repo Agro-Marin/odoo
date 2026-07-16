@@ -1,21 +1,21 @@
+import { redo, undo } from "@html_editor/../tests/_helpers/user_actions";
 import { expect, test } from "@odoo/hoot";
 import { animationFrame, Deferred } from "@odoo/hoot-dom";
 import { xml } from "@odoo/owl";
 import {
     contains,
-    onRpc,
-    models,
     defineModels,
+    models,
+    onRpc,
     patchWithCleanup,
 } from "@web/../tests/web_test_helpers";
+import { renderToString } from "@web/core/utils/render";
 import {
     addOption,
     defineWebsiteModels,
     setupWebsiteBuilder,
 } from "@website/../tests/builder/website_helpers";
-import { redo, undo } from "@html_editor/../tests/_helpers/user_actions";
 import { CustomizeBodyBgTypeAction } from "@website/builder/plugins/customize_website_plugin";
-import { renderToString } from "@web/core/utils/render";
 
 defineWebsiteModels();
 
@@ -164,7 +164,9 @@ test("use isActiveItem base on BuilderCheckbox with 'websiteConfig'", async () =
     def.resolve();
     await animationFrame();
     expect(".o-tab-content > .o_customize_tab").toHaveCount(1);
-    expect("[data-action-param*='test_template_1'] .form-check-input:checked").toHaveCount(1);
+    expect(
+        "[data-action-param*='test_template_1'] .form-check-input:checked",
+    ).toHaveCount(1);
     expect(".test").toHaveCount(1);
     expect.verifySteps(["theme_customize_data_get"]);
 });
@@ -273,7 +275,7 @@ test("isApplied with action “websiteConfig” depends on views, assets and var
         `,
     });
     const { getEditableContent } = await setupWebsiteBuilder(
-        `<div class="test-options-target">b</div>`
+        `<div class="test-options-target">b</div>`,
     );
     // fake initial values
     const iframeDocument = getEditableContent().ownerDocument.documentElement;
@@ -281,7 +283,10 @@ test("isApplied with action “websiteConfig” depends on views, assets and var
     iframeDocument.style.setProperty("--cat", "cat");
     await contains(":iframe .test-options-target").click();
     await animationFrame();
-    expect.verifySteps(["theme_customize_data_get view", "theme_customize_data_get asset"]);
+    expect.verifySteps([
+        "theme_customize_data_get view",
+        "theme_customize_data_get asset",
+    ]);
     expect(".options-container input[type='checkbox']:eq(0)").toBeChecked();
     expect(".options-container input[type='checkbox']:eq(1)").not.toBeChecked();
     expect(".options-container input[type='checkbox']:eq(2)").not.toBeChecked();
@@ -364,7 +369,9 @@ test("Undo and redo “previewableWebsiteConfig” action", async () => {
                 <BuilderButton actionParam="{views: [], previewClass: ''}">3</BuilderButton>
             </BuilderButtonGroup>`,
     });
-    const { getEditor } = await setupWebsiteBuilder(`<div class="test-options-target">b</div>`);
+    const { getEditor } = await setupWebsiteBuilder(
+        `<div class="test-options-target">b</div>`,
+    );
     const editor = getEditor();
 
     await contains(":iframe .test-options-target").click();
@@ -416,7 +423,9 @@ test("No rpc call if “previewableWebsiteConfig” action is undone", async () 
                 <BuilderButton actionParam="{views: ['test_template'], previewClass: 'test_class'}">2</BuilderButton>
             </BuilderButtonGroup>`,
     });
-    const { getEditor } = await setupWebsiteBuilder(`<div class="test-options-target">b</div>`);
+    const { getEditor } = await setupWebsiteBuilder(
+        `<div class="test-options-target">b</div>`,
+    );
     const editor = getEditor();
 
     await contains(":iframe .test-options-target").click();
@@ -452,7 +461,7 @@ test("theme background image is properly set", async () => {
         make_scss_customization(location, changes) {
             expect(
                 changes["body-image"].includes(base64Image) &&
-                    changes["body-image-type"].includes("image")
+                    changes["body-image-type"].includes("image"),
             ).toBe(true);
             expect.step("scss_customization");
         }
@@ -471,10 +480,10 @@ test("theme background image is properly set", async () => {
     await contains("[data-name='theme']").click();
     await animationFrame();
     expect(
-        ".o_theme_tab button[data-action-id='customizeBodyBgType'][data-action-value='image']"
+        ".o_theme_tab button[data-action-id='customizeBodyBgType'][data-action-value='image']",
     ).toHaveCount(1);
     await contains(
-        ".o_theme_tab button[data-action-id='customizeBodyBgType'][data-action-value='image']"
+        ".o_theme_tab button[data-action-id='customizeBodyBgType'][data-action-value='image']",
     ).click();
     await animationFrame();
     await expect.verifySteps(["scss_customization", "bundle_reload"]);
@@ -539,7 +548,7 @@ test("BuilderButton with action “templatePreviewableWebsiteConfig”", async (
         `<div class="test-options-target excluded-class">
             <div class="target1">a</div>
             <div class="target2">b</div>
-        </div>`
+        </div>`,
     );
     await contains(":iframe .test-options-target").click();
     await contains("[data-action-param*='test_template_1']").hover();

@@ -1,9 +1,8 @@
 /** @odoo-module native */
-import { Interaction } from "@web/public/interaction";
 import { registry } from "@web/core/registry";
-
 import { getScrollingElement, isScrollableY } from "@web/core/utils/dom/scrolling";
 import { isVisible } from "@web/core/utils/dom/ui";
+import { Interaction } from "@web/public/interaction";
 
 export class Animation extends Interaction {
     static selector = ".o_animate";
@@ -37,7 +36,9 @@ export class Animation extends Interaction {
                 const result = {
                     "animation-name": this.isResetting ? "dummy-none" : undefined,
                     "animation-play-state":
-                        this.isResetting || this.isAnimateOnScroll ? undefined : this.playState,
+                        this.isResetting || this.isAnimateOnScroll
+                            ? undefined
+                            : this.playState,
                     // The ones which are invisible in state 0 (like fade_in for
                     // example) will stay invisible.
                     visibility: "visible",
@@ -111,7 +112,7 @@ export class Animation extends Interaction {
                         this.isAnimated = true;
                         window.dispatchEvent(new Event("resize"));
                     },
-                    { once: true }
+                    { once: true },
                 );
             }
         });
@@ -184,9 +185,12 @@ export class Animation extends Interaction {
             const actualScroll = scrollTop + windowsHeight;
             const totalScrollHeight = this.wrapwrapEl.scrollHeight;
             const heightFromFooter = this.getElementOffsetTop(el, footerEl);
-            visible = actualScroll >= totalScrollHeight - heightFromFooter - elHeight + elOffset;
+            visible =
+                actualScroll >=
+                totalScrollHeight - heightFromFooter - elHeight + elOffset;
         } else {
-            visible = windowsHeight > elTop + elOffset && 0 < elTop + elHeight - elOffset;
+            visible =
+                windowsHeight > elTop + elOffset && 0 < elTop + elHeight - elOffset;
         }
         if (this.isAnimateOnScroll) {
             if (visible) {
@@ -194,8 +198,11 @@ export class Animation extends Interaction {
                 const end = 100 / (parseFloat(el.dataset.scrollZoneEnd) || 1);
                 const out = el.classList.contains("o_animate_out");
                 const ratio =
-                    (out ? elTop + elHeight : elTop) / (windowsHeight - windowsHeight / start);
-                const duration = parseFloat(window.getComputedStyle(el).animationDuration);
+                    (out ? elTop + elHeight : elTop) /
+                    (windowsHeight - windowsHeight / start);
+                const duration = parseFloat(
+                    window.getComputedStyle(el).animationDuration,
+                );
                 const delay = (ratio - 1) * (duration * end);
                 this.delay = (out ? -duration - delay : delay) + "s";
                 this.isAnimating = true;

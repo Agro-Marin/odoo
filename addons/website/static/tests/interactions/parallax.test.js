@@ -1,7 +1,14 @@
-import { startInteractions, setupInteractionWhiteList } from "@web/../tests/public/helpers";
-
 import { describe, expect, getFixture, test } from "@odoo/hoot";
-import { manuallyDispatchProgrammaticEvent, queryOne, queryRect, scroll } from "@odoo/hoot-dom";
+import {
+    manuallyDispatchProgrammaticEvent,
+    queryOne,
+    queryRect,
+    scroll,
+} from "@odoo/hoot-dom";
+import {
+    setupInteractionWhiteList,
+    startInteractions,
+} from "@web/../tests/public/helpers";
 
 setupInteractionWhiteList("website.parallax");
 
@@ -27,7 +34,8 @@ const simulateScrolls = async function (fixture) {
         await manuallyDispatchProgrammaticEvent(document, "scroll");
         await scroll(fixture, { y: target + 1 });
         await manuallyDispatchProgrammaticEvent(document, "scroll");
-        const spacing = queryRect(".s_parallax_bg").bottom - queryRect("section:first").bottom;
+        const spacing =
+            queryRect(".s_parallax_bg").bottom - queryRect("section:first").bottom;
         spacings.push(spacing);
     }
     return spacings;

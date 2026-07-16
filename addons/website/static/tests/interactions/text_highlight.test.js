@@ -1,7 +1,9 @@
-import { startInteractions, setupInteractionWhiteList } from "@web/../tests/public/helpers";
-
 import { describe, expect, test } from "@odoo/hoot";
 import { animationFrame, queryAll, queryFirst } from "@odoo/hoot-dom";
+import {
+    setupInteractionWhiteList,
+    startInteractions,
+} from "@web/../tests/public/helpers";
 
 setupInteractionWhiteList("website.text_highlight");
 
@@ -62,7 +64,7 @@ test("[rtl] SVG positionned inside highlighted text", async () => {
             position.push("afterBottom");
         }
         return position.join() || "inside";
-    }
+    };
     await startInteractions(`
       <p style="direction: rtl">
         اَلْعَرَﺐِﻳَّ<span class="o_text_highlight o_text_highlight_circle_1" style="--text-highlight-width: 2px;">ةُ<br>اَ</span>لْعَرَبِيَّةُ

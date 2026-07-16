@@ -1,5 +1,11 @@
 /** @odoo-module native */
-import { Component, onPatched, useEffect, useExternalListener, useRef } from "@odoo/owl";
+import {
+    Component,
+    onPatched,
+    useEffect,
+    useExternalListener,
+    useRef,
+} from "@odoo/owl";
 
 /**
  * @todo @phoenix i think that most of the "control" code in this component
@@ -39,7 +45,7 @@ export class Powerbox extends Component {
                     return () => ownDoc.removeEventListener("mousemove", onMouseMove);
                 }
             },
-            () => [ref.el?.ownerDocument, this.props.document]
+            () => [ref.el?.ownerDocument, this.props.document],
         );
     }
 

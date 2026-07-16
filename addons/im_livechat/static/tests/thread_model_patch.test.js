@@ -8,11 +8,11 @@ import {
     triggerHotkey,
 } from "@mail/../tests/mail_test_helpers";
 import { describe, test } from "@odoo/hoot";
-import { Command, serverState, withUser } from "@web/../tests/web_test_helpers";
-import { defineLivechatModels } from "./livechat_test_helpers.js";
-
-import { rpc } from "@web/core/network/rpc";
 import { press } from "@odoo/hoot-dom";
+import { Command, serverState, withUser } from "@web/../tests/web_test_helpers";
+import { rpc } from "@web/core/network/rpc";
+
+import { defineLivechatModels } from "./livechat_test_helpers.js";
 
 describe.current.tags("desktop");
 defineLivechatModels();
@@ -27,7 +27,10 @@ test("Thread name unchanged when inviting new users", async () => {
     const guestId = pyEnv["mail.guest"].create({ name: "Visitor #20" });
     const channelId = pyEnv["discuss.channel"].create({
         channel_member_ids: [
-            Command.create({ partner_id: serverState.partnerId, livechat_member_type: "agent" }),
+            Command.create({
+                partner_id: serverState.partnerId,
+                livechat_member_type: "agent",
+            }),
             Command.create({ guest_id: guestId, livechat_member_type: "visitor" }),
         ],
         channel_type: "livechat",
@@ -52,7 +55,10 @@ test("Can set a custom name to livechat conversation", async () => {
     const guestId = pyEnv["mail.guest"].create({ name: "Visitor #20" });
     const channelId = pyEnv["discuss.channel"].create({
         channel_member_ids: [
-            Command.create({ partner_id: serverState.partnerId, livechat_member_type: "agent" }),
+            Command.create({
+                partner_id: serverState.partnerId,
+                livechat_member_type: "agent",
+            }),
             Command.create({ guest_id: guestId, livechat_member_type: "visitor" }),
         ],
         channel_type: "livechat",
@@ -62,7 +68,9 @@ test("Can set a custom name to livechat conversation", async () => {
     await openDiscuss(channelId);
     await click(".o-mail-DiscussSidebar-item:contains('Visitor #20')");
     await contains(".o-mail-DiscussContent-threadName[title='Visitor #20']");
-    await insertText(".o-mail-DiscussContent-threadName", "New Name", { replace: true });
+    await insertText(".o-mail-DiscussContent-threadName", "New Name", {
+        replace: true,
+    });
     await triggerHotkey("Enter");
     await contains(".o-mail-DiscussContent-threadName[title='New Name']");
     await contains(".o-mail-DiscussSidebar-item:contains('New Name')");
@@ -76,7 +84,10 @@ test("Display livechat custom username if defined", async () => {
     const guestId = pyEnv["mail.guest"].create({ name: "Visitor #20" });
     const channelId = pyEnv["discuss.channel"].create({
         channel_member_ids: [
-            Command.create({ partner_id: serverState.partnerId, livechat_member_type: "agent" }),
+            Command.create({
+                partner_id: serverState.partnerId,
+                livechat_member_type: "agent",
+            }),
             Command.create({ guest_id: guestId, livechat_member_type: "visitor" }),
         ],
         channel_type: "livechat",
@@ -100,7 +111,10 @@ test("Display livechat custom name in typing status", async () => {
     const channelId = pyEnv["discuss.channel"].create({
         channel_member_ids: [
             Command.create({ partner_id: partnerId, livechat_member_type: "agent" }),
-            Command.create({ partner_id: serverState.partnerId, livechat_member_type: "visitor" }),
+            Command.create({
+                partner_id: serverState.partnerId,
+                livechat_member_type: "visitor",
+            }),
         ],
         channel_type: "livechat",
         livechat_operator_id: partnerId,
@@ -111,7 +125,9 @@ test("Display livechat custom name in typing status", async () => {
         rpc("/discuss/channel/notify_typing", {
             channel_id: channelId,
             is_typing: true,
-        })
+        }),
     );
-    await contains(".o-discuss-Typing", { text: "livechat custom username is typing..." });
+    await contains(".o-discuss-Typing", {
+        text: "livechat custom username is typing...",
+    });
 });

@@ -1,16 +1,17 @@
+import { PowerButtonsPlugin } from "@html_editor/main/power_buttons_plugin";
+import { PowerboxPlugin } from "@html_editor/main/powerbox/powerbox_plugin";
 import { Plugin } from "@html_editor/plugin";
 import { MAIN_PLUGINS } from "@html_editor/plugin_sets";
-import { PowerButtonsPlugin } from "@html_editor/main/power_buttons_plugin";
 import { closestElement } from "@html_editor/utils/dom_traversal";
 import { describe, expect, queryAllTexts, test } from "@odoo/hoot";
 import { click, pointerDown, press, tick, waitFor } from "@odoo/hoot-dom";
-import { animationFrame, advanceTime } from "@odoo/hoot-mock";
+import { advanceTime, animationFrame } from "@odoo/hoot-mock";
 import { onRpc, patchWithCleanup } from "@web/../tests/web_test_helpers";
-import { PowerboxPlugin } from "@html_editor/main/powerbox/powerbox_plugin";
+
 import { setupEditor } from "./_helpers/editor.js";
 import { getContent, setSelection } from "./_helpers/selection.js";
-import { insertText, redo, splitBlock, undo } from "./_helpers/user_actions.js";
 import { expectElementCount } from "./_helpers/ui_expectations.js";
+import { insertText, redo, splitBlock, undo } from "./_helpers/user_actions.js";
 
 describe.tags("desktop");
 describe("visibility", () => {
@@ -23,7 +24,9 @@ describe("visibility", () => {
     });
 
     test("should show power buttons on P tag containing strong (bold)", async () => {
-        await setupEditor(`<p><strong data-oe-zws-empty-inline="">[]\u200B</strong></p>`);
+        await setupEditor(
+            `<p><strong data-oe-zws-empty-inline="">[]\u200B</strong></p>`,
+        );
         expect(".o_we_power_buttons").toBeVisible();
     });
 
@@ -49,7 +52,7 @@ describe("visibility", () => {
 
     test("should not show power buttons in table", async () => {
         await setupEditor(
-            "<table><tbody><tr><td><p>[]<br></p></td><td><p><br></p></td></tr></tbody></table>"
+            "<table><tbody><tr><td><p>[]<br></p></td><td><p><br></p></td></tr></tbody></table>",
         );
         expect(".o_we_power_buttons").not.toBeVisible();
     });
@@ -79,7 +82,7 @@ describe("visibility", () => {
 
     test("should not show power buttons on block p tag with tab", async () => {
         await setupEditor(
-            `<p><span class="oe-tabs" contenteditable="false" style="width: 40px;">\t</span>\u200b[]</p>`
+            `<p><span class="oe-tabs" contenteditable="false" style="width: 40px;">\t</span>\u200b[]</p>`,
         );
         expect(".o_we_power_buttons").not.toBeVisible();
     });
@@ -105,7 +108,10 @@ describe("visibility", () => {
         const tempP = document.createElement("p");
         tempP.innerText = placeholder;
         tempP.style.width = "fit-content";
-        const Plugins = [...MAIN_PLUGINS.filter((p) => p.id !== "powerbox"), TestPowerboxPlugin];
+        const Plugins = [
+            ...MAIN_PLUGINS.filter((p) => p.id !== "powerbox"),
+            TestPowerboxPlugin,
+        ];
         const { el } = await setupEditor("<p>[]<br></p>", {
             config: { Plugins },
         });
@@ -114,7 +120,7 @@ describe("visibility", () => {
         el.removeChild(tempP);
         const powerButtons = document.querySelector(".o_we_power_buttons");
         expect(Math.floor(powerButtons.getBoundingClientRect().left)).toEqual(
-            Math.floor(placeholderWidth + 30)
+            Math.floor(placeholderWidth + 30),
         );
     });
     test("should debounce powerButtons on selection change", async () => {
@@ -132,7 +138,7 @@ describe("visibility", () => {
             config: { debouncePowerbuttons: true },
         });
         expect(getContent(el)).toBe(
-            `<p o-we-hint-text='Type "/" for commands' class="o-we-hint">[]<br></p>`
+            `<p o-we-hint-text='Type "/" for commands' class="o-we-hint">[]<br></p>`,
         );
         await expectElementCount(".o_we_power_buttons:not(.invisible)", 1);
 
@@ -176,7 +182,7 @@ describe("buttons", () => {
         const { el } = await setupEditor("<p>[]<br></p>");
         await click(".o_we_power_buttons .power_button.fa-list-ol");
         expect(getContent(el)).toBe(
-            `<ol><li o-we-hint-text="List" class="o-we-hint">[]<br></li></ol>`
+            `<ol><li o-we-hint-text="List" class="o-we-hint">[]<br></li></ol>`,
         );
     });
 
@@ -184,7 +190,7 @@ describe("buttons", () => {
         const { el } = await setupEditor("<p>[]<br></p>");
         await click(".o_we_power_buttons .power_button.fa-list-ul");
         expect(getContent(el)).toBe(
-            `<ul><li o-we-hint-text="List" class="o-we-hint">[]<br></li></ul>`
+            `<ul><li o-we-hint-text="List" class="o-we-hint">[]<br></li></ul>`,
         );
     });
 
@@ -192,7 +198,7 @@ describe("buttons", () => {
         const { el } = await setupEditor("<p>[]<br></p>");
         await click(".o_we_power_buttons .power_button.fa-square-check");
         expect(getContent(el)).toBe(
-            `<ul class="o_checklist"><li o-we-hint-text="List" class="o-we-hint">[]<br></li></ul>`
+            `<ul class="o_checklist"><li o-we-hint-text="List" class="o-we-hint">[]<br></li></ul>`,
         );
     });
 
@@ -349,7 +355,9 @@ describe("buttons", () => {
         await expectElementCount(".o-we-powerbox", 1);
         await press("enter");
         await expectElementCount(".o-we-powerbox", 0);
-        expect(getContent(el)).toBe('<h1 o-we-hint-text="Heading 1" class="o-we-hint">[]<br></h1>');
+        expect(getContent(el)).toBe(
+            '<h1 o-we-hint-text="Heading 1" class="o-we-hint">[]<br></h1>',
+        );
     });
 });
 
@@ -370,9 +378,12 @@ describe("individual button availability", () => {
                 power_buttons: { commandId: "test" },
             };
         }
-        const { el } = await setupEditor(`<p>[]<br></p><p class="hide_test_button"><br></p>`, {
-            config: { Plugins: [...MAIN_PLUGINS, TestPlugin] },
-        });
+        const { el } = await setupEditor(
+            `<p>[]<br></p><p class="hide_test_button"><br></p>`,
+            {
+                config: { Plugins: [...MAIN_PLUGINS, TestPlugin] },
+            },
+        );
         expect(".o_we_power_buttons").toBeVisible();
         expect(".power_button.fa-bug").toBeVisible();
 

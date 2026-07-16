@@ -1,4 +1,4 @@
-import { manuallyDispatchProgrammaticEvent, animationFrame } from "@odoo/hoot-dom";
+import { animationFrame, manuallyDispatchProgrammaticEvent } from "@odoo/hoot-dom";
 
 /**
  * @param {Node} node
@@ -27,7 +27,10 @@ function _getContent(node, selection, options) {
 function getTextContent(node, selection, options) {
     let text = node.textContent;
     if (selection.focusNode === node) {
-        text = text.slice(0, selection.focusOffset) + "]" + text.slice(selection.focusOffset);
+        text =
+            text.slice(0, selection.focusOffset) +
+            "]" +
+            text.slice(selection.focusOffset);
     }
     if (selection.anchorNode === node) {
         const isAfterFocus =
@@ -153,7 +156,10 @@ export function getSelection(el, content) {
     const configSelection = {};
     visitAndSetRange(el, elRef, configSelection);
 
-    if (configSelection.anchorNode === undefined || configSelection.focusNode === undefined) {
+    if (
+        configSelection.anchorNode === undefined ||
+        configSelection.focusNode === undefined
+    ) {
         return;
     }
     return configSelection;
@@ -261,6 +267,6 @@ export async function simulateTripleClickSelect(target) {
 }
 export async function waitForSelectionChange() {
     await new Promise((resolve) =>
-        document.addEventListener("selectionchange", resolve, { once: true })
+        document.addEventListener("selectionchange", resolve, { once: true }),
     );
 }

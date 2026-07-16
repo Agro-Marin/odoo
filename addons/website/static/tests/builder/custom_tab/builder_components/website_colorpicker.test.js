@@ -21,7 +21,9 @@ test("should apply o_cc color", async () => {
     await contains(".we-bg-options-container .o_we_color_preview").click();
     await click(".o-overlay-item [data-color='o_cc3']");
     await animationFrame();
-    expect(":iframe .test-options-target").toHaveClass("test-options-target o_cc o_cc3");
+    expect(":iframe .test-options-target").toHaveClass(
+        "test-options-target o_cc o_cc3",
+    );
 });
 
 test("should remove o_cc color on reset", async () => {

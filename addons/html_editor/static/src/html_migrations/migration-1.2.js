@@ -38,7 +38,9 @@ export function migrate(container) {
                 icon.dataset.oeAriaLabel = ariaLabel;
             }
         }
-        const bannerContent = bannerContainer.querySelector(".o_editor_banner_icon ~ div");
+        const bannerContent = bannerContainer.querySelector(
+            ".o_editor_banner_icon ~ div",
+        );
         if (bannerContent) {
             bannerContent.classList.remove("o_editable");
             bannerContent.classList.add("o_editor_banner_content");

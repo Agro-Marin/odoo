@@ -1,6 +1,6 @@
 /** @odoo-module native */
-import { Parallax } from "@website/interactions/parallax/parallax";
 import { registry } from "@web/core/registry";
+import { Parallax } from "@website/interactions/parallax/parallax";
 
 // A manual parallax implementation is required for snippet previews because
 // snippets are scaled down in preview, and `background-attachment: fixed`
@@ -22,7 +22,8 @@ const ParallaxPreview = (I) =>
         setup() {
             this.backgroundEl = this.el.querySelector(".s_parallax_bg");
             this.previewContainerEl = this.el.ownerDocument.body;
-            this.speed = parseFloat(this.el.getAttribute("data-scroll-background-ratio")) || 0;
+            this.speed =
+                parseFloat(this.el.getAttribute("data-scroll-background-ratio")) || 0;
             this.isZoomIn = this.el.dataset.parallaxType === "zoomIn";
             this.isZoomOut = this.el.dataset.parallaxType === "zoomOut";
             this.isZoom = this.isZoomIn || this.isZoomOut;
@@ -71,12 +72,12 @@ const ParallaxPreview = (I) =>
                         this.updateParallaxPosition();
                         this.previewContainerEl.addEventListener(
                             "scroll",
-                            this.updateParallaxPosition
+                            this.updateParallaxPosition,
                         );
                     } else {
                         this.previewContainerEl.removeEventListener(
                             "scroll",
-                            this.updateParallaxPosition
+                            this.updateParallaxPosition,
                         );
                     }
                 });
@@ -93,7 +94,9 @@ const ParallaxPreview = (I) =>
             const clamp = (value) => Math.min(1, Math.max(0, value));
             const rect = this.el.getBoundingClientRect();
             const viewportHeight = this.previewContainerEl.clientHeight;
-            const relativeScrollProgress = viewportHeight ? rect.top / viewportHeight : 0;
+            const relativeScrollProgress = viewportHeight
+                ? rect.top / viewportHeight
+                : 0;
 
             const parallaxShift = relativeScrollProgress * this.PARALLAX_RATE * 100;
             let scale = this.baseScale;
@@ -102,8 +105,12 @@ const ParallaxPreview = (I) =>
                 const minScrollPos = -rect.height;
                 const maxScrollPos = viewportHeight;
                 const scrollRange = maxScrollPos - minScrollPos;
-                const progress = scrollRange ? clamp((rect.top - minScrollPos) / scrollRange) : 0;
-                const zoomProgress = this.isZoomIn ? Math.min(1, progress * 2.5) : progress;
+                const progress = scrollRange
+                    ? clamp((rect.top - minScrollPos) / scrollRange)
+                    : 0;
+                const zoomProgress = this.isZoomIn
+                    ? Math.min(1, progress * 2.5)
+                    : progress;
                 const maxZoom = this.speed + 1;
                 const zoomScale = this.isZoomOut
                     ? 1 + (maxZoom - 1) * zoomProgress

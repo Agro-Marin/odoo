@@ -1,9 +1,10 @@
-import { setupInteractionWhiteList, startInteractions } from "@web/../tests/public/helpers";
-
 import { describe, expect, test } from "@odoo/hoot";
 import { click, microTick, queryOne } from "@odoo/hoot-dom";
 import { Deferred } from "@odoo/hoot-mock";
-
+import {
+    setupInteractionWhiteList,
+    startInteractions,
+} from "@web/../tests/public/helpers";
 import { onRpc } from "@web/../tests/web_test_helpers";
 
 setupInteractionWhiteList("website.listing_layout");
@@ -37,7 +38,7 @@ test("listing_layout toggle to list mode", async () => {
     `);
     onRpc("/website/save_session_layout_mode", async (request) => {
         const jsonParams = JSON.parse(
-            new TextDecoder("utf-8").decode(await request.arrayBuffer())
+            new TextDecoder("utf-8").decode(await request.arrayBuffer()),
         ).params;
         expect.step("rpc");
         expect(jsonParams.layout_mode).toBe("list");
@@ -87,7 +88,7 @@ test("listing_layout toggle to grid mode", async () => {
     `);
     onRpc("/website/save_session_layout_mode", async (request) => {
         const jsonParams = JSON.parse(
-            new TextDecoder("utf-8").decode(await request.arrayBuffer())
+            new TextDecoder("utf-8").decode(await request.arrayBuffer()),
         ).params;
         expect.step("rpc");
         expect(jsonParams.layout_mode).toBe("grid");

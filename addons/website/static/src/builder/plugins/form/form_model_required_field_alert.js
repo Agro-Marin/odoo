@@ -26,9 +26,12 @@ export class FormModelRequiredFieldAlert extends BaseOptionComponent {
         const models = await this.fetchModels(el);
         const model = models.find((model) => model.model === props.modelName);
         const actionName = model?.website_form_label || props.modelName;
-        this.state.message = _t("The field “%(field)s” is mandatory for the action “%(action)s”.", {
-            field: props.fieldName,
-            action: actionName,
-        });
+        this.state.message = _t(
+            "The field “%(field)s” is mandatory for the action “%(action)s”.",
+            {
+                field: props.fieldName,
+                action: actionName,
+            },
+        );
     }
 }

@@ -1,9 +1,10 @@
-import { startInteractions, setupInteractionWhiteList } from "@web/../tests/public/helpers";
-
 import { animationFrame, describe, expect, test } from "@odoo/hoot";
 import { click, queryOne, waitFor } from "@odoo/hoot-dom";
 import { advanceTime } from "@odoo/hoot-mock";
-
+import {
+    setupInteractionWhiteList,
+    startInteractions,
+} from "@web/../tests/public/helpers";
 import { cookie } from "@web/core/browser/cookie";
 
 setupInteractionWhiteList([
@@ -64,7 +65,7 @@ test("consent for optional cookies not given if click on #cookies-consent-essent
     await click("#cookies-consent-essential");
     expect(cookiesBarEl).not.toBeVisible();
     expect(cookie.get("website_cookies_bar")).toMatch(
-        /^\{"required": true, "optional": false, "ts": \d+\}$/
+        /^\{"required": true, "optional": false, "ts": \d+\}$/,
     );
 });
 
@@ -91,21 +92,24 @@ test("consent for optional cookies given if click on #cookies-consent-all", asyn
     await click("#cookies-consent-all");
     expect(cookiesBarEl).not.toBeVisible();
     expect(cookie.get("website_cookies_bar")).toMatch(
-        /^\{"required": true, "optional": true, "ts": \d+\}$/
+        /^\{"required": true, "optional": true, "ts": \d+\}$/,
     );
 });
 
 test("cookies bar can be toggled, allowing optional cookies consent to be updated", async () => {
     const { core } = await startInteractions(getCookiesBarTemplate(true));
     expect(core.interactions).toHaveLength(2);
-    cookie.set("website_cookies_bar", `{"required": true, "optional": true, "ts": 12345}`);
+    cookie.set(
+        "website_cookies_bar",
+        `{"required": true, "optional": true, "ts": 12345}`,
+    );
     await animationFrame();
     await click(".o_cookies_bar_toggle");
     expect(".o_cookies_bar_toggle").toHaveText("Hide the cookies bar");
     await click("#cookies-consent-essential");
     expect(".o_cookies_bar_toggle").toHaveText("Show the cookies bar");
     expect(cookie.get("website_cookies_bar")).toMatch(
-        /^\{"required": true, "optional": false, "ts": \d+\}$/
+        /^\{"required": true, "optional": false, "ts": \d+\}$/,
     );
 });
 

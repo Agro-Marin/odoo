@@ -12,7 +12,10 @@ async function setLayout(layout, selectorAdd = "") {
     await waitFor("[data-label='At The End']");
     await contains("[data-label='At The End'] button.o-dropdown").click();
     await contains(`.popover [data-action-value='${layout}']`).click();
-    expect(`:iframe .s_countdown${selectorAdd}`).toHaveAttribute("data-end-action", layout);
+    expect(`:iframe .s_countdown${selectorAdd}`).toHaveAttribute(
+        "data-end-action",
+        layout,
+    );
 }
 
 test("hide countdown when end action is set to message_no_countdown", async () => {
@@ -44,7 +47,7 @@ test("save end message when switching layouts, forget when switching snippets", 
 
     await contains(":iframe .s_countdown:nth-child(2)").click();
     await setLayout("message", ":nth-child(2)");
-    expect(":iframe .s_countdown:nth-child(2) .s_countdown_end_message").not.toHaveInnerHTML(
-        "test"
-    );
+    expect(
+        ":iframe .s_countdown:nth-child(2) .s_countdown_end_message",
+    ).not.toHaveInnerHTML("test");
 });

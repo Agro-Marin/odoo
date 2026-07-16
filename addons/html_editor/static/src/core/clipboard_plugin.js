@@ -1,20 +1,26 @@
 /** @odoo-module native */
 import {
-    isTextNode,
-    isParagraphRelatedElement,
-    isEmptyBlock,
-    isContentEditable,
-} from "../utils/dom_info.js";
-import { Plugin } from "../plugin.js";
-import { closestBlock } from "../utils/blocks.js";
-import { unwrapContents, wrapInlinesInBlocks, splitTextNode, fillEmpty } from "../utils/dom.js";
-import { fillHtmlTransferData } from "../utils/clipboard.js";
-import { childNodes, closestElement } from "../utils/dom_traversal.js";
-import { parseHTML } from "../utils/html.js";
-import {
     baseContainerGlobalSelector,
     getBaseContainerSelector,
 } from "@html_editor/utils/base_container";
+
+import { Plugin } from "../plugin.js";
+import { closestBlock } from "../utils/blocks.js";
+import { fillHtmlTransferData } from "../utils/clipboard.js";
+import {
+    fillEmpty,
+    splitTextNode,
+    unwrapContents,
+    wrapInlinesInBlocks,
+} from "../utils/dom.js";
+import {
+    isContentEditable,
+    isEmptyBlock,
+    isParagraphRelatedElement,
+    isTextNode,
+} from "../utils/dom_info.js";
+import { childNodes, closestElement } from "../utils/dom_traversal.js";
+import { parseHTML } from "../utils/html.js";
 import { DIRECTIONS } from "../utils/position.js";
 import { isHtmlContentSupported } from "./selection_plugin.js";
 
@@ -182,7 +188,9 @@ export class ClipboardPlugin extends Plugin {
         fillHtmlTransferData(ev, transferObjectProperty, clonedContents, {
             setEditorTransferData:
                 isContentEditable(selection.commonAncestorContainer) ||
-                this.dependencies.selection.isNodeEditable(selection.commonAncestorContainer),
+                this.dependencies.selection.isNodeEditable(
+                    selection.commonAncestorContainer,
+                ),
             textContent,
         });
     }
@@ -231,7 +239,9 @@ export class ClipboardPlugin extends Plugin {
      * @param {DataTransfer} clipboardData
      */
     handlePasteOdooEditorHtml(clipboardData) {
-        const odooEditorHtml = clipboardData.getData("application/vnd.odoo.odoo-editor");
+        const odooEditorHtml = clipboardData.getData(
+            "application/vnd.odoo.odoo-editor",
+        );
         const textContent = clipboardData.getData("text/plain");
         if (ONLY_LINK_REGEX.test(textContent)) {
             return false;
@@ -345,7 +355,8 @@ export class ClipboardPlugin extends Plugin {
                     ) {
                         // Do something only if blockBefore is not a DIV (which is the no-margin option)
                         // replace blockBefore by a DIV.
-                        const div = this.dependencies.baseContainer.createBaseContainer("DIV");
+                        const div =
+                            this.dependencies.baseContainer.createBaseContainer("DIV");
                         const cursors = this.dependencies.selection.preserveSelection();
                         blockBefore.before(div);
                         div.replaceChildren(...childNodes(blockBefore));
@@ -430,14 +441,19 @@ export class ClipboardPlugin extends Plugin {
             const block = closestBlock(br);
             if (
                 (isParagraphRelatedElement(block) ||
-                    this.dependencies.baseContainer.isCandidateForBaseContainer(block)) &&
+                    this.dependencies.baseContainer.isCandidateForBaseContainer(
+                        block,
+                    )) &&
                 block.nodeName !== "PRE"
             ) {
                 // A linebreak at the beginning of a block is an empty line.
                 const isEmptyLine = block.firstChild.nodeName === "BR";
                 // Split blocks around it until only the BR remains in the
                 // block.
-                const remainingBrContainer = this.dependencies.split.splitAroundUntil(br, block);
+                const remainingBrContainer = this.dependencies.split.splitAroundUntil(
+                    br,
+                    block,
+                );
                 // Remove the container unless it represented an empty line.
                 if (!isEmptyLine) {
                     remainingBrContainer.remove();
@@ -468,12 +484,17 @@ export class ClipboardPlugin extends Plugin {
                     if (!node.hasChildNodes()) {
                         node.remove();
                         return;
-                    } else if (this.dependencies.baseContainer.isCandidateForBaseContainer(node)) {
+                    } else if (
+                        this.dependencies.baseContainer.isCandidateForBaseContainer(
+                            node,
+                        )
+                    ) {
                         const whiteSpace = node.style?.whiteSpace;
                         if (whiteSpace && !["normal", "nowrap"].includes(whiteSpace)) {
                             node.innerHTML = node.innerHTML.replace(/\n/g, "<br>");
                         }
-                        const baseContainer = this.dependencies.baseContainer.createBaseContainer();
+                        const baseContainer =
+                            this.dependencies.baseContainer.createBaseContainer();
                         const dir = node.getAttribute("dir");
                         if (dir) {
                             baseContainer.setAttribute("dir", dir);
@@ -509,7 +530,8 @@ export class ClipboardPlugin extends Plugin {
             } else if (["TD", "TH"].includes(node.nodeName)) {
                 // Insert base container into empty TD.
                 if (isEmptyBlock(node)) {
-                    const baseContainer = this.dependencies.baseContainer.createBaseContainer();
+                    const baseContainer =
+                        this.dependencies.baseContainer.createBaseContainer();
                     fillEmpty(baseContainer);
                     node.replaceChildren(baseContainer);
                 }
@@ -595,10 +617,12 @@ export class ClipboardPlugin extends Plugin {
             return CLIPBOARD_WHITELISTS.attributes.includes(item.name);
         } else if (typeof item === "string") {
             return CLIPBOARD_WHITELISTS.classes.some((okClass) =>
-                okClass instanceof RegExp ? okClass.test(item) : okClass === item
+                okClass instanceof RegExp ? okClass.test(item) : okClass === item,
             );
         } else {
-            return isTextNode(item) || item.matches?.(CLIPBOARD_WHITELISTS.nodes.join(","));
+            return (
+                isTextNode(item) || item.matches?.(CLIPBOARD_WHITELISTS.nodes.join(","))
+            );
         }
     }
     /**
@@ -636,7 +660,9 @@ export class ClipboardPlugin extends Plugin {
             return;
         }
         const nodeToSplit =
-            selection.direction === DIRECTIONS.RIGHT ? selection.focusNode : selection.anchorNode;
+            selection.direction === DIRECTIONS.RIGHT
+                ? selection.focusNode
+                : selection.anchorNode;
         const offsetToSplit =
             selection.direction === DIRECTIONS.RIGHT
                 ? selection.focusOffset
@@ -650,9 +676,13 @@ export class ClipboardPlugin extends Plugin {
         }
 
         const dataTransfer = (ev.originalEvent || ev).dataTransfer;
-        const odooEditorHtml = ev.dataTransfer.getData("application/vnd.odoo.odoo-editor");
+        const odooEditorHtml = ev.dataTransfer.getData(
+            "application/vnd.odoo.odoo-editor",
+        );
         const fileTransferItems = !odooEditorHtml && getImageFiles(dataTransfer);
-        const htmlTransferItem = [...dataTransfer.items].find((item) => item.type === "text/html");
+        const htmlTransferItem = [...dataTransfer.items].find(
+            (item) => item.type === "text/html",
+        );
         if (fileTransferItems.length || htmlTransferItem || odooEditorHtml) {
             const deleteAndSetSelection = (offsetNode, offset) => {
                 if (offsetNode.nodeType === Node.ELEMENT_NODE && offset > 1) {
@@ -677,7 +707,10 @@ export class ClipboardPlugin extends Plugin {
             };
 
             if (this.document.caretPositionFromPoint) {
-                const range = this.document.caretPositionFromPoint(ev.clientX, ev.clientY);
+                const range = this.document.caretPositionFromPoint(
+                    ev.clientX,
+                    ev.clientY,
+                );
                 deleteAndSetSelection(range.offsetNode, range.offset);
             } else if (this.document.caretRangeFromPoint) {
                 const range = this.document.caretRangeFromPoint(ev.clientX, ev.clientY);
@@ -719,7 +752,7 @@ export class ClipboardPlugin extends Plugin {
                 getImageUrl(imageFile).then((url) => {
                     imageNode.src = url;
                     return imageNode;
-                })
+                }),
             );
         }
         const nodes = await Promise.all(promises);

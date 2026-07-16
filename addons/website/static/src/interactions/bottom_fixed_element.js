@@ -1,8 +1,7 @@
 /** @odoo-module native */
-import { Interaction } from "@web/public/interaction";
 import { registry } from "@web/core/registry";
-
-import { touching, isVisible } from "@web/core/utils/dom/ui";
+import { isVisible, touching } from "@web/core/utils/dom/ui";
+import { Interaction } from "@web/public/interaction";
 
 export class BottomFixedElement extends Interaction {
     static selector = "#wrapwrap";
@@ -43,10 +42,13 @@ export class BottomFixedElement extends Interaction {
         this.restoreBottomFixedElements();
 
         if (
-            document.scrollingElement.offsetHeight + document.scrollingElement.scrollTop >=
+            document.scrollingElement.offsetHeight +
+                document.scrollingElement.scrollTop >=
             document.scrollingElement.scrollHeight - 2
         ) {
-            const buttonEls = [...this.el.querySelectorAll("a, .btn")].filter(isVisible);
+            const buttonEls = [...this.el.querySelectorAll("a, .btn")].filter(
+                isVisible,
+            );
             for (const bottomFixedEl of bottomFixedEls) {
                 const bcr = bottomFixedEl.getBoundingClientRect();
                 const touchingButtonEl = touching(buttonEls, {
@@ -60,7 +62,11 @@ export class BottomFixedElement extends Interaction {
                     y: bcr.y,
                 });
                 if (touchingButtonEl.length) {
-                    if (bottomFixedEl.classList.contains("o_bottom_fixed_element_move_up")) {
+                    if (
+                        bottomFixedEl.classList.contains(
+                            "o_bottom_fixed_element_move_up",
+                        )
+                    ) {
                         bottomFixedEl.style.marginBottom =
                             window.innerHeight -
                             touchingButtonEl.getBoundingClientRect().top +
@@ -85,7 +91,9 @@ export class BottomFixedElement extends Interaction {
     }
 }
 
-registry.category("public.interactions").add("website.bottom_fixed_element", BottomFixedElement);
+registry
+    .category("public.interactions")
+    .add("website.bottom_fixed_element", BottomFixedElement);
 
 registry.category("public.interactions.edit").add("website.bottom_fixed_element", {
     Interaction: BottomFixedElement,

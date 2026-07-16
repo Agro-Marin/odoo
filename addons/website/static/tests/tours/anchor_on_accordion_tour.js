@@ -1,12 +1,12 @@
-import {
-    insertSnippet,
-    registerWebsitePreviewTour,
-    clickOnSave,
-    goBackToBlocks,
-    clickToolbarButton,
-} from "@website/js/tours/tour_utils";
 import { browser } from "@web/core/browser/browser";
 import { registry } from "@web/core/registry";
+import {
+    clickOnSave,
+    clickToolbarButton,
+    goBackToBlocks,
+    insertSnippet,
+    registerWebsitePreviewTour,
+} from "@website/js/tours/tour_utils";
 
 registerWebsitePreviewTour(
     "anchor_behaviour_on_accordion_same_tab",
@@ -46,7 +46,12 @@ registerWebsitePreviewTour(
             trigger: ":iframe .s_text_block .container p:first-child",
             run: "editor Paragraph",
         },
-        ...clickToolbarButton("Paragraph", "#wrap .s_text_block p", "Add a link", false),
+        ...clickToolbarButton(
+            "Paragraph",
+            "#wrap .s_text_block p",
+            "Add a link",
+            false,
+        ),
         {
             content: "Type the link URL",
             trigger: ".o-we-linkpopover .o_we_href_input_link",
@@ -66,9 +71,10 @@ registerWebsitePreviewTour(
         },
         {
             content: "Check that the accordion item's content is visible",
-            trigger: ":iframe .s_accordion .accordion-item:first-child .accordion-collapse.show",
+            trigger:
+                ":iframe .s_accordion .accordion-item:first-child .accordion-collapse.show",
         },
-    ]
+    ],
 );
 
 registry.category("web_tour.tours").add("anchor_behaviour_on_accordion_new_tab", {
@@ -76,7 +82,8 @@ registry.category("web_tour.tours").add("anchor_behaviour_on_accordion_new_tab",
     steps: () => [
         {
             content: "Check that the accordion item's content is visible",
-            trigger: ".s_accordion .accordion-item:first-child .accordion-collapse.show",
+            trigger:
+                ".s_accordion .accordion-item:first-child .accordion-collapse.show",
         },
     ],
 });

@@ -17,7 +17,8 @@ const goToBackendSteps = [
     stepUtils.waitIframeIsReady(),
     {
         content: "Check we are in the backend",
-        trigger: ".o_website_preview :iframe main:has(#test_contact_BE):has(#test_contact_FE)",
+        trigger:
+            ".o_website_preview :iframe main:has(#test_contact_BE):has(#test_contact_FE)",
     },
 ];
 const checkEditorSteps = [

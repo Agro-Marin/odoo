@@ -21,7 +21,11 @@ export function insertListAfter(document, afterNode, mode, content = []) {
         const lastLeafNode = lastLeaf(content[0]);
         const firstClosestFont = closestElement(firstLeafNode, "font");
         const lastClosestFont = closestElement(lastLeafNode, "font");
-        if (firstClosestFont && lastClosestFont && firstClosestFont === lastClosestFont) {
+        if (
+            firstClosestFont &&
+            lastClosestFont &&
+            firstClosestFont === lastClosestFont
+        ) {
             li.style.color = firstClosestFont.style.color;
             unwrapContents(firstClosestFont);
         }

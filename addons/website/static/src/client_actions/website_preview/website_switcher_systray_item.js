@@ -1,11 +1,12 @@
 /** @odoo-module native */
-import { _t } from "@web/core/l10n/translation";
-import { browser } from "@web/core/browser/browser";
-import { useService } from "@web/core/utils/hooks";
+import { Component } from "@odoo/owl";
 import { Dropdown } from "@web/components/dropdown/dropdown";
 import { DropdownItem } from "@web/components/dropdown/dropdown_item";
+import { browser } from "@web/core/browser/browser";
+import { _t } from "@web/core/l10n/translation";
+import { useService } from "@web/core/utils/hooks";
 import { session } from "@web/session";
-import { Component } from "@odoo/owl";
+
 import { isHTTPSorNakedDomainRedirection } from "./utils.js";
 
 export class WebsiteSwitcherSystrayItem extends Component {
@@ -33,15 +34,20 @@ export class WebsiteSwitcherSystrayItem extends Component {
                 website.domain
                     ? {}
                     : {
-                          "data-tooltip": _t("This website does not have a domain configured."),
+                          "data-tooltip": _t(
+                              "This website does not have a domain configured.",
+                          ),
                           "data-tooltip-position": "left",
-                      }
+                      },
             ),
             callback: () => {
                 if (
                     !session.website_bypass_domain_redirect && // Used by the Odoo support (bugs to be expected)
                     website.domain &&
-                    !isHTTPSorNakedDomainRedirection(website.domain, window.location.origin)
+                    !isHTTPSorNakedDomainRedirection(
+                        website.domain,
+                        window.location.origin,
+                    )
                 ) {
                     const {
                         location: { pathname, search, hash },
@@ -72,7 +78,7 @@ export class WebsiteSwitcherSystrayItem extends Component {
                                     {
                                         onClick: () => {
                                             this.actionService.doAction(
-                                                "website.action_website_configuration"
+                                                "website.action_website_configuration",
                                             );
                                             closeFn();
                                         },
@@ -80,7 +86,7 @@ export class WebsiteSwitcherSystrayItem extends Component {
                                         name: "Settings",
                                     },
                                 ],
-                            }
+                            },
                         );
                         browser.setTimeout(closeFn, 7000);
                     }

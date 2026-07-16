@@ -1,14 +1,18 @@
-import { startInteractions, setupInteractionWhiteList } from "@web/../tests/public/helpers";
-
 import { describe, expect, test } from "@odoo/hoot";
 import { queryAll, queryOne, tick } from "@odoo/hoot-dom";
 import { advanceTime } from "@odoo/hoot-mock";
+import {
+    setupInteractionWhiteList,
+    startInteractions,
+} from "@web/../tests/public/helpers";
 
 setupInteractionWhiteList("website.countdown");
 
 describe.current.tags("interaction_dev");
 
-const getTemplate = function (options = { endAction: "nothing", endTime: "98765432100" }) {
+const getTemplate = function (
+    options = { endAction: "nothing", endTime: "98765432100" },
+) {
     return `
         <div style="background-color: white;">
             <section class="s_countdown pt48 pb48 ${
@@ -94,13 +98,13 @@ test("[time] countdown display is updated correctly when time pass", async () =>
         0,
         0,
         canvasHours.width,
-        canvasHours.height
+        canvasHours.height,
     ).data;
     const data1Seconds = canvasSecondsCtx.getImageData(
         0,
         0,
         canvasSeconds.width,
-        canvasSeconds.height
+        canvasSeconds.height,
     ).data;
 
     // time T + 1s
@@ -109,13 +113,13 @@ test("[time] countdown display is updated correctly when time pass", async () =>
         0,
         0,
         canvasHours.width,
-        canvasHours.height
+        canvasHours.height,
     ).data;
     const data2Seconds = canvasSecondsCtx.getImageData(
         0,
         0,
         canvasSeconds.width,
-        canvasSeconds.height
+        canvasSeconds.height,
     ).data;
 
     // time T + 2s
@@ -124,13 +128,13 @@ test("[time] countdown display is updated correctly when time pass", async () =>
         0,
         0,
         canvasHours.width,
-        canvasHours.height
+        canvasHours.height,
     ).data;
     const data3Seconds = canvasSecondsCtx.getImageData(
         0,
         0,
         canvasSeconds.width,
-        canvasSeconds.height
+        canvasSeconds.height,
     ).data;
 
     // Check that the data are not empty & the same size
@@ -144,8 +148,16 @@ test("[time] countdown display is updated correctly when time pass", async () =>
 
     const hoursUpdate12 = wasDataChanged(data1Hours, data2Hours, dataHoursLength);
     const hoursUpdate23 = wasDataChanged(data2Hours, data3Hours, dataHoursLength);
-    const secondsUpdate12 = wasDataChanged(data1Seconds, data2Seconds, dataSecondsLength);
-    const secondsUpdate23 = wasDataChanged(data2Seconds, data3Seconds, dataSecondsLength);
+    const secondsUpdate12 = wasDataChanged(
+        data1Seconds,
+        data2Seconds,
+        dataSecondsLength,
+    );
+    const secondsUpdate23 = wasDataChanged(
+        data2Seconds,
+        data3Seconds,
+        dataSecondsLength,
+    );
 
     // Hour canvas must not have changed twice
     expect(hoursUpdate12 && hoursUpdate23).toBe(false);
@@ -205,7 +217,9 @@ test("past date: end message is shown", async () => {
 });
 
 test("past date: end message is shown without countdown", async () => {
-    await startInteractions(getTemplate({ endAction: "message_no_countdown", endTime: 1 }));
+    await startInteractions(
+        getTemplate({ endAction: "message_no_countdown", endTime: 1 }),
+    );
     await tick();
     expect(".s_countdown_end_message:not(.d-none)").toHaveCount(1);
     expect(".s_countdown_canvas_flex canvas:not(.d-none)").toHaveCount(0);

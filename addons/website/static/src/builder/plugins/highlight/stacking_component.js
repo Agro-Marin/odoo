@@ -1,5 +1,5 @@
 /** @odoo-module native */
-import { xml, Component, reactive, useState, useEffect } from "@odoo/owl";
+import { Component, reactive, useEffect, useState, xml } from "@odoo/owl";
 import { POSITION_BUS } from "@web/core/position/position_hook";
 
 export function useStackingComponentState() {
@@ -38,7 +38,7 @@ export class StackingComponent extends Component {
                 // Recompute the positioning of the popover if any.
                 this.env[POSITION_BUS]?.trigger("update");
             },
-            () => [this.stack.length]
+            () => [this.stack.length],
         );
     }
 }

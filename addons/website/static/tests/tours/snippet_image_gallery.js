@@ -1,13 +1,13 @@
 import {
     addMedia,
+    assertCssVariable,
     changeOption,
+    changeOptionInPopover,
+    clickOnEditAndWaitEditMode,
     clickOnSave,
     clickOnSnippet,
     insertSnippet,
     registerWebsitePreviewTour,
-    changeOptionInPopover,
-    clickOnEditAndWaitEditMode,
-    assertCssVariable,
 } from "@website/js/tours/tour_utils";
 
 registerWebsitePreviewTour(
@@ -17,7 +17,11 @@ registerWebsitePreviewTour(
         edition: true,
     },
     () => [
-        ...insertSnippet({ id: "s_images_wall", name: "Images Wall", groupName: "Images" }),
+        ...insertSnippet({
+            id: "s_images_wall",
+            name: "Images Wall",
+            groupName: "Images",
+        }),
         ...clickOnSave(),
         {
             content: "Click on an image of the Image Wall",
@@ -28,7 +32,7 @@ registerWebsitePreviewTour(
             content: "Check that the modal has opened properly",
             trigger: ":iframe .s_gallery_lightbox img",
         },
-    ]
+    ],
 );
 
 registerWebsitePreviewTour(
@@ -59,12 +63,14 @@ registerWebsitePreviewTour(
         },
         {
             content: "Click on the first new image",
-            trigger: ".o_select_media_dialog .o_button_area[aria-label='s_default_image.jpg']",
+            trigger:
+                ".o_select_media_dialog .o_button_area[aria-label='s_default_image.jpg']",
             run: "click",
         },
         {
             content: "Click on the second new image",
-            trigger: ".o_select_media_dialog .o_button_area[aria-label='s_default_image2.webp']",
+            trigger:
+                ".o_select_media_dialog .o_button_area[aria-label='s_default_image2.webp']",
             run: "click",
         },
         addMedia(),
@@ -89,7 +95,7 @@ registerWebsitePreviewTour(
             content: "Check that the Image Gallery snippet has been removed",
             trigger: ":iframe #wrap:not(:has(.s_image_gallery))",
         },
-    ]
+    ],
 );
 
 registerWebsitePreviewTour(
@@ -115,10 +121,14 @@ registerWebsitePreviewTour(
             trigger:
                 ".o_customize_tab [data-container-title='Image'] [data-label='Filter'] .o-dropdown:contains('Blur')",
         },
-        changeOption("Image", "[data-label='Re-order'] button[data-action-value='next']"),
+        changeOption(
+            "Image",
+            "[data-label='Re-order'] button[data-action-value='next']",
+        ),
         {
             content: "Check that the image has been moved",
-            trigger: ":iframe .s_image_gallery .carousel-item.active img[data-index='1']",
+            trigger:
+                ":iframe .s_image_gallery .carousel-item.active img[data-index='1']",
         },
         {
             content: "Click on the footer to reload the editor panel",
@@ -164,14 +174,18 @@ registerWebsitePreviewTour(
             trigger: `.o_customize_tab [data-container-title="Image Gallery"] [data-label="Height"] input`,
             run: "edit 400",
         },
-        changeOption("Image", "[data-label='Re-order'] button[data-action-value='next']"),
+        changeOption(
+            "Image",
+            "[data-label='Re-order'] button[data-action-value='next']",
+        ),
         {
             content: "Click on the moved image",
-            trigger: ":iframe .s_image_gallery .carousel-item.active img[data-index='2']",
+            trigger:
+                ":iframe .s_image_gallery .carousel-item.active img[data-index='2']",
             run: "click",
         },
         assertCssVariable("height", "400px", ":iframe .s_image_gallery"),
-    ]
+    ],
 );
 
 registerWebsitePreviewTour(
@@ -194,13 +208,15 @@ registerWebsitePreviewTour(
         changeOption("Image Gallery", "addImage"),
         {
             content: "Click on the default image",
-            trigger: ".o_select_media_dialog .o_button_area[aria-label='s_default_image.jpg']",
+            trigger:
+                ".o_select_media_dialog .o_button_area[aria-label='s_default_image.jpg']",
             run: "click",
         },
         addMedia(),
         {
             content: "Check that the new image has been added",
-            trigger: ":iframe .s_image_gallery_indicators_squared:has(img[data-index='3'])",
+            trigger:
+                ":iframe .s_image_gallery_indicators_squared:has(img[data-index='3'])",
         },
         {
             content: "Check that the thumbnail of the first image has not been changed",
@@ -226,7 +242,8 @@ registerWebsitePreviewTour(
         },
         {
             content: "Pick another image to replace the first one",
-            trigger: ".o_select_media_dialog .o_button_area[aria-label='s_default_image_2.jpg']",
+            trigger:
+                ".o_select_media_dialog .o_button_area[aria-label='s_default_image_2.jpg']",
             run: "click",
         },
         ...clickOnSave(),
@@ -257,5 +274,5 @@ registerWebsitePreviewTour(
             trigger:
                 ":iframe .s_image_gallery div.carousel-indicators button:nth-child(2)[style*='data:image/svg+xml']",
         },
-    ]
+    ],
 );

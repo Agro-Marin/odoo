@@ -1,9 +1,9 @@
 /** @odoo-module native */
-import { registry } from "@web/core/registry";
-import { Plugin } from "@html_editor/plugin";
-import { clamp } from "@web/core/utils/format/numbers";
 import { BuilderAction } from "@html_builder/core/builder_action";
 import { BaseOptionComponent } from "@html_builder/core/utils";
+import { Plugin } from "@html_editor/plugin";
+import { registry } from "@web/core/registry";
+import { clamp } from "@web/core/utils/format/numbers";
 
 export class ProgressBarOption extends BaseOptionComponent {
     static template = "website.ProgressBarOption";
@@ -93,7 +93,7 @@ export class ProgressBarValueAction extends BuilderAction {
             // eg 'Since 1978 we have completed 45%' <- don't replace 1978
             progressBarTextEl.innerText = progressBarTextEl.innerText.replace(
                 /[0-9]+%/,
-                value + "%"
+                value + "%",
             );
         }
         progressMainEl.setAttribute("aria-valuenow", value);
@@ -104,4 +104,6 @@ export class ProgressBarValueAction extends BuilderAction {
     }
 }
 
-registry.category("website-plugins").add(ProgressBarOptionPlugin.id, ProgressBarOptionPlugin);
+registry
+    .category("website-plugins")
+    .add(ProgressBarOptionPlugin.id, ProgressBarOptionPlugin);

@@ -1,11 +1,11 @@
 /** @odoo-module native */
-import { Component, onWillUpdateProps, useState, useRef } from "@odoo/owl";
+import { Component, onWillUpdateProps, useRef, useState } from "@odoo/owl";
 import { CustomColorPicker as ColorPicker } from "@web/components/color_picker/custom_color_picker/custom_color_picker";
 import {
-    isColorGradient,
-    standardizeGradient,
-    rgbaToHex,
     convertCSSColorToRgba,
+    isColorGradient,
+    rgbaToHex,
+    standardizeGradient,
 } from "@web/core/utils/format/colors";
 
 export class GradientPicker extends Component {
@@ -32,10 +32,18 @@ export class GradientPicker extends Component {
             { hex: "#DF7CC4", percentage: 0 },
             { hex: "#6C3582", percentage: 100 },
         ]);
-        this.cssGradients = useState({ preview: "", linear: "", radial: "", sliderThumbStyle: "" });
+        this.cssGradients = useState({
+            preview: "",
+            linear: "",
+            radial: "",
+            sliderThumbStyle: "",
+        });
         this.knobRef = useRef("gradientAngleKnob");
 
-        if (this.props.selectedGradient && isColorGradient(this.props.selectedGradient)) {
+        if (
+            this.props.selectedGradient &&
+            isColorGradient(this.props.selectedGradient)
+        ) {
             // initialization of the gradient with the selected value
             this.setGradientFromString(this.props.selectedGradient);
         } else {
@@ -57,13 +65,16 @@ export class GradientPicker extends Component {
         gradient = standardizeGradient(gradient);
         const colors = [
             ...gradient.matchAll(
-                /(#[0-9a-f]{6}|rgba?\(\s*[0-9]+\s*,\s*[0-9]+\s*,\s*[0-9]+\s*[,\s*[0-9.]*]?\s*\)|[a-z]+)\s*([[0-9]+%]?)/g
+                /(#[0-9a-f]{6}|rgba?\(\s*[0-9]+\s*,\s*[0-9]+\s*,\s*[0-9]+\s*[,\s*[0-9.]*]?\s*\)|[a-z]+)\s*([[0-9]+%]?)/g,
             ),
         ].filter((color) => rgbaToHex(color[1]) !== "#");
 
         this.colors.splice(0, this.colors.length);
         for (const color of colors) {
-            this.colors.push({ hex: rgbaToHex(color[1]), percentage: color[2].replace("%", "") });
+            this.colors.push({
+                hex: rgbaToHex(color[1]),
+                percentage: color[2].replace("%", ""),
+            });
         }
 
         const isLinear = gradient.startsWith("linear-gradient(");
@@ -78,7 +89,11 @@ export class GradientPicker extends Component {
             const size = sizeMatch ? sizeMatch[0] : "farthest-corner";
             this.state.size = size;
 
-            const position = gradient.match(/ at ([0-9]+)% ([0-9]+)%/) || ["", "50", "50"];
+            const position = gradient.match(/ at ([0-9]+)% ([0-9]+)%/) || [
+                "",
+                "50",
+                "50",
+            ];
             this.positions.x = position[1];
             this.positions.y = position[2];
         }
@@ -144,7 +159,9 @@ export class GradientPicker extends Component {
     addColorStop(percentage) {
         let color;
 
-        let previousColor = this.colors.findLast((color) => color.percentage <= percentage);
+        let previousColor = this.colors.findLast(
+            (color) => color.percentage <= percentage,
+        );
         let nextColor = this.colors.find((color) => color.percentage > percentage);
         if (!previousColor && nextColor) {
             // Click position is before the first color
@@ -161,15 +178,17 @@ export class GradientPicker extends Component {
             previousColor = convertCSSColorToRgba(previousColor.hex);
             nextColor = convertCSSColorToRgba(nextColor.hex);
 
-            const red = Math.round(previousRatio * previousColor.red + nextRatio * nextColor.red);
+            const red = Math.round(
+                previousRatio * previousColor.red + nextRatio * nextColor.red,
+            );
             const green = Math.round(
-                previousRatio * previousColor.green + nextRatio * nextColor.green
+                previousRatio * previousColor.green + nextRatio * nextColor.green,
             );
             const blue = Math.round(
-                previousRatio * previousColor.blue + nextRatio * nextColor.blue
+                previousRatio * previousColor.blue + nextRatio * nextColor.blue,
             );
             const opacity = Math.round(
-                previousRatio * previousColor.opacity + nextRatio * nextColor.opacity
+                previousRatio * previousColor.opacity + nextRatio * nextColor.opacity,
             );
             color = `rgba(${red}, ${green}, ${blue}, ${opacity / 100})`;
         }
@@ -177,7 +196,7 @@ export class GradientPicker extends Component {
         this.colors.push({ hex: color, percentage });
         this.sortColors();
         this.state.currentColorIndex = this.colors.findIndex(
-            (color) => color.percentage === percentage
+            (color) => color.percentage === percentage,
         );
         this.onColorGradientChange();
     }
@@ -221,7 +240,9 @@ export class GradientPicker extends Component {
 
     onColorGradientPreview() {
         this.updateCssGradients();
-        this.props.onGradientPreview?.({ gradient: this.cssGradients[this.state.type] });
+        this.props.onGradientPreview?.({
+            gradient: this.cssGradients[this.state.type],
+        });
     }
 
     get currentColorHex() {

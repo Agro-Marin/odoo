@@ -30,7 +30,7 @@ export class DiscussChannelMember extends mailModels.DiscussChannelMember {
                     "is_public",
                     "user_livechat_username",
                 ];
-                if (member.livechat_member_type == "visitor") {
+                if (member.livechat_member_type === "visitor") {
                     fields.push("offline_since", "email");
                 }
             }

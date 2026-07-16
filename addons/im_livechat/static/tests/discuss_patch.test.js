@@ -8,12 +8,12 @@ import {
 } from "@mail/../tests/mail_test_helpers";
 import { withGuest } from "@mail/../tests/mock_server/mail_mock_server";
 import { describe, test } from "@odoo/hoot";
+import { press } from "@odoo/hoot-dom";
 import { mockDate } from "@odoo/hoot-mock";
 import { Command, serverState } from "@web/../tests/web_test_helpers";
-
 import { rpc } from "@web/core/network/rpc";
+
 import { defineLivechatModels } from "./livechat_test_helpers.js";
-import { press } from "@odoo/hoot-dom";
 
 describe.current.tags("desktop");
 defineLivechatModels();
@@ -55,13 +55,13 @@ test("add livechat in the sidebar on visitor sending first message", async () =>
             },
             thread_id: channelId,
             thread_model: "discuss.channel",
-        })
+        }),
     );
     await contains(
         ".o-mail-DiscussSidebarCategory-livechat + .o-mail-DiscussSidebarChannel-container",
         {
             text: "Visitor (Belgium)",
-        }
+        },
     );
 });
 
@@ -70,7 +70,10 @@ test("invite button should be present on livechat", async () => {
     const guestId = pyEnv["mail.guest"].create({ name: "Visitor 11" });
     const channelId = pyEnv["discuss.channel"].create({
         channel_member_ids: [
-            Command.create({ partner_id: serverState.partnerId, livechat_member_type: "agent" }),
+            Command.create({
+                partner_id: serverState.partnerId,
+                livechat_member_type: "agent",
+            }),
             Command.create({ guest_id: guestId, livechat_member_type: "visitor" }),
         ],
         channel_type: "livechat",
@@ -94,7 +97,10 @@ test("livechats are sorted by last activity time in the sidebar: most recent at 
                     livechat_member_type: "agent",
                     partner_id: serverState.partnerId,
                 }),
-                Command.create({ guest_id: guestId_1, livechat_member_type: "visitor" }),
+                Command.create({
+                    guest_id: guestId_1,
+                    livechat_member_type: "visitor",
+                }),
             ],
             channel_type: "livechat",
             livechat_operator_id: serverState.partnerId,
@@ -106,7 +112,10 @@ test("livechats are sorted by last activity time in the sidebar: most recent at 
                     livechat_member_type: "agent",
                     partner_id: serverState.partnerId,
                 }),
-                Command.create({ guest_id: guestId_2, livechat_member_type: "visitor" }),
+                Command.create({
+                    guest_id: guestId_2,
+                    livechat_member_type: "visitor",
+                }),
             ],
             channel_type: "livechat",
             livechat_operator_id: serverState.partnerId,
@@ -134,7 +143,10 @@ test("sidebar search finds livechats", async () => {
     const guestId = pyEnv["mail.guest"].create({ name: "Visitor 11" });
     pyEnv["discuss.channel"].create({
         channel_member_ids: [
-            Command.create({ partner_id: serverState.partnerId, livechat_member_type: "agent" }),
+            Command.create({
+                partner_id: serverState.partnerId,
+                livechat_member_type: "agent",
+            }),
             Command.create({ guest_id: guestId, livechat_member_type: "visitor" }),
         ],
         channel_type: "livechat",
@@ -152,8 +164,14 @@ test("open visitor's partner profile if visitor has one", async () => {
     const livechatPartner = pyEnv["res.partner"].create({ name: "Joel Willis" });
     const channel = pyEnv["discuss.channel"].create({
         channel_member_ids: [
-            Command.create({ partner_id: serverState.partnerId, livechat_member_type: "agent" }),
-            Command.create({ partner_id: livechatPartner, livechat_member_type: "visitor" }),
+            Command.create({
+                partner_id: serverState.partnerId,
+                livechat_member_type: "agent",
+            }),
+            Command.create({
+                partner_id: livechatPartner,
+                livechat_member_type: "visitor",
+            }),
         ],
         channel_type: "livechat",
         livechat_operator_id: serverState.partnerId,

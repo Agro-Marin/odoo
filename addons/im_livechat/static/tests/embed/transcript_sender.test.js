@@ -20,9 +20,18 @@ defineLivechatModels();
 test("send", async () => {
     const pyEnv = await startServer();
     await loadDefaultEmbedConfig();
-    onRpcBefore("/im_livechat/email_livechat_transcript", () => expect.step(`send_transcript`));
-    const partnerId = pyEnv["res.partner"].create({ email: "paul@example.com", name: "Paul" });
-    pyEnv["res.users"].create({ partner_id: partnerId, login: "paul", password: "paul" });
+    onRpcBefore("/im_livechat/email_livechat_transcript", () =>
+        expect.step(`send_transcript`),
+    );
+    const partnerId = pyEnv["res.partner"].create({
+        email: "paul@example.com",
+        name: "Paul",
+    });
+    pyEnv["res.users"].create({
+        partner_id: partnerId,
+        login: "paul",
+        password: "paul",
+    });
     await start({ authenticateAs: { login: "paul", password: "paul" } });
     await click(".o-livechat-LivechatButton");
     await insertText(".o-mail-Composer-input", "Hello World!");
@@ -43,8 +52,15 @@ test("send failed", async () => {
     onRpc("/im_livechat/email_livechat_transcript", () => {
         throw new Error();
     });
-    const partnerId = pyEnv["res.partner"].create({ email: "paul@example.com", name: "Paul" });
-    pyEnv["res.users"].create({ partner_id: partnerId, login: "paul", password: "paul" });
+    const partnerId = pyEnv["res.partner"].create({
+        email: "paul@example.com",
+        name: "Paul",
+    });
+    pyEnv["res.users"].create({
+        partner_id: partnerId,
+        login: "paul",
+        password: "paul",
+    });
     await start({ authenticateAs: { login: "paul", password: "paul" } });
     await click(".o-livechat-LivechatButton");
     await insertText(".o-mail-Composer-input", "Hello World!");

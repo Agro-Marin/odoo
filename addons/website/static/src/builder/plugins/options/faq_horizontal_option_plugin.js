@@ -17,4 +17,6 @@ class FaqHorizontalOptionPlugin extends Plugin {
         builder_options: [withSequence(BEGIN, FaqHorizontalOption)],
     };
 }
-registry.category("website-plugins").add(FaqHorizontalOptionPlugin.id, FaqHorizontalOptionPlugin);
+registry
+    .category("website-plugins")
+    .add(FaqHorizontalOptionPlugin.id, FaqHorizontalOptionPlugin);

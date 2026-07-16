@@ -5,8 +5,8 @@ import { expect, test } from "@odoo/hoot";
 import { animationFrame, queryOne, scroll, waitFor } from "@odoo/hoot-dom";
 import { contains, patchWithCleanup } from "@web/../tests/web_test_helpers";
 import {
-    addPlugin,
     addOption,
+    addPlugin,
     defineWebsiteModels,
     setupWebsiteBuilder,
     setupWebsiteBuilderWithSnippet,
@@ -55,18 +55,18 @@ test("change the background shape of elements", async () => {
     await contains(":iframe .selector").click();
     await contains("[data-label='Shape'] button").click();
     expect(
-        ".o_pager_container .o-hb-bg-shape-btn:nth-child(1) .btn.active[data-action-id='setBackgroundShape']"
+        ".o_pager_container .o-hb-bg-shape-btn:nth-child(1) .btn.active[data-action-id='setBackgroundShape']",
     ).toHaveCount();
     await contains(
-        ".o_pager_container .o-hb-bg-shape-btn:nth-child(2) .btn:not(.active)[data-action-id='setBackgroundShape']"
+        ".o_pager_container .o-hb-bg-shape-btn:nth-child(2) .btn:not(.active)[data-action-id='setBackgroundShape']",
     ).click();
     expect(":iframe .selector div#first").toHaveAttribute(
         "data-oe-shape-data",
-        '{"shape":"html_builder/Connections/02","flip":[],"showOnMobile":false,"shapeAnimationSpeed":"0"}'
+        '{"shape":"html_builder/Connections/02","flip":[],"showOnMobile":false,"shapeAnimationSpeed":"0"}',
     );
     expect(":iframe .selector div#second").toHaveAttribute(
         "data-oe-shape-data",
-        '{"shape":"html_builder/Connections/02","flip":[],"showOnMobile":false,"shapeAnimationSpeed":"0"}'
+        '{"shape":"html_builder/Connections/02","flip":[],"showOnMobile":false,"shapeAnimationSpeed":"0"}',
     );
 });
 
@@ -137,7 +137,7 @@ test("Background position overlay layout", async () => {
                 <section style="background-image: url('/web/image/123/transparent.png'); width: 500px; height: 500px">
                 </section>
             </div>
-        </section>`
+        </section>`,
     );
 
     const iframe = getEditor().editable.ownerDocument.defaultView.frameElement;
@@ -152,33 +152,41 @@ test("Background position overlay layout", async () => {
         // a more representative test.
         const iframeContainerScale = mobile ? 0.87 : 1.0;
         if (mobile) {
-            const iframeContainer = queryOne(".o_website_preview.o_is_mobile .o_iframe_container");
+            const iframeContainer = queryOne(
+                ".o_website_preview.o_is_mobile .o_iframe_container",
+            );
             iframeContainer.style.transform = `translate(-50%, -50%) scale(${iframeContainerScale})`;
         }
         await openBgPositionOverlay(section, waitSidebarUpdated);
 
         // The overlay should cover exactly the iframe
         const iframeRect = iframe.getBoundingClientRect();
-        const bgOverlayRect = queryOne(".o_we_background_position_overlay").getBoundingClientRect();
+        const bgOverlayRect = queryOne(
+            ".o_we_background_position_overlay",
+        ).getBoundingClientRect();
         expect(bgOverlayRect.left).toBeCloseTo(iframeRect.left);
         expect(bgOverlayRect.top).toBeCloseTo(iframeRect.top);
-        expect(bgOverlayRect.width).toBeCloseTo(body.clientWidth * iframeContainerScale);
-        expect(bgOverlayRect.height).toBeCloseTo(body.clientHeight * iframeContainerScale);
+        expect(bgOverlayRect.width).toBeCloseTo(
+            body.clientWidth * iframeContainerScale,
+        );
+        expect(bgOverlayRect.height).toBeCloseTo(
+            body.clientHeight * iframeContainerScale,
+        );
 
         // The content of the overlay should cover the editing element
         const editingElementRect = section.getBoundingClientRect();
         const overlayContentStyle = getComputedStyle(queryOne(".o_we_overlay_content"));
         expect(parseFloat(overlayContentStyle.left)).toBeCloseTo(
-            editingElementRect.left * iframeContainerScale
+            editingElementRect.left * iframeContainerScale,
         );
         expect(parseFloat(overlayContentStyle.top)).toBeCloseTo(
-            editingElementRect.top * iframeContainerScale
+            editingElementRect.top * iframeContainerScale,
         );
         expect(parseFloat(overlayContentStyle.width)).toBeCloseTo(
-            editingElementRect.width * iframeContainerScale
+            editingElementRect.width * iframeContainerScale,
         );
         expect(parseFloat(overlayContentStyle.height)).toBeCloseTo(
-            editingElementRect.height * iframeContainerScale
+            editingElementRect.height * iframeContainerScale,
         );
 
         // The loading spinner should not be displayed
@@ -198,13 +206,13 @@ test("Background position overlay behavior", async () => {
     const { startDrag, endDrag } = patchDragBackground(
         ".o-overlay-container .o_we_background_dragger",
         positionStartDrag,
-        { x: positionStartDrag.x + movement, y: positionStartDrag.y + movement }
+        { x: positionStartDrag.x + movement, y: positionStartDrag.y + movement },
     );
 
     const drag = async () => {
         const dragActions = await startDrag();
         expect(".o-overlay-container .o_we_background_position_overlay").toHaveClass(
-            "o_we_grabbing"
+            "o_we_grabbing",
         );
         await endDrag(dragActions);
     };
@@ -227,7 +235,7 @@ test("Background position overlay behavior", async () => {
         {
             // Load the CSS related to the Scroll Effect
             loadIframeBundles: true,
-        }
+        },
     );
 
     // Force the dimensions of the web client in order to have consistent result
@@ -248,7 +256,11 @@ test("Background position overlay behavior", async () => {
     await openBgPositionOverlay(section, waitSidebarUpdated);
 
     // Scrolling on the overlay should scroll the iframe
-    await scroll(queryOne(".o_we_background_position_overlay"), { y: 50 }, { scrollable: false });
+    await scroll(
+        queryOne(".o_we_background_position_overlay"),
+        { y: 50 },
+        { scrollable: false },
+    );
     await animationFrame();
     expect(":iframe body").toHaveProperty("scrollTop", 50);
 
@@ -269,7 +281,7 @@ test("Background position overlay behavior", async () => {
         {
             message:
                 "Background X position should be dragged correctly with Scroll Effect set to None ",
-        }
+        },
     );
 
     // Set Scroll Effect to "Fixed"
@@ -293,7 +305,7 @@ test("Background position overlay behavior", async () => {
         {
             message:
                 "Background Y position should be dragged correctly with Scroll Effect set to Fixed ",
-        }
+        },
     );
 });
 
@@ -334,7 +346,7 @@ async function dragAndDropBgImage() {
     const { startDrag, endDrag } = patchDragBackground(
         ".o-overlay-container .o_we_background_dragger",
         { x: 199, y: 199 },
-        { x: 200, y: 200 }
+        { x: 200, y: 200 },
     );
     const dragActions = await startDrag();
     await endDrag(dragActions);
@@ -349,19 +361,19 @@ test("change the main color of a background image of type '/html_editor/shape'",
         `,
         {
             loadIframeBundles: true,
-        }
+        },
     );
     await contains(":iframe section").click();
     await waitSidebarUpdated();
     await contains("[data-label='Main Color'] .o_we_color_preview").click();
     await contains(
-        ".o-main-components-container .o_colorpicker_section [data-color='o-color-5']"
+        ".o-main-components-container .o_colorpicker_section [data-color='o-color-5']",
     ).hover();
     expect(":iframe section").toHaveStyle({
         backgroundImage: `url("${window.location.origin}/html_editor/shape/http_routing/404.svg?c2=o-color-5")`,
     });
     await contains(
-        ".o-main-components-container .o_colorpicker_section [data-color='o-color-4']"
+        ".o-main-components-container .o_colorpicker_section [data-color='o-color-4']",
     ).hover();
     expect(":iframe section").toHaveStyle({
         backgroundImage: `url("${window.location.origin}/html_editor/shape/http_routing/404.svg?c2=o-color-4")`,
@@ -402,19 +414,23 @@ test("changing shape's background color doesn't hide the shape itself", async ()
         </section>`,
         {
             loadIframeBundles: true,
-        }
+        },
     );
     await contains(":iframe section").click();
     await waitSidebarUpdated();
     await contains("button[data-action-id='toggleBgShape']").click();
     await contains(
-        ".o_pager_container .o-hb-bg-shape-btn [data-action-value='html_builder/Connections/01'][data-action-id='setBackgroundShape']"
+        ".o_pager_container .o-hb-bg-shape-btn [data-action-value='html_builder/Connections/01'][data-action-id='setBackgroundShape']",
     ).click();
-    const backgroundImageValue = getComputedStyle(queryOne(":iframe .o_we_shape")).backgroundImage;
+    const backgroundImageValue = getComputedStyle(
+        queryOne(":iframe .o_we_shape"),
+    ).backgroundImage;
     expect(backgroundImageValue).toMatch(/Connections\/01/);
     await contains("[data-label='Colors'] button:nth-child(2)").click();
     await contains(".o_colorpicker_section button[data-color='o-color-1']").click();
-    expect(":iframe .o_we_shape").toHaveStyle({ backgroundImage: backgroundImageValue });
+    expect(":iframe .o_we_shape").toHaveStyle({
+        backgroundImage: backgroundImageValue,
+    });
 });
 
 test("remove background image removes color filter", async () => {
@@ -435,10 +451,10 @@ test("change background size", async () => {
     await waitSidebarUpdated();
 
     const widthInput = await waitFor(
-        '[data-action-id="setBackgroundSize"][data-action-param="width"] > input'
+        '[data-action-id="setBackgroundSize"][data-action-param="width"] > input',
     );
     const heightInput = await waitFor(
-        '[data-action-id="setBackgroundSize"][data-action-param="height"] > input'
+        '[data-action-id="setBackgroundSize"][data-action-param="height"] > input',
     );
 
     expect(heightInput).toHaveValue("");
@@ -471,7 +487,7 @@ test("background shape detection is compatible with previous ones (web_editor)",
     await contains("div[data-label='Shape'] button:first-of-type").click();
     expect("button.active[data-action-id='setBackgroundShape']").toHaveAttribute(
         "data-action-value",
-        "html_builder/Connections/01"
+        "html_builder/Connections/01",
     );
 });
 
@@ -533,7 +549,9 @@ test("can customize background shape groups", async () => {
     await contains("[data-action-value='html_builder/Connections/01']").click();
     expect(":iframe section").toHaveAttribute(
         "data-oe-shape-data",
-        '{"shape":"html_builder/Connections/01","flip":[],"showOnMobile":false,"shapeAnimationSpeed":"0"}'
+        '{"shape":"html_builder/Connections/01","flip":[],"showOnMobile":false,"shapeAnimationSpeed":"0"}',
     );
-    expect("div[data-label='Shape'] button:not([data-action-id])").toHaveText("Custom 01");
+    expect("div[data-label='Shape'] button:not([data-action-id])").toHaveText(
+        "Custom 01",
+    );
 });

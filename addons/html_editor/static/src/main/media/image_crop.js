@@ -1,23 +1,24 @@
 /** @odoo-module native */
 import {
     activateCropper,
+    cropperDataFieldsWithAspectRatio,
     loadImage,
     loadImageInfo,
-    cropperDataFieldsWithAspectRatio,
 } from "@html_editor/utils/image_processing";
-import { IMAGE_SHAPES } from "./image_plugin.js";
-import { _t } from "@web/core/l10n/translation";
 import {
     Component,
-    useRef,
+    markup,
     onMounted,
     onWillDestroy,
-    markup,
-    useExternalListener,
     status,
+    useExternalListener,
+    useRef,
 } from "@odoo/owl";
+import { _t } from "@web/core/l10n/translation";
+import { closestScrollableY, scrollTo } from "@web/core/utils/dom/scrolling";
 import { useService } from "@web/core/utils/hooks";
-import { scrollTo, closestScrollableY } from "@web/core/utils/dom/scrolling";
+
+import { IMAGE_SHAPES } from "./image_plugin.js";
 
 export const cropperAspectRatios = {
     "0/0": { label: _t("Flexible"), value: 0 },
@@ -69,11 +70,13 @@ export class ImageCrop extends Component {
                     this.closeCropper();
                 }
             },
-            { capture: true }
+            { capture: true },
         );
 
         onMounted(() => {
-            this.hasModifiedImageClass = this.media.classList.contains("o_modified_image_to_save");
+            this.hasModifiedImageClass = this.media.classList.contains(
+                "o_modified_image_to_save",
+            );
             if (this.hasModifiedImageClass) {
                 this.media.classList.remove("o_modified_image_to_save");
             }
@@ -110,7 +113,9 @@ export class ImageCrop extends Component {
             this.cropper.reset();
             if (this.aspectRatio !== "0/0") {
                 this.aspectRatio = "0/0";
-                this.cropper.setAspectRatio(cropperAspectRatios[this.aspectRatio].value);
+                this.cropper.setAspectRatio(
+                    cropperAspectRatios[this.aspectRatio].value,
+                );
             }
             await this.save();
         }
@@ -129,7 +134,7 @@ export class ImageCrop extends Component {
         // todo: check that the mutations of loadImage are not problematic (they most probably are).
         Object.assign(this.media.dataset, await loadImageInfo(this.media));
         const isIllustration = /^\/(?:html|web)_editor\/shape\/illustration\//.test(
-            this.media.dataset.originalSrc
+            this.media.dataset.originalSrc,
         );
         this.uncroppable = false;
         if (this.media.dataset.originalSrc && !isIllustration) {
@@ -144,13 +149,13 @@ export class ImageCrop extends Component {
             this.notification.add(
                 markup(
                     _t(
-                        "This type of image is not supported for cropping.<br/>If you want to crop it, please first download it from the original source and upload it in Odoo."
-                    )
+                        "This type of image is not supported for cropping.<br/>If you want to crop it, please first download it from the original source and upload it in Odoo.",
+                    ),
                 ),
                 {
                     title: _t("This image is an external image"),
                     type: "warning",
-                }
+                },
             );
             this.forceClose = true;
             return this.closeCropper();
@@ -174,7 +179,7 @@ export class ImageCrop extends Component {
         sel && sel.removeAllRanges();
 
         // Overlaying the cropper image over the real image
-        let offset = undefined;
+        let offset;
         if (!this.media.getClientRects().length) {
             offset = { top: 0, left: 0 };
         } else {
@@ -210,10 +215,13 @@ export class ImageCrop extends Component {
                 onReady: (cropper) => {
                     const cropperMove = cropper.face;
                     for (const shape of IMAGE_SHAPES) {
-                        cropperMove.classList.toggle(shape, this.media.classList.contains(shape));
+                        cropperMove.classList.toggle(
+                            shape,
+                            this.media.classList.contains(shape),
+                        );
                     }
                 },
-            }
+            },
         );
         this.isCropperActive = true;
         this.applyButtonRef.el?.focus({ preventScroll: true });
@@ -340,7 +348,7 @@ export class ImageCrop extends Component {
         return Object.fromEntries(
             cropperDataFieldsWithAspectRatio
                 .map((field) => [field, cropper.getData()[field]])
-                .filter(([, value]) => value)
+                .filter(([, value]) => value),
         );
     }
     /**

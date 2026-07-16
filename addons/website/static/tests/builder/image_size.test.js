@@ -1,7 +1,13 @@
 import { expect, test } from "@odoo/hoot";
 import { contains } from "@web/../tests/web_test_helpers";
+
+import {
+    testGifImg,
+    testGifImgSrc,
+    testImg,
+    testImgSrc,
+} from "./image_test_helpers.js";
 import { defineWebsiteModels, setupWebsiteBuilder } from "./website_helpers.js";
-import { testImg, testImgSrc, testGifImg, testGifImgSrc } from "./image_test_helpers.js";
 
 defineWebsiteModels();
 

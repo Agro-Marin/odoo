@@ -1,9 +1,17 @@
-import { setupInteractionWhiteList, startInteractions } from "@web/../tests/public/helpers";
-
 import { describe, expect, test } from "@odoo/hoot";
-import { animationFrame, clear, click, fill, queryOne, setInputFiles } from "@odoo/hoot-dom";
+import {
+    animationFrame,
+    clear,
+    click,
+    fill,
+    queryOne,
+    setInputFiles,
+} from "@odoo/hoot-dom";
 import { advanceTime, Deferred } from "@odoo/hoot-mock";
-
+import {
+    setupInteractionWhiteList,
+    startInteractions,
+} from "@web/../tests/public/helpers";
 import { contains, onRpc } from "@web/../tests/web_test_helpers";
 
 setupInteractionWhiteList(["website.form", "website.post_link"]);
@@ -12,7 +20,9 @@ describe.current.tags("interaction_dev");
 
 function checkField(inputEl, isVisible, hasError) {
     const fieldEl = inputEl.closest(".s_website_form_field");
-    isVisible ? expect(fieldEl).not.toHaveClass("d-none") : expect(fieldEl).toHaveClass("d-none");
+    isVisible
+        ? expect(fieldEl).not.toHaveClass("d-none")
+        : expect(fieldEl).toHaveClass("d-none");
     // Inputs required for the model are never disabled.
     if (!fieldEl.matches(".s_website_form_model_required")) {
         isVisible ? expect(inputEl).toBeEnabled() : expect(inputEl).not.toBeEnabled();

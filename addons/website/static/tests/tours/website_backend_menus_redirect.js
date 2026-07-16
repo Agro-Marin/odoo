@@ -14,7 +14,9 @@ registry.category("web_tour.tours").add("website_backend_menus_redirect", {
             trigger: "body:has(#wrap)",
             run: function () {
                 // The dropdown is hidden behind an SVG on hover animation.
-                this.anchor.querySelector(".o_frontend_to_backend_apps_menu").classList.add("show");
+                this.anchor
+                    .querySelector(".o_frontend_to_backend_apps_menu")
+                    .classList.add("show");
             },
         },
         {

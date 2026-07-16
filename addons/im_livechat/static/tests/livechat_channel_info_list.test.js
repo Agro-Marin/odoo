@@ -28,7 +28,10 @@ test("livechat note is loaded when opening the channel info list", async () => {
     });
     const channelId = pyEnv["discuss.channel"].create({
         channel_member_ids: [
-            Command.create({ partner_id: serverState.partnerId, livechat_member_type: "agent" }),
+            Command.create({
+                partner_id: serverState.partnerId,
+                livechat_member_type: "agent",
+            }),
             Command.create({ guest_id: guestId, livechat_member_type: "visitor" }),
         ],
         country_id: countryId,
@@ -38,7 +41,9 @@ test("livechat note is loaded when opening the channel info list", async () => {
     });
     await start();
     await openDiscuss(channelId);
-    await contains(".o-livechat-ChannelInfoList textarea", { value: "Initial note\nSecond line" });
+    await contains(".o-livechat-ChannelInfoList textarea", {
+        value: "Initial note\nSecond line",
+    });
 });
 
 test("shows country and language in channel info list", async () => {
@@ -48,7 +53,10 @@ test("shows country and language in channel info list", async () => {
     const guestId = pyEnv["mail.guest"].create({ name: "Visitor #20" });
     const channelId = pyEnv["discuss.channel"].create({
         channel_member_ids: [
-            Command.create({ partner_id: serverState.partnerId, livechat_member_type: "agent" }),
+            Command.create({
+                partner_id: serverState.partnerId,
+                livechat_member_type: "agent",
+            }),
             Command.create({ guest_id: guestId, livechat_member_type: "visitor" }),
         ],
         country_id: countryId,
@@ -61,7 +69,9 @@ test("shows country and language in channel info list", async () => {
     await contains("h6", { text: "Country & Language" });
     await contains("span[title='Language']", { text: "English" });
     const [country] = pyEnv["res.country"].search_read([["id", "=", countryId]]);
-    await contains(`.o_country_flag[data-src*='/country_flags/${country.code.toLowerCase()}.png']`);
+    await contains(
+        `.o_country_flag[data-src*='/country_flags/${country.code.toLowerCase()}.png']`,
+    );
 });
 
 test("editing livechat note is synced between tabs", async () => {
@@ -80,7 +90,10 @@ test("editing livechat note is synced between tabs", async () => {
     });
     const channelId = pyEnv["discuss.channel"].create({
         channel_member_ids: [
-            Command.create({ partner_id: serverState.partnerId, livechat_member_type: "agent" }),
+            Command.create({
+                partner_id: serverState.partnerId,
+                livechat_member_type: "agent",
+            }),
             Command.create({ guest_id: guestId, livechat_member_type: "visitor" }),
         ],
         country_id: countryId,
@@ -98,10 +111,16 @@ test("editing livechat note is synced between tabs", async () => {
     await contains(`${tab2.selector} .o-livechat-ChannelInfoList textarea`, {
         value: "Initial note",
     });
-    await insertText(`${tab1.selector} .o-livechat-ChannelInfoList textarea`, "Updated note", {
-        replace: true,
-    });
-    document.querySelector(`${tab1.selector} .o-livechat-ChannelInfoList textarea`).blur(); // Trigger the blur event to save the note
+    await insertText(
+        `${tab1.selector} .o-livechat-ChannelInfoList textarea`,
+        "Updated note",
+        {
+            replace: true,
+        },
+    );
+    document
+        .querySelector(`${tab1.selector} .o-livechat-ChannelInfoList textarea`)
+        .blur(); // Trigger the blur event to save the note
     await contains(`${tab2.selector} .o-livechat-ChannelInfoList textarea`, {
         value: "Updated note",
     }); // Note should be synced with bus
@@ -120,7 +139,10 @@ test("shows live chat status in discuss sidebar", async () => {
     });
     const channelId = pyEnv["discuss.channel"].create({
         channel_member_ids: [
-            Command.create({ partner_id: serverState.partnerId, livechat_member_type: "agent" }),
+            Command.create({
+                partner_id: serverState.partnerId,
+                livechat_member_type: "agent",
+            }),
             Command.create({ guest_id: guestId, livechat_member_type: "visitor" }),
         ],
         country_id: countryId,
@@ -130,15 +152,19 @@ test("shows live chat status in discuss sidebar", async () => {
     });
     await start();
     await openDiscuss(channelId);
-    await contains(".o-livechat-ChannelInfoList button.active", { text: "Waiting for customer" });
+    await contains(".o-livechat-ChannelInfoList button.active", {
+        text: "Waiting for customer",
+    });
     await contains(".o-mail-DiscussSidebar-item span[title='Waiting for customer']");
     await click(".o-livechat-ChannelInfoList button", { text: "Looking for help" });
-    await contains(".o-livechat-ChannelInfoList button.active", { text: "Looking for help" });
+    await contains(".o-livechat-ChannelInfoList button.active", {
+        text: "Looking for help",
+    });
     await contains(".o-mail-DiscussSidebar-item span[title='Looking for help']");
     // live chat status icon also in messaging menu item
     await click(".o_menu_systray i[aria-label='Messages']");
     await contains(
-        ".o-mail-MessagingMenu .o-mail-NotificationItem:contains('Visitor #20') [title='Looking for help']"
+        ".o-mail-MessagingMenu .o-mail-NotificationItem:contains('Visitor #20') [title='Looking for help']",
     );
 });
 
@@ -155,7 +181,10 @@ test("editing livechat status is synced between tabs", async () => {
     });
     const channelId = pyEnv["discuss.channel"].create({
         channel_member_ids: [
-            Command.create({ partner_id: serverState.partnerId, livechat_member_type: "agent" }),
+            Command.create({
+                partner_id: serverState.partnerId,
+                livechat_member_type: "agent",
+            }),
             Command.create({ guest_id: guestId, livechat_member_type: "visitor" }),
         ],
         country_id: countryId,
@@ -196,7 +225,10 @@ test("Manage expertises from channel info list", async () => {
     const expertiseIds = pyEnv["im_livechat.expertise"].create([{ name: "pricing" }]);
     const channelId = pyEnv["discuss.channel"].create({
         channel_member_ids: [
-            Command.create({ partner_id: serverState.partnerId, livechat_member_type: "agent" }),
+            Command.create({
+                partner_id: serverState.partnerId,
+                livechat_member_type: "agent",
+            }),
             Command.create({ guest_id: guestId, livechat_member_type: "visitor" }),
         ],
         country_id: countryId,
@@ -215,7 +247,9 @@ test("Manage expertises from channel info list", async () => {
     await contains(".o-livechat-ChannelInfoList .o_tag", { text: "events", count: 0 });
     await press("Backspace");
     await contains(".o-livechat-ChannelInfoList .o_tag", { text: "pricing", count: 0 });
-    await contains(".o-livechat-ExpertiseTagsAutocomplete input[placeholder='Add expertise']");
+    await contains(
+        ".o-livechat-ExpertiseTagsAutocomplete input[placeholder='Add expertise']",
+    );
     await click("a", { text: "events" });
     await contains(".o-livechat-ChannelInfoList .o_tag", { text: "events" });
 });
@@ -225,7 +259,10 @@ test("Can download transcript from channel info panel", async () => {
     const guestId = pyEnv["mail.guest"].create({ name: "Visitor #20" });
     const channelId = pyEnv["discuss.channel"].create({
         channel_member_ids: [
-            Command.create({ partner_id: serverState.partnerId, livechat_member_type: "agent" }),
+            Command.create({
+                partner_id: serverState.partnerId,
+                livechat_member_type: "agent",
+            }),
             Command.create({ guest_id: guestId, livechat_member_type: "visitor" }),
         ],
         channel_type: "livechat",
@@ -234,7 +271,7 @@ test("Can download transcript from channel info panel", async () => {
     await start();
     await openDiscuss(channelId);
     await contains(
-        `a[href='${getOrigin()}/im_livechat/download_transcript/${channelId}']:text(Download)`
+        `a[href='${getOrigin()}/im_livechat/download_transcript/${channelId}']:text(Download)`,
     );
 });
 
@@ -250,9 +287,15 @@ test("Disable actions for non-livechat users", async () => {
     });
     await start();
     await openDiscuss(channelId);
-    await waitFor(".o-livechat-LivechatStatusSelection button:text(In progress):disabled");
-    await waitFor(".o-livechat-LivechatStatusSelection button:text(Waiting for customer):disabled");
-    await waitFor(".o-livechat-LivechatStatusSelection button:text(Looking for help):disabled");
+    await waitFor(
+        ".o-livechat-LivechatStatusSelection button:text(In progress):disabled",
+    );
+    await waitFor(
+        ".o-livechat-LivechatStatusSelection button:text(Waiting for customer):disabled",
+    );
+    await waitFor(
+        ".o-livechat-LivechatStatusSelection button:text(Looking for help):disabled",
+    );
     await waitFor("textarea[placeholder='Add your notes here...']:disabled");
     await waitFor(".o-livechat-ExpertiseTagsAutocomplete.o-disabled");
 });

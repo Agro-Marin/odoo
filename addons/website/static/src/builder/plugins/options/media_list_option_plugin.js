@@ -1,11 +1,12 @@
 /** @odoo-module native */
+import { BuilderAction } from "@html_builder/core/builder_action";
+import { BaseOptionComponent } from "@html_builder/core/utils";
 import { BEGIN, END } from "@html_builder/utils/option_sequence";
 import { Plugin } from "@html_editor/plugin";
 import { withSequence } from "@html_editor/utils/resource";
 import { registry } from "@web/core/registry";
+
 import { MediaListItemOption } from "./media_list_item_option.js";
-import { BuilderAction } from "@html_builder/core/builder_action";
-import { BaseOptionComponent } from "@html_builder/core/utils";
 
 export class MediaListOption extends BaseOptionComponent {
     static template = "website.MediaListOption";
@@ -50,4 +51,6 @@ export class SetMediaLayoutAction extends BuilderAction {
     }
 }
 
-registry.category("website-plugins").add(MediaListOptionPlugin.id, MediaListOptionPlugin);
+registry
+    .category("website-plugins")
+    .add(MediaListOptionPlugin.id, MediaListOptionPlugin);

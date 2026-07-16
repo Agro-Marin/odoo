@@ -1,9 +1,10 @@
 /** @odoo-module native */
+import { BaseVerticalAlignmentOption } from "@html_builder/plugins/base_vertical_alignment_option";
 import { Plugin } from "@html_editor/plugin";
 import { withSequence } from "@html_editor/utils/resource";
-import { BOX_BORDER_SHADOW } from "../option_sequence.js";
 import { registry } from "@web/core/registry";
-import { BaseVerticalAlignmentOption } from "@html_builder/plugins/base_vertical_alignment_option";
+
+import { BOX_BORDER_SHADOW } from "../option_sequence.js";
 
 export class WebsiteVerticalAlignmentOption extends BaseVerticalAlignmentOption {
     static selector = ".s_attributes_vertical_col";
@@ -16,7 +17,9 @@ class VerticalAlignmentOptionPlugin extends Plugin {
     static id = "websiteVerticalAlignmentOption";
     /** @type {import("plugins").WebsiteResources} */
     resources = {
-        builder_options: [withSequence(BOX_BORDER_SHADOW, WebsiteVerticalAlignmentOption)],
+        builder_options: [
+            withSequence(BOX_BORDER_SHADOW, WebsiteVerticalAlignmentOption),
+        ],
     };
 }
 registry

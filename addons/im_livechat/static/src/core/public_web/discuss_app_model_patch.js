@@ -2,7 +2,6 @@
 import { fields } from "@mail/core/common/record";
 import { DiscussApp } from "@mail/core/public_web/discuss_app_model";
 import { effectWithDebouncedCleanup } from "@mail/utils/common/misc";
-
 import { browser } from "@web/core/browser/browser";
 import { _t } from "@web/core/l10n/translation";
 import { patch } from "@web/core/utils/patch";
@@ -34,16 +33,19 @@ const discussAppStaticPatch = {
                         return;
                     }
                     category.threads
-                        .filter((thread) => !thread.self_member_id && !thread.isLocallyPinned)
+                        .filter(
+                            (thread) =>
+                                !thread.self_member_id && !thread.isLocallyPinned,
+                        )
                         .forEach((thread) => thread.delete());
                 };
             },
             predicate: (app) =>
                 Boolean(
                     app.exists() &&
-                        app.livechatLookingForHelpCategory?.open &&
-                        !app.livechatLookingForHelpCategory.hidden &&
-                        app.isActive
+                    app.livechatLookingForHelpCategory?.open &&
+                    !app.livechatLookingForHelpCategory.hidden &&
+                    app.isActive,
                 ),
             reactiveTargets: [app],
         });
@@ -89,7 +91,10 @@ patch(DiscussApp.prototype, {
         this.isLivechatInfoPanelOpenByDefault = fields.Attr(true, {
             compute() {
                 void this._recomputeIsLivechatInfoPanelOpenedByDefault;
-                return browser.localStorage.getItem(LIVECHAT_INFO_DEFAULT_OPEN_LS) !== "false";
+                return (
+                    browser.localStorage.getItem(LIVECHAT_INFO_DEFAULT_OPEN_LS) !==
+                    "false"
+                );
             },
         });
     },
@@ -104,11 +109,15 @@ patch(DiscussApp.prototype, {
     _threadOnUpdate() {
         if (
             this.lastThread?.notEq(this.thread) &&
-            (this.lastThread.livechat_status === "need_help" || this.lastThread.unpinOnThreadSwitch)
+            (this.lastThread.livechat_status === "need_help" ||
+                this.lastThread.unpinOnThreadSwitch)
         ) {
             this.lastThread.isLocallyPinned = false;
         }
-        if (this.thread?.livechat_status === "need_help" && !this.thread.self_member_id) {
+        if (
+            this.thread?.livechat_status === "need_help" &&
+            !this.thread.self_member_id
+        ) {
             this.thread.isLocallyPinned = true;
         }
         this.lastThread = this.thread;

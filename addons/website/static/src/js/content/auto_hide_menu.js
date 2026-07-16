@@ -37,7 +37,7 @@ async function autoHideMenu(el, options) {
     // the "auto-hide" on mobile menu.
     const [breakpoint = "md"] = navbar
         ? Object.keys(BREAKPOINT_SIZES).filter((suffix) =>
-              navbar.classList.contains(`navbar-expand-${suffix}`)
+              navbar.classList.contains(`navbar-expand-${suffix}`),
           )
         : [];
     const isNoHamburgerMenu = !!navbar && navbar.classList.contains("navbar-expand");
@@ -53,7 +53,7 @@ async function autoHideMenu(el, options) {
             loadingStyleClasses: [],
             autoClose: () => true,
         },
-        options || {}
+        options || {},
     );
 
     const isUserNavbar = el.parentElement.classList.contains("o_main_navbar");
@@ -61,7 +61,7 @@ async function autoHideMenu(el, options) {
     const dropdownToggleClasses = ["h-auto", "py-2", "text-secondary"];
     const autoMarginLeftRegex = /\bm[sx]?(?:-(?:sm|md|lg|xl|xxl))?-auto\b/; // grep: ms-auto mx-auto
     const autoMarginRightRegex = /\bm[ex]?(?:-(?:sm|md|lg|xl|xxl))?-auto\b/; // grep: me-auto mx-auto
-    var extraItemsToggle = null;
+    let extraItemsToggle = null;
     const afterFontsloading = new Promise((resolve) => {
         if (document.fonts) {
             document.fonts.ready.then(resolve);
@@ -111,27 +111,32 @@ async function autoHideMenu(el, options) {
             return;
         }
         // Move extra menu items from dropdown-menu to menu element in the same order.
-        [...extraItemsToggle.querySelector(".dropdown-menu").children].forEach((item) => {
-            if (!isUserNavbar) {
-                item.classList.add("nav-item");
-                const itemLink = item.querySelector(".dropdown-item");
-                if (itemLink) {
-                    itemLink.classList.remove("dropdown-item");
-                    itemLink.classList.add("nav-link");
+        [...extraItemsToggle.querySelector(".dropdown-menu").children].forEach(
+            (item) => {
+                if (!isUserNavbar) {
+                    item.classList.add("nav-item");
+                    const itemLink = item.querySelector(".dropdown-item");
+                    if (itemLink) {
+                        itemLink.classList.remove("dropdown-item");
+                        itemLink.classList.add("nav-link");
+                    }
+                } else {
+                    item.classList.remove("dropdown-item");
+                    const dropdownSubMenu = item.querySelector(".dropdown-menu");
+                    const dropdownSubMenuButton =
+                        item.querySelector(".dropdown-toggle");
+                    if (dropdownSubMenu) {
+                        dropdownSubMenu.classList.remove(...dropdownSubMenuClasses);
+                    }
+                    if (dropdownSubMenuButton) {
+                        dropdownSubMenuButton.classList.remove(
+                            ...dropdownToggleClasses,
+                        );
+                    }
                 }
-            } else {
-                item.classList.remove("dropdown-item");
-                const dropdownSubMenu = item.querySelector(".dropdown-menu");
-                const dropdownSubMenuButton = item.querySelector(".dropdown-toggle");
-                if (dropdownSubMenu) {
-                    dropdownSubMenu.classList.remove(...dropdownSubMenuClasses);
-                }
-                if (dropdownSubMenuButton) {
-                    dropdownSubMenuButton.classList.remove(...dropdownToggleClasses);
-                }
-            }
-            el.insertBefore(item, extraItemsToggle);
-        });
+                el.insertBefore(item, extraItemsToggle);
+            },
+        );
         extraItemsToggle.remove();
         extraItemsToggle = null;
     }
@@ -159,7 +164,8 @@ async function autoHideMenu(el, options) {
         if (
             !el.getClientRects().length ||
             el.closest(".show") ||
-            (window.matchMedia(`(max-width: ${minSize}px)`).matches && !isNoHamburgerMenu)
+            (window.matchMedia(`(max-width: ${minSize}px)`).matches &&
+                !isNoHamburgerMenu)
         ) {
             return _endAutoMoreMenu();
         }
@@ -172,24 +178,25 @@ async function autoHideMenu(el, options) {
             unfoldableItems.push(node);
             return false;
         });
-        var nbItems = items.length;
-        var menuItemsWidth = items.reduce(
+        let nbItems = items.length;
+        let menuItemsWidth = items.reduce(
             (sum, el) => sum + computeFloatOuterWidthWithMargins(el, true, true, false),
-            0
+            0,
         );
         let maxWidth = 0;
 
         if (!maxWidth) {
             maxWidth = computeFloatOuterWidthWithMargins(el, true, true, true);
-            var style = window.getComputedStyle(el);
+            const style = window.getComputedStyle(el);
             maxWidth -=
                 parseFloat(style.paddingLeft) +
                 parseFloat(style.paddingRight) +
                 parseFloat(style.borderLeftWidth) +
                 parseFloat(style.borderRightWidth);
             maxWidth -= unfoldableItems.reduce(
-                (sum, el) => sum + computeFloatOuterWidthWithMargins(el, true, true, false),
-                0
+                (sum, el) =>
+                    sum + computeFloatOuterWidthWithMargins(el, true, true, false),
+                0,
             );
         }
         // Ignore if there is no overflow.
@@ -197,14 +204,21 @@ async function autoHideMenu(el, options) {
             return _endAutoMoreMenu();
         }
 
-        const dropdownMenu = _addExtraItemsButton(items[nbItems - 1].nextElementSibling);
-        menuItemsWidth += computeFloatOuterWidthWithMargins(extraItemsToggle, true, true, false);
+        const dropdownMenu = _addExtraItemsButton(
+            items[nbItems - 1].nextElementSibling,
+        );
+        menuItemsWidth += computeFloatOuterWidthWithMargins(
+            extraItemsToggle,
+            true,
+            true,
+            false,
+        );
         do {
             menuItemsWidth -= computeFloatOuterWidthWithMargins(
                 items[--nbItems],
                 true,
                 true,
-                false
+                false,
             );
         } while (!(maxWidth - menuItemsWidth >= -0.001) && nbItems > 0);
 
@@ -234,15 +248,15 @@ async function autoHideMenu(el, options) {
     }
 
     function computeFloatOuterWidthWithMargins(el, mLeft, mRight, considerAutoMargins) {
-        var rect = el.getBoundingClientRect();
-        var style = window.getComputedStyle(el);
-        var outerWidth = rect.right - rect.left;
+        const rect = el.getBoundingClientRect();
+        const style = window.getComputedStyle(el);
+        let outerWidth = rect.right - rect.left;
         const isRTL = style.direction === "rtl";
         if (
             mLeft !== false &&
             (considerAutoMargins ||
                 !(isRTL ? autoMarginRightRegex : autoMarginLeftRegex).test(
-                    el.getAttribute("class")
+                    el.getAttribute("class"),
                 ))
         ) {
             outerWidth += parseFloat(style.marginLeft);
@@ -251,7 +265,7 @@ async function autoHideMenu(el, options) {
             mRight !== false &&
             (considerAutoMargins ||
                 !(isRTL ? autoMarginLeftRegex : autoMarginRightRegex).test(
-                    el.getAttribute("class")
+                    el.getAttribute("class"),
                 ))
         ) {
             outerWidth += parseFloat(style.marginRight);
@@ -270,8 +284,9 @@ async function autoHideMenu(el, options) {
         extraItemsToggle.className = "nav-item dropdown o_extra_menu_items";
         extraItemsToggle.setAttribute("role", "presentation");
         extraItemsToggleIcon.className = "oi oi-plus";
-        const extraItemsToggleAriaLabel = el.closest("[data-extra-items-toggle-aria-label]")
-            ?.dataset.extraItemsToggleAriaLabel;
+        const extraItemsToggleAriaLabel = el.closest(
+            "[data-extra-items-toggle-aria-label]",
+        )?.dataset.extraItemsToggleAriaLabel;
         Object.entries({
             role: "menuitem",
             href: "#",
@@ -320,9 +335,14 @@ async function autoHideMenu(el, options) {
     function _endAutoMoreMenu() {
         const extraMenuEl = _getExtraMenuEl();
         const setSelection = () =>
-            docSelection.setBaseAndExtent(anchorNode, anchorOffset, focusNode, focusOffset);
+            docSelection.setBaseAndExtent(
+                anchorNode,
+                anchorOffset,
+                focusNode,
+                focusOffset,
+            );
         const anchorInExtra = anchorNode?.parentElement.closest(
-            ".o_extra_menu_items .dropdown-menu"
+            ".o_extra_menu_items .dropdown-menu",
         );
         if (extraMenuEl && (anchorInExtra || wasExtraMenuOpenBefore)) {
             if (anchorInExtra) {
@@ -347,7 +367,8 @@ document.addEventListener("DOMContentLoaded", async () => {
         if (!topMenu) {
             return;
         }
-        const unfoldable = ".divider, .divider ~ li, .o_no_autohide_item, .js_language_selector";
+        const unfoldable =
+            ".divider, .divider ~ li, .o_no_autohide_item, .js_language_selector";
         if (
             !topMenu.querySelector(`:scope > :not(${unfoldable})`) ||
             header.classList.contains("o_no_autohide_menu")
@@ -355,7 +376,8 @@ document.addEventListener("DOMContentLoaded", async () => {
             topMenu.classList.remove("o_menu_loading");
             return;
         }
-        const excludedImagesSelector = ".o_mega_menu, .o_offcanvas_logo_container, .o_lang_flag";
+        const excludedImagesSelector =
+            ".o_mega_menu, .o_offcanvas_logo_container, .o_lang_flag";
         const excludedImages = [...header.querySelectorAll(excludedImagesSelector)];
         const images = [...header.querySelectorAll("img")].filter((img) => {
             excludedImages.forEach((node) => {

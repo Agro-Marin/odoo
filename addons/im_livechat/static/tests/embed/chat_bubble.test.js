@@ -2,7 +2,12 @@ import {
     defineLivechatModels,
     loadDefaultEmbedConfig,
 } from "@im_livechat/../tests/livechat_test_helpers";
-import { contains, setupChatHub, start, startServer } from "@mail/../tests/mail_test_helpers";
+import {
+    contains,
+    setupChatHub,
+    start,
+    startServer,
+} from "@mail/../tests/mail_test_helpers";
 import { describe, test } from "@odoo/hoot";
 import { Command, makeMockEnv, serverState } from "@web/../tests/web_test_helpers";
 
@@ -13,7 +18,10 @@ test("Do not show bot IM status", async () => {
     const pyEnv = await startServer();
     await loadDefaultEmbedConfig();
     await makeMockEnv({ embedLivechat: true });
-    const partnerId1 = pyEnv["res.partner"].create({ name: "Mitchell", im_status: "online" });
+    const partnerId1 = pyEnv["res.partner"].create({
+        name: "Mitchell",
+        im_status: "online",
+    });
     pyEnv["res.users"].create({ partner_id: partnerId1 });
     const channelId1 = pyEnv["discuss.channel"].create({
         channel_member_ids: [
@@ -24,7 +32,10 @@ test("Do not show bot IM status", async () => {
     const partnerId2 = pyEnv["res.partner"].create({ name: "Dummy" });
     const channelId2 = pyEnv["discuss.channel"].create({
         channel_member_ids: [
-            Command.create({ partner_id: serverState.partnerId, livechat_member_type: "visitor" }),
+            Command.create({
+                partner_id: serverState.partnerId,
+                livechat_member_type: "visitor",
+            }),
             Command.create({ partner_id: partnerId2, livechat_member_type: "bot" }),
         ],
         channel_type: "livechat",

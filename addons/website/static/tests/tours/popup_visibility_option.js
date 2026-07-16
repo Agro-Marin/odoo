@@ -1,4 +1,7 @@
-import { insertSnippet, registerWebsitePreviewTour } from "@website/js/tours/tour_utils";
+import {
+    insertSnippet,
+    registerWebsitePreviewTour,
+} from "@website/js/tours/tour_utils";
 
 registerWebsitePreviewTour(
     "website_popup_visibility_option",
@@ -30,5 +33,5 @@ registerWebsitePreviewTour(
             content: "Check that the banner is invisible.",
             trigger: "ul .o_we_invisible_entry i.fa-eye-slash",
         },
-    ]
+    ],
 );

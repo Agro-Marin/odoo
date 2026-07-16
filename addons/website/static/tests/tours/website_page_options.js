@@ -26,7 +26,8 @@ registerWebsitePreviewTour(
         ...clickOnEditAndWaitEditMode(),
         ...clickOnSnippet({ id: "o_header_standard", name: "Header" }),
         {
-            content: "Open the color picker to change the background color of the header",
+            content:
+                "Open the color picker to change the background color of the header",
             trigger:
                 "div[data-container-title='Header'] .hb-row[data-label='Header Position'] + .hb-row-sublevel-1[data-label='Background'] button",
             run: "click",
@@ -66,7 +67,8 @@ registerWebsitePreviewTour(
         },
         {
             content: "Check that text color of the navbar toggler icon is in red",
-            trigger: ':iframe header#top [data-bs-toggle="offcanvas"] .navbar-toggler-icon',
+            trigger:
+                ':iframe header#top [data-bs-toggle="offcanvas"] .navbar-toggler-icon',
             run: function () {
                 if (getComputedStyle(this.anchor).color !== "rgb(255, 0, 0)") {
                     console.error("The navbar toggler icon is not in red");
@@ -94,7 +96,8 @@ registerWebsitePreviewTour(
         },
         ...clickOnSnippet({ id: "o_footer", name: "Footer" }),
         {
-            content: "Click on the visibility toggle to change the visibility of the footer",
+            content:
+                "Click on the visibility toggle to change the visibility of the footer",
             trigger:
                 "div[data-container-title='Footer'] div[data-label='Page Visibility'] div[data-action-id='setWebsiteFooterVisible'] input",
             run: "click",
@@ -108,5 +111,5 @@ registerWebsitePreviewTour(
             content: "Check that the footer is hidden",
             trigger: ":iframe #wrapwrap:has(.o_footer.d-none.o_snippet_invisible)",
         },
-    ]
+    ],
 );

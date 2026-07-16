@@ -1,8 +1,8 @@
 /** @odoo-module native */
 import { session } from "@web/session";
 import {
-    setUtmsHtmlDataset,
     getClosestLiEls,
+    setUtmsHtmlDataset,
     unhideConditionalElements,
 } from "@website/utils/misc";
 
@@ -28,7 +28,7 @@ document.addEventListener("DOMContentLoaded", () => {
         .forEach((el) => el.closest("li").classList.add("hidden_mega_menu_li"));
 
     const mobileInvisibleMegaMenuLiEls = getClosestLiEls(
-        ".o_mega_menu > section.o_snippet_mobile_invisible"
+        ".o_mega_menu > section.o_snippet_mobile_invisible",
     );
     if (!mobileInvisibleMegaMenuLiEls.length) {
         return;
@@ -38,10 +38,10 @@ document.addEventListener("DOMContentLoaded", () => {
     // to get the indices of the mega menu elements to hide the correct one
     // in mobile
     const desktopMegaMenuLiEls = getClosestLiEls(
-        "header#top nav:not(.o_header_mobile) .o_mega_menu_toggle"
+        "header#top nav:not(.o_header_mobile) .o_mega_menu_toggle",
     );
     const mobileMegaMenuLiEls = getClosestLiEls(
-        "header#top nav.o_header_mobile .o_mega_menu_toggle"
+        "header#top nav.o_header_mobile .o_mega_menu_toggle",
     );
     for (const mobileInvisibleMegaMenuLiEl of mobileInvisibleMegaMenuLiEls) {
         const index = desktopMegaMenuLiEls.indexOf(mobileInvisibleMegaMenuLiEl);

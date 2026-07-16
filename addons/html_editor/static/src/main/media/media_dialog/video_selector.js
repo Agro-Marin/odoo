@@ -1,11 +1,10 @@
 /** @odoo-module native */
+import { Switch } from "@html_editor/components/switch/switch";
+import { Component, onMounted, status, useRef, useState } from "@odoo/owl";
 import { _t } from "@web/core/l10n/translation";
 import { rpc } from "@web/core/network/rpc";
 import { useAutofocus, useService } from "@web/core/utils/hooks";
 import { debounce } from "@web/core/utils/timing";
-
-import { Component, useState, useRef, onMounted, status } from "@odoo/owl";
-import { Switch } from "@html_editor/components/switch/switch";
 
 class VideoOption extends Component {
     static template = "html_editor.VideoOption";
@@ -84,10 +83,7 @@ export class VideoSelector extends Component {
             autoplay: {
                 label: _t("Autoplay"),
                 description: _t("Videos are muted when autoplay is enabled"),
-                platforms: [
-                    this.PLATFORMS.youtube,
-                    this.PLATFORMS.vimeo,
-                ],
+                platforms: [this.PLATFORMS.youtube, this.PLATFORMS.vimeo],
                 urlParameter: () => "autoplay=1",
             },
             loop: {
@@ -97,10 +93,7 @@ export class VideoSelector extends Component {
             },
             hide_controls: {
                 label: _t("Hide player controls"),
-                platforms: [
-                    this.PLATFORMS.youtube,
-                    this.PLATFORMS.vimeo,
-                ],
+                platforms: [this.PLATFORMS.youtube, this.PLATFORMS.vimeo],
                 urlParameter: () => "controls=0",
             },
             hide_fullscreen: {
@@ -108,7 +101,9 @@ export class VideoSelector extends Component {
                 platforms: [this.PLATFORMS.youtube],
                 urlParameter: () => "fs=0",
                 isHidden: () =>
-                    this.state.options.filter((option) => option.id === "hide_controls")[0].value,
+                    this.state.options.filter(
+                        (option) => option.id === "hide_controls",
+                    )[0].value,
             },
             start_from: {
                 label: _t("Start at"),
@@ -153,7 +148,10 @@ export class VideoSelector extends Component {
             this.state.options = this.state.options.map((option) => {
                 if (option.id === optionId) {
                     // to avoid showing "0" when seconds are 0, we set it to "00:00"
-                    return { ...option, value: start_from === "0" ? "00:00" : start_from };
+                    return {
+                        ...option,
+                        value: start_from === "0" ? "00:00" : start_from,
+                    };
                 }
                 return option;
             });
@@ -167,7 +165,9 @@ export class VideoSelector extends Component {
             return [];
         }
         return this.state.options.filter(
-            (option) => !this.OPTIONS[option.id].isHidden || !this.OPTIONS[option.id].isHidden()
+            (option) =>
+                !this.OPTIONS[option.id].isHidden ||
+                !this.OPTIONS[option.id].isHidden(),
         );
     }
 
@@ -214,7 +214,11 @@ export class VideoSelector extends Component {
 
         // Detect if we have an embed code rather than an URL
         const embedMatch = this.state.urlInput.match(/(src|href)=["']?([^"']+)?/);
-        if (embedMatch && embedMatch[2].length > 0 && embedMatch[2].indexOf("instagram")) {
+        if (
+            embedMatch &&
+            embedMatch[2].length > 0 &&
+            embedMatch[2].indexOf("instagram")
+        ) {
             embedMatch[1] = embedMatch[2]; // Instagram embed code is different
         }
         const url = embedMatch ? embedMatch[1] : this.state.urlInput;
@@ -224,7 +228,9 @@ export class VideoSelector extends Component {
             const parsedUrl = new URL(url);
             const urlParams = parsedUrl.searchParams;
             const startFrom =
-                urlParams.get("start") || urlParams.get("startTime") || urlParams.get("t");
+                urlParams.get("start") ||
+                urlParams.get("startTime") ||
+                urlParams.get("t");
             Object.keys(this.OPTIONS).forEach((key) => {
                 options[key] = key === "start_from" ? startFrom : true;
             });
@@ -244,7 +250,9 @@ export class VideoSelector extends Component {
         if (!src) {
             this.state.errorMessage = _t("The provided url is not valid");
         } else if (!platform) {
-            this.state.errorMessage = _t("The provided url does not reference any supported video");
+            this.state.errorMessage = _t(
+                "The provided url does not reference any supported video",
+            );
         } else {
             this.state.errorMessage = "";
         }
@@ -310,8 +318,8 @@ export class VideoSelector extends Component {
                 try {
                     const { thumbnail_url: thumbnailSrc } = await this.http.get(
                         `https://vimeo.com/api/oembed.json?url=http%3A//vimeo.com/${encodeURIComponent(
-                            videoId
-                        )}`
+                            videoId,
+                        )}`,
                     );
                     this.state.vimeoPreviews.push({
                         id: videoId,
@@ -321,7 +329,7 @@ export class VideoSelector extends Component {
                 } catch (err) {
                     console.warn(`Could not get video #${videoId} from vimeo: ${err}`);
                 }
-            })
+            }),
         );
     }
 
@@ -337,11 +345,13 @@ export class VideoSelector extends Component {
         const urlParams = parsedUrl.searchParams;
         this.state.options = this.state.options.map((option) => {
             const urlParameter = this.OPTIONS[option.id].urlParameter();
-            let value = "";
+            let value;
 
             switch (urlParameter) {
                 case "#t=":
-                    value = this.parseTimeToSeconds(this.state.urlInput.split("#t=")[1]);
+                    value = this.parseTimeToSeconds(
+                        this.state.urlInput.split("#t=")[1],
+                    );
                     break;
                 case "start":
                     value = urlParams.get("start") || urlParams.get("t");
@@ -371,8 +381,7 @@ export class VideoSelector extends Component {
         // Regular expression for HH:MM:SS format
         const timeRegex = /^(?:(\d+):)?([0-5]?\d):([0-5]?\d)$/;
         if (timeRegex.test(timestamp)) {
-            return (timestamp =
-                timestamp.split(":").reduce((acc, time) => acc * 60 + +time, 0) + "");
+            return timestamp.split(":").reduce((acc, time) => acc * 60 + +time, 0) + "";
         }
         if (isNaN(timestamp)) {
             return "0";

@@ -22,7 +22,8 @@ export class CarouselSlidesOptionPlugin extends Plugin {
             SetSlideAnchorUrlAction,
         },
         clean_for_save_handlers: this.cleanForSave.bind(this),
-        legit_empty_link_predicates: (linkEl) => linkEl.matches(".carousel-item a.slide-link"),
+        legit_empty_link_predicates: (linkEl) =>
+            linkEl.matches(".carousel-item a.slide-link"),
     };
 
     /**
@@ -37,7 +38,7 @@ export class CarouselSlidesOptionPlugin extends Plugin {
      */
     cleanForSave({ root }) {
         const noLinkSlideEls = root.querySelectorAll(
-            ".carousel-item.clickable-slide:not(:has(.slide-link))"
+            ".carousel-item.clickable-slide:not(:has(.slide-link))",
         );
         for (const slideEl of noLinkSlideEls) {
             slideEl.classList.remove("clickable-slide");
@@ -79,7 +80,8 @@ class SetSlideAnchorUrlAction extends BuilderAction {
             return;
         }
         const anchorEl = document.createElement("a");
-        anchorEl.className = "slide-link position-absolute top-0 start-0 w-100 h-100 d-none";
+        anchorEl.className =
+            "slide-link position-absolute top-0 start-0 w-100 h-100 d-none";
         anchorEl.setAttribute("href", url);
         anchorEl.style.zIndex = 100;
         editingElement.prepend(anchorEl);
@@ -90,4 +92,6 @@ class SetSlideAnchorUrlAction extends BuilderAction {
     }
 }
 
-registry.category("website-plugins").add(CarouselSlidesOptionPlugin.id, CarouselSlidesOptionPlugin);
+registry
+    .category("website-plugins")
+    .add(CarouselSlidesOptionPlugin.id, CarouselSlidesOptionPlugin);

@@ -76,24 +76,26 @@ registry.category("web_tour.tours").add("im_livechat_chatbot_steps_sequence_tour
 /**
  * Same as above, with an extra drag&drop at the end.
  */
-registry.category("web_tour.tours").add("im_livechat_chatbot_steps_sequence_with_move_tour", {
-    url: "/odoo",
-    steps: () => [
-        ...commonSteps,
-        ...createChatbotSteps("Step 4", "Step 5"),
-        {
-            trigger: "body.o_web_client:not(.modal-open)",
-        },
-        {
-            trigger: 'div[name="script_step_ids"] tr:nth-child(5) .o_row_handle',
-            run: 'drag_and_drop(div[name="script_step_ids"] tr:nth-child(2))',
-        },
-        ...createChatbotSteps("Step 6"),
-        {
-            trigger: "body.o_web_client:not(.modal-open)",
-        },
-        {
-            trigger: 'tr:contains("Step 6")',
-        },
-    ],
-});
+registry
+    .category("web_tour.tours")
+    .add("im_livechat_chatbot_steps_sequence_with_move_tour", {
+        url: "/odoo",
+        steps: () => [
+            ...commonSteps,
+            ...createChatbotSteps("Step 4", "Step 5"),
+            {
+                trigger: "body.o_web_client:not(.modal-open)",
+            },
+            {
+                trigger: 'div[name="script_step_ids"] tr:nth-child(5) .o_row_handle',
+                run: 'drag_and_drop(div[name="script_step_ids"] tr:nth-child(2))',
+            },
+            ...createChatbotSteps("Step 6"),
+            {
+                trigger: "body.o_web_client:not(.modal-open)",
+            },
+            {
+                trigger: 'tr:contains("Step 6")',
+            },
+        ],
+    });

@@ -1,21 +1,27 @@
 /** @odoo-module native */
+import {
+    Component,
+    onWillStart,
+    onWillUnmount,
+    reactive,
+    useRef,
+    useState,
+} from "@odoo/owl";
 import { CodeEditor } from "@web/components/code_editor/code_editor";
-import { ConfirmationDialog } from "@web/ui/dialog/confirmation_dialog";
-import { Dropdown } from "@web/components/dropdown/dropdown";
 import { CheckboxItem } from "@web/components/dropdown/checkbox_item";
+import { Dropdown } from "@web/components/dropdown/dropdown";
 import { DropdownItem } from "@web/components/dropdown/dropdown_item";
+import { SelectMenu } from "@web/components/select_menu/select_menu";
 import { _t } from "@web/core/l10n/translation";
 import { rpc } from "@web/core/network/rpc";
-import { SelectMenu } from "@web/components/select_menu/select_menu";
-import { user } from "@web/services/user";
 import { sortBy } from "@web/core/utils/collections/arrays";
 import { KeepLast } from "@web/core/utils/concurrency";
 import { useService } from "@web/core/utils/hooks";
+import { user } from "@web/services/user";
+import { ConfirmationDialog } from "@web/ui/dialog/confirmation_dialog";
 
 import { ResourceEditorWarningOverlay } from "./resource_editor_warning.js";
 import { checkSCSS, checkXML, formatXML } from "./utils.js";
-
-import { Component, onWillUnmount, onWillStart, reactive, useRef, useState } from "@odoo/owl";
 
 const BUNDLES_RESTRICTION = [
     "web.assets_frontend",
@@ -136,7 +142,8 @@ export class ResourceEditor extends Component {
     get selectMenuProps() {
         const props = {
             onSelect: (value) => {
-                this.state.currentResource = this.state.resources[this.state.type][value];
+                this.state.currentResource =
+                    this.state.resources[this.state.type][value];
             },
             autoSort: false,
             required: true,
@@ -152,7 +159,10 @@ export class ResourceEditor extends Component {
             const { type, sortedSCSS, sortedJS } = this.state;
             const bundles = type === "scss" ? sortedSCSS : sortedJS;
             const groups = bundles.map(([name, files]) => {
-                const choices = files.map((file) => ({ value: file.url, label: file.label }));
+                const choices = files.map((file) => ({
+                    value: file.url,
+                    label: file.label,
+                }));
                 return { label: name, choices };
             });
             const value = this.state.currentResource?.url;
@@ -188,7 +198,7 @@ export class ResourceEditor extends Component {
                 bundles: this.state.xmlFilter === "all",
                 bundles_restriction: BUNDLES_RESTRICTION,
                 only_user_custom_files: this.state.scssFilter === "custom",
-            })
+            }),
         );
         this.state.resources = { xml: {}, js: {}, scss: {} };
         this.processResources(resources.views || [], "xml");
@@ -196,7 +206,8 @@ export class ResourceEditor extends Component {
         this.processResources(resources.js || [], "js");
         const type = this.state.type;
         if (this.state.currentResource) {
-            this.state.currentResource = this.state.resources[type][this.state.currentResource.id];
+            this.state.currentResource =
+                this.state.resources[type][this.state.currentResource.id];
         }
         if (!this.state.currentResource) {
             this.setDefaultFile();
@@ -299,9 +310,14 @@ export class ResourceEditor extends Component {
             throw new Error(_t("Reseting views is not supported yet"));
         }
         const resource = this.state.currentResource;
-        await this.orm.call("website.assets", "reset_asset", [resource.url, resource.bundle], {
-            context: this.context,
-        });
+        await this.orm.call(
+            "website.assets",
+            "reset_asset",
+            [resource.url, resource.bundle],
+            {
+                context: this.context,
+            },
+        );
         await this.loadResources();
         this.website.contentWindow.location.reload();
     }
@@ -314,14 +330,15 @@ export class ResourceEditor extends Component {
             // child views first as COW on a parent would delete them
             xml: sortBy(
                 Object.values(xml).filter((r) => r.dirty),
-                "id"
+                "id",
             ).reverse(),
         };
 
         for (const [type, resources] of Object.entries(toSave)) {
             for (let i = 0; i < resources.length; i++) {
                 const arch = resources[i].arch;
-                const { isValid, error } = type === "xml" ? checkXML(arch) : checkSCSS(arch);
+                const { isValid, error } =
+                    type === "xml" ? checkXML(arch) : checkSCSS(arch);
                 if (!isValid) {
                     this.errors.push({ error, resource: resources[i] });
                 }
@@ -369,7 +386,9 @@ export class ResourceEditor extends Component {
             : this.state.resources.scss[url].bundle;
         const fileType = isJSFile ? "js" : "scss";
         const params = [url, bundle, arch, fileType];
-        await this.orm.call("website.assets", "save_asset", params, { context: this.context });
+        await this.orm.call("website.assets", "save_asset", params, {
+            context: this.context,
+        });
         delete resource.dirty;
     }
 
@@ -391,7 +410,9 @@ export class ResourceEditor extends Component {
     setDefaultFile() {
         if (this.state.type === "xml") {
             const views = Object.values(this.state.resources.xml);
-            let view = views.find((view) => [view.id, view.xml_id].includes(this.viewKey));
+            let view = views.find((view) =>
+                [view.id, view.xml_id].includes(this.viewKey),
+            );
             if (!view) {
                 view = views.find((view) => view.key === this.viewKey);
             }
@@ -402,7 +423,9 @@ export class ResourceEditor extends Component {
             // otherwise, not reading the comment inside explaining how that
             // file should be used.
             this.state.currentResource =
-                this.state.resources.scss["/website/static/src/scss/user_custom_rules.scss"];
+                this.state.resources.scss[
+                    "/website/static/src/scss/user_custom_rules.scss"
+                ];
         } else {
             this.state.currentResource =
                 this.state.sortedJS.map(([_, files]) => files).flat()[0] || false;
@@ -415,10 +438,13 @@ export class ResourceEditor extends Component {
             return;
         }
         const resourceId = this.state.currentResource.id;
-        const error = this.errors.find(({ resource }) => resource.id === resourceId)?.error;
+        const error = this.errors.find(
+            ({ resource }) => resource.id === resourceId,
+        )?.error;
         if (error) {
             const { line, message } = error;
-            const gutterCell = this.editorRef.el.querySelectorAll(".ace_gutter-cell")[line - 1];
+            const gutterCell =
+                this.editorRef.el.querySelectorAll(".ace_gutter-cell")[line - 1];
             if (gutterCell && !gutterCell.classList.contains("o_error")) {
                 gutterCell.classList.add("o_error");
                 gutterCell.setAttribute("data-tooltip", message);
@@ -478,7 +504,9 @@ export class ResourceEditor extends Component {
         if (this.state.type === "xml") {
             const { isValid, error } = checkXML(this.state.currentResource.arch);
             if (isValid) {
-                this.state.currentResource.arch = formatXML(this.state.currentResource.arch);
+                this.state.currentResource.arch = formatXML(
+                    this.state.currentResource.arch,
+                );
             } else {
                 this.errors.push({ error, resource: this.state.currentResource });
             }
@@ -489,7 +517,7 @@ export class ResourceEditor extends Component {
         this.dialog.add(ConfirmationDialog, {
             title: _t("Careful"),
             body: _t(
-                "If you reset this file, all your customizations will be lost as it will be reverted to the default file."
+                "If you reset this file, all your customizations will be lost as it will be reverted to the default file.",
             ),
             confirm: () => this.resetResource(),
             cancel: () => {},

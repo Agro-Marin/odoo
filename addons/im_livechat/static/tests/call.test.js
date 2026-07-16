@@ -1,3 +1,4 @@
+import { defineLivechatModels } from "@im_livechat/../tests/livechat_test_helpers";
 import {
     click,
     contains,
@@ -6,12 +7,8 @@ import {
     start,
     startServer,
 } from "@mail/../tests/mail_test_helpers";
-
-import { defineLivechatModels } from "@im_livechat/../tests/livechat_test_helpers";
-
 import { test } from "@odoo/hoot";
 import { mockDate } from "@odoo/hoot-mock";
-
 import { Command, serverState } from "@web/../tests/web_test_helpers";
 
 defineLivechatModels();
@@ -27,7 +24,10 @@ test("should display started a call message with operator livechat username", as
     const guestId = pyEnv["mail.guest"].create({ name: "Visitor" });
     const channelId = pyEnv["discuss.channel"].create({
         channel_member_ids: [
-            Command.create({ partner_id: serverState.partnerId, livechat_member_type: "agent" }),
+            Command.create({
+                partner_id: serverState.partnerId,
+                livechat_member_type: "agent",
+            }),
             Command.create({ guest_id: guestId, livechat_member_type: "visitor" }),
         ],
         channel_type: "livechat",
@@ -37,5 +37,7 @@ test("should display started a call message with operator livechat username", as
     await start();
     await contains(".o-mail-ChatWindow", { text: "Visitor" });
     await click("[title='Start Call']");
-    await contains(".o-mail-NotificationMessage", { text: "mitchell boss started a call.1:00 PM" });
+    await contains(".o-mail-NotificationMessage", {
+        text: "mitchell boss started a call.1:00 PM",
+    });
 });

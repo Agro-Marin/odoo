@@ -1,6 +1,7 @@
 import { expect, test } from "@odoo/hoot";
 import { click, waitFor } from "@odoo/hoot-dom";
 import { contains } from "@web/../tests/web_test_helpers";
+
 import { setupEditor, testEditor } from "../_helpers/editor.js";
 import { cleanLinkArtifacts } from "../_helpers/format.js";
 import { getContent } from "../_helpers/selection.js";
@@ -8,64 +9,78 @@ import { deleteBackward, insertText } from "../_helpers/user_actions.js";
 
 test("should parse correctly a span inside a Link", async () => {
     await testEditor({
-        contentBefore: '<p>a<a href="http://test.test/"><span class="a">b[]</span></a>c</p>',
-        contentAfter: '<p>a<a href="http://test.test/"><span class="a">b[]</span></a>c</p>',
+        contentBefore:
+            '<p>a<a href="http://test.test/"><span class="a">b[]</span></a>c</p>',
+        contentAfter:
+            '<p>a<a href="http://test.test/"><span class="a">b[]</span></a>c</p>',
     });
 });
 
 test("should parse correctly an empty span inside a Link", async () => {
     await testEditor({
-        contentBefore: '<p>a<a href="http://test.test/">b[]<span class="a"></span></a>c</p>',
-        contentAfter: '<p>a<a href="http://test.test/">b[]<span class="a"></span></a>c</p>',
+        contentBefore:
+            '<p>a<a href="http://test.test/">b[]<span class="a"></span></a>c</p>',
+        contentAfter:
+            '<p>a<a href="http://test.test/">b[]<span class="a"></span></a>c</p>',
     });
 });
 
 test("should parse correctly a span inside a Link 2", async () => {
     await testEditor({
-        contentBefore: '<p>a<a href="http://test.test/"><span class="a">b[]</span>c</a>d</p>',
-        contentAfter: '<p>a<a href="http://test.test/"><span class="a">b[]</span>c</a>d</p>',
+        contentBefore:
+            '<p>a<a href="http://test.test/"><span class="a">b[]</span>c</a>d</p>',
+        contentAfter:
+            '<p>a<a href="http://test.test/"><span class="a">b[]</span>c</a>d</p>',
     });
 });
 
 test("should parse correctly an empty span inside a Link then add a char", async () => {
     await testEditor({
-        contentBefore: '<p>a<a href="http://test.test/">b[]<span class="a"></span></a>c</p>',
+        contentBefore:
+            '<p>a<a href="http://test.test/">b[]<span class="a"></span></a>c</p>',
         stepFunction: async (editor) => {
             await insertText(editor, "c");
         },
-        contentAfter: '<p>a<a href="http://test.test/">bc[]<span class="a"></span></a>c</p>',
+        contentAfter:
+            '<p>a<a href="http://test.test/">bc[]<span class="a"></span></a>c</p>',
     });
 });
 
 test("should parse correctly a span inside a Link then add a char", async () => {
     await testEditor({
-        contentBefore: '<p>a<a href="http://test.test/"><span class="a">b[]</span></a>d</p>',
+        contentBefore:
+            '<p>a<a href="http://test.test/"><span class="a">b[]</span></a>d</p>',
         stepFunction: async (editor) => {
             await insertText(editor, "c");
         },
         // JW cAfter: '<p>a<span><a href="http://test.test/">b</a>c[]</span>d</p>',
-        contentAfter: '<p>a<a href="http://test.test/"><span class="a">bc[]</span></a>d</p>',
+        contentAfter:
+            '<p>a<a href="http://test.test/"><span class="a">bc[]</span></a>d</p>',
     });
 });
 
 test("should parse correctly a span inside a Link then add a char 2", async () => {
     await testEditor({
-        contentBefore: '<p>a<a href="http://test.test/"><span class="a">b[]</span>d</a>e</p>',
+        contentBefore:
+            '<p>a<a href="http://test.test/"><span class="a">b[]</span>d</a>e</p>',
         stepFunction: async (editor) => {
             await insertText(editor, "c");
         },
-        contentAfter: '<p>a<a href="http://test.test/"><span class="a">bc[]</span>d</a>e</p>',
+        contentAfter:
+            '<p>a<a href="http://test.test/"><span class="a">bc[]</span>d</a>e</p>',
     });
 });
 
 test("should parse correctly a span inside a Link then add a char 3", async () => {
     await testEditor({
-        contentBefore: '<p>a<a href="http://test.test/"><span class="a">b</span>c[]</a>e</p>',
+        contentBefore:
+            '<p>a<a href="http://test.test/"><span class="a">b</span>c[]</a>e</p>',
         stepFunction: async (editor) => {
             await insertText(editor, "d");
         },
         // JW cAfter: '<p>a<a href="http://test.test/"><span class="a">b</span>c</a>d[]e</p>',
-        contentAfter: '<p>a<a href="http://test.test/"><span class="a">b</span>cd[]</a>e</p>',
+        contentAfter:
+            '<p>a<a href="http://test.test/"><span class="a">b</span>cd[]</a>e</p>',
     });
 });
 
@@ -158,12 +173,14 @@ test("should not remove a document link on save", async () => {
 
 test("should not remove a link containing a pictogram on save", async () => {
     await testEditor({
-        contentBefore: '<p>a<a href="exist"><span class="fa-solid fa-star"></span></a>b</p>',
+        contentBefore:
+            '<p>a<a href="exist"><span class="fa-solid fa-star"></span></a>b</p>',
         contentBeforeEdit:
             '<p>a\ufeff<a href="exist">\ufeff<span class="fa-solid fa-star" contenteditable="false">\u200b</span>\ufeff</a>\ufeffb</p>',
         contentAfterEdit:
             '<p>a\ufeff<a href="exist">\ufeff<span class="fa-solid fa-star" contenteditable="false">\u200b</span>\ufeff</a>\ufeffb</p>',
-        contentAfter: '<p>a<a href="exist"><span class="fa-solid fa-star"></span></a>b</p>',
+        contentAfter:
+            '<p>a<a href="exist"><span class="fa-solid fa-star"></span></a>b</p>',
     });
 });
 
@@ -198,7 +215,7 @@ test("should not add a character in the link if start of paragraph", async () =>
 // });
 test("should not allow to extend a link if selection spans multiple links", async () => {
     const { el } = await setupEditor(
-        '<p>xxx <a href="exist">lin[k1</a> yyy <a href="exist">li]nk2</a> zzz</p>'
+        '<p>xxx <a href="exist">lin[k1</a> yyy <a href="exist">li]nk2</a> zzz</p>',
     );
     await waitFor(".o-we-toolbar");
     // link button should be disabled
@@ -206,12 +223,12 @@ test("should not allow to extend a link if selection spans multiple links", asyn
     expect('.o-we-toolbar button[name="link"]').toHaveAttribute("disabled");
     await click('.o-we-toolbar button[name="link"]');
     expect(cleanLinkArtifacts(getContent(el))).toBe(
-        '<p>xxx <a href="exist">lin[k1</a> yyy <a href="exist">li]nk2</a> zzz</p>'
+        '<p>xxx <a href="exist">lin[k1</a> yyy <a href="exist">li]nk2</a> zzz</p>',
     );
 });
 test("should not allow to extend a link if selection spans multiple links (2)", async () => {
     const { el } = await setupEditor(
-        '<p>xxx <a href="exist">[link1</a> yyy <a href="exist">li]nk2</a> zzz</p>'
+        '<p>xxx <a href="exist">[link1</a> yyy <a href="exist">li]nk2</a> zzz</p>',
     );
     await waitFor(".o-we-toolbar");
     // link button should be disabled
@@ -219,12 +236,12 @@ test("should not allow to extend a link if selection spans multiple links (2)", 
     expect('.o-we-toolbar button[name="link"]').toHaveAttribute("disabled");
     await click('.o-we-toolbar button[name="link"]');
     expect(cleanLinkArtifacts(getContent(el))).toBe(
-        '<p>xxx <a href="exist">[link1</a> yyy <a href="exist">li]nk2</a> zzz</p>'
+        '<p>xxx <a href="exist">[link1</a> yyy <a href="exist">li]nk2</a> zzz</p>',
     );
 });
 test("should not allow to extend a link if selection spans multiple links (3)", async () => {
     const { el } = await setupEditor(
-        '<p>xxx <a href="exist">[link1</a> yyy <a href="exist">link2]</a> zzz</p>'
+        '<p>xxx <a href="exist">[link1</a> yyy <a href="exist">link2]</a> zzz</p>',
     );
     await waitFor(".o-we-toolbar");
     // link button should be disabled
@@ -232,7 +249,7 @@ test("should not allow to extend a link if selection spans multiple links (3)", 
     expect('.o-we-toolbar button[name="link"]').toHaveAttribute("disabled");
     await click('.o-we-toolbar button[name="link"]');
     expect(cleanLinkArtifacts(getContent(el))).toBe(
-        '<p>xxx <a href="exist">[link1</a> yyy <a href="exist">link2]</a> zzz</p>'
+        '<p>xxx <a href="exist">[link1</a> yyy <a href="exist">link2]</a> zzz</p>',
     );
 });
 
@@ -246,16 +263,18 @@ test("when label === url popover label input should be empty", async () => {
 
 test("when label === url changing url should change label", async () => {
     const { el } = await setupEditor(
-        '<p>abc <a href="http://odoo.com">http://odo[]o.com</a> def</p>'
+        '<p>abc <a href="http://odoo.com">http://odo[]o.com</a> def</p>',
     );
     await waitFor(".o-we-linkpopover");
     await click(".o_we_edit_link");
     await waitFor(".o_we_label_link");
     expect(".o_we_label_link").toHaveValue("");
 
-    await contains(".o-we-linkpopover input.o_we_href_input_link").edit("http://test.com");
+    await contains(".o-we-linkpopover input.o_we_href_input_link").edit(
+        "http://test.com",
+    );
 
     expect(cleanLinkArtifacts(getContent(el))).toBe(
-        '<p>abc <a href="http://test.com">http://test.com[]</a> def</p>'
+        '<p>abc <a href="http://test.com">http://test.com[]</a> def</p>',
     );
 });

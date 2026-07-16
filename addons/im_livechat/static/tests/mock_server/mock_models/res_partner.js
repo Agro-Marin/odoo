@@ -1,5 +1,4 @@
 import { mailModels } from "@mail/../tests/mail_test_helpers";
-
 import { getKwArgs, makeKwArgs, serverState } from "@web/../tests/web_test_helpers";
 
 export class ResPartner extends mailModels.ResPartner {
@@ -41,7 +40,9 @@ export class ResPartner extends mailModels.ResPartner {
                 is_available: activeLivechatPartners.includes(partner.id),
             };
             if (partner.lang) {
-                data.lang_name = ResLang.search_read([["code", "=", partner.lang]])[0].name;
+                data.lang_name = ResLang.search_read([
+                    ["code", "=", partner.lang],
+                ])[0].name;
             }
             if (partner.user_ids.length) {
                 const [user] = ResUsers.browse(partner.user_ids[0]);
@@ -51,13 +52,19 @@ export class ResPartner extends mailModels.ResPartner {
                         .filter((lang) => lang.name !== data.lang_name);
                     data.livechat_languages = userLangs.map((lang) => lang.name);
                     data.livechat_expertise = user.livechat_expertise_ids.map(
-                        (expId) => Im_LivechatExpertise.browse(expId)[0].name
+                        (expId) => Im_LivechatExpertise.browse(expId)[0].name,
                     );
                 }
             }
-            store.add(this.browse(partner.id), makeKwArgs({ fields: ["user_livechat_username"] }));
+            store.add(
+                this.browse(partner.id),
+                makeKwArgs({ fields: ["user_livechat_username"] }),
+            );
             store.add(this.browse(partner.id), data);
-            store.add(this.browse(partner.id), makeKwArgs({ extra_fields: ["is_in_call"] }));
+            store.add(
+                this.browse(partner.id),
+                makeKwArgs({ extra_fields: ["is_in_call"] }),
+            );
         }
     }
     /**
@@ -72,7 +79,7 @@ export class ResPartner extends mailModels.ResPartner {
         if (fields && fields.includes("user_livechat_username")) {
             store._add_record_fields(
                 this.filter((partner) => !partner.user_livechat_username),
-                ["name"]
+                ["name"],
             );
         }
     }

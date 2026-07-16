@@ -2,10 +2,11 @@ import { expect, test } from "@odoo/hoot";
 import { click, press, waitFor } from "@odoo/hoot-dom";
 import { animationFrame } from "@odoo/hoot-mock";
 import { loadBundle } from "@web/core/assets";
+
 import { setupEditor } from "./_helpers/editor.js";
 import { getContent } from "./_helpers/selection.js";
-import { insertText, undo } from "./_helpers/user_actions.js";
 import { expectElementCount } from "./_helpers/ui_expectations.js";
+import { insertText, undo } from "./_helpers/user_actions.js";
 
 test.tags("desktop");
 test("add an emoji with powerbox", async () => {

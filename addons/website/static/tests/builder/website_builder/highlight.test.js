@@ -1,17 +1,17 @@
+import { setupEditor } from "@html_editor/../tests/_helpers/editor";
+import { unformat } from "@html_editor/../tests/_helpers/format";
+import { expandToolbar } from "@html_editor/../tests/_helpers/toolbar";
+import { Plugin } from "@html_editor/plugin";
+import { MAIN_PLUGINS } from "@html_editor/plugin_sets";
+import { closestElement } from "@html_editor/utils/dom_traversal";
+import { defineMailModels } from "@mail/../tests/mail_test_helpers";
 import { expect, test } from "@odoo/hoot";
 import { click, waitFor } from "@odoo/hoot-dom";
 import { animationFrame } from "@odoo/hoot-mock";
-import { setupEditor } from "@html_editor/../tests/_helpers/editor";
-import { defineMailModels } from "@mail/../tests/mail_test_helpers";
-import { expandToolbar } from "@html_editor/../tests/_helpers/toolbar";
-import { HighlightPlugin } from "@website/builder/plugins/highlight/highlight_plugin";
-import { MAIN_PLUGINS } from "@html_editor/plugin_sets";
 import { contains } from "@web/../tests/web_test_helpers";
-import { closestElement } from "@html_editor/utils/dom_traversal";
-import { Plugin } from "@html_editor/plugin";
 import { highlightIdToName } from "@website/builder/plugins/highlight/highlight_configurator";
+import { HighlightPlugin } from "@website/builder/plugins/highlight/highlight_plugin";
 import { textHighlightFactory } from "@website/js/highlight_utils";
-import { unformat } from "@html_editor/../tests/_helpers/format";
 
 defineMailModels();
 
@@ -30,7 +30,9 @@ function checkHighlightColor(highlightStyle) {
 
 test("Can highlight a selected text", async () => {
     await setupEditor("<p>This is [highlighted]</p>", {
-        config: { Plugins: [...MAIN_PLUGINS, HighlightPlugin, FakeEditInteractionPlugin] },
+        config: {
+            Plugins: [...MAIN_PLUGINS, HighlightPlugin, FakeEditInteractionPlugin],
+        },
     });
 
     await expandToolbar();
@@ -51,7 +53,11 @@ test("Check no highlight color is displayed in colorpicker when text with multip
         `<p>
             [This is <span class="o_text_highlight o_text_highlight_underline" style="--text-highlight-color: #FFFF00;">first</span> and <span class="o_text_highlight o_text_highlight_freehand_2">second</span>]
         </p>`,
-        { config: { Plugins: [...MAIN_PLUGINS, HighlightPlugin, FakeEditInteractionPlugin] } }
+        {
+            config: {
+                Plugins: [...MAIN_PLUGINS, HighlightPlugin, FakeEditInteractionPlugin],
+            },
+        },
     );
 
     // Open highlight toolbar
@@ -67,7 +73,11 @@ test("Can set a color to a highlight", async () => {
         <p>
             <span class="o_text_highlight o_text_highlight_freehand_2">[highlight 3]</span>
         </p>`,
-        { config: { Plugins: [...MAIN_PLUGINS, HighlightPlugin, FakeEditInteractionPlugin] } }
+        {
+            config: {
+                Plugins: [...MAIN_PLUGINS, HighlightPlugin, FakeEditInteractionPlugin],
+            },
+        },
     );
     await expandToolbar();
     expect(".o-select-highlight").toHaveCount(1);
@@ -77,7 +87,9 @@ test("Can set a color to a highlight", async () => {
     await animationFrame();
     await click("button[style='background-color: var(--hb-cp-o-color-2)']");
     await animationFrame();
-    const color = getComputedStyle(document.documentElement).getPropertyValue("--o-color-2");
+    const color = getComputedStyle(document.documentElement).getPropertyValue(
+        "--o-color-2",
+    );
     expect("span.o_text_highlight_freehand_2").toHaveStyle({
         "--text-highlight-color": color,
     });
@@ -88,7 +100,11 @@ test("Changing highlight keep the color and the width", async () => {
         `<p>
             <span class="o_text_highlight o_text_highlight_freehand_2" style="--text-highlight-color: #E79C9C; --text-highlight-width: 2px;">[highlight 3]</span>
         </p>`,
-        { config: { Plugins: [...MAIN_PLUGINS, HighlightPlugin, FakeEditInteractionPlugin] } }
+        {
+            config: {
+                Plugins: [...MAIN_PLUGINS, HighlightPlugin, FakeEditInteractionPlugin],
+            },
+        },
     );
     await expandToolbar();
     expect(".o-select-highlight").toHaveCount(1);
@@ -110,7 +126,11 @@ test("Selecting partially a highlight select all the highlight", async () => {
         <p>
             <span class="o_text_highlight o_text_highlight_freehand_2" style="--text-highlight-color: #E79C9C; --text-highlight-width: 2px;">h[i]ghlight</span>
         </p>`,
-        { config: { Plugins: [...MAIN_PLUGINS, HighlightPlugin, FakeEditInteractionPlugin] } }
+        {
+            config: {
+                Plugins: [...MAIN_PLUGINS, HighlightPlugin, FakeEditInteractionPlugin],
+            },
+        },
     );
     await expandToolbar();
     expect(".o-select-highlight").toHaveCount(1);
@@ -129,7 +149,11 @@ test("Can remove an highlight with the trash button", async () => {
         <p>
             <span class="o_text_highlight o_text_highlight_freehand_2" style="--text-highlight-color: #E79C9C; --text-highlight-width: 2px;">h[i]ghlight</span>
         </p>`,
-        { config: { Plugins: [...MAIN_PLUGINS, HighlightPlugin, FakeEditInteractionPlugin] } }
+        {
+            config: {
+                Plugins: [...MAIN_PLUGINS, HighlightPlugin, FakeEditInteractionPlugin],
+            },
+        },
     );
     await expandToolbar();
     expect(".o-select-highlight").toHaveCount(1);
@@ -146,7 +170,11 @@ test("Similar adjacent highlights are merged", async () => {
         `<p>
             <span class="o_text_highlight o_text_highlight_freehand_2" style="--text-highlight-width: 1px;">highlight</span><span class="o_text_highlight o_text_highlight_freehand_1">[highlight2]</span>
         </p>`,
-        { config: { Plugins: [...MAIN_PLUGINS, HighlightPlugin, FakeEditInteractionPlugin] } }
+        {
+            config: {
+                Plugins: [...MAIN_PLUGINS, HighlightPlugin, FakeEditInteractionPlugin],
+            },
+        },
     );
     await expandToolbar();
     expect(".o-select-highlight").toHaveCount(1);
@@ -165,7 +193,11 @@ test("Remove format on highlight does not create an empty node", async () => {
         `<p>
             <span class="o_text_highlight o_text_highlight_freehand_2" style="--text-highlight-color: #E79C9C; --text-highlight-width: 2px;">highligh[t]</span>
         </p>`,
-        { config: { Plugins: [...MAIN_PLUGINS, HighlightPlugin, FakeEditInteractionPlugin] } }
+        {
+            config: {
+                Plugins: [...MAIN_PLUGINS, HighlightPlugin, FakeEditInteractionPlugin],
+            },
+        },
     );
     await expandToolbar();
     const selectedHighlights = (editor) =>
@@ -187,7 +219,11 @@ test("Can modify multiple highlights", async () => {
             <span class="o_text_highlight o_text_highlight_freehand_2" style="--text-highlight-color: #E79C9C; --text-highlight-width: 3px;">highlight</span>
             ]
         </p>`,
-        { config: { Plugins: [...MAIN_PLUGINS, HighlightPlugin, FakeEditInteractionPlugin] } }
+        {
+            config: {
+                Plugins: [...MAIN_PLUGINS, HighlightPlugin, FakeEditInteractionPlugin],
+            },
+        },
     );
     await expandToolbar();
     expect(".o-select-highlight").toHaveCount(1);
@@ -221,9 +257,13 @@ test("Should override existing highlight", async () => {
                     <span class="o_animated_text o_animate o_anim_fade_in o_visible o_animated" style="visibility: visible; animation-play-state: running;">b</span>
                 </span>
                 c]
-            </p>`
+            </p>`,
         ),
-        { config: { Plugins: [...MAIN_PLUGINS, HighlightPlugin, FakeEditInteractionPlugin] } }
+        {
+            config: {
+                Plugins: [...MAIN_PLUGINS, HighlightPlugin, FakeEditInteractionPlugin],
+            },
+        },
     );
     await expandToolbar();
     await contains(".o-we-toolbar .o-select-highlight").click();
@@ -237,7 +277,7 @@ test("Should override existing highlight", async () => {
                     <span class="o_animated_text o_animate o_anim_fade_in o_visible o_animated" style="visibility: visible; animation-play-state: running;"><span>b</span></span>
                     c
                 </span>
-            </p>`
-        )
+            </p>`,
+        ),
     );
 });

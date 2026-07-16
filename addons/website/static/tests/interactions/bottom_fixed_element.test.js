@@ -1,7 +1,14 @@
-import { startInteractions, setupInteractionWhiteList } from "@web/../tests/public/helpers";
-
 import { describe, expect, getFixture, test } from "@odoo/hoot";
-import { manuallyDispatchProgrammaticEvent, queryOne, queryRect, scroll } from "@odoo/hoot-dom";
+import {
+    manuallyDispatchProgrammaticEvent,
+    queryOne,
+    queryRect,
+    scroll,
+} from "@odoo/hoot-dom";
+import {
+    setupInteractionWhiteList,
+    startInteractions,
+} from "@web/../tests/public/helpers";
 
 setupInteractionWhiteList("website.bottom_fixed_element");
 
@@ -20,7 +27,11 @@ const scrollTo = async function (el, scrollTarget, bottomFixedElement) {
 
 const scrollToMiddle = async function (el, bottomFixedElement) {
     // 2550 = headerHeight + mainHeight + footerHeight
-    await scrollTo(el, 2550 / 2 - queryRect(bottomFixedElement).height, bottomFixedElement);
+    await scrollTo(
+        el,
+        2550 / 2 - queryRect(bottomFixedElement).height,
+        bottomFixedElement,
+    );
 };
 
 const scrollToBottom = async function (el, bottomFixedElement) {
@@ -54,7 +65,9 @@ test("bottom_fixed_element is started when there is an element #wrapwrap", async
 });
 
 test("show button fixed element when over no button (0 button)", async () => {
-    await startInteractions(getTemplate({ withButtonCenter: false, withButtonLeft: false }));
+    await startInteractions(
+        getTemplate({ withButtonCenter: false, withButtonLeft: false }),
+    );
     const fixture = getFixture();
     fixture.style.overflowY = "scroll";
     const bottomFixedElement = queryOne(".o_bottom_fixed_element");
@@ -65,7 +78,9 @@ test("show button fixed element when over no button (0 button)", async () => {
 });
 
 test("show button fixed element when over no button (1 button)", async () => {
-    await startInteractions(getTemplate({ withButtonCenter: false, withButtonLeft: true }));
+    await startInteractions(
+        getTemplate({ withButtonCenter: false, withButtonLeft: true }),
+    );
     const fixture = getFixture();
     fixture.style.overflowY = "scroll";
     const bottomFixedElement = queryOne(".o_bottom_fixed_element");
@@ -76,7 +91,9 @@ test("show button fixed element when over no button (1 button)", async () => {
 });
 
 test("hide button fixed element when over one button (1 button)", async () => {
-    await startInteractions(getTemplate({ withButtonCenter: true, withButtonLeft: false }));
+    await startInteractions(
+        getTemplate({ withButtonCenter: true, withButtonLeft: false }),
+    );
     const fixture = getFixture();
     fixture.style.overflowY = "scroll";
     const bottomFixedElement = queryOne(".o_bottom_fixed_element");
@@ -87,7 +104,9 @@ test("hide button fixed element when over one button (1 button)", async () => {
 });
 
 test("hide button fixed element when over one button (2 buttons)", async () => {
-    await startInteractions(getTemplate({ withButtonCenter: true, withButtonLeft: true }));
+    await startInteractions(
+        getTemplate({ withButtonCenter: true, withButtonLeft: true }),
+    );
     const fixture = getFixture();
     fixture.style.overflowY = "scroll";
     const bottomFixedElement = queryOne(".o_bottom_fixed_element");

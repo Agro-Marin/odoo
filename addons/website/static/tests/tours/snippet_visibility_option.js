@@ -1,7 +1,7 @@
 import {
-    insertSnippet,
-    clickOnSave,
     clickOnEditAndWaitEditMode,
+    clickOnSave,
+    insertSnippet,
     registerWebsitePreviewTour,
 } from "@website/js/tours/tour_utils";
 
@@ -56,7 +56,7 @@ registerWebsitePreviewTour(
                     .querySelector("li .o_we_invisible_entry i")
                     .classList.contains("fa-eye-slash");
                 const isColumnEntryDisplayed = document.querySelector(
-                    "li li .o_we_invisible_entry"
+                    "li li .o_we_invisible_entry",
                 );
                 if (!isBlockInvisible || !!isColumnEntryDisplayed) {
                     console.error("Visibility issue detected with the elements.");
@@ -66,10 +66,13 @@ registerWebsitePreviewTour(
         ...clickOnSave(),
         ...clickOnEditAndWaitEditMode(),
         {
-            content: "Check that only the popup entry is displayed and that it is invisible.",
+            content:
+                "Check that only the popup entry is displayed and that it is invisible.",
             trigger: ".o_we_invisible_root_parent",
             run: () => {
-                const isSubentryDisplayed = document.querySelector("li .o_we_invisible_entry");
+                const isSubentryDisplayed = document.querySelector(
+                    "li .o_we_invisible_entry",
+                );
                 const isPopupInvisible = document
                     .querySelector(".o_we_invisible_root_parent > i")
                     .classList.contains("fa-eye-slash");
@@ -113,10 +116,13 @@ registerWebsitePreviewTour(
             run: "click",
         },
         {
-            content: "Check that only the popup entry is displayed and that it is invisible.",
+            content:
+                "Check that only the popup entry is displayed and that it is invisible.",
             trigger: ".o_we_invisible_root_parent",
             run: () => {
-                const isSubentryDisplayed = document.querySelector("li .o_we_invisible_entry");
+                const isSubentryDisplayed = document.querySelector(
+                    "li .o_we_invisible_entry",
+                );
                 const isPopupInvisible = document
                     .querySelector(".o_we_invisible_root_parent > i")
                     .classList.contains("fa-eye-slash");
@@ -149,5 +155,5 @@ registerWebsitePreviewTour(
                 }
             },
         },
-    ]
+    ],
 );

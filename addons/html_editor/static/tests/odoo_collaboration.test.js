@@ -2,14 +2,15 @@ import { stripHistoryIds } from "@html_editor/others/collaboration/collaboration
 import { HISTORY_SNAPSHOT_INTERVAL } from "@html_editor/others/collaboration/collaboration_plugin";
 import { COLLABORATION_PLUGINS, MAIN_PLUGINS } from "@html_editor/plugin_sets";
 import { normalizeHTML } from "@html_editor/utils/html";
-import { htmlReplaceAll } from "@web/core/utils/dom/html";
 import { Wysiwyg } from "@html_editor/wysiwyg";
 import { beforeEach, describe, expect, test } from "@odoo/hoot";
 import { advanceTime, animationFrame, tick, waitUntil } from "@odoo/hoot-dom";
-import { Component, xml, markup } from "@odoo/owl";
+import { Component, markup, xml } from "@odoo/owl";
 import { mountWithCleanup, onRpc } from "@web/../tests/web_test_helpers";
 import { Mutex } from "@web/core/utils/concurrency";
+import { htmlReplaceAll } from "@web/core/utils/dom/html";
 import { patch } from "@web/core/utils/patch";
+
 import { getContent, getSelection, setSelection } from "./_helpers/selection.js";
 import { insertText } from "./_helpers/user_actions.js";
 
@@ -85,14 +86,14 @@ class PeerTest {
     async writeToServer() {
         this.pool.lastRecordSaved = this.editor.getContent();
         const lastId = this.plugins.collaborationOdoo.getLastHistoryStepId(
-            this.pool.lastRecordSaved
+            this.pool.lastRecordSaved,
         );
         for (const peer of Object.values(this.peers)) {
             if (peer === this) {
                 continue;
             }
             peer.onlineMutex.exec(async () =>
-                peer.plugins.collaborationOdoo.onServerLastIdUpdate(String(lastId))
+                peer.plugins.collaborationOdoo.onServerLastIdUpdate(String(lastId)),
             );
         }
     }
@@ -145,8 +146,8 @@ class Wysiwygs extends Component {
                 (peerId) =>
                     new Promise((resolve) => {
                         this.peerResolvers[peerId] = resolve;
-                    })
-            )
+                    }),
+            ),
         );
         this.loadedPromise = new Promise((resolve) => {
             this.loadedResolver = resolve;
@@ -182,7 +183,9 @@ class Wysiwygs extends Component {
         const loadedResolver = this.peerResolvers[peerId];
         const startPlugins = editor.startPlugins.bind(editor);
         editor.startPlugins = () => {
-            const plugins = Object.fromEntries(editor.plugins.map((p) => [p.constructor.id, p]));
+            const plugins = Object.fromEntries(
+                editor.plugins.map((p) => [p.constructor.id, p]),
+            );
             const { pool } = this.props;
             const { peers } = this.props.pool;
 
@@ -218,7 +221,9 @@ class Wysiwygs extends Component {
                             super.notifyAllPeers(...args);
                         },
                         _getPtpPeers() {
-                            return peers[peerId].connections.map((peer) => ({ id: peer.peerId }));
+                            return peers[peerId].connections.map((peer) => ({
+                                id: peer.peerId,
+                            }));
                         },
                         async _channelNotify(peerId, transportPayload) {
                             if (
@@ -227,7 +232,9 @@ class Wysiwygs extends Component {
                             ) {
                                 return;
                             }
-                            peers[peerId].ptp.handleNotification(structuredClone(transportPayload));
+                            peers[peerId].ptp.handleNotification(
+                                structuredClone(transportPayload),
+                            );
                         },
 
                         _createPeer() {
@@ -378,7 +385,8 @@ describe("Focus", () => {
             message: "p2 should have the same document as p1",
         });
         expect(peers.p3.getValue()).toBe(`<p>a[]</p>`, {
-            message: "p3 should not have the document changed because it has not focused",
+            message:
+                "p3 should not have the document changed because it has not focused",
         });
     });
 });
@@ -463,13 +471,13 @@ describe("Stale detection & recovery", () => {
                     peers.p2.plugins.collaborationOdoo.historyShareId,
                     {
                         message: "p1 and p2 should have the same historyShareId",
-                    }
+                    },
                 );
                 expect(peers.p1.plugins.collaborationOdoo.historyShareId).toBe(
                     peers.p3.plugins.collaborationOdoo.historyShareId,
                     {
                         message: "p1 and p3 should have the same historyShareId",
-                    }
+                    },
                 );
 
                 expect(peers.p1.getValue()).toBe(`<p>a[]</p>`, {
@@ -519,7 +527,8 @@ describe("Stale detection & recovery", () => {
                     message: "p3 applySnapshot should not have been called",
                 });
                 expect(p3Spies.resetFromServerAndResyncWithPeers.callCount).toBe(0, {
-                    message: "p3 resetFromServerAndResyncWithPeers should not have been called",
+                    message:
+                        "p3 resetFromServerAndResyncWithPeers should not have been called",
                 });
 
                 expect(peers.p1.getValue()).toBe(`<p>ab[]</p>`, {
@@ -582,7 +591,8 @@ describe("Stale detection & recovery", () => {
                     message: "p2 recoverFromStaleDocument should not have been called",
                 });
                 expect(p2Spies.resetFromServerAndResyncWithPeers.callCount).toBe(0, {
-                    message: "p2 resetFromServerAndResyncWithPeers should not have been called",
+                    message:
+                        "p2 resetFromServerAndResyncWithPeers should not have been called",
                 });
                 expect(p2Spies.processMissingSteps.callCount).toBe(0, {
                     message: "p2 processMissingSteps should not have been called",
@@ -603,7 +613,8 @@ describe("Stale detection & recovery", () => {
                     message: "p2 recoverFromStaleDocument should have been called once",
                 });
                 expect(p2Spies.resetFromServerAndResyncWithPeers.callCount).toBe(1, {
-                    message: "p2 resetFromServerAndResyncWithPeers should have been called once",
+                    message:
+                        "p2 resetFromServerAndResyncWithPeers should have been called once",
                 });
                 expect(p2Spies.processMissingSteps.callCount).toBe(0, {
                     message: "p2 processMissingSteps should not have been called",
@@ -620,7 +631,8 @@ describe("Stale detection & recovery", () => {
                     message: "p3 recoverFromStaleDocument should have been called once",
                 });
                 expect(p3Spies.resetFromServerAndResyncWithPeers.callCount).toBe(0, {
-                    message: "p3 resetFromServerAndResyncWithPeers should not have been called",
+                    message:
+                        "p3 resetFromServerAndResyncWithPeers should not have been called",
                 });
                 expect(p3Spies.processMissingSteps.callCount).toBe(1, {
                     message: "p3 processMissingSteps should have been called once",
@@ -678,7 +690,8 @@ describe("Stale detection & recovery", () => {
                     message: "p2 recoverFromStaleDocument should not have been called",
                 });
                 expect(p2Spies.resetFromServerAndResyncWithPeers.callCount).toBe(0, {
-                    message: "p2 resetFromServerAndResyncWithPeers should not have been called",
+                    message:
+                        "p2 resetFromServerAndResyncWithPeers should not have been called",
                 });
                 expect(p2Spies.processMissingSteps.callCount).toBe(0, {
                     message: "p2 processMissingSteps should not have been called",
@@ -699,7 +712,8 @@ describe("Stale detection & recovery", () => {
                     message: "p2 recoverFromStaleDocument should have been called once",
                 });
                 expect(p2Spies.resetFromServerAndResyncWithPeers.callCount).toBe(1, {
-                    message: "p2 resetFromServerAndResyncWithPeers should have been called once",
+                    message:
+                        "p2 resetFromServerAndResyncWithPeers should have been called once",
                 });
                 expect(p2Spies.processMissingSteps.callCount).toBe(0, {
                     message: "p2 processMissingSteps should not have been called",
@@ -716,7 +730,8 @@ describe("Stale detection & recovery", () => {
                     message: "p3 recoverFromStaleDocument should have been called once",
                 });
                 expect(p3Spies.resetFromServerAndResyncWithPeers.callCount).toBe(0, {
-                    message: "p3 resetFromServerAndResyncWithPeers should have been called once",
+                    message:
+                        "p3 resetFromServerAndResyncWithPeers should have been called once",
                 });
                 expect(p3Spies.processMissingSteps.callCount).toBe(1, {
                     message: "p3 processMissingSteps should have been called once",
@@ -781,7 +796,8 @@ describe("Stale detection & recovery", () => {
                     message: "p2 recoverFromStaleDocument should not have been called",
                 });
                 expect(p2Spies.resetFromServerAndResyncWithPeers.callCount).toBe(0, {
-                    message: "p2 resetFromServerAndResyncWithPeers should not have been called",
+                    message:
+                        "p2 resetFromServerAndResyncWithPeers should not have been called",
                 });
                 expect(p2Spies.processMissingSteps.callCount).toBe(0, {
                     message: "p2 processMissingSteps should not have been called",
@@ -811,7 +827,8 @@ describe("Stale detection & recovery", () => {
                     message: "p3 recoverFromStaleDocument should have been called once",
                 });
                 expect(p3Spies.resetFromServerAndResyncWithPeers.callCount).toBe(1, {
-                    message: "p3 resetFromServerAndResyncWithPeers should have been called once",
+                    message:
+                        "p3 resetFromServerAndResyncWithPeers should have been called once",
                 });
                 expect(p3Spies.processMissingSteps.callCount).toBe(0, {
                     message: "p3 processMissingSteps should not have been called",
@@ -861,7 +878,8 @@ describe("Stale detection & recovery", () => {
                     message: "p2 recoverFromStaleDocument should not have been called",
                 });
                 expect(p2Spies.resetFromServerAndResyncWithPeers.callCount).toBe(0, {
-                    message: "p2 resetFromServerAndResyncWithPeers should not have been called",
+                    message:
+                        "p2 resetFromServerAndResyncWithPeers should not have been called",
                 });
                 expect(p2Spies.processMissingSteps.callCount).toBe(0, {
                     message: "p2 processMissingSteps should not have been called",
@@ -882,7 +900,8 @@ describe("Stale detection & recovery", () => {
                     message: "p2 recoverFromStaleDocument should have been called once",
                 });
                 expect(p2Spies.resetFromServerAndResyncWithPeers.callCount).toBe(1, {
-                    message: "p2 resetFromServerAndResyncWithPeers should have been called once",
+                    message:
+                        "p2 resetFromServerAndResyncWithPeers should have been called once",
                 });
                 expect(p2Spies.processMissingSteps.callCount).toBe(0, {
                     message: "p2 processMissingSteps should not have been called",
@@ -937,7 +956,8 @@ describe("Stale detection & recovery", () => {
                     message: "p2 recoverFromStaleDocument should not have been called",
                 });
                 expect(p2Spies.resetFromServerAndResyncWithPeers.callCount).toBe(0, {
-                    message: "p2 resetFromServerAndResyncWithPeers should not have been called",
+                    message:
+                        "p2 resetFromServerAndResyncWithPeers should not have been called",
                 });
                 expect(p2Spies.processMissingSteps.callCount).toBe(0, {
                     message: "p2 processMissingSteps should not have been called",
@@ -961,7 +981,8 @@ describe("Stale detection & recovery", () => {
                     message: "p2 recoverFromStaleDocument should have been called once",
                 });
                 expect(p2Spies.resetFromServerAndResyncWithPeers.callCount).toBe(1, {
-                    message: "p2 resetFromServerAndResyncWithPeers should have been called once",
+                    message:
+                        "p2 resetFromServerAndResyncWithPeers should have been called once",
                 });
                 expect(p2Spies.processMissingSteps.callCount).toBe(0, {
                     message: "p2 processMissingSteps should not have been called",
@@ -1138,12 +1159,12 @@ describe("History steps Ids", () => {
         editor.shared.split.splitBlock();
         editor.shared.history.addStep();
         expect(getContent(editor.editable)).toBe(
-            `<p>a</p><p o-we-hint-text='Type "/" for commands' class="o-we-hint">[]<br></p>`
+            `<p>a</p><p o-we-hint-text='Type "/" for commands' class="o-we-hint">[]<br></p>`,
         );
         editor.shared.split.splitBlock();
         editor.shared.history.addStep();
         expect(getContent(editor.editable)).toBe(
-            `<p>a</p><p><br></p><p o-we-hint-text='Type "/" for commands' class="o-we-hint">[]<br></p>`
+            `<p>a</p><p><br></p><p o-we-hint-text='Type "/" for commands' class="o-we-hint">[]<br></p>`,
         );
         editor.destroy();
     });
@@ -1164,14 +1185,14 @@ describe("Indent List", () => {
                 key: "Tab",
                 code: "Tab",
                 bubbles: true,
-            })
+            }),
         );
         await peers.p2.focus();
         expect(peers.p2.getValue()).toBe(
             `<ul><li class="oe-nested"><ul><li>a[]</li></ul></li></ul>`,
             {
                 message: "p2 should not have the same document as p1",
-            }
+            },
         );
     });
 });
@@ -1187,28 +1208,30 @@ describe("Selection", () => {
         await animationFrame();
         await tick();
         expect(
-            peers.p2.plugins.collaborationSelectionAvatar.selectionInfos.get("p1").selection
-                .anchorOffset
+            peers.p2.plugins.collaborationSelectionAvatar.selectionInfos.get("p1")
+                .selection.anchorOffset,
         ).toBe(1);
         expect(
-            peers.p2.plugins.collaborationSelection.selectionInfos.get("p1").selection.anchorOffset
+            peers.p2.plugins.collaborationSelection.selectionInfos.get("p1").selection
+                .anchorOffset,
         ).toBe(1);
         peers.p1.plugins.delete.delete("backward", "character");
         await waitUntil(() => {
             const selectionInAvatarPlugin =
-                peers.p2.plugins.collaborationSelectionAvatar.selectionInfos.get("p1").selection
-                    .anchorOffset == 0;
+                peers.p2.plugins.collaborationSelectionAvatar.selectionInfos.get("p1")
+                    .selection.anchorOffset === 0;
             const selectionInCollabSelectionPlugin =
-                peers.p2.plugins.collaborationSelection.selectionInfos.get("p1").selection
-                    .anchorOffset == 0;
+                peers.p2.plugins.collaborationSelection.selectionInfos.get("p1")
+                    .selection.anchorOffset === 0;
             return selectionInAvatarPlugin && selectionInCollabSelectionPlugin;
         });
         expect(
-            peers.p2.plugins.collaborationSelectionAvatar.selectionInfos.get("p1").selection
-                .anchorOffset
+            peers.p2.plugins.collaborationSelectionAvatar.selectionInfos.get("p1")
+                .selection.anchorOffset,
         ).toBe(0);
         expect(
-            peers.p2.plugins.collaborationSelection.selectionInfos.get("p1").selection.anchorOffset
+            peers.p2.plugins.collaborationSelection.selectionInfos.get("p1").selection
+                .anchorOffset,
         ).toBe(0);
     });
 });

@@ -1,13 +1,17 @@
+import {
+    getSnippetStructure,
+    waitForEndOfOperation,
+} from "@html_builder/../tests/helpers";
 import { InvisibleElementsPanel } from "@html_builder/sidebar/invisible_elements_panel";
-import { getSnippetStructure, waitForEndOfOperation } from "@html_builder/../tests/helpers";
 import { unformat } from "@html_editor/../tests/_helpers/format";
 import { expect, test } from "@odoo/hoot";
 import { click, queryAllTexts, queryFirst, queryOne } from "@odoo/hoot-dom";
 import { xml } from "@odoo/owl";
 import { contains, patchWithCleanup } from "@web/../tests/web_test_helpers";
+
 import {
-    addOption,
     addDropZoneSelector,
+    addOption,
     defineWebsiteModels,
     invisibleEl,
     setupWebsiteBuilder,
@@ -19,16 +23,18 @@ defineWebsiteModels();
 test("click on invisible elements in the invisible elements tab (check eye icon)", async () => {
     await setupWebsiteBuilder(`${invisibleEl}`);
     expect(queryOne(".o_we_invisible_el_panel .o_we_invisible_entry")).toHaveText(
-        "Invisible Element"
+        "Invisible Element",
     );
     expect(queryOne(".o_we_invisible_el_panel .o_we_invisible_entry i")).toHaveClass(
-        "fa-eye-slash"
+        "fa-eye-slash",
     );
     await contains(".o_we_invisible_el_panel .o_we_invisible_entry").click();
-    expect(queryOne(".o_we_invisible_el_panel .o_we_invisible_entry i")).toHaveClass("fa-eye");
+    expect(queryOne(".o_we_invisible_el_panel .o_we_invisible_entry i")).toHaveClass(
+        "fa-eye",
+    );
     await contains(".o_we_invisible_el_panel .o_we_invisible_entry").click();
     expect(queryOne(".o_we_invisible_el_panel .o_we_invisible_entry i")).toHaveClass(
-        "fa-eye-slash"
+        "fa-eye-slash",
     );
 });
 
@@ -38,7 +44,7 @@ test("click on invisible elements in the invisible elements tab (check sidebar t
         template: xml`<BuilderButton classAction="'my-custom-class'"/>`,
     });
     await setupWebsiteBuilder(
-        '<div class="s_test d-lg-none o_snippet_desktop_invisible" data-invisible="1">a</div>'
+        '<div class="s_test d-lg-none o_snippet_desktop_invisible" data-invisible="1">a</div>',
     );
     await contains(".o_we_invisible_el_panel .o_we_invisible_entry").click();
     expect("button:contains('Style')").toHaveClass("active");
@@ -54,7 +60,7 @@ test("Add an element on the invisible elements tab", async () => {
             content: unformat(
                 `<div class="s_popup_test o_snippet_invisible" data-snippet="s_popup_test" data-name="Popup">
                     <div class="test_a">Hello</div>
-                </div>`
+                </div>`,
             ),
         },
     ];
@@ -69,25 +75,25 @@ test("Add an element on the invisible elements tab", async () => {
                 '<div name="A" data-oe-snippet-id="123" data-o-snippet-group="a"><section data-snippet="s_snippet_group"></section></div>',
             ],
             snippet_structure: snippetsDescription.map((snippetDesc) =>
-                getSnippetStructure(snippetDesc)
+                getSnippetStructure(snippetDesc),
             ),
         },
     });
     await click(
         queryFirst(
-            ".o-snippets-menu #snippet_groups .o_snippet_thumbnail .o_snippet_thumbnail_area"
-        )
+            ".o-snippets-menu #snippet_groups .o_snippet_thumbnail .o_snippet_thumbnail_area",
+        ),
     );
     await waitForSnippetDialog();
     await contains(
-        ".o_add_snippet_dialog .o_add_snippet_iframe:iframe .o_snippet_preview_wrap"
+        ".o_add_snippet_dialog .o_add_snippet_iframe:iframe .o_snippet_preview_wrap",
     ).click();
     await waitForEndOfOperation();
-    expect(".o_we_invisible_el_panel .o_we_invisible_entry:contains('Test') .fa-eye").toHaveCount(
-        1
-    );
     expect(
-        ".o_we_invisible_el_panel .o_we_invisible_entry:contains('Invisible Element') .fa-eye-slash"
+        ".o_we_invisible_el_panel .o_we_invisible_entry:contains('Test') .fa-eye",
+    ).toHaveCount(1);
+    expect(
+        ".o_we_invisible_el_panel .o_we_invisible_entry:contains('Invisible Element') .fa-eye-slash",
     ).toHaveCount(1);
 });
 
@@ -126,7 +132,7 @@ test("desktop option undo after override", async () => {
     `);
     await contains(":iframe section").click();
     await contains(
-        "[data-action-id='toggleDeviceVisibility'][data-action-param='no_desktop']"
+        "[data-action-id='toggleDeviceVisibility'][data-action-param='no_desktop']",
     ).click();
     expect(":iframe section").not.toHaveClass("o_snippet_override_invisible");
     await contains(".o_we_invisible_entry .fa-eye-slash").click();

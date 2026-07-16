@@ -3,8 +3,8 @@ import {
     changeBackgroundColor,
     clickOnSnippet,
     clickOnText,
-    insertSnippet,
     goBackToBlocks,
+    insertSnippet,
     registerThemeHomepageTour,
 } from "@website/js/tours/tour_utils";
 

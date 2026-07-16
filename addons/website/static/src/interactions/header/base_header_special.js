@@ -1,7 +1,7 @@
 /** @odoo-module native */
+import { registry } from "@web/core/registry";
 import { Dropdown } from "@web/libs/bootstrap";
 import { BaseHeader } from "@website/interactions/header/base_header";
-import { registry } from "@web/core/registry";
 
 export class BaseHeaderSpecial extends BaseHeader {
     dynamicSelectors = {
@@ -27,7 +27,9 @@ export class BaseHeaderSpecial extends BaseHeader {
         this.scrollOffset = 200;
         this.scrollingDownward = true;
 
-        this.searchbarEl = this.hideEl?.querySelector(":not(.modal-content) > .o_searchbar_form");
+        this.searchbarEl = this.hideEl?.querySelector(
+            ":not(.modal-content) > .o_searchbar_form",
+        );
         this.dropdownClickedEl = null;
     }
 
@@ -82,7 +84,7 @@ export class BaseHeaderSpecial extends BaseHeader {
         if (this.hideEl) {
             this.hideEl.style.height = "";
             this.hideEl.classList.remove("hidden");
-            let elHeight = 0;
+            let elHeight;
             if (this.cssAffixed) {
                 // Close the dropdowns if they are open when scrolling.
                 // Otherwise, the calculated height of the 'hideEl' element will
@@ -96,7 +98,8 @@ export class BaseHeaderSpecial extends BaseHeader {
             } else {
                 elHeight = this.hideEl.scrollHeight;
             }
-            const scrollDelta = window.matchMedia(`(prefers-reduced-motion: reduce)`).matches
+            const scrollDelta = window.matchMedia(`(prefers-reduced-motion: reduce)`)
+                .matches
                 ? scroll
                 : Math.floor(scroll / 4);
             elHeight = Math.max(0, elHeight - scrollDelta);
@@ -112,8 +115,15 @@ export class BaseHeaderSpecial extends BaseHeader {
                 let elPadding = parseInt(getComputedStyle(this.hideEl).paddingBlock);
                 if (elHeight < elPadding * 2) {
                     const heightDifference = elPadding * 2 - elHeight;
-                    elPadding = Math.max(0, elPadding - Math.floor(heightDifference / 2));
-                    this.hideEl.style.setProperty("padding-block", `${elPadding}px`, "important");
+                    elPadding = Math.max(
+                        0,
+                        elPadding - Math.floor(heightDifference / 2),
+                    );
+                    this.hideEl.style.setProperty(
+                        "padding-block",
+                        `${elPadding}px`,
+                        "important",
+                    );
                 } else {
                     this.hideEl.style.paddingBlock = "";
                 }
@@ -142,7 +152,10 @@ export class BaseHeaderSpecial extends BaseHeader {
                 }
             } else {
                 const movement = this.checkpoint - this.position;
-                if (!this.isVisible && movement > (this.scrollOffset + this.topGap) / 2) {
+                if (
+                    !this.isVisible &&
+                    movement > (this.scrollOffset + this.topGap) / 2
+                ) {
                     this.transformShow();
                 }
             }

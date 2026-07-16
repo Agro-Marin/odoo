@@ -48,7 +48,8 @@ registry.category("web_tour.tours").add("website_form_editor_tour_submit", {
                 ":has(.s_website_form_field:has(label:contains('Invoice Scan')):not(.o_has_error))",
         },
         {
-            content: "Check if required fields were detected and complete the Subject field",
+            content:
+                "Check if required fields were detected and complete the Subject field",
             trigger: "input[name=subject]",
             run: "edit Jane Smith",
         },
@@ -72,7 +73,8 @@ registry.category("web_tour.tours").add("website_form_editor_tour_submit", {
                 ":has(.s_website_form_field:has(label:contains('Invoice Scan')):not(.o_has_error))",
         },
         {
-            content: "Check if required fields were detected and complete the Message field",
+            content:
+                "Check if required fields were detected and complete the Message field",
             trigger: "textarea[name=body_html]",
             run: "edit A useless message",
         },
@@ -151,10 +153,14 @@ registry.category("web_tour.tours").add("website_form_editor_tour_submit", {
             trigger: "body",
             run: function () {
                 const style = window.getComputedStyle(
-                    this.anchor.getElementsByClassName("s_website_form_field_hidden_if")[0]
+                    this.anchor.getElementsByClassName(
+                        "s_website_form_field_hidden_if",
+                    )[0],
                 );
                 if (style.display !== "none") {
-                    console.error("error This field should be invisible when the name is not odoo");
+                    console.error(
+                        "error This field should be invisible when the name is not odoo",
+                    );
                 }
             },
         },
@@ -192,7 +198,7 @@ registry.category("web_tour.tours").add("website_form_editor_tour_results", {
             content: "Check mail.mail records have been created",
             trigger: "body",
             run: function () {
-                var mailDef = rpc(`/web/dataset/call_kw/mail.mail/search_count`, {
+                const mailDef = rpc(`/web/dataset/call_kw/mail.mail/search_count`, {
                     model: "mail.mail",
                     method: "search_count",
                     args: [
@@ -206,7 +212,7 @@ registry.category("web_tour.tours").add("website_form_editor_tour_results", {
                     ],
                     kwargs: {},
                 });
-                var success = function (model, count) {
+                const success = function (model, count) {
                     if (count > 0) {
                         const div = document.createElement("div");
                         div.id = `website_form_editor_success_test_tour_${model}`;

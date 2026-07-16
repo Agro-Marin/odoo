@@ -1,4 +1,7 @@
-import { insertSnippet, registerWebsitePreviewTour } from "@website/js/tours/tour_utils";
+import {
+    insertSnippet,
+    registerWebsitePreviewTour,
+} from "@website/js/tours/tour_utils";
 
 registerWebsitePreviewTour(
     "snippet_image",
@@ -28,7 +31,8 @@ registerWebsitePreviewTour(
         },
         {
             content: "Click on the image",
-            trigger: ".o_select_media_dialog .o_existing_attachment_cell .o_button_area",
+            trigger:
+                ".o_select_media_dialog .o_existing_attachment_cell .o_button_area",
             run: "click",
         },
         {
@@ -43,7 +47,8 @@ registerWebsitePreviewTour(
         },
         {
             content: "Check that the image and the image placeholder have been removed",
-            trigger: ":iframe footer:not(:has(.s_image > svg)):not(:has(img.o_we_custom_image))",
+            trigger:
+                ":iframe footer:not(:has(.s_image > svg)):not(:has(img.o_we_custom_image))",
         },
-    ]
+    ],
 );

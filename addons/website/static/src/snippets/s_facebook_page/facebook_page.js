@@ -1,10 +1,9 @@
 /** @odoo-module native */
-import { Interaction } from "@web/public/interaction";
-import { registry } from "@web/core/registry";
-
 import { _t } from "@web/core/l10n/translation";
-import { clamp } from "@web/core/utils/format/numbers";
+import { registry } from "@web/core/registry";
 import { pick } from "@web/core/utils/collections/objects";
+import { clamp } from "@web/core/utils/format/numbers";
+import { Interaction } from "@web/public/interaction";
 
 export class FacebookPage extends Interaction {
     static selector = ".o_facebook_page";
@@ -18,7 +17,7 @@ export class FacebookPage extends Interaction {
             "height",
             "tabs",
             "small_header",
-            "hide_cover"
+            "hide_cover",
         );
         if (!params.href) {
             return;
@@ -31,7 +30,7 @@ export class FacebookPage extends Interaction {
         this.renderIframe(params);
 
         this.resizeObserver = new ResizeObserver(
-            this.debounced(this.renderIframe.bind(this, params), 100)
+            this.debounced(this.renderIframe.bind(this, params), 100),
         );
         this.resizeObserver.observe(this.el.parentElement);
         this.registerCleanup(() => {
@@ -45,7 +44,11 @@ export class FacebookPage extends Interaction {
      * @param {Object} params
      */
     renderIframe(params) {
-        params.width = clamp(Math.floor(this.el.getBoundingClientRect().width), 180, 500);
+        params.width = clamp(
+            Math.floor(this.el.getBoundingClientRect().width),
+            180,
+            500,
+        );
         if (this.previousWidth !== params.width) {
             this.previousWidth = params.width;
             const searchParams = new URLSearchParams(params);

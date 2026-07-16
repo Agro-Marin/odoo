@@ -1,10 +1,11 @@
 /** @odoo-module native */
-import { luxon } from "@web/core/l10n/luxon";
-import { Interaction } from "@web/public/interaction";
-import { registry } from "@web/core/registry";
-import { Form } from "./form.js";
-import { patch } from "@web/core/utils/patch";
 import { formatDate, formatDateTime } from "@web/core/l10n/dates";
+import { luxon } from "@web/core/l10n/luxon";
+import { registry } from "@web/core/registry";
+import { patch } from "@web/core/utils/patch";
+import { Interaction } from "@web/public/interaction";
+
+import { Form } from "./form.js";
 
 const { DateTime } = luxon;
 
@@ -12,7 +13,9 @@ export class FormEdit extends Interaction {
     static selector = ".s_website_form form, form.s_website_form"; // !compatibility
     start() {
         // We do not initialize the datetime picker in edit mode but want the dates to be formatted.
-        for (const el of this.el.querySelectorAll(".s_website_form_input.datetimepicker-input")) {
+        for (const el of this.el.querySelectorAll(
+            ".s_website_form_input.datetimepicker-input",
+        )) {
             const value = el.getAttribute("value");
             if (value) {
                 const format =
@@ -33,7 +36,7 @@ export class FormEdit extends Interaction {
             .map((name) => this.el.querySelector(`[name="${CSS.escape(name)}"]`))
             .filter(
                 (dataForValuesFieldEl) =>
-                    dataForValuesFieldEl && dataForValuesFieldEl.name !== "email_to"
+                    dataForValuesFieldEl && dataForValuesFieldEl.name !== "email_to",
             );
     }
 }

@@ -19,13 +19,16 @@ export class EmphasizeAnimatedText extends Component {
     }
 
     toggleEmphasizeAnimatedText() {
-        this.state.animatedTextEmphasized = this.env.editor.document.body.classList.toggle(
-            "o_animated_text_emphasized"
-        );
+        this.state.animatedTextEmphasized =
+            this.env.editor.document.body.classList.toggle(
+                "o_animated_text_emphasized",
+            );
     }
 
     isAnimatedTextEmphasized() {
-        return !!this.env.editor.document.body.classList.contains("o_animated_text_emphasized");
+        return !!this.env.editor.document.body.classList.contains(
+            "o_animated_text_emphasized",
+        );
     }
 
     hasAnimatedText() {

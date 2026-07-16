@@ -1,7 +1,7 @@
 /** @odoo-module native */
-import { BaseOptionComponent, useDomState } from "@html_builder/core/utils";
-import { BuilderFontFamilyPicker } from "@html_builder/core/building_blocks/builder_fontfamilypicker";
 import { BuilderButton } from "@html_builder/core/building_blocks/builder_button";
+import { BuilderFontFamilyPicker } from "@html_builder/core/building_blocks/builder_fontfamilypicker";
+import { BaseOptionComponent, useDomState } from "@html_builder/core/utils";
 import { getCSSVariableValue } from "@html_editor/utils/formatting";
 
 export class ThemeFontFamilyOption extends BaseOptionComponent {
@@ -19,7 +19,7 @@ export class ThemeFontFamilyOption extends BaseOptionComponent {
     setup() {
         super.setup();
         const htmlStyle = this.env.editor.document.defaultView.getComputedStyle(
-            this.env.getEditingElement()
+            this.env.getEditingElement(),
         );
         if (this.props.cssVariable === "headings-font") {
             this.state = useDomState(() => ({
@@ -29,7 +29,10 @@ export class ThemeFontFamilyOption extends BaseOptionComponent {
             }));
         } else {
             this.state = useDomState(() => ({
-                isFontSpecified: !!getCSSVariableValue("set-" + this.props.cssVariable, htmlStyle),
+                isFontSpecified: !!getCSSVariableValue(
+                    "set-" + this.props.cssVariable,
+                    htmlStyle,
+                ),
             }));
         }
     }

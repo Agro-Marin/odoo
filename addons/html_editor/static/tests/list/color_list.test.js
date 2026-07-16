@@ -1,5 +1,8 @@
-import { testEditor } from "../_helpers/editor.js";
+import { nodeSize } from "@html_editor/utils/position";
 import { test } from "@odoo/hoot";
+
+import { testEditor } from "../_helpers/editor.js";
+import { unformat } from "../_helpers/format.js";
 import {
     setColor,
     splitBlock,
@@ -7,14 +10,13 @@ import {
     toggleUnorderedList,
 } from "../_helpers/user_actions.js";
 import { execCommand } from "../_helpers/userCommands.js";
-import { unformat } from "../_helpers/format.js";
-import { nodeSize } from "@html_editor/utils/position";
 
 test("should apply color to completely selected list item", async () => {
     await testEditor({
         contentBefore: "<ol><li>[abc]</li><li>def</li></ol>",
         stepFunction: setColor("rgb(255, 0, 0)", "color"),
-        contentAfter: '<ol><li style="color: rgb(255, 0, 0);">[abc]</li><li>def</li></ol>',
+        contentAfter:
+            '<ol><li style="color: rgb(255, 0, 0);">[abc]</li><li>def</li></ol>',
     });
 });
 
@@ -82,7 +84,8 @@ test("should not color list item when selection excludes trailing empty line", a
 
 test("should apply color on fully selected list items with empty text nodes at list boundaries", async () => {
     await testEditor({
-        contentBefore: '<ul><li><a href="#">abc</a></li><li><a href="#">abc</a></li></ul>',
+        contentBefore:
+            '<ul><li><a href="#">abc</a></li><li><a href="#">abc</a></li></ul>',
         contentBeforeEdit:
             '<ul><li>\ufeff<a href="#">\ufeffabc\ufeff</a>\ufeff</li><li>\ufeff<a href="#">\ufeffabc\ufeff</a>\ufeff</li></ul>',
         stepFunction: (editor) => {
@@ -96,7 +99,10 @@ test("should apply color on fully selected list items with empty text nodes at l
                 focusOffset: nodeSize(listItems[1].lastChild),
             });
             // Empty text node at start of first <li>
-            listItems[0].insertBefore(document.createTextNode(""), listItems[0].firstChild);
+            listItems[0].insertBefore(
+                document.createTextNode(""),
+                listItems[0].firstChild,
+            );
             // Empty text node at end of second <li>
             listItems[1].appendChild(document.createTextNode(""));
             setColor("rgb(255, 0, 0)", "color")(editor);
@@ -137,7 +143,8 @@ test("should apply color to completely selected list items and paragraph tag", a
 
 test("should carry list item color to new list item", async () => {
     await testEditor({
-        contentBefore: '<ol><li>abc</li><li style="color: rgb(255, 0, 0);">def[]</li></ol>',
+        contentBefore:
+            '<ol><li>abc</li><li style="color: rgb(255, 0, 0);">def[]</li></ol>',
         stepFunction: splitBlock,
         contentAfter:
             '<ol><li>abc</li><li style="color: rgb(255, 0, 0);">def</li><li style="color: rgb(255, 0, 0);">[]<br></li></ol>',
@@ -146,7 +153,8 @@ test("should carry list item color to new list item", async () => {
 
 test("should carry list item color to new list item (2)", async () => {
     await testEditor({
-        contentBefore: '<ul><li style="color: rgb(255, 0, 0);">[]abc</li><li>def</li></ul>',
+        contentBefore:
+            '<ul><li style="color: rgb(255, 0, 0);">[]abc</li><li>def</li></ul>',
         stepFunction: splitBlock,
         contentAfter:
             '<ul><li style="color: rgb(255, 0, 0);"><br></li><li style="color: rgb(255, 0, 0);">[]abc</li><li>def</li></ul>',
@@ -183,7 +191,8 @@ test("should carry color of paragraph to list item (3)", async () => {
 
 test("should carry color of list item to paragraph", async () => {
     await testEditor({
-        contentBefore: '<ol><li style="color: rgb(255, 0, 0);">[]abc</li><li>def</li></ol>',
+        contentBefore:
+            '<ol><li style="color: rgb(255, 0, 0);">[]abc</li><li>def</li></ol>',
         stepFunction: toggleOrderedList,
         contentAfter:
             '<p><font style="color: rgb(255, 0, 0);">[]abc</font></p><ol><li>def</li></ol>',
@@ -224,7 +233,8 @@ test("should carry class-defined color of list item to paragraph", async () => {
     await testEditor({
         contentBefore: '<ol><li class="text-o-color-1">[]abc</li><li>def</li></ol>',
         stepFunction: toggleOrderedList,
-        contentAfter: '<p><font class="text-o-color-1">[]abc</font></p><ol><li>def</li></ol>',
+        contentAfter:
+            '<p><font class="text-o-color-1">[]abc</font></p><ol><li>def</li></ol>',
     });
 });
 
@@ -246,7 +256,8 @@ test("remove color from list item", async () => {
         contentBefore:
             '<ul><li style="color: rgb(255, 0, 0);">abc</li><li style="color: rgb(255, 0, 0);">[ghi]</li></ul>',
         stepFunction: (editor) => execCommand(editor, "removeFormat"),
-        contentAfter: '<ul><li style="color: rgb(255, 0, 0);">abc</li><li>[ghi]</li></ul>',
+        contentAfter:
+            '<ul><li style="color: rgb(255, 0, 0);">abc</li><li>[ghi]</li></ul>',
     });
 });
 
@@ -369,7 +380,7 @@ test("should apply gradient color style only on font inside list item", async ()
         contentBefore: "<ol><li>[abc]</li><li>def</li></ol>",
         stepFunction: setColor(
             "linear-gradient(135deg, rgb(255, 0, 0) 0%, rgb(0, 0, 255) 100%)",
-            "color"
+            "color",
         ),
         contentAfter:
             '<ol><li><font class="text-gradient" style="background-image: linear-gradient(135deg, rgb(255, 0, 0) 0%, rgb(0, 0, 255) 100%);">[abc]</font></li><li>def</li></ol>',

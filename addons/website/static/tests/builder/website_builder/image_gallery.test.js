@@ -5,7 +5,12 @@ import {
 } from "@html_builder/../tests/helpers";
 import { expect, test } from "@odoo/hoot";
 import { click, queryAll, queryOne, waitFor } from "@odoo/hoot-dom";
-import { contains, dataURItoBlob, onRpc, patchWithCleanup } from "@web/../tests/web_test_helpers";
+import {
+    contains,
+    dataURItoBlob,
+    onRpc,
+    patchWithCleanup,
+} from "@web/../tests/web_test_helpers";
 import { uniqueId } from "@web/core/utils/functions";
 import {
     defineWebsiteModels,
@@ -66,18 +71,18 @@ test("Add image in gallery", async () => {
 
     const columns = queryAll(":iframe .o_masonry_col");
     const columnImgs = columns.map((column) =>
-        [...column.children].map((img) => img.dataset.index)
+        [...column.children].map((img) => img.dataset.index),
     );
 
     expect(columnImgs).toEqual([["0", "3", "4", "5", "6"], ["1"], ["2"]]);
     expect.verifySteps(["get_image_info", "get_image_info"]);
     expect(":iframe .o_masonry_col img[data-index='6']").toHaveAttribute(
         "data-mimetype",
-        "image/webp"
+        "image/webp",
     );
     expect(":iframe .o_masonry_col img[data-index='6']").toHaveAttribute(
         "data-mimetype-before-conversion",
-        "image/png"
+        "image/png",
     );
 });
 
@@ -95,7 +100,7 @@ test.skip("Remove all images in gallery", async () => {
                 </div>
             </div>
         </section>
-        `
+        `,
     );
     await contains(":iframe .first_img").click();
     expect("[data-action-id='removeAllImages']").toHaveCount(1);
@@ -113,7 +118,9 @@ test("Change gallery layout", async () => {
     await contains(":iframe img").click();
     await waitSidebarUpdated();
     expect("[data-label='Mode']").toHaveCount(1);
-    expect(queryOne("[data-label='Mode'] .dropdown-toggle").textContent).toBe("Masonry");
+    expect(queryOne("[data-label='Mode'] .dropdown-toggle").textContent).toBe(
+        "Masonry",
+    );
     await contains("[data-label='Mode'] .dropdown-toggle").click();
 
     await contains("[data-action-param='grid']").click();
@@ -129,9 +136,9 @@ test("Change gallery restore the container to the cloned equivalent image", asyn
     const editor = builder.getEditor();
     const builderOptions = editor.shared.builderOptions;
     const expectOptionContainerToInclude = (elem) => {
-        expect(builderOptions.getContainers().map((container) => container.element)).toInclude(
-            elem
-        );
+        expect(
+            builderOptions.getContainers().map((container) => container.element),
+        ).toInclude(elem);
     };
 
     await contains(":iframe img[data-index='1']").click();
@@ -157,9 +164,11 @@ test("Change gallery layout when images have a link", async () => {
     await contains("[data-label='Media'] button[data-action-id='setLink']").click();
 
     await contains("[data-label='Your URL'] [data-action-id='setUrl'] > input").fill(
-        "http://odoo.com"
+        "http://odoo.com",
     );
-    expect(":iframe section a[href='http://odoo.com'] > img[data-index='1']").toHaveCount(1);
+    expect(
+        ":iframe section a[href='http://odoo.com'] > img[data-index='1']",
+    ).toHaveCount(1);
 
     await contains("[data-label='Mode'] .dropdown-toggle").click();
     await contains("[data-action-param='grid']").click();

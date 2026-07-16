@@ -1,6 +1,6 @@
 import {
-    insertSnippet,
     goBackToBlocks,
+    insertSnippet,
     registerWebsitePreviewTour,
 } from "@website/js/tours/tour_utils";
 
@@ -39,7 +39,8 @@ registerWebsitePreviewTour(
         {
             content:
                 "Verify that the Text Highlight building block isn't in a non editable element.",
-            trigger: ":iframe .s_company_team :not(.o_not_editable) > .s_text_highlight",
+            trigger:
+                ":iframe .s_company_team :not(.o_not_editable) > .s_text_highlight",
         },
-    ]
+    ],
 );

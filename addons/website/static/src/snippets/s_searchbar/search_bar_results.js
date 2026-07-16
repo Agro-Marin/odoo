@@ -1,9 +1,8 @@
 /** @odoo-module native */
+import { browser } from "@web/core/browser/browser";
+import { isBrowserSafari } from "@web/core/browser/feature_detection";
 import { registry } from "@web/core/registry";
 import { Interaction } from "@web/public/interaction";
-
-import { isBrowserSafari } from "@web/core/browser/feature_detection";
-import { browser } from "@web/core/browser/browser";
 import { verifyHttpsUrl } from "@website/utils/misc";
 
 export class SearchBarResults extends Interaction {
@@ -53,7 +52,9 @@ export class SearchBarResults extends Interaction {
         ".s_searchbar_fuzzy_submit": {
             "t-on-click.prevent": (event) => {
                 this.inputEl.value = event.target.textContent;
-                const formEl = this.searchBarEl.querySelector(".o_search_order_by").closest("form");
+                const formEl = this.searchBarEl
+                    .querySelector(".o_search_order_by")
+                    .closest("form");
                 formEl.submit();
             },
         },
@@ -74,7 +75,9 @@ export class SearchBarResults extends Interaction {
         const megaMenuEl = this.searchBarEl.closest(".o_mega_menu");
         if (megaMenuEl) {
             const navbarEl = this.searchBarEl.closest(".navbar");
-            const navbarTogglerEl = navbarEl ? navbarEl.querySelector(".navbar-toggler") : null;
+            const navbarTogglerEl = navbarEl
+                ? navbarEl.querySelector(".navbar-toggler")
+                : null;
             if (navbarTogglerEl && navbarTogglerEl.clientWidth < 1) {
                 this.scrollingParentEl = megaMenuEl;
             }
@@ -82,11 +85,17 @@ export class SearchBarResults extends Interaction {
 
         // Adjust the menu's position based on the scroll height.
         this.isDropup = false;
-        if (this.el.getBoundingClientRect().bottom > document.documentElement.offsetHeight) {
+        if (
+            this.el.getBoundingClientRect().bottom >
+            document.documentElement.offsetHeight
+        ) {
             // If the menu overflows below the page, we reduce its height.
             this.el.style.overflowY = "auto";
             // We then recheck if the menu still overflows below the page.
-            if (this.el.getBoundingClientRect().bottom > document.documentElement.offsetHeight) {
+            if (
+                this.el.getBoundingClientRect().bottom >
+                document.documentElement.offsetHeight
+            ) {
                 // If the menu still overflows below the viewport after its
                 // height has been reduced, we position it where most space is
                 // available
@@ -104,7 +113,7 @@ export class SearchBarResults extends Interaction {
         // render(), as this would prevent the click from working.
         if (isBrowserSafari) {
             this.searchBarEl.dispatchEvent(
-                new CustomEvent("safarihack", { detail: { linkHasFocus: true } })
+                new CustomEvent("safarihack", { detail: { linkHasFocus: true } }),
             );
         }
     }
@@ -113,7 +122,7 @@ export class SearchBarResults extends Interaction {
         // See comment in onMousedown.
         if (isBrowserSafari) {
             this.searchBarEl.dispatchEvent(
-                new CustomEvent("safarihack", { detail: { linkHasFocus: false } })
+                new CustomEvent("safarihack", { detail: { linkHasFocus: false } }),
             );
         }
     }
@@ -146,4 +155,6 @@ export class SearchBarResults extends Interaction {
     }
 }
 
-registry.category("public.interactions").add("website.search_bar_results", SearchBarResults);
+registry
+    .category("public.interactions")
+    .add("website.search_bar_results", SearchBarResults);

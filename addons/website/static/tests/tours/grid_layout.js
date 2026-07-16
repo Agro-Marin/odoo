@@ -65,7 +65,7 @@ registerWebsitePreviewTour(
             run: "click",
         },
         ...clickOnSave(),
-    ]
+    ],
 );
 
 registerWebsitePreviewTour(
@@ -76,16 +76,28 @@ registerWebsitePreviewTour(
     },
     () => [
         // Drop enough snippets to scroll.
-        ...insertSnippet({ id: "s_text_image", name: "Text - Image", groupName: "Content" }),
-        ...insertSnippet({ id: "s_image_text", name: "Image - Text", groupName: "Content" }),
-        ...insertSnippet({ id: "s_image_text", name: "Image - Text", groupName: "Content" }),
+        ...insertSnippet({
+            id: "s_text_image",
+            name: "Text - Image",
+            groupName: "Content",
+        }),
+        ...insertSnippet({
+            id: "s_image_text",
+            name: "Image - Text",
+            groupName: "Content",
+        }),
+        ...insertSnippet({
+            id: "s_image_text",
+            name: "Image - Text",
+            groupName: "Content",
+        }),
         // Toggle the first snippet to grid mode.
         ...clickOnSnippet({ id: "s_text_image", name: "Text - Image" }),
         changeOption("Text - Image", "setGridLayout"),
         // Add a new grid item.
         changeOption(
             "Text - Image",
-            "[data-action-id='addGridElement'][data-action-param='image']"
+            "[data-action-id='addGridElement'][data-action-param='image']",
         ),
         {
             content: "Select the new image in the media dialog",
@@ -111,5 +123,5 @@ registerWebsitePreviewTour(
             trigger: ".o_scrolled_to_grid_item",
         },
         ...clickOnSave(),
-    ]
+    ],
 );

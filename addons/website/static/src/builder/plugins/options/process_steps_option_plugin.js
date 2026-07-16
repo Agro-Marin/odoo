@@ -7,8 +7,9 @@ import { Plugin } from "@html_editor/plugin";
 import { withSequence } from "@html_editor/utils/resource";
 import { registry } from "@web/core/registry";
 import { CONTAINER_WIDTH } from "@website/builder/option_sequence";
-import { connectorOptionParams, ProcessStepsOption } from "./process_steps_option.js";
+
 import { BaseWebsiteBackgroundOption } from "./background_option.js";
+import { connectorOptionParams, ProcessStepsOption } from "./process_steps_option.js";
 
 export class WebsiteBackgroundProcessStepOption extends BaseWebsiteBackgroundOption {
     static selector = ".s_process_step .s_process_step_number";
@@ -54,11 +55,14 @@ export class ChangeConnectorAction extends ClassAction {
         reloadConnectors(editingElement);
         let markerEnd = "";
         if (
-            ["s_process_steps_connector_arrow", "s_process_steps_connector_curved_arrow"].includes(
-                className
-            )
+            [
+                "s_process_steps_connector_arrow",
+                "s_process_steps_connector_curved_arrow",
+            ].includes(className)
         ) {
-            const arrowHeadEl = editingElement.querySelector(".s_process_steps_arrow_head");
+            const arrowHeadEl = editingElement.querySelector(
+                ".s_process_steps_arrow_head",
+            );
             // The arrowhead id is set here so that they are different per snippet
             if (!arrowHeadEl.id) {
                 arrowHeadEl.id = "s_process_steps_arrow_head" + Date.now();
@@ -81,7 +85,9 @@ export class ChangeArrowColorAction extends BuilderAction {
     }
 }
 
-registry.category("website-plugins").add(ProcessStepsOptionPlugin.id, ProcessStepsOptionPlugin);
+registry
+    .category("website-plugins")
+    .add(ProcessStepsOptionPlugin.id, ProcessStepsOptionPlugin);
 
 /**
  * Width and position of the connectors should be updated when one of the
@@ -90,17 +96,18 @@ registry.category("website-plugins").add(ProcessStepsOptionPlugin.id, ProcessSte
  */
 function reloadConnectors(editingElement) {
     const connectorOptionClasses = connectorOptionParams.map(
-        (connectorOptionParam) => connectorOptionParam.key
+        (connectorOptionParam) => connectorOptionParam.key,
     );
     const type =
         connectorOptionClasses.find(
             (connectorOptionClass) =>
-                connectorOptionClass && editingElement.classList.contains(connectorOptionClass)
+                connectorOptionClass &&
+                editingElement.classList.contains(connectorOptionClass),
         ) || "";
     // As the connectors are only visible in desktop, we can ignore the
     // steps that are only visible in mobile.
     const stepsEls = editingElement.querySelectorAll(
-        ".s_process_step:not(.o_snippet_desktop_invisible)"
+        ".s_process_step:not(.o_snippet_desktop_invisible)",
     );
     const nbBootstrapCols = 12;
     let colsInRow = 0;
@@ -131,7 +138,8 @@ function reloadConnectors(editingElement) {
         connectorEl.style[marginType] = `${0 - Math.abs(stepHeightDifference)}px`;
 
         const isTheLastColOfRow =
-            nbBootstrapCols < colsInRow + stepSize + stepOffset + nextStepSize + nextStepOffset;
+            nbBootstrapCols <
+            colsInRow + stepSize + stepOffset + nextStepSize + nextStepOffset;
         connectorEl.classList.toggle("d-none", isTheLastColOfRow);
         colsInRow = isTheLastColOfRow ? 0 : colsInRow + stepSize + stepOffset;
         // When we are mobile view, the connector is not visible, here we
@@ -140,7 +148,9 @@ function reloadConnectors(editingElement) {
         const { height, width } = connectorEl.getBoundingClientRect();
         connectorEl.style.removeProperty("display");
         if (type === "s_process_steps_connector_curved_arrow" && i % 2 === 0) {
-            connectorEl.style.transform = stepHeightDifference ? "unset" : "scale(1, -1)";
+            connectorEl.style.transform = stepHeightDifference
+                ? "unset"
+                : "scale(1, -1)";
         } else {
             connectorEl.style.transform = "unset";
         }
@@ -155,8 +165,8 @@ function reloadConnectors(editingElement) {
                     height,
                     stepHeightDifference,
                     hCurrentStepIconHeight,
-                    hNextStepIconHeight
-                )
+                    hNextStepIconHeight,
+                ),
             );
     }
 }
@@ -192,7 +202,7 @@ function getStepMainElementRect(stepEl) {
             return range.getBoundingClientRect();
         });
         return contentRects.reduce((previous, current) =>
-            current.width > previous.width ? current : previous
+            current.width > previous.width ? current : previous,
         );
     }
     return {};
@@ -211,7 +221,7 @@ function getPath(
     height,
     stepHeightDifference,
     hCurrentStepIconHeight,
-    hNextStepIconHeight
+    hNextStepIconHeight,
 ) {
     const hHeight = height / 2;
     switch (type) {
@@ -219,7 +229,9 @@ function getPath(
             const verticalPaddingFactor = Math.abs(stepHeightDifference) / 8;
             if (stepHeightDifference >= 0) {
                 return `M 0 ${
-                    stepHeightDifference + hCurrentStepIconHeight - verticalPaddingFactor
+                    stepHeightDifference +
+                    hCurrentStepIconHeight -
+                    verticalPaddingFactor
                 } L ${width} ${hNextStepIconHeight + verticalPaddingFactor}`;
             }
             return `M 0 ${hCurrentStepIconHeight + verticalPaddingFactor} L ${width} ${
@@ -233,7 +245,9 @@ function getPath(
             const verticalPaddingFactor = (Math.abs(stepHeightDifference) / 8) * 1.5;
             if (stepHeightDifference >= 0) {
                 return `M ${0.05 * width} ${
-                    stepHeightDifference + hCurrentStepIconHeight - verticalPaddingFactor
+                    stepHeightDifference +
+                    hCurrentStepIconHeight -
+                    verticalPaddingFactor
                 } L ${0.95 * width - 6} ${hNextStepIconHeight + verticalPaddingFactor}`;
             }
             return `M ${0.05 * width} ${hCurrentStepIconHeight + verticalPaddingFactor} L ${
@@ -241,7 +255,7 @@ function getPath(
             } ${Math.abs(stepHeightDifference) + hNextStepIconHeight - verticalPaddingFactor}`;
         }
         case "s_process_steps_connector_curved_arrow": {
-            if (stepHeightDifference == 0) {
+            if (stepHeightDifference === 0) {
                 return `M ${0.05 * width} ${hHeight * 1.2} Q ${width / 2} ${hHeight * 1.8} ${
                     0.95 * width - 6
                 } ${hHeight * 1.2}`;

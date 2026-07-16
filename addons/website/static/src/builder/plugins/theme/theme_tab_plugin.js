@@ -1,26 +1,27 @@
 /** @odoo-module native */
+import { BuilderAction } from "@html_builder/core/builder_action";
+import { BaseOptionComponent } from "@html_builder/core/utils";
+import { setBuilderCSSVariables } from "@html_builder/utils/utils_css";
 import { Plugin } from "@html_editor/plugin";
 import { getCSSVariableValue, getHtmlStyle } from "@html_editor/utils/formatting";
 import { withSequence } from "@html_editor/utils/resource";
-import { ThemeAdvancedOption } from "./theme_advanced_option.js";
-import { ThemeButtonOption } from "./theme_button_option.js";
-import { ThemeColorsOption } from "./theme_colors_option.js";
-import { ThemeHeadingsOption } from "./theme_headings_option.js";
-import { setBuilderCSSVariables } from "@html_builder/utils/utils_css";
-import { ConfirmationDialog } from "@web/ui/dialog/confirmation_dialog";
+import { reactive } from "@odoo/owl";
 import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
 import {
     convertCSSColorToRgba,
-    convertRgbaToCSSColor,
     convertHslToRgb,
+    convertRgbaToCSSColor,
     convertRgbToHsl,
 } from "@web/core/utils/format/colors";
-import { reactive } from "@odoo/owl";
-import { BuilderAction } from "@html_builder/core/builder_action";
-import { CustomizeWebsiteVariableAction } from "../customize_website_plugin.js";
+import { ConfirmationDialog } from "@web/ui/dialog/confirmation_dialog";
 import { EditHeadBodyDialog } from "@website/components/edit_head_body_dialog/edit_head_body_dialog";
-import { BaseOptionComponent } from "@html_builder/core/utils";
+
+import { CustomizeWebsiteVariableAction } from "../customize_website_plugin.js";
+import { ThemeAdvancedOption } from "./theme_advanced_option.js";
+import { ThemeButtonOption } from "./theme_button_option.js";
+import { ThemeColorsOption } from "./theme_colors_option.js";
+import { ThemeHeadingsOption } from "./theme_headings_option.js";
 
 /**
  * @typedef { Object } ThemeTabShared
@@ -53,7 +54,13 @@ export const OPTION_POSITIONS = {
 
 export class ThemeTabPlugin extends Plugin {
     static id = "themeTab";
-    static shared = ["getGrayParams", "getGrays", "setGrays", "setGrayParams", "buildGray"];
+    static shared = [
+        "getGrayParams",
+        "getGrays",
+        "setGrays",
+        "setGrayParams",
+        "buildGray",
+    ];
     grayParams = {};
     grays = reactive({});
 
@@ -69,7 +76,11 @@ export class ThemeTabPlugin extends Plugin {
         theme_options: [
             withSequence(
                 OPTION_POSITIONS.COLORS,
-                this.getThemeOptionBlock("theme-colors", _t("Colors"), ThemeColorsOption)
+                this.getThemeOptionBlock(
+                    "theme-colors",
+                    _t("Colors"),
+                    ThemeColorsOption,
+                ),
             ),
             withSequence(
                 OPTION_POSITIONS.SETTINGS,
@@ -78,8 +89,8 @@ export class ThemeTabPlugin extends Plugin {
                     _t("Website"),
                     class ThemeWebsiteSettingsOption extends BaseOptionComponent {
                         static template = "website.ThemeWebsiteSettingsOption";
-                    }
-                )
+                    },
+                ),
             ),
             withSequence(
                 OPTION_POSITIONS.PARAGRAPH,
@@ -88,16 +99,24 @@ export class ThemeTabPlugin extends Plugin {
                     _t("Paragraph"),
                     class ThemeParagraphOption extends BaseOptionComponent {
                         static template = "website.ThemeParagraphOption";
-                    }
-                )
+                    },
+                ),
             ),
             withSequence(
                 OPTION_POSITIONS.HEADINGS,
-                this.getThemeOptionBlock("theme-headings", _t("Headings"), ThemeHeadingsOption)
+                this.getThemeOptionBlock(
+                    "theme-headings",
+                    _t("Headings"),
+                    ThemeHeadingsOption,
+                ),
             ),
             withSequence(
                 OPTION_POSITIONS.BUTTON,
-                this.getThemeOptionBlock("theme-button", _t("Button"), ThemeButtonOption)
+                this.getThemeOptionBlock(
+                    "theme-button",
+                    _t("Button"),
+                    ThemeButtonOption,
+                ),
             ),
             withSequence(
                 OPTION_POSITIONS.LINK,
@@ -106,8 +125,8 @@ export class ThemeTabPlugin extends Plugin {
                     _t("Link"),
                     class ThemeLinkOption extends BaseOptionComponent {
                         static template = "website.ThemeLinkOption";
-                    }
-                )
+                    },
+                ),
             ),
             withSequence(
                 OPTION_POSITIONS.INPUT,
@@ -116,12 +135,16 @@ export class ThemeTabPlugin extends Plugin {
                     _t("Input Fields"),
                     class ThemeInputOption extends BaseOptionComponent {
                         static template = "website.ThemeInputOption";
-                    }
-                )
+                    },
+                ),
             ),
             withSequence(
                 OPTION_POSITIONS.ADVANCED,
-                this.getThemeOptionBlock("theme-advanced", _t("Advanced"), ThemeAdvancedOption)
+                this.getThemeOptionBlock(
+                    "theme-advanced",
+                    _t("Advanced"),
+                    ThemeAdvancedOption,
+                ),
             ),
         ],
     };
@@ -149,7 +172,7 @@ export class ThemeTabPlugin extends Plugin {
             const baseGrayHSL = convertRgbToHsl(
                 baseGrayRGB.red,
                 baseGrayRGB.green,
-                baseGrayRGB.blue
+                baseGrayRGB.blue,
             );
 
             if (grayHSL.saturation > 0.01) {
@@ -181,20 +204,21 @@ export class ThemeTabPlugin extends Plugin {
                           .reduce((memo, value) => memo + value, 0) / hues.length,
                       hues
                           .map((hue) => Math.cos((hue * Math.PI) / 180))
-                          .reduce((memo, value) => memo + value, 0) / hues.length
+                          .reduce((memo, value) => memo + value, 0) / hues.length,
                   ) *
                       180) /
                       Math.PI +
-                      360
+                      360,
               ) % 360;
 
         // Average of found saturation diffs, or all grays have no
         // saturation, or all grays are fully saturated.
         this.grayParams[GRAY_PARAMS.EXTRA_SATURATION] = saturationDiffs.length
-            ? saturationDiffs.reduce((memo, value) => memo + value, 0) / saturationDiffs.length
+            ? saturationDiffs.reduce((memo, value) => memo + value, 0) /
+              saturationDiffs.length
             : oneHasNoSaturation
-            ? -100
-            : 100;
+              ? -100
+              : 100;
     }
     getGrayParams() {
         return this.grayParams;
@@ -210,21 +234,27 @@ export class ThemeTabPlugin extends Plugin {
     }
     buildGray(id) {
         // Getting base grays defined in color_palette.scss
-        const gray = getCSSVariableValue(`base-${id}`, getComputedStyle(document.documentElement));
+        const gray = getCSSVariableValue(
+            `base-${id}`,
+            getComputedStyle(document.documentElement),
+        );
         const grayRGB = convertCSSColorToRgba(gray);
         const hsl = convertRgbToHsl(grayRGB.red, grayRGB.green, grayRGB.blue);
         const adjustedGrayRGB = convertHslToRgb(
             this.grayParams[GRAY_PARAMS.HUE],
             Math.min(
-                Math.max(hsl.saturation + this.grayParams[GRAY_PARAMS.EXTRA_SATURATION], 0),
-                100
+                Math.max(
+                    hsl.saturation + this.grayParams[GRAY_PARAMS.EXTRA_SATURATION],
+                    0,
+                ),
+                100,
             ),
-            hsl.lightness
+            hsl.lightness,
         );
         return convertRgbaToCSSColor(
             adjustedGrayRGB.red,
             adjustedGrayRGB.green,
-            adjustedGrayRGB.blue
+            adjustedGrayRGB.blue,
         );
     }
 
@@ -272,7 +302,10 @@ export class CustomizeGrayAction extends BuilderAction {
         this.dependencies.themeTab.setGrayParams(grayParamName, parseInt(value));
         for (let i = 1; i < 10; i++) {
             const key = (100 * i).toString();
-            this.dependencies.themeTab.setGrays(key, this.dependencies.themeTab.buildGray(key));
+            this.dependencies.themeTab.setGrays(
+                key,
+                this.dependencies.themeTab.buildGray(key),
+            );
         }
 
         // Save all computed (JS side) grays in database
@@ -280,7 +313,7 @@ export class CustomizeGrayAction extends BuilderAction {
             this.dependencies.themeTab.getGrays(),
             {
                 colorType: "gray",
-            }
+            },
         );
         setBuilderCSSVariables(getHtmlStyle(this.document));
     }
@@ -299,7 +332,7 @@ export class ChangeColorPaletteAction extends CustomizeWebsiteVariableAction {
             return new Promise((resolve) => {
                 this.services.dialog.add(ConfirmationDialog, {
                     body: _t(
-                        "Changing the color palette will reset all your color customizations, are you sure you want to proceed?"
+                        "Changing the color palette will reset all your color customizations, are you sure you want to proceed?",
                     ),
                     confirm: () => resolve(true),
                     cancel: () => resolve(false),

@@ -1,5 +1,4 @@
 /** @odoo-module native */
-import { Modal } from "@web/libs/bootstrap";
 import { Plugin } from "@html_editor/plugin";
 import { registry } from "@web/core/registry";
 import { patch } from "@web/core/utils/patch";
@@ -60,7 +59,9 @@ export class PopupVisibilityPlugin extends Plugin {
         // save (see save plugin) and Bootstrap moves it if it is not within the
         // document (see Bootstrap Modal's _showElement).
         if (targetEl.matches(".s_popup") && this.editable.contains(targetEl)) {
-            this.window.Modal.getOrCreateInstance(targetEl.querySelector(".modal")).show();
+            this.window.Modal.getOrCreateInstance(
+                targetEl.querySelector(".modal"),
+            ).show();
         }
     }
 
@@ -68,7 +69,9 @@ export class PopupVisibilityPlugin extends Plugin {
         // Do not use Bootstrap to close the popup, as we are cleaning a
         // clone of it. Instead, hide it manually (see `cleanForSave`).
         if (targetEl.matches(".s_popup") && !isCleaning) {
-            this.window.Modal.getOrCreateInstance(targetEl.querySelector(".modal")).hide();
+            this.window.Modal.getOrCreateInstance(
+                targetEl.querySelector(".modal"),
+            ).hide();
         }
     }
 
@@ -91,7 +94,9 @@ export class PopupVisibilityPlugin extends Plugin {
      * @param {HTMLElement} targetEl the element
      */
     hidePopupsWithoutTarget(targetEl) {
-        const openPopupEls = this.editable.querySelectorAll(".s_popup:not([data-invisible='1']");
+        const openPopupEls = this.editable.querySelectorAll(
+            ".s_popup:not([data-invisible='1']",
+        );
         if (!openPopupEls.length) {
             return;
         }
@@ -105,4 +110,6 @@ export class PopupVisibilityPlugin extends Plugin {
     }
 }
 
-registry.category("website-plugins").add(PopupVisibilityPlugin.id, PopupVisibilityPlugin);
+registry
+    .category("website-plugins")
+    .add(PopupVisibilityPlugin.id, PopupVisibilityPlugin);

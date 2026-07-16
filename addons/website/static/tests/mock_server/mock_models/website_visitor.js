@@ -1,5 +1,4 @@
 import { mailDataHelpers } from "@mail/../tests/mock_server/mail_mock_server";
-
 import { fields, makeKwArgs, models } from "@web/../tests/web_test_helpers";
 
 export class WebsiteVisitor extends models.ServerModel {
@@ -33,14 +32,18 @@ export class WebsiteVisitor extends models.ServerModel {
 
         for (const visitor of this) {
             const [data] = this._read_format(visitor.id, ["display_name"]);
-            data.country_id = mailDataHelpers.Store.one(ResCountry.browse(visitor.country_id));
+            data.country_id = mailDataHelpers.Store.one(
+                ResCountry.browse(visitor.country_id),
+            );
             data.page_visit_history = JSON.parse(visitor.page_visit_history || "[]");
             data.lang_id = mailDataHelpers.Store.one(ResLang.browse(visitor.lang_id));
             data.partner_id = mailDataHelpers.Store.one(
                 ResPartner.browse(visitor.partner_id),
-                makeKwArgs({ fields: ["country_id"] })
+                makeKwArgs({ fields: ["country_id"] }),
             );
-            data.website_id = mailDataHelpers.Store.one(Website.browse(visitor.website_id));
+            data.website_id = mailDataHelpers.Store.one(
+                Website.browse(visitor.website_id),
+            );
             store._add_record_fields(this.browse(visitor.id), data);
         }
     }

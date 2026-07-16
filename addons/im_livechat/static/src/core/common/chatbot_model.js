@@ -1,9 +1,9 @@
 /** @odoo-module native */
-import { AND, fields, Record } from "@mail/core/common/record";
-import { rpc } from "@web/core/network/rpc";
-import { browser } from "@web/core/browser/browser";
-import { debounce } from "@web/core/utils/timing";
 import { expirableStorage } from "@im_livechat/core/common/expirable_storage";
+import { AND, fields, Record } from "@mail/core/common/record";
+import { browser } from "@web/core/browser/browser";
+import { rpc } from "@web/core/network/rpc";
+import { debounce } from "@web/core/utils/timing";
 
 export class Chatbot extends Record {
     static id = AND("script", "thread");
@@ -187,7 +187,7 @@ export class Chatbot extends Record {
         }
         this.nextStepTimeout = browser.setTimeout(
             async () => this._runUntilUserInputStep(),
-            Chatbot.TYPING_DELAY
+            Chatbot.TYPING_DELAY,
         );
     }
 
@@ -200,7 +200,7 @@ export class Chatbot extends Record {
             setTimeout(() => {
                 this.isTyping = false;
                 res();
-            }, duration)
+            }, duration),
         );
     }
 
@@ -243,13 +243,17 @@ export class Chatbot extends Record {
             return true;
         }
         let isRedirecting = false;
-        if (answer.redirect_link && URL.canParse(answer.redirect_link, window.location.href)) {
+        if (
+            answer.redirect_link &&
+            URL.canParse(answer.redirect_link, window.location.href)
+        ) {
             const url = new URL(window.location.href);
             const nextURL = new URL(answer.redirect_link, window.location.href);
-            isRedirecting = url.pathname !== nextURL.pathname || url.origin !== nextURL.origin;
+            isRedirecting =
+                url.pathname !== nextURL.pathname || url.origin !== nextURL.origin;
         }
         const redirects = JSON.parse(
-            expirableStorage.getItem("im_livechat.chatbot_redirect") ?? "[]"
+            expirableStorage.getItem("im_livechat.chatbot_redirect") ?? "[]",
         );
         const targetURL = new URL(answer.redirect_link, window.location.origin);
         const redirectionAlreadyDone =
@@ -259,7 +263,7 @@ export class Chatbot extends Record {
         expirableStorage.setItem(
             "im_livechat.chatbot_redirect",
             JSON.stringify([...new Set(redirects)]),
-            ONE_DAY_TTL
+            ONE_DAY_TTL,
         );
         if (!redirectionAlreadyDone) {
             browser.location.assign(answer.redirect_link);

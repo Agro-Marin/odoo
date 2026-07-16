@@ -1,12 +1,18 @@
 import { describe, expect, test } from "@odoo/hoot";
-import { setupInteractionWhiteList, startInteractions } from "@web/../tests/public/helpers";
-import { switchToEditMode } from "../../helpers.js";
 import { tick } from "@odoo/hoot-dom";
+import {
+    setupInteractionWhiteList,
+    startInteractions,
+} from "@web/../tests/public/helpers";
+
+import { switchToEditMode } from "../../helpers.js";
 
 describe.current.tags("interaction_dev");
 setupInteractionWhiteList("website.countdown");
 
-const getTemplate = function (options = { endAction: "nothing", endTime: "98765432100" }) {
+const getTemplate = function (
+    options = { endAction: "nothing", endTime: "98765432100" },
+) {
     return `
         <div style="background-color: white;">
             <section class="s_countdown pt48 pb48 ${
@@ -61,7 +67,7 @@ const endMessage = `
 test("past date: end message is not shown and countdown remains visible", async () => {
     const { core } = await startInteractions(
         getTemplate({ endAction: "message_no_countdown", endTime: "1" }),
-        { waitForStart: true, editMode: true }
+        { waitForStart: true, editMode: true },
     );
     await switchToEditMode(core);
 

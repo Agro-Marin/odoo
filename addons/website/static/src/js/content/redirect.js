@@ -13,7 +13,9 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     if (!window.frameElement) {
-        const frontendToBackendNavEl = document.querySelector(".o_frontend_to_backend_nav");
+        const frontendToBackendNavEl = document.querySelector(
+            ".o_frontend_to_backend_nav",
+        );
         if (frontendToBackendNavEl) {
             frontendToBackendNavEl.classList.add("d-flex");
             frontendToBackendNavEl.classList.remove("d-none");
@@ -29,7 +31,9 @@ document.addEventListener("DOMContentLoaded", () => {
             window.location.replace(currentUrl.href);
             return;
         }
-        const backendEditBtnEl = document.querySelector(".o_frontend_to_backend_edit_btn");
+        const backendEditBtnEl = document.querySelector(
+            ".o_frontend_to_backend_edit_btn",
+        );
         if (backendEditBtnEl) {
             backendEditBtnEl.href = currentUrl.href;
             document.addEventListener(
@@ -41,11 +45,13 @@ document.addEventListener("DOMContentLoaded", () => {
                         window.location.replace(currentUrl.href);
                     }
                 },
-                true
+                true,
             );
         }
     } else {
-        const backendUserDropdownLinkEl = document.getElementById("o_backend_user_dropdown_link");
+        const backendUserDropdownLinkEl = document.getElementById(
+            "o_backend_user_dropdown_link",
+        );
         if (backendUserDropdownLinkEl) {
             backendUserDropdownLinkEl.classList.add("d-none");
             backendUserDropdownLinkEl.classList.remove("d-flex");

@@ -1,11 +1,11 @@
-import { setupInteractionWhiteList, startInteractions } from "@web/../tests/public/helpers";
-
 import { beforeEach, describe, expect, test } from "@odoo/hoot";
 import { animationFrame, click, queryAll, queryOne } from "@odoo/hoot-dom";
 import { advanceTime, enableTransitions } from "@odoo/hoot-mock";
-
+import {
+    setupInteractionWhiteList,
+    startInteractions,
+} from "@web/../tests/public/helpers";
 import { onRpc } from "@web/../tests/web_test_helpers";
-
 import { registry } from "@web/core/registry";
 import { Interaction } from "@web/public/interaction";
 
@@ -62,7 +62,9 @@ test("dynamic snippet carousel loads items and displays them through template (d
     onRpc("/website/snippet/filters", async (args) => {
         const json = JSON.parse(new TextDecoder().decode(await args.arrayBuffer()));
         expect(json.params.filter_id).toBe(1);
-        expect(json.params.template_key).toBe("website.dynamic_filter_template_test_item");
+        expect(json.params.template_key).toBe(
+            "website.dynamic_filter_template_test_item",
+        );
         expect(json.params.limit).toBe(16);
         expect(json.params.search_domain).toEqual([]);
         return [
@@ -108,7 +110,9 @@ test("dynamic snippet carousel loads items and displays them through template (m
     onRpc("/website/snippet/filters", async (args) => {
         const json = JSON.parse(new TextDecoder().decode(await args.arrayBuffer()));
         expect(json.params.filter_id).toBe(1);
-        expect(json.params.template_key).toBe("website.dynamic_filter_template_test_item");
+        expect(json.params.template_key).toBe(
+            "website.dynamic_filter_template_test_item",
+        );
         expect(json.params.limit).toBe(16);
         expect(json.params.search_domain).toEqual([]);
         return [

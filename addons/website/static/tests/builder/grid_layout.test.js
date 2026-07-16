@@ -1,8 +1,13 @@
-import { expect, test, tick, waitFor, waitUntil } from "@odoo/hoot";
-import { contains, onRpc } from "@web/../tests/web_test_helpers";
-import { addPlugin, defineWebsiteModels, setupWebsiteBuilder } from "./website_helpers.js";
 import { getDragHelper, waitForEndOfOperation } from "@html_builder/../tests/helpers";
 import { Plugin } from "@html_editor/plugin";
+import { expect, test, tick, waitFor, waitUntil } from "@odoo/hoot";
+import { contains, onRpc } from "@web/../tests/web_test_helpers";
+
+import {
+    addPlugin,
+    defineWebsiteModels,
+    setupWebsiteBuilder,
+} from "./website_helpers.js";
 
 defineWebsiteModels();
 
@@ -57,11 +62,11 @@ test("Drag & drop an inner snippet inside a grid item should adjust its height o
             </div>
         </section>
     `,
-        { loadIframeBundles: true }
+        { loadIframeBundles: true },
     );
 
     const { moveTo, drop } = await contains(
-        ".o-website-builder_sidebar [name='Button'] .o_snippet_thumbnail"
+        ".o-website-builder_sidebar [name='Button'] .o_snippet_thumbnail",
     ).drag();
     expect(":iframe .oe_drop_zone:nth-child(1)").toHaveCount(1);
     expect(":iframe .oe_drop_zone:nth-child(3)").toHaveCount(1);
@@ -87,9 +92,10 @@ test("Add an image to a grid", async () => {
         class extends Plugin {
             static id = "test";
             resources = {
-                on_media_dialog_saved_handlers: (el) => waitUntil(() => el[0].complete).then(tick),
+                on_media_dialog_saved_handlers: (el) =>
+                    waitUntil(() => el[0].complete).then(tick),
             };
-        }
+        },
     );
     await setupWebsiteBuilder(
         `
@@ -102,10 +108,12 @@ test("Add an image to a grid", async () => {
                 </div>
             </div>
         </section>
-    `
+    `,
     );
     await contains(":iframe .o_grid_mode").click();
-    await contains("button[data-action-id=addGridElement][data-action-param=image]").click();
+    await contains(
+        "button[data-action-id=addGridElement][data-action-param=image]",
+    ).click();
     await contains(".o_existing_attachment_cell .o_button_area").click();
 
     await waitFor(":iframe .o_grid_mode .o_grid_item img");

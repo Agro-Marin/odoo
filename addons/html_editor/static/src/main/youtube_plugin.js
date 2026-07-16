@@ -1,6 +1,7 @@
 /** @odoo-module native */
 import { _t } from "@web/core/l10n/translation";
 import { rpc } from "@web/core/network/rpc";
+
 import { Plugin } from "../plugin.js";
 import { VideoSelector } from "./media/media_dialog/video_selector.js";
 
@@ -16,7 +17,8 @@ export class YoutubePlugin extends Plugin {
     /** @type {import("plugins").EditorResources} */
     resources = {
         ...(this.config.allowVideo && {
-            paste_media_url_command_providers: this.getCommandForVideoUrlPaste.bind(this),
+            paste_media_url_command_providers:
+                this.getCommandForVideoUrlPaste.bind(this),
         }),
     };
     /**
@@ -31,7 +33,9 @@ export class YoutubePlugin extends Plugin {
                 description: _t("Embed the youtube video in the document."),
                 icon: "fa-youtube-play",
                 run: async () => {
-                    const videoElement = await this.getYoutubeVideoElement(youtubeUrl[0]);
+                    const videoElement = await this.getYoutubeVideoElement(
+                        youtubeUrl[0],
+                    );
                     this.dependencies.dom.insert(videoElement);
                     this.dependencies.history.addStep();
                 },

@@ -1,10 +1,10 @@
+import { translationIsReady } from "@web/core/l10n/translation";
+import { stepUtils } from "@web_tour/tour_utils";
 import {
     clickOnExtraMenuItem,
     clickOnSave,
     registerWebsitePreviewTour,
 } from "@website/js/tours/tour_utils";
-import { stepUtils } from "@web_tour/tour_utils";
-import { translationIsReady } from "@web/core/l10n/translation";
 
 registerWebsitePreviewTour(
     "translate_menu_name",
@@ -51,5 +51,5 @@ registerWebsitePreviewTour(
                 await translationIsReady;
             },
         },
-    ]
+    ],
 );

@@ -14,12 +14,15 @@ export class AutopopupService {
      * ui: typeof import("@web/ui/block/ui_service").uiService.start,
      * }} services
      */
-    constructor(env, { "im_livechat.livechat": livechatService, "mail.store": storeService, ui }) {
+    constructor(
+        env,
+        { "im_livechat.livechat": livechatService, "mail.store": storeService, ui },
+    ) {
         this.storeService = storeService;
         this.livechatService = livechatService;
         this.ui = ui;
 
-        storeService.isReady.then(() => { 
+        storeService.isReady.then(() => {
             browser.setTimeout(async () => {
                 await storeService.chatHub.initPromise;
                 if (this.allowAutoPopup) {
@@ -33,10 +36,10 @@ export class AutopopupService {
     get allowAutoPopup() {
         return Boolean(
             !expirableStorage.getItem(AutopopupService.STORAGE_KEY) &&
-                !this.ui.isSmall &&
-                this.storeService.livechat_rule?.action === "auto_popup" &&
-                this.storeService.livechat_available &&
-                this.storeService.activeLivechats.length === 0
+            !this.ui.isSmall &&
+            this.storeService.livechat_rule?.action === "auto_popup" &&
+            this.storeService.livechat_available &&
+            this.storeService.activeLivechats.length === 0,
         );
     }
 }

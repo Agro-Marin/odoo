@@ -17,7 +17,7 @@ function searchParamsCheck() {
             const urlParams = new URLSearchParams(window.location.search);
             if (urlParams.has("edit_translations") || urlParams.has("enable_editor")) {
                 throw new Error(
-                    "URL should not contain edit_translations or enable_editor after reload"
+                    "URL should not contain edit_translations or enable_editor after reload",
                 );
             }
         },

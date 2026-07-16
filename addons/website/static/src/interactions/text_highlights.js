@@ -1,19 +1,20 @@
 /** @odoo-module native */
-import { Interaction } from "@web/public/interaction";
 import { registry } from "@web/core/registry";
+import { Interaction } from "@web/public/interaction";
 import {
-    getCurrentTextHighlight,
     adaptHighlightPosition,
-    makeHighlightSvgs,
     closestToObserve,
+    getCurrentTextHighlight,
     getObservedEls,
+    makeHighlightSvgs,
 } from "@website/js/highlight_utils";
 
 export class TextHighlight extends Interaction {
     static selector = "#wrapwrap, .o_wslides_fs_content";
     dynamicContent = {
         _root: {
-            "t-on-text_highlight_added": ({ target }) => this.onTextHighlightAdded(target),
+            "t-on-text_highlight_added": ({ target }) =>
+                this.onTextHighlightAdded(target),
         },
     };
 
@@ -21,7 +22,9 @@ export class TextHighlight extends Interaction {
         this.observerLock = new Map();
         this.observed = new WeakSet();
         this.resizeObserver = new window.ResizeObserver(this.updateEntries.bind(this));
-        this.mutationObserver = new window.MutationObserver(this.updateEntries.bind(this));
+        this.mutationObserver = new window.MutationObserver(
+            this.updateEntries.bind(this),
+        );
     }
 
     start() {
@@ -42,7 +45,9 @@ export class TextHighlight extends Interaction {
         const closestToObserves = new Set();
         for (const { target, addedNodes = [], removedNodes = [] } of entries) {
             const elements = [target, ...addedNodes, ...removedNodes]
-                .map((el) => (el.nodeType === Node.ELEMENT_NODE ? el : el.parentElement))
+                .map((el) =>
+                    el.nodeType === Node.ELEMENT_NODE ? el : el.parentElement,
+                )
                 .filter(Boolean);
             if (!elements.length) {
                 continue;

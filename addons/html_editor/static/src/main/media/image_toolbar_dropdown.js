@@ -1,10 +1,10 @@
 /** @odoo-module native */
+import { useDropdownAutoVisibility } from "@html_editor/dropdown_autovisibility_hook";
+import { toolbarButtonProps } from "@html_editor/main/toolbar/toolbar";
 import { Component, useState } from "@odoo/owl";
 import { Dropdown } from "@web/components/dropdown/dropdown";
 import { DropdownItem } from "@web/components/dropdown/dropdown_item";
-import { toolbarButtonProps } from "@html_editor/main/toolbar/toolbar";
 import { useChildRef } from "@web/core/utils/hooks";
-import { useDropdownAutoVisibility } from "@html_editor/dropdown_autovisibility_hook";
 
 export class ImageToolbarDropdown extends Component {
     static components = { Dropdown, DropdownItem };

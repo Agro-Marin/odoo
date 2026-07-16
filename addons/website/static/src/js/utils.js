@@ -1,13 +1,13 @@
 /** @odoo-module native */
-import { intersection } from "@web/core/utils/collections/arrays";
-import { Modal } from "@web/libs/bootstrap";
-import { _t, appTranslateFn } from "@web/core/l10n/translation";
-import { renderToElement } from "@web/core/utils/render";
-import { App, Component } from "@odoo/owl";
-import { getTemplate } from "@web/core/templates";
-import { UrlAutoComplete } from "@website/components/autocomplete_with_pages/url_autocomplete";
 import { urlFunctions } from "@html_editor/utils/url";
+import { App, Component } from "@odoo/owl";
+import { _t, appTranslateFn } from "@web/core/l10n/translation";
+import { getTemplate } from "@web/core/templates";
+import { intersection } from "@web/core/utils/collections/arrays";
 import { patch } from "@web/core/utils/patch";
+import { renderToElement } from "@web/core/utils/render";
+import { Modal } from "@web/libs/bootstrap";
+import { UrlAutoComplete } from "@website/components/autocomplete_with_pages/url_autocomplete";
 
 /**
  * Allows to load anchors from a page.
@@ -38,7 +38,7 @@ function loadAnchors(url, body) {
         .then(function (response) {
             const fragment = new DOMParser().parseFromString(response, "text/html");
             const anchorEls = fragment.querySelectorAll(
-                `[id][data-anchor="true"], .modal[id][data-display="onClick"]`
+                `[id][data-anchor="true"], .modal[id][data-display="onClick"]`,
             );
             const anchors = Array.from(anchorEls).map((el) => "#" + el.id);
 
@@ -55,6 +55,7 @@ function loadAnchors(url, body) {
             return anchors;
         })
         .catch((error) => {
+            // eslint-disable-next-line no-console -- non-fatal fetch error, quiet debug diagnostic (falls back to [])
             console.debug(error);
             return [];
         });
@@ -80,7 +81,12 @@ function autocompleteWithPages(input, options = {}, env = undefined) {
     });
 
     const container = document.createElement("div");
-    container.classList.add("ui-widget", "ui-autocomplete", "ui-widget-content", "border-0");
+    container.classList.add(
+        "ui-widget",
+        "ui-autocomplete",
+        "ui-widget-content",
+        "border-0",
+    );
     document.body.appendChild(container);
     owlApp.mount(container);
     return () => {
@@ -99,8 +105,11 @@ function onceAllImagesLoaded(element, excluded) {
     if (element.tagName === "IMG") {
         imgs.push(element);
     }
-    var defs = imgs.map((img) => {
-        if (img.complete || (excluded && (excluded === img || excluded.contains(img)))) {
+    const defs = imgs.map((img) => {
+        if (
+            img.complete ||
+            (excluded && (excluded === img || excluded.contains(img)))
+        ) {
             return; // Already loaded
         }
         return new Promise(function (resolve) {
@@ -160,30 +169,33 @@ function prompt(options, _qweb) {
             btn_primary_title: _t("Create"),
             btn_secondary_title: _t("Cancel"),
         },
-        options || {}
+        options || {},
     );
 
-    var type = intersection(Object.keys(options), ["input", "textarea", "select"]);
+    let type = intersection(Object.keys(options), ["input", "textarea", "select"]);
     type = type.length ? type[0] : "input";
     options.field_type = type;
     options.field_name = options.field_name || options[type];
 
-    var def = new Promise(function (resolve, reject) {
-        var dialog = renderToElement(_qweb, options);
+    const def = new Promise(function (resolve, reject) {
+        const dialog = renderToElement(_qweb, options);
         document.body.appendChild(dialog);
         options.$dialog = dialog;
-        var field = dialog.querySelector(options.field_type);
+        const field = dialog.querySelector(options.field_type);
         field.value = options["default"];
         field.fillWith = function (data) {
             if (field.tagName === "SELECT") {
                 data.forEach(function (item) {
-                    field.options[field.options.length] = new window.Option(item[1], item[0]);
+                    field.options[field.options.length] = new window.Option(
+                        item[1],
+                        item[0],
+                    );
                 });
             } else {
                 field.value = data;
             }
         };
-        var init = options.init(field, dialog);
+        const init = options.init(field, dialog);
         Promise.resolve(init).then(function (fill) {
             if (fill) {
                 field.fillWith(fill);
@@ -219,7 +231,7 @@ function prompt(options, _qweb) {
 }
 
 function websiteDomain(self) {
-    var websiteID;
+    let websiteID;
     self.trigger_up("context_get", {
         callback: function (ctx) {
             websiteID = ctx["website_id"];
@@ -463,7 +475,7 @@ function getParsedDataFor(formId, parentEl) {
             // replaces the `'` by `"` if they are before `,` or `:` or `]` or `}`
             .replace(/'(\s*[,:\]}])/g, '"$1')
             // replaces the `'` by `"` if they are after `{` or `[` or `,` or `:`
-            .replace(/([{[:,]\s*)'/g, '$1"')
+            .replace(/([{[:,]\s*)'/g, '$1"'),
     );
 }
 
@@ -485,7 +497,9 @@ export function cloneContentEls(content, keepScripts = false) {
         copyFragment.append(...els);
     }
     if (!keepScripts) {
-        copyFragment.querySelectorAll("script").forEach((scriptEl) => scriptEl.remove());
+        copyFragment
+            .querySelectorAll("script")
+            .forEach((scriptEl) => scriptEl.remove());
     }
     return copyFragment;
 }

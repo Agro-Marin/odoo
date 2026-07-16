@@ -1,5 +1,3 @@
-import { startInteractions, setupInteractionWhiteList } from "@web/../tests/public/helpers";
-
 import { beforeEach, describe, expect, test } from "@odoo/hoot";
 import {
     animationFrame,
@@ -13,10 +11,13 @@ import {
     tick,
 } from "@odoo/hoot-dom";
 import { advanceTime } from "@odoo/hoot-mock";
-
+import {
+    setupInteractionWhiteList,
+    startInteractions,
+} from "@web/../tests/public/helpers";
+import { defineStyle } from "@web/../tests/web_test_helpers";
 import { browser } from "@web/core/browser/browser";
 import { cookie } from "@web/core/browser/cookie";
-import { defineStyle } from "@web/../tests/web_test_helpers";
 
 setupInteractionWhiteList("website.popup");
 
@@ -135,7 +136,7 @@ describe("close popup", () => {
 
     test("click on primary button which is a form submit doesn't close popup", async () => {
         const { core } = await startInteractions(
-            getPopupTemplate({ extraPrimaryBtnClasses: "o_website_form_send" })
+            getPopupTemplate({ extraPrimaryBtnClasses: "o_website_form_send" }),
         );
         expect(core.interactions).toHaveLength(1);
         await tick();
@@ -186,7 +187,9 @@ describe("show popup", () => {
 
     test.tags("desktop");
     test("show popup when mouse leaves document", async () => {
-        const { core } = await startInteractions(getPopupTemplate({ display: "mouseExit" }));
+        const { core } = await startInteractions(
+            getPopupTemplate({ display: "mouseExit" }),
+        );
         expect(core.interactions).toHaveLength(1);
         const modalEl = queryOne("#sPopup .modal");
         expect(modalEl).not.toBeVisible();

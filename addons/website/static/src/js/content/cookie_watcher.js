@@ -7,10 +7,14 @@
 
 // eslint-disable-next-line no-unused-vars
 function watch3rdPartyScripts(thirdPartyDomainsBlockList) {
-    const removeWWW = (domain) => (domain.startsWith("www.") ? domain.slice(4) : domain);
+    const removeWWW = (domain) =>
+        domain.startsWith("www.") ? domain.slice(4) : domain;
     const blockList = thirdPartyDomainsBlockList.map(removeWWW);
     const cookieRegex = /(^|(; ))website_cookies_bar=(?<value>[^;]+)/;
-    const scriptSrcDesc = Object.getOwnPropertyDescriptor(HTMLScriptElement.prototype, "src");
+    const scriptSrcDesc = Object.getOwnPropertyDescriptor(
+        HTMLScriptElement.prototype,
+        "src",
+    );
     Object.defineProperty(HTMLScriptElement.prototype, "_src", scriptSrcDesc);
     Object.defineProperty(HTMLScriptElement.prototype, "src", {
         enumerable: true,
@@ -20,10 +24,14 @@ function watch3rdPartyScripts(thirdPartyDomainsBlockList) {
         },
         set(val) {
             const cookiesBarCookie = document.cookie.match(cookieRegex)?.groups.value;
-            const host = removeWWW(new URL(val, window.location.origin).host.toLowerCase());
+            const host = removeWWW(
+                new URL(val, window.location.origin).host.toLowerCase(),
+            );
             if (
                 (!cookiesBarCookie || !JSON.parse(cookiesBarCookie).optional) &&
-                blockList.some((domain) => host === domain || host.endsWith(`.${domain}`))
+                blockList.some(
+                    (domain) => host === domain || host.endsWith(`.${domain}`),
+                )
             ) {
                 this.dataset.nocookieSrc = val;
                 this.dataset.needCookiesApproval = "true";
@@ -37,7 +45,7 @@ function watch3rdPartyScripts(thirdPartyDomainsBlockList) {
         "optionalCookiesAccepted",
         () => {
             for (const scriptEl of document.querySelectorAll(
-                "script[data-need-cookies-approval]"
+                "script[data-need-cookies-approval]",
             )) {
                 // We have to completely recreate the scripts for them to fire, we
                 // cannot just switch the src.
@@ -47,6 +55,6 @@ function watch3rdPartyScripts(thirdPartyDomainsBlockList) {
                 scriptEl.remove();
             }
         },
-        { once: true }
+        { once: true },
     );
 }

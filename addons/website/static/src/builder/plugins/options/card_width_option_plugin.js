@@ -1,5 +1,8 @@
 /** @odoo-module native */
-import { ClassAction, StyleAction } from "@html_builder/core/core_builder_action_plugin";
+import {
+    ClassAction,
+    StyleAction,
+} from "@html_builder/core/core_builder_action_plugin";
 import { Plugin } from "@html_editor/plugin";
 import { registry } from "@web/core/registry";
 
@@ -14,7 +17,9 @@ class CardWidthOptionPlugin extends Plugin {
     };
 }
 
-registry.category("website-plugins").add(CardWidthOptionPlugin.id, CardWidthOptionPlugin);
+registry
+    .category("website-plugins")
+    .add(CardWidthOptionPlugin.id, CardWidthOptionPlugin);
 
 export class SetCardAlignmentAction extends ClassAction {
     static id = "setCardAlignment";

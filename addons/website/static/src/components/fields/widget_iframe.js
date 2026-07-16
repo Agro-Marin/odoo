@@ -1,7 +1,7 @@
 /** @odoo-module native */
+import { Component, useState } from "@odoo/owl";
 import { registry } from "@web/core/registry";
 import { useBus } from "@web/core/utils/hooks";
-import { Component, useState } from "@odoo/owl";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 
 class FieldIframePreview extends Component {

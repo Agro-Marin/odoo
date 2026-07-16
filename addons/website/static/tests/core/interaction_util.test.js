@@ -19,15 +19,22 @@ test("buildEditableInteractions concrete", async () => {
             doStuff("other");
         }
     }
-    const builders = [{ Interaction: Base, mixin: BaseEdit }, { Interaction: Specific }];
+    const builders = [
+        { Interaction: Base, mixin: BaseEdit },
+        { Interaction: Specific },
+    ];
     const [baseEI, specificEI] = buildEditableInteractions(builders);
     expect(baseEI.name).toBe("Base__mixin");
     expect(specificEI.name).toBe("Specific__mixin");
     expect(baseEI.__proto__.__proto__).toBe(Base);
     expect(baseEI.prototype.stuff.toString()).not.toBe(Base.prototype.stuff.toString());
     expect(specificEI.__proto__.__proto__).toBe(Specific);
-    expect(specificEI.prototype.stuff.toString()).not.toBe(Specific.prototype.stuff.toString());
-    expect(baseEI.prototype.stuff.toString()).toEqual(specificEI.prototype.stuff.toString());
+    expect(specificEI.prototype.stuff.toString()).not.toBe(
+        Specific.prototype.stuff.toString(),
+    );
+    expect(baseEI.prototype.stuff.toString()).toEqual(
+        specificEI.prototype.stuff.toString(),
+    );
 });
 
 test("buildEditableInteractions abstract", async () => {

@@ -1,9 +1,10 @@
+import { ImageCrop } from "@html_editor/main/media/image_crop";
 import { test } from "@odoo/hoot";
 import { press, waitFor, waitForNone } from "@odoo/hoot-dom";
 import { contains, patchWithCleanup } from "@web/../tests/web_test_helpers";
-import { ImageCrop } from "@html_editor/main/media/image_crop";
-import { defineWebsiteModels, setupWebsiteBuilder } from "./website_helpers.js";
+
 import { testImg } from "./image_test_helpers.js";
+import { defineWebsiteModels, setupWebsiteBuilder } from "./website_helpers.js";
 
 defineWebsiteModels();
 
@@ -23,7 +24,7 @@ test("Image cropper Enter saves and Escape closes in website builder", async () 
     });
 
     const { waitSidebarUpdated } = await setupWebsiteBuilder(
-        `<div class="test-options-target">${testImg}</div>`
+        `<div class="test-options-target">${testImg}</div>`,
     );
     await contains(":iframe .test-options-target img").click();
     await waitSidebarUpdated();

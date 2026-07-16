@@ -1,9 +1,7 @@
 /** @odoo-module native */
-import { Carousel } from "@web/libs/bootstrap";
 /**
  * Provides a way to start JS code for snippets' initialization and animations.
  */
-
 import publicWidget from "@web/legacy/js/public/public_widget";
 
 /**
@@ -47,7 +45,7 @@ publicWidget.Widget.include({
         this._super.apply(this, arguments);
 
         this.editableMode = this.options.editableMode || false;
-        var extraEvents = this.editableMode ? this.edit_events : this.read_events;
+        const extraEvents = this.editableMode ? this.edit_events : this.read_events;
         if (extraEvents) {
             this.events = Object.assign({}, this.events || {}, extraEvents);
         }
@@ -56,7 +54,7 @@ publicWidget.Widget.include({
 
 //::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
 
-var registry = publicWidget.registry;
+const registry = publicWidget.registry;
 
 // NOTE: A legacy patch of ``window.SelectorEngine.find`` used to live here to
 // swallow rare errors during edit-mode carousel cycling.  It was removed with

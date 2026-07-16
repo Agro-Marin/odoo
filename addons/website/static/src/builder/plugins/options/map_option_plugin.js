@@ -56,8 +56,8 @@ export class MapDescriptionAction extends BuilderAction {
                 `<div class="description">
                     <strong>${_t("Visit us:")}</strong>
                     ${_t("Our office is open Monday – Friday 8:30 a.m. – 4:00 p.m.")}
-                </div>`
-            )
+                </div>`,
+            ),
         );
     }
     clean({ editingElement }) {

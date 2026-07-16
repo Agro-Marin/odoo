@@ -1,7 +1,7 @@
 import {
-    insertSnippet,
-    clickOnSave,
     clickOnEditAndWaitEditMode,
+    clickOnSave,
+    insertSnippet,
     registerWebsitePreviewTour,
 } from "@website/js/tours/tour_utils";
 
@@ -81,5 +81,5 @@ registerWebsitePreviewTour(
         ...clickOnEditAndWaitEditMode(),
         ...selectColorpickerSwitchPanel("Custom"),
         ...checkBackgroundColorWithHEX("#000000"),
-    ]
+    ],
 );

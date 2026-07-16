@@ -1,11 +1,11 @@
 /** @odoo-module native */
-import { PageDependencies } from "@website/components/dialog/page_properties";
-import { standardFieldProps } from "@web/fields/standard_field_props";
-import { UrlField, urlField } from "@web/fields/basic/url/url_field";
-import { registry } from "@web/core/registry";
-import { _t } from "@web/core/l10n/translation";
-import { debounce } from "@web/core/utils/timing";
 import { Component, useEffect, useRef } from "@odoo/owl";
+import { _t } from "@web/core/l10n/translation";
+import { registry } from "@web/core/registry";
+import { debounce } from "@web/core/utils/timing";
+import { UrlField, urlField } from "@web/fields/basic/url/url_field";
+import { standardFieldProps } from "@web/fields/standard_field_props";
+import { PageDependencies } from "@website/components/dialog/page_properties";
 
 /**
  * Displays website page dependencies and URL redirect options when the page URL
@@ -52,7 +52,7 @@ class PageUrlField extends UrlField {
                     };
                 }
             },
-            () => [this.inputRef.el]
+            () => [this.inputRef.el],
         );
     }
 

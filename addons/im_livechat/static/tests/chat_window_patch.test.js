@@ -11,9 +11,10 @@ import { withGuest } from "@mail/../tests/mock_server/mail_mock_server";
 import { test } from "@odoo/hoot";
 import { animationFrame } from "@odoo/hoot-mock";
 import { Command, serverState } from "@web/../tests/web_test_helpers";
-import { rpc } from "@web/core/network/rpc";
-import { defineLivechatModels } from "./livechat_test_helpers.js";
 import { serializeDate, today } from "@web/core/l10n/dates";
+import { rpc } from "@web/core/network/rpc";
+
+import { defineLivechatModels } from "./livechat_test_helpers.js";
 
 defineLivechatModels();
 
@@ -50,7 +51,10 @@ test("closing a chat window with no message from admin side unpins it", async ()
         { name: "Partner 1" },
         { name: "Partner 2" },
     ]);
-    pyEnv["res.users"].create([{ partner_id: partnerId_1 }, { partner_id: partnerId_2 }]);
+    pyEnv["res.users"].create([
+        { partner_id: partnerId_1 },
+        { partner_id: partnerId_2 },
+    ]);
     pyEnv["discuss.channel"].create({
         channel_member_ids: [
             Command.create({
@@ -58,7 +62,10 @@ test("closing a chat window with no message from admin side unpins it", async ()
                 partner_id: serverState.partnerId,
                 livechat_member_type: "agent",
             }),
-            Command.create({ partner_id: partnerId_1, livechat_member_type: "visitor" }),
+            Command.create({
+                partner_id: partnerId_1,
+                livechat_member_type: "visitor",
+            }),
         ],
         channel_type: "livechat",
         livechat_operator_id: serverState.partnerId,
@@ -70,7 +77,10 @@ test("closing a chat window with no message from admin side unpins it", async ()
                 partner_id: serverState.partnerId,
                 livechat_member_type: "agent",
             }),
-            Command.create({ partner_id: partnerId_2, livechat_member_type: "visitor" }),
+            Command.create({
+                partner_id: partnerId_2,
+                livechat_member_type: "visitor",
+            }),
         ],
         channel_type: "livechat",
         livechat_end_dt: serializeDate(today()),
@@ -118,7 +128,7 @@ test("Focus should not be stolen when a new livechat open", async () => {
             },
             thread_id: channelIds[1],
             thread_model: "discuss.channel",
-        })
+        }),
     );
     await contains(".o-mail-ChatWindow", { text: "Visitor 12" });
     await animationFrame();
@@ -131,9 +141,15 @@ test("do not ask confirmation if other operators are present", async () => {
     const otherOperatorId = pyEnv["res.partner"].create({ name: "John" });
     const channelId = pyEnv["discuss.channel"].create({
         channel_member_ids: [
-            Command.create({ partner_id: serverState.partnerId, livechat_member_type: "agent" }),
+            Command.create({
+                partner_id: serverState.partnerId,
+                livechat_member_type: "agent",
+            }),
             Command.create({ guest_id: guestId, livechat_member_type: "visitor" }),
-            Command.create({ partner_id: otherOperatorId, livechat_member_type: "agent" }),
+            Command.create({
+                partner_id: otherOperatorId,
+                livechat_member_type: "agent",
+            }),
         ],
         livechat_operator_id: serverState.partnerId,
         channel_type: "livechat",
@@ -187,9 +203,11 @@ test("Show livechats with new message in chat hub even when in discuss app)", as
             },
             thread_id: livechatId,
             thread_model: "discuss.channel",
-        })
+        }),
     );
-    await contains(".o-mail-DiscussSidebar-item:contains('Visitor 11') .badge", { text: "1" });
+    await contains(".o-mail-DiscussSidebar-item:contains('Visitor 11') .badge", {
+        text: "1",
+    });
     await openFormView("res.partner", serverState.partnerId);
     await contains(".o-mail-ChatWindow-header:contains('Visitor 11')");
 });

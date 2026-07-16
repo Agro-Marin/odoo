@@ -1,7 +1,11 @@
 /** @odoo-module native */
-import { BaseWebsiteBackgroundOption } from "@website/builder/plugins/options/background_option";
+import { SNIPPET_SPECIFIC_BEFORE } from "@html_builder/utils/option_sequence";
 import { Plugin } from "@html_editor/plugin";
+import { withSequence } from "@html_editor/utils/resource";
 import { registry } from "@web/core/registry";
+import { WEBSITE_BACKGROUND_OPTIONS } from "@website/builder/option_sequence";
+import { BaseWebsiteBackgroundOption } from "@website/builder/plugins/options/background_option";
+
 import {
     BOTH_BG_COLOR_IMAGE_EXCLUDE,
     BOTH_BG_COLOR_IMAGE_SELECTOR,
@@ -10,9 +14,6 @@ import {
     ONLY_BG_IMAGE_EXCLUDE,
     ONLY_BG_IMAGE_SELECTOR,
 } from "./utils.js";
-import { withSequence } from "@html_editor/utils/resource";
-import { SNIPPET_SPECIFIC_BEFORE } from "@html_builder/utils/option_sequence";
-import { WEBSITE_BACKGROUND_OPTIONS } from "@website/builder/option_sequence";
 
 export class WebsiteBackgroundCarouselOption extends BaseWebsiteBackgroundOption {
     static selector = "section";
@@ -65,9 +66,15 @@ class WebsiteBackgroundOptionPlugin extends Plugin {
     resources = {
         builder_options: [
             withSequence(SNIPPET_SPECIFIC_BEFORE, WebsiteBackgroundCarouselOption),
-            withSequence(WEBSITE_BACKGROUND_OPTIONS, WebsiteBackgroundBGColorImageOption),
+            withSequence(
+                WEBSITE_BACKGROUND_OPTIONS,
+                WebsiteBackgroundBGColorImageOption,
+            ),
             withSequence(WEBSITE_BACKGROUND_OPTIONS, WebsiteBackgroundBGColorOption),
-            withSequence(WEBSITE_BACKGROUND_OPTIONS, WebsiteBackgroundOnlyBGImageOption),
+            withSequence(
+                WEBSITE_BACKGROUND_OPTIONS,
+                WebsiteBackgroundOnlyBGImageOption,
+            ),
         ],
         mark_color_level_selector_params: [
             {

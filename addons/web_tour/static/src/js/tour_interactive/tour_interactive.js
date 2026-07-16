@@ -1,10 +1,10 @@
 /** @odoo-module native */
-import { tourState } from "@web_tour/js/tour_state";
-import { debounce } from "@web/core/utils/timing";
 import hoot from "@odoo/hoot-dom";
-import { utils } from "@web/ui/block/ui_service";
-import { TourStep } from "@web_tour/js/tour_step";
 import { MacroMutationObserver } from "@web/core/utils/macro";
+import { debounce } from "@web/core/utils/timing";
+import { utils } from "@web/ui/block/ui_service";
+import { tourState } from "@web_tour/js/tour_state";
+import { TourStep } from "@web_tour/js/tour_step";
 import { getScrollParent } from "@web_tour/js/utils/tour_utils";
 
 /**
@@ -37,7 +37,10 @@ export class TourInteractive {
      */
     start(env, pointer, onTourEnd) {
         env.bus.addEventListener("ACTION_MANAGER:UPDATE", () => (this.isBusy = true));
-        env.bus.addEventListener("ACTION_MANAGER:UI-UPDATED", () => (this.isBusy = false));
+        env.bus.addEventListener(
+            "ACTION_MANAGER:UI-UPDATED",
+            () => (this.isBusy = false),
+        );
 
         this.pointer = pointer;
         this.debouncedToggleOpen = debounce(this.pointer.showContent, 50, true);
@@ -102,6 +105,7 @@ export class TourInteractive {
             return;
         }
 
+        // eslint-disable-next-line no-console -- interactive tour step diagnostics
         console.log(this.currentAction.event, this.currentAction.anchor);
 
         tourState.setCurrentIndex(this.currentActionIndex);
@@ -115,7 +119,7 @@ export class TourInteractive {
             this.pointer.pointTo(
                 this.anchorEls[0],
                 this.currentAction.pointerInfo,
-                this.currentAction.event === "drop"
+                this.currentAction.event === "drop",
             );
             this.pointer.setState({
                 onMouseEnter: () => this.debouncedToggleOpen(true),
@@ -128,7 +132,10 @@ export class TourInteractive {
         const cleanups = this.anchorEls.flatMap((anchorEl, index) => {
             const toListen = {
                 anchorEl,
-                consumeEvents: this.getConsumeEventType(anchorEl, this.currentAction.event),
+                consumeEvents: this.getConsumeEventType(
+                    anchorEl,
+                    this.currentAction.event,
+                ),
                 onConsume: () => {
                     this.pointer.hide();
                     this.currentActionIndex++;
@@ -203,7 +210,11 @@ export class TourInteractive {
         const cleanups = [
             () => {
                 for (const consume of consumeEvents) {
-                    consume.target.removeEventListener(consume.type, consume.listener, true);
+                    consume.target.removeEventListener(
+                        consume.type,
+                        consume.listener,
+                        true,
+                    );
                 }
                 anchorEl.removeEventListener("mouseenter", onMouseEnter);
                 anchorEl.removeEventListener("mouseleave", onMouseLeave);
@@ -214,7 +225,9 @@ export class TourInteractive {
         if (scrollEl) {
             const debouncedOnScroll = debounce(onScroll, 50);
             scrollEl.addEventListener("scroll", debouncedOnScroll);
-            cleanups.push(() => scrollEl.removeEventListener("scroll", debouncedOnScroll));
+            cleanups.push(() =>
+                scrollEl.removeEventListener("scroll", debouncedOnScroll),
+            );
         }
 
         return cleanups;
@@ -295,7 +308,7 @@ export class TourInteractive {
                     conditional: (ev) =>
                         ["Tab", "Enter"].includes(ev.key) &&
                         ev.target.parentElement.querySelector(
-                            ".o-autocomplete--dropdown-item .ui-state-active"
+                            ".o-autocomplete--dropdown-item .ui-state-active",
                         ),
                 });
             }
@@ -320,7 +333,9 @@ export class TourInteractive {
 
                 // Pressing enter in the input group does the same as clicking on the button
                 if (element.closest(".input-group")) {
-                    for (const inputEl of element.parentElement.querySelectorAll("input")) {
+                    for (const inputEl of element.parentElement.querySelectorAll(
+                        "input",
+                    )) {
                         consumeEvents.push({
                             name: "keydown",
                             target: inputEl,
@@ -334,7 +349,9 @@ export class TourInteractive {
         if (["fill", "edit"].includes(runCommand)) {
             if (
                 utils.isSmall() &&
-                element.closest(".o_field_widget")?.matches(".o_field_many2one, .o_field_many2many")
+                element
+                    .closest(".o_field_widget")
+                    ?.matches(".o_field_many2one, .o_field_many2many")
             ) {
                 consumeEvents.push({
                     name: "click",
@@ -353,10 +370,12 @@ export class TourInteractive {
                             if (
                                 ["Tab", "Enter"].includes(ev.key) &&
                                 ev.target.parentElement.querySelector(
-                                    ".o-autocomplete--dropdown-item .ui-state-active"
+                                    ".o-autocomplete--dropdown-item .ui-state-active",
                                 )
                             ) {
-                                const nextStep = this.actions.at(this.currentActionIndex + 1);
+                                const nextStep = this.actions.at(
+                                    this.currentActionIndex + 1,
+                                );
                                 if (
                                     this.findTriggers(nextStep.anchor)
                                         .at(0)
@@ -374,7 +393,9 @@ export class TourInteractive {
                         target: element.ownerDocument,
                         conditional: (ev) => {
                             if (ev.target.closest(".o-autocomplete--dropdown-item")) {
-                                const nextStep = this.actions.at(this.currentActionIndex + 1);
+                                const nextStep = this.actions.at(
+                                    this.currentActionIndex + 1,
+                                );
                                 if (
                                     this.findTriggers(nextStep.anchor)
                                         .at(0)
@@ -432,11 +453,14 @@ export class TourInteractive {
             // but the tip is attached to the .ui-draggable-handle element which may
             // be one of its children (or the element itself
             return el.closest(
-                ".ui-draggable, .o_draggable, .o_we_draggable, .o-draggable, [draggable='true']"
+                ".ui-draggable, .o_draggable, .o_we_draggable, .o-draggable, [draggable='true']",
             );
         }
 
-        if (consumeEvent === "input" && !["textarea", "input"].includes(el.tagName.toLowerCase())) {
+        if (
+            consumeEvent === "input" &&
+            !["textarea", "input"].includes(el.tagName.toLowerCase())
+        ) {
             return el.closest("[contenteditable='true']");
         }
         if (consumeEvent === "sort") {

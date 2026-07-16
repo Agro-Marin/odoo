@@ -1,24 +1,25 @@
 /** @odoo-module native */
+import { isHtmlContentSupported } from "@html_editor/core/selection_plugin";
 import { Plugin } from "@html_editor/plugin";
 import {
-    ICON_SELECTOR,
-    MEDIA_SELECTOR,
     EDITABLE_MEDIA_CLASS,
+    ICON_SELECTOR,
+    isContentEditable,
     isIconElement,
     isMediaElement,
     isProtected,
     isProtecting,
+    MEDIA_SELECTOR,
     paragraphRelatedElementsSelector,
-    isContentEditable,
 } from "@html_editor/utils/dom_info";
-import { _t } from "@web/core/l10n/translation";
-import { MediaDialog, TABS } from "./media_dialog/media_dialog.js";
-import { isHtmlContentSupported } from "@html_editor/core/selection_plugin";
+import { closestElement } from "@html_editor/utils/dom_traversal";
+import { FORMATTABLE_TAGS } from "@html_editor/utils/formatting";
 import { boundariesOut, rightPos } from "@html_editor/utils/position";
 import { withSequence } from "@html_editor/utils/resource";
-import { closestElement } from "@html_editor/utils/dom_traversal";
+import { _t } from "@web/core/l10n/translation";
 import { fuzzyLookup } from "@web/core/utils/search";
-import { FORMATTABLE_TAGS } from "@html_editor/utils/formatting";
+
+import { MediaDialog, TABS } from "./media_dialog/media_dialog.js";
 
 /**
  * @typedef { Object } MediaShared
@@ -72,7 +73,10 @@ export class MediaPlugin extends Plugin {
                 isAvailable: isHtmlContentSupported,
             },
         ],
-        toolbar_groups: withSequence(31, { id: "replace_image", namespaces: ["image"] }),
+        toolbar_groups: withSequence(31, {
+            id: "replace_image",
+            namespaces: ["image"],
+        }),
         toolbar_items: [
             {
                 id: "replace_image",
@@ -100,7 +104,7 @@ export class MediaPlugin extends Plugin {
 
         selectors_for_feff_providers: () =>
             `:is(${paragraphRelatedElementsSelector}, ${FORMATTABLE_TAGS.join(
-                ", "
+                ", ",
             )}, A, LI) > :is(${ICON_SELECTOR})`,
     };
 
@@ -155,7 +159,9 @@ export class MediaPlugin extends Plugin {
             }
             el.setAttribute(
                 "contenteditable",
-                el.hasAttribute("contenteditable") ? el.getAttribute("contenteditable") : "false"
+                el.hasAttribute("contenteditable")
+                    ? el.getAttribute("contenteditable")
+                    : "false",
             );
             // Do not update the text if it's already OK to avoid recording a
             // mutation on Firefox. (Chrome filters them out.)
@@ -214,7 +220,8 @@ export class MediaPlugin extends Plugin {
 
     openMediaDialog(params = {}, editableEl = null) {
         const oldSave =
-            params.save || ((element) => this.onSaveMediaDialog(element, { node: params.node }));
+            params.save ||
+            ((element) => this.onSaveMediaDialog(element, { node: params.node }));
         params.save = async (...args) => {
             const selection = args[0];
             const elements = selection
@@ -222,26 +229,31 @@ export class MediaPlugin extends Plugin {
                     ? selection
                     : [selection]
                 : [];
-            for (const onMediaDialogSaved of this.getResource("on_media_dialog_saved_handlers")) {
+            for (const onMediaDialogSaved of this.getResource(
+                "on_media_dialog_saved_handlers",
+            )) {
                 await onMediaDialogSaved(elements, { node: params.node });
             }
             return oldSave(...args);
         };
         const { resModel, resId, field, type } = this.getRecordInfo(editableEl);
-        const mediaDialogClosedPromise = this.dependencies.dialog.addDialog(MediaDialog, {
-            resModel,
-            resId,
-            useMediaLibrary: !!(
-                field &&
-                ((resModel === "ir.ui.view" && field === "arch") || type === "html")
-            ), // @todo @phoenix: should be removed and moved to config.mediaModalParams
-            media: params.node,
-            onAttachmentChange: this.config.onAttachmentChange || (() => {}),
-            noImages: !this.config.allowImage,
-            extraTabs: this.getResource("media_dialog_extra_tabs"),
-            ...this.config.mediaModalParams,
-            ...params,
-        });
+        const mediaDialogClosedPromise = this.dependencies.dialog.addDialog(
+            MediaDialog,
+            {
+                resModel,
+                resId,
+                useMediaLibrary: !!(
+                    field &&
+                    ((resModel === "ir.ui.view" && field === "arch") || type === "html")
+                ), // @todo @phoenix: should be removed and moved to config.mediaModalParams
+                media: params.node,
+                onAttachmentChange: this.config.onAttachmentChange || (() => {}),
+                noImages: !this.config.allowImage,
+                extraTabs: this.getResource("media_dialog_extra_tabs"),
+                ...this.config.mediaModalParams,
+                ...params,
+            },
+        );
         return mediaDialogClosedPromise;
     }
 
@@ -256,8 +268,14 @@ export class MediaPlugin extends Plugin {
         if (!iconEl) {
             return;
         }
-        const [anchorNode, anchorOffset, focusNode, focusOffset] = boundariesOut(iconEl);
-        const iconOuterBoundaries = { anchorNode, anchorOffset, focusNode, focusOffset };
+        const [anchorNode, anchorOffset, focusNode, focusOffset] =
+            boundariesOut(iconEl);
+        const iconOuterBoundaries = {
+            anchorNode,
+            anchorOffset,
+            focusNode,
+            focusOffset,
+        };
         this.dependencies.selection.setSelection(iconOuterBoundaries);
     }
 
@@ -269,7 +287,11 @@ export class MediaPlugin extends Plugin {
         if (!searchTerm) {
             return undefined;
         }
-        const matchedTabs = fuzzyLookup(searchTerm, this.availableTabs, (tab) => tab.title);
+        const matchedTabs = fuzzyLookup(
+            searchTerm,
+            this.availableTabs,
+            (tab) => tab.title,
+        );
         if (!matchedTabs.length) {
             return undefined;
         }

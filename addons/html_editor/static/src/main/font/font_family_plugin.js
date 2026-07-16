@@ -1,11 +1,12 @@
 /** @odoo-module native */
-import { Plugin } from "@html_editor/plugin";
-import { _t } from "@web/core/l10n/translation";
-import { FontFamilySelector } from "@html_editor/main/font/font_family_selector";
-import { reactive } from "@odoo/owl";
-import { closestElement } from "../../utils/dom_traversal.js";
-import { READ, withSequence } from "@html_editor/utils/resource";
 import { isHtmlContentSupported } from "@html_editor/core/selection_plugin";
+import { FontFamilySelector } from "@html_editor/main/font/font_family_selector";
+import { Plugin } from "@html_editor/plugin";
+import { READ, withSequence } from "@html_editor/utils/resource";
+import { reactive } from "@odoo/owl";
+import { _t } from "@web/core/l10n/translation";
+
+import { closestElement } from "../../utils/dom_traversal.js";
 
 export const defaultFontFamily = {
     name: "Default system font",
@@ -15,8 +16,16 @@ export const defaultFontFamily = {
 export const fontFamilyItems = [
     defaultFontFamily,
     { name: "Arial (sans-serif)", nameShort: "Arial", fontFamily: "Arial, sans-serif" },
-    { name: "Verdana (sans-serif)", nameShort: "Verdana", fontFamily: "Verdana, sans-serif" },
-    { name: "Tahoma (sans-serif)", nameShort: "Tahoma", fontFamily: "Tahoma, sans-serif" },
+    {
+        name: "Verdana (sans-serif)",
+        nameShort: "Verdana",
+        fontFamily: "Verdana, sans-serif",
+    },
+    {
+        name: "Tahoma (sans-serif)",
+        nameShort: "Tahoma",
+        fontFamily: "Tahoma, sans-serif",
+    },
     {
         name: "Trebuchet MS (sans-serif)",
         nameShort: "Trebuchet MS",
@@ -53,11 +62,15 @@ export class FontFamilyPlugin extends Plugin {
                     },
                 },
                 isAvailable: (selection) =>
-                    isHtmlContentSupported(selection) && (this.config.allowFontFamily ?? true),
+                    isHtmlContentSupported(selection) &&
+                    (this.config.allowFontFamily ?? true),
             }),
         ],
         /** Handlers */
-        selectionchange_handlers: withSequence(READ, this.updateCurrentFontFamily.bind(this)),
+        selectionchange_handlers: withSequence(
+            READ,
+            this.updateCurrentFontFamily.bind(this),
+        ),
         post_undo_handlers: this.updateCurrentFontFamily.bind(this),
         post_redo_handlers: this.updateCurrentFontFamily.bind(this),
     };
@@ -67,7 +80,9 @@ export class FontFamilyPlugin extends Plugin {
         if (!selelectionData.documentSelectionIsInEditable) {
             return;
         }
-        const anchorElement = closestElement(selelectionData.editableSelection.anchorNode);
+        const anchorElement = closestElement(
+            selelectionData.editableSelection.anchorNode,
+        );
         const anchorElementFontFamily = getComputedStyle(anchorElement).fontFamily;
         const currentFontItem =
             anchorElementFontFamily &&

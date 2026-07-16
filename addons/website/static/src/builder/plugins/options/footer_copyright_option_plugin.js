@@ -1,6 +1,6 @@
 /** @odoo-module native */
-import { registry } from "@web/core/registry";
 import { Plugin } from "@html_editor/plugin";
+import { registry } from "@web/core/registry";
 import { FooterCopyrightOption } from "@website/builder/plugins/options/footer_copyright_option";
 
 class FooterCopyrightOptionPlugin extends Plugin {

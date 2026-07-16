@@ -19,9 +19,9 @@ export class WebsiteSessionPlugin extends Plugin {
         // not finished bootstrapping yet.  Returning ``{}`` as a last
         // resort keeps option templates from throwing on missing keys.
         return (
-            this.window.odoo?.__session_info__
-            || this.window.top?.odoo?.__session_info__
-            || {}
+            this.window.odoo?.__session_info__ ||
+            this.window.top?.odoo?.__session_info__ ||
+            {}
         );
     }
 }

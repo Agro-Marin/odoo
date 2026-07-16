@@ -68,7 +68,7 @@ describe("test the migration process", () => {
             expect("[data-embedded='draw']").toHaveCount(0);
             expect("a[href='https://excalidraw.com']").toHaveCount(1);
             expect(htmlFieldComponent.editor.getContent()).toBe(
-                `<p data-oe-version="${CURRENT_VERSION}">Hello World</p><p><a href="https://excalidraw.com">https://excalidraw.com</a></p>`
+                `<p data-oe-version="${CURRENT_VERSION}">Hello World</p><p><a href="https://excalidraw.com">https://excalidraw.com</a></p>`,
             );
         });
         test("Banner classes are properly updated (editable)", async () => {
@@ -82,7 +82,7 @@ describe("test the migration process", () => {
                         <p>content</p>
                     </div>
                 </div>
-                <div class="o-paragraph" data-selection-placeholder="" style="margin: -9px 0px 8px;"><br></div>`
+                <div class="o-paragraph" data-selection-placeholder="" style="margin: -9px 0px 8px;"><br></div>`,
             );
             expect(htmlFieldComponent.editor.getContent()).toBe(
                 `<p data-oe-version="${CURRENT_VERSION}">test</p>
@@ -91,7 +91,7 @@ describe("test the migration process", () => {
                     <div class="w-100 px-3 o_editor_banner_content o-contenteditable-true">
                         <p>content</p>
                     </div>
-                </div>`
+                </div>`,
             );
         });
     });
@@ -112,7 +112,7 @@ describe("test the migration process", () => {
                     <div class="w-100 px-3 o_editor_banner_content o-contenteditable-true">
                         <p>content</p>
                     </div>
-                </div>`
+                </div>`,
             );
         });
     });

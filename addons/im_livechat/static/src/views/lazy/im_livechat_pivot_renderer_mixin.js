@@ -8,7 +8,7 @@ export const LivechatPivotRendererMixin = (model) =>
                 model,
                 "action_open_discuss_channel_view",
                 [],
-                { domain }
+                { domain },
             );
             this.env.services.action.doAction(action);
         }

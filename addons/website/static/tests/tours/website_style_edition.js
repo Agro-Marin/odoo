@@ -14,9 +14,11 @@ const TARGET_BODY_COLOR_V2 = "rgb(255, 0, 255)";
 
 const checkFontSize = function () {
     const style = document.defaultView.getComputedStyle(this.anchor);
-    if (!areCssValuesEqual(style.fontSize, `${TARGET_FONT_SIZE}px`, "font-size", style)) {
+    if (
+        !areCssValuesEqual(style.fontSize, `${TARGET_FONT_SIZE}px`, "font-size", style)
+    ) {
         console.error(
-            `Expected the font-size to be equal to ${TARGET_FONT_SIZE}px but found ${style.fontSize} instead`
+            `Expected the font-size to be equal to ${TARGET_FONT_SIZE}px but found ${style.fontSize} instead`,
         );
     }
 };
@@ -27,11 +29,11 @@ const checkBodyBgColor = function () {
             style.backgroundColor,
             `${TARGET_BODY_BG_COLOR}`,
             "background-color",
-            style
+            style,
         )
     ) {
         console.error(
-            `Expected the background color to be equal to ${TARGET_BODY_BG_COLOR} but found ${style.backgroundColor} instead`
+            `Expected the background color to be equal to ${TARGET_BODY_BG_COLOR} but found ${style.backgroundColor} instead`,
         );
     }
 };
@@ -39,7 +41,7 @@ const checkBodyColor = function () {
     const style = document.defaultView.getComputedStyle(this.anchor);
     if (!areCssValuesEqual(style.color, `${TARGET_BODY_COLOR}`, "color", style)) {
         console.error(
-            `Expected the color to be equal to ${TARGET_BODY_COLOR} but found ${style.color} instead`
+            `Expected the color to be equal to ${TARGET_BODY_COLOR} but found ${style.color} instead`,
         );
     }
 };
@@ -60,7 +62,8 @@ registerWebsitePreviewTour(
         {
             // Waiting the CSS to be reloaded: the code adds a new assets bundle
             // with a #t=... at the end then removes the old one.
-            trigger: ':iframe html:not(:has(link[href$="web.assets_frontend.min.css"]))',
+            trigger:
+                ':iframe html:not(:has(link[href$="web.assets_frontend.min.css"]))',
         },
         {
             content: "Check the font size was properly adapted",
@@ -139,16 +142,18 @@ registerWebsitePreviewTour(
         ...clickOnEditAndWaitEditMode(),
         ...goToTheme(),
         {
-            trigger: "div[data-label='Background'] button[data-action-value='NONE'].active",
+            trigger:
+                "div[data-label='Background'] button[data-action-value='NONE'].active",
         },
         {
             content: "Click on the Background Image selection",
-            trigger: "div[data-label='Background'] button[data-action-value='image']:not(.active)",
+            trigger:
+                "div[data-label='Background'] button[data-action-value='image']:not(.active)",
             run: "click",
         },
         {
             content: "The media dialog should open",
             trigger: ".o_select_media_dialog",
         },
-    ]
+    ],
 );

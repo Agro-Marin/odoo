@@ -1,8 +1,11 @@
-import { setupInteractionWhiteList, startInteractions } from "@web/../tests/public/helpers";
-import { Modal } from "@web/libs/bootstrap";
 import { beforeEach, describe, expect, test } from "@odoo/hoot";
 import { animationFrame, click, queryOne, scroll } from "@odoo/hoot-dom";
 import { enableTransitions } from "@odoo/hoot-mock";
+import {
+    setupInteractionWhiteList,
+    startInteractions,
+} from "@web/../tests/public/helpers";
+import { Modal } from "@web/libs/bootstrap";
 
 setupInteractionWhiteList("website.animation");
 beforeEach(enableTransitions);

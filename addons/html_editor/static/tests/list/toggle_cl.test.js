@@ -1,10 +1,11 @@
 import { describe, expect, test } from "@odoo/hoot";
 import { press } from "@odoo/hoot-dom";
+
+import { dispatchNormalize } from "../_helpers/dispatch.js";
 import { setupEditor, testEditor } from "../_helpers/editor.js";
 import { unformat } from "../_helpers/format.js";
 import { getContent } from "../_helpers/selection.js";
 import { insertText, toggleCheckList } from "../_helpers/user_actions.js";
-import { dispatchNormalize } from "../_helpers/dispatch.js";
 
 describe("Range collapsed", () => {
     describe("Insert", () => {
@@ -74,16 +75,20 @@ describe("Range collapsed", () => {
 
         test("should turn an empty heading into a checklist and display the right hint", async () => {
             const { el, editor } = await setupEditor("<h1>[]</h1>");
-            expect(getContent(el)).toBe(`<h1 o-we-hint-text="Heading 1" class="o-we-hint">[]</h1>`);
+            expect(getContent(el)).toBe(
+                `<h1 o-we-hint-text="Heading 1" class="o-we-hint">[]</h1>`,
+            );
 
             toggleCheckList(editor);
             expect(getContent(el)).toBe(
-                `<ul class="o_checklist"><li><h1 o-we-hint-text="Heading 1" class="o-we-hint">[]</h1></li></ul>`
+                `<ul class="o_checklist"><li><h1 o-we-hint-text="Heading 1" class="o-we-hint">[]</h1></li></ul>`,
             );
 
             await insertText(editor, "a");
             dispatchNormalize(editor);
-            expect(getContent(el)).toBe(`<ul class="o_checklist"><li><h1>a[]</h1></li></ul>`);
+            expect(getContent(el)).toBe(
+                `<ul class="o_checklist"><li><h1>a[]</h1></li></ul>`,
+            );
         });
 
         test("should turn a paragraph in a div into a checklist", async () => {
@@ -96,7 +101,8 @@ describe("Range collapsed", () => {
 
         test("should turn a paragraph with formats into a checklist", async () => {
             await testEditor({
-                contentBefore: "<p><span><b>ab</b></span> <span><i>cd</i></span> ef[]gh</p>",
+                contentBefore:
+                    "<p><span><b>ab</b></span> <span><i>cd</i></span> ef[]gh</p>",
                 stepFunction: toggleCheckList,
                 contentAfter:
                     '<ul class="o_checklist"><li><span><b>ab</b></span> <span><i>cd</i></span> ef[]gh</li></ul>',
@@ -267,7 +273,8 @@ describe("Range collapsed", () => {
 
         test("should create a new checked list if closestBlock is inside a nav-item list", async () => {
             await testEditor({
-                contentBefore: '<ul><li class="nav-item"><div><p>a[]b</p></div></li></ul>',
+                contentBefore:
+                    '<ul><li class="nav-item"><div><p>a[]b</p></div></li></ul>',
                 stepFunction: toggleCheckList,
                 contentAfter:
                     '<ul><li class="nav-item"><div><ul class="o_checklist"><li>a[]b</li></ul></div></li></ul>',
@@ -287,7 +294,8 @@ describe("Range collapsed", () => {
             await testEditor({
                 contentBefore: '<p dir="rtl" class="text-uppercase">a[]b</p>',
                 stepFunction: toggleCheckList,
-                contentAfter: '<ul class="o_checklist text-uppercase" dir="rtl"><li>a[]b</li></ul>',
+                contentAfter:
+                    '<ul class="o_checklist text-uppercase" dir="rtl"><li>a[]b</li></ul>',
             });
         });
 
@@ -378,9 +386,11 @@ describe("Range collapsed", () => {
 
         test("should turn a checklist item into a paragraph", async () => {
             await testEditor({
-                contentBefore: '<p>ab</p><ul class="o_checklist"><li>cd</li><li>ef[]gh</li></ul>',
+                contentBefore:
+                    '<p>ab</p><ul class="o_checklist"><li>cd</li><li>ef[]gh</li></ul>',
                 stepFunction: toggleCheckList,
-                contentAfter: '<p>ab</p><ul class="o_checklist"><li>cd</li></ul><p>ef[]gh</p>',
+                contentAfter:
+                    '<p>ab</p><ul class="o_checklist"><li>cd</li></ul><p>ef[]gh</p>',
             });
         });
 
@@ -389,7 +399,8 @@ describe("Range collapsed", () => {
                 contentBefore:
                     '<ul class="o_checklist"><li><span><b>ab</b></span> <span><i>cd</i></span> ef[]gh</li></ul>',
                 stepFunction: toggleCheckList,
-                contentAfter: "<p><span><b>ab</b></span> <span><i>cd</i></span> ef[]gh</p>",
+                contentAfter:
+                    "<p><span><b>ab</b></span> <span><i>cd</i></span> ef[]gh</p>",
             });
         });
 
@@ -524,7 +535,8 @@ describe("Range not collapsed", () => {
             await testEditor({
                 contentBefore: "<p>ab</p><h1>cd[ef]gh</h1>",
                 stepFunction: toggleCheckList,
-                contentAfter: '<p>ab</p><ul class="o_checklist"><li><h1>cd[ef]gh</h1></li></ul>',
+                contentAfter:
+                    '<p>ab</p><ul class="o_checklist"><li><h1>cd[ef]gh</h1></li></ul>',
             });
         });
 
@@ -532,7 +544,8 @@ describe("Range not collapsed", () => {
             await testEditor({
                 contentBefore: "<p>ab</p><p>cd[ef</p><p>gh]ij</p>",
                 stepFunction: toggleCheckList,
-                contentAfter: '<p>ab</p><ul class="o_checklist"><li>cd[ef</li><li>gh]ij</li></ul>',
+                contentAfter:
+                    '<p>ab</p><ul class="o_checklist"><li>cd[ef</li><li>gh]ij</li></ul>',
             });
         });
 
@@ -618,7 +631,8 @@ describe("Range not collapsed", () => {
     describe("Remove", () => {
         test("should turn a checklist into a paragraph", async () => {
             await testEditor({
-                contentBefore: '<p>ab</p><ul class="o_checklist"><li>cd[ef]gh</li></ul>',
+                contentBefore:
+                    '<p>ab</p><ul class="o_checklist"><li>cd[ef]gh</li></ul>',
                 stepFunction: toggleCheckList,
                 contentAfter: "<p>ab</p><p>cd[ef]gh</p>",
             });
@@ -626,7 +640,8 @@ describe("Range not collapsed", () => {
 
         test("should turn a checklist into a heading", async () => {
             await testEditor({
-                contentBefore: '<p>ab</p><ul class="o_checklist"><li><h1>cd[ef]gh</h1></li></ul>',
+                contentBefore:
+                    '<p>ab</p><ul class="o_checklist"><li><h1>cd[ef]gh</h1></li></ul>',
                 stepFunction: toggleCheckList,
                 contentAfter: "<p>ab</p><h1>cd[ef]gh</h1>",
             });
@@ -634,7 +649,8 @@ describe("Range not collapsed", () => {
 
         test("should turn a checklist into two paragraphs", async () => {
             await testEditor({
-                contentBefore: '<p>ab</p><ul class="o_checklist"><li>cd[ef</li><li>gh]ij</li></ul>',
+                contentBefore:
+                    '<p>ab</p><ul class="o_checklist"><li>cd[ef</li><li>gh]ij</li></ul>',
                 stepFunction: toggleCheckList,
                 contentAfter: "<p>ab</p><p>cd[ef</p><p>gh]ij</p>",
             });

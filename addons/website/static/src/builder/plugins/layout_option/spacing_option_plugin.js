@@ -1,9 +1,12 @@
 /** @odoo-module native */
+import { StyleAction } from "@html_builder/core/core_builder_action_plugin";
+import {
+    addBackgroundGrid,
+    setElementToMaxZindex,
+} from "@html_builder/utils/grid_layout_utils";
 import { Plugin } from "@html_editor/plugin";
 import { isBlock } from "@html_editor/utils/blocks";
 import { registry } from "@web/core/registry";
-import { addBackgroundGrid, setElementToMaxZindex } from "@html_builder/utils/grid_layout_utils";
-import { StyleAction } from "@html_builder/core/core_builder_action_plugin";
 
 class SpacingOptionPlugin extends Plugin {
     static id = "SpacingOption";
@@ -38,7 +41,7 @@ class SpacingOptionPlugin extends Plugin {
 
     removeGridPreviews(el) {
         el.querySelectorAll(".o_we_grid_preview").forEach((gridPreviewEl) =>
-            gridPreviewEl.remove()
+            gridPreviewEl.remove(),
         );
     }
 

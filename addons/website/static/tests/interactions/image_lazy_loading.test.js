@@ -1,8 +1,9 @@
-import { setupInteractionWhiteList, startInteractions } from "@web/../tests/public/helpers";
-
 import { describe, expect, test } from "@odoo/hoot";
 import { Deferred, queryOne, tick } from "@odoo/hoot-dom";
-
+import {
+    setupInteractionWhiteList,
+    startInteractions,
+} from "@web/../tests/public/helpers";
 import { patchWithCleanup } from "@web/../tests/web_test_helpers";
 import { ImageLazyLoading } from "@website/interactions/image_lazy_loading";
 import { onceAllImagesLoaded } from "@website/utils/images";
@@ -26,7 +27,7 @@ test("images lazy loading removes height then restores it", async () => {
             </div>
         </div>
     `,
-        { waitForStart: false }
+        { waitForStart: false },
     );
     expect(core.interactions).toHaveLength(1);
     expect("img").toHaveAttribute("src", "/web/image/website.library_image_08");

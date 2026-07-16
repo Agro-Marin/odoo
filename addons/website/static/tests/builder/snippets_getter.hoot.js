@@ -5,7 +5,9 @@ function removeImageSrc(xmlString) {
     for (const img of doc.getElementsByTagName("img")) {
         img.removeAttribute("src");
     }
-    const elementsWithBackgroundImage = doc.querySelectorAll('[style*="background-image"]');
+    const elementsWithBackgroundImage = doc.querySelectorAll(
+        '[style*="background-image"]',
+    );
     for (const el of elementsWithBackgroundImage) {
         const style = el.getAttribute("style");
         const newStyle = style.replace(/background-image\s*:\s*url\([^)]+\);?/g, ""); // Remove background-image rule
@@ -21,7 +23,7 @@ export const getWebsiteSnippets = () => {
             "ir.ui.view",
             "render_public_asset",
             ["website.snippets"],
-            {}
+            {},
         ).then((snippets) => removeImageSrc(snippets.trim()));
     }
     return websiteSnippetsPromise;

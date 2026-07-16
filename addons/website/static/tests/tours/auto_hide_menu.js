@@ -105,5 +105,5 @@ registerWebsitePreviewTour(
             run: "click",
         },
         checkThatLayoutChanged,
-    ]
+    ],
 );

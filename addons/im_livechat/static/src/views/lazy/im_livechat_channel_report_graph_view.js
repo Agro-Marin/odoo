@@ -1,6 +1,5 @@
 /** @odoo-module native */
 import { LivechatGraphRendererMixin } from "@im_livechat/views/lazy/im_livechat_graph_renderer_mixin";
-
 import { registry } from "@web/core/registry";
 import { graphView } from "@web/views/graph/graph_view";
 

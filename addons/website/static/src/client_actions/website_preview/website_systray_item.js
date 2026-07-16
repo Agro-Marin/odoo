@@ -1,6 +1,7 @@
 /** @odoo-module native */
 import { Component, onWillStart } from "@odoo/owl";
 import { useService } from "@web/core/utils/hooks";
+
 import { EditInBackendSystrayItem } from "./edit_in_backend.js";
 import { EditWebsiteSystrayItem } from "./edit_website_systray_item.js";
 import { MobilePreviewSystrayItem } from "./mobile_preview_systray.js";
@@ -36,7 +37,10 @@ export class WebsiteSystrayItem extends Component {
     }
 
     get canPublish() {
-        return this.website.currentWebsite && this.website.currentWebsite.metadata.canPublish;
+        return (
+            this.website.currentWebsite &&
+            this.website.currentWebsite.metadata.canPublish
+        );
     }
 
     get isRestrictedEditor() {
@@ -57,7 +61,7 @@ export class WebsiteSystrayItem extends Component {
             // See WEBSITE_RECORDS_VIEWS_ACCESS_RIGHTS.
             (!this.website.currentWebsite.metadata.mainObject ||
                 !["event.event", "hr.job"].includes(
-                    this.website.currentWebsite.metadata.mainObject.model
+                    this.website.currentWebsite.metadata.mainObject.model,
                 ) ||
                 this.website.currentWebsite.metadata.canPublish)
         );

@@ -9,7 +9,8 @@ function cleanupExpirableStorage() {
     const now = Date.now();
     // Next line is for testing compatibility as for..in is not supported by
     // the `MockStorage` class.
-    const keys = browser.localStorage.items?.keys() ?? Object.keys(browser.localStorage);
+    const keys =
+        browser.localStorage.items?.keys() ?? Object.keys(browser.localStorage);
     for (const key of keys) {
         if (key.startsWith(BASE_STORAGE_KEY)) {
             const item = JSON.parse(browser.localStorage.getItem(key));
@@ -51,7 +52,7 @@ export const expirableStorage = {
         }
         browser.localStorage.setItem(
             `${BASE_STORAGE_KEY}${key}`,
-            JSON.stringify({ value, expires })
+            JSON.stringify({ value, expires }),
         );
     },
     /** @param {string} key */

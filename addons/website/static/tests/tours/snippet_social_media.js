@@ -44,7 +44,8 @@ const replaceIconByImage = function (url) {
         },
         {
             content: "Go to the Images tab in the media dialog",
-            trigger: ".o_select_media_dialog .o_notebook_headers .nav-item a:contains('Images')",
+            trigger:
+                ".o_select_media_dialog .o_notebook_headers .nav-item a:contains('Images')",
             run: "click",
         },
         {
@@ -57,7 +58,12 @@ const replaceIconByImage = function (url) {
     ];
 };
 
-const addNewSocialNetwork = function (optionIndex, linkIndex, url, replaceIcon = false) {
+const addNewSocialNetwork = function (
+    optionIndex,
+    linkIndex,
+    url,
+    replaceIcon = false,
+) {
     const replaceIconByImageSteps = replaceIcon
         ? replaceIconByImage("https://www.example.com")
         : [];
@@ -108,7 +114,8 @@ registerWebsitePreviewTour(
         },
         {
             content: "Ensure twitter became first",
-            trigger: ':iframe .s_social_media:has(a:eq(0)[href="/website/social/twitter"])',
+            trigger:
+                ':iframe .s_social_media:has(a:eq(0)[href="/website/social/twitter"])',
         },
         {
             content: "Drag the facebook link at the end of the list",
@@ -155,7 +162,8 @@ registerWebsitePreviewTour(
         ...preventRaceConditionStep,
         {
             content: "Delete the custom link",
-            trigger: ".o_social_media_list button[data-action-id='deleteSocialMediaLink']",
+            trigger:
+                ".o_social_media_list button[data-action-id='deleteSocialMediaLink']",
             run: "click",
         },
         {
@@ -197,7 +205,8 @@ registerWebsitePreviewTour(
         }),
         {
             content: "Check if we can still change custom icons",
-            trigger: ':iframe .s_social_media a[href="https://whatever.it/1EdSw9X"] i.fa-pencil',
+            trigger:
+                ':iframe .s_social_media a[href="https://whatever.it/1EdSw9X"] i.fa-pencil',
             run: "dblclick",
         },
         {
@@ -235,5 +244,5 @@ registerWebsitePreviewTour(
                 ":has(a:eq(11)[href='https://facebook.com']:has(img))",
         },
         ...clickOnSave(),
-    ]
+    ],
 );

@@ -1,13 +1,14 @@
+import { MAIN_EMBEDDINGS } from "@html_editor/others/embedded_components/embedding_sets";
+import { EMBEDDED_COMPONENT_PLUGINS, MAIN_PLUGINS } from "@html_editor/plugin_sets";
+import { nodeSize } from "@html_editor/utils/position";
+import { expect, test } from "@odoo/hoot";
 import { advanceTime, press, queryAll, queryAllTexts, queryOne } from "@odoo/hoot-dom";
+import { contains } from "@web/../tests/web_test_helpers";
+
 import { setupEditor } from "./_helpers/editor.js";
 import { setSelection } from "./_helpers/selection.js";
-import { deleteBackward, insertText } from "./_helpers/user_actions.js";
 import { expectElementCount } from "./_helpers/ui_expectations.js";
-import { expect, test } from "@odoo/hoot";
-import { contains } from "@web/../tests/web_test_helpers";
-import { nodeSize } from "@html_editor/utils/position";
-import { EMBEDDED_COMPONENT_PLUGINS, MAIN_PLUGINS } from "@html_editor/plugin_sets";
-import { MAIN_EMBEDDINGS } from "@html_editor/others/embedded_components/embedding_sets";
+import { deleteBackward, insertText } from "./_helpers/user_actions.js";
 
 const configWithEmbeddedTableOfContent = {
     Plugins: [...MAIN_PLUGINS, ...EMBEDDED_COMPONENT_PLUGINS],
@@ -44,10 +45,17 @@ test("should update table of contents when heading is converted to paragraph", a
     await advanceTime(500);
     expect(queryAll(".o_embedded_toc_link")).toHaveCount(1);
     const h1 = queryOne("h1");
-    setSelection({ anchorNode: h1, anchorOffset: 0, focusNode: h1, focusOffset: nodeSize(h1) });
+    setSelection({
+        anchorNode: h1,
+        anchorOffset: 0,
+        focusNode: h1,
+        focusOffset: nodeSize(h1),
+    });
     await expectElementCount(".o-we-toolbar", 1);
     await contains(".o-we-toolbar [name='font'] .dropdown-toggle").click();
-    await contains(".o_font_selector_menu .dropdown-item:contains('Paragraph')").click();
+    await contains(
+        ".o_font_selector_menu .dropdown-item:contains('Paragraph')",
+    ).click();
     // TOC update is debounced
     await advanceTime(500);
     expect(queryAll(".o_embedded_toc_link")).toHaveCount(0);

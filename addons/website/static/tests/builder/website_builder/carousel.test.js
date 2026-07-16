@@ -1,9 +1,9 @@
 import { expect, test } from "@odoo/hoot";
+import { contains } from "@web/../tests/web_test_helpers";
 import {
     defineWebsiteModels,
     setupWebsiteBuilderWithSnippet,
 } from "@website/../tests/builder/website_helpers";
-import { contains } from "@web/../tests/web_test_helpers";
 
 defineWebsiteModels();
 
@@ -65,7 +65,8 @@ test("Test Carousel Option (s_carousel)", async () => {
 });
 
 test("Test Carousel Option (s_image_gallery)", async () => {
-    const { getEditableContent } = await setupWebsiteBuilderWithSnippet("s_image_gallery");
+    const { getEditableContent } =
+        await setupWebsiteBuilderWithSnippet("s_image_gallery");
     const carouselEl = getEditableContent().querySelector(".carousel");
     await contains(":iframe .carousel").click();
 

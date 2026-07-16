@@ -1,8 +1,7 @@
 /** @odoo-module native */
-import { Interaction } from "@web/public/interaction";
-import { registry } from "@web/core/registry";
-
 import { rpc } from "@web/core/network/rpc";
+import { registry } from "@web/core/registry";
+import { Interaction } from "@web/public/interaction";
 
 export class ListingLayout extends Interaction {
     static selector = ".o_website_listing_layout";
@@ -36,8 +35,9 @@ export class ListingLayout extends Interaction {
         await this.waitFor(
             rpc("/website/save_session_layout_mode", {
                 layout_mode: this.isList ? "list" : "grid",
-                view_id: document.querySelector(".listing_layout_switcher").dataset.viewId,
-            })
+                view_id: document.querySelector(".listing_layout_switcher").dataset
+                    .viewId,
+            }),
         );
 
         const activeClasses = ev.target.parentElement.dataset.activeClasses.split(" ");

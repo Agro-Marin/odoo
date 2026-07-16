@@ -1,6 +1,6 @@
 /** @odoo-module native */
-import { Interaction } from "@web/public/interaction";
 import { registry } from "@web/core/registry";
+import { Interaction } from "@web/public/interaction";
 
 export class SearchBarBtnEdit extends Interaction {
     static selector = ".o_searchbar_form .oe_search_button";

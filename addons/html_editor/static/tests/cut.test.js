@@ -1,5 +1,6 @@
 import { describe, expect, test } from "@odoo/hoot";
 import { press } from "@odoo/hoot-dom";
+
 import { setupEditor, testEditor } from "./_helpers/editor.js";
 import { undo } from "./_helpers/user_actions.js";
 
@@ -38,7 +39,7 @@ describe("range not collapsed", () => {
                 expect(clipboardData.getData("text/plain")).toBe("bcd");
                 expect(clipboardData.getData("text/html")).toBe("<p>bcd</p>");
                 expect(clipboardData.getData("application/vnd.odoo.odoo-editor")).toBe(
-                    "<p>bcd</p>"
+                    "<p>bcd</p>",
                 );
             },
             contentAfter: "<p>a[]e</p>",
@@ -53,7 +54,7 @@ describe("range not collapsed", () => {
                 expect(clipboardData.getData("text/plain")).toBe("abc\nefg");
                 expect(clipboardData.getData("text/html")).toBe("<p>abc<br>efg</p>");
                 expect(clipboardData.getData("application/vnd.odoo.odoo-editor")).toBe(
-                    "<p>abc<br>efg</p>"
+                    "<p>abc<br>efg</p>",
                 );
             },
             contentAfter: "<p>[]<br></p>",
@@ -64,7 +65,9 @@ describe("range not collapsed", () => {
         await testEditor({
             contentBefore: "<p>a[bcd]e</p>",
             stepFunction: async (editor) => {
-                const history = editor.plugins.find((p) => p.constructor.id === "history");
+                const history = editor.plugins.find(
+                    (p) => p.constructor.id === "history",
+                );
                 const historyStepsCount = history.steps.length;
                 cut(editor);
                 expect(history.steps.length).toBe(historyStepsCount + 1);

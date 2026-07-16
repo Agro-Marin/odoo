@@ -1,23 +1,3 @@
-import { setSelection } from "@html_editor/../tests/_helpers/selection";
-import { insertText } from "@html_editor/../tests/_helpers/user_actions";
-import { describe, expect, test } from "@odoo/hoot";
-import { animationFrame, click, Deferred, queryOne, waitFor } from "@odoo/hoot-dom";
-import {
-    contains,
-    defineActions,
-    defineModels,
-    models,
-    onRpc,
-    patchWithCleanup,
-} from "@web/../tests/web_test_helpers";
-import { WebsiteBuilderClientAction } from "@website/client_actions/website_preview/website_builder_action";
-import {
-    addActionOption,
-    addOption,
-    addPlugin,
-    defineWebsiteModels,
-    setupWebsiteBuilder,
-} from "@website/../tests/builder/website_helpers";
 import {
     exampleContent,
     getDragHelper,
@@ -26,11 +6,31 @@ import {
     waitForEndOfOperation,
     wrapExample,
 } from "@html_builder/../tests/helpers";
-import { Component, xml } from "@odoo/owl";
 import { BuilderAction } from "@html_builder/core/builder_action";
+import { setSelection } from "@html_editor/../tests/_helpers/selection";
+import { insertText } from "@html_editor/../tests/_helpers/user_actions";
 import { Plugin } from "@html_editor/plugin";
+import { describe, expect, test } from "@odoo/hoot";
+import { animationFrame, click, Deferred, queryOne, waitFor } from "@odoo/hoot-dom";
+import { Component, xml } from "@odoo/owl";
+import {
+    contains,
+    defineActions,
+    defineModels,
+    models,
+    onRpc,
+    patchWithCleanup,
+} from "@web/../tests/web_test_helpers";
 import { registry } from "@web/core/registry";
+import {
+    addActionOption,
+    addOption,
+    addPlugin,
+    defineWebsiteModels,
+    setupWebsiteBuilder,
+} from "@website/../tests/builder/website_helpers";
 import { WebsiteBuilder } from "@website/builder/website_builder";
+import { WebsiteBuilderClientAction } from "@website/client_actions/website_preview/website_builder_action";
 
 defineWebsiteModels();
 
@@ -43,7 +43,7 @@ test("basic save", async () => {
     await contains(".o-snippets-top-actions button:contains(Save)").click();
     expect(resultSave.length).toBe(1);
     expect(resultSave[0]).toBe(
-        '<div id="wrap" class="oe_structure oe_empty" data-oe-model="ir.ui.view" data-oe-id="539" data-oe-field="arch"><h1 class="title">H1ello</h1></div>'
+        '<div id="wrap" class="oe_structure oe_empty" data-oe-model="ir.ui.view" data-oe-id="539" data-oe-field="arch"><h1 class="title">H1ello</h1></div>',
     );
     expect(":iframe #wrap").not.toHaveClass("o_dirty");
     expect(":iframe #wrap").not.toHaveClass("o_editable");
@@ -71,19 +71,31 @@ test("failure to save does not block the builder", async () => {
     await modifyText(getEditor(), getEditableContent());
 
     await contains(".o-snippets-top-actions button:contains(Save)").click();
-    expect(".o-snippets-top-actions button:contains(Save)").toHaveClass("o_btn_loading");
-    expect(".o-snippets-top-actions button:contains(Discard)").toHaveAttribute("disabled");
+    expect(".o-snippets-top-actions button:contains(Save)").toHaveClass(
+        "o_btn_loading",
+    );
+    expect(".o-snippets-top-actions button:contains(Discard)").toHaveAttribute(
+        "disabled",
+    );
     deferred.reject(new Error("Message"));
     await animationFrame();
     expect.verifyErrors(["Message"]);
     await animationFrame();
-    expect(".o-snippets-top-actions button:contains(Save)").not.toHaveClass("o_btn_loading");
-    expect(".o-snippets-top-actions button:contains(Discard)").not.toHaveAttribute("disabled");
+    expect(".o-snippets-top-actions button:contains(Save)").not.toHaveClass(
+        "o_btn_loading",
+    );
+    expect(".o-snippets-top-actions button:contains(Discard)").not.toHaveAttribute(
+        "disabled",
+    );
 
     deferred = new Deferred();
     await contains(".o-snippets-top-actions button:contains(Save)").click();
-    expect(".o-snippets-top-actions button:contains(Save)").toHaveClass("o_btn_loading");
-    expect(".o-snippets-top-actions button:contains(Discard)").toHaveAttribute("disabled");
+    expect(".o-snippets-top-actions button:contains(Save)").toHaveClass(
+        "o_btn_loading",
+    );
+    expect(".o-snippets-top-actions button:contains(Discard)").toHaveAttribute(
+        "disabled",
+    );
     deferred.resolve(true);
     await animationFrame();
     expect(".o-snippets-top-actions").toHaveCount(0);
@@ -116,11 +128,16 @@ test("discard without any modifications", async () => {
 test("disable discard button when clicking on save", async () => {
     await setupWebsiteBuilder();
     await click(".o-snippets-top-actions button[data-action='save']");
-    expect(".o-snippets-top-actions button[data-action='cancel']").toHaveAttribute("disabled", "");
+    expect(".o-snippets-top-actions button[data-action='cancel']").toHaveAttribute(
+        "disabled",
+        "",
+    );
 });
 
 test("content is escaped twice", async () => {
-    const { getEditor } = await setupWebsiteBuilder(`<div class="my_content">hey</div>`);
+    const { getEditor } = await setupWebsiteBuilder(
+        `<div class="my_content">hey</div>`,
+    );
     const editor = getEditor();
     const div = queryOne(":iframe .my_content");
     setSelection({ anchorNode: div.firstChild, anchorOffset: 0 });
@@ -130,7 +147,7 @@ test("content is escaped twice", async () => {
         const savedView = args[1];
         // we expect the html sent to have doubly escaped text content
         expect(savedView).toInclude(
-            `<div class="my_content">&amp;lt;div&amp;gt;html&amp;lt;/div&amp;gt;hey</div>`
+            `<div class="my_content">&amp;lt;div&amp;gt;html&amp;lt;/div&amp;gt;hey</div>`,
         );
         return true;
     });
@@ -139,7 +156,7 @@ test("content is escaped twice", async () => {
 
 test("content is not escaped twice inside data-oe-model nodes which are not ir.ui.view", async () => {
     const { getEditor } = await setupWebsiteBuilder(
-        `<div class="my_content" data-oe-model="other">hey</div>`
+        `<div class="my_content" data-oe-model="other">hey</div>`,
     );
     const editor = getEditor();
     const div = queryOne(":iframe .my_content");
@@ -150,7 +167,7 @@ test("content is not escaped twice inside data-oe-model nodes which are not ir.u
         const savedView = args[1];
         // we expect the html sent to have simply escaped text content
         expect(savedView).toInclude(
-            `<div class="my_content" data-oe-model="other">&lt;div&gt;html&lt;/div&gt;hey</div>`
+            `<div class="my_content" data-oe-model="other">&lt;div&gt;html&lt;/div&gt;hey</div>`,
         );
         return true;
     });
@@ -159,7 +176,7 @@ test("content is not escaped twice inside data-oe-model nodes which are not ir.u
 
 test("content is not escaped twice inside root data-oe-model node which is not ir.ui.view", async () => {
     const { getEditor } = await setupWebsiteBuilder(
-        `<div class="my_content" data-oe-model="other" data-oe-id="42" data-oe-field="thing">hey</div>`
+        `<div class="my_content" data-oe-model="other" data-oe-id="42" data-oe-field="thing">hey</div>`,
     );
     const editor = getEditor();
     const div = queryOne(":iframe .my_content");
@@ -170,7 +187,7 @@ test("content is not escaped twice inside root data-oe-model node which is not i
         const savedView = args[1];
         // we expect the html sent to have simply escaped text content
         expect(savedView).toInclude(
-            `<div class="my_content" data-oe-model="other" data-oe-id="42" data-oe-field="thing">&lt;div&gt;html&lt;/div&gt;hey</div>`
+            `<div class="my_content" data-oe-model="other" data-oe-id="42" data-oe-field="thing">&lt;div&gt;html&lt;/div&gt;hey</div>`,
         );
         return true;
     });
@@ -211,7 +228,9 @@ test("reload save with target, then discard and edit again should not reselect t
     // nothing to save anything and the reload (mocked in `setupWebsiteBuilder`)
     // resets to initial content
     expect(":iframe .test-option").not.toHaveAttribute("data-applied");
-    expect(".o-website-builder_sidebar button[data-name=customize]").toHaveClass("active");
+    expect(".o-website-builder_sidebar button[data-name=customize]").toHaveClass(
+        "active",
+    );
 
     await contains(".o-snippets-top-actions button[data-action='cancel']").click();
     await contains(".o_edit_website_container button").click();
@@ -276,7 +295,9 @@ test("Drag and drop from sidebar should only mark the concerned elements as dirt
 
     // Dragging in outer view then in inner view should only apply dirty on the
     // inner one.
-    let dragUtils = await contains(".o-snippets-menu #snippet_content .o_snippet_thumbnail").drag();
+    let dragUtils = await contains(
+        ".o-snippets-menu #snippet_content .o_snippet_thumbnail",
+    ).drag();
     expect(":iframe .oe_drop_zone").toHaveCount(4);
     await dragUtils.moveTo(":iframe .s_dummy_snippet_1 .oe_drop_zone");
     await dragUtils.moveTo(":iframe .s_dummy_snippet_2 .oe_drop_zone");
@@ -292,7 +313,9 @@ test("Drag and drop from sidebar should only mark the concerned elements as dirt
 
     // Dragging in inner view then in outer view should only apply dirty on the
     // outer one.
-    dragUtils = await contains(".o-snippets-menu #snippet_content .o_snippet_thumbnail").drag();
+    dragUtils = await contains(
+        ".o-snippets-menu #snippet_content .o_snippet_thumbnail",
+    ).drag();
     expect(":iframe .oe_drop_zone").toHaveCount(4);
     await dragUtils.moveTo(":iframe .s_dummy_snippet_2 .oe_drop_zone");
     await dragUtils.moveTo(":iframe .s_dummy_snippet_1 .oe_drop_zone");
@@ -308,7 +331,9 @@ test("Drag and drop from sidebar should only mark the concerned elements as dirt
 
     // Dragging over the views then dropping in the sidebar to cancel should not
     // apply dirty at all.
-    dragUtils = await contains(".o-snippets-menu #snippet_content .o_snippet_thumbnail").drag();
+    dragUtils = await contains(
+        ".o-snippets-menu #snippet_content .o_snippet_thumbnail",
+    ).drag();
     expect(":iframe .oe_drop_zone").toHaveCount(4);
     await dragUtils.moveTo(":iframe .s_dummy_snippet_1 .oe_drop_zone");
     await dragUtils.moveTo(":iframe .s_dummy_snippet_2 .oe_drop_zone");
@@ -393,7 +418,7 @@ test("Drag and drop from the page should only mark the concerned elements as dir
 test("empty links with o_translate_inline are removed on save", async () => {
     setupSaveAndReloadIframe();
     await setupWebsiteBuilder(
-        `<section><a href="http://test.test" class="o_translate_inline">x</a></section>`
+        `<section><a href="http://test.test" class="o_translate_inline">x</a></section>`,
     );
     const link = queryOne(":iframe a");
     link.replaceChildren("");
@@ -431,7 +456,9 @@ test("'Switch Theme' after a mutation should only ask one confirmation", async (
             type: "ir.actions.client",
         },
     ]);
-    registry.category("actions").add("__test__switch_theme__action__", MockSwitchThemeAction);
+    registry
+        .category("actions")
+        .add("__test__switch_theme__action__", MockSwitchThemeAction);
 
     setupSaveAndReloadIframe();
     const { getEditor, getEditableContent } = await setupWebsiteBuilder(exampleContent);
@@ -489,7 +516,7 @@ describe("Add Language", () => {
                         throw "save fails for the test";
                     },
                 };
-            }
+            },
         );
         await setupWebsiteBuilder();
         await contains(`.o-snippets-tabs button[data-name="theme"]`).click();
@@ -544,7 +571,7 @@ test("attempt to prevent closing window with unsaved changes", async () => {
         class extends Plugin {
             static id = "test";
             resources = { save_handlers: () => deferSave };
-        }
+        },
     );
     setupSaveAndReloadIframe();
     const { getEditor, getEditableContent } = await setupWebsiteBuilder(exampleContent);

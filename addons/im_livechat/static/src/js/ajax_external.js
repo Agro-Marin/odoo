@@ -7,5 +7,5 @@ import { assets } from "@web/core/assets";
  * As we're not in an Odoo website context, the calls will not work, and we avoid a 404 request.
  */
 assets.loadJS = function (url) {
-    console.log("Tried to load the following script on an external website: " + url);
+    console.warn("Tried to load the following script on an external website: " + url);
 };

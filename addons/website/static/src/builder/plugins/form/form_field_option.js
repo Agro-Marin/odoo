@@ -1,18 +1,19 @@
 /** @odoo-module native */
-import { luxon } from "@web/core/l10n/luxon";
 import { BaseOptionComponent, useDomState } from "@html_builder/core/utils";
 import { onWillStart, onWillUpdateProps, useState } from "@odoo/owl";
+import { formatDate, formatDateTime } from "@web/core/l10n/dates";
+import { luxon } from "@web/core/l10n/luxon";
+
 import { FormActionFieldsOption } from "./form_action_fields_option.js";
 import { FormModelRequiredFieldAlert } from "./form_model_required_field_alert.js";
 import {
+    getCurrentFieldInputEl,
     getDependencyEl,
     getFieldName,
+    getModelName,
     getMultipleInputs,
     isFieldCustom,
-    getCurrentFieldInputEl,
-    getModelName,
 } from "./utils.js";
-import { formatDate, formatDateTime } from "@web/core/l10n/dates";
 
 const { DateTime } = luxon;
 
@@ -46,7 +47,8 @@ export class FormFieldOption extends BaseOptionComponent {
             };
         });
         this.format = {
-            date: (value) => (value ? formatDate(DateTime.fromSeconds(parseInt(value))) : ""),
+            date: (value) =>
+                value ? formatDate(DateTime.fromSeconds(parseInt(value))) : "",
             datetime: (value) =>
                 value ? formatDateTime(DateTime.fromSeconds(parseInt(value))) : "",
         };
@@ -68,10 +70,12 @@ export class FormFieldOption extends BaseOptionComponent {
                 type: dependencyEl.type,
                 nodeName: dependencyEl.nodeName,
                 isRecordField:
-                    dependencyEl.closest(".s_website_form_field")?.dataset.type === "record",
+                    dependencyEl.closest(".s_website_form_field")?.dataset.type ===
+                    "record",
                 isFormDate: !!dependencyEl.closest(".s_website_form_date"),
                 isFormDateTime: !!dependencyEl.closest(".s_website_form_datetime"),
-                hasDateTimePicker: dependencyEl.classList.contains("datetimepicker-input"),
+                hasDateTimePicker:
+                    dependencyEl.classList.contains("datetimepicker-input"),
             };
         });
 
@@ -92,10 +96,14 @@ export class FormFieldOption extends BaseOptionComponent {
                 type: currentFieldInputEl.type,
                 nodeName: currentFieldInputEl.nodeName,
                 isRecordField:
-                    currentFieldInputEl.closest(".s_website_form_field")?.dataset.type === "record",
+                    currentFieldInputEl.closest(".s_website_form_field")?.dataset
+                        .type === "record",
                 isFormDate: !!currentFieldInputEl.closest(".s_website_form_date"),
-                isFormDateTime: !!currentFieldInputEl.closest(".s_website_form_datetime"),
-                hasDateTimePicker: currentFieldInputEl.classList.contains("datetimepicker-input"),
+                isFormDateTime: !!currentFieldInputEl.closest(
+                    ".s_website_form_datetime",
+                ),
+                hasDateTimePicker:
+                    currentFieldInputEl.classList.contains("datetimepicker-input"),
                 isTextArea: currentFieldInputEl.nodeName === "TEXTAREA",
             };
         });
@@ -143,7 +151,7 @@ export class FormFieldOption extends BaseOptionComponent {
         }
         return (
             (["text", "email", "tel", "url", "search", "password", "number"].includes(
-                dependencyEl.type
+                dependencyEl.type,
             ) ||
                 dependencyEl.nodeName === "TEXTAREA") &&
             !["set", "!set"].includes(el.dataset.visibilityComparator)
@@ -176,13 +184,17 @@ export class FormFieldOption extends BaseOptionComponent {
         }
         return (
             !dependencyEl ||
-            ["text", "email", "tel", "url", "search", "password"].includes(dependencyEl.type) ||
+            ["text", "email", "tel", "url", "search", "password"].includes(
+                dependencyEl.type,
+            ) ||
             dependencyEl.nodeName === "TEXTAREA"
         );
     }
     get isExistingFieldSelectType() {
         const el = this.env.getEditingElement();
-        return !isFieldCustom(el) && ["selection", "many2one"].includes(el.dataset.type);
+        return (
+            !isFieldCustom(el) && ["selection", "many2one"].includes(el.dataset.type)
+        );
     }
     get isMultipleInputs() {
         const el = this.env.getEditingElement();

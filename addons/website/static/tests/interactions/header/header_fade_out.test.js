@@ -1,8 +1,10 @@
-import { setupInteractionWhiteList, startInteractions } from "@web/../tests/public/helpers";
-
 import { beforeEach, describe, expect, test } from "@odoo/hoot";
 import { queryOne } from "@odoo/hoot-dom";
 import { enableTransitions } from "@odoo/hoot-mock";
+import {
+    setupInteractionWhiteList,
+    startInteractions,
+} from "@web/../tests/public/helpers";
 
 import {
     checkHeader,
@@ -18,7 +20,9 @@ beforeEach(enableTransitions);
 describe.current.tags("interaction_dev");
 
 test("header_fade_out is started when there is an element header.o_header_fade_out", async () => {
-    const { core } = await startInteractions(getTemplateWithoutHideOnScroll("o_header_fade_out"));
+    const { core } = await startInteractions(
+        getTemplateWithoutHideOnScroll("o_header_fade_out"),
+    );
     expect(core.interactions).toHaveLength(1);
 });
 
@@ -33,7 +37,8 @@ const behaviorWithout = [
         visibility: true,
         paddingTop: "50px",
         transform: "matrix(1, 0, 0, 1, 0, 0)",
-        classList: "o_header_affixed o_header_fade_out o_header_is_scrolled o_top_fixed_element",
+        classList:
+            "o_header_affixed o_header_fade_out o_header_is_scrolled o_top_fixed_element",
     },
     {
         visibility: false,
@@ -44,7 +49,9 @@ const behaviorWithout = [
 ];
 
 test("[scroll] Template without o_header_hide_on_scroll", async () => {
-    const { core } = await startInteractions(getTemplateWithoutHideOnScroll("o_header_fade_out"));
+    const { core } = await startInteractions(
+        getTemplateWithoutHideOnScroll("o_header_fade_out"),
+    );
     const wrapwrap = queryOne("#wrapwrap");
     const header = queryOne("header");
     const main = queryOne("main");
@@ -79,13 +86,15 @@ const behaviorWith = [
         visibility: true,
         paddingTop: "40px",
         transform: "matrix(1, 0, 0, 1, 0, 0)",
-        classList: "o_header_affixed o_header_fade_out o_header_is_scrolled o_top_fixed_element",
+        classList:
+            "o_header_affixed o_header_fade_out o_header_is_scrolled o_top_fixed_element",
     },
     {
         visibility: true,
         paddingTop: "30px",
         transform: "matrix(1, 0, 0, 1, 0, 0)",
-        classList: "o_header_affixed o_header_fade_out o_header_is_scrolled o_top_fixed_element",
+        classList:
+            "o_header_affixed o_header_fade_out o_header_is_scrolled o_top_fixed_element",
     },
     {
         visibility: false,
@@ -97,7 +106,9 @@ const behaviorWith = [
 
 test.tags("desktop");
 test("[scroll] Template with o_header_hide_on_scroll", async () => {
-    const { core } = await startInteractions(getTemplateWithHideOnScroll("o_header_fade_out"));
+    const { core } = await startInteractions(
+        getTemplateWithHideOnScroll("o_header_fade_out"),
+    );
     const wrapwrap = queryOne("#wrapwrap");
     const header = queryOne("header");
     const main = queryOne("main");

@@ -1,9 +1,10 @@
 /** @odoo-module native */
+/* eslint-disable no-console -- automated tour runner; step-progress output to console is its purpose */
 import hootDom from "@odoo/hoot-dom";
 import { enableEventLogs, setupEventActions } from "@odoo/hoot-dom-helpers-events";
+import { config as transitionConfig } from "@web/components/transition";
 import { browser } from "@web/core/browser/browser";
 import { Macro } from "@web/core/utils/macro";
-import { config as transitionConfig } from "@web/components/transition";
 import { TourStepAutomatic } from "@web_tour/js/tour_automatic/tour_step_automatic";
 import { tourState } from "@web_tour/js/tour_state";
 
@@ -12,7 +13,9 @@ export class TourAutomatic {
     allowUnload = true;
     constructor(data) {
         Object.assign(this, data);
-        this.steps = this.steps.map((step, index) => new TourStepAutomatic(step, this, index));
+        this.steps = this.steps.map(
+            (step, index) => new TourStepAutomatic(step, this, index),
+        );
         this.config = tourState.getCurrentConfig() || {};
     }
 
@@ -60,7 +63,10 @@ export class TourAutomatic {
                             : step.timeout || this.timeout || 10000,
                     action: async (trigger) => {
                         if (delayToCheckUndeterminisms > 0) {
-                            await step.checkForUndeterminisms(trigger, delayToCheckUndeterminisms);
+                            await step.checkForUndeterminisms(
+                                trigger,
+                                delayToCheckUndeterminisms,
+                            );
                         }
                         this.allowUnload = false;
                         if (!step.skipped && step.expectUnloadPage) {
@@ -105,7 +111,7 @@ export class TourAutomatic {
                     ev.preventDefault();
                     ev.stopImmediatePropagation();
                 },
-                true
+                true,
             );
             window.addEventListener(
                 "unhandledrejection",
@@ -113,7 +119,7 @@ export class TourAutomatic {
                     ev.preventDefault();
                     ev.stopImmediatePropagation();
                 },
-                true
+                true,
             );
         };
 
@@ -122,7 +128,10 @@ export class TourAutomatic {
             steps: macroSteps,
             onError: ({ error }) => {
                 if (error.type === "Timeout") {
-                    this.throwError(...this.currentStep.describeWhyIFailed, error.message);
+                    this.throwError(
+                        ...this.currentStep.describeWhyIFailed,
+                        error.message,
+                    );
                 } else {
                     this.throwError(error.message);
                 }
@@ -191,7 +200,9 @@ export class TourAutomatic {
         console.groupEnd();
         tourState.setCurrentTourOnError();
         // console.error notifies the test runner that the tour failed.
-        browser.console.error([`FAILED: ${this.currentStep.describeMe}.`, ...args].join("\n"));
+        browser.console.error(
+            [`FAILED: ${this.currentStep.describeMe}.`, ...args].join("\n"),
+        );
         // The logged text shows the relative position of the failed step.
         // Useful for finding the failed step.
         browser.console.dir(this.describeWhereIFailed);
@@ -210,7 +221,7 @@ export class TourAutomatic {
             `%cTour is paused. Use %cplay()%c to continue.`,
             styles[0],
             styles[1],
-            styles[0]
+            styles[0],
         );
         await new Promise((resolve) => {
             window.play = () => {

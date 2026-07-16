@@ -1,9 +1,9 @@
 /** @odoo-module native */
-import { useEffect } from "@odoo/owl";
-import wUtils from "@website/js/utils";
-import { Plugin } from "@html_editor/plugin";
-import { registry } from "@web/core/registry";
 import { BuilderUrlPicker } from "@html_builder/core/building_blocks/builder_urlpicker";
+import { Plugin } from "@html_editor/plugin";
+import { useEffect } from "@odoo/owl";
+import { registry } from "@web/core/registry";
+import wUtils from "@website/js/utils";
 
 export class WebsiteUrlPicker extends BuilderUrlPicker {
     setup() {
@@ -25,11 +25,11 @@ export class WebsiteUrlPicker extends BuilderUrlPicker {
                             this.commit(this.inputRef.el.value);
                         },
                     },
-                    this.env
+                    this.env,
                 );
                 return () => unmountAutocompleteWithPages();
             },
-            () => [this.inputRef.el]
+            () => [this.inputRef.el],
         );
     }
 }

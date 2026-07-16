@@ -44,8 +44,11 @@ export class ContentEditablePlugin extends Plugin {
         for (const fn of this.getResource("content_editable_providers")) {
             contentEditableEls.push(...fn(root));
         }
-        const filteredContentEditableEls = contentEditableEls.filter((contentEditableEl) =>
-            this.getResource("valid_contenteditable_predicates").every((p) => p(contentEditableEl))
+        const filteredContentEditableEls = contentEditableEls.filter(
+            (contentEditableEl) =>
+                this.getResource("valid_contenteditable_predicates").every((p) =>
+                    p(contentEditableEl),
+                ),
         );
         for (const contentEditableEl of filteredContentEditableEls) {
             if (!contentEditableEl.isContentEditable) {
@@ -64,7 +67,9 @@ export class ContentEditablePlugin extends Plugin {
     }
 
     cleanForSave({ root }) {
-        const toRemoveSelector = this.getResource("contenteditable_to_remove_selector").join(",");
+        const toRemoveSelector = this.getResource(
+            "contenteditable_to_remove_selector",
+        ).join(",");
         const contenteditableEls = toRemoveSelector
             ? [...selectElements(root, toRemoveSelector)]
             : [];

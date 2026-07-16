@@ -1,7 +1,7 @@
 /** @odoo-module native */
-import { CarouselSlider } from "@website/interactions/carousel/carousel_slider";
-import { Carousel } from "@web/libs/bootstrap";
 import { registry } from "@web/core/registry";
+import { Carousel } from "@web/libs/bootstrap";
+import { CarouselSlider } from "@website/interactions/carousel/carousel_slider";
 
 const CarouselSliderPreview = (I) =>
     class extends I {

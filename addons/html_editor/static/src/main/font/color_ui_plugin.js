@@ -1,13 +1,18 @@
 /** @odoo-module native */
 import { isHtmlContentSupported } from "@html_editor/core/selection_plugin";
 import { Plugin } from "@html_editor/plugin";
-import { _t } from "@web/core/l10n/translation";
-import { ColorSelector } from "./color_selector.js";
-import { reactive } from "@odoo/owl";
 import { isTextNode } from "@html_editor/utils/dom_info";
 import { closestElement } from "@html_editor/utils/dom_traversal";
-import { isCSSColor, normalizeCSSColor, RGBA_REGEX } from "@web/core/utils/format/colors";
 import { withSequence } from "@html_editor/utils/resource";
+import { reactive } from "@odoo/owl";
+import { _t } from "@web/core/l10n/translation";
+import {
+    isCSSColor,
+    normalizeCSSColor,
+    RGBA_REGEX,
+} from "@web/core/utils/format/colors";
+
+import { ColorSelector } from "./color_selector.js";
 
 const RGBA_OPACITY = 0.6;
 const HEX_OPACITY = "99";
@@ -42,13 +47,17 @@ export class ColorUIPlugin extends Plugin {
                 isAvailable: isHtmlContentSupported,
             },
         ],
-        selectionchange_handlers: withSequence(100, this.updateSelectedColor.bind(this)),
+        selectionchange_handlers: withSequence(
+            100,
+            this.updateSelectedColor.bind(this),
+        ),
         get_background_color_processors: this.getBackgroundColorProcessor.bind(this),
-        apply_background_color_processors: this.applyBackgroundColorProcessor.bind(this),
+        apply_background_color_processors:
+            this.applyBackgroundColorProcessor.bind(this),
         /** Providers */
         selected_background_color_providers: withSequence(
             10,
-            this.computeBackgroundColorForTextNode.bind(this)
+            this.computeBackgroundColorForTextNode.bind(this),
         ),
     };
 
@@ -56,7 +65,7 @@ export class ColorUIPlugin extends Plugin {
         this.selectedColors = reactive({ color: "", backgroundColor: "" });
         this.previewableApplyColor = this.dependencies.history.makePreviewableOperation(
             (color, mode, previewMode) =>
-                this.dependencies.color.applyColor(color, mode, previewMode)
+                this.dependencies.color.applyColor(color, mode, previewMode),
         );
     }
 
@@ -77,7 +86,9 @@ export class ColorUIPlugin extends Plugin {
             colorPrefix: mode === "color" ? "text-" : "bg-",
             onClose: () => this.dependencies.selection.focusEditable(),
             getTargetedElements: () => {
-                const nodes = this.dependencies.selection.getTargetedNodes().filter(isTextNode);
+                const nodes = this.dependencies.selection
+                    .getTargetedNodes()
+                    .filter(isTextNode);
                 return nodes.map((node) => closestElement(node));
             },
         };
@@ -142,7 +153,9 @@ export class ColorUIPlugin extends Plugin {
     updateSelectedColor() {
         // Compute and update the background color.
         let backgroundColor;
-        for (const provider of this.getResource("selected_background_color_providers")) {
+        for (const provider of this.getResource(
+            "selected_background_color_providers",
+        )) {
             const providedBackgroundColor = provider();
             if (providedBackgroundColor) {
                 backgroundColor = providedBackgroundColor;
@@ -170,7 +183,10 @@ export class ColorUIPlugin extends Plugin {
         const activeTab = document
             .querySelector(".o_font_color_selector button.active")
             ?.innerHTML.trim();
-        if (backgroundColor.startsWith("rgba") && (!activeTab || activeTab === "Solid")) {
+        if (
+            backgroundColor.startsWith("rgba") &&
+            (!activeTab || activeTab === "Solid")
+        ) {
             // Buttons in the solid tab of color selector have no
             // opacity, hence to match selected color correctly,
             // we need to remove applied 0.6 opacity.

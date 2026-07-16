@@ -1,6 +1,6 @@
 /** @odoo-module native */
-import { Interaction } from "@web/public/interaction";
 import { registry } from "@web/core/registry";
+import { Interaction } from "@web/public/interaction";
 
 export class Parallax extends Interaction {
     static selector = ".parallax";
@@ -42,7 +42,8 @@ export class Parallax extends Interaction {
     }
 
     updateBackgroundHeight() {
-        this.speed = parseFloat(this.el.getAttribute("data-scroll-background-ratio")) || 0;
+        this.speed =
+            parseFloat(this.el.getAttribute("data-scroll-background-ratio")) || 0;
         if (this.speed === 0 || this.speed === 1) {
             return;
         }
@@ -84,7 +85,7 @@ export class Parallax extends Interaction {
         const scrollRange = this.maxScrollPos - this.minScrollPos;
         const progress = Math.min(
             1,
-            Math.max(0, (currentPosition - this.minScrollPos) / scrollRange)
+            Math.max(0, (currentPosition - this.minScrollPos) / scrollRange),
         );
 
         if (this.isZoomOut) {

@@ -1,9 +1,8 @@
 /** @odoo-module native */
+import { markup } from "@odoo/owl";
+import { cookie } from "@web/core/browser/cookie";
 import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
-import { cookie } from "@web/core/browser/cookie";
-
-import { markup } from "@odoo/owl";
 import { omit } from "@web/core/utils/collections/objects";
 import { stepUtils } from "@web_tour/tour_utils";
 
@@ -15,19 +14,25 @@ export function addMedia(position = "right") {
         run: "click",
     };
 }
-export function assertCssVariable(variableName, variableValue, trigger = ":iframe body") {
+export function assertCssVariable(
+    variableName,
+    variableValue,
+    trigger = ":iframe body",
+) {
     return {
         isActive: ["auto"],
         content: `Check CSS variable ${variableName}=${variableValue}`,
         trigger: trigger,
         run() {
-            const styleValue = getComputedStyle(this.anchor).getPropertyValue(variableName);
+            const styleValue = getComputedStyle(this.anchor).getPropertyValue(
+                variableName,
+            );
             if (
                 (styleValue && styleValue.trim().replace(/["']/g, "")) !==
                 variableValue.trim().replace(/["']/g, "")
             ) {
                 throw new Error(
-                    `Failed precondition: ${variableName}=${styleValue} (should be ${variableValue})`
+                    `Failed precondition: ${variableName}=${styleValue} (should be ${variableValue})`,
                 );
             }
         },
@@ -63,8 +68,8 @@ export function changeBackground(snippet, position = "bottom") {
             trigger: `.o_customize_tab button[data-action-id="replaceBgImage"]`,
             content: markup(
                 _t(
-                    "<b>Customize</b> any block through this menu. Try to change the background image of this block."
-                )
+                    "<b>Customize</b> any block through this menu. Try to change the background image of this block.",
+                ),
             ),
             tooltipPosition: position,
             run: "click",
@@ -77,8 +82,8 @@ export function changeBackgroundColor(position = "bottom") {
         trigger: ".o_customize_tab .o_we_color_preview",
         content: markup(
             _t(
-                "<b>Customize</b> any block through this menu. Try to change the background color of this block."
-            )
+                "<b>Customize</b> any block through this menu. Try to change the background color of this block.",
+            ),
         ),
         tooltipPosition: position,
         run: "click",
@@ -113,7 +118,9 @@ export function changeImage(snippet, position = "bottom") {
         {
             trigger: snippet.id ? `#wrapwrap .${snippet.id} img` : snippet,
             content: markup(
-                _t("<b>Double click on an image</b> to change it with one of your choice.")
+                _t(
+                    "<b>Double click on an image</b> to change it with one of your choice.",
+                ),
             ),
             tooltipPosition: position,
             run: "dblclick",
@@ -131,16 +138,20 @@ export function changeOption(
     actionId = "",
     optionTooltipLabel = "",
     position = "bottom",
-    allowPalette = false
+    allowPalette = false,
 ) {
     const noPalette = allowPalette
         ? ""
-        : !document.querySelector(".o_popover .o_font_color_selector") && ".o_customize_tab";
+        : !document.querySelector(".o_popover .o_font_color_selector") &&
+          ".o_customize_tab";
     const option_block = `${noPalette} [data-container-title='${blockName}']`;
     return {
         trigger: `${option_block} ${actionId}, ${option_block} [data-action-id="${actionId}"]`,
         content: markup(
-            _t("<b>Click</b> on this option to change the %s of the block.", optionTooltipLabel)
+            _t(
+                "<b>Click</b> on this option to change the %s of the block.",
+                optionTooltipLabel,
+            ),
         ),
         tooltipPosition: position,
         run: "click",
@@ -195,7 +206,7 @@ export function selectNested(
     altTrigger = null,
     optionTooltipLabel = "",
     position = "top",
-    allowPalette = false
+    allowPalette = false,
 ) {
     const noPalette = allowPalette
         ? ""
@@ -218,7 +229,9 @@ export function changePaddingSize(direction) {
     }
     return {
         trigger: `.oe_overlay.oe_active .o_handle.${paddingDirection}`,
-        content: markup(_t("<b>Slide</b> this button to change the %s padding", direction)),
+        content: markup(
+            _t("<b>Slide</b> this button to change the %s padding", direction),
+        ),
         tooltipPosition: position,
         run: "click",
     };
@@ -240,7 +253,7 @@ export function checkIfVisibleOnScreen(elementSelector) {
             const centerX = boundingRect.left + boundingRect.width / 2;
             const centerY = boundingRect.top + boundingRect.height / 2;
             const iframeDocument = document.querySelector(
-                ".o_website_preview iframe"
+                ".o_website_preview iframe",
             ).contentDocument;
             const el = iframeDocument.elementFromPoint(centerX, centerY);
             if (!this.anchor.contains(el)) {
@@ -272,7 +285,8 @@ export function clickOnEditAndWaitEditMode(position = "bottom") {
     return [
         {
             content: markup(_t("<b>Click Edit</b> to start designing your homepage.")),
-            trigger: "body .o_menu_systray .o_menu_systray_item.o_edit_website_container button",
+            trigger:
+                "body .o_menu_systray .o_menu_systray_item.o_edit_website_container button",
             tooltipPosition: position,
             run: "click",
         },
@@ -324,7 +338,9 @@ export function clickOnSnippet(snippet, position = "bottom") {
         },
         {
             trigger: `:iframe ${trigger}`,
-            content: markup(_t("<b>Click on a snippet</b> to access its options menu.")),
+            content: markup(
+                _t("<b>Click on a snippet</b> to access its options menu."),
+            ),
             tooltipPosition: position,
             run: "click",
         },
@@ -370,7 +386,9 @@ export function clickOnText(snippet, element, position = "bottom") {
             trigger: ":iframe body .odoo-editor-editable",
         },
         {
-            trigger: snippet.id ? `:iframe #wrapwrap .${snippet.id} ${element}` : snippet,
+            trigger: snippet.id
+                ? `:iframe #wrapwrap .${snippet.id} ${element}`
+                : snippet,
             content: markup(_t("<b>Click on a text</b> to start editing it.")),
             tooltipPosition: position,
             run: "click",
@@ -389,7 +407,10 @@ export function clickOnText(snippet, element, position = "bottom") {
  * dialog.
  * @param {*} position Where the purple arrow will show up
  */
-export function insertSnippet(snippet, { position = "bottom", ignoreLoading = false } = {}) {
+export function insertSnippet(
+    snippet,
+    { position = "bottom", ignoreLoading = false } = {},
+) {
     const blockEl = snippet.groupName || snippet.name;
     const insertSnippetSteps = [
         {
@@ -409,19 +430,24 @@ export function insertSnippet(snippet, { position = "bottom", ignoreLoading = fa
                 run: "click",
             },
             {
-                content: markup(_t("Click on the <b>%s</b> building block.", snippet.name)),
+                content: markup(
+                    _t("Click on the <b>%s</b> building block.", snippet.name),
+                ),
                 // FIXME `:not(.d-none)` should obviously not be needed but it seems
                 // currently needed when using a tour in user/interactive mode.
                 trigger: `.modal .show:iframe .o_snippet_preview_wrap${snippetIDSelector}:not(.d-none)`,
                 noPrepend: true,
                 tooltipPosition: "top",
                 run: "click",
-            }
+            },
         );
     } else {
         insertSnippetSteps.push({
             content: markup(
-                _t("Drag the <b>%s</b> block and drop it at the bottom of the page.", blockEl)
+                _t(
+                    "Drag the <b>%s</b> block and drop it at the bottom of the page.",
+                    blockEl,
+                ),
             ),
             trigger: `.o_block_tab:not(.o_we_ongoing_insertion) #snippet_content .o_snippet[name="${blockEl}"].o_draggable .o_snippet_thumbnail`,
             tooltipPosition: position,
@@ -511,14 +537,16 @@ export function clickOnExtraMenuItem(stepOptions, backend = false) {
             async run(actions) {
                 // Note: the button might not exist (it only appear if there is
                 // many menu items).
-                const extraMenuButton = this.anchor.querySelector(".o_extra_menu_items a.nav-link");
+                const extraMenuButton = this.anchor.querySelector(
+                    ".o_extra_menu_items a.nav-link",
+                );
                 // Don't click on the extra menu button if it's already visible.
                 if (extraMenuButton && !extraMenuButton.classList.contains("show")) {
                     await actions.click(extraMenuButton);
                 }
             },
         },
-        stepOptions
+        stepOptions,
     );
 }
 
@@ -579,7 +607,7 @@ export function registerThemeHomepageTour(name, steps) {
             ...steps(),
             ...goToTheme(),
             ...clickOnSave(),
-        ]
+        ],
     );
 }
 
@@ -691,7 +719,7 @@ export function openLinkPopup(
     triggerSelector,
     linkName = "",
     focusNodeIndex = 0,
-    triggerClick = false
+    triggerClick = false,
 ) {
     return [
         {
@@ -734,7 +762,7 @@ export function selectFullText(elementName, selector) {
                 new MouseEvent("pointerup", {
                     bubbles: true,
                     cancelable: true,
-                })
+                }),
             );
         },
     };

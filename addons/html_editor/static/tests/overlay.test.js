@@ -1,6 +1,12 @@
-import { beforeEach, expect, test, describe, getFixture } from "@odoo/hoot";
-import { setSelection } from "./_helpers/selection.js";
+import { getScrollContainer } from "@html_editor/core/overlay";
+import { Plugin } from "@html_editor/plugin";
+import { MAIN_PLUGINS } from "@html_editor/plugin_sets";
+import { parseHTML } from "@html_editor/utils/html";
+import { Wysiwyg } from "@html_editor/wysiwyg";
+import { beforeEach, describe, expect, getFixture, test } from "@odoo/hoot";
 import { click, hover, queryOne, waitFor, waitForNone } from "@odoo/hoot-dom";
+import { animationFrame } from "@odoo/hoot-mock";
+import { Component, onMounted, onWillUnmount, xml } from "@odoo/owl";
 import {
     contains,
     defineModels,
@@ -9,18 +15,13 @@ import {
     mountView,
     patchWithCleanup,
 } from "@web/../tests/web_test_helpers";
-import { animationFrame } from "@odoo/hoot-mock";
-import { unformat } from "./_helpers/format.js";
-import { Plugin } from "@html_editor/plugin";
-import { Component, onMounted, onWillUnmount, xml } from "@odoo/owl";
-import { useService } from "@web/core/utils/hooks";
-import { setupEditor } from "./_helpers/editor.js";
-import { MAIN_PLUGINS } from "@html_editor/plugin_sets";
-import { parseHTML } from "@html_editor/utils/html";
 import { closestScrollableY } from "@web/core/utils/dom/scrolling";
-import { Wysiwyg } from "@html_editor/wysiwyg";
+import { useService } from "@web/core/utils/hooks";
+
+import { setupEditor } from "./_helpers/editor.js";
+import { unformat } from "./_helpers/format.js";
+import { setSelection } from "./_helpers/selection.js";
 import { insertText } from "./_helpers/user_actions.js";
-import { getScrollContainer } from "@html_editor/core/overlay";
 
 class Test extends models.Model {
     name = fields.Char();
@@ -150,7 +151,12 @@ test("Toolbar should not overflow scroll container at the bottom", async () => {
     lastP.scrollIntoView();
 
     // Select last paragraph
-    setSelection({ anchorNode: lastP, anchorOffset: 0, focusNode: lastP, focusOffset: 1 });
+    setSelection({
+        anchorNode: lastP,
+        anchorOffset: 0,
+        focusNode: lastP,
+        focusOffset: 1,
+    });
 
     // Toolbar should be visible
     const toolbar = await waitFor(".o-we-toolbar");
@@ -183,7 +189,12 @@ test("Toolbar visibility should be updated when editable is resized", async () =
     lastP.scrollIntoView();
 
     // Select last paragraph
-    setSelection({ anchorNode: lastP, anchorOffset: 0, focusNode: lastP, focusOffset: 1 });
+    setSelection({
+        anchorNode: lastP,
+        anchorOffset: 0,
+        focusNode: lastP,
+        focusOffset: 1,
+    });
 
     // Toolbar should be visible
     const toolbar = await waitFor(".o-we-toolbar");
@@ -206,7 +217,7 @@ describe("powerbox", () => {
                 super.setup();
                 editor = this.editor;
             },
-        })
+        }),
     );
 
     test.tags("desktop");
@@ -223,7 +234,10 @@ describe("powerbox", () => {
         });
 
         // Put cursor at end of first paragraph an insert "/"
-        setSelection({ anchorNode: queryOne(".odoo-editor-editable p"), anchorOffset: 1 });
+        setSelection({
+            anchorNode: queryOne(".odoo-editor-editable p"),
+            anchorOffset: 1,
+        });
         insertText(editor, "/");
 
         // Powerbox should be visible
@@ -538,13 +552,15 @@ describe("getScrollContainer", () => {
     describe("with iframe", () => {
         test("should return closest scrollable ancestor inside the iframe", () => {
             // Fixture's content
-            const { iframe } = setContent(`<iframe class="iframe" style="height: 500px"></iframe>`);
+            const { iframe } = setContent(
+                `<iframe class="iframe" style="height: 500px"></iframe>`,
+            );
             // Iframe's content
             const { target, expected } = setContent(
                 `<div class="expected" style="height: 300px; overflow-y: auto;">
                     <div class="target" style="height: 400px;">Target</div>
                 </div>`,
-                iframe.contentDocument.body
+                iframe.contentDocument.body,
             );
             expect(getScrollContainer(target)).toBe(expected);
         });
@@ -555,7 +571,7 @@ describe("getScrollContainer", () => {
             // Iframe's content
             const { target } = setContent(
                 `<div class="target" style="height: 600px;">Target</div>`,
-                iframe.contentDocument.body
+                iframe.contentDocument.body,
             );
             const documentElement = iframe.contentDocument.documentElement;
             documentElement.classList.add("expected"); // for visual hint
@@ -570,7 +586,7 @@ describe("getScrollContainer", () => {
             // Iframe's content
             const { target } = setContent(
                 `<div class="target" style="height: 400px;">Target</div>`,
-                iframe.contentDocument.body
+                iframe.contentDocument.body,
             );
             expect(getScrollContainer(target)).toBe(expected);
         });
@@ -616,7 +632,7 @@ describe("getScrollContainer", () => {
                         </div>
                     </div>
                 </div>`,
-                iframe.contentDocument.body
+                iframe.contentDocument.body,
             );
             expect(getScrollContainer(target)).toBe(expected);
         });
@@ -635,7 +651,7 @@ describe("getScrollContainer", () => {
                             <div class="target" style="height: 300px;">Target</div>
                         </div>
                 </div>`,
-                iframe.contentDocument.body
+                iframe.contentDocument.body,
             );
             expect(getScrollContainer(target)).toBe(expected);
         });
@@ -668,7 +684,12 @@ test("Overlay should be visible when scroll container has negative value for bot
     expect(bottom).toBeLessThan(0);
     // Even though bottom is negative, its contents are still visible. An
     // overlay at this point should also be visible.
-    setSelection({ anchorNode: lastP, anchorOffset: 0, focusNode: lastP, focusOffset: 1 });
+    setSelection({
+        anchorNode: lastP,
+        anchorOffset: 0,
+        focusNode: lastP,
+        focusOffset: 1,
+    });
     await waitFor(".o-we-toolbar");
     expect(".o-we-toolbar").toBeVisible();
 });

@@ -1,6 +1,14 @@
+import {
+    confirmAddSnippet,
+    waitForEndOfOperation,
+} from "@html_builder/../tests/helpers";
+import { BuilderAction } from "@html_builder/core/builder_action";
 import { beforeEach, describe, expect, test } from "@odoo/hoot";
+import { waitFor } from "@odoo/hoot-dom";
+import { xml } from "@odoo/owl";
 import { contains, patchWithCleanup } from "@web/../tests/web_test_helpers";
 import { EditInteractionPlugin } from "@website/builder/plugins/edit_interaction_plugin";
+
 import {
     addActionOption,
     addOption,
@@ -8,10 +16,6 @@ import {
     setupWebsiteBuilder,
     setupWebsiteBuilderWithSnippet,
 } from "./website_helpers.js";
-import { waitFor } from "@odoo/hoot-dom";
-import { xml } from "@odoo/owl";
-import { BuilderAction } from "@html_builder/core/builder_action";
-import { confirmAddSnippet, waitForEndOfOperation } from "@html_builder/../tests/helpers";
 
 defineWebsiteModels();
 
@@ -27,7 +31,7 @@ test("dropping a new snippet starts its interaction", async () => {
     await waitFor(".o-website-builder_sidebar.o_builder_sidebar_open");
     expect.verifySteps(["refresh"]);
     await contains(
-        `.o-snippets-menu #snippet_groups .o_snippet[data-snippet-group='text'] .o_snippet_thumbnail_area`
+        `.o-snippets-menu #snippet_groups .o_snippet[data-snippet-group='text'] .o_snippet_thumbnail_area`,
     ).click();
     await confirmAddSnippet("s_title");
     await waitForEndOfOperation();
@@ -65,9 +69,12 @@ test("ensure order of operations when hovering an option", async () => {
 
 describe("exit builder", () => {
     beforeEach(async () => {
-        const { openBuilderSidebar } = await setupWebsiteBuilderWithSnippet("s_text_block", {
-            openEditor: false,
-        });
+        const { openBuilderSidebar } = await setupWebsiteBuilderWithSnippet(
+            "s_text_block",
+            {
+                openEditor: false,
+            },
+        );
         patchWithCleanup(EditInteractionPlugin.prototype, {
             setup() {
                 super.setup();

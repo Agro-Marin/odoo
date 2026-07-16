@@ -37,7 +37,7 @@ export class TranscriptSender extends Component {
             () => {
                 this.state.status = this.STATUS.IDLE;
             },
-            () => [this.state.email]
+            () => [this.state.email],
         );
     }
 
@@ -58,7 +58,7 @@ export class TranscriptSender extends Component {
 
     /** @param {KeyboardEvent} ev */
     onKeydown(ev) {
-        if (ev.key == "Enter" && !this.isButtonDisabled) {
+        if (ev.key === "Enter" && !this.isButtonDisabled) {
             this.onClickSend();
         }
     }

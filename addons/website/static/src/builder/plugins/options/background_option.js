@@ -1,8 +1,9 @@
 /** @odoo-module native */
 import { BaseOptionComponent, useDomState } from "@html_builder/core/utils";
-import { BackgroundOption } from "@html_builder/plugins/background_option/background_option";
-import { ParallaxOption } from "./parallax_option.js";
 import { useBackgroundOption } from "@html_builder/plugins/background_option/background_hook";
+import { BackgroundOption } from "@html_builder/plugins/background_option/background_option";
+
+import { ParallaxOption } from "./parallax_option.js";
 
 export class BaseWebsiteBackgroundOption extends BaseOptionComponent {
     static template = "website.WebsiteBackgroundOption";
@@ -27,10 +28,13 @@ export class BaseWebsiteBackgroundOption extends BaseOptionComponent {
     setup() {
         super.setup();
         const { showColorFilter } = useBackgroundOption(this.isActiveItem);
-        this.showColorFilter = () => showColorFilter() || this.isActiveItem("toggle_bg_video_id");
+        this.showColorFilter = () =>
+            showColorFilter() || this.isActiveItem("toggle_bg_video_id");
         this.websiteBgOptionDomState = useDomState((el) => ({
             // Only search for .s_parallax_bg that are direct children
-            applyTo: el.querySelector(":scope > .s_parallax_bg") ? ".s_parallax_bg" : "",
+            applyTo: el.querySelector(":scope > .s_parallax_bg")
+                ? ".s_parallax_bg"
+                : "",
         }));
     }
 }

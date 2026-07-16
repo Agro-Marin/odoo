@@ -1,8 +1,8 @@
 import {
-    clickOnSnippet,
-    registerWebsitePreviewTour,
     changeOption,
     clickOnSave,
+    clickOnSnippet,
+    registerWebsitePreviewTour,
 } from "@website/js/tours/tour_utils";
 
 registerWebsitePreviewTour(
@@ -45,7 +45,8 @@ registerWebsitePreviewTour(
         },
         {
             content: "Check that the page is not found.",
-            trigger: ".modal-dialog .o_website_dialog main div.position-relative.o_page_not_found",
+            trigger:
+                ".modal-dialog .o_website_dialog main div.position-relative.o_page_not_found",
         },
         {
             content: "Confirm the new menu entry",
@@ -59,12 +60,15 @@ registerWebsitePreviewTour(
             content: "Drag the new menu item at the top",
             trigger: '.oe_menu_editor li:contains("Zoé’s Diner") .oi-draggable',
             run(helpers) {
-                return helpers.drag_and_drop('.oe_menu_editor li:contains("Home") .oi-draggable', {
-                    position: {
-                        top: 20,
+                return helpers.drag_and_drop(
+                    '.oe_menu_editor li:contains("Home") .oi-draggable',
+                    {
+                        position: {
+                            top: 20,
+                        },
+                        relative: true,
                     },
-                    relative: true,
-                });
+                );
             },
         },
         {
@@ -162,7 +166,7 @@ registerWebsitePreviewTour(
                             top: 20,
                         },
                         relative: true,
-                    }
+                    },
                 );
             },
         },
@@ -195,5 +199,5 @@ registerWebsitePreviewTour(
             content: "Wait to land on '/sea-hotel' page",
             trigger: ':iframe a[href="/sea-hotel"].nav-link.active',
         },
-    ]
+    ],
 );

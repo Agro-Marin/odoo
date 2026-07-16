@@ -6,10 +6,11 @@ import {
 } from "@html_editor/utils/selection";
 import { describe, expect, test } from "@odoo/hoot";
 import { manuallyDispatchProgrammaticEvent as dispatch } from "@odoo/hoot-dom";
+
 import { setupEditor, testEditor } from "../_helpers/editor.js";
-import { insertText } from "../_helpers/user_actions.js";
 import { unformat } from "../_helpers/format.js";
 import { setSelection } from "../_helpers/selection.js";
+import { insertText } from "../_helpers/user_actions.js";
 
 describe("ensureFocus", () => {
     // TODO @phoenix: unskipped when ensureFocus is add in the code base
@@ -32,7 +33,9 @@ describe("ensureFocus", () => {
                     await dispatch(element, "keyup", { key: "2" });
                     await dispatch(editor.editable, "keydown", { key: "Enter" });
                     const activeElement = document.activeElement;
-                    editor.shared.selection.setCursorStart(activeElement.lastElementChild);
+                    editor.shared.selection.setCursorStart(
+                        activeElement.lastElementChild,
+                    );
                     // TODO @phoenix still need it ?
                     // await nextTickFrame();
                 },
@@ -42,7 +45,7 @@ describe("ensureFocus", () => {
                 </div></div>
                 <p><br></p>`),
             });
-        }
+        },
     );
 
     test.todo(
@@ -57,13 +60,17 @@ describe("ensureFocus", () => {
                 stepFunction: async (editor) => {
                     ensureFocus(editor.editable);
                     let activeElement = document.activeElement;
-                    editor.shared.selection.setCursorStart(activeElement.lastElementChild);
+                    editor.shared.selection.setCursorStart(
+                        activeElement.lastElementChild,
+                    );
                     await insertText(editor, "focusWasConserved");
                     // Proof that a simple call to Element.focus would change
                     // the focus in this case.
                     editor.editable.focus();
                     activeElement = document.activeElement;
-                    editor.shared.selection.setCursorStart(activeElement.lastElementChild);
+                    editor.shared.selection.setCursorStart(
+                        activeElement.lastElementChild,
+                    );
                 },
                 contentAfter: unformat(`
                 <div contenteditable="false"><div contenteditable="true">
@@ -71,7 +78,7 @@ describe("ensureFocus", () => {
                 </div></div>
                 <p>[]<br></p>`),
             });
-        }
+        },
     );
 
     test.todo(
@@ -91,7 +98,9 @@ describe("ensureFocus", () => {
                     // TODO @phoenix still need it ?
                     // await nextTickFrame();
                     const activeElement = document.activeElement;
-                    editor.shared.selection.setCursorStart(activeElement.lastElementChild);
+                    editor.shared.selection.setCursorStart(
+                        activeElement.lastElementChild,
+                    );
                     // TODO @phoenix still need it ?
                     // await nextTickFrame();
                 },
@@ -103,7 +112,7 @@ describe("ensureFocus", () => {
                     <p>[]<br></p>
                 </div></div>`),
             });
-        }
+        },
     );
 });
 
@@ -114,9 +123,14 @@ describe("getCursorDirection", () => {
             stepFunction: (editor) => {
                 const { anchorNode, anchorOffset, focusNode, focusOffset } =
                     editor.document.getSelection();
-                expect(getCursorDirection(anchorNode, anchorOffset, focusNode, focusOffset)).toBe(
-                    DIRECTIONS.RIGHT
-                );
+                expect(
+                    getCursorDirection(
+                        anchorNode,
+                        anchorOffset,
+                        focusNode,
+                        focusOffset,
+                    ),
+                ).toBe(DIRECTIONS.RIGHT);
             },
         });
     });
@@ -127,9 +141,14 @@ describe("getCursorDirection", () => {
             stepFunction: (editor) => {
                 const { anchorNode, anchorOffset, focusNode, focusOffset } =
                     editor.document.getSelection();
-                expect(getCursorDirection(anchorNode, anchorOffset, focusNode, focusOffset)).toBe(
-                    DIRECTIONS.LEFT
-                );
+                expect(
+                    getCursorDirection(
+                        anchorNode,
+                        anchorOffset,
+                        focusNode,
+                        focusOffset,
+                    ),
+                ).toBe(DIRECTIONS.LEFT);
             },
         });
     });
@@ -140,9 +159,14 @@ describe("getCursorDirection", () => {
             stepFunction: (editor) => {
                 const { anchorNode, anchorOffset, focusNode, focusOffset } =
                     editor.document.getSelection();
-                expect(getCursorDirection(anchorNode, anchorOffset, focusNode, focusOffset)).toBe(
-                    false
-                );
+                expect(
+                    getCursorDirection(
+                        anchorNode,
+                        anchorOffset,
+                        focusNode,
+                        focusOffset,
+                    ),
+                ).toBe(false);
             },
         });
     });

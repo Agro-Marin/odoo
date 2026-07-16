@@ -1,6 +1,7 @@
 import { expect, test } from "@odoo/hoot";
-import { defineWebsiteModels, setupWebsiteBuilder } from "./website_helpers.js";
 import { contains, onRpc } from "@web/../tests/web_test_helpers";
+
+import { defineWebsiteModels, setupWebsiteBuilder } from "./website_helpers.js";
 
 defineWebsiteModels();
 
@@ -44,5 +45,7 @@ test("Save several megamenu", async () => {
     await contains("[data-action=save]").click();
 
     await expect.waitForSteps(["save mega menu", "save mega menu"]);
-    expect(savedMenus).toEqual(new Set([1, 2]), { message: "both menu have been saved" });
+    expect(savedMenus).toEqual(new Set([1, 2]), {
+        message: "both menu have been saved",
+    });
 });

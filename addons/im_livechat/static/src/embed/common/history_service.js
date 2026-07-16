@@ -37,7 +37,9 @@ export class HistoryService {
 
     updateHistory() {
         const page = browser.location.href.replace(/^.*\/\/[^/]+/, "");
-        const pageHistory = expirableStorage.getItem(HistoryService.HISTORY_STORAGE_KEY);
+        const pageHistory = expirableStorage.getItem(
+            HistoryService.HISTORY_STORAGE_KEY,
+        );
         const urlHistory = pageHistory ? JSON.parse(pageHistory) : [];
         if (!urlHistory.includes(page)) {
             urlHistory.push(page);
@@ -47,7 +49,7 @@ export class HistoryService {
             expirableStorage.setItem(
                 HistoryService.HISTORY_STORAGE_KEY,
                 JSON.stringify(urlHistory),
-                60 * 60 * 24 // kept for 1 day
+                60 * 60 * 24, // kept for 1 day
             );
         }
     }

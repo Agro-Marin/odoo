@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, test } from "@odoo/hoot";
 import { click, edit, keyDown, keyUp, press, queryOne } from "@odoo/hoot-dom";
 import { animationFrame, runAllTimers } from "@odoo/hoot-mock";
+import { Component, xml } from "@odoo/owl";
 import {
     contains,
     defineWebModels,
@@ -11,14 +12,13 @@ import {
 } from "@web/../tests/web_test_helpers";
 import { AutoComplete } from "@web/components/autocomplete/autocomplete";
 import { browser } from "@web/core/browser/browser";
+import { useAutofocus } from "@web/core/utils/hooks";
+import { WebClient } from "@web/webclient/webclient";
 import { TourRecorder } from "@web_tour/js/tour_recorder/tour_recorder";
 import {
     TOUR_RECORDER_ACTIVE_LOCAL_STORAGE_KEY,
     tourRecorderState,
 } from "@web_tour/js/tour_recorder/tour_recorder_state";
-import { Component, xml } from "@odoo/owl";
-import { useAutofocus } from "@web/core/utils/hooks";
-import { WebClient } from "@web/webclient/webclient";
 
 describe.current.tags("desktop");
 
@@ -51,7 +51,7 @@ test("Click on element with unique odoo class", async () => {
             <div class="o_child_3"></div>
         </div>
     `,
-        { noMainContainer: true }
+        { noMainContainer: true },
     );
 
     expect(".o_tour_recorder").toHaveCount(1);
@@ -75,7 +75,7 @@ test("Click on element with no unique odoo class", async () => {
             <div class="o_child_1"></div>
         </div>
     `,
-        { noMainContainer: true }
+        { noMainContainer: true },
     );
 
     expect(".o_tour_recorder").toHaveCount(1);
@@ -107,7 +107,7 @@ test("Click on elements with 'data-menu-xmlid' attribute", async () => {
             <div></div>
         </div>
     `,
-        { noMainContainer: true }
+        { noMainContainer: true },
     );
 
     expect(".o_tour_recorder").toHaveCount(1);
@@ -132,7 +132,7 @@ test("Click on elements with 'name' attribute", async () => {
             <div></div>
         </div>
     `,
-        { noMainContainer: true }
+        { noMainContainer: true },
     );
 
     expect(".o_tour_recorder").toHaveCount(1);
@@ -152,7 +152,7 @@ test("Click on element that have a link or button has parent", async () => {
             <a class="o_link"><span class="click_2">This is my link</span></a>
         </div>
     `,
-        { noMainContainer: true }
+        { noMainContainer: true },
     );
 
     expect(".o_tour_recorder").toHaveCount(1);
@@ -180,7 +180,7 @@ test("Click on element with path that can be reduced", async () => {
             </div>
         </div>
     `,
-        { noMainContainer: true }
+        { noMainContainer: true },
     );
 
     expect(".o_tour_recorder").toHaveCount(1);
@@ -198,7 +198,7 @@ test("Click on input", async () => {
             <input type="text" class="click o_input"/>
         </div>
     `,
-        { noMainContainer: true }
+        { noMainContainer: true },
     );
 
     expect(".o_tour_recorder").toHaveCount(1);
@@ -219,7 +219,7 @@ test("Click on tag that is inside a contenteditable", async () => {
             </div>
         </div>
     `,
-        { noMainContainer: true }
+        { noMainContainer: true },
     );
 
     expect(".o_tour_recorder").toHaveCount(1);
@@ -238,7 +238,7 @@ test("Remove step during recording", async () => {
             <div class="o_child click"></div>
         </div>
     `,
-        { noMainContainer: true }
+        { noMainContainer: true },
     );
 
     expect(".o_tour_recorder").toHaveCount(1);
@@ -262,7 +262,7 @@ test("Edit input", async () => {
             <input type="text" class="click o_input"/>
         </div>
     `,
-        { noMainContainer: true }
+        { noMainContainer: true },
     );
 
     expect(".o_tour_recorder").toHaveCount(1);
@@ -293,7 +293,7 @@ test("Save custom tour", async () => {
             <div class="click"></div>
         </div>
     `,
-        { noMainContainer: true }
+        { noMainContainer: true },
     );
 
     expect(".o_tour_recorder").toHaveCount(1);
@@ -324,7 +324,7 @@ test("Drag and drop", async () => {
             <div class="o_drop"></div>
         </div>
     `,
-        { noMainContainer: true }
+        { noMainContainer: true },
     );
 
     expect(".o_tour_recorder").toHaveCount(1);
@@ -333,7 +333,9 @@ test("Drag and drop", async () => {
     await contains(".o_drag").dragAndDrop(".o_drop");
     await animationFrame();
     checkTourSteps([".o_drag"]);
-    expect(tourRecorder.state.steps.map((s) => s.run)).toEqual(["drag_and_drop .o_drop"]);
+    expect(tourRecorder.state.steps.map((s) => s.run)).toEqual([
+        "drag_and_drop .o_drop",
+    ]);
 });
 
 test("Edit contenteditable", async () => {
@@ -344,7 +346,7 @@ test("Edit contenteditable", async () => {
             </div>
         </div>
     `,
-        { noMainContainer: true }
+        { noMainContainer: true },
     );
 
     expect(".o_tour_recorder").toHaveCount(1);
@@ -397,7 +399,7 @@ test("Selecting item in autocomplete field through Enter", async () => {
 test("Edit input after autofocus", async () => {
     class Dummy extends Component {
         static components = {};
-        static template = xml/*html*/ `
+        static template = xml /*html*/ `
             <t>
                 <div class="container">
                     <input type="text" class="o_input" t-ref="input"/>
@@ -435,7 +437,7 @@ test("Check Tour Recorder State", async () => {
             <div class="o_child_3"></div>
         </div>
     `,
-        { noMainContainer: true }
+        { noMainContainer: true },
     );
 
     expect(".o_tour_recorder").toHaveCount(1);

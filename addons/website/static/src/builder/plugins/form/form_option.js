@@ -1,9 +1,10 @@
 /** @odoo-module native */
 import { BaseOptionComponent, useDomState } from "@html_builder/core/utils";
-import { getModelName, getParsedDataFor } from "./utils.js";
-import { FormActionFieldsOption } from "./form_action_fields_option.js";
-import { session } from "@web/session";
 import { selectElements } from "@html_editor/utils/dom_traversal";
+import { session } from "@web/session";
+
+import { FormActionFieldsOption } from "./form_action_fields_option.js";
+import { getModelName, getParsedDataFor } from "./utils.js";
 
 export class FormOption extends BaseOptionComponent {
     static template = "website.s_website_form_form_option";
@@ -16,14 +17,16 @@ export class FormOption extends BaseOptionComponent {
             sigEl.remove();
         }
 
-        for (const formEl of selectElements(el, ".s_website_form form[data-model_name]")) {
+        for (const formEl of selectElements(
+            el,
+            ".s_website_form form[data-model_name]",
+        )) {
             const model = formEl.dataset.model_name;
-            const authorizedFields = await dependencies.websiteFormOption.fetchAuthorizedFields(
-                formEl
-            );
+            const authorizedFields =
+                await dependencies.websiteFormOption.fetchAuthorizedFields(formEl);
             const fields = [
                 ...formEl.querySelectorAll(
-                    ".s_website_form_field:not(.s_website_form_custom) .s_website_form_input"
+                    ".s_website_form_field:not(.s_website_form_custom) .s_website_form_input",
                 ),
             ]
                 .map((el) => el.name)

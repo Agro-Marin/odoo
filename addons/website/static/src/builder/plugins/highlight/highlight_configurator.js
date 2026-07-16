@@ -1,10 +1,11 @@
 /** @odoo-module native */
-import { Component, onWillStart, useState } from "@odoo/owl";
-import { ColorPicker } from "@web/components/color_picker/color_picker";
-import { HighlightPicker } from "./highlight_picker.js";
 import { normalizeColor } from "@html_builder/utils/utils_css";
 import { getHtmlStyle } from "@html_editor/utils/formatting";
+import { Component, onWillStart, useState } from "@odoo/owl";
+import { ColorPicker } from "@web/components/color_picker/color_picker";
 import { _t } from "@web/core/l10n/translation";
+
+import { HighlightPicker } from "./highlight_picker.js";
 
 export const highlightIdToName = {
     underline: "Underline",
@@ -77,7 +78,7 @@ export class HighlightConfigurator extends Component {
                 `,
             },
             _t("Select a highlight"),
-            withPrevious
+            withPrevious,
         );
     }
 
@@ -93,14 +94,14 @@ export class HighlightConfigurator extends Component {
                 applyColorPreview: (color) =>
                     this.props.previewHighlightStyle(
                         "--text-highlight-color",
-                        normalizeColor(color, getHtmlStyle(document))
+                        normalizeColor(color, getHtmlStyle(document)),
                     ),
                 applyColorResetPreview: this.props.revertHighlightStyle,
                 className: "d-contents",
                 cssVarColorPrefix: "hb-cp-",
             },
             "Select a color",
-            true
+            true,
         );
     }
 
@@ -125,7 +126,7 @@ export class HighlightConfigurator extends Component {
     onThicknessChange(ev) {
         this.props.applyHighlightStyle(
             "--text-highlight-width",
-            ev.target.value ? ev.target.value + "px" : ""
+            ev.target.value ? ev.target.value + "px" : "",
         );
     }
 }

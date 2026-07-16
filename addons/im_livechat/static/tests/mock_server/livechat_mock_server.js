@@ -42,7 +42,9 @@ async function get_session(request) {
         country_id = this.env.user.country_id;
     } else if (context.mockedCountryCode) {
         // simulate geoip
-        const country = ResCountry._filter([["code", "=", context.mockedCountryCode]])[0];
+        const country = ResCountry._filter([
+            ["code", "=", context.mockedCountryCode],
+        ])[0];
         if (country) {
             country_id = country.id;
         }
@@ -57,7 +59,7 @@ async function get_session(request) {
             isLoaded: true,
             livechat_operator_id: mailDataHelpers.Store.one(
                 ResPartner.browse(agent.partner_id),
-                makeKwArgs({ fields: ["avatar_128", "user_livechat_username"] })
+                makeKwArgs({ fields: ["avatar_128", "user_livechat_username"] }),
             ),
             scrollUnread: false,
         });
@@ -188,7 +190,10 @@ async function session_update_note(request) {
     return true;
 }
 
-registerRoute("/im_livechat/conversation/write_expertises", livechat_conversation_write_expertises);
+registerRoute(
+    "/im_livechat/conversation/write_expertises",
+    livechat_conversation_write_expertises,
+);
 /** @type {RouteCallback} */
 async function livechat_conversation_write_expertises(request) {
     /** @type {import("mock_models").DiscussChannel} */
@@ -203,7 +208,7 @@ async function livechat_conversation_write_expertises(request) {
 
 registerRoute(
     "/im_livechat/conversation/create_and_link_expertise",
-    livechat_conversation_create_and_link_expertise
+    livechat_conversation_create_and_link_expertise,
 );
 /** @type {RouteCallback} */
 async function livechat_conversation_create_and_link_expertise(request) {
@@ -221,7 +226,9 @@ async function livechat_conversation_create_and_link_expertise(request) {
     if (!expertise) {
         expertiseId = ImLivechatExpertise.create({ name: expertise_name });
     }
-    DiscussChannel.write(channel_id, { livechat_expertise_ids: [Command.link(expertiseId)] });
+    DiscussChannel.write(channel_id, {
+        livechat_expertise_ids: [Command.link(expertiseId)],
+    });
 }
 
 patch(mailDataHelpers, {
@@ -234,7 +241,7 @@ patch(mailDataHelpers, {
             if (this.env.user && !ResUsers._is_public(this.env.uid)) {
                 store.add(
                     ResPartner.browse(this.env.user.partner_id),
-                    makeKwArgs({ fields: ["email"] })
+                    makeKwArgs({ fields: ["email"] }),
                 );
             }
         }
@@ -245,7 +252,7 @@ patch(mailDataHelpers, {
             const LivechatChannel = this.env["im_livechat.channel"];
             store.add(
                 LivechatChannel.browse(LivechatChannel.search([])),
-                makeKwArgs({ fields: ["are_you_inside", "name"] })
+                makeKwArgs({ fields: ["are_you_inside", "name"] }),
             );
             return;
         }
@@ -253,8 +260,8 @@ patch(mailDataHelpers, {
             const DiscussChannel = this.env["discuss.channel"];
             store.add(
                 DiscussChannel.browse(
-                    DiscussChannel.search([["livechat_status", "=", "need_help"]])
-                )
+                    DiscussChannel.search([["livechat_status", "=", "need_help"]]),
+                ),
             );
         }
         if (name === "/im_livechat/fetch_self_expertise") {

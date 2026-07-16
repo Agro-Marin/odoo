@@ -1,13 +1,12 @@
 /** @odoo-module native */
-import { Component, onWillStart, useEffect, useState, xml } from "@odoo/owl";
-
-import { useAutofocus, useService } from "@web/core/utils/hooks";
-import { useSequential } from "@mail/utils/common/hooks";
-import { highlightText } from "@web/core/utils/dom/html";
-import { useDebounced } from "@web/core/utils/timing";
-import { escapeRegExp } from "@web/core/utils/format/strings";
-import { rpc } from "@web/core/network/rpc";
 import { NavigableList } from "@mail/core/common/navigable_list";
+import { useSequential } from "@mail/utils/common/hooks";
+import { Component, onWillStart, useEffect, useState, xml } from "@odoo/owl";
+import { rpc } from "@web/core/network/rpc";
+import { highlightText } from "@web/core/utils/dom/html";
+import { escapeRegExp } from "@web/core/utils/format/strings";
+import { useAutofocus, useService } from "@web/core/utils/hooks";
+import { useDebounced } from "@web/core/utils/timing";
 
 export class ConversationTagEdit extends Component {
     static components = { NavigableList };
@@ -26,7 +25,7 @@ export class ConversationTagEdit extends Component {
         });
         this.debouncedFetchConversationTags = useDebounced(
             this.fetchConversationTags.bind(this),
-            250
+            250,
         );
         onWillStart(() => {
             this.fetchConversationTags();
@@ -35,7 +34,7 @@ export class ConversationTagEdit extends Component {
             () => {
                 this.debouncedFetchConversationTags();
             },
-            () => [this.state.searchStr]
+            () => [this.state.searchStr],
         );
     }
 
@@ -49,7 +48,7 @@ export class ConversationTagEdit extends Component {
 
     get remainingSelectableTags() {
         return this.state.selectableTags.filter(
-            (tag) => !tag.in(this.props.thread.livechat_conversation_tag_ids)
+            (tag) => !tag.in(this.props.thread.livechat_conversation_tag_ids),
         );
     }
 
@@ -62,7 +61,11 @@ export class ConversationTagEdit extends Component {
             optionTemplate: xml`<t t-out="option.label"/>`,
             options: this.remainingSelectableTags.map((tag) => ({
                 tag,
-                label: highlightText(this.state.searchStr.trim(), tag.name, "text-primary"),
+                label: highlightText(
+                    this.state.searchStr.trim(),
+                    tag.name,
+                    "text-primary",
+                ),
                 buttonClass: "btn",
             })),
         };
@@ -84,8 +87,8 @@ export class ConversationTagEdit extends Component {
                 "im_livechat.conversation.tag",
                 [["name", "ilike", this.state.searchStr]],
                 ["id", "name"],
-                { limit: 15 }
-            )
+                { limit: 15 },
+            ),
         );
         if (!results) {
             return;
@@ -110,13 +113,21 @@ export class ConversationTagEdit extends Component {
 
     async onClickCreateToggle() {
         const tagName = this.state.searchStr.trim();
-        const existingSelectableTag = this.state.selectableTags.find((tag) => tag.name === tagName);
-        if (this.props.thread.livechat_conversation_tag_ids.includes(existingSelectableTag)) {
+        const existingSelectableTag = this.state.selectableTags.find(
+            (tag) => tag.name === tagName,
+        );
+        if (
+            this.props.thread.livechat_conversation_tag_ids.includes(
+                existingSelectableTag,
+            )
+        ) {
             return;
         }
         if (
             existingSelectableTag &&
-            !this.props.thread.livechat_conversation_tag_ids.includes(existingSelectableTag)
+            !this.props.thread.livechat_conversation_tag_ids.includes(
+                existingSelectableTag,
+            )
         ) {
             this.toggleSelectedTag(existingSelectableTag);
             this.state.searchStr = "";

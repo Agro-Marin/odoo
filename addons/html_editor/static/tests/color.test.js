@@ -1,15 +1,17 @@
 import { after, before, describe, expect, test } from "@odoo/hoot";
+
 import { setupEditor, testEditor } from "./_helpers/editor.js";
 import { unformat } from "./_helpers/format.js";
-import { setColor } from "./_helpers/user_actions.js";
 import { getContent } from "./_helpers/selection.js";
+import { setColor } from "./_helpers/user_actions.js";
 
 const redToBlueGradient = "linear-gradient(rgb(255, 0, 0), rgb(0, 0, 255))";
 const greenToBlueGradient = "linear-gradient(rgb(0, 255, 0), rgb(0, 0, 255))";
 
 test("should apply a color to a slice of text in a span in a font", async () => {
     await testEditor({
-        contentBefore: '<p>a<font class="a">b<span class="b">c[def]g</span>h</font>i</p>',
+        contentBefore:
+            '<p>a<font class="a">b<span class="b">c[def]g</span>h</font>i</p>',
         stepFunction: setColor("rgb(255, 0, 0)", "color"),
         contentAfter:
             '<p>a<font class="a">b<span class="b">c</span></font>' +
@@ -36,7 +38,8 @@ test("should apply a color to the qweb tag (2)", async () => {
 
 test("should apply a background color to a slice of text in a span in a font", async () => {
     await testEditor({
-        contentBefore: '<p>a<font class="a">b<span class="b">c[def]g</span>h</font>i</p>',
+        contentBefore:
+            '<p>a<font class="a">b<span class="b">c[def]g</span>h</font>i</p>',
         stepFunction: setColor("rgb(255, 0, 0)", "backgroundColor"),
         contentAfter:
             '<p>a<font class="a">b<span class="b">c</span></font>' +
@@ -57,7 +60,8 @@ test("should get ready to type with a different background color", async () => {
     await testEditor({
         contentBefore: "<p>ab[]cd</p>",
         stepFunction: setColor("rgb(255, 0, 0)", "backgroundColor"),
-        contentAfter: '<p>ab<font style="background-color: rgb(255, 0, 0);">\u200B[]</font>cd</p>',
+        contentAfter:
+            '<p>ab<font style="background-color: rgb(255, 0, 0);">\u200B[]</font>cd</p>',
     });
 });
 
@@ -230,7 +234,8 @@ test("should remove font tag after removing font color (2)", async () => {
 
 test("should remove font tag after removing background color applied as style (1)", async () => {
     await testEditor({
-        contentBefore: '<p><font style="background-color: rgb(255, 0, 0);">[abcabc]</font></p>',
+        contentBefore:
+            '<p><font style="background-color: rgb(255, 0, 0);">[abcabc]</font></p>',
         stepFunction: setColor("", "backgroundColor"),
         contentAfter: "<p>[abcabc]</p>",
     });
@@ -246,7 +251,8 @@ test("should remove font tag after removing background color applied as style (2
 
 test("should remove font tag if font-color and background-color both are removed one by one (1)", async () => {
     await testEditor({
-        contentBefore: '<p><font style="color: rgb(255, 0, 0);" class="bg-200">[abcabc]</font></p>',
+        contentBefore:
+            '<p><font style="color: rgb(255, 0, 0);" class="bg-200">[abcabc]</font></p>',
         stepFunction: (editor) => {
             setColor("", "backgroundColor")(editor);
             setColor("", "color")(editor);
@@ -444,7 +450,7 @@ test("should break gradient color on selected text", async () => {
             '<p><font class="text-gradient" style="background-image: linear-gradient(135deg, rgb(214, 255, 127) 0%, rgb(0, 179, 204) 100%);">ab[ca]bc</font></p>',
         stepFunction: setColor(
             "linear-gradient(135deg, rgb(255, 174, 127) 0%, rgb(109, 204, 0) 100%)",
-            "backgroundColor"
+            "backgroundColor",
         ),
         contentAfter:
             '<p><font class="text-gradient" style="background-image: linear-gradient(135deg, rgb(214, 255, 127) 0%, rgb(0, 179, 204) 100%);">ab</font>' +
@@ -458,7 +464,7 @@ test("should update the gradient color and remove the nested background color to
             '<p><font style="background-image: linear-gradient(135deg, rgb(214, 255, 127) 0%, rgb(0, 179, 204) 100%);"><font style="background-color: rgb(255, 0, 0);">[abc]</font></font></p>',
         stepFunction: setColor(
             "linear-gradient(135deg, rgb(255, 174, 127) 0%, rgb(109, 204, 0) 100%)",
-            "backgroundColor"
+            "backgroundColor",
         ),
         contentAfter:
             '<p><font style="background-image: linear-gradient(135deg, rgb(255, 174, 127) 0%, rgb(109, 204, 0) 100%);">[abc]</font></p>',
@@ -470,7 +476,7 @@ test("should update the gradient text color and remove the nested text color to 
             '<p><font class="text-gradient" style="background-image: linear-gradient(135deg, rgb(214, 255, 127) 0%, rgb(0, 179, 204) 100%);"><font style="-webkit-text-fill-color: rgb(255, 0, 0); color: rgb(255, 0, 0);">[abc]</font></font></p>',
         stepFunction: setColor(
             "linear-gradient(135deg, rgb(255, 174, 127) 0%, rgb(109, 204, 0) 100%)",
-            "color"
+            "color",
         ),
         contentAfter:
             '<p><font class="text-gradient" style="background-image: linear-gradient(135deg, rgb(255, 174, 127) 0%, rgb(109, 204, 0) 100%);">[abc]</font></p>',
@@ -478,10 +484,11 @@ test("should update the gradient text color and remove the nested text color to 
 });
 test("should apply gradient color when a when background color is applied on span", async () => {
     await testEditor({
-        contentBefore: '<p><span style="background-color: rgb(255, 0, 0)">ab[ca]bc</span></p>',
+        contentBefore:
+            '<p><span style="background-color: rgb(255, 0, 0)">ab[ca]bc</span></p>',
         stepFunction: setColor(
             "linear-gradient(135deg, rgb(255, 174, 127) 0%, rgb(109, 204, 0) 100%)",
-            "color"
+            "color",
         ),
         contentAfter:
             '<p><span style="background-color: rgb(255, 0, 0)">ab<font class="text-gradient" style="background-image: linear-gradient(135deg, rgb(255, 174, 127) 0%, rgb(109, 204, 0) 100%);">[ca]</font>bc</span></p>',
@@ -492,7 +499,7 @@ test("should apply a gradient color to a slice of text in a span", async () => {
         contentBefore: '<p><span class="a">ab[ca]bc</span></p>',
         stepFunction: setColor(
             "linear-gradient(135deg, rgb(255, 174, 127) 0%, rgb(109, 204, 0) 100%)",
-            "color"
+            "color",
         ),
         contentAfter:
             '<p><span class="a">ab<font class="text-gradient" style="background-image: linear-gradient(135deg, rgb(255, 174, 127) 0%, rgb(109, 204, 0) 100%);">[ca]</font>bc</span></p>',
@@ -513,7 +520,7 @@ test("should break a gradient and apply gradient background color to a slice of 
             '<p><font style="background-image: linear-gradient(135deg, rgb(214, 255, 127) 0%, rgb(0, 179, 204) 100%);"><span class="a">ab<font style="background-color: rgb(255, 0, 0);">[ca]</font>bc</span></font></p>',
         stepFunction: setColor(
             "linear-gradient(135deg, rgb(255, 174, 127) 0%, rgb(109, 204, 0) 100%)",
-            "color"
+            "color",
         ),
         contentAfter:
             '<p><font style="background-image: linear-gradient(135deg, rgb(214, 255, 127) 0%, rgb(0, 179, 204) 100%);"><span class="a">ab</span></font>' +
@@ -523,10 +530,11 @@ test("should break a gradient and apply gradient background color to a slice of 
 });
 test("should apply gradient color on selected text", async () => {
     await testEditor({
-        contentBefore: '<div style="background-image:none"><p>[ab<strong>cd</strong>ef]</p></div>',
+        contentBefore:
+            '<div style="background-image:none"><p>[ab<strong>cd</strong>ef]</p></div>',
         stepFunction: setColor(
             "linear-gradient(135deg, rgb(255, 174, 127) 0%, rgb(109, 204, 0) 100%)",
-            "backgroundColor"
+            "backgroundColor",
         ),
         contentAfter:
             '<div style="background-image:none"><p><font style="background-image: linear-gradient(135deg, rgb(255, 174, 127) 0%, rgb(109, 204, 0) 100%);">[ab<strong>cd</strong>ef]</font></p></div>',
@@ -534,10 +542,11 @@ test("should apply gradient color on selected text", async () => {
 });
 test("should apply gradient text color on selected text", async () => {
     await testEditor({
-        contentBefore: '<div style="background-image:none"><p>[ab<strong>cd</strong>ef]</p></div>',
+        contentBefore:
+            '<div style="background-image:none"><p>[ab<strong>cd</strong>ef]</p></div>',
         stepFunction: setColor(
             "linear-gradient(135deg, rgb(255, 174, 127) 0%, rgb(109, 204, 0) 100%)",
-            "color"
+            "color",
         ),
         contentAfter:
             '<div style="background-image:none"><p><font class="text-gradient" style="background-image: linear-gradient(135deg, rgb(255, 174, 127) 0%, rgb(109, 204, 0) 100%);">[ab<strong>cd</strong>ef]</font></p></div>',
@@ -556,16 +565,18 @@ test("should remove background gradient and apply new background color if gradie
         contentBefore:
             '<p><font style="background-image: linear-gradient(135deg, rgb(255, 174, 127) 0%, rgb(109, 204, 0) 100%);">[abcd]</font></p>',
         stepFunction: setColor("#ff0000", "backgroundColor"),
-        contentAfter: '<p><font style="background-color: rgb(255, 0, 0);">[abcd]</font></p>',
+        contentAfter:
+            '<p><font style="background-color: rgb(255, 0, 0);">[abcd]</font></p>',
     });
 });
 test("should merge adjacent font with the same text color when mutations common root is <font>", async () => {
     // This test should not execute clean for save as the bug will no longer exists
     const { el, editor } = await setupEditor(
-        '<p><font style="color: rgb(255, 0, 0);">first </font><font style="color: rgb(0, 255, 0);">[second]</font></p>'
+        '<p><font style="color: rgb(255, 0, 0);">first </font><font style="color: rgb(0, 255, 0);">[second]</font></p>',
     );
     await setColor("rgb(255, 0, 0)", "color")(editor);
-    const expected = '<p><font style="color: rgb(255, 0, 0);">first [second]</font></p>';
+    const expected =
+        '<p><font style="color: rgb(255, 0, 0);">first [second]</font></p>';
     expect(getContent(el)).toBe(expected);
 });
 
@@ -574,7 +585,7 @@ test("should keep font element on top of underline/strike (1)", async () => {
         contentBefore: "<p><u>[abc]</u></p>",
         stepFunction: setColor(
             "linear-gradient(135deg, rgb(255, 174, 127) 0%, rgb(109, 204, 0) 100%)",
-            "color"
+            "color",
         ),
         contentAfter:
             '<p><font class="text-gradient" style="background-image: linear-gradient(135deg, rgb(255, 174, 127) 0%, rgb(109, 204, 0) 100%);"><u>[abc]</u></font></p>',
@@ -586,7 +597,7 @@ test("should keep font element on top of underline/strike (2)", async () => {
         contentBefore: "<p><u><s>[abc]</s></u></p>",
         stepFunction: setColor(
             "linear-gradient(135deg, rgb(255, 174, 127) 0%, rgb(109, 204, 0) 100%)",
-            "color"
+            "color",
         ),
         contentAfter:
             '<p><font class="text-gradient" style="background-image: linear-gradient(135deg, rgb(255, 174, 127) 0%, rgb(109, 204, 0) 100%);"><u><s>[abc]</s></u></font></p>',
@@ -615,7 +626,7 @@ describe("colorElement", () => {
                 editor.shared.color.colorElement(
                     editor.editable.firstChild,
                     "o_cc1",
-                    "backgroundColor"
+                    "backgroundColor",
                 );
             },
             contentAfter: '<div class="o_cc o_cc1">a</div>',
@@ -629,7 +640,7 @@ describe("colorElement", () => {
                     editor.shared.color.colorElement(
                         editor.editable.firstChild,
                         "o_cc1",
-                        "backgroundColor"
+                        "backgroundColor",
                     );
                 },
                 contentAfter: '<div class="o_cc o_cc1">a</div>',
@@ -642,7 +653,7 @@ describe("colorElement", () => {
                     editor.shared.color.colorElement(
                         editor.editable.firstChild,
                         "o_cc1",
-                        "backgroundColor"
+                        "backgroundColor",
                     );
                 },
                 contentAfter: '<div class="o_cc o_cc1">a</div>',
@@ -655,7 +666,7 @@ describe("colorElement", () => {
                     editor.shared.color.colorElement(
                         editor.editable.firstChild,
                         "o_cc1",
-                        "backgroundColor"
+                        "backgroundColor",
                     );
                 },
                 contentAfter: `<div class="o_cc o_cc1">a</div>`,
@@ -670,7 +681,7 @@ describe("colorElement", () => {
                 editor.shared.color.colorElement(
                     editor.editable.firstChild,
                     "rgb(255, 0, 0)",
-                    "backgroundColor"
+                    "backgroundColor",
                 );
             },
             contentAfter:
@@ -685,7 +696,7 @@ describe("colorElement", () => {
                 editor.shared.color.colorElement(
                     editor.editable.firstChild,
                     greenToBlueGradient,
-                    "backgroundColor"
+                    "backgroundColor",
                 );
             },
             contentAfter: `<div style='background-image: url("https://example.com/image.png"), ${greenToBlueGradient};'>a</div>`,
@@ -698,12 +709,12 @@ describe("colorElement", () => {
                 editor.shared.color.colorElement(
                     editor.editable.firstChild,
                     "o_cc2",
-                    "backgroundColor"
+                    "backgroundColor",
                 );
                 editor.shared.color.colorElement(
                     editor.editable.firstChild,
                     "o_cc1",
-                    "backgroundColor"
+                    "backgroundColor",
                 );
             },
             contentAfter: `<div style='background-image: url("https://example.com/image.png");' class="o_cc o_cc1">a</div>`,
@@ -716,17 +727,17 @@ describe("colorElement", () => {
                 editor.shared.color.colorElement(
                     editor.editable.firstChild,
                     "o_cc1",
-                    "backgroundColor"
+                    "backgroundColor",
                 );
                 editor.shared.color.colorElement(
                     editor.editable.firstChild,
                     greenToBlueGradient,
-                    "backgroundColor"
+                    "backgroundColor",
                 );
                 editor.shared.color.colorElement(
                     editor.editable.firstChild,
                     "o_cc2",
-                    "backgroundColor"
+                    "backgroundColor",
                 );
             },
             contentAfter: `<div class="o_cc o_cc2">a</div>`,
@@ -752,7 +763,7 @@ describe("colorElement", () => {
                     editor.shared.color.colorElement(
                         editor.editable.firstChild,
                         "",
-                        "backgroundColor"
+                        "backgroundColor",
                     );
                 },
                 contentAfter: `<div>a</div>`,
@@ -765,7 +776,7 @@ describe("colorElement", () => {
                     editor.shared.color.colorElement(
                         editor.editable.firstChild,
                         "o_cc1",
-                        "backgroundColor"
+                        "backgroundColor",
                     );
                 },
                 contentAfter: `<div class="o_cc o_cc1" style="background-image: ${redToBlueGradient};">a</div>`,
@@ -778,7 +789,7 @@ describe("colorElement", () => {
                     editor.shared.color.colorElement(
                         editor.editable.firstChild,
                         "o_cc1",
-                        "backgroundColor"
+                        "backgroundColor",
                     );
                 },
                 contentAfter: `<div style='background-image: url("https://example.com/image.png"), ${redToBlueGradient};' class="o_cc o_cc1">a</div>`,
@@ -791,7 +802,7 @@ describe("colorElement", () => {
                     editor.shared.color.colorElement(
                         editor.editable.firstChild,
                         "o_cc2",
-                        "backgroundColor"
+                        "backgroundColor",
                     );
                 },
                 contentAfter: `<div class="o_cc o_cc2">a</div>`,
@@ -806,7 +817,7 @@ describe("colorElement", () => {
                         editor.shared.color.colorElement(
                             editor.editable.firstChild,
                             "o_cc1",
-                            "backgroundColor"
+                            "backgroundColor",
                         );
                     },
                     contentAfter: `<div style="background-image: ${redToBlueGradient};" class="o_cc o_cc1">a</div>`,
@@ -819,7 +830,7 @@ describe("colorElement", () => {
                         editor.shared.color.colorElement(
                             editor.editable.firstChild,
                             "o_cc1",
-                            "backgroundColor"
+                            "backgroundColor",
                         );
                     },
                     contentAfter: `<div class="o_cc o_cc1" style="background-image: ${redToBlueGradient};">a</div>`,
@@ -832,7 +843,7 @@ describe("colorElement", () => {
                         editor.shared.color.colorElement(
                             editor.editable.firstChild,
                             "o_cc1",
-                            "backgroundColor"
+                            "backgroundColor",
                         );
                     },
                     contentAfter: `<div style="background-image: ${redToBlueGradient};" class="o_cc o_cc1">a</div>`,
@@ -847,7 +858,7 @@ describe("colorElement", () => {
                         editor.shared.color.colorElement(
                             editor.editable.firstChild,
                             "rgb(255, 0, 0)",
-                            "backgroundColor"
+                            "backgroundColor",
                         );
                     },
                     contentAfter:
@@ -861,7 +872,7 @@ describe("colorElement", () => {
                         editor.shared.color.colorElement(
                             editor.editable.firstChild,
                             "bg-900",
-                            "backgroundColor"
+                            "backgroundColor",
                         );
                     },
                     contentAfter:
@@ -875,7 +886,7 @@ describe("colorElement", () => {
                         editor.shared.color.colorElement(
                             editor.editable.firstChild,
                             greenToBlueGradient,
-                            "backgroundColor"
+                            "backgroundColor",
                         );
                     },
                     contentAfter: `<div class="o_cc o_cc1" style="background-image: ${greenToBlueGradient};">a</div>`,
@@ -1015,7 +1026,7 @@ test("Should properly apply color when selection on feff", async () => {
                 \ufeff
                 <font style="color: #008f8c;">b</font>
             </font>
-        `)
+        `),
     );
     const font = el.querySelector("font");
     const [feff1, , feff2] = font.childNodes;
@@ -1040,7 +1051,7 @@ test("Should properly apply color when selection on feff", async () => {
                     </font>
                 </font>
             </div>
-        `)
+        `),
     );
     // Ensure the link inherited the font color.
     const a = el.querySelector("a");

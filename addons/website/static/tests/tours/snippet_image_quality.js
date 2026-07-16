@@ -1,4 +1,7 @@
-import { insertSnippet, registerWebsitePreviewTour } from "@website/js/tours/tour_utils";
+import {
+    insertSnippet,
+    registerWebsitePreviewTour,
+} from "@website/js/tours/tour_utils";
 
 registerWebsitePreviewTour(
     "website_image_quality",
@@ -25,7 +28,8 @@ registerWebsitePreviewTour(
         },
         {
             content: "Wait for image update: NOT original image",
-            trigger: ':iframe .s_text_image img:not([src$="s_text_image_default_image"])',
+            trigger:
+                ':iframe .s_text_image img:not([src$="s_text_image_default_image"])',
         },
         {
             content: "Check image size",
@@ -48,12 +52,13 @@ registerWebsitePreviewTour(
         },
         {
             content: "Wait for image update: back to original image",
-            trigger: ':iframe .s_text_image img[src$="S55YBaZ4YLuRoopv55ZIqZKBC8uATEEUgAAA="]',
+            trigger:
+                ':iframe .s_text_image img[src$="S55YBaZ4YLuRoopv55ZIqZKBC8uATEEUgAAA="]',
         },
         {
             content: "Check image size",
             trigger:
                 ".o_customize_tab [data-container-title='Image'] span[title='Size']:contains('22.8')",
         },
-    ]
+    ],
 );

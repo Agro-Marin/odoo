@@ -16,6 +16,7 @@ import {
 import { Dropdown } from "@web/components/dropdown/dropdown";
 import { useDropdownState } from "@web/components/dropdown/dropdown_hooks";
 import { DropdownItem } from "@web/components/dropdown/dropdown_item";
+
 import { ReadonlyEmbeddedVideoComponent } from "../../core/video/readonly_video.js";
 
 export class EmbeddedVideoComponent extends ReadonlyEmbeddedVideoComponent {
@@ -80,7 +81,11 @@ export class EmbeddedVideoComponent extends ReadonlyEmbeddedVideoComponent {
     }
 
     get url() {
-        return getVideoUrl(this.state.platform, this.state.videoId, this.state.params).toString();
+        return getVideoUrl(
+            this.state.platform,
+            this.state.videoId,
+            this.state.params,
+        ).toString();
     }
 
     /**

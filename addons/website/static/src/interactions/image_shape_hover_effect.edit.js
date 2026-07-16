@@ -1,5 +1,6 @@
 /** @odoo-module native */
 import { registry } from "@web/core/registry";
+
 import { ImageShapeHoverEffect } from "./image_shape_hover_effect.js";
 
 const ImageShapeHoverEffectEdit = (I) =>
@@ -24,7 +25,11 @@ const ImageShapeHoverEffectEdit = (I) =>
             this.lastMouseEvent = this.lastMouseEvent.then(
                 () =>
                     new Promise((resolve) => {
-                        if (!this.originalImgSrc || !this.svgInEl || !this.el.dataset.hoverEffect) {
+                        if (
+                            !this.originalImgSrc ||
+                            !this.svgInEl ||
+                            !this.el.dataset.hoverEffect
+                        ) {
                             resolve();
                             return;
                         }
@@ -32,11 +37,15 @@ const ImageShapeHoverEffectEdit = (I) =>
                             // Reverse animations.
                             this.svgOutEl = this.svgInEl.cloneNode(true);
                             const animateTransformEls = this.svgOutEl.querySelectorAll(
-                                "#hoverEffects animateTransform, #hoverEffects animate"
+                                "#hoverEffects animateTransform, #hoverEffects animate",
                             );
                             animateTransformEls.forEach((animateTransformEl) => {
-                                let valuesValue = animateTransformEl.getAttribute("values");
-                                valuesValue = valuesValue.split(";").reverse().join(";");
+                                let valuesValue =
+                                    animateTransformEl.getAttribute("values");
+                                valuesValue = valuesValue
+                                    .split(";")
+                                    .reverse()
+                                    .join(";");
                                 animateTransformEl.setAttribute("values", valuesValue);
                             });
                         }
@@ -55,7 +64,7 @@ const ImageShapeHoverEffectEdit = (I) =>
                                 };
                             }, this.getAnimationMaxDuration(this.svgOutEl));
                         });
-                    })
+                    }),
             );
         }
 
@@ -63,7 +72,7 @@ const ImageShapeHoverEffectEdit = (I) =>
         getAnimationMaxDuration(svg) {
             let maxDuration = 0;
             const animateEls = svg.querySelectorAll(
-                "#hoverEffects animateTransform, #hoverEffects animate"
+                "#hoverEffects animateTransform, #hoverEffects animate",
             );
             animateEls.forEach((animateEl) => {
                 const dur = animateEl.getAttribute("dur");

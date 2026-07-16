@@ -1,6 +1,7 @@
 import { describe, expect, test } from "@odoo/hoot";
-import { setupEditor } from "../_helpers/editor.js";
 import { press } from "@odoo/hoot-dom";
+
+import { setupEditor } from "../_helpers/editor.js";
 import { getContent } from "../_helpers/selection.js";
 import { execCommand } from "../_helpers/userCommands.js";
 

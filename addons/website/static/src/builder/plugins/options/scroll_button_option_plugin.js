@@ -1,12 +1,13 @@
 /** @odoo-module native */
-import { Plugin } from "@html_editor/plugin";
-import { _t } from "@web/core/l10n/translation";
-import { registry } from "@web/core/registry";
-import { ScrollButtonOption } from "./scroll_button_option.js";
 import { BuilderAction } from "@html_builder/core/builder_action";
 import { ClassAction } from "@html_builder/core/core_builder_action_plugin";
+import { Plugin } from "@html_editor/plugin";
 import { withSequence } from "@html_editor/utils/resource";
+import { _t } from "@web/core/l10n/translation";
+import { registry } from "@web/core/registry";
 import { SCROLL_BUTTON } from "@website/builder/option_sequence";
+
+import { ScrollButtonOption } from "./scroll_button_option.js";
 
 class ScrollButtonOptionPlugin extends Plugin {
     static id = "scrollButtonOption";
@@ -35,7 +36,7 @@ class ScrollButtonManager {
             "justify-content-center",
             "mx-auto",
             "bg-primary",
-            "o_not_editable"
+            "o_not_editable",
         );
         anchor.href = "#";
         anchor.contentEditable = "false";
@@ -110,7 +111,9 @@ export class ScrollButtonSectionHeightClassAction extends ClassAction {
             editingElement.classList.remove("d-lg-flex");
             const style = window.getComputedStyle(editingElement);
             const display = style.getPropertyValue("display");
-            editingElement.classList.add(display === "flex" ? "d-lg-flex" : "d-lg-block");
+            editingElement.classList.add(
+                display === "flex" ? "d-lg-flex" : "d-lg-block",
+            );
         }
     }
 
@@ -122,4 +125,6 @@ export class ScrollButtonSectionHeightClassAction extends ClassAction {
     }
 }
 
-registry.category("website-plugins").add(ScrollButtonOptionPlugin.id, ScrollButtonOptionPlugin);
+registry
+    .category("website-plugins")
+    .add(ScrollButtonOptionPlugin.id, ScrollButtonOptionPlugin);

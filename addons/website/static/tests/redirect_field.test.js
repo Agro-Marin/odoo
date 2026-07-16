@@ -1,13 +1,13 @@
-import { expect, test, describe } from "@odoo/hoot";
+import { defineMailModels } from "@mail/../tests/mail_test_helpers";
+import { describe, expect, test } from "@odoo/hoot";
 import {
+    contains,
     defineModels,
     fields,
     models,
     mountView,
     onRpc,
-    contains,
 } from "@web/../tests/web_test_helpers";
-import { defineMailModels } from "@mail/../tests/mail_test_helpers";
 
 class Appointment extends models.Model {
     _name = "appointment";

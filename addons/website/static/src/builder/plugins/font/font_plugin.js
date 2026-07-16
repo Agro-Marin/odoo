@@ -1,7 +1,8 @@
 /** @odoo-module native */
-import { registry } from "@web/core/registry";
 import { Plugin } from "@html_editor/plugin";
 import { getCSSVariableValue, getHtmlStyle } from "@html_editor/utils/formatting";
+import { registry } from "@web/core/registry";
+
 import { showAddFontDialog } from "./add_font_dialog.js";
 
 /**
@@ -23,10 +24,15 @@ class WebsiteFontPlugin extends Plugin {
             fontsData,
             variable,
             this.customizeFonts.bind(this),
-            this.config.reloadEditor
+            this.config.reloadEditor,
         );
     }
-    async customizeFonts({ values = {}, googleFonts, googleLocalFonts, uploadedLocalFonts }) {
+    async customizeFonts({
+        values = {},
+        googleFonts,
+        googleLocalFonts,
+        uploadedLocalFonts,
+    }) {
         if (googleFonts.length) {
             values["google-fonts"] = "('" + googleFonts.join("', '") + "')";
         } else {
@@ -44,7 +50,7 @@ class WebsiteFontPlugin extends Plugin {
         }
         await this.dependencies.customizeWebsite.makeSCSSCusto(
             "/website/static/src/scss/options/user_values.scss",
-            values
+            values,
         );
         this.dependencies.builderFont.getFontsCache().invalidate();
         // TODO reloadEditor: true

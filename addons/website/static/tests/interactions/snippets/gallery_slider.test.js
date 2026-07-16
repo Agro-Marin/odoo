@@ -1,9 +1,10 @@
-import { startInteractions, setupInteractionWhiteList } from "@web/../tests/public/helpers";
-
 import { describe, expect, getFixture, test } from "@odoo/hoot";
 import { animationFrame, click, queryOne } from "@odoo/hoot-dom";
 import { advanceTime } from "@odoo/hoot-mock";
-
+import {
+    setupInteractionWhiteList,
+    startInteractions,
+} from "@web/../tests/public/helpers";
 import { onceAllImagesLoaded } from "@website/utils/images";
 
 setupInteractionWhiteList(["website.gallery_slider", "website.gallery_slider_001"]);

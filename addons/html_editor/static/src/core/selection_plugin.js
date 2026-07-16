@@ -15,7 +15,10 @@ import {
     firstLeaf,
     lastLeaf,
 } from "@html_editor/utils/dom_traversal";
+import { weakMemoize } from "@html_editor/utils/functions";
 import { getActiveHotkey } from "@web/core/browser/hotkeys";
+import { closestScrollableY } from "@web/core/utils/dom/scrolling";
+
 import { Plugin } from "../plugin.js";
 import { DIRECTIONS, leftPos, nodeSize, rightPos } from "../utils/position.js";
 import {
@@ -25,8 +28,6 @@ import {
     normalizeNotEditableNode,
     normalizeSelfClosingElement,
 } from "../utils/selection.js";
-import { closestScrollableY } from "@web/core/utils/dom/scrolling";
-import { weakMemoize } from "@html_editor/utils/functions";
 
 /**
  * @typedef { Object } EditorSelection
@@ -103,8 +104,8 @@ export const isHtmlContentSupported = weakMemoize(
     (/** @type {EditorSelection} */ selection) =>
         !closestElement(
             selection.focusNode,
-            '[data-oe-model]:not([data-oe-type="html"]):not([data-oe-field="arch"]):not([data-oe-translation-source-sha])'
-        )
+            '[data-oe-model]:not([data-oe-type="html"]):not([data-oe-field="arch"]):not([data-oe-translation-source-sha])',
+        ),
 );
 
 /**
@@ -123,7 +124,7 @@ function getUnselectedEdgeTextNodes(selection) {
         [
             ...startEdgeNodes(selection.startContainer, selection.startOffset),
             ...endEdgeNodes(selection.endContainer, selection.endOffset),
-        ].filter((node) => node.nodeType === Node.TEXT_NODE)
+        ].filter((node) => node.nodeType === Node.TEXT_NODE),
     );
 }
 
@@ -158,7 +159,10 @@ function scrollToSelection(selection) {
     if (rect.top < containerRect.top) {
         container.scrollTo({ top: offsetTop, behavior: "instant" });
     } else if (rect.bottom > containerRect.bottom) {
-        container.scrollTo({ top: offsetBottom - container.clientHeight, behavior: "instant" });
+        container.scrollTo({
+            top: offsetBottom - container.clientHeight,
+            behavior: "instant",
+        });
     }
 }
 
@@ -271,7 +275,9 @@ export class SelectionPlugin extends Plugin {
                     if (ev.target.tagName === "IFRAME") {
                         return;
                     }
-                    const preventClosing = ev.target?.closest?.("[data-prevent-closing-overlay]");
+                    const preventClosing = ev.target?.closest?.(
+                        "[data-prevent-closing-overlay]",
+                    );
                     if (preventClosing?.dataset?.preventClosingOverlay === "true") {
                         return;
                     }
@@ -279,10 +285,18 @@ export class SelectionPlugin extends Plugin {
                     this.dispatchTo("selection_leave_handlers");
                 }
             };
-            this.addDomListener(this.document, "focusin", focusEditable, { capture: true });
-            this.addDomListener(document, "focusin", unFocusEditable, { capture: true });
-            this.addDomListener(this.document, "pointerdown", focusEditable, { capture: true });
-            this.addDomListener(document, "pointerdown", unFocusEditable, { capture: true });
+            this.addDomListener(this.document, "focusin", focusEditable, {
+                capture: true,
+            });
+            this.addDomListener(document, "focusin", unFocusEditable, {
+                capture: true,
+            });
+            this.addDomListener(this.document, "pointerdown", focusEditable, {
+                capture: true,
+            });
+            this.addDomListener(document, "pointerdown", unFocusEditable, {
+                capture: true,
+            });
         }
         this.preservedCursors = [];
         // Calling the native `focus` method of the editable element, even with
@@ -305,9 +319,13 @@ export class SelectionPlugin extends Plugin {
     selectAll() {
         const selection = this.getEditableSelection();
         const containerSelector = "#wrap > *, .oe_structure > *, [contenteditable]";
-        const container = selection && closestElement(selection.anchorNode, containerSelector);
+        const container =
+            selection && closestElement(selection.anchorNode, containerSelector);
         const [anchorNode, anchorOffset] = getDeepestPosition(container, 0);
-        const [focusNode, focusOffset] = getDeepestPosition(container, nodeSize(container));
+        const [focusNode, focusOffset] = getDeepestPosition(
+            container,
+            nodeSize(container),
+        );
         if (
             this.delegateTo("select_all_overrides", {
                 anchorNode,
@@ -409,7 +427,9 @@ export class SelectionPlugin extends Plugin {
             range = selection.getRangeAt(0);
             let { anchorNode, anchorOffset, focusNode, focusOffset } = selection;
             let direction =
-                anchorNode === range.startContainer ? DIRECTIONS.RIGHT : DIRECTIONS.LEFT;
+                anchorNode === range.startContainer
+                    ? DIRECTIONS.RIGHT
+                    : DIRECTIONS.LEFT;
             if (anchorNode === focusNode && focusOffset < anchorOffset) {
                 direction = !direction;
             }
@@ -436,8 +456,14 @@ export class SelectionPlugin extends Plugin {
             anchorOffset = direction ? range.startOffset : range.endOffset;
             focusOffset = direction ? range.endOffset : range.startOffset;
 
-            [anchorNode, anchorOffset] = normalizeSelfClosingElement(anchorNode, anchorOffset);
-            [focusNode, focusOffset] = normalizeSelfClosingElement(focusNode, focusOffset);
+            [anchorNode, anchorOffset] = normalizeSelfClosingElement(
+                anchorNode,
+                anchorOffset,
+            );
+            [focusNode, focusOffset] = normalizeSelfClosingElement(
+                focusNode,
+                focusOffset,
+            );
             const [startContainer, startOffset, endContainer, endOffset] =
                 direction === DIRECTIONS.RIGHT
                     ? [anchorNode, anchorOffset, focusNode, focusOffset]
@@ -529,7 +555,8 @@ export class SelectionPlugin extends Plugin {
      */
     getSelectionData() {
         const selection = this.getCachedSelection() || this.document.getSelection();
-        const documentSelectionIsInEditable = selection && this.isSelectionInEditable(selection);
+        const documentSelectionIsInEditable =
+            selection && this.isSelectionInEditable(selection);
         let collapsed;
         const documentSelection =
             selection?.anchorNode && selection?.focusNode
@@ -555,22 +582,30 @@ export class SelectionPlugin extends Plugin {
         // is necessary (see commit message).
         const isSelectionConnected =
             this.activeSelection.anchorNode.isConnected &&
-            nodeSize(this.activeSelection.anchorNode) >= this.activeSelection.anchorOffset &&
-            nodeSize(this.activeSelection.focusNode) >= this.activeSelection.focusOffset;
+            nodeSize(this.activeSelection.anchorNode) >=
+                this.activeSelection.anchorOffset &&
+            nodeSize(this.activeSelection.focusNode) >=
+                this.activeSelection.focusOffset;
         if (documentSelectionIsInEditable) {
             this.activeSelection = this.makeActiveSelection(selection);
         } else if (!isSelectionConnected) {
             this.activeSelection = this.makeActiveSelection();
         }
-        let { anchorNode, anchorOffset, focusNode, focusOffset, isCollapsed, direction } =
-            this.activeSelection;
+        let {
+            anchorNode,
+            anchorOffset,
+            focusNode,
+            focusOffset,
+            isCollapsed,
+            direction,
+        } = this.activeSelection;
 
         const editableSelection = this.createEditorSelection(
             anchorNode,
             anchorOffset,
             focusNode,
             focusOffset,
-            direction
+            direction,
         );
 
         const selectionData = {
@@ -584,7 +619,10 @@ export class SelectionPlugin extends Plugin {
         Object.defineProperty(selectionData, "deepEditableSelection", {
             get: function () {
                 // Transform the selection to return the depest possible node.
-                [anchorNode, anchorOffset] = getDeepestPosition(anchorNode, anchorOffset);
+                [anchorNode, anchorOffset] = getDeepestPosition(
+                    anchorNode,
+                    anchorOffset,
+                );
                 [focusNode, focusOffset] = isCollapsed
                     ? [anchorNode, anchorOffset]
                     : getDeepestPosition(focusNode, focusOffset);
@@ -593,7 +631,7 @@ export class SelectionPlugin extends Plugin {
                     anchorOffset,
                     focusNode,
                     focusOffset,
-                    direction
+                    direction,
                 );
             }.bind(this),
         });
@@ -623,14 +661,21 @@ export class SelectionPlugin extends Plugin {
     validateSelection({ anchorNode, anchorOffset, focusNode, focusOffset }) {
         const validateNode = (node) => {
             if (!this.editable.contains(node)) {
-                console.warn("Invalid selection. Node is not part of the editable:", node);
+                console.warn(
+                    "Invalid selection. Node is not part of the editable:",
+                    node,
+                );
                 return false;
             }
             return true;
         };
         const validateOffset = (node, offset) => {
             if (offset < 0 || offset > nodeSize(node)) {
-                console.warn("Invalid selection. Offset is out of bounds:", offset, node);
+                console.warn(
+                    "Invalid selection. Offset is out of bounds:",
+                    offset,
+                    node,
+                );
                 return false;
             }
             return true;
@@ -657,21 +702,40 @@ export class SelectionPlugin extends Plugin {
      * @return { EditorSelection | null }
      */
     setSelection(
-        { anchorNode, anchorOffset, focusNode = anchorNode, focusOffset = anchorOffset },
-        { normalize = true } = {}
+        {
+            anchorNode,
+            anchorOffset,
+            focusNode = anchorNode,
+            focusOffset = anchorOffset,
+        },
+        { normalize = true } = {},
     ) {
-        if (!this.validateSelection({ anchorNode, anchorOffset, focusNode, focusOffset })) {
+        if (
+            !this.validateSelection({
+                anchorNode,
+                anchorOffset,
+                focusNode,
+                focusOffset,
+            })
+        ) {
             return null;
         }
         const restore = this.preserveTextareaSelections();
         const isCollapsed = anchorNode === focusNode && anchorOffset === focusOffset;
-        [focusNode, focusOffset] = normalizeSelfClosingElement(focusNode, focusOffset, "right");
+        [focusNode, focusOffset] = normalizeSelfClosingElement(
+            focusNode,
+            focusOffset,
+            "right",
+        );
         [anchorNode, anchorOffset] = isCollapsed
             ? [focusNode, focusOffset]
             : normalizeSelfClosingElement(anchorNode, anchorOffset, "left");
         if (normalize) {
             // normalize selection
-            [anchorNode, anchorOffset] = normalizeDeepCursorPosition(anchorNode, anchorOffset);
+            [anchorNode, anchorOffset] = normalizeDeepCursorPosition(
+                anchorNode,
+                anchorOffset,
+            );
             [focusNode, focusOffset] = isCollapsed
                 ? [anchorNode, anchorOffset]
                 : normalizeDeepCursorPosition(focusNode, focusOffset);
@@ -680,10 +744,16 @@ export class SelectionPlugin extends Plugin {
         [anchorNode, anchorOffset] = normalizeFakeBR(anchorNode, anchorOffset);
         [focusNode, focusOffset] = normalizeFakeBR(focusNode, focusOffset);
         const selection = this.document.getSelection();
-        const documentSelectionIsInEditable = selection && this.isSelectionInEditable(selection);
+        const documentSelectionIsInEditable =
+            selection && this.isSelectionInEditable(selection);
         if (selection) {
             if (documentSelectionIsInEditable || selection.anchorNode === null) {
-                selection.setBaseAndExtent(anchorNode, anchorOffset, focusNode, focusOffset);
+                selection.setBaseAndExtent(
+                    anchorNode,
+                    anchorOffset,
+                    focusNode,
+                    focusOffset,
+                );
                 this.activeSelection = this.makeActiveSelection(selection, true);
             } else {
                 let range = new Range();
@@ -721,13 +791,16 @@ export class SelectionPlugin extends Plugin {
      */
     preserveTextareaSelections() {
         const focusedTextarea =
-            this.document.activeElement?.nodeName === "TEXTAREA" && this.document.activeElement;
-        const selections = [...this.editable.querySelectorAll("textarea")].map((textarea) => ({
-            textarea,
-            start: textarea.selectionStart,
-            end: textarea.selectionEnd,
-            direction: textarea.selectionDirection,
-        }));
+            this.document.activeElement?.nodeName === "TEXTAREA" &&
+            this.document.activeElement;
+        const selections = [...this.editable.querySelectorAll("textarea")].map(
+            (textarea) => ({
+                textarea,
+                start: textarea.selectionStart,
+                end: textarea.selectionEnd,
+                direction: textarea.selectionDirection,
+            }),
+        );
         return () => {
             if (focusedTextarea) {
                 // If a textarea is targeted, focus it so its selection is active.
@@ -764,7 +837,8 @@ export class SelectionPlugin extends Plugin {
      */
     preserveSelection() {
         const hadSelection =
-            this.document.getSelection() && this.document.getSelection().anchorNode !== null;
+            this.document.getSelection() &&
+            this.document.getSelection().anchorNode !== null;
         const selectionData = this.getSelectionData();
         const selection = selectionData.editableSelection;
         const anchor = { node: selection.anchorNode, offset: selection.anchorOffset };
@@ -773,7 +847,9 @@ export class SelectionPlugin extends Plugin {
             anchor,
             focus,
             restore: () => {
-                const index = this.preservedCursors.findIndex((ref) => ref.deref() === cursor);
+                const index = this.preservedCursors.findIndex(
+                    (ref) => ref.deref() === cursor,
+                );
                 if (index !== -1) {
                     this.preservedCursors.splice(index, 1);
                 }
@@ -787,7 +863,7 @@ export class SelectionPlugin extends Plugin {
                         focusNode: cursor.focus.node,
                         focusOffset: cursor.focus.offset,
                     },
-                    { normalize: false }
+                    { normalize: false },
                 );
             },
             update: (callback) => {
@@ -860,7 +936,7 @@ export class SelectionPlugin extends Plugin {
         return (
             // Custom rules
             this.getResource("fully_selected_node_predicates").some((cb) =>
-                cb(node, selection, range)
+                cb(node, selection, range),
             ) ||
             // Default rule
             (range.isPointInRange(firstLeafNode, 0) &&
@@ -908,7 +984,7 @@ export class SelectionPlugin extends Plugin {
             (node) =>
                 selectionData.editableSelection.intersectsNode(node) ||
                 (node.nodeType === Node.TEXT_NODE &&
-                    (node === selection.anchorNode || node === selection.focusNode))
+                    (node === selection.anchorNode || node === selection.focusNode)),
         );
 
         const modifiers = [
@@ -972,11 +1048,17 @@ export class SelectionPlugin extends Plugin {
         if (this.config.allowInlineAtRoot || !documentSelectionIsInEditable) {
             return false;
         }
-        const isSelectionOnEditableRoot = (s) => s.isCollapsed && s.anchorNode === this.editable;
+        const isSelectionOnEditableRoot = (s) =>
+            s.isCollapsed && s.anchorNode === this.editable;
         if (!isSelectionOnEditableRoot(editableSelection)) {
             return false;
         }
-        if (this.delegateTo("fix_selection_on_editable_root_overrides", editableSelection)) {
+        if (
+            this.delegateTo(
+                "fix_selection_on_editable_root_overrides",
+                editableSelection,
+            )
+        ) {
             return true;
         }
         // Revert the selection to the previous one
@@ -988,7 +1070,8 @@ export class SelectionPlugin extends Plugin {
         if (!selection) {
             return false;
         }
-        const { anchorNode, anchorOffset, focusNode, focusOffset } = this.previousActiveSelection;
+        const { anchorNode, anchorOffset, focusNode, focusOffset } =
+            this.previousActiveSelection;
         selection.setBaseAndExtent(anchorNode, anchorOffset, focusNode, focusOffset);
         return true;
     }
@@ -1089,14 +1172,21 @@ export class SelectionPlugin extends Plugin {
             // Direction of the movement (take rtl writing into account)
             const screenDirection = ev.key === "ArrowLeft" ? "left" : "right";
             const isRtl = closestElement(selection.focusNode, "[dir]")?.dir === "rtl";
-            const domDirection = (screenDirection === "left") ^ isRtl ? "previous" : "next";
+            const domDirection =
+                (screenDirection === "left") ^ isRtl ? "previous" : "next";
 
             // Whether the character next to the cursor should be skipped.
             const shouldSkipCallbacks = this.getResource(
-                "intangible_char_for_keyboard_navigation_predicates"
+                "intangible_char_for_keyboard_navigation_predicates",
             );
-            let adjacentCharacter = getAdjacentCharacter(selection, domDirection, this.editable);
-            let shouldSkip = shouldSkipCallbacks.some((cb) => cb(ev, adjacentCharacter));
+            let adjacentCharacter = getAdjacentCharacter(
+                selection,
+                domDirection,
+                this.editable,
+            );
+            let shouldSkip = shouldSkipCallbacks.some((cb) =>
+                cb(ev, adjacentCharacter),
+            );
 
             while (shouldSkip) {
                 const { focusNode: nodeBefore, focusOffset: offsetBefore } = selection;
@@ -1104,13 +1194,20 @@ export class SelectionPlugin extends Plugin {
                 selection.modify(mode, screenDirection, "character");
 
                 const hasSelectionChanged =
-                    nodeBefore !== selection.focusNode || offsetBefore !== selection.focusOffset;
+                    nodeBefore !== selection.focusNode ||
+                    offsetBefore !== selection.focusOffset;
                 const lastSkippedChar = adjacentCharacter;
-                adjacentCharacter = getAdjacentCharacter(selection, domDirection, this.editable);
+                adjacentCharacter = getAdjacentCharacter(
+                    selection,
+                    domDirection,
+                    this.editable,
+                );
 
                 shouldSkip =
                     hasSelectionChanged &&
-                    shouldSkipCallbacks.some((cb) => cb(ev, adjacentCharacter, lastSkippedChar));
+                    shouldSkipCallbacks.some((cb) =>
+                        cb(ev, adjacentCharacter, lastSkippedChar),
+                    );
             }
         }
 
@@ -1121,7 +1218,8 @@ export class SelectionPlugin extends Plugin {
             const selectingBackward = ["ArrowLeft", "ArrowUp"].includes(ev.key);
             const currentBlock = closestBlock(focusNode);
             const isAtBoundary = selectingBackward
-                ? [firstLeaf(currentBlock), currentBlock].includes(focusNode) && focusOffset === 0
+                ? [firstLeaf(currentBlock), currentBlock].includes(focusNode) &&
+                  focusOffset === 0
                 : [lastLeaf(currentBlock), currentBlock].includes(focusNode) &&
                   focusOffset === nodeSize(focusNode);
             const adjacentBlock = selectingBackward
@@ -1131,10 +1229,14 @@ export class SelectionPlugin extends Plugin {
                 ? adjacentBlock?.previousElementSibling
                 : adjacentBlock?.nextElementSibling;
             if (!adjacentBlock?.isContentEditable && targetBlock && isAtBoundary) {
-                let leafNode = selectingBackward ? lastLeaf(targetBlock) : firstLeaf(targetBlock);
+                let leafNode = selectingBackward
+                    ? lastLeaf(targetBlock)
+                    : firstLeaf(targetBlock);
                 let offset = selectingBackward ? nodeSize(leafNode) : 0;
                 if (isSelfClosingElement(leafNode)) {
-                    [leafNode, offset] = selectingBackward ? leftPos(leafNode) : rightPos(leafNode);
+                    [leafNode, offset] = selectingBackward
+                        ? leftPos(leafNode)
+                        : rightPos(leafNode);
                 }
                 selection.extend(leafNode, offset);
                 ev.preventDefault();
@@ -1163,7 +1265,8 @@ export class SelectionPlugin extends Plugin {
 
     focusEditable() {
         const selection = this.document.getSelection();
-        const documentSelectionIsInEditable = selection && this.isSelectionInEditable(selection);
+        const documentSelectionIsInEditable =
+            selection && this.isSelectionInEditable(selection);
         if (
             this.editable.contains(this.document.activeElement) &&
             documentSelectionIsInEditable
@@ -1177,13 +1280,14 @@ export class SelectionPlugin extends Plugin {
             return;
         }
 
-        const { editableSelection, currentSelectionIsInEditable } = this.getSelectionData();
+        const { editableSelection, currentSelectionIsInEditable } =
+            this.getSelectionData();
 
         // Focusing the closest editable element is required since, in the website
         // 'this.editable' itself is contenteditable="false`.
         const closestEditable = closestElement(
             editableSelection.commonAncestorContainer,
-            (el) => el.getAttribute("contenteditable") === "true"
+            (el) => el.getAttribute("contenteditable") === "true",
         );
         if (closestEditable === this.editable) {
             this.editableOriginalFocus.call(this.editable, { preventScroll: true });
@@ -1195,7 +1299,7 @@ export class SelectionPlugin extends Plugin {
         // move cursor to different position. so reapply the last selection.
         const closestNonEditable = closestElement(
             editableSelection.commonAncestorContainer,
-            (el) => !el.isContentEditable
+            (el) => !el.isContentEditable,
         );
         if (closestNonEditable) {
             this.setSelection(editableSelection, { normalize: false });
@@ -1203,10 +1307,16 @@ export class SelectionPlugin extends Plugin {
 
         if (!currentSelectionIsInEditable) {
             // Selection is outside the editor — restore it.
-            const { anchorNode, anchorOffset, focusNode, focusOffset } = editableSelection;
+            const { anchorNode, anchorOffset, focusNode, focusOffset } =
+                editableSelection;
             const selection = this.document.getSelection();
             if (selection) {
-                selection.setBaseAndExtent(anchorNode, anchorOffset, focusNode, focusOffset);
+                selection.setBaseAndExtent(
+                    anchorNode,
+                    anchorOffset,
+                    focusNode,
+                    focusOffset,
+                );
             }
         }
     }
@@ -1218,7 +1328,8 @@ export class SelectionPlugin extends Plugin {
         // Get up-to-date selection
         const { editableSelection } = this.getSelectionData();
         // Avoid setting the selection if it's not inside an uneditable element
-        const isInUneditable = (node) => !!closestElement(node, (elem) => !elem.isContentEditable);
+        const isInUneditable = (node) =>
+            !!closestElement(node, (elem) => !elem.isContentEditable);
         let { startContainer: start, endContainer: end } = editableSelection;
         if (!(isInUneditable(start) || (end !== start && isInUneditable(end)))) {
             return editableSelection;

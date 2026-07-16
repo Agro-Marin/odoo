@@ -1,10 +1,9 @@
 /** @odoo-module native */
-import { Interaction } from "@web/public/interaction";
-import { registry } from "@web/core/registry";
-
 import { _t } from "@web/core/l10n/translation";
-import { setupAutoplay, triggerAutoplay } from "@website/utils/videos";
+import { registry } from "@web/core/registry";
+import { Interaction } from "@web/public/interaction";
 import { generateVideoIframe } from "@website/js/content/generate_video_iframe";
+import { setupAutoplay, triggerAutoplay } from "@website/utils/videos";
 
 export class MediaVideo extends Interaction {
     static selector = ".media_iframe_video";
@@ -18,7 +17,7 @@ export class MediaVideo extends Interaction {
                 // TODO still oeExpression to remove someday
                 this.services.website_cookies.manageIframeSrc(
                     this.el.querySelector("iframe"),
-                    this.el.dataset.oeExpression || this.el.dataset.src
+                    this.el.dataset.oeExpression || this.el.dataset.src,
                 );
             },
             "t-on-hide.bs.modal": () => {
@@ -46,7 +45,10 @@ export class MediaVideo extends Interaction {
         // In some cases (e.g., when adding a new video block), we don’t need
         // to rebuild the same iframe while starting the widget.
         if (!iframeEl) {
-            iframeEl = generateVideoIframe(this.el, this.services.website_cookies.manageIframeSrc);
+            iframeEl = generateVideoIframe(
+                this.el,
+                this.services.website_cookies.manageIframeSrc,
+            );
         }
 
         if (iframeEl && !iframeEl.getAttribute("aria-label")) {
@@ -56,11 +58,11 @@ export class MediaVideo extends Interaction {
         if (iframeEl?.hasAttribute("src")) {
             const promise = setupAutoplay(
                 iframeEl.getAttribute("src"),
-                !!this.el.dataset.needCookiesApproval
+                !!this.el.dataset.needCookiesApproval,
             );
             if (promise) {
                 this.waitFor(promise).then(
-                    this.protectSyncAfterAsync(() => triggerAutoplay(iframeEl))
+                    this.protectSyncAfterAsync(() => triggerAutoplay(iframeEl)),
                 );
             }
         }

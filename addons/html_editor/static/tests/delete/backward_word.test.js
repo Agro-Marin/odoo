@@ -1,8 +1,9 @@
 import { test } from "@odoo/hoot";
 import { press } from "@odoo/hoot-dom";
+import { mockUserAgent } from "@odoo/hoot-mock";
+
 import { testEditor } from "../_helpers/editor.js";
 import { unformat } from "../_helpers/format.js";
-import { mockUserAgent } from "@odoo/hoot-mock";
 
 // CTRL+BACKSPACE
 test("should not remove the last p with ctrl+backspace", async () => {

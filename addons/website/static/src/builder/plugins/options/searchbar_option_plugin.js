@@ -1,9 +1,10 @@
 /** @odoo-module native */
+import { BuilderAction } from "@html_builder/core/builder_action";
 import { Plugin } from "@html_editor/plugin";
 import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
+
 import { SearchbarOption } from "./searchbar_option.js";
-import { BuilderAction } from "@html_builder/core/builder_action";
 
 /** @typedef {import("plugins").TranslatedString} TranslatedString */
 
@@ -119,7 +120,9 @@ export class BaseSearchBarAction extends BuilderAction {
     }
     getSearchButtonEl(editingElement) {
         // /!\ this could return undefined if the button was deleted.
-        return editingElement.closest(".s_searchbar_input").querySelector(".oe_search_button");
+        return editingElement
+            .closest(".s_searchbar_input")
+            .querySelector(".oe_search_button");
     }
     getSearchOrderByInputEl(editingElement) {
         return this.getFormEl(editingElement).querySelector(".o_search_order_by");
@@ -130,7 +133,8 @@ export class SetSearchTypeAction extends BaseSearchBarAction {
     apply({ editingElement, value: formAction, dependencyManager }) {
         this.getFormEl(editingElement).action = formAction;
 
-        const isDependencyActive = (dep) => !dep || dependencyManager.get(dep).isActive();
+        const isDependencyActive = (dep) =>
+            !dep || dependencyManager.get(dep).isActive();
 
         // If the selected orderBy option is not available with the
         // new search type, reset to default.
@@ -139,7 +143,7 @@ export class SetSearchTypeAction extends BaseSearchBarAction {
             !this.getResource("searchbar_option_order_by_items").some(
                 (item) =>
                     isDependencyActive(item.dependency) &&
-                    item.orderBy === searchOrderByInputEl.value
+                    item.orderBy === searchOrderByInputEl.value,
             )
         ) {
             editingElement.dataset.orderBy = this.defaultSearchType;
@@ -173,7 +177,8 @@ export class SetSearchbarStyleAction extends BaseSearchBarAction {
     static id = "setSearchbarStyle";
     isApplied({ editingElement, params: { mainParam: style } }) {
         const searchInputIsLight = editingElement.matches(".border-0.bg-light");
-        const searchButtonIsLight = this.getSearchButtonEl(editingElement)?.matches(".btn-light");
+        const searchButtonIsLight =
+            this.getSearchButtonEl(editingElement)?.matches(".btn-light");
 
         if (style === "light") {
             return searchInputIsLight && searchButtonIsLight;
@@ -201,7 +206,11 @@ export class SetNonEmptyDataAttributeAction extends BuilderAction {
     getValue({ editingElement, params: { mainParam: attributeName } = {} }) {
         return editingElement.dataset[attributeName];
     }
-    isApplied({ editingElement, params: { mainParam: attributeName } = {}, value = "" }) {
+    isApplied({
+        editingElement,
+        params: { mainParam: attributeName } = {},
+        value = "",
+    }) {
         return editingElement.dataset[attributeName] === value;
     }
     apply({ editingElement, params: { mainParam: attributeName } = {}, value }) {
@@ -216,4 +225,6 @@ export class SetNonEmptyDataAttributeAction extends BuilderAction {
     }
 }
 
-registry.category("website-plugins").add(SearchbarOptionPlugin.id, SearchbarOptionPlugin);
+registry
+    .category("website-plugins")
+    .add(SearchbarOptionPlugin.id, SearchbarOptionPlugin);

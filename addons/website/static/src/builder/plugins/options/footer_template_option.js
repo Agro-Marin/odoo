@@ -11,7 +11,9 @@ export class FooterTemplateOption extends BaseOptionComponent {
 
     setup() {
         super.setup();
-        this.footerTemplates = useState(this.dependencies.footerOption.getFooterTemplates());
+        this.footerTemplates = useState(
+            this.dependencies.footerOption.getFooterTemplates(),
+        );
     }
 }
 

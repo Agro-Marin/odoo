@@ -2,13 +2,13 @@
 
 import { delay } from "@web/core/utils/concurrency";
 import {
-    insertSnippet,
-    clickOnSnippet,
     changeOption,
     clickOnEditAndWaitEditMode,
     clickOnSave,
-    registerWebsitePreviewTour,
+    clickOnSnippet,
     goBackToBlocks,
+    insertSnippet,
+    registerWebsitePreviewTour,
 } from "@website/js/tours/tour_utils";
 
 const carouselInnerSelector = ":iframe .carousel-inner";
@@ -47,7 +47,8 @@ registerWebsitePreviewTour(
             groupName: "People",
         }),
         {
-            trigger: ":iframe .s_quotes_carousel_wrapper .carousel-item.active .s_blockquote",
+            trigger:
+                ":iframe .s_quotes_carousel_wrapper .carousel-item.active .s_blockquote",
             content: "Select the blockquote.",
             run: "click",
         },
@@ -59,9 +60,10 @@ registerWebsitePreviewTour(
         {
             trigger:
                 ":iframe .s_quotes_carousel_wrapper .carousel-item.active:not(:has(.s_blockquote))",
-            content: "Check that the blockquote has been removed and the carousel item is empty.",
+            content:
+                "Check that the blockquote has been removed and the carousel item is empty.",
         },
-    ]
+    ],
 );
 
 const checkSlides = (number, position) => {
@@ -149,7 +151,7 @@ registerWebsitePreviewTour(
         ...clickOnSave(),
         // Check that saving always sets the first slide as active.
         checkSlides(4, 1),
-    ]
+    ],
 );
 
 const setSlideUrl = (urlText, matchText) => [
@@ -167,7 +169,8 @@ const setSlideUrl = (urlText, matchText) => [
 
 const checkSlideNotClickable = () => ({
     content: "Check that the 'clickable-slide' class and anchor tag are removed",
-    trigger: ":iframe .carousel-item.active:not(.clickable-slide):not(:has(a.slide-link))",
+    trigger:
+        ":iframe .carousel-item.active:not(.clickable-slide):not(:has(a.slide-link))",
 });
 
 registerWebsitePreviewTour(
@@ -184,7 +187,8 @@ registerWebsitePreviewTour(
         changeOption("Slide (1/3)", "[data-action-id='makeSlideClickable'] input"),
 
         {
-            content: "Check that the 'clickable-slide' class is added to the carousel item",
+            content:
+                "Check that the 'clickable-slide' class is added to the carousel item",
             trigger: ":iframe .carousel-item.active.clickable-slide",
         },
         ...setSlideUrl("/contactus", "/contactus-thank-you"),
@@ -197,7 +201,7 @@ registerWebsitePreviewTour(
         // Enable the option to open the link in a new tab
         changeOption(
             "Slide (1/3)",
-            "[data-label='Open in New Tab'] [data-attribute-action='target'] input"
+            "[data-label='Open in New Tab'] [data-attribute-action='target'] input",
         ),
 
         ...clickOnSave(),
@@ -209,8 +213,10 @@ registerWebsitePreviewTour(
         ...clickOnEditAndWaitEditMode(),
         ...clickOnSnippet(".carousel .carousel-item.active"),
         {
-            content: "Check that the entered URL is correctly shown in the option and remove it",
-            trigger: "div[data-action-id='setSlideAnchorUrl'] input:value(/contactus-thank-you)",
+            content:
+                "Check that the entered URL is correctly shown in the option and remove it",
+            trigger:
+                "div[data-action-id='setSlideAnchorUrl'] input:value(/contactus-thank-you)",
             run: "edit ",
         },
         {
@@ -220,7 +226,8 @@ registerWebsitePreviewTour(
         },
         {
             content: "Check that the anchor tag is removed",
-            trigger: ":iframe .carousel-item.active.clickable-slide:not(:has(a.slide-link))",
+            trigger:
+                ":iframe .carousel-item.active.clickable-slide:not(:has(a.slide-link))",
         },
         {
             content: "Check that the 'Open in New Tab' option is no longer visible",
@@ -238,5 +245,5 @@ registerWebsitePreviewTour(
 
         ...clickOnSave(),
         checkSlideNotClickable(),
-    ]
+    ],
 );

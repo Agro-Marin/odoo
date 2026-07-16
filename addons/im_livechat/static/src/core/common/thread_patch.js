@@ -1,10 +1,10 @@
 /** @odoo-module native */
-import { luxon } from "@web/core/l10n/luxon";
 import { Thread } from "@mail/core/common/thread";
 import { useEffect } from "@odoo/owl";
+import { luxon } from "@web/core/l10n/luxon";
 import { _t } from "@web/core/l10n/translation";
-import { user } from "@web/services/user";
 import { patch } from "@web/core/utils/patch";
+import { user } from "@web/services/user";
 
 const { DateTime } = luxon;
 
@@ -19,17 +19,21 @@ patch(Thread.prototype, {
                     return;
                 }
                 clearTimeout(this.imStatusTimeoutId);
-                if (this.props.thread.livechatVisitorMember.im_status.includes("offline")) {
+                if (
+                    this.props.thread.livechatVisitorMember.im_status.includes(
+                        "offline",
+                    )
+                ) {
                     this.imStatusTimeoutId = setTimeout(
                         () => (this.state.isVisitorOffline = true),
-                        this.IM_STATUS_DELAY
+                        this.IM_STATUS_DELAY,
                     );
                 } else {
                     this.state.isVisitorOffline = false;
                 }
                 return () => clearTimeout(this.imStatusTimeoutId);
             },
-            () => [this.props.thread.livechatVisitorMember?.im_status]
+            () => [this.props.thread.livechatVisitorMember?.im_status],
         );
     },
     get showVisitorDisconnected() {
@@ -41,7 +45,8 @@ patch(Thread.prototype, {
         );
     },
     get disconnectedText() {
-        const offlineSince = this.props.thread.livechatVisitorMember.persona.offline_since;
+        const offlineSince =
+            this.props.thread.livechatVisitorMember.persona.offline_since;
         if (!offlineSince) {
             return _t("Visitor is disconnected");
         }

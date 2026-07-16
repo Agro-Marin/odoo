@@ -39,7 +39,7 @@ registerWebsitePreviewTour(
                     // Wait after Popup.trapFocus by waiting for modal shown
                     // event.
                     await new Promise((resolve) =>
-                        modalEl.addEventListener("shown.bs.modal", resolve)
+                        modalEl.addEventListener("shown.bs.modal", resolve),
                     );
                 }
                 if (modalEl.scrollHeight <= modalEl.clientHeight) {
@@ -59,5 +59,5 @@ registerWebsitePreviewTour(
                 }
             },
         },
-    ]
+    ],
 );

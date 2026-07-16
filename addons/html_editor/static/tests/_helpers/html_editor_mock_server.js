@@ -6,5 +6,5 @@ import { onRpc } from "@web/../tests/web_test_helpers";
 // `*_mock_server.js` files.
 beforeEach(
     () => onRpc("res.lang", "get_installed", () => [["en_US", "English (US)"]]),
-    { global: true }
+    { global: true },
 );

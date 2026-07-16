@@ -1,9 +1,9 @@
 /** @odoo-module native */
+import { Component, useEffect, useState } from "@odoo/owl";
 import { rpc } from "@web/core/network/rpc";
 import { registry } from "@web/core/registry";
-import { Layout } from "@web/search/layout";
-import { Component, useEffect, useState } from "@odoo/owl";
 import { KeepLast } from "@web/core/utils/concurrency";
+import { Layout } from "@web/search/layout";
 import { DocumentationLink } from "@web/views/widgets/documentation_link/documentation_link";
 
 class WebsiteDashboard extends Component {
@@ -25,7 +25,7 @@ class WebsiteDashboard extends Component {
             () => {
                 this.fetchData();
             },
-            () => [this.state.website]
+            () => [this.state.website],
         );
     }
 
@@ -39,7 +39,7 @@ class WebsiteDashboard extends Component {
         const dashboardData = await this.keepLast.add(
             rpc("/website/fetch_dashboard_data", {
                 website_id: this.state.website,
-            })
+            }),
         );
         Object.assign(this.state, dashboardData);
     }

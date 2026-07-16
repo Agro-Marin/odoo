@@ -1,9 +1,11 @@
-import { startInteractions, setupInteractionWhiteList } from "@web/../tests/public/helpers";
-
 import { describe, expect, test } from "@odoo/hoot";
 import { queryFirst, queryOne } from "@odoo/hoot-dom";
+import {
+    setupInteractionWhiteList,
+    startInteractions,
+} from "@web/../tests/public/helpers";
 
-import { setupTest, simpleScroll, doubleScroll } from "./helpers.js";
+import { doubleScroll, setupTest, simpleScroll } from "./helpers.js";
 
 setupInteractionWhiteList([
     "website.header_standard",
@@ -104,7 +106,9 @@ test("faq_horizontal updates titles position with a o_header_standard", async ()
         const isHeaderVisible = target < HEADER_SIZE || target > 300;
         // We compensate the scroll since the header does not move in Hoot.
         const correctedTop = isHeaderVisible ? calculatedTop + target : calculatedTop;
-        expect(correctedTop).toBe(isHeaderVisible ? HEADER_SIZE + DEFAULT_OFFSET : DEFAULT_OFFSET);
+        expect(correctedTop).toBe(
+            isHeaderVisible ? HEADER_SIZE + DEFAULT_OFFSET : DEFAULT_OFFSET,
+        );
     }
 });
 
@@ -121,7 +125,9 @@ test("faq_horizontal updates titles position with a o_header_fixed", async () =>
     for (const target of SCROLLS_SPECIAL) {
         await simpleScroll(wrapwrap, target);
         // There is no need to compensate the scroll here
-        expect(Math.round(parseFloat(title.style.top))).toBe(HEADER_SIZE + DEFAULT_OFFSET);
+        expect(Math.round(parseFloat(title.style.top))).toBe(
+            HEADER_SIZE + DEFAULT_OFFSET,
+        );
     }
 });
 
@@ -140,7 +146,9 @@ test("faq_horizontal updates titles position with a o_header_disappears", async 
         const isHeaderVisible = target < 300;
         // We compensate the scroll since the header does not move in Hoot.
         const correctedTop = isHeaderVisible ? calculatedTop + target : calculatedTop;
-        expect(correctedTop).toBe(isHeaderVisible ? HEADER_SIZE + DEFAULT_OFFSET : DEFAULT_OFFSET);
+        expect(correctedTop).toBe(
+            isHeaderVisible ? HEADER_SIZE + DEFAULT_OFFSET : DEFAULT_OFFSET,
+        );
     }
 });
 
@@ -159,6 +167,8 @@ test("faq_horizontal updates titles position with a o_header_fade_out", async ()
         const isHeaderVisible = target < 300;
         // We compensate the scroll since the header does not move in Hoot.
         const correctedTop = isHeaderVisible ? calculatedTop + target : calculatedTop;
-        expect(correctedTop).toBe(isHeaderVisible ? HEADER_SIZE + DEFAULT_OFFSET : DEFAULT_OFFSET);
+        expect(correctedTop).toBe(
+            isHeaderVisible ? HEADER_SIZE + DEFAULT_OFFSET : DEFAULT_OFFSET,
+        );
     }
 });

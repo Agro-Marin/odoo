@@ -1,10 +1,13 @@
 /** @odoo-module native */
-import { SNIPPET_SPECIFIC, SNIPPET_SPECIFIC_END } from "@html_builder/utils/option_sequence";
-import { Plugin } from "@html_editor/plugin";
-import { registry } from "@web/core/registry";
-import { withSequence } from "@html_editor/utils/resource";
 import { BuilderAction } from "@html_builder/core/builder_action";
 import { BaseOptionComponent } from "@html_builder/core/utils";
+import {
+    SNIPPET_SPECIFIC,
+    SNIPPET_SPECIFIC_END,
+} from "@html_builder/utils/option_sequence";
+import { Plugin } from "@html_editor/plugin";
+import { withSequence } from "@html_editor/utils/resource";
+import { registry } from "@web/core/registry";
 
 export const POPUP = SNIPPET_SPECIFIC;
 export const COOKIES_BAR = SNIPPET_SPECIFIC_END;
@@ -50,8 +53,12 @@ class PopupOptionPlugin extends Plugin {
             if (!el.matches?.(".s_popup")) {
                 return false;
             }
-            const popupModalChildrenEls = [...(el.querySelector(".modal-content")?.children ?? [])];
-            return popupModalChildrenEls.every((child) => child.matches(".s_popup_close"));
+            const popupModalChildrenEls = [
+                ...(el.querySelector(".modal-content")?.children ?? []),
+            ];
+            return popupModalChildrenEls.every((child) =>
+                child.matches(".s_popup_close"),
+            );
         },
         on_cloned_handlers: this.onCloned.bind(this),
         on_snippet_dropped_handlers: this.onSnippetDropped.bind(this),
@@ -70,10 +77,16 @@ class PopupOptionPlugin extends Plugin {
             this.assignUniqueID(snippetEl);
             this.dependencies.history.addCustomMutation({
                 apply: () => {
-                    this.dependencies.visibility.toggleTargetVisibility(snippetEl, true);
+                    this.dependencies.visibility.toggleTargetVisibility(
+                        snippetEl,
+                        true,
+                    );
                 },
                 revert: () => {
-                    this.dependencies.visibility.toggleTargetVisibility(snippetEl, false);
+                    this.dependencies.visibility.toggleTargetVisibility(
+                        snippetEl,
+                        false,
+                    );
                 },
             });
         }
@@ -117,13 +130,20 @@ export class MoveBlockAction extends BuilderAction {
 export class SetBackdropAction extends BuilderAction {
     static id = "setBackdrop";
     isApplied({ editingElement }) {
-        const hasBackdropColor = !!editingElement.style.getPropertyValue("background-color").trim();
-        const hasNoBackdropClass = editingElement.classList.contains("s_popup_no_backdrop");
+        const hasBackdropColor = !!editingElement.style
+            .getPropertyValue("background-color")
+            .trim();
+        const hasNoBackdropClass =
+            editingElement.classList.contains("s_popup_no_backdrop");
         return hasBackdropColor && !hasNoBackdropClass;
     }
     apply({ editingElement }) {
         editingElement.classList.remove("s_popup_no_backdrop");
-        editingElement.style.setProperty("background-color", "var(--black-50)", "important");
+        editingElement.style.setProperty(
+            "background-color",
+            "var(--black-50)",
+            "important",
+        );
     }
     clean({ editingElement }) {
         editingElement.classList.add("s_popup_no_backdrop");

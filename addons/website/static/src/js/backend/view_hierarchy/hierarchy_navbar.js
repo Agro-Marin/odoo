@@ -1,7 +1,7 @@
 /** @odoo-module native */
+import { Component, useRef, useState } from "@odoo/owl";
 import { Dropdown } from "@web/components/dropdown/dropdown";
 import { DropdownItem } from "@web/components/dropdown/dropdown_item";
-import { Component, useRef, useState } from "@odoo/owl";
 
 export class HierarchyNavbar extends Component {
     static template = "website.hierarchy_navbar";

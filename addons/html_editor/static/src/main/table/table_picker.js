@@ -65,7 +65,7 @@ export class TablePicker extends Component {
                         break;
                 }
             },
-            { capture: true }
+            { capture: true },
         );
     }
 

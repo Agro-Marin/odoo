@@ -18,7 +18,7 @@ export class MegaMenuOption extends BaseOptionComponent {
     hasHeaderTemplates(headerTemplates) {
         const currentHeaderTemplate = getCSSVariableValue(
             "header-template",
-            getHtmlStyle(this.env.editor.document)
+            getHtmlStyle(this.env.editor.document),
         );
         return headerTemplates.includes(currentHeaderTemplate.slice(1, -1));
     }

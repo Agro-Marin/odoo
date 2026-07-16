@@ -1,13 +1,19 @@
 /** @odoo-module native */
-import { useNativeDraggable } from "@html_editor/utils/drag_and_drop";
-import { childNodeIndex, leftPos, nodeSize, rightPos } from "@html_editor/utils/position";
-import { xml } from "@odoo/owl";
-import { Plugin } from "../plugin.js";
-import { closestElement } from "../utils/dom_traversal.js";
-import { _t } from "@web/core/l10n/translation";
-import { escape } from "@web/core/utils/format/strings";
 import { baseContainerGlobalSelector } from "@html_editor/utils/base_container";
 import { getDeepestPosition, isContentEditable } from "@html_editor/utils/dom_info";
+import { useNativeDraggable } from "@html_editor/utils/drag_and_drop";
+import {
+    childNodeIndex,
+    leftPos,
+    nodeSize,
+    rightPos,
+} from "@html_editor/utils/position";
+import { xml } from "@odoo/owl";
+import { _t } from "@web/core/l10n/translation";
+import { escape } from "@web/core/utils/format/strings";
+
+import { Plugin } from "../plugin.js";
+import { closestElement } from "../utils/dom_traversal.js";
 
 /** @typedef {import("plugins").CSSSelector} CSSSelector */
 
@@ -25,7 +31,13 @@ const ALLOWED_ELEMENTS = "h1, h2, h3, p, hr, pre, blockquote, li";
 
 export class MoveNodePlugin extends Plugin {
     static id = "movenode";
-    static dependencies = ["baseContainer", "selection", "history", "position", "localOverlay"];
+    static dependencies = [
+        "baseContainer",
+        "selection",
+        "history",
+        "position",
+        "localOverlay",
+    ];
     /** @type {import("plugins").EditorResources} */
     resources = {
         layout_geometry_change_handlers: () => {
@@ -41,7 +53,7 @@ export class MoveNodePlugin extends Plugin {
             this.intersectionObserverCallback.bind(this),
             {
                 root: document,
-            }
+            },
         );
         this.visibleMovableElements = new Set();
 
@@ -55,21 +67,22 @@ export class MoveNodePlugin extends Plugin {
 
         // This container help to add zone into which the mouse can activate the move widget.
         this.widgetHookContainer = this.dependencies.localOverlay.makeLocalOverlay(
-            "oe-widget-hooks-container"
+            "oe-widget-hooks-container",
         );
         // This container contains the differents widgets.
         this.widgetContainer =
             this.dependencies.localOverlay.makeLocalOverlay("oe-widgets-container");
         // This container contains the jquery helper element.
         this.dragHelperContainer = this.dependencies.localOverlay.makeLocalOverlay(
-            "oe-movenode-helper-container"
+            "oe-movenode-helper-container",
         );
         // This container contains drop zones. They are the zones that handle where the drop should happen.
-        this.dropzonesContainer =
-            this.dependencies.localOverlay.makeLocalOverlay("oe-dropzones-container");
+        this.dropzonesContainer = this.dependencies.localOverlay.makeLocalOverlay(
+            "oe-dropzones-container",
+        );
         // This container contains drop hint. The final rectangle showed to the user.
         this.dropzoneHintContainer = this.dependencies.localOverlay.makeLocalOverlay(
-            "oe-dropzone-hint-container"
+            "oe-dropzone-hint-container",
         );
 
         // Uncomment line for debugging tranparent zones
@@ -126,7 +139,8 @@ export class MoveNodePlugin extends Plugin {
         const editableStyles = getComputedStyle(this.editable);
         this.editableRect = this.editable.getBoundingClientRect();
         const paddingLeft = parseInt(editableStyles.paddingLeft, 10) || 0;
-        this.editableRect.x = this.editableRect.x + paddingLeft - (WIDGET_CONTAINER_WIDTH + 5);
+        this.editableRect.x =
+            this.editableRect.x + paddingLeft - (WIDGET_CONTAINER_WIDTH + 5);
         this.editableRect.width =
             this.editableRect.width - paddingLeft + (WIDGET_CONTAINER_WIDTH + 5);
         const containerRect = this.widgetHookContainer.getBoundingClientRect();
@@ -165,7 +179,9 @@ export class MoveNodePlugin extends Plugin {
         const visibleElements = [...this.visibleMovableElements];
         // Prevent layout thrashing by computing all the rects and styles in
         // advance.
-        const elementRects = visibleElements.map((element) => element.getBoundingClientRect());
+        const elementRects = visibleElements.map((element) =>
+            element.getBoundingClientRect(),
+        );
         const elementStyles = visibleElements.map((element) => {
             const style = getComputedStyle(element);
             return {
@@ -185,23 +201,26 @@ export class MoveNodePlugin extends Plugin {
                     elementRect.x - containerRect.left - WIDGET_CONTAINER_WIDTH,
                     elementRect.y - containerRect.top - marginTop,
                     elementRect.width + WIDGET_CONTAINER_WIDTH,
-                    elementRect.height + marginTop + marginBottom
+                    elementRect.height + marginTop + marginBottom,
                 );
             } else if (element.tagName === "LI") {
                 // For <li>, move hookBox to the left to avoid blocking
                 // checkboxes — needed for proper list item interaction.
                 hookBox = new DOMRect(
-                    elementRect.x - containerRect.left - WIDGET_CONTAINER_WIDTH - WIDGET_MOVE_SIZE,
+                    elementRect.x -
+                        containerRect.left -
+                        WIDGET_CONTAINER_WIDTH -
+                        WIDGET_MOVE_SIZE,
                     elementRect.y - containerRect.top - marginTop,
                     WIDGET_CONTAINER_WIDTH,
-                    elementRect.height + marginTop + marginBottom
+                    elementRect.height + marginTop + marginBottom,
                 );
             } else {
                 hookBox = new DOMRect(
                     elementRect.x - containerRect.left - WIDGET_CONTAINER_WIDTH,
                     elementRect.y - containerRect.top - marginTop,
                     WIDGET_CONTAINER_WIDTH,
-                    elementRect.height + marginTop + marginBottom
+                    elementRect.height + marginTop + marginBottom,
                 );
             }
 
@@ -224,8 +243,8 @@ export class MoveNodePlugin extends Plugin {
                             ALLOWED_ELEMENTS,
                             baseContainerGlobalSelector,
                             ...this.getResource("move_node_whitelist_selectors"),
-                        ].join(", ")
-                    )
+                        ].join(", "),
+                    ),
             );
 
         if (movableElement && movableElement !== this.currentMovableElement) {
@@ -239,7 +258,7 @@ export class MoveNodePlugin extends Plugin {
                 ALLOWED_ELEMENTS,
                 baseContainerGlobalSelector,
                 ...this.getResource("move_node_whitelist_selectors"),
-            ].join(", ")
+            ].join(", "),
         )) {
             if (this.isNodeMovable(el)) {
                 elems.push(el);
@@ -249,7 +268,7 @@ export class MoveNodePlugin extends Plugin {
     }
     getDroppableElements(draggableNode) {
         return this.getMovableElements().filter(
-            (node) => !closestElement(node.parentElement, (n) => n === draggableNode)
+            (node) => !closestElement(node.parentElement, (n) => n === draggableNode),
         );
     }
     setMovableElement(movableElement) {
@@ -366,20 +385,20 @@ export class MoveNodePlugin extends Plugin {
                 originalRect.left - marginLeft - WIDGET_CONTAINER_WIDTH,
                 originalRect.top - marginTop,
                 originalRect.width + marginLeft + marginRight + WIDGET_CONTAINER_WIDTH,
-                originalRect.height + marginTop + marginBottom
+                originalRect.height + marginTop + marginBottom,
             );
             const dropzoneHintRect = new DOMRect(
                 originalRect.left - marginLeft,
                 originalRect.top - marginTop,
                 originalRect.width + marginLeft + marginRight,
-                originalRect.height + marginTop + marginBottom
+                originalRect.height + marginTop + marginBottom,
             );
 
             const dropzoneBox = document.createElement("div");
             dropzoneBox.className = `oe-dropzone-box`;
             dropzoneBox.style.top = `${dropzoneRect.top - containerRect.top}px`;
             dropzoneBox.style.left =
-                element.tagName == "LI"
+                element.tagName === "LI"
                     ? `${dropzoneRect.left - containerRect.left - WIDGET_MOVE_SIZE}px`
                     : `${dropzoneRect.left - containerRect.left}px`;
             dropzoneBox.style.width = `${dropzoneRect.width}px`;
@@ -408,27 +427,35 @@ export class MoveNodePlugin extends Plugin {
                     const currentDropHintSizeHalf = currentDropHintSize / 2;
 
                     if (direction === "north") {
-                        this._currentDropHint.style["top"] = `-${currentDropHintSizeHalf}px`;
+                        this._currentDropHint.style["top"] =
+                            `-${currentDropHintSizeHalf}px`;
                         this._currentDropHint.style["width"] = `100%`;
-                        this._currentDropHint.style["height"] = `${currentDropHintSize}px`;
+                        this._currentDropHint.style["height"] =
+                            `${currentDropHintSize}px`;
                         dropzoneHintBox.append(this._currentDropHint);
                         this._currentDropHintElementPosition = ["top", element];
                     } else if (direction === "south") {
-                        this._currentDropHint.style["bottom"] = `-${currentDropHintSizeHalf}px`;
+                        this._currentDropHint.style["bottom"] =
+                            `-${currentDropHintSizeHalf}px`;
                         this._currentDropHint.style["width"] = `100%`;
-                        this._currentDropHint.style["height"] = `${currentDropHintSize}px`;
+                        this._currentDropHint.style["height"] =
+                            `${currentDropHintSize}px`;
                         dropzoneHintBox.append(this._currentDropHint);
                         this._currentDropHintElementPosition = ["bottom", element];
                     } else if (direction === "west") {
-                        this._currentDropHint.style["left"] = `-${currentDropHintSizeHalf}px`;
+                        this._currentDropHint.style["left"] =
+                            `-${currentDropHintSizeHalf}px`;
                         this._currentDropHint.style["height"] = `100%`;
-                        this._currentDropHint.style["width"] = `${currentDropHintSize}px`;
+                        this._currentDropHint.style["width"] =
+                            `${currentDropHintSize}px`;
                         dropzoneHintBox.append(this._currentDropHint);
                         this._currentDropHintElementPosition = ["left", element];
                     } else if (direction === "east") {
-                        this._currentDropHint.style["right"] = `-${currentDropHintSizeHalf}px`;
+                        this._currentDropHint.style["right"] =
+                            `-${currentDropHintSizeHalf}px`;
                         this._currentDropHint.style["height"] = `100%`;
-                        this._currentDropHint.style["width"] = `${currentDropHintSize}px`;
+                        this._currentDropHint.style["width"] =
+                            `${currentDropHintSize}px`;
                         dropzoneHintBox.append(this._currentDropHint);
                         this._currentDropHintElementPosition = ["right", element];
                     }
@@ -461,7 +488,9 @@ export class MoveNodePlugin extends Plugin {
             this._currentDropHintElementPosition = undefined;
             const previousParent = movableElement.parentElement;
 
-            const isFocusInsideList = ["UL", "OL"].includes(focusElelement?.parentElement?.tagName);
+            const isFocusInsideList = ["UL", "OL"].includes(
+                focusElelement?.parentElement?.tagName,
+            );
             if (movableElement.tagName === "LI" && !isFocusInsideList) {
                 // If LI is moved outside a list, wrap it in UL/OL (previous parent)
                 const wrapperList = previousParent.cloneNode(false);
@@ -482,7 +511,8 @@ export class MoveNodePlugin extends Plugin {
                 if (["UL", "OL"].includes(previousParent.tagName)) {
                     previousParent.remove();
                 } else {
-                    const baseContainer = this.dependencies.baseContainer.createBaseContainer();
+                    const baseContainer =
+                        this.dependencies.baseContainer.createBaseContainer();
                     const br = document.createElement("br");
                     baseContainer.append(br);
                     previousParent.append(baseContainer);
@@ -527,7 +557,9 @@ export class MoveNodePlugin extends Plugin {
         }
     }
     isNodeMovable(node) {
-        const blacklistSelectors = this.getResource("move_node_blacklist_selectors").join(", ");
+        const blacklistSelectors = this.getResource(
+            "move_node_blacklist_selectors",
+        ).join(", ");
         if (blacklistSelectors && node.matches(blacklistSelectors)) {
             return false;
         }

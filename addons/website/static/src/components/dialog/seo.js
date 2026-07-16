@@ -1,25 +1,26 @@
 /** @odoo-module native */
-import { _t } from "@web/core/l10n/translation";
 import { deduceURLfromText } from "@html_editor/main/link/utils";
-import { pyToJsLocale, jsToPyLocale } from "@web/core/l10n/utils";
-import { htmlToTextContentInline } from "@mail/utils/common/format";
-import { rpc } from "@web/core/network/rpc";
-import { escapeRegExp } from "@web/core/utils/format/strings";
-import { useService, useAutofocus } from "@web/core/utils/hooks";
-import { isVisible } from "@web/core/utils/dom/ui";
-import { CheckBox } from "@web/components/checkbox/checkbox";
 import { MediaDialog } from "@html_editor/main/media/media_dialog/media_dialog";
-import { WebsiteDialog } from "./dialog.js";
+import { htmlToTextContentInline } from "@mail/utils/common/format";
 import {
     Component,
     onMounted,
     onWillStart,
     reactive,
     useEffect,
-    useState,
     useRef,
+    useState,
 } from "@odoo/owl";
+import { CheckBox } from "@web/components/checkbox/checkbox";
+import { _t } from "@web/core/l10n/translation";
+import { jsToPyLocale, pyToJsLocale } from "@web/core/l10n/utils";
+import { rpc } from "@web/core/network/rpc";
+import { isVisible } from "@web/core/utils/dom/ui";
+import { escapeRegExp } from "@web/core/utils/format/strings";
+import { useAutofocus, useService } from "@web/core/utils/hooks";
 import wUtils from "@website/js/utils";
+
+import { WebsiteDialog } from "./dialog.js";
 
 // This replaces \b, because accents(e.g. à, é) are not seen as word boundaries.
 // Javascript \b is not unicode aware, and words beginning or ending by accents won't match \b
@@ -138,7 +139,7 @@ const getSeo = async (self, onlyKeywords = false) => {
 
         for (let i = 0; i < keywords.length; i++) {
             for (let j = 0; j < keywords.length; j++) {
-                if (i == j || keywords[i][1] === 0) {
+                if (i === j || keywords[i][1] === 0) {
                     continue;
                 }
                 if (jaccardSimilarity(keywords[i][0], keywords[j][0]) > 0.5) {
@@ -157,20 +158,22 @@ const getSeo = async (self, onlyKeywords = false) => {
 
     const extractDescription = () => {
         let subtitlesEls = pageTextContentEl.querySelectorAll(
-            "[class*='subtitle'],[class*='lead'],[data-oe-field*='subtitle'],[data-oe-field*='description']"
+            "[class*='subtitle'],[class*='lead'],[data-oe-field*='subtitle'],[data-oe-field*='description']",
         );
         subtitlesEls = Array.from(subtitlesEls).filter(
-            (el) => isVisible(el) && el.innerText.trim()
+            (el) => isVisible(el) && el.innerText.trim(),
         );
         if (subtitlesEls.length) {
             return subtitlesEls[0].innerText.trim();
         }
         let headersEls = pageTextContentEl.querySelectorAll("h2,h3");
         headersEls = Array.from(headersEls).filter(
-            (el) => isVisible(el) && el.innerText.trim().replace(/[\W\d]/g, "")
+            (el) => isVisible(el) && el.innerText.trim().replace(/[\W\d]/g, ""),
         );
         if (headersEls.length) {
-            return headersEls.map((el) => el.innerText.trim().replace(/\s+/g, " ")).join(", ");
+            return headersEls
+                .map((el) => el.innerText.trim().replace(/\s+/g, " "))
+                .join(", ");
         }
         return self.seoContext.title || self.seoContext.description || "";
     };
@@ -209,9 +212,11 @@ class ImageSelector extends Component {
 
         this.seoContext = useState(seoContext);
 
-        const firstImageId = this.props.hasSocialDefaultImage ? "social_default_image" : "logo";
+        const firstImageId = this.props.hasSocialDefaultImage
+            ? "social_default_image"
+            : "logo";
         const firstImageSrc = `/web/image/website/${encodeURIComponent(
-            this.website.currentWebsite.id
+            this.website.currentWebsite.id,
         )}/${firstImageId}`;
         const firstImage = {
             src: firstImageSrc,
@@ -345,14 +350,16 @@ class Keyword extends Component {
                 keywords: this.props.keyword,
             });
             const regex = new RegExp(
-                WORD_SEPARATORS_REGEX + escapeRegExp(this.props.keyword) + WORD_SEPARATORS_REGEX,
-                "gi"
+                WORD_SEPARATORS_REGEX +
+                    escapeRegExp(this.props.keyword) +
+                    WORD_SEPARATORS_REGEX,
+                "gi",
             );
             this.state.suggestions = [
                 ...new Set(
                     JSON.parse(suggestions)
                         .map((word) => word.replace(regex, "").trim())
-                        .filter(Boolean)
+                        .filter(Boolean),
                 ),
             ];
         });
@@ -360,20 +367,22 @@ class Keyword extends Component {
 
     isKeywordIn(string) {
         return new RegExp(
-            WORD_SEPARATORS_REGEX + escapeRegExp(this.props.keyword) + WORD_SEPARATORS_REGEX,
-            "gi"
+            WORD_SEPARATORS_REGEX +
+                escapeRegExp(this.props.keyword) +
+                WORD_SEPARATORS_REGEX,
+            "gi",
         ).test(string);
     }
 
     getGoogleTrendsURL() {
         return `https://trends.google.com/trends/explore?q=${encodeURIComponent(
-            this.props.keyword
+            this.props.keyword,
         )}`;
     }
 
     getHeaders(tag) {
         return Array.from(
-            this.website.pageDocument.documentElement.querySelectorAll(`#wrap ${tag}`)
+            this.website.pageDocument.documentElement.querySelectorAll(`#wrap ${tag}`),
         ).map((header) => header.textContent);
     }
 
@@ -440,7 +449,7 @@ class MetaKeywords extends Component {
 
     getLanguage() {
         return pyToJsLocale(
-            this.website.pageDocument.documentElement.getAttribute("lang") || "en-US"
+            this.website.pageDocument.documentElement.getAttribute("lang") || "en-US",
         );
     }
 
@@ -457,7 +466,9 @@ class MetaKeywords extends Component {
     }
 
     removeKeyword(keyword) {
-        this.seoContext.keywords = this.seoContext.keywords.filter((kw) => kw !== keyword);
+        this.seoContext.keywords = this.seoContext.keywords.filter(
+            (kw) => kw !== keyword,
+        );
     }
 }
 
@@ -497,7 +508,7 @@ class SEOPreview extends Component {
         });
         // Capitalise the first word of each segment
         let capitalisedSegments = readableSegments.map(
-            (segment) => segment.replace(/\b\w/, (char) => char.toUpperCase()) // Capitalise each word
+            (segment) => segment.replace(/\b\w/, (char) => char.toUpperCase()), // Capitalise each word
         );
         // Remove the localisation part if it's there
         if (translatedPage) {
@@ -525,7 +536,7 @@ class SEOPreview extends Component {
         }
         if (lastIndexOfEllipsis) {
             capitalisedSegments = capitalisedSegments.filter(
-                (item, index) => item !== REPLACEMENT || index === lastIndexOfEllipsis
+                (item, index) => item !== REPLACEMENT || index === lastIndexOfEllipsis,
             );
         }
         return capitalisedSegments.join(" › ");
@@ -536,7 +547,7 @@ class SEOPreview extends Component {
             return this.props.description.substring(0, 159) + "…";
         } else if (!this.props.description?.length) {
             return _t(
-                "If you don't write one, the description will be generated by the search engines based on the content of your page."
+                "If you don't write one, the description will be generated by the search engines based on the content of your page.",
             );
         }
         return this.props.description || "";
@@ -575,7 +586,7 @@ class TitleDescription extends Component {
 
         this.titleTooltip = _t(
             'Add your own title or leave empty to use "%(defaultTitle)s". Your page title should contain max 65 characters.',
-            { defaultTitle: this.props.defaultTitle }
+            { defaultTitle: this.props.defaultTitle },
         );
 
         // Update the title when its input value changes
@@ -583,7 +594,7 @@ class TitleDescription extends Component {
             () => {
                 document.title = this.title;
             },
-            () => [this.seoContext.title]
+            () => [this.seoContext.title],
         );
 
         // Restore the original title when unmounting the component
@@ -592,7 +603,7 @@ class TitleDescription extends Component {
                 const initialTitle = document.title;
                 return () => (document.title = initialTitle);
             },
-            () => []
+            () => [],
         );
     }
 
@@ -641,7 +652,9 @@ class TitleDescription extends Component {
         }
         if (this.seoContext.description.length < this.minRecommendedDescriptionSize) {
             return _t("Too short (min 50 chars)");
-        } else if (this.seoContext.description.length > this.maxRecommendedDescriptionSize) {
+        } else if (
+            this.seoContext.description.length > this.maxRecommendedDescriptionSize
+        ) {
             return _t("Too long (max 160 chars)");
         }
         return false;
@@ -649,7 +662,7 @@ class TitleDescription extends Component {
 
     getLanguage() {
         return pyToJsLocale(
-            this.website.pageDocument.documentElement.getAttribute("lang") || "en-US"
+            this.website.pageDocument.documentElement.getAttribute("lang") || "en-US",
         );
     }
 
@@ -701,11 +714,11 @@ export class BrokenLink extends Component {
                 const unmountAutocompleteWithPages = wUtils.autocompleteWithPages(
                     input,
                     options,
-                    this.env
+                    this.env,
                 );
                 return () => unmountAutocompleteWithPages();
             },
-            () => [this.urlInputRef.el]
+            () => [this.urlInputRef.el],
         );
     }
 
@@ -744,8 +757,8 @@ export class BrokenLink extends Component {
         return (
             this.state.checkingLink ||
             !link.newLink.trim().length ||
-            link.newLink.trim() == link.oldLink ||
-            link.validLink == link.newLink.trim()
+            link.newLink.trim() === link.oldLink ||
+            link.validLink === link.newLink.trim()
         );
     }
 }
@@ -784,14 +797,17 @@ export class SeoChecks extends Component {
 
     imgUpdated(img) {
         img.updated = true;
-        this.seoContext.updatedAlts = this.state.altAttributes.filter((img) => img.updated);
+        this.seoContext.updatedAlts = this.state.altAttributes.filter(
+            (img) => img.updated,
+        );
     }
 
     async getAltAttributes() {
         const uniqueRecords = new Set();
 
         // Select all relevant <img> elements in the editable page.
-        const imgEls = this.website.pageDocument.documentElement.querySelectorAll("#wrapwrap img");
+        const imgEls =
+            this.website.pageDocument.documentElement.querySelectorAll("#wrapwrap img");
 
         imgEls.forEach((el) => {
             // Find the closest ancestor element containing Odoo metadata.
@@ -829,7 +845,7 @@ export class SeoChecks extends Component {
         this.state.checkingLinks = true;
         this.state.counterLinks = 1;
         const hrefEls = this.website.pageDocument.documentElement.querySelectorAll(
-            "#wrapwrap a[href]:not(.oe_unremovable)"
+            "#wrapwrap a[href]:not(.oe_unremovable)",
         );
         let links = Array.from(hrefEls)
             .filter((a) => {
@@ -845,7 +861,7 @@ export class SeoChecks extends Component {
             })
             .map((el, index) => {
                 const recordEl = el.closest(
-                    "[data-res-model][data-res-id], [data-oe-model][data-oe-id]"
+                    "[data-res-model][data-res-id], [data-oe-model][data-oe-id]",
                 );
                 if (
                     !recordEl ||
@@ -856,7 +872,8 @@ export class SeoChecks extends Component {
                     return false;
                 }
                 const hashIndex = el.href.indexOf("#");
-                const cleanedUrl = hashIndex !== -1 ? el.href.substring(0, hashIndex) : el.href;
+                const cleanedUrl =
+                    hashIndex !== -1 ? el.href.substring(0, hashIndex) : el.href;
                 const path = new URL(cleanedUrl);
                 let label = "";
                 let isImageLink = false;
@@ -868,16 +885,23 @@ export class SeoChecks extends Component {
                     if (imgLinkEl?.src) {
                         label = imgLinkEl.src.split("/").pop();
                         isImageLink = true;
-                    } else if (el.querySelector(":is(.fa-solid, .fa-regular, .fa-brands)")) {
+                    } else if (
+                        el.querySelector(":is(.fa-solid, .fa-regular, .fa-brands)")
+                    ) {
                         label =
-                            el.ariaLabel || el.title || el.href.split("/").filter(Boolean).pop();
+                            el.ariaLabel ||
+                            el.title ||
+                            el.href.split("/").filter(Boolean).pop();
                         isImageLink = true;
                     }
                 }
                 return {
                     link: path.pathname + path.search,
                     res_model: recordEl.dataset.resModel || recordEl.dataset.oeModel,
-                    res_id: parseInt(recordEl.dataset.resId || recordEl.dataset.oeId, 10),
+                    res_id: parseInt(
+                        recordEl.dataset.resId || recordEl.dataset.oeId,
+                        10,
+                    ),
                     field: recordEl.dataset.oeField || null,
                     label: label,
                     isImageLink: isImageLink,
@@ -966,15 +990,17 @@ export class OptimizeSEODialog extends Component {
             });
 
             this.canEditSeo = this.data.can_edit_seo;
-            this.canEditDescription = this.canEditSeo && "website_meta_description" in this.data;
+            this.canEditDescription =
+                this.canEditSeo && "website_meta_description" in this.data;
             this.canEditTitle = this.canEditSeo && "website_meta_title" in this.data;
             this.canEditUrl = this.canEditSeo && "seo_name" in this.data;
             seoContext.title = this.canEditTitle && this.data.website_meta_title;
 
             // If website.page, hide the google preview & tell user his page is currently unindexed
-            this.isIndexed = "website_indexed" in this.data ? this.data.website_indexed : true;
+            this.isIndexed =
+                "website_indexed" in this.data ? this.data.website_indexed : true;
             this.seoNameHelp = _t(
-                "This value will be escaped to be compliant with all major browsers and used in url. Keep it empty to use the default name of the record."
+                "This value will be escaped to be compliant with all major browsers and used in url. Keep it empty to use the default name of the record.",
             );
             this.previousSeoName = this.canEditUrl && this.data.seo_name;
             seoContext.seoName = this.previousSeoName;
@@ -982,7 +1008,7 @@ export class OptimizeSEODialog extends Component {
 
             seoContext.description = this.getMeta({ name: "description" });
             this.previewDescription = _t(
-                "Your page description should be between 50 and 160 characters long."
+                "Your page description should be between 50 and 160 characters long.",
             );
             this.defaultTitle = this.getMeta({ name: "default_title" }) || "";
             seoContext.defaultTitle = this.defaultTitle;
@@ -993,7 +1019,7 @@ export class OptimizeSEODialog extends Component {
 
             this.pageImages = this.getImages();
             this.socialPreviewDescription = _t(
-                "The description will be generated by social media based on page content unless you specify one."
+                "The description will be generated by social media based on page content unless you specify one.",
             );
             this.hasSocialDefaultImage = this.data.has_social_default_image;
 
@@ -1005,7 +1031,7 @@ export class OptimizeSEODialog extends Component {
     async waitForIframe() {
         await new Promise((resolve) => {
             const iframeEl = document.querySelector(
-                ".o_iframe_container > iframe:not(.o_ignore_in_tour)"
+                ".o_iframe_container > iframe:not(.o_ignore_in_tour)",
             );
             if (!iframeEl || iframeEl.contentDocument?.readyState === "complete") {
                 return resolve();
@@ -1024,7 +1050,7 @@ export class OptimizeSEODialog extends Component {
             ...new Set(
                 Array.from(imageEls)
                     .filter((img) => img.naturalHeight > 200 && img.naturalWidth > 200)
-                    .map((img) => img.getAttribute("src"))
+                    .map((img) => img.getAttribute("src")),
             ),
         ];
     }
@@ -1074,27 +1100,30 @@ export class OptimizeSEODialog extends Component {
         const rpcCalls = [];
         if (
             seoContext.brokenLinks.some(
-                (link) => link.oldLink !== link.newLink || link.remove === true
+                (link) => link.oldLink !== link.newLink || link.remove === true,
             )
         ) {
             rpcCalls.push(
                 rpc("/website/update_broken_links", {
                     links: seoContext.brokenLinks,
-                })
+                }),
             );
         }
         if (seoContext.updatedAlts?.length) {
             rpcCalls.push(
                 rpc("/website/update_alt_images", {
                     imgs: seoContext.updatedAlts,
-                })
+                }),
             );
         }
 
         await Promise.all(rpcCalls);
 
         this.website.goToWebsite({
-            path: this.url.replace(this.previousSeoName || this.seoNameDefault, seoContext.seoName),
+            path: this.url.replace(
+                this.previousSeoName || this.seoNameDefault,
+                seoContext.seoName,
+            ),
         });
     }
 }

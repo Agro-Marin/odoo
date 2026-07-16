@@ -1,6 +1,6 @@
+import { Plugin } from "@html_editor/plugin";
 import { beforeEach, expect, test } from "@odoo/hoot";
 import { click } from "@odoo/hoot-dom";
-import { Plugin } from "@html_editor/plugin";
 import { contains } from "@web/../tests/web_test_helpers";
 import {
     addPlugin,
@@ -63,7 +63,9 @@ test("Switching search type changes data checkboxes", async () => {
     expect("[data-label='Search within'] button.o-dropdown").toHaveText("Pages");
     expect(".form-check-input").toHaveCount(1);
     await contains("[data-label='Search within'] button.o-dropdown").click();
-    await contains(".o_popover[role=menu] [data-action-value='/website/search']").click();
+    await contains(
+        ".o_popover[role=menu] [data-action-value='/website/search']",
+    ).click();
     expect("[data-label='Search within'] button.o-dropdown").toHaveText("Everything");
     expect(".form-check-input").toHaveCount(4);
 });
@@ -72,9 +74,13 @@ test("Switching search type resets 'order by' option to default", async () => {
     await setupWebsiteBuilder(searchbarHTML("write_date asc"));
     await contains(":iframe .search-query").click();
     expect("[data-label='Search within'] button.o-dropdown").toHaveText("Pages");
-    expect("[data-label='Order by'] button.o-dropdown").toHaveText("Date (old to recent)");
+    expect("[data-label='Order by'] button.o-dropdown").toHaveText(
+        "Date (old to recent)",
+    );
     await contains("[data-label='Search within'] button.o-dropdown").click();
-    await contains(".o_popover[role=menu] [data-action-value='/website/search']").click();
+    await contains(
+        ".o_popover[role=menu] [data-action-value='/website/search']",
+    ).click();
     expect("[data-label='Search within'] button.o-dropdown").toHaveText("Everything");
     expect("[data-label='Order by'] button.o-dropdown").toHaveText("Name (A-Z)");
 });
@@ -85,7 +91,9 @@ test("Switching search type keeps 'order by' option if it exists on both types",
     expect("[data-label='Search within'] button.o-dropdown").toHaveText("Pages");
     expect("[data-label='Order by'] button.o-dropdown").toHaveText("something");
     await contains("[data-label='Search within'] button.o-dropdown").click();
-    await contains(".o_popover[role=menu] [data-action-value='/website/search']").click();
+    await contains(
+        ".o_popover[role=menu] [data-action-value='/website/search']",
+    ).click();
     expect("[data-label='Search within'] button.o-dropdown").toHaveText("Everything");
     expect("[data-label='Order by'] button.o-dropdown").toHaveText("something");
 });
@@ -93,10 +101,13 @@ test("Switching search type keeps 'order by' option if it exists on both types",
 test("Input parent is not contenteditable, while all other children beside the input are", async () => {
     await setupWebsiteBuilder(searchbarHTML("name asc"));
 
-    expect(":iframe .input-group:has(:scope > input)").toHaveAttribute("contenteditable", "false");
+    expect(":iframe .input-group:has(:scope > input)").toHaveAttribute(
+        "contenteditable",
+        "false",
+    );
 
     expect(":iframe .input-group:has(:scope > input) > *:not(input)").toHaveAttribute(
         "contenteditable",
-        "true"
+        "true",
     );
 });

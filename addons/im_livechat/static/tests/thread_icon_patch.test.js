@@ -1,9 +1,14 @@
-import { contains, openDiscuss, start, startServer } from "@mail/../tests/mail_test_helpers";
+import {
+    contains,
+    openDiscuss,
+    start,
+    startServer,
+} from "@mail/../tests/mail_test_helpers";
 import { withGuest } from "@mail/../tests/mock_server/mail_mock_server";
 import { describe, test } from "@odoo/hoot";
 import { Command, serverState } from "@web/../tests/web_test_helpers";
-
 import { rpc } from "@web/core/network/rpc";
+
 import { defineLivechatModels } from "./livechat_test_helpers.js";
 
 describe.current.tags("desktop");
@@ -14,7 +19,10 @@ test("Public website visitor is typing", async () => {
     const guestId = pyEnv["mail.guest"].create({ name: "Visitor 20" });
     const channelId = pyEnv["discuss.channel"].create({
         channel_member_ids: [
-            Command.create({ partner_id: serverState.partnerId, livechat_member_type: "agent" }),
+            Command.create({
+                partner_id: serverState.partnerId,
+                livechat_member_type: "agent",
+            }),
             Command.create({ guest_id: guestId, livechat_member_type: "visitor" }),
         ],
         channel_type: "livechat",
@@ -29,10 +37,10 @@ test("Public website visitor is typing", async () => {
         rpc("/discuss/channel/notify_typing", {
             is_typing: true,
             channel_id: channel.id,
-        })
+        }),
     );
     await contains(".o-mail-DiscussContent-header .o-discuss-Typing-icon");
     await contains(
-        ".o-mail-DiscussContent-header .o-discuss-Typing-icon[title='Visitor 20 is typing...']"
+        ".o-mail-DiscussContent-header .o-discuss-Typing-icon[title='Visitor 20 is typing...']",
     );
 });

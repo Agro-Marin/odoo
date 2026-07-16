@@ -1,7 +1,4 @@
 /** @odoo-module native */
-import { tourState } from "@web_tour/js/tour_state";
-import hoot from "@odoo/hoot-dom";
-import { serializeChanges, serializeMutation } from "@web_tour/js/utils/tour_utils";
 // ``tour_helpers_hoot`` is a side-effect-only module: it ``patch()``es
 // ``TourHelpers.prototype`` with the actual click/edit/hover/check/...
 // methods that ``run: "click"`` (and friends) reach for at line ~117.
@@ -16,10 +13,14 @@ import { serializeChanges, serializeMutation } from "@web_tour/js/utils/tour_uti
 // ``TypeError: actionHelper.click is not a function`` because the
 // patch never executed in the dynamic-import flow.
 import "@web_tour/js/tour_automatic/tour_helpers_hoot";
-import { TourHelpers } from "@web_tour/js/tour_automatic/tour_helpers";
-import { TourStep } from "@web_tour/js/tour_step";
+
+import hoot from "@odoo/hoot-dom";
 import { getTag } from "@web/core/utils/dom/xml";
 import { MacroMutationObserver } from "@web/core/utils/macro";
+import { TourHelpers } from "@web_tour/js/tour_automatic/tour_helpers";
+import { tourState } from "@web_tour/js/tour_state";
+import { TourStep } from "@web_tour/js/tour_step";
+import { serializeChanges, serializeMutation } from "@web_tour/js/utils/tour_utils";
 
 async function waitForMutations(target = document, timeout = 1000 / 16) {
     return new Promise((resolve) => {
@@ -73,7 +74,7 @@ export class TourStepAutomatic extends TourStep {
         }
         if (reason) {
             throw new Error(
-                `Potential non deterministic behavior found in ${delay}ms for trigger ${this.trigger}.\n${reason}`
+                `Potential non deterministic behavior found in ${delay}ms for trigger ${this.trigger}.\n${reason}`,
             );
         }
     }
@@ -87,12 +88,12 @@ export class TourStepAutomatic extends TourStep {
             }
             if (!this.elementIsInModal) {
                 errors.push(
-                    `BUT: It is not allowed to do action on an element that's below a modal.`
+                    `BUT: It is not allowed to do action on an element that's below a modal.`,
                 );
             }
             if (!this.elementIsEnabled) {
                 errors.push(
-                    `BUT: Element is not enabled. TIP: You can use :enable to wait the element is enabled before doing action on it.`
+                    `BUT: Element is not enabled. TIP: You can use :enable to wait the element is enabled before doing action on it.`,
                 );
             }
             if (!this.parentFrameIsReady) {
@@ -103,7 +104,7 @@ export class TourStepAutomatic extends TourStep {
             if (checkElement) {
                 errors.push(`Element has been found.`);
                 errors.push(
-                    `BUT: Element is not visible. TIP: You can use :not(:visible) to force the search for an invisible element.`
+                    `BUT: Element is not visible. TIP: You can use :not(:visible) to force the search for an invisible element.`,
                 );
             } else {
                 errors.push(`Element (${this.trigger}) has not been found.`);
@@ -178,7 +179,7 @@ export class TourStepAutomatic extends TourStep {
     get elementIsInModal() {
         if (this.hasAction) {
             const overlays = hoot.queryFirst(
-                ".popover, .o-we-command, .o-we-toolbar, .o_notification"
+                ".popover, .o-we-command, .o-we-toolbar, .o_notification",
             );
             const modal = hoot.queryFirst(".modal:visible:not(.o_inactive_modal):last");
             if (modal && !overlays && !this.trigger.startsWith("body")) {

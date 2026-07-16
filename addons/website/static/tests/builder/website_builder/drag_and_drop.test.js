@@ -1,3 +1,9 @@
+import {
+    dummyBase64Img,
+    getDragHelper,
+    getDragMoveHelper,
+    waitForEndOfOperation,
+} from "@html_builder/../tests/helpers";
 import { expect, test } from "@odoo/hoot";
 import { contains } from "@web/../tests/web_test_helpers";
 import {
@@ -5,12 +11,6 @@ import {
     setupWebsiteBuilder,
     setupWebsiteBuilderWithSnippet,
 } from "@website/../tests/builder/website_helpers";
-import {
-    dummyBase64Img,
-    getDragHelper,
-    getDragMoveHelper,
-    waitForEndOfOperation,
-} from "@html_builder/../tests/helpers";
 
 defineWebsiteModels();
 
@@ -78,23 +78,27 @@ test("Drag and drop a column toggles the grid mode", async () => {
 
     await moveTo(":iframe .oe_drop_zone.oe_grid_zone");
     expect(":iframe .oe_drop_zone.oe_grid_zone").toHaveClass("invisible");
-    expect(":iframe section.s_text_image .row.o_grid_mode > .o_we_background_grid").toHaveCount(1);
+    expect(
+        ":iframe section.s_text_image .row.o_grid_mode > .o_we_background_grid",
+    ).toHaveCount(1);
     expect(":iframe section.s_text_image .row > .o_we_drag_helper").toHaveCount(1);
 
     await drop(getDragMoveHelper());
     expect(":iframe .oe_drop_zone").toHaveCount(0);
     expect(":iframe section.s_text_image .row > .o_we_background_grid").toHaveCount(0);
     expect(":iframe section.s_text_image .row > .o_we_drag_helper").toHaveCount(0);
-    expect(":iframe section.s_text_image .row.o_grid_mode > .o_grid_item").toHaveCount(2);
+    expect(":iframe section.s_text_image .row.o_grid_mode > .o_grid_item").toHaveCount(
+        2,
+    );
     await waitForEndOfOperation();
     expect(".o-website-builder_sidebar .fa-undo").toBeEnabled();
 });
 
 test("Drag and drop an image should drag the closest draggable element but not if it is a section", async () => {
-    const { getEditableContent, waitSidebarUpdated } = await setupWebsiteBuilderWithSnippet(
-        ["s_text_image", "s_three_columns"],
-        { loadIframeBundles: true }
-    );
+    const { getEditableContent, waitSidebarUpdated } =
+        await setupWebsiteBuilderWithSnippet(["s_text_image", "s_three_columns"], {
+            loadIframeBundles: true,
+        });
     const editable = getEditableContent();
     const imageEl = editable.querySelector(".s_text_image img");
     imageEl.src = dummyBase64Img;
@@ -106,7 +110,9 @@ test("Drag and drop an image should drag the closest draggable element but not i
     await contains(":iframe section.s_text_image img").click();
     await waitSidebarUpdated();
     expect(".overlay .o_overlay_options .o_move_handle").toHaveClass("o_draggable");
-    expect(":iframe section.s_text_image .row > div:nth-child(2)").toHaveClass("o_draggable");
+    expect(":iframe section.s_text_image .row > div:nth-child(2)").toHaveClass(
+        "o_draggable",
+    );
 
     const { drop } = await contains(":iframe section.s_text_image img").drag();
     expect(":iframe .oe_drop_zone.oe_grid_zone").toHaveCount(1);
@@ -137,10 +143,12 @@ test("Drag and drop an inner content as a grid item", async () => {
             </div>
         </section>
         `,
-        { loadIframeBundles: true }
+        { loadIframeBundles: true },
     );
     // Drag over the grid and drop it as an inner content.
-    let dragUtils = await contains("#snippet_content [name='Alert'] .o_snippet_thumbnail").drag();
+    let dragUtils = await contains(
+        "#snippet_content [name='Alert'] .o_snippet_thumbnail",
+    ).drag();
     expect(":iframe .oe_drop_zone").toHaveCount(3);
     expect(":iframe .oe_grid_zone").toHaveCount(1);
     await dragUtils.moveTo(":iframe .oe_grid_zone", { position: { x: 555, y: 55 } });
@@ -157,7 +165,9 @@ test("Drag and drop an inner content as a grid item", async () => {
     expect(":iframe div.s_alert").toHaveCount(0);
 
     // Drag over the grid and drop it as a grid item.
-    dragUtils = await contains("#snippet_content [name='Alert'] .o_snippet_thumbnail").drag();
+    dragUtils = await contains(
+        "#snippet_content [name='Alert'] .o_snippet_thumbnail",
+    ).drag();
     expect(":iframe .oe_drop_zone").toHaveCount(3);
     expect(":iframe .oe_grid_zone").toHaveCount(1);
     await dragUtils.moveTo(":iframe .oe_grid_zone", { position: { x: 555, y: 55 } });
@@ -181,7 +191,9 @@ test("Drag and drop an inner content as a grid item", async () => {
     expect(":iframe div.s_alert").toHaveCount(0);
 
     // Drop near the grid (should become a grid item in the top left corner).
-    dragUtils = await contains("#snippet_content [name='Alert'] .o_snippet_thumbnail").drag();
+    dragUtils = await contains(
+        "#snippet_content [name='Alert'] .o_snippet_thumbnail",
+    ).drag();
     expect(":iframe .oe_drop_zone").toHaveCount(3);
     expect(":iframe .oe_grid_zone").toHaveCount(1);
     await dragUtils.moveTo({ position: { x: 700, y: 55 } });
@@ -198,7 +210,9 @@ test("Drag and drop an inner content as a grid item", async () => {
 
 test("Dragging an inner content from the sidebar in mobile view should not make grid dropzones appear", async () => {
     await setupWebsiteBuilderWithSnippet("s_banner", { loadIframeBundles: true });
-    let dragUtils = await contains("#snippet_content [name='Alert'] .o_snippet_thumbnail").drag();
+    let dragUtils = await contains(
+        "#snippet_content [name='Alert'] .o_snippet_thumbnail",
+    ).drag();
     expect(":iframe .oe_grid_zone").toHaveCount(1);
     await dragUtils.drop(getDragHelper());
     await waitForEndOfOperation();
@@ -207,7 +221,9 @@ test("Dragging an inner content from the sidebar in mobile view should not make 
     // Toggle the mobile preview.
     await contains(".o-snippets-top-actions [data-action='mobile']").click();
     expect(".o_website_preview").toHaveClass("o_is_mobile");
-    dragUtils = await contains("#snippet_content [name='Alert'] .o_snippet_thumbnail").drag();
+    dragUtils = await contains(
+        "#snippet_content [name='Alert'] .o_snippet_thumbnail",
+    ).drag();
     expect(":iframe .oe_grid_zone").toHaveCount(0);
     await dragUtils.cancel();
 });
@@ -215,7 +231,9 @@ test("Dragging an inner content from the sidebar in mobile view should not make 
 test("Dragging an inner content from the page should not make grid dropzones appear", async () => {
     await setupWebsiteBuilderWithSnippet("s_banner", { loadIframeBundles: true });
     // Add an inner snippet in the first column.
-    let dragUtils = await contains("#snippet_content [name='Alert'] .o_snippet_thumbnail").drag();
+    let dragUtils = await contains(
+        "#snippet_content [name='Alert'] .o_snippet_thumbnail",
+    ).drag();
     expect(":iframe .oe_grid_zone").toHaveCount(1);
     await dragUtils.moveTo(":iframe .oe_drop_zone");
     await dragUtils.drop(getDragHelper());

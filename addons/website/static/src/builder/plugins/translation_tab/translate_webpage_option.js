@@ -8,7 +8,7 @@ export class TranslateWebpageOption extends BaseOptionComponent {
     setup() {
         super.setup();
         this.translationState = useState(
-            this.env.editor.shared.customizeTranslationTab.getTranslationState()
+            this.env.editor.shared.customizeTranslationTab.getTranslationState(),
         );
     }
 }

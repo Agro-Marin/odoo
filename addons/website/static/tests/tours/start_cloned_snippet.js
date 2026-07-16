@@ -1,7 +1,7 @@
 import {
     clickOnSnippet,
-    registerWebsitePreviewTour,
     insertSnippet,
+    registerWebsitePreviewTour,
 } from "@website/js/tours/tour_utils";
 
 registerWebsitePreviewTour(
@@ -40,5 +40,5 @@ registerWebsitePreviewTour(
                 },
             },
         ];
-    }
+    },
 );

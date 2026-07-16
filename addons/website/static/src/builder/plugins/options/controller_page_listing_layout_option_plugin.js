@@ -1,10 +1,10 @@
 /** @odoo-module native */
-import { Plugin } from "@html_editor/plugin";
-import { registry } from "@web/core/registry";
-import { _t } from "@web/core/l10n/translation";
-import { rpc } from "@web/core/network/rpc";
 import { BuilderAction } from "@html_builder/core/builder_action";
 import { BaseOptionComponent } from "@html_builder/core/utils";
+import { Plugin } from "@html_editor/plugin";
+import { _t } from "@web/core/l10n/translation";
+import { rpc } from "@web/core/network/rpc";
+import { registry } from "@web/core/registry";
 
 const mainObjectRe = /website\.controller\.page\(((\d+,?)*)\)/;
 
@@ -36,7 +36,8 @@ export class ListingLayoutAction extends BuilderAction {
         this.resIds = undefined;
     }
     async prepare() {
-        const mainObjectRepr = this.document.documentElement.getAttribute("data-main-object");
+        const mainObjectRepr =
+            this.document.documentElement.getAttribute("data-main-object");
         const match = mainObjectRe.exec(mainObjectRepr);
         if (match && match[1]) {
             this.resIds = match[1].split(",").flatMap((e) => {
@@ -47,9 +48,11 @@ export class ListingLayoutAction extends BuilderAction {
                 return id ? [id] : [];
             });
         }
-        const results = await this.services.orm.read("website.controller.page", this.resIds, [
-            "default_layout",
-        ]);
+        const results = await this.services.orm.read(
+            "website.controller.page",
+            this.resIds,
+            ["default_layout"],
+        );
         this.layout = results[0]["default_layout"];
     }
     getValue() {
@@ -75,4 +78,7 @@ export class ListingLayoutAction extends BuilderAction {
 
 registry
     .category("website-plugins")
-    .add(ControllerPageListingLayoutOptionPlugin.id, ControllerPageListingLayoutOptionPlugin);
+    .add(
+        ControllerPageListingLayoutOptionPlugin.id,
+        ControllerPageListingLayoutOptionPlugin,
+    );

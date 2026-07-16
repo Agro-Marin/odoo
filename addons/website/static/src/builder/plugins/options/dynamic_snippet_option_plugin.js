@@ -1,12 +1,13 @@
 /** @odoo-module native */
+import { BuilderAction } from "@html_builder/core/builder_action";
 import { SNIPPET_SPECIFIC_END } from "@html_builder/utils/option_sequence";
 import { Plugin } from "@html_editor/plugin";
 import { withSequence } from "@html_editor/utils/resource";
 import { rpc } from "@web/core/network/rpc";
 import { registry } from "@web/core/registry";
 import { Cache } from "@web/core/utils/collections/cache";
+
 import { DynamicSnippetOption } from "./dynamic_snippet_option.js";
-import { BuilderAction } from "@html_builder/core/builder_action";
 
 /**
  * @typedef {object} Template
@@ -91,7 +92,7 @@ class DynamicSnippetOptionPlugin extends Plugin {
         this.dynamicFiltersCache = new Cache(this._fetchDynamicFilters, JSON.stringify);
         this.dynamicFilterTemplatesCache = new Cache(
             this._fetchDynamicSnippetTemplates,
-            JSON.stringify
+            JSON.stringify,
         );
     }
     destroy() {
@@ -114,7 +115,11 @@ class DynamicSnippetOptionPlugin extends Plugin {
             snippetEl.classList.add("o_dynamic_snippet_loading");
         }
     }
-    async setOptionsDefaultValues(snippetEl, modelNameFilter, contextualFilterDomain = []) {
+    async setOptionsDefaultValues(
+        snippetEl,
+        modelNameFilter,
+        contextualFilterDomain = [],
+    ) {
         await this.fetchDynamicFilters({
             model_name: modelNameFilter,
             search_domain: contextualFilterDomain,
@@ -129,7 +134,8 @@ class DynamicSnippetOptionPlugin extends Plugin {
         for (const dynamicFilterTemplate of this.fetchedDynamicFilterTemplates) {
             dynamicFilterTemplates[dynamicFilterTemplate.key] = dynamicFilterTemplate;
         }
-        const defaultModelName = modelNameFilter || this.fetchedDynamicFilters[0]?.model_name;
+        const defaultModelName =
+            modelNameFilter || this.fetchedDynamicFilters[0]?.model_name;
         const isSingleMode = this.isSingleModeSnippet({
             ...snippetEl.dataset,
             snippetModel: defaultModelName,
@@ -137,18 +143,26 @@ class DynamicSnippetOptionPlugin extends Plugin {
         // The snippet simply gets its template from a "template class"
         // when provided. Otherwise, it will use a default template.
         let defaultTemplate = this.fetchedDynamicFilterTemplates.find((template) =>
-            snippetEl.classList.contains(this.getTemplateClass(template.key))
+            snippetEl.classList.contains(this.getTemplateClass(template.key)),
         );
         if (!defaultTemplate) {
-            defaultTemplate = this.getDefaultSnippetTemplate(defaultModelName, isSingleMode);
+            defaultTemplate = this.getDefaultSnippetTemplate(
+                defaultModelName,
+                isSingleMode,
+            );
         }
         if (isSingleMode) {
             if (defaultModelName) {
                 setDatasetIfUndefined(snippetEl, "snippetModel", defaultModelName);
             }
-            const defaultSnippetRecordId = await this.getDefaultSnippetRecordId(defaultModelName);
+            const defaultSnippetRecordId =
+                await this.getDefaultSnippetRecordId(defaultModelName);
             if (defaultSnippetRecordId) {
-                setDatasetIfUndefined(snippetEl, "snippetResId", defaultSnippetRecordId);
+                setDatasetIfUndefined(
+                    snippetEl,
+                    "snippetResId",
+                    defaultSnippetRecordId,
+                );
             }
             setDatasetIfUndefined(snippetEl, "templateKey", defaultTemplate.key);
             this.updateTemplate(snippetEl, defaultTemplate);
@@ -156,7 +170,8 @@ class DynamicSnippetOptionPlugin extends Plugin {
             let selectedFilterId = snippetEl.dataset["filterId"];
             if (Object.keys(dynamicFilters).length > 0) {
                 if (!snippetEl.dataset.numberOfRecords) {
-                    snippetEl.dataset["numberOfRecords"] = this.fetchedDynamicFilters[0].limit;
+                    snippetEl.dataset["numberOfRecords"] =
+                        this.fetchedDynamicFilters[0].limit;
                 }
                 const defaultFilterId = this.fetchedDynamicFilters[0].id;
                 if (!dynamicFilters[selectedFilterId]) {
@@ -175,7 +190,8 @@ class DynamicSnippetOptionPlugin extends Plugin {
     }
     getTemplateByKey(templateKey) {
         return (
-            templateKey && this.fetchedDynamicFilterTemplates.find(({ key }) => key === templateKey)
+            templateKey &&
+            this.fetchedDynamicFilterTemplates.find(({ key }) => key === templateKey)
         );
     }
     getTemplateClass(templateKey) {
@@ -219,14 +235,21 @@ class DynamicSnippetOptionPlugin extends Plugin {
             const snippetContentEl = el.querySelector(".s_dynamic_snippet_content");
             snippetContainerEl.classList.remove(...CONTAINER_CLASSES);
             snippetContainerEl.classList.add(
-                ...(template.containerClasses || "container").split(" ")
+                ...(template.containerClasses || "container").split(" "),
             );
-            snippetContentEl.classList.remove(...(oldTemplate.contentClasses?.split(" ") || []));
-            snippetContentEl.classList.add(...(template.contentClasses?.split(" ") || []));
+            snippetContentEl.classList.remove(
+                ...(oldTemplate.contentClasses?.split(" ") || []),
+            );
+            snippetContentEl.classList.add(
+                ...(template.contentClasses?.split(" ") || []),
+            );
             el.classList.remove(...(oldTemplate.extraSnippetClasses?.split(" ") || []));
             el.classList.add(...(template.extraSnippetClasses?.split(" ") || []));
         }
-        this.dispatchTo("dynamic_snippet_template_updated", { el: el, template: template });
+        this.dispatchTo("dynamic_snippet_template_updated", {
+            el: el,
+            template: template,
+        });
     }
     async fetchDynamicFilters(params) {
         this.fetchedDynamicFilters = await this.dynamicFiltersCache.read(params);
@@ -236,9 +259,10 @@ class DynamicSnippetOptionPlugin extends Plugin {
         return rpc("/website/snippet/options_filters", params);
     }
     async fetchDynamicSnippetTemplates(modelName) {
-        this.fetchedDynamicFilterTemplates = await this.dynamicFilterTemplatesCache.read({
-            filter_name: modelName.replaceAll(".", "_"),
-        });
+        this.fetchedDynamicFilterTemplates =
+            await this.dynamicFilterTemplatesCache.read({
+                filter_name: modelName.replaceAll(".", "_"),
+            });
         return this.fetchedDynamicFilterTemplates;
     }
     async _fetchDynamicSnippetTemplates(params) {
@@ -278,18 +302,21 @@ class DynamicSnippetOptionPlugin extends Plugin {
             modelName,
             [["is_published", "=", true]],
             ["id"],
-            { limit: 1 }
+            { limit: 1 },
         );
         return defaultRecrod[0]?.id || "";
     }
     getDefaultSnippetFilterId(modelName) {
-        return this.fetchedDynamicFilters.find(({ model_name }) => model_name === modelName).id;
+        return this.fetchedDynamicFilters.find(
+            ({ model_name }) => model_name === modelName,
+        ).id;
     }
     getSnippetModelName(snippetData) {
         return (
             snippetData.snippetModel ||
-            this.fetchedDynamicFilters.find(({ id }) => id === parseInt(snippetData.filterId))
-                ?.model_name
+            this.fetchedDynamicFilters.find(
+                ({ id }) => id === parseInt(snippetData.filterId),
+            )?.model_name
         );
     }
     getSnippetTitleClasses(position) {
@@ -320,8 +347,13 @@ export class DynamicFilterAction extends BuilderAction {
             if (utils.isSingleModeSnippet(el.dataset)) {
                 el.dataset.snippetModel = params.model_name;
                 delete el.dataset.filterId;
-                defaultTemplate = utils.getDefaultSnippetTemplate(params.model_name, true);
-                el.dataset.snippetResId = await utils.getDefaultSnippetRecordId(params.model_name);
+                defaultTemplate = utils.getDefaultSnippetTemplate(
+                    params.model_name,
+                    true,
+                );
+                el.dataset.snippetResId = await utils.getDefaultSnippetRecordId(
+                    params.model_name,
+                );
             }
             utils.updateTemplate(el, defaultTemplate);
         }
@@ -395,7 +427,9 @@ export class NumberOfRecordsAction extends BuilderAction {
     }
     async load({ editingElement }) {
         this.modelName = this.utils.getSnippetModelName(editingElement.dataset);
-        this.defaultRecordId = await this.utils.getDefaultSnippetRecordId(this.modelName);
+        this.defaultRecordId = await this.utils.getDefaultSnippetRecordId(
+            this.modelName,
+        );
     }
     isApplied({ editingElement: el, params }) {
         return el.dataset.numberOfRecords === params.mainParam;
@@ -412,11 +446,17 @@ export class NumberOfRecordsAction extends BuilderAction {
         if (switchMode) {
             const canUsePreviousTemplate =
                 !!this.previousTemplate &&
-                this.utils.isModelSnippetTemplate(this.previousTemplate.key, this.modelName) &&
+                this.utils.isModelSnippetTemplate(
+                    this.previousTemplate.key,
+                    this.modelName,
+                ) &&
                 !!this.utils.isSingleModeSnippetTemplate(this.previousTemplate.key) ===
                     isSingleModeAfter;
             const newModeDefaultTemplate = !canUsePreviousTemplate
-                ? this.utils.getDefaultSnippetTemplate(this.modelName, isSingleModeAfter)
+                ? this.utils.getDefaultSnippetTemplate(
+                      this.modelName,
+                      isSingleModeAfter,
+                  )
                 : this.previousTemplate;
             this.previousTemplate = this.utils.getTemplateByKey(el.dataset.templateKey);
             if (isSingleModeAfter) {
@@ -426,21 +466,25 @@ export class NumberOfRecordsAction extends BuilderAction {
                 el.dataset.snippetModel = this.modelName;
                 el.dataset.snippetResId = this.defaultRecordId;
             } else {
-                el.dataset.filterId = this.utils.getDefaultSnippetFilterId(this.modelName);
+                el.dataset.filterId = this.utils.getDefaultSnippetFilterId(
+                    this.modelName,
+                );
                 delete el.dataset.snippetModel;
                 delete el.dataset.snippetResId;
             }
             // Update the snippet title section.
             const titleEl = el.querySelector(".s_dynamic_snippet_title");
-            const classAction = this.dependencies.builderActions.getAction("classAction");
-            const titleClasses = Object.values(this.utils.getSnippetTitleClasses()).find(
-                (classes) =>
-                    titleEl.matches(
-                        classes
-                            .split(" ")
-                            .map((c) => "." + c)
-                            .join("")
-                    )
+            const classAction =
+                this.dependencies.builderActions.getAction("classAction");
+            const titleClasses = Object.values(
+                this.utils.getSnippetTitleClasses(),
+            ).find((classes) =>
+                titleEl.matches(
+                    classes
+                        .split(" ")
+                        .map((c) => "." + c)
+                        .join(""),
+                ),
             );
             classAction.clean({
                 editingElement: titleEl,
@@ -450,7 +494,7 @@ export class NumberOfRecordsAction extends BuilderAction {
                 editingElement: titleEl,
                 params: {
                     mainParam: this.utils.getSnippetTitleClasses(
-                        isSingleModeAfter ? "none" : "top"
+                        isSingleModeAfter ? "none" : "top",
                     ),
                 },
             });
@@ -465,4 +509,6 @@ export function setDatasetIfUndefined(snippetEl, optionName, value) {
     }
 }
 
-registry.category("website-plugins").add(DynamicSnippetOptionPlugin.id, DynamicSnippetOptionPlugin);
+registry
+    .category("website-plugins")
+    .add(DynamicSnippetOptionPlugin.id, DynamicSnippetOptionPlugin);

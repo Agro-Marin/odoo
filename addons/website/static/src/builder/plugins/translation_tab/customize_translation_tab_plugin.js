@@ -7,6 +7,7 @@ import { _t } from "@web/core/l10n/translation";
 import { rpc } from "@web/core/network/rpc";
 import { registry } from "@web/core/registry";
 import { uniqueId } from "@web/core/utils/functions";
+
 import { TranslateWebpageOption } from "./translate_webpage_option.js";
 
 /**
@@ -22,24 +23,30 @@ class TranslateToAction extends BuilderAction {
     static dependencies = ["customizeTranslationTab"];
 
     async apply() {
-        const translationState = this.dependencies.customizeTranslationTab.getTranslationState();
+        const translationState =
+            this.dependencies.customizeTranslationTab.getTranslationState();
         try {
             translationState.isTranslating = true;
             const language = this.services.website.currentWebsite.metadata.langName;
-            const { translationChunks, translationMap } = this.generateTranslationChunks(
-                this.editable
-            );
+            const { translationChunks, translationMap } =
+                this.generateTranslationChunks(this.editable);
             if (translationChunks) {
-                const responses = await this.runTranslationChunks(translationChunks, language);
-                const failedNodeCount = this.applyTranslationsToDOM(translationMap, responses);
+                const responses = await this.runTranslationChunks(
+                    translationChunks,
+                    language,
+                );
+                const failedNodeCount = this.applyTranslationsToDOM(
+                    translationMap,
+                    responses,
+                );
                 if (failedNodeCount > 0) {
                     this.showNotification(
                         _t(
                             "%s text blocks were skipped during translation. Please try again.",
-                            failedNodeCount
+                            failedNodeCount,
                         ),
                         _t("Translation Error"),
-                        "danger"
+                        "danger",
                     );
                 }
             }
@@ -60,7 +67,8 @@ class TranslateToAction extends BuilderAction {
         const text = el.textContent.replace(/[\u200B-\u200D\uFEFF]/g, "").trim();
         const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
         const PHONE_REGEX = /^[+\d][\d\s\-().]{6,}$/;
-        const URL_REGEX = /^(https?:\/\/)?([\w-]+\.)+[\w-]+(:\d+)?(\/[\w\-./?%&=]*)?(#\S*)?$/i;
+        const URL_REGEX =
+            /^(https?:\/\/)?([\w-]+\.)+[\w-]+(:\d+)?(\/[\w\-./?%&=]*)?(#\S*)?$/i;
         const LETTER_OR_NUMBER_REGEX = /\p{L}|\p{N}/u;
         return (
             !LETTER_OR_NUMBER_REGEX.test(text) ||
@@ -80,14 +88,14 @@ class TranslateToAction extends BuilderAction {
      */
     generateTranslationChunks(containerEl, limit = 2000) {
         const elements = Array.from(
-            containerEl.querySelectorAll("[data-oe-translation-state='to_translate']")
+            containerEl.querySelectorAll("[data-oe-translation-state='to_translate']"),
         ).filter(
             (el) =>
                 // TODO: fix `o_frontend_to_backend_buttons` to have no
                 // attribute `data-oe-translation-state`
                 !el.closest(".o_not_editable, .o_frontend_to_backend_buttons") &&
                 // Skip attribute translations, will handle in task-5047714
-                !el.classList.contains("o_translatable_attribute")
+                !el.classList.contains("o_translatable_attribute"),
         );
 
         const translationChunks = [];
@@ -127,7 +135,7 @@ class TranslateToAction extends BuilderAction {
             this.showNotification(
                 _t("No translatable content found in the current webpage."),
                 _t("Translation Info"),
-                "info"
+                "info",
             );
             return {};
         }
@@ -154,11 +162,14 @@ class TranslateToAction extends BuilderAction {
 
         const tasks = translationChunks.map((chunk) => async () => {
             const prompt = JSON.stringify(
-                chunk.map(({ id, originalText }) => ({ id, text: originalText }))
+                chunk.map(({ id, originalText }) => ({ id, text: originalText })),
             );
             const conversation = [
                 systemMessage,
-                { role: "user", content: `Translate the following to ${language}:\n\n${prompt}` },
+                {
+                    role: "user",
+                    content: `Translate the following to ${language}:\n\n${prompt}`,
+                },
             ];
             return rpc(
                 "/html_editor/generate_text",
@@ -166,7 +177,7 @@ class TranslateToAction extends BuilderAction {
                     prompt: prompt,
                     conversation_history: conversation,
                 },
-                { silent: true }
+                { silent: true },
             );
         });
 
@@ -217,7 +228,9 @@ class TranslateToAction extends BuilderAction {
                     continue;
                 }
                 node.textContent = translated;
-                const parentEl = node.parentElement?.closest("[data-oe-translation-state]");
+                const parentEl = node.parentElement?.closest(
+                    "[data-oe-translation-state]",
+                );
                 if (parentEl) {
                     parentEl.dataset.oeTranslationState = "translated";
                 }
@@ -258,8 +271,8 @@ export class CustomizeTranslationTabPlugin extends Plugin {
                 this.getTranslationOptionBlock(
                     "translate-webpage",
                     _t("Translation"),
-                    TranslateWebpageOption
-                )
+                    TranslateWebpageOption,
+                ),
             ),
         ],
     };

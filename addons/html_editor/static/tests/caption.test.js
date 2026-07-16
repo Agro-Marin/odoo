@@ -1,26 +1,32 @@
+import { MAIN_EMBEDDINGS } from "@html_editor/others/embedded_components/embedding_sets";
+import { CaptionPlugin } from "@html_editor/others/embedded_components/plugins/caption_plugin/caption_plugin";
+import { EMBEDDED_COMPONENT_PLUGINS, MAIN_PLUGINS } from "@html_editor/plugin_sets";
+import { closestElement } from "@html_editor/utils/dom_traversal";
+import { parseHTML } from "@html_editor/utils/html";
+import { childNodeIndex, nodeSize } from "@html_editor/utils/position";
 import { expect, test } from "@odoo/hoot";
 import {
-    manuallyDispatchProgrammaticEvent,
     click,
+    manuallyDispatchProgrammaticEvent,
     press,
     queryOne,
     waitFor,
     waitForNone,
 } from "@odoo/hoot-dom";
 import { animationFrame } from "@odoo/hoot-mock";
-import { contains, makeMockEnv, onRpc, patchWithCleanup } from "@web/../tests/web_test_helpers";
-import { CaptionPlugin } from "@html_editor/others/embedded_components/plugins/caption_plugin/caption_plugin";
-import { MAIN_PLUGINS, EMBEDDED_COMPONENT_PLUGINS } from "@html_editor/plugin_sets";
-import { MAIN_EMBEDDINGS } from "@html_editor/others/embedded_components/embedding_sets";
-import { closestElement } from "@html_editor/utils/dom_traversal";
+import {
+    contains,
+    makeMockEnv,
+    onRpc,
+    patchWithCleanup,
+} from "@web/../tests/web_test_helpers";
+
+import { cleanHints } from "./_helpers/dispatch.js";
 import { setupEditor, testEditor } from "./_helpers/editor.js";
 import { unformat } from "./_helpers/format.js";
-import { deleteBackward, deleteForward, insertText } from "./_helpers/user_actions.js";
-import { cleanHints } from "./_helpers/dispatch.js";
 import { getContent, setSelection } from "./_helpers/selection.js";
 import { expectElementCount } from "./_helpers/ui_expectations.js";
-import { childNodeIndex, nodeSize } from "@html_editor/utils/position";
-import { parseHTML } from "@html_editor/utils/html";
+import { deleteBackward, deleteForward, insertText } from "./_helpers/user_actions.js";
 
 class CaptionPluginWithPredictableId extends CaptionPlugin {
     getCaptionId() {
@@ -68,9 +74,9 @@ const addLinkToImage = async (url) => {
     await click("button[name='link']");
     if (url) {
         await waitFor(".o-we-linkpopover");
-        await contains(".o-we-linkpopover input.o_we_href_input_link", { timeout: 1500 }).edit(
-            "odoo.com"
-        );
+        await contains(".o-we-linkpopover input.o_we_href_input_link", {
+            timeout: 1500,
+        }).edit("odoo.com");
     }
 };
 const removeLinkFromImage = async () => {
@@ -115,7 +121,9 @@ test("add a caption to an image and focus it", async () => {
             const input = queryOne("figure > figcaption > input");
             expect(input.value).toBe("");
             expect(editor.document.activeElement).toBe(input);
-            expect(editor.document.getSelection().anchorNode.nodeName).toBe("FIGCAPTION");
+            expect(editor.document.getSelection().anchorNode.nodeName).toBe(
+                "FIGCAPTION",
+            );
             // Remove the editor selection for the test because it's irrelevant
             // since the focus is not in it.
             const selection = editor.document.getSelection();
@@ -130,7 +138,7 @@ test("add a caption to an image and focus it", async () => {
                     <input ${CAPTION_INPUT_ATTRIBUTES}>
                 </figcaption>
             </figure>
-            <p data-selection-placeholder="" style="margin: -9px 0px 8px;"><br></p>`
+            <p data-selection-placeholder="" style="margin: -9px 0px 8px;"><br></p>`,
         ),
     });
 });
@@ -160,7 +168,7 @@ test("add a caption to an image surrounded by text and focus it", async () => {
                     <input ${CAPTION_INPUT_ATTRIBUTES}>
                 </figcaption>
             </figure>
-            <p>cd</p>`
+            <p>cd</p>`,
         ),
     });
 });
@@ -174,7 +182,7 @@ test("saving an image with a caption replaces the input with plain text", async 
             `<figure>
                 <img class="img-fluid test-image" src="${base64Img}">
                 <figcaption>${caption}</figcaption>
-            </figure>`
+            </figure>`,
         ),
         contentBeforeEdit: unformat(
             `<p data-selection-placeholder=""><br></p>
@@ -184,7 +192,7 @@ test("saving an image with a caption replaces the input with plain text", async 
                     <input ${CAPTION_INPUT_ATTRIBUTES}>
                 </figcaption>
             </figure>
-            <p data-selection-placeholder="" style="margin: -9px 0px 8px;"><br></p>`
+            <p data-selection-placeholder="" style="margin: -9px 0px 8px;"><br></p>`,
         ),
         // Unchanged.
         contentAfterEdit: unformat(
@@ -195,7 +203,7 @@ test("saving an image with a caption replaces the input with plain text", async 
                     <input ${CAPTION_INPUT_ATTRIBUTES}>
                 </figcaption>
             </figure>
-            <p data-selection-placeholder="" style="margin: -9px 0px 8px;"><br></p>`
+            <p data-selection-placeholder="" style="margin: -9px 0px 8px;"><br></p>`,
         ),
         // Cleaned up for screen readers.
         contentAfter: unformat(
@@ -204,7 +212,7 @@ test("saving an image with a caption replaces the input with plain text", async 
                 <figcaption>
                     ${caption}
                 </figcaption>
-            </figure>`
+            </figure>`,
         ),
     });
 });
@@ -234,7 +242,7 @@ test("clicking the caption button on an image with a caption removes the caption
             `<figure>
                 <img class="img-fluid test-image" src="${base64Img}">
                 <figcaption>${caption}</figcaption>
-            </figure>`
+            </figure>`,
         ),
         stepFunction: async (editor) => {
             const input = queryOne("figure > figcaption > input");
@@ -243,11 +251,11 @@ test("clicking the caption button on an image with a caption removes the caption
             await expectElementCount(".o-we-toolbar", 1);
         },
         contentAfterEdit: unformat(
-            `<p>[<img class="img-fluid test-image" src="${base64Img}" data-caption="${caption}">]</p>`
+            `<p>[<img class="img-fluid test-image" src="${base64Img}" data-caption="${caption}">]</p>`,
         ),
         // Unchanged
         contentAfter: unformat(
-            `<p>[<img class="img-fluid test-image" src="${base64Img}" data-caption="${caption}">]</p>`
+            `<p>[<img class="img-fluid test-image" src="${base64Img}" data-caption="${caption}">]</p>`,
         ),
     });
 });
@@ -284,7 +292,7 @@ test("leaving the caption persists its value", async () => {
                     <input ${CAPTION_INPUT_ATTRIBUTES}>
                 </figcaption>
             </figure>
-            <h1>[]Heading</h1>`
+            <h1>[]Heading</h1>`,
         ),
         contentAfter: unformat(
             `<figure>
@@ -293,7 +301,7 @@ test("leaving the caption persists its value", async () => {
                     ${caption}ab
                 </figcaption>
             </figure>
-            <h1>[]Heading</h1>`
+            <h1>[]Heading</h1>`,
         ),
     });
 });
@@ -323,7 +331,7 @@ test("can't use the powerbox in a caption", async () => {
                     /
                 </figcaption>
             </figure>
-            <h1>[]Heading</h1>`
+            <h1>[]Heading</h1>`,
         ),
     });
 });
@@ -355,7 +363,7 @@ test("can't use the toolbar in a caption", async () => {
                 <img class="img-fluid test-image" src="${base64Img}">
                 <figcaption>a</figcaption>
             </figure>
-            <h1>[]Heading</h1>`
+            <h1>[]Heading</h1>`,
         ),
     });
 });
@@ -384,10 +392,14 @@ test("undo in a caption undoes the last caption action then returns to regular e
             // We simulate undo with Ctrl+Z because we want to see how it
             // interacts with native browser behavior.
             const ctrlZ = async (target, shouldApplyNativeUndo) => {
-                const keydown = await manuallyDispatchProgrammaticEvent(target, "keydown", {
-                    key: "z",
-                    ctrlKey: true,
-                });
+                const keydown = await manuallyDispatchProgrammaticEvent(
+                    target,
+                    "keydown",
+                    {
+                        key: "z",
+                        ctrlKey: true,
+                    },
+                );
                 if (keydown.defaultPrevented) {
                     return;
                 }
@@ -415,15 +427,19 @@ test("undo in a caption undoes the last caption action then returns to regular e
                         "beforeinput",
                         {
                             inputType: "historyUndo",
-                        }
+                        },
                     );
                     // --> Here the editor should do its own UNDO.
                     if (beforeInput.defaultPrevented) {
                         return;
                     }
-                    const inputEvent = await manuallyDispatchProgrammaticEvent(target, "input", {
-                        inputType: "historyUndo",
-                    });
+                    const inputEvent = await manuallyDispatchProgrammaticEvent(
+                        target,
+                        "input",
+                        {
+                            inputType: "historyUndo",
+                        },
+                    );
                     if (inputEvent.defaultPrevented) {
                         return;
                     }
@@ -462,7 +478,7 @@ test("undo in a caption undoes the last caption action then returns to regular e
             `<p>
                 <img class="img-fluid test-image o_editable_media" src="${base64Img}" data-caption="${caption}">
             </p>
-            <h1>[]Heading</h1>`
+            <h1>[]Heading</h1>`,
         ),
     });
 });
@@ -475,7 +491,7 @@ test("remove an image with a caption", async () => {
                 <img class="img-fluid test-image" src="${base64Img}">
                 <figcaption>Hello</figcaption>
             </figure>
-            <h1>[]Heading</h1>`
+            <h1>[]Heading</h1>`,
         ),
         stepFunction: async () => {
             await click("img");
@@ -494,7 +510,7 @@ const getDeleteImageTestData = () => {
         config: configWithEmbeddedCaption,
         contentBefore: unformat(
             `<p><img class="img-fluid test-image" data-caption="${caption}" src="${base64Img}"></p>
-            <h1>[]Heading</h1>`
+            <h1>[]Heading</h1>`,
         ),
         prepareImage: async (editor) => {
             await toggleCaption();
@@ -508,11 +524,11 @@ const getDeleteImageTestData = () => {
                             <figcaption ${getFigcaptionAttributes(
                                 captionId,
                                 caption,
-                                true
+                                true,
                             )}><input ${CAPTION_INPUT_ATTRIBUTES}></figcaption>
                         </figure>
-                        <h1>Heading</h1>`
-                )
+                        <h1>Heading</h1>`,
+                ),
             );
             const input = queryOne("input");
             expect(editor.document.activeElement).toBe(input);
@@ -527,7 +543,8 @@ const getDeleteImageTestData = () => {
 
 test.tags("focus required");
 test("remove an image with a caption, using the delete key", async () => {
-    const { config, contentBefore, prepareImage, contentAfter } = getDeleteImageTestData();
+    const { config, contentBefore, prepareImage, contentAfter } =
+        getDeleteImageTestData();
     await testEditor({
         config,
         contentBefore,
@@ -541,7 +558,8 @@ test("remove an image with a caption, using the delete key", async () => {
 
 test.tags("focus required");
 test("remove an image with a caption, using the backspace key", async () => {
-    const { config, contentBefore, prepareImage, contentAfter } = getDeleteImageTestData();
+    const { config, contentBefore, prepareImage, contentAfter } =
+        getDeleteImageTestData();
     await testEditor({
         config,
         contentBefore,
@@ -573,7 +591,7 @@ test("replace an image with a caption", async () => {
                 <img src="/web/static/img/logo.png">
                 <figcaption>Hello</figcaption>
             </figure>
-            <h1>[]Heading</h1>`
+            <h1>[]Heading</h1>`,
         ),
         stepFunction: async () => {
             await click("img");
@@ -591,7 +609,7 @@ test("replace an image with a caption", async () => {
                 <img src="/web/static/img/logo2.png" alt="" data-attachment-id="1" class="img img-fluid o_we_custom_image">
                 <figcaption>Hello</figcaption>
             </figure>
-            <h1>[]Heading</h1>`
+            <h1>[]Heading</h1>`,
         ),
     });
 });
@@ -616,7 +634,7 @@ test("edit caption after replacing image", async () => {
                 <img src="/web/static/img/logo.png">
                 <figcaption>ab</figcaption>
             </figure>
-            <h1>[]Heading</h1>`
+            <h1>[]Heading</h1>`,
         ),
         stepFunction: async (editor) => {
             await click("img");
@@ -641,7 +659,7 @@ test("edit caption after replacing image", async () => {
                 [<img src="/web/static/img/logo2.png" alt="" data-attachment-id="1" class="img img-fluid o_we_custom_image">]
                 <figcaption>abc</figcaption>
             </figure>
-            <h1>Heading</h1>`
+            <h1>Heading</h1>`,
         ),
     });
 });
@@ -666,7 +684,7 @@ test("after replacing a captioned image, undo should revert to the original imag
                 <img src="/web/static/img/logo.png" class="img-fluid test-image">
                 <figcaption></figcaption>
             </figure>
-            <h1>[]Heading</h1>`
+            <h1>[]Heading</h1>`,
         ),
         stepFunction: async () => {
             await click("img");
@@ -700,7 +718,7 @@ test("add a link to an image with a caption", async () => {
                 <img class="img-fluid test-image" src="${base64Img}">
                 <figcaption>Hello</figcaption>
             </figure>
-            <h1>[]Heading</h1>`
+            <h1>[]Heading</h1>`,
         ),
         stepFunction: async () => {
             await addLinkToImage("odoo.com");
@@ -716,7 +734,7 @@ test("add a link to an image with a caption", async () => {
                     </figure>
                 </a>
             </p>
-            <h1>Heading</h1>`
+            <h1>Heading</h1>`,
         ),
     });
 });
@@ -729,7 +747,7 @@ test("add a caption to an image with a link", async () => {
             `<a href="https://odoo.com">
                 <img class="img-fluid test-image" src="${base64Img}">
             </a>
-            <h1>[]Heading</h1>`
+            <h1>[]Heading</h1>`,
         ),
         stepFunction: async (editor) => {
             await toggleCaption();
@@ -750,7 +768,7 @@ test("add a caption to an image with a link", async () => {
                     </figure>
                 </a>
             </div>
-            <h1>Heading</h1>`
+            <h1>Heading</h1>`,
         ),
     });
 });
@@ -775,7 +793,7 @@ test("add a caption then a link to an image surrounded by text", async () => {
                     </figure>
                 </a>
             </p>
-            <p>cd</p>`
+            <p>cd</p>`,
         ),
     });
 });
@@ -791,7 +809,9 @@ test("add a link then a caption to an image surrounded by text", async () => {
             // Blur the input to commit the caption.
             await click("p"); // Blur the input.
             await animationFrame(); // Wait for the focus event to trigger a step.
-            editor.shared.selection.setCursorStart(editor.document.querySelectorAll("p")[1]);
+            editor.shared.selection.setCursorStart(
+                editor.document.querySelectorAll("p")[1],
+            );
         },
         contentAfter: unformat(
             `<p>ab</p>
@@ -803,7 +823,7 @@ test("add a link then a caption to an image surrounded by text", async () => {
                     </figure>
                 </a>
             </p>
-            <p>cd</p>`
+            <p>cd</p>`,
         ),
     });
 });
@@ -821,7 +841,7 @@ test("remove a link from an image with a caption", async () => {
                     <figcaption>${caption}</figcaption>
                 </figure>
             </a>
-            <h1>Heading</h1>`
+            <h1>Heading</h1>`,
         ),
         contentBeforeEdit: unformat(
             `<p><br></p>
@@ -835,7 +855,7 @@ test("remove a link from an image with a caption", async () => {
                     </figure>
                 </a>
             </div>
-            <h1>Heading</h1>`
+            <h1>Heading</h1>`,
         ),
         stepFunction: async () => {
             await removeLinkFromImage();
@@ -849,7 +869,7 @@ test("remove a link from an image with a caption", async () => {
                 [<img class="img-fluid test-image" src="${base64Img}">]
                 <figcaption>Hello</figcaption>
             </figure>
-            <h1>Heading</h1>`
+            <h1>Heading</h1>`,
         ),
     });
 });
@@ -867,7 +887,7 @@ test("remove a caption from an image with a link", async () => {
                     <figcaption>${caption}</figcaption>
                 </figure>
             </a>
-            <h1>Heading</h1>`
+            <h1>Heading</h1>`,
         ),
         contentBeforeEdit: unformat(
             `<p><br></p>
@@ -881,7 +901,7 @@ test("remove a caption from an image with a link", async () => {
                     </figure>
                 </a>
             </div>
-            <h1>Heading</h1>`
+            <h1>Heading</h1>`,
         ),
         stepFunction: async () => {
             await toggleCaption();
@@ -895,13 +915,15 @@ test("remove a caption from an image with a link", async () => {
                     [<img class="img-fluid test-image" src="${base64Img}" data-caption="${caption}">]
                 </a>
             </div>
-            <h1>Heading</h1>`
+            <h1>Heading</h1>`,
         ),
     });
 });
 
 test("previewing an image with a caption shows the caption as title", async () => {
-    await setupEditorWithEmbeddedCaption(`<img class="img-fluid test-image" src="${base64Img}">`);
+    await setupEditorWithEmbeddedCaption(
+        `<img class="img-fluid test-image" src="${base64Img}">`,
+    );
 
     // Preview without a caption shows the file name.
     await click("img");
@@ -927,7 +949,9 @@ test("previewing an image with a caption shows the caption as title", async () =
 });
 
 test("previewing an image without caption doesn't show the caption as title (even if data-caption exists)", async () => {
-    await setupEditorWithEmbeddedCaption(`<img class="img-fluid test-image" src="${base64Img}">`);
+    await setupEditorWithEmbeddedCaption(
+        `<img class="img-fluid test-image" src="${base64Img}">`,
+    );
 
     // Preview without a caption shows the file name.
     await click("img");
@@ -969,7 +993,7 @@ test("should drag and drop image with its caption(1)", async () => {
                 <figcaption>${caption}</figcaption>
             </figure>
             <p>b</p>
-        `)
+        `),
     );
     const imgElement = el.querySelector("img");
     const parent = imgElement.parentElement;
@@ -989,17 +1013,21 @@ test("should drag and drop image with its caption(1)", async () => {
     });
 
     const dragdata = new DataTransfer();
-    await manuallyDispatchProgrammaticEvent(imgElement, "dragstart", { dataTransfer: dragdata });
+    await manuallyDispatchProgrammaticEvent(imgElement, "dragstart", {
+        dataTransfer: dragdata,
+    });
     await animationFrame();
     const imageHTML = dragdata.getData("application/vnd.odoo.odoo-editor");
     const dropData = new DataTransfer();
     dropData.setData(
         "text/html",
-        `<meta http-equiv="Content-Type" content="text/html;charset=UTF-8"><img src="${base64Img}">`
+        `<meta http-equiv="Content-Type" content="text/html;charset=UTF-8"><img src="${base64Img}">`,
     );
     // Simulate the application/vnd.odoo.odoo-editor data that the browser would do.
     dropData.setData("application/vnd.odoo.odoo-editor", imageHTML);
-    await manuallyDispatchProgrammaticEvent(targetNodeForDrop, "drop", { dataTransfer: dropData });
+    await manuallyDispatchProgrammaticEvent(targetNodeForDrop, "drop", {
+        dataTransfer: dropData,
+    });
     await animationFrame();
 
     expect(getContent(el)).toBe(
@@ -1013,7 +1041,7 @@ test("should drag and drop image with its caption(1)", async () => {
                 </figcaption>
             </figure>
             <p data-selection-placeholder="" style="margin: -9px 0px 8px;"><br></p>
-        `)
+        `),
     );
 });
 
@@ -1028,7 +1056,7 @@ test("should drag and drop image with its caption(2)", async () => {
                 <figcaption>${caption}</figcaption>
             </figure>
             <p>b</p>
-        `)
+        `),
     );
     const imgElement = el.querySelector("img");
     const targetNodeForDrop = el.lastChild;
@@ -1041,17 +1069,21 @@ test("should drag and drop image with its caption(2)", async () => {
 
     await manuallyDispatchProgrammaticEvent(imgElement, "pointerdown");
     const dragdata = new DataTransfer();
-    await manuallyDispatchProgrammaticEvent(imgElement, "dragstart", { dataTransfer: dragdata });
+    await manuallyDispatchProgrammaticEvent(imgElement, "dragstart", {
+        dataTransfer: dragdata,
+    });
     await animationFrame();
     const imageHTML = dragdata.getData("application/vnd.odoo.odoo-editor");
     const dropData = new DataTransfer();
     dropData.setData(
         "text/html",
-        `<meta http-equiv="Content-Type" content="text/html;charset=UTF-8"><img src="${base64Img}">`
+        `<meta http-equiv="Content-Type" content="text/html;charset=UTF-8"><img src="${base64Img}">`,
     );
     // Simulate the application/vnd.odoo.odoo-editor data that the browser would do.
     dropData.setData("application/vnd.odoo.odoo-editor", imageHTML);
-    await manuallyDispatchProgrammaticEvent(targetNodeForDrop, "drop", { dataTransfer: dropData });
+    await manuallyDispatchProgrammaticEvent(targetNodeForDrop, "drop", {
+        dataTransfer: dropData,
+    });
     await manuallyDispatchProgrammaticEvent(imgElement, "dragend");
     await animationFrame();
 
@@ -1066,7 +1098,7 @@ test("should drag and drop image with its caption(2)", async () => {
                 </figcaption>
             </figure>
             <p data-selection-placeholder="" style="margin: -9px 0px 8px;"><br></p>
-        `)
+        `),
     );
 });
 
@@ -1082,7 +1114,7 @@ test("should drag and drop image with caption along with selected text", async (
             </figure>
             <p>b]</p>
             <p>c</p>
-        `)
+        `),
     );
     const imgElement = el.querySelector("img");
     const targetNodeForDrop = el.lastChild;
@@ -1094,7 +1126,9 @@ test("should drag and drop image with caption along with selected text", async (
     });
 
     const dragdata = new DataTransfer();
-    await manuallyDispatchProgrammaticEvent(imgElement, "dragstart", { dataTransfer: dragdata });
+    await manuallyDispatchProgrammaticEvent(imgElement, "dragstart", {
+        dataTransfer: dragdata,
+    });
     await animationFrame();
     const odooEditorData = dragdata.getData("application/vnd.odoo.odoo-editor");
     const textHtml = dragdata.getData("text/html");
@@ -1102,7 +1136,9 @@ test("should drag and drop image with caption along with selected text", async (
     dropData.setData("text/html", textHtml);
     // Simulate the application/vnd.odoo.odoo-editor data that the browser would do.
     dropData.setData("application/vnd.odoo.odoo-editor", odooEditorData);
-    await manuallyDispatchProgrammaticEvent(targetNodeForDrop, "drop", { dataTransfer: dropData });
+    await manuallyDispatchProgrammaticEvent(targetNodeForDrop, "drop", {
+        dataTransfer: dropData,
+    });
     await animationFrame();
 
     expect(getContent(el)).toBe(
@@ -1116,7 +1152,7 @@ test("should drag and drop image with caption along with selected text", async (
                 </figcaption>
             </figure>
             <p>b[]</p>
-        `)
+        `),
     );
 });
 
@@ -1133,7 +1169,7 @@ test("should cut an image and its caption as a single embedded figure", async ()
                 <figcaption>${captionText}</figcaption>
             </figure>
             <p>c</p>
-        `)
+        `),
     );
 
     const image = editorRoot.querySelector("img");
@@ -1159,7 +1195,7 @@ test("should cut an image and its caption as a single embedded figure", async ()
             <p>a</p>
             <p>b</p>
             <p>[]c</p>
-        `)
+        `),
     );
 
     // Verify cut fragment stored inside clipboard data
@@ -1174,7 +1210,7 @@ test("should cut an image and its caption as a single embedded figure", async ()
                     <input ${CAPTION_INPUT_ATTRIBUTES}>
                 </figcaption>
             </figure>
-        `)
+        `),
     );
 });
 
@@ -1189,7 +1225,7 @@ test("should copy an image along with its caption", async () => {
                 <figcaption>${caption}</figcaption>
             </figure>
             <p>[]<br></p>
-        `)
+        `),
     );
     const imgElement = el.querySelector("img");
     const parent = imgElement.parentElement;
@@ -1213,7 +1249,7 @@ test("should copy an image along with its caption", async () => {
                     <input ${CAPTION_INPUT_ATTRIBUTES}>
                 </figcaption>
             </figure>
-        `)
+        `),
     );
 });
 
@@ -1223,7 +1259,7 @@ test("should properly parse figure without fig caption", async () => {
         contentBefore: unformat(
             `<figure>
                 <img class="img-fluid test-image" src="${base64Img}">
-            </figure>`
+            </figure>`,
         ),
         contentBeforeEdit: unformat(
             `<p data-selection-placeholder=""><br></p>
@@ -1234,7 +1270,7 @@ test("should properly parse figure without fig caption", async () => {
                 </figcaption>
             </figure>
             <p data-selection-placeholder="" style="margin: -9px 0px 8px;"><br></p>
-            `
+            `,
         ),
     });
 });
@@ -1258,7 +1294,7 @@ test("removing an image caption inside a table should wrap image in a base conta
                         <td><p>c</p></td>
                     </tr>
                 </tbody>
-            </table>`
+            </table>`,
         ),
         stepFunction: async () => {
             await click("img");
@@ -1279,7 +1315,7 @@ test("removing an image caption inside a table should wrap image in a base conta
                         <td><p>c</p></td>
                     </tr>
                 </tbody>
-            </table>`
+            </table>`,
         ),
     });
 });
@@ -1295,7 +1331,7 @@ test("adding an image caption inside a list item should not split a list item", 
                     <img class="img-fluid test-image" src="${base64Img}">
                     cd
                 </li>
-            </ul>`
+            </ul>`,
         ),
         stepFunction: async (editor) => {
             await toggleCaption();
@@ -1320,7 +1356,7 @@ test("adding an image caption inside a list item should not split a list item", 
                     </figure>
                     cd
                 </li>
-            </ul>`
+            </ul>`,
         ),
     });
 });
@@ -1339,7 +1375,7 @@ test("removing an image caption inside list item should wrap image in a base con
                     </figure>
                     cd[]
                 </li>
-            </ul>`
+            </ul>`,
         ),
         stepFunction: async () => {
             await click("img");
@@ -1353,7 +1389,7 @@ test("removing an image caption inside list item should wrap image in a base con
                     <p>[<img class="img-fluid test-image" src="${base64Img}" data-caption="${caption}">]</p>
                     <p>cd</p>
                 </li>
-            </ul>`
+            </ul>`,
         ),
     });
 });

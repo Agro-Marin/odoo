@@ -1,11 +1,11 @@
+import { getDragHelper, waitForEndOfOperation } from "@html_builder/../tests/helpers";
 import { expect, queryAll, test } from "@odoo/hoot";
+import { click, queryOne } from "@odoo/hoot-dom";
+import { contains, onRpc } from "@web/../tests/web_test_helpers";
 import {
     defineWebsiteModels,
     setupWebsiteBuilderWithSnippet,
 } from "@website/../tests/builder/website_helpers";
-import { contains, onRpc } from "@web/../tests/web_test_helpers";
-import { getDragHelper, waitForEndOfOperation } from "@html_builder/../tests/helpers";
-import { click, queryOne } from "@odoo/hoot-dom";
 
 defineWebsiteModels();
 
@@ -21,7 +21,9 @@ test("add social medias", async () => {
         expect(args[0]).toEqual([1]);
         expect(args[1]).toInclude("social_facebook");
         expect(args[1]).toInclude("social_twitter");
-        return [{ id: 1, social_facebook: "https://fb.com/odoo", social_twitter: false }];
+        return [
+            { id: 1, social_facebook: "https://fb.com/odoo", social_twitter: false },
+        ];
     });
 
     await setupEmptySocialMedia();
@@ -49,100 +51,179 @@ test("add social medias", async () => {
 
 test("reorder social medias", async () => {
     onRpc("website", "read", ({ args }) => [
-        { id: 1, social_facebook: "https://fb.com/odoo", social_twitter: "https://x.com/odoo" },
+        {
+            id: 1,
+            social_facebook: "https://fb.com/odoo",
+            social_twitter: "https://x.com/odoo",
+        },
     ]);
 
     await setupEmptySocialMedia();
 
     await click(":iframe h4");
 
-    await contains("td:has([data-action-param='facebook']) + td input[type=checkbox]").click();
+    await contains(
+        "td:has([data-action-param='facebook']) + td input[type=checkbox]",
+    ).click();
     await contains("button[data-action-id='addSocialMediaLink']").click();
     await contains("div[data-action-id='editSocialMediaLink'] input").fill("/first");
     await contains("button[data-action-id='addSocialMediaLink']").click();
 
     // we don't know the order for the ones received from the server
-    expect("tr [data-action-param='facebook'] input").toHaveValue("https://fb.com/odoo");
+    expect("tr [data-action-param='facebook'] input").toHaveValue(
+        "https://fb.com/odoo",
+    );
     expect("tr [data-action-param='twitter'] input").toHaveValue("https://x.com/odoo");
-    expect("tr:nth-child(3) input[type=text]").toHaveValue("https://www.example.com/first");
+    expect("tr:nth-child(3) input[type=text]").toHaveValue(
+        "https://www.example.com/first",
+    );
     expect("tr:nth-child(4) input[type=text]").toHaveValue("https://www.example.com");
 
     expect(":iframe a").toHaveCount(3);
-    expect(":iframe a:nth-of-type(1)").toHaveAttribute("href", "/website/social/facebook");
-    expect(":iframe a:nth-of-type(2)").toHaveAttribute("href", "https://www.example.com/first");
-    expect(":iframe a:nth-of-type(3)").toHaveAttribute("href", "https://www.example.com");
-
-    await contains("td:has(+td [data-action-param='facebook']) button.o_drag_handle").dragAndDrop(
-        "tr:last-child"
+    expect(":iframe a:nth-of-type(1)").toHaveAttribute(
+        "href",
+        "/website/social/facebook",
     );
+    expect(":iframe a:nth-of-type(2)").toHaveAttribute(
+        "href",
+        "https://www.example.com/first",
+    );
+    expect(":iframe a:nth-of-type(3)").toHaveAttribute(
+        "href",
+        "https://www.example.com",
+    );
+
+    await contains(
+        "td:has(+td [data-action-param='facebook']) button.o_drag_handle",
+    ).dragAndDrop("tr:last-child");
 
     expect("tr:nth-child(1) input[type=text]").toHaveValue("https://x.com/odoo");
     expect("tr:nth-child(1) input[type=checkbox]").not.toBeChecked();
-    expect("tr:nth-child(2) input[type=text]").toHaveValue("https://www.example.com/first");
+    expect("tr:nth-child(2) input[type=text]").toHaveValue(
+        "https://www.example.com/first",
+    );
     expect("tr:nth-child(3) input[type=text]").toHaveValue("https://www.example.com");
     expect("tr:nth-child(4) input[type=text]").toHaveValue("https://fb.com/odoo");
     expect("tr:nth-child(4) input[type=checkbox]").toBeChecked();
 
-    expect(":iframe a:nth-of-type(1)").toHaveAttribute("href", "https://www.example.com/first");
-    expect(":iframe a:nth-of-type(2)").toHaveAttribute("href", "https://www.example.com");
-    expect(":iframe a:nth-of-type(3)").toHaveAttribute("href", "/website/social/facebook");
+    expect(":iframe a:nth-of-type(1)").toHaveAttribute(
+        "href",
+        "https://www.example.com/first",
+    );
+    expect(":iframe a:nth-of-type(2)").toHaveAttribute(
+        "href",
+        "https://www.example.com",
+    );
+    expect(":iframe a:nth-of-type(3)").toHaveAttribute(
+        "href",
+        "/website/social/facebook",
+    );
 
-    await contains("tr:nth-child(1) button.o_drag_handle").dragAndDrop("tr:nth-child(2)");
+    await contains("tr:nth-child(1) button.o_drag_handle").dragAndDrop(
+        "tr:nth-child(2)",
+    );
 
-    expect("tr:nth-child(1) input[type=text]").toHaveValue("https://www.example.com/first");
+    expect("tr:nth-child(1) input[type=text]").toHaveValue(
+        "https://www.example.com/first",
+    );
     expect("tr:nth-child(2) input[type=text]").toHaveValue("https://x.com/odoo");
     expect("tr:nth-child(2) input[type=checkbox]").not.toBeChecked();
     expect("tr:nth-child(3) input[type=text]").toHaveValue("https://www.example.com");
     expect("tr:nth-child(4) input[type=text]").toHaveValue("https://fb.com/odoo");
     expect("tr:nth-child(4) input[type=checkbox]").toBeChecked();
 
-    expect(":iframe a:nth-of-type(1)").toHaveAttribute("href", "https://www.example.com/first");
-    expect(":iframe a:nth-of-type(2)").toHaveAttribute("href", "https://www.example.com");
-    expect(":iframe a:nth-of-type(3)").toHaveAttribute("href", "/website/social/facebook");
+    expect(":iframe a:nth-of-type(1)").toHaveAttribute(
+        "href",
+        "https://www.example.com/first",
+    );
+    expect(":iframe a:nth-of-type(2)").toHaveAttribute(
+        "href",
+        "https://www.example.com",
+    );
+    expect(":iframe a:nth-of-type(3)").toHaveAttribute(
+        "href",
+        "/website/social/facebook",
+    );
 
     expect(":iframe h4").toHaveCount(1);
 
     await contains("tr:nth-child(2) input[type=checkbox]").click();
     await contains("tr:nth-child(4) input[type=checkbox]").click();
 
-    expect("tr:nth-child(1) input[type=text]").toHaveValue("https://www.example.com/first");
+    expect("tr:nth-child(1) input[type=text]").toHaveValue(
+        "https://www.example.com/first",
+    );
     expect("tr:nth-child(2) input[type=text]").toHaveValue("https://x.com/odoo");
     expect("tr:nth-child(2) input[type=checkbox]").toBeChecked();
     expect("tr:nth-child(3) input[type=text]").toHaveValue("https://www.example.com");
     expect("tr:nth-child(4) input[type=text]").toHaveValue("https://fb.com/odoo");
     expect("tr:nth-child(4) input[type=checkbox]").not.toBeChecked();
 
-    expect(":iframe a:nth-of-type(1)").toHaveAttribute("href", "https://www.example.com/first");
-    expect(":iframe a:nth-of-type(2)").toHaveAttribute("href", "/website/social/twitter");
-    expect(":iframe a:nth-of-type(3)").toHaveAttribute("href", "https://www.example.com");
+    expect(":iframe a:nth-of-type(1)").toHaveAttribute(
+        "href",
+        "https://www.example.com/first",
+    );
+    expect(":iframe a:nth-of-type(2)").toHaveAttribute(
+        "href",
+        "/website/social/twitter",
+    );
+    expect(":iframe a:nth-of-type(3)").toHaveAttribute(
+        "href",
+        "https://www.example.com",
+    );
 
     await contains("tr:nth-child(2) input[type=checkbox]").click();
-    await contains("tr:nth-child(4) button.o_drag_handle").dragAndDrop("tr:nth-child(1)");
+    await contains("tr:nth-child(4) button.o_drag_handle").dragAndDrop(
+        "tr:nth-child(1)",
+    );
 
     expect("tr:nth-child(1) input[type=text]").toHaveValue("https://fb.com/odoo");
     expect("tr:nth-child(1) input[type=checkbox]").not.toBeChecked();
-    expect("tr:nth-child(2) input[type=text]").toHaveValue("https://www.example.com/first");
+    expect("tr:nth-child(2) input[type=text]").toHaveValue(
+        "https://www.example.com/first",
+    );
     expect("tr:nth-child(3) input[type=text]").toHaveValue("https://x.com/odoo");
     expect("tr:nth-child(3) input[type=checkbox]").not.toBeChecked();
     expect("tr:nth-child(4) input[type=text]").toHaveValue("https://www.example.com");
 
-    expect(":iframe a:nth-of-type(1)").toHaveAttribute("href", "https://www.example.com/first");
-    expect(":iframe a:nth-of-type(2)").toHaveAttribute("href", "https://www.example.com");
+    expect(":iframe a:nth-of-type(1)").toHaveAttribute(
+        "href",
+        "https://www.example.com/first",
+    );
+    expect(":iframe a:nth-of-type(2)").toHaveAttribute(
+        "href",
+        "https://www.example.com",
+    );
 
     await contains("tr:nth-child(3) input[type=checkbox]").click();
-    await contains("tr:nth-child(3) button.o_drag_handle").dragAndDrop("tr:nth-child(1)");
-    await contains("tr:nth-child(3) button.o_drag_handle").dragAndDrop("tr:nth-child(1)");
+    await contains("tr:nth-child(3) button.o_drag_handle").dragAndDrop(
+        "tr:nth-child(1)",
+    );
+    await contains("tr:nth-child(3) button.o_drag_handle").dragAndDrop(
+        "tr:nth-child(1)",
+    );
 
-    expect("tr:nth-child(1) input[type=text]").toHaveValue("https://www.example.com/first");
+    expect("tr:nth-child(1) input[type=text]").toHaveValue(
+        "https://www.example.com/first",
+    );
     expect("tr:nth-child(2) input[type=text]").toHaveValue("https://x.com/odoo");
     expect("tr:nth-child(2) input[type=checkbox]").toBeChecked();
     expect("tr:nth-child(3) input[type=text]").toHaveValue("https://fb.com/odoo");
     expect("tr:nth-child(3) input[type=checkbox]").not.toBeChecked();
     expect("tr:nth-child(4) input[type=text]").toHaveValue("https://www.example.com");
 
-    expect(":iframe a:nth-of-type(1)").toHaveAttribute("href", "https://www.example.com/first");
-    expect(":iframe a:nth-of-type(2)").toHaveAttribute("href", "/website/social/twitter");
-    expect(":iframe a:nth-of-type(3)").toHaveAttribute("href", "https://www.example.com");
+    expect(":iframe a:nth-of-type(1)").toHaveAttribute(
+        "href",
+        "https://www.example.com/first",
+    );
+    expect(":iframe a:nth-of-type(2)").toHaveAttribute(
+        "href",
+        "/website/social/twitter",
+    );
+    expect(":iframe a:nth-of-type(3)").toHaveAttribute(
+        "href",
+        "https://www.example.com",
+    );
 
     await contains(".o-snippets-top-actions button.fa-undo").click();
 
@@ -151,23 +232,40 @@ test("reorder social medias", async () => {
     expect("tr:nth-child(1) input[type=checkbox]").toBeChecked();
     expect("tr:nth-child(2) input[type=text]").toHaveValue("https://fb.com/odoo");
     expect("tr:nth-child(2) input[type=checkbox]").not.toBeChecked();
-    expect("tr:nth-child(3) input[type=text]").toHaveValue("https://www.example.com/first");
+    expect("tr:nth-child(3) input[type=text]").toHaveValue(
+        "https://www.example.com/first",
+    );
     expect("tr:nth-child(4) input[type=text]").toHaveValue("https://www.example.com");
 
-    expect(":iframe a:nth-of-type(1)").toHaveAttribute("href", "/website/social/twitter");
-    expect(":iframe a:nth-of-type(2)").toHaveAttribute("href", "https://www.example.com/first");
-    expect(":iframe a:nth-of-type(3)").toHaveAttribute("href", "https://www.example.com");
+    expect(":iframe a:nth-of-type(1)").toHaveAttribute(
+        "href",
+        "/website/social/twitter",
+    );
+    expect(":iframe a:nth-of-type(2)").toHaveAttribute(
+        "href",
+        "https://www.example.com/first",
+    );
+    expect(":iframe a:nth-of-type(3)").toHaveAttribute(
+        "href",
+        "https://www.example.com",
+    );
 });
 
 test("save social medias", async () => {
     onRpc("website", "read", ({ args }) => [
-        { id: 1, social_facebook: "https://fb.com/odoo", social_twitter: "https://x.com/odoo" },
+        {
+            id: 1,
+            social_facebook: "https://fb.com/odoo",
+            social_twitter: "https://x.com/odoo",
+        },
     ]);
     await setupEmptySocialMedia();
 
     await click(":iframe h4");
 
-    await contains("div[data-action-param='facebook'] input").edit("https://facebook.com/Odoo");
+    await contains("div[data-action-param='facebook'] input").edit(
+        "https://facebook.com/Odoo",
+    );
 
     let writeCalled = false;
     onRpc("website", "write", ({ args }) => {
@@ -198,7 +296,7 @@ test("share snippet should not be editable (except title) nor user-selectable", 
 test("Edit share icon", async () => {
     const dragAndDropSnippet = async (dataSnippet) => {
         const dragUtils = await contains(
-            `.o-snippets-menu #snippet_content .o_snippet_thumbnail[data-snippet='${dataSnippet}']`
+            `.o-snippets-menu #snippet_content .o_snippet_thumbnail[data-snippet='${dataSnippet}']`,
         ).drag();
         await dragUtils.moveTo(":iframe .s_text_image .oe_drop_zone");
         await dragUtils.drop(getDragHelper());

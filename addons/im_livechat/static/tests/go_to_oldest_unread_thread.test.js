@@ -13,10 +13,11 @@ import {
 import { withGuest } from "@mail/../tests/mock_server/mail_mock_server";
 import { describe, test } from "@odoo/hoot";
 import { press, waitFor } from "@odoo/hoot-dom";
+import { advanceTime, mockDate } from "@odoo/hoot-mock";
 import { Command, serverState } from "@web/../tests/web_test_helpers";
 import { rpc } from "@web/core/network/rpc";
+
 import { defineLivechatModels } from "./livechat_test_helpers.js";
-import { advanceTime, mockDate } from "@odoo/hoot-mock";
 
 describe.current.tags("desktop");
 defineLivechatModels();
@@ -33,7 +34,10 @@ test("tab on discuss composer goes to oldest unread livechat", async () => {
                     partner_id: serverState.partnerId,
                     livechat_member_type: "agent",
                 }),
-                Command.create({ guest_id: guestId_1, livechat_member_type: "visitor" }),
+                Command.create({
+                    guest_id: guestId_1,
+                    livechat_member_type: "visitor",
+                }),
             ],
             channel_type: "livechat",
             livechat_operator_id: serverState.partnerId,
@@ -47,7 +51,10 @@ test("tab on discuss composer goes to oldest unread livechat", async () => {
                     last_interest_dt: "2021-01-02 10:00:00",
                     livechat_member_type: "agent",
                 }),
-                Command.create({ guest_id: guestId_2, livechat_member_type: "visitor" }),
+                Command.create({
+                    guest_id: guestId_2,
+                    livechat_member_type: "visitor",
+                }),
             ],
             channel_type: "livechat",
             livechat_operator_id: serverState.partnerId,
@@ -61,7 +68,10 @@ test("tab on discuss composer goes to oldest unread livechat", async () => {
                     last_interest_dt: "2021-01-01 10:00:00",
                     livechat_member_type: "agent",
                 }),
-                Command.create({ guest_id: guestId_3, livechat_member_type: "visitor" }),
+                Command.create({
+                    guest_id: guestId_3,
+                    livechat_member_type: "visitor",
+                }),
             ],
             channel_type: "livechat",
             livechat_operator_id: serverState.partnerId,
@@ -125,7 +135,7 @@ test("Tab livechat picks ended livechats last", async () => {
             livechat_channel_id: livechatChannelId,
             livechat_operator_id: serverState.partnerId,
             create_uid: serverState.publicUserId,
-        }))
+        })),
     );
     pyEnv["mail.message"].create(
         guestIds.map((guestId, idx) => ({
@@ -133,7 +143,7 @@ test("Tab livechat picks ended livechats last", async () => {
             body: "Hello",
             model: "discuss.channel",
             res_id: channelIds[idx],
-        }))
+        })),
     );
     /**
      * channel id | last_interest_dt    | livechat_end_dt | unread
@@ -145,12 +155,18 @@ test("Tab livechat picks ended livechats last", async () => {
      *          4 | 2021-01-02 10:00:04 | false           | true
      */
     patchUiSize({ width: 1920 });
-    setupChatHub({ folded: [channelIds[0], channelIds[1], channelIds[2], channelIds[3]] });
+    setupChatHub({
+        folded: [channelIds[0], channelIds[1], channelIds[2], channelIds[3]],
+    });
     await start();
     await click(".o_menu_systray i[aria-label='Messages']");
     await click(".o-mail-NotificationItem", { text: "Visitor 4" });
-    await contains(".o-mail-ChatWindow:contains('Visitor 4') .o-mail-Message:contains('Hello')");
-    await contains(".o-mail-ChatWindow:contains('Visitor 4') .o-mail-Composer.o-focused");
+    await contains(
+        ".o-mail-ChatWindow:contains('Visitor 4') .o-mail-Message:contains('Hello')",
+    );
+    await contains(
+        ".o-mail-ChatWindow:contains('Visitor 4') .o-mail-Composer.o-focused",
+    );
     await contains(".o-mail-ChatWindow:contains('Visitor 4') .badge", { count: 0 });
     await advanceTime(5_000);
     await withGuest(guestIds[1], () =>
@@ -162,11 +178,11 @@ test("Tab livechat picks ended livechats last", async () => {
             },
             thread_id: channelIds[1],
             thread_model: "discuss.channel",
-        })
+        }),
     );
     await advanceTime(5_000);
     await withGuest(guestIds[1], () =>
-        rpc("/im_livechat/visitor_leave_session", { channel_id: channelIds[1] })
+        rpc("/im_livechat/visitor_leave_session", { channel_id: channelIds[1] }),
     );
     await advanceTime(5_000);
     await withGuest(guestIds[3], () =>
@@ -178,9 +194,11 @@ test("Tab livechat picks ended livechats last", async () => {
             },
             thread_id: channelIds[3],
             thread_model: "discuss.channel",
-        })
+        }),
     );
-    await waitFor(".o-mail-ChatBubble[name='Visitor 3'] .badge:contains('2')", { timeout: 3000 });
+    await waitFor(".o-mail-ChatBubble[name='Visitor 3'] .badge:contains('2')", {
+        timeout: 3000,
+    });
     /**
      * channel id | last_interest_dt    | livechat_end_dt | unread
      * -----------+---------------------+-----------------+--------
@@ -192,13 +210,21 @@ test("Tab livechat picks ended livechats last", async () => {
      */
     await press("Tab");
     await contains(".o-mail-ChatWindow", { count: 2 });
-    await contains(".o-mail-ChatWindow:contains('Visitor 0') .o-mail-Message:contains('Hello')");
-    await contains(".o-mail-ChatWindow:contains('Visitor 0') .o-mail-Composer.o-focused");
+    await contains(
+        ".o-mail-ChatWindow:contains('Visitor 0') .o-mail-Message:contains('Hello')",
+    );
+    await contains(
+        ".o-mail-ChatWindow:contains('Visitor 0') .o-mail-Composer.o-focused",
+    );
     await contains(".o-mail-ChatWindow:contains('Visitor 0') .badge", { count: 0 });
     await press("Tab");
     await contains(".o-mail-ChatWindow", { count: 3 });
-    await contains(".o-mail-ChatWindow:contains('Visitor 2') .o-mail-Message:contains('Hello')");
-    await contains(".o-mail-ChatWindow:contains('Visitor 2') .o-mail-Composer.o-focused");
+    await contains(
+        ".o-mail-ChatWindow:contains('Visitor 2') .o-mail-Message:contains('Hello')",
+    );
+    await contains(
+        ".o-mail-ChatWindow:contains('Visitor 2') .o-mail-Composer.o-focused",
+    );
     await contains(".o-mail-ChatWindow:contains('Visitor 2') .badge", { count: 0 });
     await advanceTime(5_000);
     await withGuest(guestIds[0], () =>
@@ -210,7 +236,7 @@ test("Tab livechat picks ended livechats last", async () => {
             },
             thread_id: channelIds[0],
             thread_model: "discuss.channel",
-        })
+        }),
     );
     await waitFor(".o-mail-ChatWindow:contains('Visitor 0') .badge:contains('1')", {
         timeout: 3000,
@@ -225,14 +251,22 @@ test("Tab livechat picks ended livechats last", async () => {
      *          4 | 2021-01-02 10:00:04 | false           | false
      */
     await press("Tab");
-    await contains(".o-mail-ChatWindow:contains('Visitor 3') .o-mail-Message:contains('Hello')");
-    await contains(".o-mail-ChatWindow:contains('Visitor 3') .o-mail-Composer.o-focused");
+    await contains(
+        ".o-mail-ChatWindow:contains('Visitor 3') .o-mail-Message:contains('Hello')",
+    );
+    await contains(
+        ".o-mail-ChatWindow:contains('Visitor 3') .o-mail-Composer.o-focused",
+    );
     await contains(".o-mail-ChatWindow:contains('Visitor 3') .badge", { count: 0 });
     await press("Tab");
-    await contains(".o-mail-ChatWindow:contains('Visitor 0') .o-mail-Composer.o-focused");
+    await contains(
+        ".o-mail-ChatWindow:contains('Visitor 0') .o-mail-Composer.o-focused",
+    );
     await contains(".o-mail-ChatWindow:contains('Visitor 0') .badge", { count: 0 });
     await press("Tab");
-    await contains(".o-mail-ChatWindow:contains('Visitor 1') .o-mail-Message:contains('Hello')");
+    await contains(
+        ".o-mail-ChatWindow:contains('Visitor 1') .o-mail-Message:contains('Hello')",
+    );
     await contains("span", { text: "This livechat conversation has ended" });
 });
 
@@ -248,7 +282,10 @@ test("switching to folded chat window unfolds it", async () => {
                     partner_id: serverState.partnerId,
                     livechat_member_type: "agent",
                 }),
-                Command.create({ guest_id: guestId_1, livechat_member_type: "visitor" }),
+                Command.create({
+                    guest_id: guestId_1,
+                    livechat_member_type: "visitor",
+                }),
             ],
             channel_type: "livechat",
             livechat_operator_id: serverState.partnerId,
@@ -261,7 +298,10 @@ test("switching to folded chat window unfolds it", async () => {
                     last_interest_dt: "2021-01-02 10:00:00",
                     livechat_member_type: "agent",
                 }),
-                Command.create({ guest_id: guestId_2, livechat_member_type: "visitor" }),
+                Command.create({
+                    guest_id: guestId_2,
+                    livechat_member_type: "visitor",
+                }),
             ],
             channel_type: "livechat",
             livechat_operator_id: serverState.partnerId,
@@ -301,7 +341,10 @@ test("switching to hidden chat window unhides it", async () => {
                     partner_id: serverState.partnerId,
                     livechat_member_type: "agent",
                 }),
-                Command.create({ guest_id: guestId_1, livechat_member_type: "visitor" }),
+                Command.create({
+                    guest_id: guestId_1,
+                    livechat_member_type: "visitor",
+                }),
             ],
             channel_type: "livechat",
             livechat_operator_id: serverState.partnerId,
@@ -314,7 +357,10 @@ test("switching to hidden chat window unhides it", async () => {
                     last_interest_dt: "2021-01-02 10:00:00",
                     livechat_member_type: "agent",
                 }),
-                Command.create({ guest_id: guestId_2, livechat_member_type: "visitor" }),
+                Command.create({
+                    guest_id: guestId_2,
+                    livechat_member_type: "visitor",
+                }),
             ],
             channel_type: "livechat",
             livechat_operator_id: serverState.partnerId,
@@ -356,7 +402,10 @@ test("tab on composer doesn't switch thread if user is typing", async () => {
                     partner_id: serverState.partnerId,
                     livechat_member_type: "agent",
                 }),
-                Command.create({ guest_id: guestId_1, livechat_member_type: "visitor" }),
+                Command.create({
+                    guest_id: guestId_1,
+                    livechat_member_type: "visitor",
+                }),
             ],
             channel_type: "livechat",
             livechat_operator_id: serverState.partnerId,
@@ -370,7 +419,10 @@ test("tab on composer doesn't switch thread if user is typing", async () => {
                     last_interest_dt: "2021-01-02 10:00:00",
                     livechat_member_type: "agent",
                 }),
-                Command.create({ guest_id: guestId_2, livechat_member_type: "visitor" }),
+                Command.create({
+                    guest_id: guestId_2,
+                    livechat_member_type: "visitor",
+                }),
             ],
             channel_type: "livechat",
             livechat_operator_id: serverState.partnerId,
@@ -395,7 +447,10 @@ test("tab on composer doesn't switch thread if no unread thread", async () => {
                     partner_id: serverState.partnerId,
                     livechat_member_type: "agent",
                 }),
-                Command.create({ guest_id: guestId_1, livechat_member_type: "visitor" }),
+                Command.create({
+                    guest_id: guestId_1,
+                    livechat_member_type: "visitor",
+                }),
             ],
             channel_type: "livechat",
             livechat_operator_id: serverState.partnerId,
@@ -407,7 +462,10 @@ test("tab on composer doesn't switch thread if no unread thread", async () => {
                     partner_id: serverState.partnerId,
                     livechat_member_type: "agent",
                 }),
-                Command.create({ guest_id: guestId_2, livechat_member_type: "visitor" }),
+                Command.create({
+                    guest_id: guestId_2,
+                    livechat_member_type: "visitor",
+                }),
             ],
             channel_type: "livechat",
             livechat_operator_id: serverState.partnerId,

@@ -199,7 +199,9 @@ patch(TourHelpers.prototype, {
      *  run : "press Enter",
      */
     async press(...args) {
-        await hoot.press(args.flatMap((arg) => typeof arg === "string" && arg.split("+")));
+        await hoot.press(
+            args.flatMap((arg) => typeof arg === "string" && arg.split("+")),
+        );
     },
 
     /**
@@ -250,7 +252,9 @@ patch(TourHelpers.prototype, {
     async selectByLabel(contains, selector) {
         const element = this._get_action_element(selector);
         await hoot.click(element);
-        const values = hoot.queryAllValues(`option:contains(${contains})`, { root: element });
+        const values = hoot.queryAllValues(`option:contains(${contains})`, {
+            root: element,
+        });
         await hoot.select(values, { target: element });
     },
 

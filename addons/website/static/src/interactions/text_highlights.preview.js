@@ -1,6 +1,6 @@
 /** @odoo-module native */
-import { TextHighlight } from "@website/interactions/text_highlights";
 import { registry } from "@web/core/registry";
+import { TextHighlight } from "@website/interactions/text_highlights";
 
 const TextHighlightPreview = (I) =>
     class extends I {

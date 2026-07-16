@@ -1,8 +1,9 @@
 /** @odoo-module native */
 import { ancestors } from "@html_editor/utils/dom_traversal";
-import { Plugin } from "../plugin.js";
-import { debounce, throttleForAnimation } from "@web/core/utils/timing";
 import { couldBeScrollableX, couldBeScrollableY } from "@web/core/utils/dom/scrolling";
+import { debounce, throttleForAnimation } from "@web/core/utils/timing";
+
+import { Plugin } from "../plugin.js";
 
 /**
  * @typedef {(() => void)[]} layout_geometry_change_handlers
@@ -19,14 +20,17 @@ export class PositionPlugin extends Plugin {
         external_history_step_handlers: this.layoutGeometryChange.bind(this),
         history_reset_from_steps_handlers: this.layoutGeometryChange.bind(this),
         step_added_handlers: this.layoutGeometryChange.bind(this),
-        before_filter_mutation_record_handlers: this.handlePotentialLayoutGeometryChange.bind(this),
+        before_filter_mutation_record_handlers:
+            this.handlePotentialLayoutGeometryChange.bind(this),
     };
 
     setup() {
-        this.layoutGeometryChange = throttleForAnimation(this.layoutGeometryChange.bind(this));
+        this.layoutGeometryChange = throttleForAnimation(
+            this.layoutGeometryChange.bind(this),
+        );
         this.debouncedLayoutGeometryChange = debounce(
             this.layoutGeometryChange.bind(this),
-            "animationFrame"
+            "animationFrame",
         );
         this.resizeObserver = new ResizeObserver(this.layoutGeometryChange);
         this.resizeObserver.observe(this.document.body);
@@ -38,7 +42,7 @@ export class PositionPlugin extends Plugin {
         const scrollableElements = [
             this.editable,
             ...ancestors(this.editable).filter(
-                (node) => couldBeScrollableX(node) || couldBeScrollableY(node)
+                (node) => couldBeScrollableX(node) || couldBeScrollableY(node),
             ),
         ];
         for (const scrollableElement of scrollableElements) {

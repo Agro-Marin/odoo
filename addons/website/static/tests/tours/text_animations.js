@@ -1,7 +1,7 @@
 import {
+    clickToolbarButton,
     insertSnippet,
     registerWebsitePreviewTour,
-    clickToolbarButton,
 } from "@website/js/tours/tour_utils";
 
 function setTextAnimation(trigger, value) {
@@ -57,5 +57,5 @@ registerWebsitePreviewTour(
             content: "Check that the animation was applied",
             trigger: ":iframe .s_cover:has(span.o_animated_text)",
         },
-    ]
+    ],
 );

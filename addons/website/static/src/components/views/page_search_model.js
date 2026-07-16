@@ -31,7 +31,8 @@ export class PageSearchModel extends SearchModel {
      */
     async createFilterForAllWebsites() {
         const existingWebsiteFilters = this.getSearchItems(
-            (searchItem) => searchItem.type === "filter" && searchItem.name.startsWith("website_")
+            (searchItem) =>
+                searchItem.type === "filter" && searchItem.name.startsWith("website_"),
         );
 
         // Check if filters are already created
@@ -47,7 +48,9 @@ export class PageSearchModel extends SearchModel {
         let websitePageIds = {};
         if (this.resModel === "website.page") {
             const websiteIds = this.website.websites.map((website) => website.id);
-            websitePageIds = await this.orm.call("website", "get_website_page_ids", [websiteIds]);
+            websitePageIds = await this.orm.call("website", "get_website_page_ids", [
+                websiteIds,
+            ]);
         }
 
         return this.website.websites.map((website) => {
@@ -73,7 +76,7 @@ export class PageSearchModel extends SearchModel {
             (searchItem) =>
                 searchItem.type === "filter" &&
                 searchItem.name.startsWith("website_") &&
-                searchItem.isActive
+                searchItem.isActive,
         );
         if (currentlySelectedWebsiteFilters.length) {
             return;
@@ -82,7 +85,8 @@ export class PageSearchModel extends SearchModel {
         const currentWebsite = await this.getCurrentWebsite();
         const [currentWebsiteFilter] = this.getSearchItems(
             (searchItem) =>
-                searchItem.type === "filter" && searchItem.name === `website_${currentWebsite.id}`
+                searchItem.type === "filter" &&
+                searchItem.name === `website_${currentWebsite.id}`,
         );
         if (currentWebsiteFilter) {
             this.toggleSearchItem(currentWebsiteFilter.id);
@@ -107,7 +111,10 @@ export class PageSearchModel extends SearchModel {
 
         for (const websiteFilter of websiteFilters) {
             Object.values(this.searchItems).forEach((searchItem) => {
-                if (searchItem.type === "filter" && searchItem.name === websiteFilter.name) {
+                if (
+                    searchItem.type === "filter" &&
+                    searchItem.name === websiteFilter.name
+                ) {
                     searchItem.domain = websiteFilter.domain;
                 }
             });

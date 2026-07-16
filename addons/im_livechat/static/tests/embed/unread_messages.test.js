@@ -1,9 +1,9 @@
 import { waitUntilSubscribe } from "@bus/../tests/bus_test_helpers";
-import { expirableStorage } from "@im_livechat/core/common/expirable_storage";
 import {
     defineLivechatModels,
     loadDefaultEmbedConfig,
 } from "@im_livechat/../tests/livechat_test_helpers";
+import { expirableStorage } from "@im_livechat/core/common/expirable_storage";
 import {
     click,
     contains,
@@ -17,9 +17,14 @@ import {
     waitStoreFetch,
 } from "@mail/../tests/mail_test_helpers";
 import { describe, test } from "@odoo/hoot";
-import { asyncStep, Command, onRpc, serverState, withUser } from "@web/../tests/web_test_helpers";
-
 import { queryFirst } from "@odoo/hoot-dom";
+import {
+    asyncStep,
+    Command,
+    onRpc,
+    serverState,
+    withUser,
+} from "@web/../tests/web_test_helpers";
 import { rpc } from "@web/core/network/rpc";
 
 describe.current.tags("desktop");
@@ -44,14 +49,17 @@ test("new message from operator displays unread counter", async () => {
             store: { "discuss.channel": [{ id: channelId }] },
             persisted: true,
             livechatUserId: serverState.publicUserId,
-        })
+        }),
     );
     setupChatHub({ opened: [channelId] });
     onRpc("/discuss/channel/messages", () => asyncStep("/discuss/channel/message"));
     const userId = serverState.userId;
     listenStoreFetch(["init_messaging", "init_livechat", "discuss.channel"]);
     await start({
-        authenticateAs: { ...pyEnv["mail.guest"].read(guestId)[0], _name: "mail.guest" },
+        authenticateAs: {
+            ...pyEnv["mail.guest"].read(guestId)[0],
+            _name: "mail.guest",
+        },
     });
     await waitStoreFetch(["init_messaging", "init_livechat", "discuss.channel"], {
         stepsAfter: ["/discuss/channel/message"],
@@ -62,7 +70,7 @@ test("new message from operator displays unread counter", async () => {
             post_data: { body: "Are you there?", message_type: "comment" },
             thread_id: channelId,
             thread_model: "discuss.channel",
-        })
+        }),
     );
     await contains(".o-mail-ChatWindow-counter", { text: "1" });
 });
@@ -87,7 +95,9 @@ test("focus on unread livechat marks it as read", async () => {
         [
             "channel_member_ids",
             "in",
-            pyEnv["discuss.channel.member"].search([["guest_id", "=", pyEnv.cookie.get("dgid")]]),
+            pyEnv["discuss.channel.member"].search([
+                ["guest_id", "=", pyEnv.cookie.get("dgid")],
+            ]),
         ],
     ]);
     await waitStoreFetch("init_messaging");
@@ -98,7 +108,7 @@ test("focus on unread livechat marks it as read", async () => {
             post_data: { body: "Are you there?", message_type: "comment" },
             thread_id: channelId,
             thread_model: "discuss.channel",
-        })
+        }),
     );
     await contains(".o-mail-ChatWindow-counter", { text: "1" });
     await contains(".o-mail-Message", { text: "Are you there?" });

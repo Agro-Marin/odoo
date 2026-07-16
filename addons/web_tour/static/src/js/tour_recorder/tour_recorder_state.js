@@ -11,12 +11,15 @@ export const TOUR_RECORDER_ACTIVE_LOCAL_STORAGE_KEY = "tour_recorder_active";
  */
 export const tourRecorderState = {
     isRecording() {
-        return browser.localStorage.getItem(CURRENT_TOUR_RECORDER_RECORD_LOCAL_STORAGE) || "0";
+        return (
+            browser.localStorage.getItem(CURRENT_TOUR_RECORDER_RECORD_LOCAL_STORAGE) ||
+            "0"
+        );
     },
     setIsRecording(isRecording) {
         browser.localStorage.setItem(
             CURRENT_TOUR_RECORDER_RECORD_LOCAL_STORAGE,
-            isRecording ? "1" : "0"
+            isRecording ? "1" : "0",
         );
     },
     setCurrentTourRecorder(tour) {
@@ -24,7 +27,8 @@ export const tourRecorderState = {
         browser.localStorage.setItem(CURRENT_TOUR_RECORDER_LOCAL_STORAGE, tour);
     },
     getCurrentTourRecorder() {
-        const tour = browser.localStorage.getItem(CURRENT_TOUR_RECORDER_LOCAL_STORAGE) || "[]";
+        const tour =
+            browser.localStorage.getItem(CURRENT_TOUR_RECORDER_LOCAL_STORAGE) || "[]";
         return JSON.parse(tour);
     },
     clear() {

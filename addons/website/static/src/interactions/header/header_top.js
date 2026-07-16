@@ -1,6 +1,6 @@
 /** @odoo-module native */
-import { Interaction } from "@web/public/interaction";
 import { registry } from "@web/core/registry";
+import { Interaction } from "@web/public/interaction";
 
 export class HeaderTop extends Interaction {
     static selector = "header#top";

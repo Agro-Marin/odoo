@@ -1,11 +1,10 @@
 /** @odoo-module native */
-import { Interaction } from "@web/public/interaction";
-import { registry } from "@web/core/registry";
-
 import { markup } from "@odoo/owl";
 import { rpc } from "@web/core/network/rpc";
+import { registry } from "@web/core/registry";
 import { getTemplate } from "@web/core/templates";
 import { KeepLast } from "@web/core/utils/concurrency";
+import { Interaction } from "@web/public/interaction";
 
 export class SearchBar extends Interaction {
     static selector = ".o_searchbar_form";
@@ -43,8 +42,10 @@ export class SearchBar extends Interaction {
         const dataset = this.inputEl.dataset;
         this.options = {
             displayImage: dataset.displayImage && JSON.parse(dataset.displayImage),
-            displayDescription: dataset.displayDescription && JSON.parse(dataset.displayDescription),
-            displayExtraLink: dataset.displayExtraLink && JSON.parse(dataset.displayExtraLink),
+            displayDescription:
+                dataset.displayDescription && JSON.parse(dataset.displayDescription),
+            displayExtraLink:
+                dataset.displayExtraLink && JSON.parse(dataset.displayExtraLink),
             displayDetail: dataset.displayDetail && JSON.parse(dataset.displayDetail),
             // Make it easy for customization to disable fuzzy matching on specific searchboxes
             allowFuzzy: !(dataset.noFuzzy && JSON.parse(dataset.noFuzzy)),
@@ -53,7 +54,8 @@ export class SearchBar extends Interaction {
             this.options[fieldEl.name] = fieldEl.value;
         }
         const action =
-            form.getAttribute("action") || window.location.pathname + window.location.search;
+            form.getAttribute("action") ||
+            window.location.pathname + window.location.search;
         const [urlPath, urlParams] = action.split("?");
         if (urlParams) {
             for (const keyValue of urlParams.split("&")) {
@@ -97,7 +99,8 @@ export class SearchBar extends Interaction {
             order: this.order,
             limit: this.limit,
             max_nb_chars: Math.round(
-                Math.max(this.autocompleteMinWidth, parseInt(this.el.clientWidth)) * 0.22
+                Math.max(this.autocompleteMinWidth, parseInt(this.el.clientWidth)) *
+                    0.22,
             ),
             options: this.options,
         });
@@ -137,7 +140,7 @@ export class SearchBar extends Interaction {
                     fuzzySearch: res["fuzzy_search"],
                     widget: this.options,
                 },
-                this.el
+                this.el,
             )[0];
         }
         this.hasDropdown = !!res;
@@ -145,7 +148,14 @@ export class SearchBar extends Interaction {
     }
 
     getFieldsNames() {
-        return ["description", "detail", "detail_extra", "detail_strike", "extra_link", "name"];
+        return [
+            "description",
+            "detail",
+            "detail_extra",
+            "detail_strike",
+            "extra_link",
+            "name",
+        ];
     }
 
     async onInput() {

@@ -41,7 +41,11 @@ export function triggerAutoplay(iframeEl) {
 
     // YouTube does not allow to auto-play video in mobile devices, so we
     // have to play the video manually.
-    if (isYoutubeVideo && isMobileEnv && iframeEl.closest("[data-need-cookies-approval]")) {
+    if (
+        isYoutubeVideo &&
+        isMobileEnv &&
+        iframeEl.closest("[data-need-cookies-approval]")
+    ) {
         new window.YT.Player(iframeEl, {
             events: {
                 onReady: (ev) => ev.target.playVideo(),

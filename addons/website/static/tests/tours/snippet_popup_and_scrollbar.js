@@ -1,7 +1,7 @@
 import {
     changeOption,
-    insertSnippet,
     goBackToBlocks,
+    insertSnippet,
     registerWebsitePreviewTour,
 } from "@website/js/tours/tour_utils";
 
@@ -42,7 +42,10 @@ const checkScrollbar = function (hasScrollbar) {
 };
 
 function toggleBackdrop(snippet) {
-    return changeOption(`${snippet}`, "[data-action-id='setBackdrop'] .form-check-input");
+    return changeOption(
+        `${snippet}`,
+        "[data-action-id='setBackdrop'] .form-check-input",
+    );
 }
 
 const scrollIntoView = (selector) => ({
@@ -72,7 +75,8 @@ registerWebsitePreviewTour(
         checkScrollbar(true),
         goBackToBlocks(),
         {
-            content: "Drag the Content snippet group and drop it at the bottom of the popup.",
+            content:
+                "Drag the Content snippet group and drop it at the bottom of the popup.",
             trigger:
                 ".o-snippets-menu .o_block_tab:not(.o_we_ongoing_insertion) .o_snippet[name='Content'].o_draggable .o_snippet_thumbnail",
             run: "drag_and_drop :iframe #wrap .s_popup .oe_drop_zone:last",
@@ -120,7 +124,8 @@ registerWebsitePreviewTour(
         },
         goBackToBlocks(),
         {
-            content: "Drag the Content snippet group and drop it at the bottom of the popup.",
+            content:
+                "Drag the Content snippet group and drop it at the bottom of the popup.",
             trigger:
                 ".o-snippets-menu .o_snippet[name='Content'] .o_snippet_thumbnail:not(.o_we_ongoing_insertion)",
             run: "drag_and_drop :iframe #wrap .s_popup .modal-content.oe_structure .oe_drop_zone:last",
@@ -194,5 +199,5 @@ registerWebsitePreviewTour(
             run: "click",
         },
         checkScrollbar(true),
-    ]
+    ],
 );

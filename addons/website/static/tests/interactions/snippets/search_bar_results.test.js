@@ -1,6 +1,9 @@
 import { describe, expect, test } from "@odoo/hoot";
 import { press, queryAll, queryOne } from "@odoo/hoot-dom";
-import { startInteractions, setupInteractionWhiteList } from "@web/../tests/public/helpers";
+import {
+    setupInteractionWhiteList,
+    startInteractions,
+} from "@web/../tests/public/helpers";
 
 setupInteractionWhiteList("website.search_bar_results");
 describe.current.tags("interaction_dev");

@@ -1,9 +1,10 @@
+import { expect, test } from "@odoo/hoot";
 import { waitFor } from "@odoo/hoot-dom";
+import { contains } from "@web/../tests/web_test_helpers";
+
 import { setupEditor } from "../_helpers/editor.js";
 import { getContent } from "../_helpers/selection.js";
-import { expect, test } from "@odoo/hoot";
 import { expandToolbar } from "../_helpers/toolbar.js";
-import { contains } from "@web/../tests/web_test_helpers";
 
 test("should change the containing block with the font", async () => {
     const { el } = await setupEditor("<p>ab[cde]fg</p>");
@@ -22,7 +23,7 @@ test("should have font tool only if the block is content editable", async () => 
         [true, 1],
     ]) {
         await setupEditor(
-            `<div contenteditable="${contenteditable}"><p><span contenteditable="true">ab[cde]fg</span></p></div>`
+            `<div contenteditable="${contenteditable}"><p><span contenteditable="true">ab[cde]fg</span></p></div>`,
         );
         await expandToolbar();
         expect(".btn[name='font']").toHaveCount(count);

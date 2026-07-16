@@ -1,6 +1,6 @@
 /** @odoo-module native */
-import { useDomState } from "@html_builder/core/utils";
 import { useOperation } from "@html_builder/core/operation_plugin";
+import { useDomState } from "@html_builder/core/utils";
 import { Component } from "@odoo/owl";
 
 export class NavTabsHeaderMiddleButtons extends Component {

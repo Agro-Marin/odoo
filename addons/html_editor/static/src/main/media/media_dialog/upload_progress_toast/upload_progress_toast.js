@@ -1,7 +1,7 @@
 /** @odoo-module native */
+import { Component, useState } from "@odoo/owl";
 import { _t } from "@web/core/l10n/translation";
 import { useService } from "@web/core/utils/hooks";
-import { Component, useState } from "@odoo/owl";
 
 export class ProgressBar extends Component {
     static template = "html_editor.ProgressBar";

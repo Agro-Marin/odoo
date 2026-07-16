@@ -1,10 +1,11 @@
 /** @odoo-module native */
-import { Plugin } from "@html_editor/plugin";
-import { registry } from "@web/core/registry";
-import { GridColumnsOption } from "./grid_column_option.js";
-import { withSequence } from "@html_editor/utils/resource";
-import { GRID_COLUMNS } from "@website/builder/option_sequence";
 import { StyleAction } from "@html_builder/core/core_builder_action_plugin";
+import { Plugin } from "@html_editor/plugin";
+import { withSequence } from "@html_editor/utils/resource";
+import { registry } from "@web/core/registry";
+import { GRID_COLUMNS } from "@website/builder/option_sequence";
+
+import { GridColumnsOption } from "./grid_column_option.js";
 
 export class GridColumnsOptionPlugin extends Plugin {
     static id = "GridColumnsOption";
@@ -18,7 +19,9 @@ export class GridColumnsOptionPlugin extends Plugin {
     };
 }
 
-registry.category("website-plugins").add(GridColumnsOptionPlugin.id, GridColumnsOptionPlugin);
+registry
+    .category("website-plugins")
+    .add(GridColumnsOptionPlugin.id, GridColumnsOptionPlugin);
 
 const removePaddingPreview = (event) => {
     const editingElement = event.target;
