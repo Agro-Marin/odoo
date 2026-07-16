@@ -159,15 +159,19 @@ class AccountMove(models.Model):
         if self.env.context.get("chain_info_warnings", True):
             warnings = set()
             if moves_to_hash:
-                # gap warning
-                if last_move_hashed:
-                    first = last_move_hashed.sequence_number
-                    difference = len(moves_to_hash)
+                # Gap warning. `moves_to_hash` is ordered by sequence_number, so
+                # a well-formed chain segment is exactly the contiguous range
+                # [start, ..., last] with no missing numbers AND no duplicates.
+                # Comparing count-vs-range instead (the previous approach) missed
+                # a gap whenever a duplicate sequence number padded the count
+                # back to the span, and mis-fired when `include_pre_last_hash`
+                # pulled in moves numbered before `last_move_hashed`.
+                seq_numbers = moves_to_hash.mapped("sequence_number")
+                if last_move_hashed and not include_pre_last_hash:
+                    start = last_move_hashed.sequence_number + 1
                 else:
-                    first = moves_to_hash[0].sequence_number
-                    difference = len(moves_to_hash) - 1
-                last = moves_to_hash[-1].sequence_number
-                if first + difference != last:
+                    start = seq_numbers[0]
+                if seq_numbers != list(range(start, seq_numbers[-1] + 1)):
                     warnings.add("gap")
 
                 # unreconciled warning
