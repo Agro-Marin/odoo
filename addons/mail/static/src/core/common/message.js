@@ -182,7 +182,7 @@ export class Message extends Component {
                         background-color: ButtonFace;
                         border-radius: 50rem;
                         border: 0;
-                        display: block
+                        display: block;
                         font: -moz-button;
                         font-size: .75rem;
                         font-weight: 500;
@@ -190,7 +190,7 @@ export class Message extends Component {
                         cursor: pointer;
                         padding: 0 4px;
                         vertical-align: top;
-                        color #ffffff;
+                        color: #ffffff;
                         text-decoration: none;
                         text-align: center;
                         &:hover {
@@ -441,7 +441,7 @@ export class Message extends Component {
 
     onMouseleave() {
         this.state.isHovered = false;
-        this.state.isClicked = null;
+        this.state.isClicked = false;
     }
 
     /**

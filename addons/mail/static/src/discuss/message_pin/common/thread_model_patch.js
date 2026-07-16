@@ -14,7 +14,9 @@ patch(Thread.prototype, {
                 return this.allMessages.filter((m) => m.pinned_at);
             },
             sort: (m1, m2) => {
-                if (m1.pinned_at === m2.pinned_at) {
+                // pinned_at is a luxon DateTime: distinct objects are never
+                // ===, so compare by value; equal timestamps tiebreak on id.
+                if (m1.pinned_at.equals(m2.pinned_at)) {
                     return m1.id - m2.id;
                 }
                 return m1.pinned_at < m2.pinned_at ? 1 : -1;
