@@ -81,7 +81,12 @@ export class KanbanRenderer extends Component {
 
     static defaultProps = {
         scrollTop: () => {},
-        quickCreateState: { groupId: false },
+        // NOTE: quickCreateState is intentionally NOT defaulted here. A static
+        // defaultProps object is shared by reference across every renderer
+        // instance, and this state is mutated in place (here and in
+        // KanbanHeader), so a shared default let sibling renderers — e.g.
+        // several x2many kanban embeds on one form — clobber each other's
+        // quick-create selection. A per-instance fallback is built in setup (M5).
     };
 
     /** @type {any[]} */
@@ -101,6 +106,11 @@ export class KanbanRenderer extends Component {
 
     setup() {
         useRenderCounter("kanban.KanbanRenderer");
+        // Per-instance quick-create state: use the one supplied by the parent
+        // (the kanban controller) when present, else a fresh reactive fallback
+        // — never a shared static default (see defaultProps note, M5).
+        this.quickCreateState =
+            this.props.quickCreateState || useState({ groupId: false });
         this.dialogClose = [];
         // Identity-stable ``onValidate`` for KanbanColumnQuickCreate: an inline
         // ``props.list.createGroup.bind(props.list)`` in the template minted a
@@ -180,7 +190,7 @@ export class KanbanRenderer extends Component {
         useKanbanKeyboardNavigation({
             rootRef: this.rootRef,
             getCanOpenRecords: () => this.props.archInfo.canOpenRecords,
-            getQuickCreateActive: () => Boolean(this.props.quickCreateState.groupId),
+            getQuickCreateActive: () => Boolean(this.quickCreateState.groupId),
             onSpace: (target, isRange) => this.onSpaceKeyPress(target, isRange),
             onArrowNav: (area, direction) =>
                 this.focusNextCard(area, direction) ?? false,
@@ -301,7 +311,7 @@ export class KanbanRenderer extends Component {
             return true;
         }
         if (isGrouped) {
-            if (this.props.quickCreateState.groupId) {
+            if (this.quickCreateState.groupId) {
                 return false;
             }
             if (this.canCreateGroup() && !this.state.columnQuickCreateIsFolded) {
@@ -428,11 +438,11 @@ export class KanbanRenderer extends Component {
         } else {
             this.props.progressBarState?.updateCounts(group);
         }
-        this.props.quickCreateState.groupId = mode === "add" ? group.id : false;
+        this.quickCreateState.groupId = mode === "add" ? group.id : false;
     }
 
     cancelQuickCreate() {
-        this.props.quickCreateState.groupId = false;
+        this.quickCreateState.groupId = false;
     }
 
     async deleteGroup(group) {

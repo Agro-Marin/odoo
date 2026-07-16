@@ -51,7 +51,21 @@ export function capitalize(str) {
 }
 
 /**
- * Escapes HTML special characters in a given value.
+ * Escapes HTML special characters in a given value, returning a plain string.
+ *
+ * Escapes the SAME six characters as OWL's ``htmlEscape`` (re-exported as the
+ * canonical markup-aware helper from ``@web/core/utils/dom/html``), but with
+ * deliberately different trust semantics — so the two are NOT interchangeable:
+ *
+ *  - ``htmlEscape`` is Markup-aware: it passes a ``markup()`` value through
+ *    UNESCAPED and returns Markup. Use it when composing safe HTML.
+ *  - ``escape`` (this one) has NO passthrough: it coerces every input —
+ *    including a String subclass / Markup / lazy ``_t`` string — to a plain
+ *    string and always runs the replace (see the inline note below), returning
+ *    an inert string. Use it where the result must never be treated as HTML.
+ *
+ * Prefer ``htmlEscape`` in markup-building contexts; keep ``escape`` where the
+ * always-escape (no-trust) behavior is the point.
  *
  * @param {unknown} [value]
  * @returns {string}

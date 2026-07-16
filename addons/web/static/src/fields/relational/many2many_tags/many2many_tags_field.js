@@ -110,11 +110,13 @@ export class Many2ManyTagsField extends Component {
                 create: this.props.canCreate && this.props.createDomain,
                 createEdit: this.props.canCreateEdit,
                 onDelete: removeRecord,
-                edit: this.props.record.isInEdition,
             },
             getEvalParams: (props) => ({
                 evalContext: this.evalContext,
                 readonly: props.readonly,
+                // Re-derived per-props (see relational_active_actions.js) rather
+                // than snapshotted once in crudOptions.
+                edit: props.record.isInEdition,
             }),
         });
 
@@ -214,19 +216,37 @@ export class Many2ManyTagsField extends Component {
 
     /** @param {number} index - Zero-based index of the tag to delete */
     async deleteTagByIndex(index) {
-        this.mutex.exec(() => {
-            if (this.tags[index]) {
-                return this.deleteTag(this.tags[index].id);
+        return this.mutex.exec(() => {
+            // Resolve the id inside the mutex so it reflects any prior queued
+            // deletion (keyboard deletes advance through the shrinking list).
+            const tag = this.tags[index];
+            if (tag) {
+                return this._forgetTag(tag.id);
             }
         });
     }
 
     /** @param {string} id - Datapoint ID of the tag record to remove */
     async deleteTag(id) {
-        const tagRecord = this.props.record.data[this.props.name].records.find(
-            (record) => record.id === id,
-        );
-        await this.props.record.data[this.props.name].forget(tagRecord);
+        // Route pointer deletes through the same mutex as keyboard deletes:
+        // otherwise a rapid double-click races two un-serialized removals.
+        return this.mutex.exec(() => this._forgetTag(id));
+    }
+
+    /**
+     * Forgets the tag record with the given id, guarding against a missing
+     * record: a double delete can reach here twice for the same id, and after
+     * the first removal `find` misses — `forget(undefined)` would throw.
+     *
+     * @param {string} id - Datapoint ID of the tag record to remove
+     */
+    _forgetTag(id) {
+        const list = this.props.record.data[this.props.name];
+        const tagRecord = list.records.find((record) => record.id === id);
+        if (!tagRecord) {
+            return;
+        }
+        return list.forget(tagRecord);
     }
 
     /** @returns {Array} Evaluated domain for the many2many autocomplete search */

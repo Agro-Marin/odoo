@@ -65,12 +65,19 @@ export const errorService = {
                 }
                 return !uncaughtError.event.defaultPrevented;
             }
+            // Unwrap to the deepest cause in the chain. Descend only while the
+            // next `cause` is DEFINED: a non-Error reason (e.g. a rejected
+            // promise with a string reason) is a legitimate original error and
+            // must be surfaced, but a chain ending in `{ cause: undefined }`
+            // must not hand handlers `originalError === undefined` — stop and
+            // keep the last defined value instead.
             let originalError = uncaughtError;
             const seen = new Set();
-            while (originalError instanceof Error && "cause" in originalError) {
-                if (seen.has(originalError)) {
-                    break; // circular cause chain
-                }
+            while (
+                originalError instanceof Error &&
+                originalError.cause != null &&
+                !seen.has(originalError)
+            ) {
                 seen.add(originalError);
                 originalError = originalError.cause;
             }

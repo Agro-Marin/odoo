@@ -107,9 +107,16 @@ export function copyAttributes(el, compiled) {
     if (classes) {
         if (isComponent) {
             const cls = compiled.className;
+            // Route the literal class string through toStringExpression (the
+            // single codegen-escaping seam) instead of hand-rolling single
+            // quotes: a raw `'`, backtick or `${` in a class attribute would
+            // otherwise break compilation of the whole view (M8). Mirrors the
+            // `style` branch below.
             compiled.setAttribute(
                 "class",
-                cls ? `'${classes} ' + ${cls}` : `'${classes}'`,
+                cls
+                    ? `${toStringExpression(classes + " ")} + ${cls}`
+                    : toStringExpression(classes),
             );
         } else {
             compiled.classList.add(...classes.split(/\s+/).filter(Boolean));

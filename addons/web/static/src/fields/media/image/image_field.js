@@ -3,7 +3,7 @@
 
 /** @module @web/fields/media/image/image_field - Image upload, preview, and zoom field for Binary image columns */
 
-import { Component, onWillRender, useState } from "@odoo/owl";
+import { Component, onWillRender, status, useState } from "@odoo/owl";
 import { isMobileOS } from "@web/core/browser/feature_detection";
 import { FileUploader } from "@web/core/file_upload/file_handler";
 import { DateTime } from "@web/core/l10n/luxon";
@@ -90,8 +90,16 @@ export class ImageField extends Component {
                 // in getUrl() would otherwise keep serving the previous
                 // record's/value's image after a remove or replace.
                 this.lastURL = undefined;
+                // Reset the validity latch: a load failure on the previous
+                // record must not keep forcing the placeholder here — getUrl()
+                // short-circuits on !isValid, so without this a single 404
+                // poisons every record paged to on this component instance.
+                this.state.isValid = true;
             } else if (valueChanged(value, nextValue)) {
                 this.lastURL = undefined;
+                // A fresh value (e.g. an onchange delivering a valid image, or
+                // a replace) must clear a stale invalid latch too.
+                this.state.isValid = true;
                 // A many2one image URL targets the RELATED record, so neither
                 // a dotted-related change nor an m2o dialog edit (which only
                 // refreshes display_name) moves this record's write_date —
@@ -192,6 +200,12 @@ export class ImageField extends Component {
         this.props.record.update({ [this.props.name]: false });
     }
     async onFileUploaded(info) {
+        // Capture the record at entry: the handler awaits image.decode() and up
+        // to three create_unique RPCs below, during which the user may page to
+        // another record (reusing this component instance). The final update
+        // must land on the record the upload was started for — bail if it
+        // changed or the component was destroyed in the meantime.
+        const record = this.props.record;
         this.state.isValid = true;
         if (
             this.props.convertToWebp &&
@@ -318,7 +332,10 @@ export class ImageField extends Component {
                 })),
             ]);
         }
-        this.props.record.update({ [this.props.name]: info.data });
+        if (record !== this.props.record || status(this) === "destroyed") {
+            return;
+        }
+        record.update({ [this.props.name]: info.data });
     }
     onLoadFailed() {
         this.state.isValid = false;

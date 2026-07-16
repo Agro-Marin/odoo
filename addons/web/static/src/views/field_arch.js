@@ -71,7 +71,10 @@ export function parseFieldNode(node, models, modelName, viewType, jsClass) {
 
     for (const attr of ["invisible", "column_invisible", "readonly", "required"]) {
         fieldInfo[attr] = node.getAttribute(attr);
-        if (fieldInfo[attr] === "True") {
+        // Both static-true spellings ("True" and "1") must be normalized: an
+        // always-hidden `column_invisible="1"` field otherwise stays visible
+        // as a plain invisible modifier and still gets its subviews fetched (L2).
+        if (fieldInfo[attr] === "True" || fieldInfo[attr] === "1") {
             if (attr === "column_invisible") {
                 fieldInfo.invisible = "True";
             }

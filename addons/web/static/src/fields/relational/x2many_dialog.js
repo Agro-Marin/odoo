@@ -68,8 +68,7 @@ export class X2ManyFieldDialog extends Component {
             beforeExecuteAction: this.beforeExecuteActionButton.bind(this),
         }); // maybe pass the model directly in props
 
-        this.readonly = this.record.resId && !this.archInfo.activeActions.edit;
-        this.canCreate = !this.record.resId;
+        this._computePermissions();
 
         if (this.archInfo.xmlDoc.querySelector("footer:not(field footer)")) {
             this.archInfo = {
@@ -120,6 +119,18 @@ export class X2ManyFieldDialog extends Component {
             );
         }
         shared.get("useFormViewInDialog")();
+    }
+
+    /**
+     * (Re)computes readonly/canCreate from the CURRENT record. Called at setup
+     * and again after "Save & New" swaps in a fresh record, otherwise both keep
+     * the initial record's values. Boolean-coerce readonly: the raw
+     * `resId && !edit` expression yields the resId number (truthy) when not
+     * editable, but it feeds a Boolean FormRenderer prop.
+     */
+    _computePermissions() {
+        this.readonly = Boolean(this.record.resId && !this.archInfo.activeActions.edit);
+        this.canCreate = !this.record.resId;
     }
 
     /** @returns {Object} Props for the Dialog component */
@@ -187,6 +198,10 @@ export class X2ManyFieldDialog extends Component {
                     if (saveAndNew) {
                         await this.record.switchMode("readonly");
                         this.record = await this.props.addNew();
+                        // The new blank record has no resId: recompute so the
+                        // dialog isn't stuck with the previous record's readonly
+                        // / canCreate flags.
+                        this._computePermissions();
                     }
                 } else {
                     return false;

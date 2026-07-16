@@ -57,10 +57,19 @@ export function usePosition(refName, getTarget, options = {}) {
     // object would throw on assignment.
     /** @type {string | undefined} */
     let lastPosition;
+    // The caller's requested position last seen by `update`. When it changes
+    // (reactive `options.position`), `lastPosition` is dropped so the new
+    // request takes effect — previously the first solved position replaced the
+    // caller's for the hook's whole lifetime, ignoring later changes.
+    let lastRequestedPosition = options.position;
     const update = () => {
         const targetEl = getTarget();
         if (!ref.el || !targetEl?.isConnected || lock) {
             return;
+        }
+        if (options.position !== lastRequestedPosition) {
+            lastRequestedPosition = options.position;
+            lastPosition = undefined;
         }
         const repositionOptions = omit(options, "onPositioned");
         if (lastPosition) {
@@ -92,7 +101,14 @@ export function usePosition(refName, getTarget, options = {}) {
         useChildSubEnv({ [POSITION_BUS]: bus });
     }
 
-    const throttledUpdate = useThrottleForAnimation(() => bus.trigger("update"));
+    // Only the topmost instance attaches scroll/resize listeners (below), so
+    // only it needs the throttled trigger — non-topmost instances would build
+    // an unused throttle wrapper (and its onWillUnmount cleanup) for nothing.
+    // `isTopmost` is fixed for the component's lifetime, so this conditional
+    // hook call is stable.
+    const throttledUpdate = isTopmost
+        ? useThrottleForAnimation(() => bus.trigger("update"))
+        : null;
     useEffect(() => {
         bus.trigger("update");
 

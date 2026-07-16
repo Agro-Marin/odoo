@@ -9,6 +9,7 @@ import { SearchModelEvent } from "@web/core/events";
 import { DateTime } from "@web/core/l10n/luxon";
 import { evaluateExpr } from "@web/core/py_js/py";
 import { deepCopy } from "@web/core/utils/collections/objects";
+import { Mutex } from "@web/core/utils/concurrency";
 import { user } from "@web/services/user";
 
 import { SearchArchParser } from "./search_arch_parser.js";
@@ -61,21 +62,27 @@ import { getIntervalOptions } from "./utils/dates.js";
 /**
  * Structural contract between SearchModel and its delegate modules
  * (search_query_mutations, search_split_domain, search_properties,
- * search_panel/search_panel_state). It documents the instance state those
- * delegates read or write — the real seam left by the facade split — so a
- * rename on the model side is caught at the seam instead of type-checking
- * silently. Delegates also call back into model methods (`_notify`,
- * `_getGroups`, `createNewFilters`, …); those, plus subclass extensions
- * (documents, knowledge, account_reports, …), are admitted by the
- * `Record<string, any>` intersection.
+ * search_panel/search_panel_state). It documents the instance state AND the
+ * model methods those delegates read, write, or call back into — the real seam
+ * left by the facade split — so a rename on the model side is caught at the
+ * seam instead of type-checking silently.
+ *
+ * The former `& Record<string, any>` escape hatch (which admitted any property
+ * access and defeated the whole point) has been removed; the surface below is
+ * the exhaustive set of `searchModel.*` members reached from the four delegate
+ * files. Externally-provided objects (`env`, ORM/services, tree processor) are
+ * intentionally `any` — they are not part of the invariant this seam guards.
+ * Mutations are still funneled by convention rather than through dedicated
+ * helper methods (see A11 note): tightening the typedef was the low-risk half.
  *
  * @typedef {{
- *   env: Object,
- *   orm: Object,
- *   dialog: Object,
+ *   env: any,
+ *   orm: any,
+ *   dialog: any,
+ *   fieldService: any,
+ *   treeProcessor: any,
  *   DomainSelectorDialog: Function,
  *   getDefaultDomain: Function,
- *   treeProcessor: Object,
  *   resModel: string,
  *   isDebugMode: boolean,
  *   globalContext: Object,
@@ -83,6 +90,7 @@ import { getIntervalOptions } from "./utils/dates.js";
  *   blockNotification: boolean,
  *   orderByCount: string | false,
  *   defaultGroupBy: string[] | undefined,
+ *   defaultGroupByRemoved: boolean | undefined,
  *   query: Object[],
  *   searchItems: Record<number, Object>,
  *   searchViewFields: Record<string, Object>,
@@ -99,8 +107,44 @@ import { getIntervalOptions } from "./utils/dates.js";
  *   categoriesLoadId: number,
  *   filtersLoadId: number,
  *   display: Object,
+ *   _rawContext: Object,
  *   _sections: Object[] | null,
- * } & Record<string, any>} SearchModelLike
+ *   _sectionLoadIds: Map<number, number>,
+ *   _enrichedSearchItems: Object[] | null,
+ *   _filledPropertyFields: any,
+ *   trigger: Function,
+ *   _notify: () => Promise<void>,
+ *   _reset: () => void,
+ *   _reloadSections: () => Promise<void>,
+ *   clearQuery: Function,
+ *   deactivateGroup: Function,
+ *   createNewFilters: Function,
+ *   createNewGroupBy: Function,
+ *   toggleSearchItem: Function,
+ *   toggleDateGroupBy: Function,
+ *   splitAndAddDomain: Function,
+ *   getSearchItems: Function,
+ *   _createGroupOfSearchItems: Function,
+ *   _createIrFilters: Function,
+ *   _createCategoryTree: Function,
+ *   _createFilterTree: Function,
+ *   _ensureCategoryValue: Function,
+ *   _fetchCategories: Function,
+ *   _fetchFilters: Function,
+ *   _fetchSections: Function,
+ *   _fetchPropertiesDefinition: Function,
+ *   _getCategoryDomain: Function,
+ *   _getDomain: Function,
+ *   _getFilterDomain: Function,
+ *   _getGroupBy: Function,
+ *   _getGroupDomain: Function,
+ *   _getGroups: Function,
+ *   _getIrFilterDescription: Function,
+ *   _getSearchItemContext: Function,
+ *   _getSearchItemGroupBys: Function,
+ *   _getSelectedGeneratorIds: Function,
+ *   _shouldWaitForData: Function,
+ * }} SearchModelLike
  */
 
 /**
@@ -168,6 +212,16 @@ export class SearchModel extends EventBus {
         // OF THE SAME SECTION.
         /** @type {Map<number, number>} */
         this._sectionLoadIds = new Map();
+
+        // Serializes every _reloadSections invocation (from reload() and from
+        // _notify()'s coalescing loop) so two overlapping panel reloads can no
+        // longer interleave their searchDomain / shouldReload writes nor issue a
+        // duplicate reload+UPDATE. reload() (called from WithSearch on prop
+        // updates) can fire again before a previous reload's fetch settles;
+        // without this, the first reloadSections' `finally` unmuted the model
+        // while the second was still awaiting, letting a user mutation reach
+        // _notify concurrently.
+        this._reloadMutex = new Mutex();
     }
 
     /**
@@ -264,6 +318,13 @@ export class SearchModel extends EventBus {
 
         if (config.state) {
             this._importState(config.state);
+            // Honor a persisted default-group-by removal: line above re-applied
+            // config.defaultGroupBy, but if the user had dismissed that SPECIAL
+            // facet before this state was exported, drop it again so it doesn't
+            // silently reappear on breadcrumb restore / back-forward.
+            if (this.defaultGroupByRemoved) {
+                this.defaultGroupBy = undefined;
+            }
             this.__legacyParseSearchPanelArchAnyway(
                 searchViewDescription,
                 searchViewFields,
@@ -419,32 +480,42 @@ export class SearchModel extends EventBus {
     }
 
     /**
-     * Raw memoized context for internal read-only consumers: the public
-     * `context` getter deep-copies on every access.
+     * Raw memoized context. Also the value the public `context` getter now
+     * returns directly (see there).
      * @returns {Context}
      */
     get _rawContext() {
         if (!this._context) {
             this._context = makeContext([this.globalContext, this._getContext()]);
+            this._freezeInDevMode(this._context);
         }
         return this._context;
     }
 
     /**
+     * Memoized context, returned by reference (frozen in dev) — same read-only
+     * convention as `facets`/`getSections`. The former deep-copy-on-every-access
+     * was redundant (makeContext already produced a detached object) and costly:
+     * views re-read this on every SearchParams build, several times per search
+     * interaction, over potentially large contexts.
      * @returns {Context} should be imported from context.js?
      */
     get context() {
-        return deepCopy(this._rawContext);
+        return this._rawContext;
     }
 
     /**
+     * Memoized domain, returned by reference (frozen in dev). computeDomain
+     * already JSON-round-trips into a detached structure, so the previous
+     * per-access deep copy was pure overhead. See the `context` getter.
      * @returns {DomainListRepr}
      */
     get domain() {
         if (!this._domain) {
             this._domain = /** @type {DomainListRepr} */ (this._getDomain());
+            this._freezeInDevMode(this._domain);
         }
-        return deepCopy(this._domain);
+        return this._domain;
     }
 
     /**
@@ -495,17 +566,24 @@ export class SearchModel extends EventBus {
         if (!this._groupBy) {
             this._groupBy = this._getGroupBy();
         }
+        // Deep copy retained here (unlike domain/context/orderBy): the pivot
+        // model aliases this array into metaData.rowGroupBys and splices it in
+        // place when a row group is collapsed (pivot_model.closeGroup), so a
+        // shared (frozen) reference would corrupt the model / throw in dev.
         return deepCopy(this._groupBy);
     }
 
     /**
+     * Memoized orderBy, returned by reference (frozen in dev). See the `context`
+     * getter. Consumers (relational/graph/pivot models) only read or rebuild it.
      * @returns {OrderTerm[]}
      */
     get orderBy() {
         if (!this._orderBy) {
             this._orderBy = this._getOrderBy();
+            this._freezeInDevMode(this._orderBy);
         }
-        return deepCopy(this._orderBy);
+        return this._orderBy;
     }
 
     get isDebugMode() {
@@ -1008,7 +1086,17 @@ export class SearchModel extends EventBus {
             localContext,
             localOrderBy,
             getContext: () => this._getContext(),
-            getDomain: () => this._getDomain({ raw: true, withGlobal: false }),
+            // withSearchPanel:false — do NOT bake the live search-panel
+            // category/filter selections into the saved favorite's domain.
+            // Activating a favorite only resets `query` (not panel state), so a
+            // baked-in panel domain would be AND-ed on top of whatever panel
+            // selection is live at activation time (stale/contradictory).
+            getDomain: () =>
+                this._getDomain({
+                    raw: true,
+                    withGlobal: false,
+                    withSearchPanel: false,
+                }),
             getGroupBy: () => this._getGroupBy(),
             getOrderBy: () => this._getOrderBy(),
             globalContext: this.globalContext,
@@ -1100,11 +1188,19 @@ export class SearchModel extends EventBus {
             return;
         }
 
-        // Only one _notify can reach here at a time: reloadSections sets
-        // blockNotification synchronously before its first await, so every
-        // concurrent _notify during the await takes the branch above. Loop
-        // until no further change arrived mid-reload, so the FINAL query state
-        // always gets a reload + UPDATE.
+        // reloadSections sets blockNotification synchronously before its first
+        // await, so a _notify arriving while a reload runs takes the branch
+        // above and coalesces into _pendingNotification; the _reloadMutex
+        // additionally guarantees the reloads themselves never interleave (see
+        // _reloadSections). Loop until no further change arrived mid-reload, so
+        // the FINAL query state always gets a reload + UPDATE.
+        //
+        // Residual (A1/A14): a _notify landing in the microtask gap between
+        // this `await` and the mutex scheduling reloadSections would not yet see
+        // blockNotification set; the mutex still serializes the resulting reload
+        // (no interleave / data corruption) but a redundant UPDATE could fire.
+        // Not reachable from the current callers (each fires _notify once per
+        // synchronous, macrotask-driven interaction).
         do {
             this._pendingNotification = false;
             await this._reloadSections();
@@ -1137,9 +1233,31 @@ export class SearchModel extends EventBus {
         );
     }
 
-    /** Reload sections when search domain changes or search panel becomes visible. */
+    /**
+     * Reload sections when search domain changes or search panel becomes
+     * visible. All callers (reload(), _notify()) funnel through a single Mutex
+     * so panel reloads run strictly sequentially — never overlapping — which is
+     * what makes the blockNotification window inside reloadSections safe (no
+     * second reload is awaiting when the first restores the flag).
+     */
     async _reloadSections() {
-        return panelState.reloadSections(this);
+        return this._reloadMutex.exec(() => panelState.reloadSections(this));
+    }
+
+    /**
+     * Freeze a memoized getter result in dev mode to enforce the read-only
+     * convention (shared with facets/getSections). Shallow (top-level) — enough
+     * to catch an accidental push/splice or top-level key assignment — and a
+     * no-op in production so the hot render path pays nothing.
+     * @template T
+     * @param {T} value
+     * @returns {T}
+     */
+    _freezeInDevMode(value) {
+        if (this.isDebugMode) {
+            Object.freeze(value);
+        }
+        return value;
     }
 
     _reset() {

@@ -140,6 +140,18 @@ export function formatAST(ast, lbp = 0) {
             return abp < lbp ? `(${str})` : str;
         }
         case ASTType.Dictionary: {
+            // KNOWN LIMITATION (Python 3 divergence): the Dictionary AST keys
+            // its entries by a JS object, whose keys are ALWAYS strings, so an
+            // integer literal key is collapsed to a string at parse time
+            // (``py_parser.js``: ``{1: 2}`` → ``value: {"1": ...}``). formatAST
+            // therefore cannot tell ``{1: 2}`` from ``{"1": 2}`` and emits
+            // ``{"1": 2}`` for both — converting int keys to str keys where the
+            // round-trip crosses back to the server, which distinguishes them.
+            // Same root cause as the dict-lookup note in py_interpreter.js. A
+            // proper fix carries the key AST (not a collapsed object key)
+            // through Dictionary nodes; deferred because the AST shape is a
+            // frozen contract asserted verbatim by py_parser's tests. Rare in
+            // practice (domain/context dicts are string-keyed).
             const pairs = [];
             for (const k of Object.keys(ast.value || {})) {
                 pairs.push(`${JSON.stringify(k)}: ${formatAST(ast.value[k])}`);

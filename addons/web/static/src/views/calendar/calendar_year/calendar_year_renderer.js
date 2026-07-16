@@ -149,8 +149,13 @@ export class CalendarYearRenderer extends Component {
         if (!options) {
             return; // v6-shape fallback or unexpected payload
         }
-        const showWeek = options.weekNumbers;
-        const weekText = options.weekTextShort;
+        // The didMount payload only echoes a subset of options (toolbars), not
+        // weekNumbers/weekTextShort — read those from this.options, mirroring
+        // the fix in CalendarCommonRenderer.viewDidMount (M14). Latent here
+        // (year sets weekNumbersWithinDays: true, so weekColumn is always
+        // false), but kept consistent to avoid a silent regression if that flips.
+        const showWeek = this.options.weekNumbers;
+        const weekText = options.weekTextShort ?? this.options.weekText ?? "";
         const weekColumn = !this.customOptions.weekNumbersWithinDays;
         if (showWeek && weekColumn) {
             makeWeekColumn(/** @type {any} */ ({ el, weekText }));

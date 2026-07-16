@@ -671,4 +671,37 @@ describe("urgentSave in-flight guard", () => {
         expect(beaconCalls).toBe(1);
         expect(webSaveCalls).toBe(0);
     });
+
+    test("a leaked _urgentBeaconFired does not short-circuit a later real save", async () => {
+        // Regression: the beacon raises _urgentBeaconFired, but when the page
+        // SURVIVES (bfcache Back after the tab-close beacon) no parked save
+        // consumes it, so the flag leaks true. A subsequent save with genuinely
+        // new edits must still reach web_save — it must NOT read the stale
+        // beaconFiredWhileParked and return "saved" without persisting (silent
+        // data loss). The reset now happens right after the _getChanges()
+        // snapshot, so the stale flag can't survive into this save.
+        let beaconCalls = 0;
+        mockSendBeacon(() => {
+            beaconCalls++;
+            return true;
+        });
+        let webSaveCalls = 0;
+        const rec = makeProtoRecord({
+            webSave: async () => {
+                webSaveCalls++;
+                return [{ id: 7 }];
+            },
+        });
+
+        // Tab close beacon fires with no save in flight; the page then survives.
+        await rec.urgentSave();
+        expect(beaconCalls).toBe(1);
+        expect(rec._urgentBeaconFired).toBe(true); // leaked: nothing consumed it
+
+        // A later real save with new edits must persist, not no-op.
+        const result = await save(rec, { reload: false });
+        expect(result).toBe(true);
+        expect(webSaveCalls).toBe(1);
+        expect(rec._urgentBeaconFired).toBe(false);
+    });
 });

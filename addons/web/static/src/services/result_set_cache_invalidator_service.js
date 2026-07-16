@@ -61,7 +61,7 @@ export const resultSetCacheInvalidatorService = {
      * @param {import("@web/env").OdooEnv} _env
      */
     start(_env) {
-        rpcBus.addEventListener(RpcEvent.RESPONSE, (event) => {
+        const onResponse = (event) => {
             const detail = /** @type {any} */ (event).detail;
             // A failed unlink/archive removed nothing; its RESPONSE carries
             // ``error`` with no ``result``. Skip to avoid a needless reload
@@ -85,7 +85,21 @@ export const resultSetCacheInvalidatorService = {
                 tables: RESULT_SET_TABLES,
                 model,
             });
-        });
+        };
+
+        rpcBus.addEventListener(RpcEvent.RESPONSE, onResponse);
+
+        // ``rpcBus`` is a module-singleton, so the "exactly one listener tied to
+        // this env's lifecycle" invariant in the docstring only holds if the
+        // listener is actually removed on teardown. Without this, every env ever
+        // started leaves a permanent listener and one record removal fires
+        // CLEAR-CACHES once PER env — the exact N-fold amplification this
+        // service exists to prevent. Called by ``env.destroy()``.
+        return {
+            destroy() {
+                rpcBus.removeEventListener(RpcEvent.RESPONSE, onResponse);
+            },
+        };
     },
 };
 

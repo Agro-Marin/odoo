@@ -27,6 +27,13 @@ import { markRaw } from "@odoo/owl";
  * false-vs-"" flow), or ``_invalidFields``/``_unsetRequiredFields``
  * (validation lifecycle) — mixing those in would add coupling the
  * field-level edit flow doesn't need.
+ *
+ * NOTE (finding 13, deferred): this value object documents rather than
+ * enforces its contract (helpers still mutate ``record._changes[f] = v`` on
+ * the raw bag). The natural next refactor is to grow ``set``/``delete`` here
+ * (or collapse ChangeSet into ``RecordEditState``) so the three-layer
+ * indirection stops being ceremony without enforcement — out of scope for
+ * this quality pass.
  */
 export class ChangeSet {
     constructor() {

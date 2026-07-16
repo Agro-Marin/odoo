@@ -165,9 +165,26 @@ export class Many2One extends Component {
 
         this.state = useState({ isFloating: false });
 
+        const self = this;
         this.recordDialog = {
             open: useOpenMany2XRecord({
-                activeActions: this.activeActions,
+                // useOpenMany2XRecord reads activeActions.create/.write at
+                // dialog-open time. Passing `this.activeActions` would snapshot
+                // the getter's result at setup, so later prop changes to
+                // canCreate/canWrite (readonly re-evaluation, view context)
+                // wouldn't reach the dialog's preventCreate/preventEdit. Live
+                // getters keep it reading fresh props on each open.
+                activeActions: {
+                    get create() {
+                        return self.props.canCreate;
+                    },
+                    get createEdit() {
+                        return self.props.canCreateEdit;
+                    },
+                    get write() {
+                        return self.props.canWrite;
+                    },
+                },
                 fieldString: this.props.string,
                 isToMany: false,
                 onClose: () => {

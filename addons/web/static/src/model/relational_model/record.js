@@ -971,7 +971,16 @@ export class RelationalRecord extends DataPoint {
         this._activeFieldsToRestore = undefined;
     }
 
-    /** @param {{ reload?: boolean, onError?: (e: Error, actions: { discard: () => void, retry: () => any }) => any, nextId?: number }} [options] */
+    /**
+     * NOTE (finding 9): ``onError`` runs while ``model.mutex`` is HELD — the
+     * public ``save()`` calls ``_save`` inside ``mutex.exec``, and in dialog
+     * mode ``onError`` resolves only when the user closes the FormErrorDialog.
+     * Its ``discard``/``retry`` actions therefore MUST use ``_``-prefixed
+     * protected methods (``record._discard()``, the internal ``save(...)``);
+     * calling a public mutex-taking verb from inside ``onError`` would deadlock.
+     *
+     * @param {{ reload?: boolean, onError?: (e: Error, actions: { discard: () => void, retry: () => any }) => any, nextId?: number }} [options]
+     */
     async _save(options) {
         return save(this, options);
     }
@@ -1058,10 +1067,10 @@ export class RelationalRecord extends DataPoint {
      */
     async _getOnchangeValues(changes) {
         // Compute Operations (multi-edit "+5"/"-5" inputs) into a LOCAL copy:
-        // rewriting the caller's `changes` in place would replay an absolute
-        // number if the caller re-dispatches the same object (same
-        // non-mutation contract as `effectiveChanges` in `_update`).
-        // `_applyChanges` computes Operations itself, off the same base.
+        // rewriting this `changes` in place would replay an absolute number if
+        // it were re-fed to onchange, and `_applyChanges` must still see the
+        // original Operation to compute off the same base. (`_update` already
+        // hands us its private clone, but this method defends its own boundary.)
         const originalChanges = changes;
         for (const fieldName of Object.keys(originalChanges)) {
             if (originalChanges[fieldName] instanceof Operation) {
@@ -1121,6 +1130,14 @@ export class RelationalRecord extends DataPoint {
             withoutParentUpdate,
         } = {},
     ) {
+        // Finding 6: the preprocessors below rewrite ``changes[fieldName]`` in
+        // place (e.g. ``preprocessX2manyChanges`` replaces a command array with
+        // a StaticList). Shallow-clone the caller's object ONCE here and mutate
+        // only the private copy: a caller that re-dispatches the same ``changes``
+        // (e.g. an x2many command array) must not find it silently turned into a
+        // StaticList — the next ``for (const command of value)`` over a
+        // non-iterable list would throw. Downstream lazy clones become redundant.
+        changes = { ...changes };
         // Invariant 1: race-protection. ``_changes`` is populated by
         // ``_applyChanges`` further below, after async preprocessors and
         // (optional) onchange RPC complete. Setting ``dirty`` synchronously
@@ -1152,6 +1169,48 @@ export class RelationalRecord extends DataPoint {
                 this.dirty = wasDirty;
             }
         };
+        // Finding 3: ``preprocessX2manyChanges`` mutates the LIVE StaticLists in
+        // place (``_applyCommands``/``_replaceWith``) during the Promise.all
+        // below — BEFORE the ``_applyChanges`` commit point records the list
+        // into ``_changes``. If a sibling preprocessor (m2o name_create
+        // AccessError, reference webRead failure) or the onchange RPC then
+        // rejects, ``_update`` throws before ``_applyChanges`` runs and
+        // ``restoreDirty()`` lowers the flag: the UI shows rows added/removed
+        // with staged commands on the list, but ``_getChanges()`` never
+        // serializes them (the next save silently drops what the user sees).
+        // Snapshot each touched list's command log + membership up front and
+        // roll it back on any throw, mirroring ``_applyChanges``' listSnapshots
+        // restore. RESIDUAL RISK: on a preprocessor rejection, a still-in-flight
+        // ``_applyCommands`` on the SAME list can re-mutate it after the
+        // rollback (preprocessors are deliberately fire-and-forget, see below);
+        // the onchange-rejection path has no such race (all preprocessors have
+        // already settled).
+        const listSnapshots = [];
+        for (const fieldName of Object.keys(changes)) {
+            if (isX2Many(this.fields[fieldName])) {
+                const list = toRaw(this.data)[fieldName];
+                if (list?._commands) {
+                    listSnapshots.push({
+                        list,
+                        _commands: list._commands.map((c) =>
+                            c.map((el) => (Array.isArray(el) ? [...el] : el)),
+                        ),
+                        _currentIds: [...list._currentIds],
+                        count: list.count,
+                    });
+                }
+            }
+        }
+        const rollbackLists = () => {
+            for (const snap of listSnapshots) {
+                snap.list._commands = snap._commands;
+                snap.list._currentIds = snap._currentIds;
+                snap.list.count = snap.count;
+                snap.list.records = snap.list._currentIds
+                    .slice(snap.list.offset, snap.list.offset + snap.list.limit)
+                    .map((resId) => snap.list._cache[resId]);
+            }
+        };
         const prom = Promise.all([
             preprocessMany2oneChanges(this, changes),
             preprocessMany2OneReferenceChanges(this, changes),
@@ -1172,6 +1231,9 @@ export class RelationalRecord extends DataPoint {
         try {
             await this.model.urgentSave.awaitUnlessUrgent(prom);
         } catch (e) {
+            // The change never stuck: roll back any x2many commands already
+            // applied to live lists (finding 3) before lowering the flag.
+            rollbackLists();
             restoreDirty();
             throw e;
         }
@@ -1194,20 +1256,30 @@ export class RelationalRecord extends DataPoint {
             // would hide the Save button after the very edit that triggered the
             // error.) The no-op / _onUpdate-failure paths below still restore,
             // since there the change never stuck.
-            onchangeServerValues =
-                (await this.model.urgentSave.unlessUrgent(() =>
-                    this._getOnchangeValues(changes),
-                )) ?? {};
+            try {
+                onchangeServerValues =
+                    (await this.model.urgentSave.unlessUrgent(() =>
+                        this._getOnchangeValues(changes),
+                    )) ?? {};
+            } catch (e) {
+                // The onchange rejected before ``_applyChanges`` recorded the
+                // x2many lists into ``_changes`` (finding 3). Roll back the
+                // in-place list mutations so the list state matches the (empty)
+                // change bag — same net effect the scalar path already has (the
+                // model reverts, ``_getOnchangeValues``' onError forces a render
+                // then undoes it). Do NOT restore ``dirty``: the user's edit is
+                // real and still pending, so the Save button stays available for
+                // a retry (see the note above).
+                rollbackLists();
+                throw e;
+            }
         }
         // A many2one re-set to its CURRENT value must still trigger the onchange
         // (that already ran above), but must NOT be recorded as a parent change.
-        // Filter such no-op m2o entries into a local object instead of mutating
-        // the caller's `changes` argument — `_update` had been rewriting its own
-        // input in place, a side-effect surprise for any caller that reuses the
-        // object. Cloned lazily so the common path (nothing to filter) allocates
-        // nothing. The result feeds both `_applyChanges` and the "did anything
-        // change?" gate below, exactly as the in-place delete used to.
-        let effectiveChanges = changes;
+        // Drop such no-op m2o entries directly from our private ``changes`` copy
+        // (finding 6: shallow-cloned at entry, so this can't surprise the
+        // caller — the earlier lazy re-clone here is now redundant). The result
+        // feeds both ``_applyChanges`` and the "did anything change?" gate below.
         for (const fieldName of Object.keys(changes)) {
             if (this.fields[fieldName].type === "many2one") {
                 const curVal = toRaw(this.data[fieldName]);
@@ -1218,18 +1290,15 @@ export class RelationalRecord extends DataPoint {
                     curVal.id === nextVal.id &&
                     curVal.display_name === nextVal.display_name
                 ) {
-                    if (effectiveChanges === changes) {
-                        effectiveChanges = { ...changes };
-                    }
-                    delete effectiveChanges[fieldName];
+                    delete changes[fieldName];
                 }
             }
         }
-        const undoChanges = this._applyChanges(effectiveChanges, onchangeServerValues, {
+        const undoChanges = this._applyChanges(changes, onchangeServerValues, {
             undoable: true,
         });
         if (
-            Object.keys(effectiveChanges).length > 0 ||
+            Object.keys(changes).length > 0 ||
             Object.keys(onchangeServerValues).length > 0
         ) {
             try {

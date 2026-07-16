@@ -47,7 +47,9 @@ export const CANCEL_GLOBAL_CLICK = [
 
 function getColorIndex(value) {
     if (typeof value === "number") {
-        return Math.round(value) % COLORS.length;
+        // Double-modulo: JS `%` keeps the sign, so a negative value would yield
+        // a negative index and produce a class like `o_kanban_color_-5` (L5).
+        return ((Math.round(value) % COLORS.length) + COLORS.length) % COLORS.length;
     } else if (typeof value === "string") {
         const codePointSum = [...value].reduce(
             (acc, char) => acc + char.codePointAt(0),

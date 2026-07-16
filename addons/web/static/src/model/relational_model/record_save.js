@@ -16,7 +16,7 @@ import { modelLog } from "@web/core/utils/asset_log";
 
 import { buildConcurrencyBaseline } from "./concurrency_baseline.js";
 import { FetchRecordError } from "./errors.js";
-import { getBasicEvalContext, isX2Many } from "./field_context.js";
+import { getBasicEvalContext, getId, isX2Many } from "./field_context.js";
 import { getFieldsSpec } from "./field_spec.js";
 
 /** @import { RelationalRecord } from "@web/model/relational_model/record" */
@@ -128,6 +128,14 @@ export async function save(record, { reload = true, onError, nextId } = {}) {
     }
     const changes = record._getChanges();
     delete changes.id; // id never changes, and should not be written
+    // ``_urgentBeaconFired`` only ever signals a beacon that fires AFTER this
+    // snapshot (while the save is parked at ``onWillSaveRecord`` below). Reset it
+    // here so a beacon that fired BEFORE the snapshot cannot leak the flag past
+    // this save: such a beacon already cleared ``_changes``, so it is reflected
+    // in the (empty) snapshot and the no-changes early return below handles it —
+    // leaving the flag set would make the NEXT genuinely-dirty save read a stale
+    // ``beaconFiredWhileParked`` and no-op, silently dropping the user's edits.
+    record._urgentBeaconFired = false;
     // Field-scoped optimistic locking: capture the originally-loaded (baseline)
     // value of each field being written, so the server rejects only a genuine
     // per-field conflict and ignores concurrent writes to OTHER fields (e.g.
@@ -281,7 +289,10 @@ export async function save(record, { reload = true, onError, nextId } = {}) {
         /** @type {Record<string, any>} */
         const orderBys = {};
         if (!nextId) {
-            for (const fieldName of record.fieldNames) {
+            // Hoist the ``fieldNames`` getter (reactive Object.keys + filter)
+            // once for the loop instead of re-deriving it (finding 12).
+            const fieldNames = record.fieldNames;
+            for (const fieldName of fieldNames) {
                 if (isX2Many(record.fields[fieldName])) {
                     orderBys[fieldName] = record.data[fieldName].orderBy;
                 }
@@ -338,6 +349,16 @@ export async function save(record, { reload = true, onError, nextId } = {}) {
             record.model._patchConfig(record.config, { resId, resIds });
         }
         await record.model.hooks.lifecycle.onRecordSaved(record, changes);
+        if (record.config.isRoot) {
+            // Invalidate any stale-while-revalidate read still in flight from the
+            // model's initial load: a cache-hit render kicks off a background
+            // web_read whose response may reflect PRE-save data. Bumping the
+            // root ``loadId`` here makes that response fail the
+            // ``loadId !== this.root.config.loadId`` guard in ``_getCacheParams``'
+            // callback, so it can no longer ``_setData`` the saved values back to
+            // their pre-save state (silent revert with no error).
+            record.model._patchConfig(record.config, { loadId: getId("load") });
+        }
         if (reload) {
             if (record.resId) {
                 record.model._updateSimilarRecords(record, records[0]);

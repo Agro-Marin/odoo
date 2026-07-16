@@ -534,7 +534,10 @@ export class RelationalModel extends Model {
                 config.offset,
                 config.offset + config.limit,
             );
-            return this._loadRecords({ ...config, resIds });
+            // Thread the SWR ``cache`` (and the explicit context eval base) like
+            // every other branch: a resIds-configured root would otherwise never
+            // get SWR treatment on load.
+            return this._loadRecords({ ...config, resIds }, config.context, cache);
         }
         if (config.groupBy.length) {
             return this._loadGroupedList(config, cache);

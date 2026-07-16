@@ -58,6 +58,21 @@ describe("irFilterToFavorite", () => {
         expect(favorite.orderBy).toEqual([{ asc: false, name: "foo" }]);
     });
 
+    test("parses SQL direction case-insensitively and tolerates extra spaces", () => {
+        // Regression: an ir.filters ``sort`` written server-side or by another
+        // client can use uppercase / padded directions ("name ASC", "bar  DESC").
+        // A case-sensitive ``=== "asc"`` check parsed "name ASC" as descending.
+        const favorite = irFilterToFavorite(
+            makeIrFilter({ sort: '["name ASC", "bar  DESC", "baz"]' }),
+        );
+
+        expect(favorite.orderBy).toEqual([
+            { asc: true, name: "name" },
+            { asc: false, name: "bar" },
+            { asc: true, name: "baz" },
+        ]);
+    });
+
     test("extracts group_by from the context", () => {
         const favorite = irFilterToFavorite(
             makeIrFilter({ context: "{'group_by': ['stage_id'], 'keep': 1}" }),

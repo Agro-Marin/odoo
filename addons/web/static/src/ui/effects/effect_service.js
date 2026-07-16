@@ -71,6 +71,13 @@ export const effectService = {
          */
         const add = (params = {}) => {
             const type = params.type || "rainbow_man";
+            if (!effectRegistry.contains(type)) {
+                // `type` can come from a server effect payload; an unknown type
+                // would make `effectRegistry.get` throw and blow up the caller.
+                // Warn and no-op instead.
+                console.warn(`[effect] unknown effect type "${type}"; ignoring.`);
+                return;
+            }
             const effect = effectRegistry.get(type);
             const { Component, props } = effect(env, params) || {};
             if (Component) {

@@ -124,6 +124,9 @@ export class DomainField extends Component {
         const evalContext = this.getContext(props);
         if (domainContainsExpressions(domainStringRepr)) {
             const allowExpressions = this.allowExpressions(props);
+            // Notify once per distinct domain (deduped by lastDomainChecked):
+            // informing the user that their domain involves non-literals is
+            // intended feedback on load, not just on an explicit action.
             if (domainStringRepr !== this.lastDomainChecked) {
                 this.lastDomainChecked = domainStringRepr;
                 this.notification.add(

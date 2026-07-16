@@ -33,7 +33,12 @@ export {
  * @property {string} [tz]
  *
  * @typedef {[NullableDateTime, NullableDateTime]} NullableDateRange
- * @typedef {any} NullableDateTime
+ *
+ * A Luxon ``DateTime`` or an "empty" sentinel. ``null`` and ``false`` both mean
+ * "no value" across the date API (``false`` is what an unset Odoo date/datetime
+ * field carries); callers must narrow before reading DateTime members. Was
+ * ``any``, which silently opted the whole date API out of ``@ts-check``.
+ * @typedef {DateTime | null | false} NullableDateTime
  */
 
 /**

@@ -6,7 +6,11 @@
 import { isBinarySize } from "@web/core/utils/format/binary";
 import { imageUrl } from "@web/core/utils/urls";
 import { registerField } from "@web/fields/_registry";
-import { ImageField, imageField } from "@web/fields/media/image/image_field";
+import {
+    fileTypeMagicWordMap,
+    ImageField,
+    imageField,
+} from "@web/fields/media/image/image_field";
 
 export class ContactImageField extends ImageField {
     static template = "web.ContactImageField";
@@ -30,7 +34,11 @@ export class ContactImageField extends ImageField {
                 );
                 return this.lastURL;
             } else if (previewData) {
-                this.lastURL = `data:image/png;base64,${previewData}`;
+                // Detect the image type via the base64 magic word instead of
+                // hardcoding PNG: a non-PNG inline preview (jpg/gif/svg/webp)
+                // would otherwise get the wrong MIME and fail to render.
+                const magic = fileTypeMagicWordMap[previewData[0]] || "png";
+                this.lastURL = `data:image/${magic};base64,${previewData}`;
                 return this.lastURL;
             }
             // Neither the primary field nor the preview field holds data: fall

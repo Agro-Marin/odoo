@@ -102,6 +102,11 @@ export const dialogService = {
                     subEnv,
                 },
                 {
+                    // Forward a caller-supplied env to the overlay, like
+                    // popover_service / bottom_sheet_service do — lets a dialog
+                    // opened from a sub-app/embedded context render against the
+                    // right env instead of the default one.
+                    env: options.env,
                     onRemove: async (/** @type {any} */ closeParams) => {
                         if (isBeingClosed) {
                             return;

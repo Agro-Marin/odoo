@@ -106,25 +106,25 @@ Dropdown.prototype._detectNavbar = function () {
     return false;
 };
 
-// Bootstrap's document-level data-API keydown listener (registered at bundle
-// init via EventHandler.on(document, "keydown.bs.dropdown", SELECTOR_MENU,
-// Dropdown.dataApiKeydownHandler)) invokes `Dropdown.getOrCreateInstance`
-// when the keydown's target is inside any element matching `.dropdown-menu`.
-// Odoo's OWL <Dropdown> renders its menu with classes
-// `o-dropdown--menu dropdown-menu` (so layout/CSS reuse Bootstrap), which
-// inadvertently puts those menus in Bootstrap's listener path. Bootstrap's
-// constructor reads `element.parentNode` unguarded and crashes on
-// undefined/detached toggles (test fixtures, or `SelectorEngine.prev()`
-// returning nothing).
+// Bootstrap's Dropdown constructor reads `element.parentNode` unguarded and
+// crashes on undefined/detached toggles (test fixtures, or
+// `SelectorEngine.prev()` returning nothing). `getOrCreateInstance` is looked
+// up on the class at each call, so we intercept it and return a no-op stub
+// (rather than null) for those cases — keeping any subsequent `instance.show()`
+// / `_isShown()` / `_selectMenuItem()` / `focus()` calls safe — instead of
+// letting the constructor throw.
 //
-// The handler reference is captured by EventHandler.on at module load, so we
-// cannot replace it retroactively — but `getOrCreateInstance` is looked up
-// on the class at each call, so we can intercept it. Returning a no-op stub
-// (rather than null) keeps the handler's subsequent `instance.show()` /
-// `instance._isShown()` / `instance._selectMenuItem()` / `getToggleButton.focus()`
-// calls safe. Odoo's component owns its keynav independently; the stub
-// honors the contract documented by `dropdown.test.js`'s
-// `"dropdowns keynav is not impacted by bootstrap"` test.
+// NOTE (removed 2026): this patch used to ALSO intercept elements matching
+// `.o-dropdown--menu`, on the theory that Bootstrap's document-level
+// `keydown.bs.dropdown` data-API listener on SELECTOR_MENU reached Odoo's OWL
+// <Dropdown> menus (which reuse the `dropdown-menu` class). That branch was
+// dead code: BOTH keydown data-API registrations are commented out in the
+// vendored 5.3.8 build (see `static/lib/bootstrap/bootstrap.esm.js`), and the
+// remaining `getOrCreateInstance` callers (`clearMenus`, the click data-API)
+// operate on toggles, never on `.o-dropdown--menu` elements — so the
+// `closest(".o-dropdown--menu")` clause was unreachable. Odoo's component owns
+// its keynav independently (`dropdown.test.js`
+// "dropdowns keynav is not impacted by bootstrap").
 const _origDropdownGetOrCreateInstance = Dropdown.getOrCreateInstance;
 const NO_OP_DROPDOWN = Object.freeze({
     show() {},
@@ -138,11 +138,7 @@ const NO_OP_DROPDOWN = Object.freeze({
     _selectMenuItem() {},
 });
 Dropdown.getOrCreateInstance = function (element, config) {
-    if (
-        !element ||
-        !element.parentNode ||
-        (element.closest && element.closest(".o-dropdown--menu"))
-    ) {
+    if (!element || !element.parentNode) {
         return NO_OP_DROPDOWN;
     }
     return _origDropdownGetOrCreateInstance.call(this, element, config);

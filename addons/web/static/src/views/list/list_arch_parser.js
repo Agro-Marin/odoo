@@ -184,6 +184,12 @@ export class ListArchParser {
                         buttonGroup = undefined;
                     }
                 }
+                // A button owns its children (icon, nested markup); do not let
+                // visitXML descend into them. Otherwise an element child (e.g.
+                // <i>) hits the tagName !== "button" reset above and splits
+                // adjacent buttons into separate button_group columns, and a
+                // nested <field> would be parsed as a top-level column (M9).
+                return false;
             } else if (node.tagName === "field") {
                 const fieldInfo = this.parseFieldNode(node, models, modelName);
                 if (!(fieldInfo.name in fieldNextIds)) {

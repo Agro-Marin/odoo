@@ -53,7 +53,10 @@ commandProviderRegistry.add("menu", {
                     },
                     category: "menu_items",
                     name: `${menu.parents} / ${menu.label}`,
-                    href: menu.href || `#menu_id=${menu.id}&action_id=${menu.actionID}`,
+                    // `href` is always set by computeAppsAndMenuItems
+                    // (`/odoo/...`); the old `#menu_id=` legacy fallback was
+                    // unreachable.
+                    href: menu.href,
                 });
             });
         }
@@ -74,7 +77,8 @@ commandProviderRegistry.add("menu", {
                 },
                 category: "apps",
                 name: menu.label,
-                href: menu.href || `#menu_id=${menu.id}&action_id=${menu.actionID}`,
+                // `href` is always set (see the menu_items branch above).
+                href: menu.href,
                 props,
             });
         });

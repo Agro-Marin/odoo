@@ -308,9 +308,30 @@ export function useOwnedDialogs() {
         closers.forEach((close) => close());
         closers.clear();
     });
-    const addDialog = (/** @type {any[]} */ ...args) => {
-        const originalClose = /** @type {any} */ (dialogService).add(...args);
-        // Wrap so we can auto-remove from the set when the dialog closes naturally.
+    const addDialog = (
+        /** @type {any} */ dialogClass,
+        /** @type {any} */ props,
+        /** @type {any} */ options = {},
+    ) => {
+        // Auto-remove the closer from the set on EVERY close path. Calling the
+        // returned wrappedClose is one path; a NATURAL dismissal (ESC, backdrop,
+        // or a close triggered from inside the dialog) is the other, and it
+        // bypasses wrappedClose. The dialog service fires options.onClose on
+        // both, so hook it too — previously a naturally-dismissed dialog's
+        // closer (and its captured originalClose) lingered in the set until the
+        // owning component unmounted, contradicting the "auto-remove" promise.
+        const originalOnClose = options.onClose;
+        const originalClose = /** @type {any} */ (dialogService).add(
+            dialogClass,
+            props,
+            {
+                ...options,
+                onClose: (/** @type {any[]} */ ...onCloseArgs) => {
+                    closers.delete(wrappedClose);
+                    return originalOnClose?.(...onCloseArgs);
+                },
+            },
+        );
         const wrappedClose = () => {
             closers.delete(wrappedClose);
             originalClose();

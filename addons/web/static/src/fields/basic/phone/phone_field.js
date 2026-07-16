@@ -14,6 +14,7 @@ export class PhoneField extends Component {
     static props = {
         ...standardFieldProps,
         placeholder: { type: String, optional: true },
+        required: { type: Boolean, optional: true },
     };
 
     setup() {
@@ -39,8 +40,12 @@ export const phoneField = {
         },
     ],
     supportedTypes: ["char"],
-    extractProps: ({ placeholder }) => ({
+    extractProps: ({ placeholder }, dynamicInfo) => ({
         placeholder,
+        // Matches EmailField/UrlField: without this a required phone never got
+        // the t-att-required HTML attribute (declared+extracted here, bound in
+        // the template).
+        required: dynamicInfo.required,
     }),
 };
 

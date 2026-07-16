@@ -67,6 +67,14 @@ export const RpcEvent = Object.freeze({
     RESPONSE: "RPC:RESPONSE",
     /** Clear all client-side caches (ORM, name_get, etc.). */
     CLEAR_CACHES: "CLEAR-CACHES",
+    /** A background cache refresh (``rpc`` with ``cache`` + ``update``) failed
+     *  AFTER the caller already received cached data. Detail is ``{ error }``.
+     *  An explicit, subscribable channel for what ``rpc_cache`` otherwise only
+     *  signals as a floating ``Promise.reject`` picked up by the global
+     *  ``unhandledrejection`` listener — which is absent in embeddings (unit
+     *  tests, workers) where the rejection then shows as "Uncaught (in
+     *  promise)". */
+    BACKGROUND_REFRESH_FAILED: "RPC:BACKGROUND-REFRESH-FAILED",
 });
 
 /**

@@ -48,9 +48,17 @@ export class FloatToggleField extends Component {
         });
     }
 
-    /** @returns {number} multiplication factor (overridable by subclasses) */
+    /** @returns {number} multiplication factor, guarded against 0 */
     get factor() {
-        return this.props.factor;
+        const factor = this.props.factor;
+        if (!factor) {
+            // options="{'factor': 0}" would otherwise divide by 0 in onChange
+            // and commit Infinity to the record. Mirror FloatFactorField's
+            // guard: warn and fall back to 1.
+            console.warn("float_toggle: factor must be non-zero; falling back to 1");
+            return 1;
+        }
+        return factor;
     }
 
     /** @returns {string} display value formatted with factor and digits */

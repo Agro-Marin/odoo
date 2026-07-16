@@ -341,35 +341,53 @@ export class StaticList extends DataPoint {
 
     /** @param {{ discard?: boolean, canAbandon?: boolean, validate?: boolean }} [options] */
     async leaveEditMode({ discard, canAbandon, validate } = {}) {
+        if (this.model.urgentSave.isActive) {
+            // Finding 14: the tab-close path must not queue behind ``model.mutex``
+            // — it may be held by the very save urgent mode is bypassing, so an
+            // unconditional ``mutex.exec`` here can silently deadlock at
+            // tab-close. Mirror ``dynamic_list.leaveEditMode`` / ``record.js``:
+            // skip the ``_askChanges`` prelude and run the core directly.
+            return this._leaveEditMode({ discard, canAbandon, validate });
+        }
         if (this.editedRecord) {
             await this.model._askChanges();
         }
-        return this.model.mutex.exec(async () => {
-            let editedRecord = this.editedRecord;
+        return this.model.mutex.exec(() =>
+            this._leaveEditMode({ discard, canAbandon, validate }),
+        );
+    }
+
+    /**
+     * Core of {@link leaveEditMode}. Runs under ``model.mutex`` (or directly on
+     * the urgent tab-close path), so it uses only synchronous ``_``-prefixed
+     * record internals; pending edits are flushed by the caller's
+     * ``_askChanges`` prelude.
+     *
+     * @param {{ discard?: boolean, canAbandon?: boolean, validate?: boolean }} [options]
+     * @returns {Promise<boolean>} whether edit mode was left
+     */
+    async _leaveEditMode({ discard, canAbandon, validate } = {}) {
+        let editedRecord = this.editedRecord;
+        if (editedRecord) {
+            const isValid = editedRecord._checkValidity();
+            if (!isValid && validate) {
+                return false;
+            }
+            if (canAbandon !== false && !validate) {
+                this._abandonRecords([editedRecord], { force: true });
+            }
+            // if we still have an editedRecord, it means it hasn't been abandonned
+            editedRecord = this.editedRecord;
             if (editedRecord) {
-                const isValid = editedRecord._checkValidity();
-                if (!isValid && validate) {
+                if (isValid && !editedRecord.dirty && discard) {
                     return false;
                 }
-                if (canAbandon !== false && !validate) {
-                    this._abandonRecords([editedRecord], { force: true });
-                }
-                // if we still have an editedRecord, it means it hasn't been abandonned
-                editedRecord = this.editedRecord;
-                if (editedRecord) {
-                    if (isValid && !editedRecord.dirty && discard) {
-                        return false;
-                    }
-                    if (
-                        isValid ||
-                        (!editedRecord.dirty && !editedRecord._manuallyAdded)
-                    ) {
-                        editedRecord._switchMode("readonly");
-                    }
+                if (isValid || (!editedRecord.dirty && !editedRecord._manuallyAdded)) {
+                    editedRecord._switchMode("readonly");
                 }
             }
-            return !this.editedRecord;
-        });
+        }
+        return !this.editedRecord;
     }
 
     linkTo(resId, serverData) {
@@ -456,6 +474,46 @@ export class StaticList extends DataPoint {
             record._restoreActiveFields();
             record._savePoint = undefined;
         });
+    }
+
+    /**
+     * Snapshot the data needed to map a just-created record's ``_virtualId`` to
+     * its server-assigned resId AFTER a parent save. Must be called BEFORE the
+     * save (which clears the CREATE commands and assigns resIds). Encapsulates
+     * the create-order correlation so consumers (``x2many_field.switchToForm``)
+     * don't reach into the private command log / resIds cross-layer.
+     *
+     * @returns {{ createVirtualIds: (number|string)[], previousResIds: Set<any> }}
+     */
+    snapshotCreateReconciliation() {
+        return {
+            createVirtualIds: this._commands
+                .filter(([command]) => command === x2ManyCommands.CREATE)
+                .map(([, virtualId]) => virtualId),
+            previousResIds: new Set(this.resIds),
+        };
+    }
+
+    /**
+     * Resolve the resId the last save assigned to ``record``, using a token from
+     * ``snapshotCreateReconciliation`` taken before that save. web_save returns
+     * created rows in CREATE-command order, so the nth new resId corresponds to
+     * the nth CREATE. Returns ``undefined`` when the mapping is ambiguous (row
+     * count mismatch — e.g. a ``create()`` override adding rows, or interleaved
+     * ids) so callers can surface "save first" instead of guessing wrong.
+     *
+     * @param {{ createVirtualIds: (number|string)[], previousResIds: Set<any> }} token
+     * @param {RelationalRecord} record
+     * @returns {number|undefined}
+     */
+    resolveCreatedResId(token, record) {
+        const newResIds = this.resIds.filter((id) => !token.previousResIds.has(id));
+        if (newResIds.length !== token.createVirtualIds.length) {
+            return undefined;
+        }
+        const index = token.createVirtualIds.indexOf(record._virtualId);
+        const sorted = [...newResIds].sort((x, y) => x - y);
+        return index >= 0 ? sorted[index] : sorted.at(-1);
     }
 
     // -------------------------------------------------------------------------
@@ -1046,6 +1104,24 @@ export class StaticList extends DataPoint {
         this._commands = [x2ManyCommands.set(ids), ...updateCommandsToKeep];
         this._currentIds = [...ids];
         this.count = this._currentIds.length;
+        // Finding 4: prune the deferred-command stashes for ids dropped by this
+        // SET. The DELETE/UNLINK path (static_list_command_engine) deletes these
+        // explicitly with the same rationale; without the matching cleanup here,
+        // an id removed by SET and later re-introduced would replay a stale
+        // deferred UPDATE slice via ``_createRecordDatapoint``'s stash replay
+        // (and orphaned ``_cache`` entries would linger). Match ``_pruneCache``'s
+        // string/number key handling since the stashes are keyed by raw resId.
+        for (const id of Object.keys(this._unknownRecordCommands)) {
+            if (!idSet.has(id) && !idSet.has(Number(id))) {
+                delete this._unknownRecordCommands[id];
+            }
+        }
+        for (const id of [...this._loadingStubIds]) {
+            if (!idSet.has(id) && !idSet.has(Number(id))) {
+                this._loadingStubIds.delete(id);
+            }
+        }
+        this._pruneCache();
         if (this._currentIds.length > this.limit) {
             this._bumpLimit(this._currentIds.length - this.limit);
         }

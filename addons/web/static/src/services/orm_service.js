@@ -257,10 +257,13 @@ export class ORM {
         validatePrimitiveList("groupby", "string", groupby);
         validatePrimitiveList("aggregates", "string", aggregates);
         const res = await this.call(model, "formatted_read_group", [], {
+            // Positional-wins (like searchRead/webSearchRead): the validated
+            // positional args must not be silently overridden by a stray
+            // same-named key in kwargs.
+            ...kwargs,
             domain,
             groupby,
             aggregates,
-            ...kwargs,
         });
         // Build ``__domain`` on a SHALLOW COPY of each group instead of mutating
         // the RPC result in place: under ``orm.cache({immutable:true})`` the
@@ -292,10 +295,11 @@ export class ORM {
         validateArray("grouping_sets", grouping_sets);
         validatePrimitiveList("aggregates", "string", aggregates);
         const res = await this.call(model, "formatted_read_grouping_sets", [], {
+            // Positional-wins (see formattedReadGroup).
+            ...kwargs,
             domain,
             grouping_sets,
             aggregates,
-            ...kwargs,
         });
         // Shallow-copy each group rather than mutate the (possibly deep-frozen,
         // shared) RPC result in place — see ``formattedReadGroup`` above.
@@ -372,12 +376,17 @@ export class ORM {
      */
     webReadGroup(model, domain, groupby, aggregates, kwargs = {}) {
         validateArray("domain", domain);
+        // `groupby` was the only read-group list left unvalidated (the
+        // formatted* siblings validate it); a non-string-list here would fail
+        // opaquely server-side.
+        validatePrimitiveList("groupby", "string", groupby);
         validatePrimitiveList("aggregates", "string", aggregates);
         return this.call(model, "web_read_group", [], {
+            // Positional-wins (see formattedReadGroup).
+            ...kwargs,
             domain,
             groupby,
             aggregates,
-            ...kwargs,
         });
     }
 

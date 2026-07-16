@@ -151,6 +151,12 @@ export class ActionManager {
         // skeleton resolves it only from onMounted, and a skeleton destroyed
         // before it mounts would otherwise strand that doAction's awaiters.
         this._skeletonDef = null;
+        // Monotonic navigation-intent counter for loadState. Bumped at every
+        // loadState entry (each ROUTE_CHANGE / Studio resync is one intent) so a
+        // loadState awaiting its breadcrumb reconstruction OUTSIDE the KeepLast
+        // can detect a newer loadState started meanwhile and bail before it
+        // commits a stale (intermediate) URL's action. See load_state.js.
+        this._loadStateGeneration = 0;
 
         router.hideKeyFromUrl("globalState");
 
@@ -307,7 +313,7 @@ export class ActionManager {
      * @returns {number}
      */
     _navGeneration() {
-        return this.keepLast._id;
+        return this.keepLast.generation;
     }
 
     /**
@@ -316,7 +322,7 @@ export class ActionManager {
      * @returns {boolean} true if a newer navigation has started since
      */
     _isSupersededNav(generation) {
-        return this.keepLast._id !== generation;
+        return this.keepLast.generation !== generation;
     }
 
     async _loadAction(actionRequest, context = {}) {

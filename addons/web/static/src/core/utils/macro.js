@@ -5,7 +5,6 @@
 
 import { validate } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
-import { delay } from "@web/core/utils/concurrency";
 import { isVisible } from "@web/core/utils/dom/ui";
 
 const macroSchema = {
@@ -70,7 +69,12 @@ async function waitForTrigger(trigger, signal) {
         return;
     }
     try {
-        await delay(50);
+        // Check the trigger IMMEDIATELY, then poll via requestAnimationFrame
+        // (waitUntil already does exactly this). The previous unconditional
+        // `await delay(50)` before the first check padded every step by 50 ms —
+        // 5+ seconds of pure latency over a 100-step tour — for no benefit:
+        // waitUntil keeps polling until the trigger appears anyway, so a step
+        // whose trigger is already present now resolves on the first frame.
         return await waitUntil(
             () => {
                 if (typeof trigger === "function") {

@@ -39,7 +39,7 @@ export const slowRpcService = {
         /** @type {(() => void) | null} */
         let closeNotification = null;
 
-        rpcBus.addEventListener(RpcEvent.REQUEST, (event) => {
+        const onRequest = (event) => {
             const detail = /** @type {any} */ (event).detail;
             if (!detail?.data) {
                 return;
@@ -65,9 +65,9 @@ export const slowRpcService = {
                     );
                 }
             }, SLOW_RPC_CONFIG.thresholdMs);
-        });
+        };
 
-        rpcBus.addEventListener(RpcEvent.RESPONSE, (event) => {
+        const onResponse = (event) => {
             const detail = /** @type {any} */ (event).detail;
             const rpcId = detail?.data?.id;
             if (rpcId === undefined) {
@@ -86,7 +86,27 @@ export const slowRpcService = {
                     closeNotification = null;
                 }
             }
-        });
+        };
+
+        rpcBus.addEventListener(RpcEvent.REQUEST, onRequest);
+        rpcBus.addEventListener(RpcEvent.RESPONSE, onResponse);
+
+        return {
+            // ``rpcBus`` is a module-singleton: without teardown every started
+            // env leaves a permanent REQUEST/RESPONSE listener that keeps
+            // popping toasts for a dead env (and amplifies across test suites
+            // that create many envs). Called by ``env.destroy()``.
+            destroy() {
+                rpcBus.removeEventListener(RpcEvent.REQUEST, onRequest);
+                rpcBus.removeEventListener(RpcEvent.RESPONSE, onResponse);
+                for (const entry of pending.values()) {
+                    browser.clearTimeout(entry.timeoutId);
+                }
+                pending.clear();
+                closeNotification?.();
+                closeNotification = null;
+            },
+        };
     },
 };
 

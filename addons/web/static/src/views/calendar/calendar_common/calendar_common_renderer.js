@@ -492,8 +492,10 @@ export class CalendarCommonRenderer extends Component {
     onEventContent(arg) {
         const { event } = arg;
         if (event.start && event.end) {
-            const dateFmt = (date) =>
-                DateTime.fromJSDate(date).toFormat(this.timeFormat);
+            // Every FullCalendar Date must go through fromFcDate (see the
+            // invariant at getEventTimeFormat): DateTime.fromJSDate would
+            // double-apply the offset for fixed-offset zones (L7).
+            const dateFmt = (date) => fromFcDate(date).toFormat(this.timeFormat);
             arg.timeText = `${dateFmt(event.start)} - ${dateFmt(event.end)}`;
         }
         const record = this.props.model.records[event.id];

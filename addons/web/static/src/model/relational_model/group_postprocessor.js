@@ -182,7 +182,18 @@ export async function postprocessReadGroup(config, response, deps) {
     ]);
     if (config.currentGroups && config.currentGroups.params === params) {
         const currentGroups = config.currentGroups.groups;
-        const newGroupValues = new Set(groups.map((g) => JSON.stringify(g.value)));
+        // Precompute a ``key -> index`` map over the freshly-built groups once,
+        // so the cursor advance below is O(1) per surviving group instead of a
+        // linear ``findIndex`` scan (the pass was O(G²) ``JSON.stringify`` work
+        // per grouped reload). Group values are unique within a single
+        // ``web_read_group`` response, so the first index is the only index.
+        const newGroupIndex = new Map();
+        groups.forEach((g, i) => {
+            const key = JSON.stringify(g.value);
+            if (!newGroupIndex.has(key)) {
+                newGroupIndex.set(key, i);
+            }
+        });
         // Insert each dropped group right after the previous surviving
         // group's position in the MERGED array — the old group's index is
         // stale as soon as one group has been re-inserted or the response
@@ -190,11 +201,12 @@ export async function postprocessReadGroup(config, response, deps) {
         let cursor = 0;
         for (const group of currentGroups) {
             const key = JSON.stringify(group.value);
-            if (newGroupValues.has(key)) {
-                const index = groups.findIndex(
-                    (g, i) => i >= cursor && JSON.stringify(g.value) === key,
-                );
-                if (index >= 0) {
+            if (newGroupIndex.has(key)) {
+                // Mirror the old ``findIndex(i >= cursor)`` guard: only advance
+                // past a surviving group at or after the cursor (an earlier
+                // index was already consumed).
+                const index = newGroupIndex.get(key);
+                if (index >= cursor) {
                     cursor = index + 1;
                 }
                 continue;

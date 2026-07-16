@@ -300,9 +300,21 @@ export function parseMonetary(value, { allowOperation = false } = {}) {
         return operation;
     }
     value = value.trim();
-    const startMatch = value.match(getMonetaryStartRegex(localization.decimalPoint));
+    const startRegex = getMonetaryStartRegex(localization.decimalPoint);
+    const startMatch = value.match(startRegex);
     if (startMatch) {
         value = value.slice(startMatch.index);
+    }
+    // A prefix currency symbol sitting BETWEEN the sign and the digits (e.g.
+    // "-$5.00") survives the slice above because the leading sign is the first
+    // matched char. Re-locate the numeric start after the sign so the symbol is
+    // dropped, otherwise Number("-$5.00") is NaN and the field is flagged
+    // invalid (while "$-5.00" already parsed fine).
+    if (value[0] === "-" || value[0] === "+") {
+        const sign = value[0];
+        const rest = value.slice(1);
+        const restMatch = rest.match(startRegex);
+        value = sign + (restMatch ? rest.slice(restMatch.index) : rest);
     }
     value = value.replace(/\D*$/, "");
     return parseFloat(value);

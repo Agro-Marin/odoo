@@ -26,18 +26,26 @@ import { DEFAULT_INTERVAL, getPeriodOptions, yearSelected } from "./utils/dates.
 /** @typedef {import("./search_model").SearchModelLike} SearchModel */
 
 /**
- * Deactivate the order-by-count flag when no active groupBy/dateGroupBy exists.
+ * Deactivate the order-by-count flag when no EFFECTIVE groupBy remains.
+ *
+ * An effective groupBy is either an active query groupBy/dateGroupBy OR a
+ * surviving `defaultGroupBy` fallback (which computeGroupBy still injects, and
+ * which computeOrderBy still count-sorts). Scanning only `query` dropped the
+ * user's count sort whenever an unrelated filter was toggled off while the sole
+ * group-by present was the SPECIAL default-group-by facet.
  * @param {SearchModel} searchModel
  */
 function checkOrderByCountStatus(searchModel) {
-    if (
-        searchModel.orderByCount &&
-        !searchModel.query.some((item) =>
-            ["dateGroupBy", "groupBy"].includes(
-                searchModel.searchItems[item.searchItemId].type,
-            ),
-        )
-    ) {
+    if (!searchModel.orderByCount) {
+        return;
+    }
+    const hasQueryGroupBy = searchModel.query.some((item) =>
+        ["dateGroupBy", "groupBy"].includes(
+            searchModel.searchItems[item.searchItemId].type,
+        ),
+    );
+    const hasDefaultGroupBy = Boolean(searchModel.defaultGroupBy?.length);
+    if (!hasQueryGroupBy && !hasDefaultGroupBy) {
         searchModel.orderByCount = false;
     }
 }
@@ -264,6 +272,16 @@ export function createNewGroupBy(searchModel, fieldName, { interval, invisible }
 export function deactivateGroup(searchModel, groupId) {
     if (groupId === SPECIAL) {
         delete searchModel.defaultGroupBy;
+        // Persist the removal across breadcrumb restore / back-forward:
+        // exportState/execute serializes this marker and load() honors it,
+        // otherwise load() re-applies config.defaultGroupBy and the facet
+        // silently reappears.
+        searchModel.defaultGroupByRemoved = true;
+        // Removing the last effective groupBy must also clear a latched count
+        // sort — otherwise the next groupBy the user adds is unexpectedly
+        // count-sorted (computeOrderBy injects {name:"__count"} whenever
+        // groupBy.length && orderByCount).
+        checkOrderByCountStatus(searchModel);
         searchModel._notify();
         return;
     }

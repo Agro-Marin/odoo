@@ -32,7 +32,11 @@ export class Many2ManyCheckboxesField extends Component {
         this.specialData = useSpecialData(async (orm, props) => {
             const { relation } = props.record.fields[props.name];
             const domain = getFieldDomain(props.record, props.name, props.domain);
-            const context = this.props.context || {};
+            // Use `props.context`, not `this.props.context`: useSpecialData runs
+            // this loader with the NEXT props during onWillUpdateProps, so the
+            // instance's `this.props` still holds the old context while the
+            // adjacent lines already read from `props`.
+            const context = props.context || {};
             const items = await orm.call(relation, "name_search", ["", domain], {
                 context,
                 limit: Many2ManyCheckboxesField.RECORD_LIMIT,

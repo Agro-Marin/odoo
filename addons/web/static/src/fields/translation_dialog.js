@@ -51,7 +51,11 @@ export class TranslationDialog extends Component {
                 const relatedLanguage = languages.find((l) => l[0] === term.lang);
                 const termInfo = {
                     ...term,
-                    langName: relatedLanguage[1],
+                    // A term for a deactivated language is absent from
+                    // loadLanguages; fall back to its raw lang code as the label
+                    // instead of dereferencing undefined (which blanked the whole
+                    // dialog in onWillStart).
+                    langName: relatedLanguage ? relatedLanguage[1] : term.lang,
                     value: term.value || "",
                 };
                 // Use the form's live value instead of the DB value for the user's own language.
