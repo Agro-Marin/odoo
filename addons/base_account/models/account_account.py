@@ -307,7 +307,7 @@ class AccountAccount(models.Model):
     @api.constrains("code")
     def _check_account_code(self):
         for account in self:
-            if account.code and not re.match(ACCOUNT_CODE_REGEX, account.code):
+            if account.code and not ACCOUNT_CODE_REGEX.match(account.code):
                 raise ValidationError(
                     _(
                         "The account code can only contain alphanumeric "
@@ -349,6 +349,7 @@ class AccountAccount(models.Model):
         for record, record_root in zip(
             self,
             self.with_company(self.env.company.root_id).sudo(),
+            strict=True,
         ):
             record.code = record_root.code_store
 
@@ -368,6 +369,7 @@ class AccountAccount(models.Model):
         for record, record_root in zip(
             self,
             self.with_company(self.env.company.root_id).sudo(),
+            strict=True,
         ):
             record_root.code_store = record.code
 
@@ -528,8 +530,11 @@ class AccountAccount(models.Model):
         accounts_with_codes = {}
         for account in all_accounts:
             accounts_with_codes[account["code"]] = account[field_name]
+        # ``all_accounts`` is fetched ordered by ``code``, so the dict keys are
+        # already sorted -- build the bisect list once instead of rebuilding it
+        # for every account to process (was O(process x total), now O(total)).
+        codes_list = list(accounts_with_codes.keys())
         for account in accounts_to_process:
-            codes_list = list(accounts_with_codes.keys())
             closest_index = bisect_left(codes_list, account.code) - 1
             account[field_name] = (
                 accounts_with_codes[codes_list[closest_index]]
@@ -703,16 +708,20 @@ class AccountAccount(models.Model):
             default_name = self.env.context.get("default_name")
             default_code = self.env.context.get("default_code")
             if default_name and not default_code:
+                # A fully-numeric name (e.g. typed into a many2one quick-create)
+                # is really a code.  Keep the *string* form -- ``int()`` would
+                # drop leading zeros, and "0001" is a different account code from
+                # "1".  ``int()`` is only used to test that the name is numeric.
+                is_numeric_code = False
                 with contextlib.suppress(ValueError):
-                    default_code = int(default_name)
-                if default_code:
-                    default_name = False
-                context.update(
-                    {
-                        "default_name": default_name,
-                        "default_code": default_code,
-                    }
-                )
+                    is_numeric_code = bool(int(default_name))
+                if is_numeric_code:
+                    context.update(
+                        {
+                            "default_name": False,
+                            "default_code": default_name,
+                        }
+                    )
 
         defaults = super(
             AccountAccount,
@@ -781,9 +790,7 @@ class AccountAccount(models.Model):
                                     "company_id": company_id,
                                     "code": code,
                                 },
-                            ) if (
-                                company_id == companies[0].id
-                            ):
+                            ) if company_id == companies[0].id:
                                 vals["code"] = code
                                 break
 
@@ -899,7 +906,7 @@ class AccountAccount(models.Model):
         default = default or {}
         cache = defaultdict(set)
 
-        for account, vals in zip(self, vals_list):
+        for account, vals in zip(self, vals_list, strict=True):
             company_ids = self._fields["company_ids"].convert_to_cache(
                 vals["company_ids"],
                 self.browse(),
