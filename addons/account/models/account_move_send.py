@@ -557,15 +557,22 @@ class AccountMoveSend(models.AbstractModel):
         :param invoices_data: dict mapping each account.move record to its collected data so far.
         """
 
-        company_id = next(iter(invoices_data)).company_id
+        # Group by company as well as report: a cron batch is sliced by size and
+        # NOT filtered by company (see _cron_account_move_send), so it can mix
+        # companies. Rendering the whole batch under the first invoice's company
+        # would resolve currency/number formatting and company-scoped report data
+        # to the wrong company for the others.
         grouped_invoices_by_report = defaultdict(dict)
         for invoice, invoice_data in invoices_data.items():
-            grouped_invoices_by_report[invoice_data["pdf_report"]][invoice] = (
-                invoice_data
-            )
+            grouped_invoices_by_report[
+                (invoice.company_id, invoice_data["pdf_report"])
+            ][invoice] = invoice_data
 
-        Report = self.env["ir.actions.report"].with_company(company_id)
-        for pdf_report, group_invoices_data in grouped_invoices_by_report.items():
+        for (
+            company,
+            pdf_report,
+        ), group_invoices_data in grouped_invoices_by_report.items():
+            Report = self.env["ir.actions.report"].with_company(company)
             ids = [inv.id for inv in group_invoices_data]
 
             # Per-invoice render options (e.g. Factur-X native PDF/A-3 with the
