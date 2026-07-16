@@ -2365,8 +2365,13 @@ We can redirect you to the public employee list."""
                 version_start = self._combine_tz(
                     version.date_start, time.min, employee_tz
                 )
-                version_end = self._combine_tz(
-                    version.date_end or date.max, time.max, employee_tz
+                # Open-ended version: bound by the period end (``stop``) rather
+                # than building a ``date.max`` datetime, which overflows in
+                # ``_combine_tz`` (pytz localize) for UTC-negative timezones.
+                version_end = (
+                    self._combine_tz(version.date_end, time.max, employee_tz)
+                    if version.date_end
+                    else stop
                 )
                 calendar = (
                     version.resource_calendar_id
@@ -2406,8 +2411,13 @@ We can redirect you to the public employee list."""
             contract_start = self._combine_tz(
                 version.contract_date_start, time.min, employee_tz
             )
-            version_end = self._combine_tz(
-                version.date_end or date.max, time.max, employee_tz
+            # Open-ended version: bound by the period end (``date_to``) rather
+            # than building a ``date.max`` datetime, which overflows in
+            # ``_combine_tz`` (pytz localize) for UTC-negative timezones.
+            version_end = (
+                self._combine_tz(version.date_end, time.max, employee_tz)
+                if version.date_end
+                else date_to
             )
             calendar = (
                 version.resource_calendar_id or version.company_id.resource_calendar_id
@@ -2447,8 +2457,13 @@ We can redirect you to the public employee list."""
         duration_data = {"days": 0, "hours": 0}
         for version in valid_versions:
             version_start = self._combine_tz(version.date_start, time.min, employee_tz)
-            version_end = self._combine_tz(
-                version.date_end or date.max, time.max, employee_tz
+            # Open-ended version: bound by the period end (``date_to``) rather
+            # than building a ``date.max`` datetime, which overflows in
+            # ``_combine_tz`` (pytz localize) for UTC-negative timezones.
+            version_end = (
+                self._combine_tz(version.date_end, time.max, employee_tz)
+                if version.date_end
+                else date_to
             )
             calendar = (
                 version.resource_calendar_id or version.company_id.resource_calendar_id
