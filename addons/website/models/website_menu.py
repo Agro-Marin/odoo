@@ -20,7 +20,14 @@ class WebsiteMenu(models.Model):
     _order = "sequence, id"
 
     def _default_sequence(self):
-        menu = self.search([], limit=1, order="sequence DESC")
+        # Scope the default to the current website's menus when known: a high
+        # sequence on one website should not inflate the default for a new menu
+        # on another. Falls back to the global max when no website is in context.
+        domain = []
+        website_id = self.env.context.get("website_id")
+        if website_id:
+            domain = [("website_id", "in", (False, website_id))]
+        menu = self.search(domain, limit=1, order="sequence DESC")
         return menu.sequence or 0
 
     @api.depends("mega_menu_content")

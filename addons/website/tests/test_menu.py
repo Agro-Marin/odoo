@@ -452,6 +452,23 @@ class TestMenu(common.TransactionCase):
         )
         self.assertFalse(menu.group_ids, "group_ids injection must be ignored")
 
+    def test_09_default_sequence_scoped_to_website(self):
+        """A new menu's default sequence must be scoped to its own website when
+        one is in context — a high sequence on another website must not inflate
+        it."""
+        Menu = self.env["website.menu"]
+        website_a = self.env["website"].search([], limit=1)
+        website_b = self.env["website"].create({"name": "Seq Site B"})
+        Menu.create(
+            {"name": "HighA", "website_id": website_a.id, "sequence": 5000}
+        )
+        default_b = Menu.with_context(website_id=website_b.id)._default_sequence()
+        self.assertLess(
+            default_b,
+            5000,
+            "site B's default sequence must not inherit site A's high sequence",
+        )
+
 
 class TestMenuHttp(common.HttpCase):
     def setUp(self):
