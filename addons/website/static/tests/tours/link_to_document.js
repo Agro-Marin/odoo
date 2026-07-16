@@ -1,9 +1,9 @@
+import { patch } from "@web/core/utils/patch";
 import {
     insertSnippet,
     openLinkPopup,
     registerWebsitePreviewTour,
 } from "@website/js/tours/tour_utils";
-import { patch } from "@web/core/utils/patch";
 
 // Opening the system's file selector is not possible programmatically, so we
 // mock the upload service.
@@ -98,7 +98,8 @@ registerWebsitePreviewTour(
         ...saveLinkPopup(),
         {
             content: "Check if auto-download is disabled",
-            trigger: ":iframe #wrap .s_banner a:nth-child(1):not([href$='download=true'])",
+            trigger:
+                ":iframe #wrap .s_banner a:nth-child(1):not([href$='download=true'])",
         },
-    ]
+    ],
 );

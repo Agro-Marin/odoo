@@ -2,8 +2,8 @@
 import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
 import { EditMenuDialog } from "@website/components/dialog/edit_menu";
-import { OptimizeSEODialog } from "@website/components/dialog/seo";
 import { PagePropertiesDialog } from "@website/components/dialog/page_properties";
+import { OptimizeSEODialog } from "@website/components/dialog/seo";
 
 /**
  * This service displays contextual menus, depending of the state of the
@@ -58,12 +58,14 @@ export const websiteCustomMenus = {
                                         dynamicProps: { rootID: parseInt(menu[1], 10) },
                                         // Prevent a 't-foreach' duplicate key on menus template.
                                         id: `${section.id}-${index}`,
-                                    })
-                                )
+                                    }),
+                                ),
                             );
                         } else {
                             filteredSections.push(
-                                Object.assign({}, section, { childrenTree: subSections })
+                                Object.assign({}, section, {
+                                    childrenTree: subSections,
+                                }),
                             );
                         }
                     }
@@ -71,7 +73,7 @@ export const websiteCustomMenus = {
                 for (const section of filteredSections) {
                     section.childrenTree = section.childrenTree.filter(
                         // Exclude non-leaf node having no visible sub-element.
-                        (tree) => !(tree.children.length && !tree.childrenTree.length)
+                        (tree) => !(tree.children.length && !tree.childrenTree.length),
                     );
                 }
                 return filteredSections;
@@ -111,7 +113,9 @@ registry.category("website_custom_menus").add("website.menu_page_properties", {
     getProps: async ({ orm, website }) => {
         const mainObject = website.currentWebsite.metadata.mainObject;
         const isPage = mainObject.model === "website.page";
-        const model = isPage ? "website.page.properties" : "website.page.properties.base";
+        const model = isPage
+            ? "website.page.properties"
+            : "website.page.properties.base";
         const websiteId = website.currentWebsite.id;
         // Do not rely on window.location.pathname: while the editor boots it can
         // still be "/web" or even empty, which would give the dialog a wrong URL.
@@ -148,7 +152,13 @@ registry.category("website_custom_menus").add("website.menu_page_properties", {
             resModel: model,
             onRecordSaved: async (record) => {
                 const page = isPage
-                    ? (await orm.read("website.page", [mainObject.id], ["website_id", "url"]))[0]
+                    ? (
+                          await orm.read(
+                              "website.page",
+                              [mainObject.id],
+                              ["website_id", "url"],
+                          )
+                      )[0]
                     : undefined;
                 return website.goToWebsite({
                     websiteId: page?.website_id?.[0] ?? website.currentWebsite.id,

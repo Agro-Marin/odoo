@@ -40,7 +40,7 @@ export class EditInteractionPlugin extends Plugin {
         window.parent.document.addEventListener(
             "transfer_website_edit_service",
             this.updateEditInteraction.bind(this),
-            { once: true }
+            { once: true },
         );
         const event = new CustomEvent("edit_interaction_plugin_loaded");
         event.shared = this.__editor.shared;
@@ -82,4 +82,6 @@ export class EditInteractionPlugin extends Plugin {
     }
 }
 
-registry.category("website-plugins").add(EditInteractionPlugin.id, EditInteractionPlugin);
+registry
+    .category("website-plugins")
+    .add(EditInteractionPlugin.id, EditInteractionPlugin);

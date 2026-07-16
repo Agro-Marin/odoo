@@ -1,13 +1,14 @@
 /** @odoo-module native */
+import { BuilderAction } from "@html_builder/core/builder_action";
+import { BaseOptionComponent } from "@html_builder/core/utils";
 import { BEGIN } from "@html_builder/utils/option_sequence";
-import { EmbedCodeOptionDialog } from "./embed_code_option_dialog.js";
 import { Plugin } from "@html_editor/plugin";
 import { withSequence } from "@html_editor/utils/resource";
 import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
 import { cloneContentEls } from "@website/js/utils";
-import { BuilderAction } from "@html_builder/core/builder_action";
-import { BaseOptionComponent } from "@html_builder/core/utils";
+
+import { EmbedCodeOptionDialog } from "./embed_code_option_dialog.js";
 
 export class EmbedCodeOption extends BaseOptionComponent {
     static template = "website.EmbedCodeOption";
@@ -56,7 +57,7 @@ export class EditCodeAction extends BuilderAction {
                         newContent = newValue;
                     },
                 },
-                { onClose: resolve }
+                { onClose: resolve },
             );
         });
         return newContent;
@@ -68,7 +69,9 @@ export class EditCodeAction extends BuilderAction {
         // Remove scripts tags from the DOM as we don't want them to
         // interfere during edition, but keeps them in a
         // `<template>` that will be saved to the database.
-        this.getTemplateEl(editingElement).content.replaceChildren(cloneContentEls(content, true));
+        this.getTemplateEl(editingElement).content.replaceChildren(
+            cloneContentEls(content, true),
+        );
         editingElement
             .querySelector(".s_embed_code_embedded")
             .replaceChildren(cloneContentEls(content));
@@ -78,4 +81,6 @@ export class EditCodeAction extends BuilderAction {
     }
 }
 
-registry.category("website-plugins").add(EmbedCodeOptionPlugin.id, EmbedCodeOptionPlugin);
+registry
+    .category("website-plugins")
+    .add(EmbedCodeOptionPlugin.id, EmbedCodeOptionPlugin);

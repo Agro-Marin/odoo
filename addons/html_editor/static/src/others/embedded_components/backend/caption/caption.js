@@ -4,7 +4,7 @@ import {
     getEmbeddedProps,
     StateChangeManager,
 } from "@html_editor/others/embedded_component_utils";
-import { Component, useState, useRef, onMounted, onWillDestroy } from "@odoo/owl";
+import { Component, onMounted, onWillDestroy, useRef, useState } from "@odoo/owl";
 
 export class EmbeddedCaptionComponent extends Component {
     static template = "html_editor.EmbeddedCaption";
@@ -34,7 +34,10 @@ export class EmbeddedCaptionComponent extends Component {
         this.updateCaption();
         const observer = new MutationObserver((mutations) => {
             for (const mutation of mutations) {
-                if (mutation.type === "attributes" && mutation.attributeName === "data-caption") {
+                if (
+                    mutation.type === "attributes" &&
+                    mutation.attributeName === "data-caption"
+                ) {
                     const incomingValue = mutation.target.getAttribute("data-caption");
                     if (incomingValue !== this.state.caption) {
                         this.updateCaption();
@@ -96,10 +99,10 @@ export const captionEmbedding = {
                             state,
                             "caption",
                             previous.caption,
-                            next.caption
+                            next.caption,
                         );
                     },
                 },
-            })
+            }),
         ),
 };

@@ -1,10 +1,15 @@
-import { goToTheme, registerWebsitePreviewTour, clickOnSave } from "@website/js/tours/tour_utils";
+import {
+    clickOnSave,
+    goToTheme,
+    registerWebsitePreviewTour,
+} from "@website/js/tours/tour_utils";
 
 function waitForCSSReload() {
     return [
         {
             content: "Wait for no loading",
-            trigger: "body:not(:has(.o_we_ui_loading)) :iframe body:not(:has(.o_we_ui_loading))",
+            trigger:
+                "body:not(:has(.o_we_ui_loading)) :iframe body:not(:has(.o_we_ui_loading))",
         },
     ];
 }
@@ -50,11 +55,13 @@ registerWebsitePreviewTour(
             trigger: ":iframe #wrapwrap:not(.odoo-editor-editable)",
             run() {
                 const iframeEl = document.querySelector(".o_website_preview iframe");
-                const styles = getComputedStyle(iframeEl.contentDocument.documentElement);
+                const styles = getComputedStyle(
+                    iframeEl.contentDocument.documentElement,
+                );
                 if (styles.getPropertyValue("--900").trim() !== "#222F1B") {
                     throw new Error("The value for the gray 900 is not right");
                 }
             },
         },
-    ]
+    ],
 );

@@ -16,7 +16,7 @@ export class CardImageAlignmentOption extends BaseOptionComponent {
         this.state = useDomState(async (editingElement) => {
             await this.waitForAllImageloaded(this.env.getEditingElements());
             const coverImageWrapperEl = editingElement.querySelector(
-                ":scope > .o_card_img_wrapper"
+                ":scope > .o_card_img_wrapper",
             );
             const hasCoverImage = !!coverImageWrapperEl;
             const imageToWrapperRatio = hasCoverImage
@@ -64,7 +64,7 @@ export class CardImageAlignmentOption extends BaseOptionComponent {
                     promises.push(
                         new Promise((resolve) => {
                             imageEl.addEventListener("load", () => resolve());
-                        })
+                        }),
                     );
                 }
             }

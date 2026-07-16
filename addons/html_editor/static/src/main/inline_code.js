@@ -1,18 +1,35 @@
 /** @odoo-module native */
 import { Plugin } from "@html_editor/plugin";
-import { isBlock, closestBlock } from "@html_editor/utils/blocks";
+import { closestBlock, isBlock } from "@html_editor/utils/blocks";
 import { splitTextNode, unwrapContents } from "@html_editor/utils/dom";
-import { isElement, isTextNode, isVisible, isZwnbsp } from "@html_editor/utils/dom_info";
-import { closestElement, selectElements, findFurthest } from "@html_editor/utils/dom_traversal";
+import {
+    isElement,
+    isTextNode,
+    isVisible,
+    isZwnbsp,
+} from "@html_editor/utils/dom_info";
+import {
+    closestElement,
+    findFurthest,
+    selectElements,
+} from "@html_editor/utils/dom_traversal";
 import { DIRECTIONS, nodeSize } from "@html_editor/utils/position";
 import { withSequence } from "@html_editor/utils/resource";
+
 import { DISABLED_NAMESPACE } from "./toolbar/toolbar_plugin.js";
 
 /** @typedef {((codeElement: HTMLElement) => void)[]} to_inline_code_processors */
 
 export class InlineCodePlugin extends Plugin {
     static id = "inlineCode";
-    static dependencies = ["clipboard", "feff", "history", "input", "selection", "split"];
+    static dependencies = [
+        "clipboard",
+        "feff",
+        "history",
+        "input",
+        "selection",
+        "split",
+    ];
     /** @type {import("plugins").EditorResources} */
     resources = {
         input_handlers: this.onInput.bind(this),
@@ -22,17 +39,18 @@ export class InlineCodePlugin extends Plugin {
         /** Providers */
         feff_providers: (root, cursors) =>
             [...selectElements(root, ".o_inline_code")].flatMap((code) =>
-                this.dependencies.feff.surroundWithFeffs(code, cursors)
+                this.dependencies.feff.surroundWithFeffs(code, cursors),
             ),
         toolbar_namespace_providers: withSequence(70, (targetedNodes) => {
             const hasInlineCode = targetedNodes.some((node) =>
-                closestElement(node, "code.o_inline_code")
+                closestElement(node, "code.o_inline_code"),
             );
             if (
                 targetedNodes.length &&
                 hasInlineCode &&
                 targetedNodes.every(
-                    (node) => closestElement(node, "code.o_inline_code") || !isVisible(node)
+                    (node) =>
+                        closestElement(node, "code.o_inline_code") || !isVisible(node),
                 )
             ) {
                 return DISABLED_NAMESPACE;
@@ -46,7 +64,9 @@ export class InlineCodePlugin extends Plugin {
                     ? selection.anchorNode
                     : selection.focusNode;
             if (closestElement(caretNode, "code.o_inline_code")) {
-                this.dependencies.clipboard.pasteText(clipboardData.getData("text/plain"));
+                this.dependencies.clipboard.pasteText(
+                    clipboardData.getData("text/plain"),
+                );
                 return true;
             }
         },
@@ -66,7 +86,9 @@ export class InlineCodePlugin extends Plugin {
             const targetedNodes = this.dependencies.selection.getTargetedNodes();
             if (
                 targetedNodes.length &&
-                targetedNodes.every((node) => closestElement(node, "code.o_inline_code"))
+                targetedNodes.every((node) =>
+                    closestElement(node, "code.o_inline_code"),
+                )
             ) {
                 return false;
             }
@@ -93,7 +115,9 @@ export class InlineCodePlugin extends Plugin {
             return;
         }
         const targetBlocks = this.dependencies.selection.getTargetedBlocks();
-        const hasTextNode = this.dependencies.selection.getTargetedNodes().some(isTextNode);
+        const hasTextNode = this.dependencies.selection
+            .getTargetedNodes()
+            .some(isTextNode);
         if (targetBlocks.size === 1 && hasTextNode) {
             this.historySavePointRestore = this.dependencies.history.makeSavePoint();
         }
@@ -110,22 +134,32 @@ export class InlineCodePlugin extends Plugin {
                 this.dependencies.split.splitSelection();
             const blockEl = closestBlock(anchorNode);
             // Adjust if anchor/focus directly equals block element
-            const deepChild = (node, offset) => (node === blockEl ? node.childNodes[offset] : node);
+            const deepChild = (node, offset) =>
+                node === blockEl ? node.childNodes[offset] : node;
             anchorNode = deepChild(anchorNode, anchorOffset);
             focusNode = deepChild(focusNode, focusOffset);
             if (direction === DIRECTIONS.LEFT) {
                 // Swap anchorNode and focusNode
-                [anchorNode, anchorOffset, focusNode, focusOffset] = [
-                    focusNode,
-                    focusOffset,
-                    anchorNode,
-                    anchorOffset,
-                ];
+                [anchorNode, focusNode] = [focusNode, anchorNode];
             }
-            const furthestAnchorElement = findFurthest(anchorNode, blockEl, (n) => !isBlock(n));
-            let start = this.dependencies.split.splitAroundUntil(anchorNode, furthestAnchorElement);
-            const furthestFocusElement = findFurthest(focusNode, blockEl, (n) => !isBlock(n));
-            const end = this.dependencies.split.splitAroundUntil(focusNode, furthestFocusElement);
+            const furthestAnchorElement = findFurthest(
+                anchorNode,
+                blockEl,
+                (n) => !isBlock(n),
+            );
+            let start = this.dependencies.split.splitAroundUntil(
+                anchorNode,
+                furthestAnchorElement,
+            );
+            const furthestFocusElement = findFurthest(
+                focusNode,
+                blockEl,
+                (n) => !isBlock(n),
+            );
+            const end = this.dependencies.split.splitAroundUntil(
+                focusNode,
+                furthestFocusElement,
+            );
 
             let codeElement = this.document.createElement("code");
             codeElement.classList.add("o_inline_code");
@@ -199,7 +233,7 @@ export class InlineCodePlugin extends Plugin {
             const insertedBacktickIndex = offset - 1;
             const textBeforeInsertedBacktick = textNode.textContent.substring(
                 0,
-                insertedBacktickIndex
+                insertedBacktickIndex,
             );
             let startOffset, endOffset;
             const isClosingForward = textBeforeInsertedBacktick.includes("`");
@@ -209,7 +243,8 @@ export class InlineCodePlugin extends Plugin {
                 endOffset = insertedBacktickIndex;
             } else {
                 // There is a backtick after the new backtick.
-                const textAfterInsertedBacktick = textNode.textContent.substring(offset);
+                const textAfterInsertedBacktick =
+                    textNode.textContent.substring(offset);
                 startOffset = insertedBacktickIndex;
                 endOffset = offset + textAfterInsertedBacktick.indexOf("`");
             }
@@ -221,15 +256,22 @@ export class InlineCodePlugin extends Plugin {
             if (startOffset) {
                 splitTextNode(textNode, startOffset);
             }
-            const splitLimit = findFurthest(textNode, closestBlock(textNode), (n) => !isBlock(n));
-            const splitNode = this.dependencies.split.splitAroundUntil(textNode, splitLimit);
+            const splitLimit = findFurthest(
+                textNode,
+                closestBlock(textNode),
+                (n) => !isBlock(n),
+            );
+            const splitNode = this.dependencies.split.splitAroundUntil(
+                textNode,
+                splitLimit,
+            );
             // Insert code element with plain text.
             const codeElement = this.document.createElement("code");
             codeElement.classList.add("o_inline_code");
             // Remove ticks from the text content.
             codeElement.textContent = splitNode.textContent.substring(
                 1,
-                splitNode.textContent.length - 1
+                splitNode.textContent.length - 1,
             );
             splitNode.replaceWith(codeElement);
             if (!codeElement.textContent.length) {
@@ -259,7 +301,9 @@ export class InlineCodePlugin extends Plugin {
         for (const el of selectElements(rootEl, "code.o_inline_code")) {
             if (
                 [...el.childNodes].every(
-                    (node) => node.nodeType === Node.TEXT_NODE && /^\uFEFF*$/.test(node.nodeValue)
+                    (node) =>
+                        node.nodeType === Node.TEXT_NODE &&
+                        /^\uFEFF*$/.test(node.nodeValue),
                 )
             ) {
                 el.remove();

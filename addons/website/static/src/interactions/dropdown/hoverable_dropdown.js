@@ -1,8 +1,7 @@
 /** @odoo-module native */
+import { registry } from "@web/core/registry";
 import { Dropdown } from "@web/libs/bootstrap";
 import { Interaction } from "@web/public/interaction";
-import { registry } from "@web/core/registry";
-
 import { SIZES, utils as uiUtils } from "@web/ui/block/ui_service";
 
 export class HoverableDropdown extends Interaction {
@@ -42,7 +41,11 @@ export class HoverableDropdown extends Interaction {
      */
     updateDropdownVisibility(dropdownEl, show) {
         const dropdownToggleEl = dropdownEl.querySelector(".dropdown-toggle");
-        if (this.isSmall() || !dropdownToggleEl || dropdownEl.closest(".o_extra_menu_items")) {
+        if (
+            this.isSmall() ||
+            !dropdownToggleEl ||
+            dropdownEl.closest(".o_extra_menu_items")
+        ) {
             return;
         }
         const dropdown = Dropdown.getOrCreateInstance(dropdownToggleEl);
@@ -89,4 +92,6 @@ export class HoverableDropdown extends Interaction {
     }
 }
 
-registry.category("public.interactions").add("website.hoverable_dropdown", HoverableDropdown);
+registry
+    .category("public.interactions")
+    .add("website.hoverable_dropdown", HoverableDropdown);

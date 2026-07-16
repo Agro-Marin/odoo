@@ -1,7 +1,7 @@
 /** @odoo-module native */
+import { registry } from "@web/core/registry";
 import { Modal } from "@web/libs/bootstrap";
 import { Interaction } from "@web/public/interaction";
-import { registry } from "@web/core/registry";
 
 export class SearchModal extends Interaction {
     static selector = "#o_search_modal_block #o_search_modal";

@@ -1,6 +1,5 @@
 /** @odoo-module native */
 import { Message } from "@mail/core/common/message";
-
 import { patch } from "@web/core/utils/patch";
 import { url } from "@web/core/utils/urls";
 
@@ -13,7 +12,9 @@ patch(Message.prototype, {
     },
 
     get quickActionCount() {
-        return this.props.thread?.channel_type === "livechat" ? 3 : super.quickActionCount;
+        return this.props.thread?.channel_type === "livechat"
+            ? 3
+            : super.quickActionCount;
     },
 
     /**
@@ -24,6 +25,10 @@ patch(Message.prototype, {
             return;
         }
         this.props.message.disableChatbotAnswers = true;
-        return this.props.message.thread.post(answer.name, {}, { selected_answer_id: answer.id });
+        return this.props.message.thread.post(
+            answer.name,
+            {},
+            { selected_answer_id: answer.id },
+        );
     },
 });

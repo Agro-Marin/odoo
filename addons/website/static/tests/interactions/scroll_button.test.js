@@ -1,12 +1,11 @@
-import {
-    isElementInViewport,
-    startInteractions,
-    setupInteractionWhiteList,
-} from "@web/../tests/public/helpers";
-
 import { describe, expect, test } from "@odoo/hoot";
 import { animationFrame, click, queryAll } from "@odoo/hoot-dom";
 import { advanceTime } from "@odoo/hoot-mock";
+import {
+    isElementInViewport,
+    setupInteractionWhiteList,
+    startInteractions,
+} from "@web/../tests/public/helpers";
 
 setupInteractionWhiteList("website.scroll_button");
 

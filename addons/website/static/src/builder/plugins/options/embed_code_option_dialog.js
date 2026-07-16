@@ -1,9 +1,9 @@
 /** @odoo-module native */
-import { Dialog } from "@web/ui/dialog/dialog";
+import { Component, useState } from "@odoo/owl";
 import { CodeEditor } from "@web/components/code_editor/code_editor";
 import { useService } from "@web/core/utils/hooks";
+import { Dialog } from "@web/ui/dialog/dialog";
 import { EditHeadBodyDialog } from "@website/components/edit_head_body_dialog/edit_head_body_dialog";
-import { Component, useState } from "@odoo/owl";
 
 export class EmbedCodeOptionDialog extends Component {
     static template = "website.EmbedCodeOptionDialog";

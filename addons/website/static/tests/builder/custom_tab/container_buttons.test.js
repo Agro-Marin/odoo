@@ -1,24 +1,24 @@
-import { expect, test } from "@odoo/hoot";
-import { xml } from "@odoo/owl";
-import {
-    defineWebsiteModels,
-    setupWebsiteBuilder,
-    addOption,
-    addPlugin,
-    addActionOption,
-    waitForSnippetDialog,
-} from "@website/../tests/builder/website_helpers";
 import {
     dummyBase64Img,
     getInnerContent,
     getSnippetStructure,
     getSnippetView,
 } from "@html_builder/../tests/helpers";
-import { contains, onRpc } from "@web/../tests/web_test_helpers";
-import { animationFrame, Deferred, queryText, tick } from "@odoo/hoot-dom";
+import { BuilderAction } from "@html_builder/core/builder_action";
 import { undo } from "@html_editor/../tests/_helpers/user_actions";
 import { Plugin } from "@html_editor/plugin";
-import { BuilderAction } from "@html_builder/core/builder_action";
+import { expect, test } from "@odoo/hoot";
+import { animationFrame, Deferred, queryText, tick } from "@odoo/hoot-dom";
+import { xml } from "@odoo/owl";
+import { contains, onRpc } from "@web/../tests/web_test_helpers";
+import {
+    addActionOption,
+    addOption,
+    addPlugin,
+    defineWebsiteModels,
+    setupWebsiteBuilder,
+    waitForSnippetDialog,
+} from "@website/../tests/builder/website_helpers";
 
 defineWebsiteModels();
 
@@ -166,15 +166,17 @@ test("Use the sidebar 'save snippet' buttons", async () => {
     expect(".o_notification_manager .o_notification_content").toHaveCount(1);
 
     // Check that the custom sections appeared.
-    await contains(".o-website-builder_sidebar .o-snippets-tabs button:contains(Blocks)").click();
+    await contains(
+        ".o-website-builder_sidebar .o-snippets-tabs button:contains(Blocks)",
+    ).click();
     expect(
-        ".o-snippets-menu div:contains('Custom Inner Content') div[name='Custom Button']"
+        ".o-snippets-menu div:contains('Custom Inner Content') div[name='Custom Button']",
     ).toHaveCount(1);
     expect(customGroupSelector).toHaveCount(1);
     await contains(customGroupSelector).click();
     await waitForSnippetDialog();
     expect(
-        ".o_add_snippet_dialog .o_add_snippet_iframe:iframe span:not(.visually-hidden):contains('Custom Dummy Section')"
+        ".o_add_snippet_dialog .o_add_snippet_iframe:iframe span:not(.visually-hidden):contains('Custom Dummy Section')",
     ).toHaveCount(1);
 });
 
@@ -193,9 +195,11 @@ test("Use the sidebar 'create anchor' buttons", async () => {
     await setupWebsiteBuilder(websiteContent);
     const anchorSelector =
         ".o_customize_tab .options-container > div:contains('Dummy Section') button.oe_snippet_anchor";
-    const notificationContentSelector = ".o_notification_manager .o_notification_content";
+    const notificationContentSelector =
+        ".o_notification_manager .o_notification_content";
     const notificationCloseSelector = ".o_notification_manager .o_notification_close";
-    const notificationEditSelector = ".o_notification_manager .o_notification_buttons button";
+    const notificationEditSelector =
+        ".o_notification_manager .o_notification_buttons button";
 
     // Section with title should have the title as anchor.
     await contains(":iframe section.first").click();
@@ -251,7 +255,9 @@ test("Clicking on the options container title selects the corresponding element"
     expect(".o_customize_tab .options-container").toHaveCount(2);
     expect(".oe_overlay.oe_active").toHaveRect(":iframe .col-lg-7");
 
-    await contains(".o_customize_tab .options-container span:contains('Dummy Section')").click();
+    await contains(
+        ".o_customize_tab .options-container span:contains('Dummy Section')",
+    ).click();
     expect(".o_customize_tab .options-container").toHaveCount(1);
     expect(".oe_overlay.oe_active").toHaveRect(":iframe section");
 });
@@ -264,12 +270,16 @@ test("Show the overlay preview when hovering an options container", async () => 
     expect(".oe_overlay").toHaveCount(2);
     expect(".oe_overlay.oe_active").toHaveRect(":iframe .col-lg-7");
 
-    await contains(".o_customize_tab .options-container span:contains('Dummy Section')").hover();
+    await contains(
+        ".o_customize_tab .options-container span:contains('Dummy Section')",
+    ).hover();
     expect(".overlay .o_overlay_options.d-none").toHaveCount(1);
     expect(".oe_overlay.oe_active.o_overlay_hidden").toHaveCount(1);
     expect(".oe_overlay.o_we_overlay_preview").toHaveRect(":iframe section");
 
-    await contains(".o_customize_tab .options-container span:contains('Column')").hover();
+    await contains(
+        ".o_customize_tab .options-container span:contains('Column')",
+    ).hover();
     expect(".overlay .o_overlay_options.d-none").toHaveCount(1);
     expect(".oe_overlay.oe_active.o_we_overlay_preview").toHaveCount(1);
     expect(".oe_overlay.o_we_overlay_preview").toHaveRect(":iframe .col-lg-7");
@@ -277,7 +287,9 @@ test("Show the overlay preview when hovering an options container", async () => 
     await contains(":iframe .col-lg-7").hover();
     expect(".overlay .o_overlay_options:not(.d-none)").toHaveCount(1);
     expect(".oe_overlay.o_we_overlay_preview").toHaveCount(0);
-    expect(".oe_overlay.oe_active:not(.o_overlay_hidden)").toHaveRect(":iframe .col-lg-7");
+    expect(".oe_overlay.oe_active:not(.o_overlay_hidden)").toHaveRect(
+        ":iframe .col-lg-7",
+    );
 });
 
 test("applying option container button should wait for actions in progress", async () => {
@@ -333,11 +345,13 @@ test("applying option container button should wait for actions in progress", asy
     customActionDef.resolve();
     await tick();
     expect(editable).toHaveInnerHTML(
-        `<p class="test-options-target customAction overlayButton">plop</p>`
+        `<p class="test-options-target customAction overlayButton">plop</p>`,
     );
 
     undo(editor);
-    expect(editable).toHaveInnerHTML(`<p class="test-options-target customAction">plop</p>`);
+    expect(editable).toHaveInnerHTML(
+        `<p class="test-options-target customAction">plop</p>`,
+    );
 
     undo(editor);
     expect(editable).toHaveInnerHTML(`<p class="test-options-target">plop</p>`);

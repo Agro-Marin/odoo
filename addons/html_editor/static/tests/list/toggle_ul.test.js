@@ -1,5 +1,6 @@
 import { describe, test } from "@odoo/hoot";
 import { press } from "@odoo/hoot-dom";
+
 import { testEditor } from "../_helpers/editor.js";
 import { unformat } from "../_helpers/format.js";
 import { toggleUnorderedList } from "../_helpers/user_actions.js";
@@ -58,7 +59,8 @@ describe("Range collapsed", () => {
 
         test("should turn a checklist without marker into a unordered list", async () => {
             await testEditor({
-                contentBefore: '<ul class="o_checklist"><li class="oe-nested">ab[]cd</li></ul>',
+                contentBefore:
+                    '<ul class="o_checklist"><li class="oe-nested">ab[]cd</li></ul>',
                 stepFunction: toggleUnorderedList,
                 contentAfter: "<ul><li>ab[]cd</li></ul>",
             });
@@ -98,7 +100,8 @@ describe("Range collapsed", () => {
 
         test("should turn a paragraph with formats into a list", async () => {
             await testEditor({
-                contentBefore: "<p><span><b>ab</b></span> <span><i>cd</i></span> ef[]gh</p>",
+                contentBefore:
+                    "<p><span><b>ab</b></span> <span><i>cd</i></span> ef[]gh</p>",
                 stepFunction: toggleUnorderedList,
                 contentAfter:
                     "<ul><li><span><b>ab</b></span> <span><i>cd</i></span> ef[]gh</li></ul>",
@@ -164,13 +167,15 @@ describe("Range collapsed", () => {
             await testEditor({
                 contentBefore: '<ul><li class="nav-item">a[]b</li></ul>',
                 stepFunction: toggleUnorderedList,
-                contentAfter: '<ul><li class="nav-item"><ul><li>a[]b</li></ul></li></ul>',
+                contentAfter:
+                    '<ul><li class="nav-item"><ul><li>a[]b</li></ul></li></ul>',
             });
         });
 
         test("should create a new unordered list if closestBlock is inside a nav-item list", async () => {
             await testEditor({
-                contentBefore: '<ul><li class="nav-item"><div><p>a[]b</p></div></li></ul>',
+                contentBefore:
+                    '<ul><li class="nav-item"><div><p>a[]b</p></div></li></ul>',
                 stepFunction: toggleUnorderedList,
                 contentAfter:
                     '<ul><li class="nav-item"><div><ul><li>a[]b</li></ul></div></li></ul>',
@@ -181,7 +186,8 @@ describe("Range collapsed", () => {
             await testEditor({
                 contentBefore: '<h1 dir="rtl" class="h1">a[]b</h1>',
                 stepFunction: toggleUnorderedList,
-                contentAfter: '<ul dir="rtl"><li><h1 dir="rtl" class="h1">a[]b</h1></li></ul>',
+                contentAfter:
+                    '<ul dir="rtl"><li><h1 dir="rtl" class="h1">a[]b</h1></li></ul>',
             });
         });
 
@@ -283,7 +289,8 @@ describe("Range collapsed", () => {
                 contentBefore:
                     "<ul><li><span><b>ab</b></span> <span><i>cd</i></span> ef[]gh</li></ul>",
                 stepFunction: toggleUnorderedList,
-                contentAfter: "<p><span><b>ab</b></span> <span><i>cd</i></span> ef[]gh</p>",
+                contentAfter:
+                    "<p><span><b>ab</b></span> <span><i>cd</i></span> ef[]gh</p>",
             });
         });
 
@@ -482,7 +489,8 @@ describe("Range not collapsed", () => {
 
         test("should turn a list item, a paragraph and another list into one list with all three as list items", async () => {
             await testEditor({
-                contentBefore: "<ul><li>ab</li><li>c[d</li></ul><p>ef</p><ul><li>g]h</li></ul>",
+                contentBefore:
+                    "<ul><li>ab</li><li>c[d</li></ul><p>ef</p><ul><li>g]h</li></ul>",
                 stepFunction: toggleUnorderedList,
                 contentAfter: "<ul><li>ab</li><li>c[d</li><li>ef</li><li>g]h</li></ul>",
             });
@@ -490,7 +498,8 @@ describe("Range not collapsed", () => {
 
         test("should turn a list, a paragraph and a list item into one list with all three as list items", async () => {
             await testEditor({
-                contentBefore: "<ul><li>a[b</li></ul><p>cd</p><ul><li>e]f</li><li>gh</li></ul>",
+                contentBefore:
+                    "<ul><li>a[b</li></ul><p>cd</p><ul><li>e]f</li><li>gh</li></ul>",
                 stepFunction: toggleUnorderedList,
                 contentAfter: "<ul><li>a[b</li><li>cd</li><li>e]f</li><li>gh</li></ul>",
             });

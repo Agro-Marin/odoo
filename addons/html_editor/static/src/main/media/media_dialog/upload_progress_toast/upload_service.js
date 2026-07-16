@@ -1,12 +1,13 @@
 /** @odoo-module native */
+import { reactive } from "@odoo/owl";
+import { _t } from "@web/core/l10n/translation";
 import { rpc } from "@web/core/network/rpc";
 import { registry } from "@web/core/registry";
-import { UploadProgressToast } from "./upload_progress_toast.js";
-import { _t } from "@web/core/l10n/translation";
 import { checkFileSize } from "@web/core/utils/files";
 import { humanNumber } from "@web/core/utils/format/numbers";
 import { getDataURLFromFile } from "@web/core/utils/urls";
-import { reactive } from "@odoo/owl";
+
+import { UploadProgressToast } from "./upload_progress_toast.js";
 
 export const AUTOCLOSE_DELAY = 3000;
 export const AUTOCLOSE_DELAY_LONG = 8000;
@@ -106,7 +107,7 @@ export const uploadService = {
                         deleteFile(file.id);
                         env.services.notification.add(
                             _t('Could not load the file "%s".', sortedFile.name),
-                            { type: "danger" }
+                            { type: "danger" },
                         );
                         continue;
                     }
@@ -126,7 +127,7 @@ export const uploadService = {
                                 is_image: !!isImage,
                                 width: 0,
                                 quality: 0,
-                            }
+                            },
                         );
                         if (attachment.error) {
                             file.hasError = true;
@@ -137,7 +138,7 @@ export const uploadService = {
                                 const image = document.createElement("img");
                                 image.src = `data:image/webp;base64,${dataURL.split(",")[1]}`;
                                 await new Promise((resolve) =>
-                                    image.addEventListener("load", resolve)
+                                    image.addEventListener("load", resolve),
                                 );
                                 const canvas = document.createElement("canvas");
                                 canvas.width = image.width;
@@ -147,18 +148,15 @@ export const uploadService = {
                                 ctx.fillRect(0, 0, canvas.width, canvas.height);
                                 ctx.drawImage(image, 0, 0);
                                 const altDataURL = canvas.toDataURL("image/jpeg");
-                                await rpc(
-                                    "/html_editor/attachment/add_data",
-                                    {
-                                        name: file.name.replace(/\.webp$/, ".jpg"),
-                                        data: altDataURL.split(",")[1],
-                                        res_id: attachment.id,
-                                        res_model: "ir.attachment",
-                                        is_image: true,
-                                        width: 0,
-                                        quality: 0,
-                                    }
-                                );
+                                await rpc("/html_editor/attachment/add_data", {
+                                    name: file.name.replace(/\.webp$/, ".jpg"),
+                                    data: altDataURL.split(",")[1],
+                                    res_id: attachment.id,
+                                    res_model: "ir.attachment",
+                                    is_image: true,
+                                    width: 0,
+                                    quality: 0,
+                                });
                             }
                             file.uploaded = true;
                             await onUploaded(attachment);

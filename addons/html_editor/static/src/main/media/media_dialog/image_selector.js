@@ -1,12 +1,18 @@
 /** @odoo-module native */
+import { DEFAULT_PALETTE } from "@html_editor/utils/color";
+import { getCSSVariableValue, getHtmlStyle } from "@html_editor/utils/formatting";
+import { isSrcCorsProtected } from "@html_editor/utils/image";
 import { useRef, useState } from "@odoo/owl";
 import { _t } from "@web/core/l10n/translation";
 import { rpc } from "@web/core/network/rpc";
 import { KeepLast } from "@web/core/utils/concurrency";
-import { DEFAULT_PALETTE } from "@html_editor/utils/color";
-import { getCSSVariableValue, getHtmlStyle } from "@html_editor/utils/formatting";
-import { Attachment, FileSelector, IMAGE_EXTENSIONS, IMAGE_MIMETYPES } from "./file_selector.js";
-import { isSrcCorsProtected } from "@html_editor/utils/image";
+
+import {
+    Attachment,
+    FileSelector,
+    IMAGE_EXTENSIONS,
+    IMAGE_MIMETYPES,
+} from "./file_selector.js";
 
 export class AutoResizeImage extends Attachment {
     static template = "html_editor.AutoResizeImage";
@@ -79,7 +85,8 @@ export class ImageSelector extends FileSelector {
         this.addText = _t("Add URL");
         this.searchPlaceholder = _t("Search an image");
         this.urlWarningTitle = _t(
-            "Uploaded image's format is not supported. Try with: " + IMAGE_EXTENSIONS.join(", ")
+            "Uploaded image's format is not supported. Try with: " +
+                IMAGE_EXTENSIONS.join(", "),
         );
         this.allLoadedText = _t("All images have been loaded");
         this.showOptimizedOption = this.env.debug;
@@ -87,7 +94,8 @@ export class ImageSelector extends FileSelector {
 
         this.fileMimetypes = IMAGE_MIMETYPES.join(",");
         this.isImageField =
-            !!this.props.media?.closest("[data-oe-type=image]") || !!this.props.addFieldImage;
+            !!this.props.media?.closest("[data-oe-type=image]") ||
+            !!this.props.addFieldImage;
         this.isProcessingClick = false;
     }
 
@@ -135,7 +143,7 @@ export class ImageSelector extends FileSelector {
                 "!",
                 "|",
                 ["url", "=ilike", "/html_editor/shape/%"],
-                ["url", "=ilike", "/web_editor/shape/%"]
+                ["url", "=ilike", "/web_editor/shape/%"],
             );
         }
         domain.push("!", ["name", "=like", "%.crop"]);
@@ -181,7 +189,7 @@ export class ImageSelector extends FileSelector {
             (attachment) => this.onUploaded(attachment),
             (abort) => {
                 abortFn = abort;
-            }
+            },
         );
         this.props.setAbortUploadsCallback(() => abortFn?.());
         await uploadPromise;
@@ -202,7 +210,9 @@ export class ImageSelector extends FileSelector {
 
     async onLoadUploadedUrl(url, resolve) {
         const urlPathname = new URL(url, window.location.href).pathname;
-        const imageExtension = IMAGE_EXTENSIONS.find((format) => urlPathname.endsWith(format));
+        const imageExtension = IMAGE_EXTENSIONS.find((format) =>
+            urlPathname.endsWith(format),
+        );
         if (this.isImageField && imageExtension === ".webp") {
             // Do not allow the user to replace an image field by a
             // webp CORS protected image as we are not currently
@@ -212,12 +222,12 @@ export class ImageSelector extends FileSelector {
             // operations as 'libwep' can not be used.
             this.notificationService.add(
                 _t(
-                    "You can not replace a field by this image. If you want to use this image, first save it on your computer and then upload it here."
+                    "You can not replace a field by this image. If you want to use this image, first save it on your computer and then upload it here.",
                 ),
                 {
                     type: "danger",
                     sticky: true,
-                }
+                },
             );
             return resolve();
         }
@@ -295,10 +305,13 @@ export class ImageSelector extends FileSelector {
                 },
                 {
                     silent: true,
-                }
+                },
             );
             this.state.isFetchingLibrary = false;
-            const media = (response.media || []).slice(0, this.NUMBER_OF_MEDIA_TO_DISPLAY);
+            const media = (response.media || []).slice(
+                0,
+                this.NUMBER_OF_MEDIA_TO_DISPLAY,
+            );
             media.forEach((record) => (record.mediaType = "libraryMedia"));
             return { media, results: response.results };
         } catch {
@@ -353,12 +366,12 @@ export class ImageSelector extends FileSelector {
         if (attachment.unselectable) {
             this.notificationService.add(
                 _t(
-                    "You can not replace a field by this image. If you want to use this image, first save it on your computer and then upload it here."
+                    "You can not replace a field by this image. If you want to use this image, first save it on your computer and then upload it here.",
                 ),
                 {
                     type: "danger",
                     sticky: true,
-                }
+                },
             );
             return;
         }
@@ -395,11 +408,13 @@ export class ImageSelector extends FileSelector {
                         is_dynamic_svg: !!media.isDynamicSVG,
                         dynamic_colors: media.dynamicColors,
                     },
-                ])
+                ]),
         );
         let savedMedia = [];
         if (Object.keys(toSave).length !== 0) {
-            savedMedia = await rpc("/html_editor/save_library_media", { media: toSave });
+            savedMedia = await rpc("/html_editor/save_library_media", {
+                media: toSave,
+            });
         }
         const selected = selectedMedia
             .filter((media) => media.mediaType === "attachment")
@@ -413,7 +428,7 @@ export class ImageSelector extends FileSelector {
                 ) {
                     const colorCustomizedURL = new URL(
                         attachment.image_src,
-                        window.location.origin
+                        window.location.origin,
                     );
                     const htmlStyle = getHtmlStyle(document);
                     colorCustomizedURL.searchParams.forEach((value, key) => {
@@ -421,11 +436,12 @@ export class ImageSelector extends FileSelector {
                         if (match) {
                             colorCustomizedURL.searchParams.set(
                                 key,
-                                getCSSVariableValue(`o-color-${match[1]}`, htmlStyle)
+                                getCSSVariableValue(`o-color-${match[1]}`, htmlStyle),
                             );
                         }
                     });
-                    attachment.image_src = colorCustomizedURL.pathname + colorCustomizedURL.search;
+                    attachment.image_src =
+                        colorCustomizedURL.pathname + colorCustomizedURL.search;
                 }
                 return attachment;
             });
@@ -436,9 +452,11 @@ export class ImageSelector extends FileSelector {
                 if (!attachment.public && !attachment.url) {
                     let accessToken = attachment.access_token;
                     if (!accessToken) {
-                        [accessToken] = await orm.call("ir.attachment", "generate_access_token", [
-                            attachment.id,
-                        ]);
+                        [accessToken] = await orm.call(
+                            "ir.attachment",
+                            "generate_access_token",
+                            [attachment.id],
+                        );
                     }
                     src += `?access_token=${encodeURIComponent(accessToken)}`;
                 }
@@ -446,7 +464,7 @@ export class ImageSelector extends FileSelector {
                 imageEl.alt = attachment.description || "";
                 imageEl.dataset.attachmentId = attachment.id;
                 return imageEl;
-            })
+            }),
         );
     }
 
@@ -479,15 +497,18 @@ export class ImageSelector extends FileSelector {
                 const dynamicColors = {};
                 const combinedColorsRegex = new RegExp(
                     Object.values(DEFAULT_PALETTE).join("|"),
-                    "gi"
+                    "gi",
                 );
                 const htmlStyle = getHtmlStyle(document);
                 svg = svg.replace(combinedColorsRegex, (match) => {
                     const colorId = Object.keys(DEFAULT_PALETTE).find(
-                        (key) => DEFAULT_PALETTE[key] === match.toUpperCase()
+                        (key) => DEFAULT_PALETTE[key] === match.toUpperCase(),
                     );
                     const colorKey = "c" + colorId;
-                    dynamicColors[colorKey] = getCSSVariableValue("o-color-" + colorId, htmlStyle);
+                    dynamicColors[colorKey] = getCSSVariableValue(
+                        "o-color-" + colorId,
+                        htmlStyle,
+                    );
                     return dynamicColors[colorKey];
                 });
                 const fileName = mediaUrl.split("/").pop();
@@ -502,7 +523,7 @@ export class ImageSelector extends FileSelector {
             }
         } catch {
             console.error(
-                "CORS is misconfigured on the API server, image will be treated as non-dynamic."
+                "CORS is misconfigured on the API server, image will be treated as non-dynamic.",
             );
         }
     }

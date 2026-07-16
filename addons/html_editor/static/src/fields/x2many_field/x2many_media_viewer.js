@@ -1,9 +1,10 @@
 /** @odoo-module native */
+import { getVideoUrl } from "@html_editor/utils/url";
+import { useChildSubEnv } from "@odoo/owl";
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
 import { X2ManyField, x2ManyField } from "@web/fields/relational/x2many/x2many_field";
-import { getVideoUrl } from "@html_editor/utils/url";
-import { useChildSubEnv } from "@odoo/owl";
+
 import { CustomMediaDialog } from "./custom_media_dialog.js";
 
 export class X2ManyMediaViewer extends X2ManyField {
@@ -18,7 +19,13 @@ export class X2ManyMediaViewer extends X2ManyField {
         this.dialogs = useService("dialog");
         this.orm = useService("orm");
         this.notification = useService("notification");
-        this.supportedFields = ["image_1920", "image_1024", "image_512", "image_256", "image_128"];
+        this.supportedFields = [
+            "image_1920",
+            "image_1024",
+            "image_512",
+            "image_256",
+            "image_128",
+        ];
         useChildSubEnv({
             parentField: this.props.name,
         });
@@ -35,10 +42,17 @@ export class X2ManyMediaViewer extends X2ManyField {
     }
 
     onVideoSave(videoInfo) {
-        const url = getVideoUrl(videoInfo[0].platform, videoInfo[0].videoId, videoInfo[0].params);
+        const url = getVideoUrl(
+            videoInfo[0].platform,
+            videoInfo[0].videoId,
+            videoInfo[0].params,
+        );
         const videoList = this.props.record.data[this.props.name];
         videoList.addNewRecord({ position: "bottom" }).then((record) => {
-            record.update({ name: videoInfo[0].platform + " - [Video]", video_url: url.href });
+            record.update({
+                name: videoInfo[0].platform + " - [Video]",
+                video_url: url.href,
+            });
         });
     }
 
@@ -48,7 +62,7 @@ export class X2ManyMediaViewer extends X2ManyField {
             "ir.attachment",
             [["id", "in", attachmentIds]],
             ["id", "datas", "name", "mimetype"],
-            {}
+            {},
         );
         for (const attachment of attachmentRecords) {
             const imageList = this.props.record.data[this.props.name];
@@ -59,7 +73,7 @@ export class X2ManyMediaViewer extends X2ManyField {
                     `Cannot add URL type attachment "${attachment.name}". Please try to reupload this image.`,
                     {
                         type: "warning",
-                    }
+                    },
                 );
             }
             if (
@@ -75,7 +89,9 @@ export class X2ManyMediaViewer extends X2ManyField {
                 await new Promise((resolve) => image.addEventListener("load", resolve));
 
                 const originalSize = Math.max(image.width, image.height);
-                const smallerSizes = [1024, 512, 256, 128].filter((size) => size < originalSize);
+                const smallerSizes = [1024, 512, 256, 128].filter(
+                    (size) => size < originalSize,
+                );
                 let referenceId = undefined;
 
                 for (const size of [originalSize, ...smallerSizes]) {
@@ -93,23 +109,28 @@ export class X2ManyMediaViewer extends X2ManyField {
                         0,
                         0,
                         canvas.width,
-                        canvas.height
+                        canvas.height,
                     );
 
                     // WebP format
                     const webpData = canvas.toDataURL("image/webp").split(",")[1];
-                    const [resizedId] = await this.orm.call("ir.attachment", "create_unique", [
+                    const [resizedId] = await this.orm.call(
+                        "ir.attachment",
+                        "create_unique",
                         [
-                            {
-                                name: attachment.name.replace(/\.[^/.]+$/, ".webp"),
-                                description: size === originalSize ? "" : `resize: ${size}`,
-                                datas: webpData,
-                                res_id: referenceId,
-                                res_model: "ir.attachment",
-                                mimetype: "image/webp",
-                            },
+                            [
+                                {
+                                    name: attachment.name.replace(/\.[^/.]+$/, ".webp"),
+                                    description:
+                                        size === originalSize ? "" : `resize: ${size}`,
+                                    datas: webpData,
+                                    res_id: referenceId,
+                                    res_model: "ir.attachment",
+                                    mimetype: "image/webp",
+                                },
+                            ],
                         ],
-                    ]);
+                    );
 
                     referenceId = referenceId || resizedId;
 
@@ -164,11 +185,11 @@ export const x2ManyMediaViewer = {
     component: X2ManyMediaViewer,
     extractProps: (
         { attrs, relatedFields, viewMode, views, widget, options, string },
-        dynamicInfo
+        dynamicInfo,
     ) => {
         const x2ManyFieldProps = x2ManyField.extractProps(
             { attrs, relatedFields, viewMode, views, widget, options, string },
-            dynamicInfo
+            dynamicInfo,
         );
         return {
             ...x2ManyFieldProps,

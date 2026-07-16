@@ -23,11 +23,11 @@ const noop = () => {};
 
 const defaults = {
     // Attribute to retrieve the zoom image URL from.
-    linkTag: 'a',
-    linkAttribute: 'data-zoom-image',
+    linkTag: "a",
+    linkAttribute: "data-zoom-image",
 
     // event to trigger zoom
-    event: 'click', //or mouseenter
+    event: "click", //or mouseenter
 
     // Timer before trigger zoom
     timer: 0,
@@ -90,11 +90,11 @@ ZoomOdoo.prototype._init = function () {
     if (window.outerWidth > 467 || !this.opts.disabledOnMobile) {
         const linkEl = this.target.querySelector(this.opts.linkTag);
         this.link = linkEl || this.target;
-        const imgEl = this.target.querySelector('img');
+        const imgEl = this.target.querySelector("img");
         this.image = imgEl || this.target;
 
-        this.flyout = document.createElement('div');
-        this.flyout.className = 'zoomodoo-flyout';
+        this.flyout = document.createElement("div");
+        this.flyout.className = "zoomodoo-flyout";
 
         let attach = this.target;
         if (this.opts.attach !== undefined) {
@@ -106,20 +106,38 @@ ZoomOdoo.prototype._init = function () {
         this._attachParent = attach.parentNode;
 
         const signal = this._ac.signal;
-        this._attachParent.addEventListener('mousemove', this._onMove.bind(this), { signal });
-        this._attachParent.addEventListener('touchmove', this._onMove.bind(this), { signal });
-        this._attachParent.addEventListener('mouseleave', this._onLeave.bind(this), { signal });
-        this._attachParent.addEventListener('touchend', this._onLeave.bind(this), { signal });
-        this.target.addEventListener(this.opts.event, this._onEnter.bind(this), { signal });
-        this.target.addEventListener('touchstart', this._onEnter.bind(this), { signal });
+        this._attachParent.addEventListener("mousemove", this._onMove.bind(this), {
+            signal,
+        });
+        this._attachParent.addEventListener("touchmove", this._onMove.bind(this), {
+            signal,
+        });
+        this._attachParent.addEventListener("mouseleave", this._onLeave.bind(this), {
+            signal,
+        });
+        this._attachParent.addEventListener("touchend", this._onLeave.bind(this), {
+            signal,
+        });
+        this.target.addEventListener(this.opts.event, this._onEnter.bind(this), {
+            signal,
+        });
+        this.target.addEventListener("touchstart", this._onEnter.bind(this), {
+            signal,
+        });
 
         if (this.opts.preventClicks) {
-            this.target.addEventListener('click', (e) => e.preventDefault(), { signal });
+            this.target.addEventListener("click", (e) => e.preventDefault(), {
+                signal,
+            });
         } else {
-            this.target.addEventListener('click', () => {
-                this.hide();
-                this._ac.abort();
-            }, { signal });
+            this.target.addEventListener(
+                "click",
+                () => {
+                    this.hide();
+                    this._ac.abort();
+                },
+                { signal },
+            );
         }
     }
 };
@@ -130,7 +148,9 @@ ZoomOdoo.prototype._init = function () {
  * @param {boolean} [testMouseOver]
  */
 ZoomOdoo.prototype.show = function (e, testMouseOver) {
-    if (this.opts.beforeShow.call(this) === false) return;
+    if (this.opts.beforeShow.call(this) === false) {
+        return;
+    }
 
     if (!this.isReady) {
         return this._loadImage(this.link.getAttribute(this.opts.linkAttribute), () => {
@@ -149,31 +169,33 @@ ZoomOdoo.prototype.show = function (e, testMouseOver) {
     }
 
     // Prevents having multiple zoom flyouts
-    const existing = attach.parentNode.querySelector('.zoomodoo-flyout');
-    if (existing) existing.remove();
-    this.flyout.removeAttribute('style');
+    const existing = attach.parentNode.querySelector(".zoomodoo-flyout");
+    if (existing) {
+        existing.remove();
+    }
+    this.flyout.removeAttribute("style");
     attach.parentNode.append(this.flyout);
 
     if (this.opts.attachToTarget) {
         this.opts.beforeAttach.call(this);
 
         // Be sure that the flyout is at top 0, left 0 to ensure correct computation
-        this.flyout.style.position = 'fixed';
+        this.flyout.style.position = "fixed";
         const flyoutRect = this.flyout.getBoundingClientRect();
         if (flyoutRect.left > 0) {
             const flyoutLeft = parseFloat(getComputedStyle(this.flyout).left) || 0;
-            this.flyout.style.left = (flyoutLeft - flyoutRect.left) + 'px';
+            this.flyout.style.left = flyoutLeft - flyoutRect.left + "px";
         }
         if (flyoutRect.top > 0) {
             const flyoutTop = parseFloat(getComputedStyle(this.flyout).top) || 0;
-            this.flyout.style.top = (flyoutTop - flyoutRect.top) + 'px';
+            this.flyout.style.top = flyoutTop - flyoutRect.top + "px";
         }
 
         if (this.zoom.offsetHeight < this.flyout.offsetHeight) {
-            this.flyout.style.height = this.zoom.offsetHeight + 'px';
+            this.flyout.style.height = this.zoom.offsetHeight + "px";
         }
         if (this.zoom.offsetWidth < this.flyout.offsetWidth) {
-            this.flyout.style.width = this.zoom.offsetWidth + 'px';
+            this.flyout.style.width = this.zoom.offsetWidth + "px";
         }
 
         const targetRect = this.target.getBoundingClientRect();
@@ -190,7 +212,7 @@ ZoomOdoo.prototype.show = function (e, testMouseOver) {
         // Position the zoom on the right side of the target
         // if there's not enough room on the left
         if (left < 0) {
-            if (offsetLeft < (docWidth / 2)) {
+            if (offsetLeft < docWidth / 2) {
                 left = offsetLeft + this.target.offsetWidth;
             } else {
                 left = 0;
@@ -199,21 +221,22 @@ ZoomOdoo.prototype.show = function (e, testMouseOver) {
 
         // Prevents the flyout to overflow
         if (left + this.flyout.offsetWidth > docWidth) {
-            this.flyout.style.width = (docWidth - left) + 'px';
+            this.flyout.style.width = docWidth - left + "px";
         } else if (left === 0) {
-            this.flyout.style.width = offsetLeft + 'px';
+            this.flyout.style.width = offsetLeft + "px";
         }
 
         // Prevents the zoom to be displayed outside the current viewport
-        if ((top + this.flyout.offsetHeight) > docHeight) {
+        if (top + this.flyout.offsetHeight > docHeight) {
             top = docHeight - this.flyout.offsetHeight;
         }
 
         this.flyout.style.transform = `translate3d(${left}px, ${top}px, 0px)`;
     } else {
         // Computing flyout max-width depending to the available space on the right
-        const rightAvailableSpace = document.body.clientWidth - this.flyout.getBoundingClientRect().left;
-        this.flyout.style.maxWidth = rightAvailableSpace + 'px';
+        const rightAvailableSpace =
+            document.body.clientWidth - this.flyout.getBoundingClientRect().left;
+        this.flyout.style.maxWidth = rightAvailableSpace + "px";
     }
 
     const w1 = this.target.offsetWidth;
@@ -258,7 +281,9 @@ ZoomOdoo.prototype._onEnter = function (e) {
  * @param {Event} e
  */
 ZoomOdoo.prototype._onMove = function (e) {
-    if (!this.isOpen) return;
+    if (!this.isOpen) {
+        return;
+    }
     e.preventDefault();
     this._move(e);
 };
@@ -281,9 +306,11 @@ ZoomOdoo.prototype._onLeave = function () {
  * @param {Event} e
  */
 ZoomOdoo.prototype._onLoad = function (callback, e) {
-    if (!e.currentTarget.width) return;
+    if (!e.currentTarget.width) {
+        return;
+    }
     this.isReady = true;
-    this.flyout.innerHTML = '';
+    this.flyout.innerHTML = "";
     this.flyout.append(this.zoom);
     if (callback) {
         callback();
@@ -299,8 +326,8 @@ ZoomOdoo.prototype._onLoad = function (callback, e) {
 ZoomOdoo.prototype._loadImage = function (href, callback) {
     const zoom = new Image();
     this.zoom = zoom;
-    zoom.addEventListener('load', this._onLoad.bind(this, callback));
-    zoom.style.position = 'absolute';
+    zoom.addEventListener("load", this._onLoad.bind(this, callback));
+    zoom.style.position = "absolute";
     zoom.src = href;
 };
 
@@ -310,7 +337,7 @@ ZoomOdoo.prototype._loadImage = function (href, callback) {
  * @param {Event} e
  */
 ZoomOdoo.prototype._move = function (e) {
-    if (e.type.indexOf('touch') === 0) {
+    if (e.type.indexOf("touch") === 0) {
         const touchlist = e.touches;
         this._lx = touchlist[0].pageX;
         this._ly = touchlist[0].pageY;
@@ -328,14 +355,21 @@ ZoomOdoo.prototype._move = function (e) {
     const xl = Math.ceil(pl * this._rw);
 
     // Close if outside
-    if (!this.opts.attachToTarget && (xl < 0 || xt < 0 || xl > this._dw || xt > this._dh || this._lx > (offsetLeft + this.target.offsetWidth))) {
+    if (
+        !this.opts.attachToTarget &&
+        (xl < 0 ||
+            xt < 0 ||
+            xl > this._dw ||
+            xt > this._dh ||
+            this._lx > offsetLeft + this.target.offsetWidth)
+    ) {
         this.hide();
     } else {
         const top = xt * -1;
         const left = xl * -1;
 
-        this.zoom.style.top = top + 'px';
-        this.zoom.style.left = left + 'px';
+        this.zoom.style.top = top + "px";
+        this.zoom.style.left = left + "px";
 
         this.opts.onMove.call(this, top, left);
     }
@@ -345,8 +379,12 @@ ZoomOdoo.prototype._move = function (e) {
  * Hide
  */
 ZoomOdoo.prototype.hide = function () {
-    if (!this.isOpen) return;
-    if (this.opts.beforeHide.call(this) === false) return;
+    if (!this.isOpen) {
+        return;
+    }
+    if (this.opts.beforeHide.call(this) === false) {
+        return;
+    }
 
     this.flyout.remove();
     this.isOpen = false;

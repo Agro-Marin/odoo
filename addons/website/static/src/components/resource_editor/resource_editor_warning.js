@@ -1,8 +1,9 @@
 /** @odoo-module native */
-import { EditHeadBodyDialog } from "../edit_head_body_dialog/edit_head_body_dialog.js";
 import { Component, useState } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
 import { useService } from "@web/core/utils/hooks";
+
+import { EditHeadBodyDialog } from "../edit_head_body_dialog/edit_head_body_dialog.js";
 
 /**
  * Represents the warning overlay that appears when the user opens the ResourceEditor
@@ -19,7 +20,9 @@ export class ResourceEditorWarningOverlay extends Component {
         this.website = useService("website");
         this.dialog = useService("dialog");
 
-        const localStorageValue = browser.localStorage.getItem("website.ace.doNotShowWarning");
+        const localStorageValue = browser.localStorage.getItem(
+            "website.ace.doNotShowWarning",
+        );
         this.state = useState({
             visible: !localStorageValue || localStorageValue === "false",
         });

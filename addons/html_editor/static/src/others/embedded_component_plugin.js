@@ -1,8 +1,8 @@
 /** @odoo-module native */
 import { nodeToTree } from "@html_editor/core/history_plugin";
 import { Plugin } from "@html_editor/plugin";
-import { withSequence } from "@html_editor/utils/resource";
 import { selectElements } from "@html_editor/utils/dom_traversal";
+import { withSequence } from "@html_editor/utils/resource";
 import { memoize } from "@web/core/utils/functions";
 import { renderToElement } from "@web/core/utils/render";
 
@@ -33,12 +33,14 @@ export class EmbeddedComponentPlugin extends Plugin {
         restore_savepoint_handlers: () => this.handleComponents(this.editable),
         history_reset_handlers: () => this.handleComponents(this.editable),
         history_reset_from_steps_handlers: () => this.handleComponents(this.editable),
-        step_added_handlers: ({ stepCommonAncestor }) => this.handleComponents(stepCommonAncestor),
+        step_added_handlers: ({ stepCommonAncestor }) =>
+            this.handleComponents(stepCommonAncestor),
         external_step_added_handlers: () => this.handleComponents(this.editable),
 
         before_sanitize_processors: this.preProcessSanitizedElem.bind(this),
         after_sanitize_processors: this.postProcessSanitizedElem.bind(this),
-        serializable_descendants_processors: this.processDescendantsToSerialize.bind(this),
+        serializable_descendants_processors:
+            this.processDescendantsToSerialize.bind(this),
         attribute_change_processors: this.onChangeAttribute.bind(this),
         savable_mutation_record_predicates: this.isMutationRecordSavable.bind(this),
         move_node_whitelist_selectors: "[data-embedded]",
@@ -91,7 +93,9 @@ export class EmbeddedComponentPlugin extends Plugin {
         if (!embedding) {
             return serializableDescendants;
         }
-        return Object.values(embedding.getEditableDescendants?.(elem) || {}).map(nodeToTree);
+        return Object.values(embedding.getEditableDescendants?.(elem) || {}).map(
+            nodeToTree,
+        );
     }
 
     handleComponents(elem) {
@@ -145,7 +149,9 @@ export class EmbeddedComponentPlugin extends Plugin {
             const attrState = attributeChange.reverse
                 ? attributeChange.oldValue
                 : attributeChange.value;
-            const stateChangeManager = this.getStateChangeManager(attributeChange.target);
+            const stateChangeManager = this.getStateChangeManager(
+                attributeChange.target,
+            );
             if (stateChangeManager) {
                 // onStateChanged returns undefined if no change is needed for
                 // the attribute value
@@ -177,7 +183,7 @@ export class EmbeddedComponentPlugin extends Plugin {
 
     mountComponent(
         host,
-        { Component, getEditableDescendants, getProps, name, getStateChangeManager }
+        { Component, getEditableDescendants, getProps, name, getStateChangeManager },
     ) {
         const props = getProps?.(host) || {};
         const env = Object.create(this.env);
@@ -317,7 +323,10 @@ export class EmbeddedComponentPlugin extends Plugin {
             this.dependencies.protectedNode.setProtectingNode(host, true);
             const editableDescendants = getEditableDescendants?.(host) || {};
             for (const editableDescendant of Object.values(editableDescendants)) {
-                this.dependencies.protectedNode.setProtectingNode(editableDescendant, false);
+                this.dependencies.protectedNode.setProtectingNode(
+                    editableDescendant,
+                    false,
+                );
             }
         });
     }
@@ -341,12 +350,19 @@ export class EmbeddedComponentPlugin extends Plugin {
         if (elem?.nodeType !== Node.ELEMENT_NODE) {
             return elem;
         }
-        for (const host of selectElements(elem, "[data-embedded-props], [data-embedded-state]")) {
+        for (const host of selectElements(
+            elem,
+            "[data-embedded-props], [data-embedded-state]",
+        )) {
             if (host.dataset.embeddedProps) {
-                host.dataset.embeddedProps = encodeURIComponent(host.dataset.embeddedProps);
+                host.dataset.embeddedProps = encodeURIComponent(
+                    host.dataset.embeddedProps,
+                );
             }
             if (host.dataset.embeddedState) {
-                host.dataset.embeddedState = encodeURIComponent(host.dataset.embeddedState);
+                host.dataset.embeddedState = encodeURIComponent(
+                    host.dataset.embeddedState,
+                );
             }
         }
         return elem;
@@ -356,12 +372,19 @@ export class EmbeddedComponentPlugin extends Plugin {
         if (elem?.nodeType !== Node.ELEMENT_NODE) {
             return elem;
         }
-        for (const host of selectElements(elem, "[data-embedded-props], [data-embedded-state]")) {
+        for (const host of selectElements(
+            elem,
+            "[data-embedded-props], [data-embedded-state]",
+        )) {
             if (host.dataset.embeddedProps) {
-                host.dataset.embeddedProps = decodeURIComponent(host.dataset.embeddedProps);
+                host.dataset.embeddedProps = decodeURIComponent(
+                    host.dataset.embeddedProps,
+                );
             }
             if (host.dataset.embeddedState) {
-                host.dataset.embeddedState = decodeURIComponent(host.dataset.embeddedState);
+                host.dataset.embeddedState = decodeURIComponent(
+                    host.dataset.embeddedState,
+                );
             }
         }
         return elem;

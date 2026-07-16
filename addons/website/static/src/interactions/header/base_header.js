@@ -1,9 +1,8 @@
 /** @odoo-module native */
+import { compensateScrollbar } from "@web/core/utils/dom/scrolling";
 import { Collapse, Dropdown, Offcanvas } from "@web/libs/bootstrap";
 import { Interaction } from "@web/public/interaction";
-
 import { SIZES, utils as uiUtils } from "@web/ui/block/ui_service";
-import { compensateScrollbar } from "@web/core/utils/dom/scrolling";
 
 export class BaseHeader extends Interaction {
     dynamicContent = {
@@ -62,7 +61,9 @@ export class BaseHeader extends Interaction {
 
         this.transformValue = "";
 
-        this.isOverlay = !!this.el.closest(".o_header_overlay, .o_header_overlay_theme");
+        this.isOverlay = !!this.el.closest(
+            ".o_header_overlay, .o_header_overlay_theme",
+        );
 
         this.mainEl = this.el.parentElement.querySelector("main");
         this.hideEl = this.el.querySelector(".o_header_hide_on_scroll");
@@ -72,7 +73,7 @@ export class BaseHeader extends Interaction {
         const navbarEl = this.el.querySelector(".navbar");
         const navBreakpoint = navbarEl
             ? Object.keys(SIZES).find((size) =>
-                  navbarEl.classList.contains(`navbar-expand-${size.toLowerCase()}`)
+                  navbarEl.classList.contains(`navbar-expand-${size.toLowerCase()}`),
               )
             : "LG";
         this.breakpointSize = SIZES[navBreakpoint];
@@ -139,9 +140,11 @@ export class BaseHeader extends Interaction {
         }
 
         if (this.closeDropdowns) {
-            this.el.querySelectorAll(".dropdown-toggle.show").forEach((dropdownToggleEl) => {
-                Dropdown.getOrCreateInstance(dropdownToggleEl).hide();
-            });
+            this.el
+                .querySelectorAll(".dropdown-toggle.show")
+                .forEach((dropdownToggleEl) => {
+                    Dropdown.getOrCreateInstance(dropdownToggleEl).hide();
+                });
         }
     }
 
@@ -173,7 +176,7 @@ export class BaseHeader extends Interaction {
                 clearTimeout(this.changeLoopTimer);
                 this.changeLoopTimer = this.waitForTimeout(
                     () => this.adaptToHeaderChangeLoop(-this.transitionCount),
-                    500
+                    500,
                 );
             }
         } else {
@@ -222,7 +225,7 @@ export class BaseHeader extends Interaction {
         }
         this.mainEl.style.setProperty(
             "padding-top",
-            this.cssAffixed ? this.getHeaderHeight() + "px" : ""
+            this.cssAffixed ? this.getHeaderHeight() + "px" : "",
         );
     }
 

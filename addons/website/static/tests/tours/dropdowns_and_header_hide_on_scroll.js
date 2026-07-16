@@ -1,7 +1,7 @@
 import {
-    clickOnSave,
     changeOptionInPopover,
     checkIfVisibleOnScreen,
+    clickOnSave,
     insertSnippet,
     registerWebsitePreviewTour,
     selectHeader,
@@ -11,18 +11,20 @@ const checkIfUserMenuNotMasked = function () {
     return [
         {
             content: "Click on the user dropdown",
-            trigger: ":iframe #wrapwrap header li.dropdown > a:contains(mitchell admin)",
+            trigger:
+                ":iframe #wrapwrap header li.dropdown > a:contains(mitchell admin)",
             run: "click",
         },
         checkIfVisibleOnScreen(
-            ":iframe #wrapwrap header li.dropdown .dropdown-menu.show a[href='/my/home']"
+            ":iframe #wrapwrap header li.dropdown .dropdown-menu.show a[href='/my/home']",
         ),
     ];
 };
 
 const scrollDownToMediaList = function () {
     return {
-        content: "Scroll down the page a little to leave the dropdown partially visible",
+        content:
+            "Scroll down the page a little to leave the dropdown partially visible",
         trigger: ":iframe #wrapwrap .s_media_list",
         run() {
             // Scroll down to the media list snippet.
@@ -38,9 +40,17 @@ registerWebsitePreviewTour(
         edition: true,
     },
     () => [
-        ...insertSnippet({ id: "s_media_list", name: "Media List", groupName: "Content" }),
+        ...insertSnippet({
+            id: "s_media_list",
+            name: "Media List",
+            groupName: "Content",
+        }),
         selectHeader(),
-        ...changeOptionInPopover("Header", "Scroll Effect", ".dropdown-item:contains('Fixed')"),
+        ...changeOptionInPopover(
+            "Header",
+            "Scroll Effect",
+            ".dropdown-item:contains('Fixed')",
+        ),
         {
             content: "Wait for the option to be applied",
             trigger: "[data-label='Scroll Effect'] .dropdown-toggle:contains('Fixed')",
@@ -53,7 +63,7 @@ registerWebsitePreviewTour(
         ...changeOptionInPopover(
             "Header",
             "Template",
-            ".dropdown-item[data-action-param*=sales_two]"
+            ".dropdown-item[data-action-param*=sales_two]",
         ),
         {
             trigger: ":iframe .o_header_sales_two_top",
@@ -81,7 +91,7 @@ registerWebsitePreviewTour(
             run: "edit a",
         },
         checkIfVisibleOnScreen(
-            ":iframe #wrapwrap header .s_searchbar_input.show .o_dropdown_menu.show"
+            ":iframe #wrapwrap header .s_searchbar_input.show .o_dropdown_menu.show",
         ),
-    ]
+    ],
 );

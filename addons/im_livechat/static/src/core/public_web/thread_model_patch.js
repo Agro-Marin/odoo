@@ -2,7 +2,6 @@
 import { fields } from "@mail/core/common/record";
 import { Thread } from "@mail/core/common/thread_model";
 import { _t } from "@web/core/l10n/translation";
-
 import { patch } from "@web/core/utils/patch";
 
 patch(Thread.prototype, {
@@ -14,7 +13,9 @@ patch(Thread.prototype, {
             },
         });
         this.country_id = fields.One("res.country");
-        this.livechat_channel_id = fields.One("im_livechat.channel", { inverse: "threads" });
+        this.livechat_channel_id = fields.One("im_livechat.channel", {
+            inverse: "threads",
+        });
         this.livechat_expertise_ids = fields.Many("im_livechat.expertise");
         /** @type {"in_progress"|"waiting"|"need_help"|undefined} */
         this.livechat_status = fields.Attr(undefined, {
@@ -36,7 +37,8 @@ patch(Thread.prototype, {
         this.shadowedBySelf = 0;
     },
     get canLeave() {
-        const lookingForHelpCategory = this.store.discuss.livechatLookingForHelpCategory;
+        const lookingForHelpCategory =
+            this.store.discuss.livechatLookingForHelpCategory;
         return (
             super.canLeave &&
             (!lookingForHelpCategory ||
@@ -55,7 +57,8 @@ patch(Thread.prototype, {
             return this.store.discuss.livechatLookingForHelpCategory;
         }
         return (
-            this.livechat_channel_id?.appCategory ?? this.appAsLivechats?.defaultLivechatCategory
+            this.livechat_channel_id?.appCategory ??
+            this.appAsLivechats?.defaultLivechatCategory
         );
     },
     get hasMemberList() {
@@ -66,7 +69,7 @@ patch(Thread.prototype, {
     },
     get correspondents() {
         return super.correspondents.filter(
-            (correspondent) => correspondent.livechat_member_type !== "bot"
+            (correspondent) => correspondent.livechat_member_type !== "bot",
         );
     },
 
@@ -90,7 +93,10 @@ patch(Thread.prototype, {
         ) {
             return super.displayName;
         }
-        if (!this.correspondent.persona.is_public && this.correspondent.persona.country) {
+        if (
+            !this.correspondent.persona.is_public &&
+            this.correspondent.persona.country
+        ) {
             return `${this.correspondent.name} (${this.correspondent.persona.country.name})`;
         }
         if (this.country_id) {
@@ -115,7 +121,9 @@ patch(Thread.prototype, {
     get notifyWhenOutOfFocus() {
         if (this.channel_type === "livechat") {
             return (
-                this.self_member_id || this.shadowedBySelf || this.eq(this.store.discuss?.thread)
+                this.self_member_id ||
+                this.shadowedBySelf ||
+                this.eq(this.store.discuss?.thread)
             );
         }
         return super.notifyWhenOutOfFocus;
@@ -124,7 +132,9 @@ patch(Thread.prototype, {
         return (
             this.store.self_partner?.main_user_id &&
             this.livechat_expertise_ids.some((expertise) =>
-                expertise.in(this.store.self_partner.main_user_id.livechat_expertise_ids)
+                expertise.in(
+                    this.store.self_partner.main_user_id.livechat_expertise_ids,
+                ),
             )
         );
     },
@@ -150,7 +160,7 @@ patch(Thread.prototype, {
             !force
         ) {
             await this.askLeaveConfirmation(
-                _t("Leaving will end the live chat. Do you want to proceed?")
+                _t("Leaving will end the live chat. Do you want to proceed?"),
             );
         }
         super.leaveChannel(...arguments);

@@ -1,12 +1,13 @@
-import { animationFrame, delay, expect, test } from "@odoo/hoot";
-import { setupEditor, testEditor } from "../_helpers/editor.js";
-import { deleteBackward, deleteForward, insertText } from "../_helpers/user_actions.js";
-import { getContent } from "../_helpers/selection.js";
-import { contains } from "@web/../tests/web_test_helpers";
-import { expectElementCount } from "../_helpers/ui_expectations.js";
-import { click } from "@odoo/hoot-dom";
-import { expandToolbar } from "../_helpers/toolbar.js";
 import { DELAY_TOOLBAR_OPEN } from "@html_editor/main/toolbar/toolbar_plugin";
+import { animationFrame, delay, expect, test } from "@odoo/hoot";
+import { click } from "@odoo/hoot-dom";
+import { contains } from "@web/../tests/web_test_helpers";
+
+import { setupEditor, testEditor } from "../_helpers/editor.js";
+import { getContent } from "../_helpers/selection.js";
+import { expandToolbar } from "../_helpers/toolbar.js";
+import { expectElementCount } from "../_helpers/ui_expectations.js";
+import { deleteBackward, deleteForward, insertText } from "../_helpers/user_actions.js";
 
 test("should merge successive inline code", async () => {
     await testEditor({
@@ -66,7 +67,7 @@ test("should paste external block html as plain text inside inline code", async 
             clipboardData.setData("text/plain", "Titlepara bolda");
             clipboardData.setData(
                 "text/html",
-                `<h2>Title</h2><p>para <strong>bold</strong></p><ul><li>a</li></ul>`
+                `<h2>Title</h2><p>para <strong>bold</strong></p><ul><li>a</li></ul>`,
             );
             const pasteEvent = new ClipboardEvent("paste", {
                 clipboardData,
@@ -83,10 +84,13 @@ test("should paste Odoo editor html as plain text inside inline code", async () 
         contentBefore: `<p>ab<code class="o_inline_code">Inline[]Code</code>cd</p>`,
         stepFunction: async (editor) => {
             const clipboardData = new DataTransfer();
-            clipboardData.setData("text/plain", "Hello Odoo self.env.cr._enable_logging()");
+            clipboardData.setData(
+                "text/plain",
+                "Hello Odoo self.env.cr._enable_logging()",
+            );
             clipboardData.setData(
                 "application/vnd.odoo.odoo-editor",
-                `<p class="o_paragraph">Hello <strong>Odoo </strong><a href="http://self.env.cr">self.env.cr</a>._enable_logging()</p>`
+                `<p class="o_paragraph">Hello <strong>Odoo </strong><a href="http://self.env.cr">self.env.cr</a>._enable_logging()</p>`,
             );
             const pasteEvent = new ClipboardEvent("paste", {
                 clipboardData,
@@ -99,7 +103,9 @@ test("should paste Odoo editor html as plain text inside inline code", async () 
 });
 
 test("should not open powerbox inside inline code", async () => {
-    const { editor } = await setupEditor(`<p>abc<code class="o_inline_code">tes[]t</code>def</p>`);
+    const { editor } = await setupEditor(
+        `<p>abc<code class="o_inline_code">tes[]t</code>def</p>`,
+    );
     await insertText(editor, "/");
     await expectElementCount(".o-we-powerbox", 0);
 });
@@ -112,14 +118,16 @@ test("should not open toolbar when selection is inside inline code", async () =>
 
 test("should not open toolbar when selection is around inline code", async () => {
     await setupEditor(
-        `<p>abc[\ufeff<code class="o_inline_code">\ufefftest\ufeff</code>\ufeff]def</p>`
+        `<p>abc[\ufeff<code class="o_inline_code">\ufefftest\ufeff</code>\ufeff]def</p>`,
     );
     await delay(DELAY_TOOLBAR_OPEN);
     await expectElementCount(".o-we-toolbar", 0);
 });
 
 test("should open toolbar for mixed selection and apply formatting outside inline code", async () => {
-    const { el } = await setupEditor(`<p>abc<code class="o_inline_code">t[est</code>de]f</p>`);
+    const { el } = await setupEditor(
+        `<p>abc<code class="o_inline_code">t[est</code>de]f</p>`,
+    );
 
     // Toolbar should be visible as selection is not fully inside inline code.
     await expectElementCount(".o-we-toolbar", 1);
@@ -129,7 +137,7 @@ test("should open toolbar for mixed selection and apply formatting outside inlin
     await click(".o-we-toolbar button[name='bold']");
     await animationFrame();
     expect(getContent(el)).toBe(
-        `<p>abc\ufeff<code class="o_inline_code">\ufefft[est\ufeff</code>\ufeff<strong>de]</strong>f</p>`
+        `<p>abc\ufeff<code class="o_inline_code">\ufefft[est\ufeff</code>\ufeff<strong>de]</strong>f</p>`,
     );
 
     // Apply text color should still affect only the non-inline-code portion.
@@ -138,12 +146,12 @@ test("should open toolbar for mixed selection and apply formatting outside inlin
     await contains(".btn:contains('Solid')").click();
     await contains(".o_color_button[data-color='#0000FF']").click();
     expect(getContent(el)).toBe(
-        `<p>abc\ufeff<code class="o_inline_code">\ufefft[est\ufeff</code>\ufeff<font style="color: rgb(0, 0, 255);"><strong>de]</strong></font>f</p>`
+        `<p>abc\ufeff<code class="o_inline_code">\ufefft[est\ufeff</code>\ufeff<font style="color: rgb(0, 0, 255);"><strong>de]</strong></font>f</p>`,
     );
     // Apply font size formatting should wrap only the external text.
     await contains(".o-we-toolbar [name='font_size_selector'].dropdown-toggle").click();
     await contains(`.o_font_size_selector_menu .dropdown-item:contains('80')`).click();
     expect(getContent(el)).toBe(
-        `<p>abc\ufeff<code class="o_inline_code">\ufefft[est\ufeff</code>\ufeff<span class="display-1-fs"><font style="color: rgb(0, 0, 255);"><strong>de]</strong></font></span>f</p>`
+        `<p>abc\ufeff<code class="o_inline_code">\ufefft[est\ufeff</code>\ufeff<span class="display-1-fs"><font style="color: rgb(0, 0, 255);"><strong>de]</strong></font></span>f</p>`,
     );
 });

@@ -1,18 +1,19 @@
 /** @odoo-module native */
-import { Plugin } from "../../plugin.js";
-import { _t } from "@web/core/l10n/translation";
-import { isImageUrl } from "@html_editor/utils/url";
-import { ImageDescription, ImageDescriptionPopover } from "./image_description.js";
-import { ImageToolbarDropdown } from "./image_toolbar_dropdown.js";
-import { createFileViewer } from "@web/components/file_viewer/file_viewer_hook";
 import { isHtmlContentSupported } from "@html_editor/core/selection_plugin";
-import { boundariesOut } from "@html_editor/utils/position";
-import { READ, withSequence } from "@html_editor/utils/resource";
-import { ImageTransformButton } from "./image_transform_button.js";
-import { callbacksForCursorUpdate } from "@html_editor/utils/selection";
 import { closestBlock } from "@html_editor/utils/blocks";
 import { fillEmpty } from "@html_editor/utils/dom";
+import { boundariesOut } from "@html_editor/utils/position";
+import { READ, withSequence } from "@html_editor/utils/resource";
+import { callbacksForCursorUpdate } from "@html_editor/utils/selection";
+import { isImageUrl } from "@html_editor/utils/url";
 import { reactive } from "@odoo/owl";
+import { createFileViewer } from "@web/components/file_viewer/file_viewer_hook";
+import { _t } from "@web/core/l10n/translation";
+
+import { Plugin } from "../../plugin.js";
+import { ImageDescription, ImageDescriptionPopover } from "./image_description.js";
+import { ImageToolbarDropdown } from "./image_toolbar_dropdown.js";
+import { ImageTransformButton } from "./image_transform_button.js";
 
 function hasShape(imagePlugin, shapeName) {
     return () => imagePlugin.isSelectionShaped(shapeName);
@@ -74,14 +75,20 @@ export class ImagePlugin extends Plugin {
                 id: "setImageShapeRounded",
                 description: _t("Set shape: Rounded"),
                 icon: "fa-square",
-                run: () => this.setImageShape("rounded", { excludeClasses: ["rounded-circle"] }),
+                run: () =>
+                    this.setImageShape("rounded", {
+                        excludeClasses: ["rounded-circle"],
+                    }),
                 isAvailable: isHtmlContentSupported,
             },
             {
                 id: "setImageShapeCircle",
                 description: _t("Set shape: Circle"),
                 icon: "fa-regular fa-circle",
-                run: () => this.setImageShape("rounded-circle", { excludeClasses: ["rounded"] }),
+                run: () =>
+                    this.setImageShape("rounded-circle", {
+                        excludeClasses: ["rounded"],
+                    }),
                 isAvailable: isHtmlContentSupported,
             },
             {
@@ -135,7 +142,8 @@ export class ImagePlugin extends Plugin {
                 groupId: "image_description",
                 Component: ImageDescription,
                 props: {
-                    openImageDescriptionPopover: this.openImageDescriptionPopover.bind(this),
+                    openImageDescriptionPopover:
+                        this.openImageDescriptionPopover.bind(this),
                 },
                 isAvailable: isHtmlContentSupported,
             },
@@ -193,16 +201,20 @@ export class ImagePlugin extends Plugin {
                     },
                 },
                 isAvailable: (selection) =>
-                    isHtmlContentSupported(selection) && (this.config.allowImageResize ?? true),
+                    isHtmlContentSupported(selection) &&
+                    (this.config.allowImageResize ?? true),
             },
             {
                 id: "image_transform",
                 groupId: "image_modifiers",
-                description: _t("Transform the picture (click twice to reset transformation)"),
+                description: _t(
+                    "Transform the picture (click twice to reset transformation)",
+                ),
                 Component: ImageTransformButton,
                 props: this.getImageTransformProps(),
                 isAvailable: (selection) =>
-                    this.config.allowImageTransform && isHtmlContentSupported(selection),
+                    this.config.allowImageTransform &&
+                    isHtmlContentSupported(selection),
             },
             {
                 id: "image_delete",
@@ -234,9 +246,12 @@ export class ImagePlugin extends Plugin {
             }
         });
         this.fileViewer = createFileViewer();
-        this.overlay = this.dependencies.overlay.createOverlay(ImageDescriptionPopover, {
-            className: "popover",
-        });
+        this.overlay = this.dependencies.overlay.createOverlay(
+            ImageDescriptionPopover,
+            {
+                className: "popover",
+            },
+        );
     }
 
     destroy() {
@@ -360,7 +375,7 @@ export class ImagePlugin extends Plugin {
                 run: () => {
                     this.dispatchTo(
                         "before_paste_handlers",
-                        this.dependencies.selection.getEditableSelection()
+                        this.dependencies.selection.getEditableSelection(),
                     );
                     const img = this.document.createElement("IMG");
                     img.setAttribute("src", url);

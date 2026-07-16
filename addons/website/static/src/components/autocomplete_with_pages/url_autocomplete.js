@@ -49,9 +49,11 @@ export class UrlAutoComplete extends Component {
                     if (term[0] === "#") {
                         const anchors = await this.props.loadAnchors(
                             term,
-                            this.props.options && this.props.options.body
+                            this.props.options && this.props.options.body,
                         );
-                        return anchors.map((anchor) => makeItem({ label: anchor, value: anchor }));
+                        return anchors.map((anchor) =>
+                            makeItem({ label: anchor, value: anchor }),
+                        );
                     } else if (term.startsWith("http") || term.length === 0) {
                         // avoid useless call to /website/get_suggested_links
                         return [];

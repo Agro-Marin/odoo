@@ -1,8 +1,9 @@
 /** @odoo-module native */
 import { BuilderAction } from "@html_builder/core/builder_action";
-import { ChartOption, DATASET_KEY_PREFIX, getColor } from "./chart_option.js";
 import { Plugin } from "@html_editor/plugin";
 import { registry } from "@web/core/registry";
+
+import { ChartOption, DATASET_KEY_PREFIX, getColor } from "./chart_option.js";
 
 /**
  * @typedef { Object } ChartOptionShared
@@ -52,7 +53,9 @@ export class BaseChartAction extends BuilderAction {
         const datasets = this.getData(editingElement).datasets;
         let dataValues;
         if (!editingElement.dataset.stacked) {
-            dataValues = datasets.flatMap((set) => set.data.map((data) => parseInt(data) || 0));
+            dataValues = datasets.flatMap((set) =>
+                set.data.map((data) => parseInt(data) || 0),
+            );
         } else {
             dataValues = datasets.reduce((acc, set) => {
                 const data = set.data.map((data) => parseInt(data) || 0);
@@ -72,7 +75,10 @@ export class BaseChartAction extends BuilderAction {
 
     randomColor() {
         return (
-            "#" + ("00000" + ((Math.random() * (1 << 24)) | 0).toString(16)).slice(-6).toUpperCase()
+            "#" +
+            ("00000" + ((Math.random() * (1 << 24)) | 0).toString(16))
+                .slice(-6)
+                .toUpperCase()
         );
     }
 }
@@ -168,12 +174,16 @@ export class UpdateDatasetValueAction extends BaseChartAction {
     static id = "updateDatasetValue";
     getValue({ editingElement, params: { datasetKey, valueIndex } }) {
         const data = this.getData(editingElement);
-        const targetDataset = data.datasets.find((dataset) => dataset.key === datasetKey);
+        const targetDataset = data.datasets.find(
+            (dataset) => dataset.key === datasetKey,
+        );
         return targetDataset?.data[valueIndex] || 0;
     }
     apply({ editingElement, value, params: { datasetKey, valueIndex } }) {
         const data = this.getData(editingElement);
-        const targetDataset = data.datasets.find((dataset) => dataset.key === datasetKey);
+        const targetDataset = data.datasets.find(
+            (dataset) => dataset.key === datasetKey,
+        );
         targetDataset.data[valueIndex] = value;
         this.updateDOMData(editingElement, data);
     }
@@ -182,12 +192,16 @@ export class UpdateDatasetLabelAction extends BaseChartAction {
     static id = "updateDatasetLabel";
     getValue({ editingElement, params: { mainParam: datasetKey } }) {
         const data = this.getData(editingElement);
-        const targetDataset = data.datasets.find((dataset) => dataset.key === datasetKey);
+        const targetDataset = data.datasets.find(
+            (dataset) => dataset.key === datasetKey,
+        );
         return targetDataset?.label;
     }
     apply({ editingElement, value, params: { mainParam: datasetKey } }) {
         const data = this.getData(editingElement);
-        const targetDataset = data.datasets.find((dataset) => dataset.key === datasetKey);
+        const targetDataset = data.datasets.find(
+            (dataset) => dataset.key === datasetKey,
+        );
         targetDataset.label = value;
         this.updateDOMData(editingElement, data);
     }

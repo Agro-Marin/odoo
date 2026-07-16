@@ -111,7 +111,9 @@ test("selects and commits value from dropdown", async () => {
 
     await contains(".we-bg-options-container input").edit("/");
     await contains(".we-bg-options-container input").click();
-    await contains(document.querySelector(".o_website_ui_autocomplete > li:first-child a")).click();
+    await contains(
+        document.querySelector(".o_website_ui_autocomplete > li:first-child a"),
+    ).click();
     expect(document.querySelector(".o_website_ui_autocomplete")).toBe(null);
     expect(".we-bg-options-container input").toHaveValue("/page1");
     expect(":iframe .test-options-target").toHaveAttribute("data-url", "/page1");
@@ -141,5 +143,8 @@ test("collects anchors in current page and suggests them", async () => {
     // Check clicking on one of them properly applies
     await contains(els[1]).click();
     expect(".we-bg-options-container input").toHaveValue("#anchor1");
-    await expect(":iframe .test-options-target").toHaveAttribute("data-url", "#anchor1");
+    await expect(":iframe .test-options-target").toHaveAttribute(
+        "data-url",
+        "#anchor1",
+    );
 });

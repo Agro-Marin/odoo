@@ -1,4 +1,5 @@
 /** @odoo-module native */
+/* eslint-disable no-console -- opt-in P2P collaboration debug logging (gated on the collaborationDebug URL flag) */
 const urlParams = new URLSearchParams(window.location.search);
 const collaborationDebug = urlParams.get("collaborationDebug");
 const COLLABORATION_LOCALSTORAGE_KEY = "odoo_editor_collaboration_debug";
@@ -6,10 +7,13 @@ if (typeof collaborationDebug === "string") {
     if (collaborationDebug === "false") {
         localStorage.removeItem(
             COLLABORATION_LOCALSTORAGE_KEY,
-            urlParams.get("collaborationDebug")
+            urlParams.get("collaborationDebug"),
         );
     } else {
-        localStorage.setItem(COLLABORATION_LOCALSTORAGE_KEY, urlParams.get("collaborationDebug"));
+        localStorage.setItem(
+            COLLABORATION_LOCALSTORAGE_KEY,
+            urlParams.get("collaborationDebug"),
+        );
     }
 }
 const debugValue = localStorage.getItem(COLLABORATION_LOCALSTORAGE_KEY);
@@ -26,7 +30,7 @@ const baseNotificationMethods = {
             requestId,
             requestName,
             requestPayload,
-            requestTransport
+            requestTransport,
         );
     },
     ptp_request_result: function (notification) {
@@ -57,7 +61,9 @@ const baseNotificationMethods = {
             !peerInfos.peerConnection ||
             peerInfos.peerConnection.connectionState === "closed"
         ) {
-            console.groupCollapsed("=== ERROR: Handle Ice Candidate from undefined|closed ===");
+            console.groupCollapsed(
+                "=== ERROR: Handle Ice Candidate from undefined|closed ===",
+            );
             console.trace(peerInfos);
             console.groupEnd();
             return;
@@ -74,12 +80,13 @@ const baseNotificationMethods = {
             console.log(
                 `%cdescription received:`,
                 "background: blueviolet; color: white;",
-                description
+                description,
             );
         }
 
         const peerInfos =
-            this.peersInfos[notification.fromPeerId] || this._createPeer(notification.fromPeerId);
+            this.peersInfos[notification.fromPeerId] ||
+            this._createPeer(notification.fromPeerId);
         const pc = peerInfos.peerConnection;
 
         if (!pc || pc.connectionState === "closed") {
@@ -87,7 +94,7 @@ const baseNotificationMethods = {
                 console.groupCollapsed("=== ERROR: handle offer ===");
                 console.log(
                     "An offer has been received for a non-existent peer connection - peer: " +
-                        notification.fromPeerId
+                        notification.fromPeerId,
                 );
                 console.trace(pc && pc.connectionState);
                 console.groupEnd();
@@ -106,12 +113,13 @@ const baseNotificationMethods = {
         // continuing the process. The peer that is polite is the one that
         // will rollback.
         const isPolite =
-            ("" + notification.fromPeerId).localeCompare("" + this._currentPeerId) === 1;
+            ("" + notification.fromPeerId).localeCompare("" + this._currentPeerId) ===
+            1;
         if (debugShowLog) {
             console.log(
                 `%cisPolite: %c${isPolite}`,
                 "background: deepskyblue;",
-                `background:${isPolite ? "green" : "red"}`
+                `background:${isPolite ? "green" : "red"}`,
             );
         }
 
@@ -125,7 +133,7 @@ const baseNotificationMethods = {
             if (debugShowLog) {
                 console.log(
                     `%creturn because isOfferRacing && !isPolite. pc.signalingState: ${pc.signalingState}`,
-                    "background: red;"
+                    "background: red;",
                 );
             }
             return;
@@ -162,7 +170,11 @@ const baseNotificationMethods = {
                     throw e;
                 }
             }
-            this.notifyPeer(notification.fromPeerId, "rtc_signal_description", pc.localDescription);
+            this.notifyPeer(
+                notification.fromPeerId,
+                "rtc_signal_description",
+                pc.localDescription,
+            );
         }
     },
 };
@@ -174,7 +186,7 @@ export class PeerToPeer {
         if (debugShowLog) {
             console.log(
                 `%c currentPeerId:${this._currentPeerId}`,
-                "background: blue; color: white;"
+                "background: blue; color: white;",
             );
         }
 
@@ -197,7 +209,7 @@ export class PeerToPeer {
                     infos.peerConnection &&
                     infos.peerConnection.iceConnectionState === "connected" &&
                     infos.dataChannel &&
-                    infos.dataChannel.readyState === "open"
+                    infos.dataChannel.readyState === "open",
             )
             .map(([id]) => id);
     }
@@ -225,7 +237,11 @@ export class PeerToPeer {
         }
     }
 
-    async notifyAllPeers(notificationName, notificationPayload, { transport = "server" } = {}) {
+    async notifyAllPeers(
+        notificationName,
+        notificationPayload,
+        { transport = "server" } = {},
+    ) {
         if (this._stopped) {
             return;
         }
@@ -242,12 +258,17 @@ export class PeerToPeer {
             }
         } else {
             throw new Error(
-                `Transport "${transport}" is not supported. Use "server" or "rtc" transport.`
+                `Transport "${transport}" is not supported. Use "server" or "rtc" transport.`,
             );
         }
     }
 
-    notifyPeer(peerId, notificationName, notificationPayload, { transport = "server" } = {}) {
+    notifyPeer(
+        peerId,
+        notificationName,
+        notificationPayload,
+        { transport = "server" } = {},
+    ) {
         if (this._stopped) {
             return;
         }
@@ -258,25 +279,25 @@ export class PeerToPeer {
                         notificationPayload.requestId
                     }:${this._currentPeerId.slice("-5")}:${peerId.slice("-5")}`,
                     "color: #aaa;font-weight:bold;",
-                    "color: #aaa;font-weight:normal"
+                    "color: #aaa;font-weight:normal",
                 );
             } else if (notificationName === "ptp_request") {
                 console.log(
                     `%c${Date.now()} - REQUEST SEND: %c${transport}:${
                         notificationPayload.requestName
                     }|${notificationPayload.requestId}:${this._currentPeerId.slice(
-                        "-5"
+                        "-5",
                     )}:${peerId.slice("-5")}`,
                     "color: #aaa;font-weight:bold;",
-                    "color: #aaa;font-weight:normal"
+                    "color: #aaa;font-weight:normal",
                 );
             } else {
                 console.log(
                     `%c${Date.now()} - NOTIFICATION SEND: %c${transport}:${notificationName}:${this._currentPeerId.slice(
-                        "-5"
+                        "-5",
                     )}:${peerId.slice("-5")}`,
                     "color: #aaa;font-weight:bold;",
-                    "color: #aaa;font-weight:normal"
+                    "color: #aaa;font-weight:normal",
                 );
             }
         }
@@ -292,7 +313,7 @@ export class PeerToPeer {
             this._channelNotify(peerId, transportPayload);
         } else {
             throw new Error(
-                `Transport "${transport}" is not supported. Use "server" or "rtc" transport.`
+                `Transport "${transport}" is not supported. Use "server" or "rtc" transport.`,
             );
         }
     }
@@ -313,7 +334,8 @@ export class PeerToPeer {
             typeof notification.toPeerId === "undefined";
         if (
             isInternalNotification ||
-            (notification.fromPeerId !== this._currentPeerId && !notification.toPeerId) ||
+            (notification.fromPeerId !== this._currentPeerId &&
+                !notification.toPeerId) ||
             notification.toPeerId === this._currentPeerId
         ) {
             if (debugShowNotifications) {
@@ -322,10 +344,10 @@ export class PeerToPeer {
                         `%c${Date.now()} - REQUEST RESULT RECEIVE: %c${
                             notification.notificationPayload.requestId
                         }:${notification.fromPeerId.slice("-5")}:${notification.toPeerId.slice(
-                            "-5"
+                            "-5",
                         )}`,
                         "color: #aaa;font-weight:bold;",
-                        "color: #aaa;font-weight:normal"
+                        "color: #aaa;font-weight:normal",
                     );
                 } else if (notification.notificationName === "ptp_request") {
                     console.log(
@@ -334,10 +356,10 @@ export class PeerToPeer {
                         }|${
                             notification.notificationPayload.requestId
                         }:${notification.fromPeerId.slice("-5")}:${notification.toPeerId.slice(
-                            "-5"
+                            "-5",
                         )}`,
                         "color: #aaa;font-weight:bold;",
-                        "color: #aaa;font-weight:normal"
+                        "color: #aaa;font-weight:normal",
                     );
                 } else {
                     console.log(
@@ -345,12 +367,13 @@ export class PeerToPeer {
                             notification.notificationName
                         }:${notification.fromPeerId}:${notification.toPeerId}`,
                         "color: #aaa;font-weight:bold;",
-                        "color: #aaa;font-weight:normal"
+                        "color: #aaa;font-weight:normal",
                     );
                 }
             }
             try {
-                const baseMethod = baseNotificationMethods[notification.notificationName];
+                const baseMethod =
+                    baseNotificationMethods[notification.notificationName];
                 if (baseMethod) {
                     return baseMethod.call(this, notification);
                 }
@@ -358,7 +381,9 @@ export class PeerToPeer {
                     return this.options.onNotification(notification);
                 }
             } catch (error) {
-                console.groupCollapsed("=== ERROR: On notification in collaboration ===");
+                console.groupCollapsed(
+                    "=== ERROR: On notification in collaboration ===",
+                );
                 console.error(error);
                 console.groupEnd();
             }
@@ -379,7 +404,7 @@ export class PeerToPeer {
             };
             const rejectTimeout = setTimeout(
                 () => abort("Request took too long (more than 10 seconds)."),
-                10000
+                10000,
             );
 
             this._pendingRequestResolver[requestId] = {
@@ -397,7 +422,7 @@ export class PeerToPeer {
                     requestPayload,
                     requestTransport: transport,
                 },
-                { transport }
+                { transport },
             );
         });
     }
@@ -429,7 +454,7 @@ export class PeerToPeer {
                 if (debugShowLog) {
                     console.log(
                         `%c NEGONATION NEEDED: ${pc.connectionState}`,
-                        "background: deeppink;"
+                        "background: deeppink;",
                     );
                 }
                 try {
@@ -437,7 +462,7 @@ export class PeerToPeer {
                     if (debugShowLog) {
                         console.log(
                             `%ccreating and sending an offer`,
-                            "background: darkmagenta; color: white;"
+                            "background: darkmagenta; color: white;",
                         );
                     }
                     const offer = await pc.createOffer();
@@ -446,7 +471,11 @@ export class PeerToPeer {
                         return;
                     }
                     await pc.setLocalDescription(offer);
-                    this.notifyPeer(peerId, "rtc_signal_description", pc.localDescription);
+                    this.notifyPeer(
+                        peerId,
+                        "rtc_signal_description",
+                        pc.localDescription,
+                    );
                 } catch (err) {
                     console.error(err);
                 } finally {
@@ -514,14 +543,20 @@ export class PeerToPeer {
                     "connectionState: " +
                         pc.connectionState +
                         " - iceState: " +
-                        pc.iceConnectionState
+                        pc.iceConnectionState,
                 );
                 console.trace(error);
                 console.groupEnd();
             }
-            this._recoverConnection(peerId, { delay: 3000, reason: "ice candidate error" });
+            this._recoverConnection(peerId, {
+                delay: 3000,
+                reason: "ice candidate error",
+            });
         };
-        const dataChannel = pc.createDataChannel("notifications", { negotiated: true, id: 1 });
+        const dataChannel = pc.createDataChannel("notifications", {
+            negotiated: true,
+            id: 1,
+        });
         let message = [];
         dataChannel.onmessage = (event) => {
             if (event.data !== "-") {
@@ -565,7 +600,7 @@ export class PeerToPeer {
             if (peerInfo && !peerInfo.zombieTimeout) {
                 if (debugShowLog) {
                     console.warn(
-                        `Impossible to communicate with peer ${peerId}. The connection will be killed in 10 seconds if the datachannel state has not changed.`
+                        `Impossible to communicate with peer ${peerId}. The connection will be killed in 10 seconds if the datachannel state has not changed.`,
                     );
                 }
                 this._killPotentialZombie(peerId);
@@ -579,7 +614,7 @@ export class PeerToPeer {
             while (from < size) {
                 dataChannel.send(str.slice(from, to));
                 from = to;
-                to = to += maxStringLength;
+                to += maxStringLength;
             }
             dataChannel.send("-");
         }
@@ -590,11 +625,18 @@ export class PeerToPeer {
         return this._lastRequestId;
     }
 
-    async _onRequest(fromPeerId, requestId, requestName, requestPayload, requestTransport) {
+    async _onRequest(
+        fromPeerId,
+        requestId,
+        requestName,
+        requestPayload,
+        requestTransport,
+    ) {
         if (this._stopped) {
             return;
         }
-        const requestFunction = this.options.onRequest && this.options.onRequest[requestName];
+        const requestFunction =
+            this.options.onRequest && this.options.onRequest[requestName];
         const result = await requestFunction({
             fromPeerId,
             requestId,
@@ -605,7 +647,7 @@ export class PeerToPeer {
             fromPeerId,
             "ptp_request_result",
             { requestId, result },
-            { transport: requestTransport }
+            { transport: requestTransport },
         );
     }
     /**
@@ -633,7 +675,7 @@ export class PeerToPeer {
             if (debugShowLog) {
                 console.log(
                     `%c STOP RTC RECOVERY: impossible to connect to peer ${peerId}: ${reason}`,
-                    "background: darkred; color: white;"
+                    "background: darkred; color: white;",
                 );
             }
             return;
@@ -652,7 +694,7 @@ export class PeerToPeer {
             if (debugShowLog) {
                 console.log(
                     `%c RTC RECOVERY: calling back peer ${peerId} to salvage the connection ${pc.iceConnectionState} after ${backoffDelay}ms, reason: ${reason}`,
-                    "background: darkorange; color: white;"
+                    "background: darkorange; color: white;",
                 );
             }
             this.removePeer(peerId);
@@ -674,7 +716,11 @@ export class PeerToPeer {
 
         // If there is no connection after 10 seconds, terminate.
         peerInfos.zombieTimeout = setTimeout(() => {
-            if (peerInfos && peerInfos.dataChannel && peerInfos.dataChannel.readyState !== "open") {
+            if (
+                peerInfos &&
+                peerInfos.dataChannel &&
+                peerInfos.dataChannel.readyState !== "open"
+            ) {
                 if (debugShowLog) {
                     console.log(`%c KILL ZOMBIE ${peerId}`, "background: red;");
                 }

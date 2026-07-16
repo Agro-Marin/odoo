@@ -1,5 +1,9 @@
 import { stepUtils } from "@web_tour/tour_utils";
-import { clickOnSave, goToTheme, registerWebsitePreviewTour } from "@website/js/tours/tour_utils";
+import {
+    clickOnSave,
+    goToTheme,
+    registerWebsitePreviewTour,
+} from "@website/js/tours/tour_utils";
 
 registerWebsitePreviewTour(
     "hide_sidebar_header",
@@ -57,5 +61,5 @@ registerWebsitePreviewTour(
             },
         },
         ...clickOnSave(),
-    ]
+    ],
 );

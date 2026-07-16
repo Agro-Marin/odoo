@@ -34,7 +34,7 @@ class Intersection {
         /** @type {IntersectionPosition} */
         this._targetPosition = "unknown";
         this._observer = new IntersectionObserver((observations) =>
-            this._handleObservations(observations)
+            this._handleObservations(observations),
         );
     }
 
@@ -153,7 +153,8 @@ export function createPointerState() {
 
                     // If the scrolling element is within an iframe the offsets
                     // must be computed taking into account the iframe.
-                    const iframeEl = scrollParent.ownerDocument.defaultView.frameElement;
+                    const iframeEl =
+                        scrollParent.ownerDocument.defaultView.frameElement;
                     if (iframeEl) {
                         const iframeOffset = iframeEl.getBoundingClientRect();
                         x += iframeOffset.x;

@@ -1,13 +1,19 @@
-import { before, describe, expect, test } from "@odoo/hoot";
-import { animationFrame, queryOne } from "@odoo/hoot-dom";
-import { setupInteractionWhiteList, startInteractions } from "@web/../tests/public/helpers";
+import {
+    EmbeddedWrapperMixin,
+    embedding,
+} from "@html_editor/../tests/_helpers/embedded_component";
+import { getEditableDescendants } from "@html_editor/others/embedded_component_utils";
 import {
     EmbeddedComponentInteraction,
     getEmbeddingMap,
 } from "@html_editor/public/embedded_components/embedded_component_interaction";
+import { before, describe, expect, test } from "@odoo/hoot";
+import { animationFrame, queryOne } from "@odoo/hoot-dom";
+import {
+    setupInteractionWhiteList,
+    startInteractions,
+} from "@web/../tests/public/helpers";
 import { patchWithCleanup } from "@web/../tests/web_test_helpers";
-import { EmbeddedWrapperMixin, embedding } from "@html_editor/../tests/_helpers/embedded_component";
-import { getEditableDescendants } from "@html_editor/others/embedded_component_utils";
 
 setupInteractionWhiteList("html_editor.embedded_component");
 
@@ -40,7 +46,7 @@ describe("Mount and Destroy embedded components", () => {
                         </div>
                     </div>
                 </div>
-            </div>`
+            </div>`,
         );
         await animationFrame();
         expect(queryOne("#wrapwrap")).toHaveInnerHTML(
@@ -60,7 +66,7 @@ describe("Mount and Destroy embedded components", () => {
                         </div>
                     </div>
                 </owl-root>
-            </div>`
+            </div>`,
         );
         core.stopInteractions();
         expect(queryOne("#wrapwrap")).toHaveInnerHTML(
@@ -72,7 +78,7 @@ describe("Mount and Destroy embedded components", () => {
                         </div>
                     </div>
                 </div>
-            </div>`
+            </div>`,
         );
     });
     test("Keep existing HTML content and do not crash when encountering an unknown data-embedded value", async () => {
@@ -85,7 +91,7 @@ describe("Mount and Destroy embedded components", () => {
                         </div>
                     </div>
                 </div>
-            </div>`
+            </div>`,
         );
         await animationFrame();
         expect(queryOne("#wrapwrap")).toHaveInnerHTML(
@@ -99,7 +105,7 @@ describe("Mount and Destroy embedded components", () => {
                     </div>
                 </div>
                 <owl-root contenteditable="false" data-oe-protected="true" style="display: contents;"></owl-root>
-            </div>`
+            </div>`,
         );
     });
 });

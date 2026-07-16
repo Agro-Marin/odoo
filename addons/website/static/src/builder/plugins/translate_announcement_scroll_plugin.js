@@ -16,14 +16,16 @@ export class TranslateAnnouncementScrollPlugin extends Plugin {
      * On click, opens a dialog to translate the interaction's text.
      */
     listenToAnnouncementScrollClick() {
-        const announcementScrollEls = this.document.querySelectorAll(".s_announcement_scroll");
+        const announcementScrollEls = this.document.querySelectorAll(
+            ".s_announcement_scroll",
+        );
 
         for (const announcementScrollEl of announcementScrollEls) {
             this.addDomListener(announcementScrollEl, "click", () => {
                 this.rollbackHistory = this.dependencies.history.makeSavePoint();
 
                 const translatableEl = announcementScrollEl.querySelector(
-                    ".s_announcement_scroll_marquee_item:first-child > [data-oe-translation-source-sha]"
+                    ".s_announcement_scroll_marquee_item:first-child > [data-oe-translation-source-sha]",
                 );
 
                 this.services.dialog.add(InputConfirmationDialog, {

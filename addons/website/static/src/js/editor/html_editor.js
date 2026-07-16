@@ -1,14 +1,14 @@
 /** @odoo-module native */
 import { LinkPopover } from "@html_editor/main/link/link_popover";
-import { rpc } from "@web/core/network/rpc";
-import { _t } from "@web/core/l10n/translation";
-import { AutoComplete } from "@web/components/autocomplete/autocomplete";
-import { patch } from "@web/core/utils/patch";
-import { useChildRef } from "@web/core/utils/hooks";
-import wUtils from "@website/js/utils";
 import { useEffect } from "@odoo/owl";
+import { AutoComplete } from "@web/components/autocomplete/autocomplete";
 import { browser } from "@web/core/browser/browser";
+import { _t } from "@web/core/l10n/translation";
+import { rpc } from "@web/core/network/rpc";
+import { useChildRef } from "@web/core/utils/hooks";
+import { patch } from "@web/core/utils/patch";
 import { session } from "@web/session";
+import wUtils from "@website/js/utils";
 
 /**
  * The goal of this patch is to handle the URL autocomplete in the LinkPopover
@@ -66,11 +66,14 @@ patch(LinkPopover.prototype, {
         this.urlRef = useChildRef();
         useEffect(
             (el) => {
-                if (el && (this.state.isImage || (!this.state.url && this.state.label))) {
+                if (
+                    el &&
+                    (this.state.isImage || (!this.state.url && this.state.label))
+                ) {
                     el.focus();
                 }
             },
-            () => [this.urlRef.el]
+            () => [this.urlRef.el],
         );
     },
 
@@ -97,9 +100,12 @@ patch(LinkPopover.prototype, {
         if (term[0] === "#") {
             const anchors = await wUtils.loadAnchors(
                 term,
-                this.props.linkElement.ownerDocument.body
+                this.props.linkElement.ownerDocument.body,
             );
-            return anchors.map((anchor) => makeItem({ label: anchor, value: anchor }), this);
+            return anchors.map(
+                (anchor) => makeItem({ label: anchor, value: anchor }),
+                this,
+            );
         } else if (term.startsWith("http") || term.length === 0) {
             // avoid useless call to /website/get_suggested_links
             return [];
@@ -146,7 +152,9 @@ patch(LinkPopover.prototype, {
         return (
             (browser.location.hostname === parsedUrl.hostname ||
                 // Also check if the odoo-hosted domain is the current domain of the url
-                new RegExp(`^https?://${session.db}\\.odoo\\.com(/.*)?$`).test(parsedUrl.origin)) &&
+                new RegExp(`^https?://${session.db}\\.odoo\\.com(/.*)?$`).test(
+                    parsedUrl.origin,
+                )) &&
             !parsedUrl.pathname.startsWith("/odoo") &&
             !parsedUrl.pathname.startsWith("/web") &&
             !parsedUrl.pathname.startsWith("/@/")

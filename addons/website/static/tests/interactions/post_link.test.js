@@ -1,11 +1,10 @@
-import {
-    mockSendRequests,
-    startInteractions,
-    setupInteractionWhiteList,
-} from "@web/../tests/public/helpers";
-
 import { describe, expect, test } from "@odoo/hoot";
 import { animationFrame, click } from "@odoo/hoot-dom";
+import {
+    mockSendRequests,
+    setupInteractionWhiteList,
+    startInteractions,
+} from "@web/../tests/public/helpers";
 
 setupInteractionWhiteList("website.post_link");
 

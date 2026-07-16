@@ -1,12 +1,16 @@
 /** @odoo-module native */
 import { _t } from "@web/core/l10n/translation";
+import { registry } from "@web/core/registry";
+import { useService } from "@web/core/utils/hooks";
+import { ConfirmationDialog } from "@web/ui/dialog/confirmation_dialog";
+import { listView } from "@web/views/list/list_view";
+import {
+    DeletePageDialog,
+    DuplicatePageDialog,
+} from "@website/components/dialog/page_properties";
+
 import { usePageManager } from "./page_manager_hook.js";
 import { PageSearchModel } from "./page_search_model.js";
-import { registry } from "@web/core/registry";
-import { listView } from "@web/views/list/list_view";
-import { ConfirmationDialog } from "@web/ui/dialog/confirmation_dialog";
-import { DeletePageDialog, DuplicatePageDialog } from "@website/components/dialog/page_properties";
-import { useService } from "@web/core/utils/hooks";
 
 export class PageListController extends listView.Controller {
     static components = {
@@ -53,7 +57,7 @@ export class PageListController extends listView.Controller {
                         title: _t("Publish Website Content"),
                         body: _t(
                             "%s record(s) selected, are you sure you want to publish them all?",
-                            this.model.root.selection.length
+                            this.model.root.selection.length,
                         ),
                         confirm: () => this.togglePublished(true),
                     });
@@ -92,7 +96,7 @@ export class PageListController extends listView.Controller {
                 this.model.root.deleteRecords();
             },
             hasNewPageTemplate: newPageTemplateRecords.some(
-                (record) => record.is_new_page_template
+                (record) => record.is_new_page_template,
             ),
         });
     }

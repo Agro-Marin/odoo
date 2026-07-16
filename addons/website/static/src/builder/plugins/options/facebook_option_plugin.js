@@ -1,10 +1,10 @@
 /** @odoo-module native */
-import { Plugin } from "@html_editor/plugin";
-import { registry } from "@web/core/registry";
-import { _t } from "@web/core/l10n/translation";
-import { getCommonAncestor, selectElements } from "@html_editor/utils/dom_traversal";
 import { BuilderAction } from "@html_builder/core/builder_action";
 import { BaseOptionComponent } from "@html_builder/core/utils";
+import { Plugin } from "@html_editor/plugin";
+import { getCommonAncestor, selectElements } from "@html_editor/utils/dom_traversal";
+import { _t } from "@web/core/l10n/translation";
+import { registry } from "@web/core/registry";
 
 export class FacebookOption extends BaseOptionComponent {
     static template = "website.FacebookOption";
@@ -56,15 +56,16 @@ class FacebookOptionPlugin extends Plugin {
         const res = await this.services.orm.read(
             "website",
             [this.services.website.currentWebsite.id],
-            ["social_facebook"]
+            ["social_facebook"],
         );
         if (res) {
-            this.facebookUrl = res[0].social_facebook || "https://www.facebook.com/Odoo";
+            this.facebookUrl =
+                res[0].social_facebook || "https://www.facebook.com/Odoo";
 
             // WARNING: the call to ignoreDOMMutations is very dangerous,
             // and should be avoided in most cases (if you think you need those, ask html_editor team)
             const hasChanged = this.dependencies.history.ignoreDOMMutations(() =>
-                this.setEmptyLink(nodes)
+                this.setEmptyLink(nodes),
             );
 
             if (hasChanged) {
@@ -99,7 +100,9 @@ export class DataAttributeListAction extends BuilderAction {
         ].join(",");
     }
     clean({ editingElement, params: { mainParam } = {}, value }) {
-        editingElement.dataset[mainParam] = (editingElement.dataset[mainParam]?.split(",") || [])
+        editingElement.dataset[mainParam] = (
+            editingElement.dataset[mainParam]?.split(",") || []
+        )
             .filter((e) => e !== value)
             .join(",");
     }
@@ -121,7 +124,7 @@ export class CheckFacebookLinkAction extends BuilderAction {
                 } else {
                     this.closeNotif = this.services.notification.add(
                         _t("We couldn't find the Facebook page"),
-                        { type: "warning" }
+                        { type: "warning" },
                     );
                 }
             });
@@ -129,7 +132,7 @@ export class CheckFacebookLinkAction extends BuilderAction {
             this.closeNotif();
             this.closeNotif = this.services.notification.add(
                 _t("You didn't provide a valid Facebook link"),
-                { type: "warning" }
+                { type: "warning" },
             );
         }
     }
@@ -149,7 +152,7 @@ export class CheckFacebookLinkAction extends BuilderAction {
         const match = url
             .trim()
             .match(
-                /^(https?:\/\/)?((www\.)?(fb|facebook)|(m\.)?facebook)\.com\/(((profile\.php\?id=|people\/([^/?#]+\/)?|(p\/)?[^/?#]+-)(?<id>[0-9]{12,16}))|(?<nameid>[\w.]+))($|[/?# ])/
+                /^(https?:\/\/)?((www\.)?(fb|facebook)|(m\.)?facebook)\.com\/(((profile\.php\?id=|people\/([^/?#]+\/)?|(p\/)?[^/?#]+-)(?<id>[0-9]{12,16}))|(?<nameid>[\w.]+))($|[/?# ])/,
             );
 
         return match?.groups.nameid || match?.groups.id;

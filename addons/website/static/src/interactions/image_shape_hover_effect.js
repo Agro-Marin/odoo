@@ -1,6 +1,6 @@
 /** @odoo-module native */
-import { Interaction } from "@web/public/interaction";
 import { registry } from "@web/core/registry";
+import { Interaction } from "@web/public/interaction";
 
 export class ImageShapeHoverEffect extends Interaction {
     static selector = "img[data-hover-effect]";
@@ -22,7 +22,9 @@ export class ImageShapeHoverEffect extends Interaction {
             this.originalImgSrc = this.el.src;
         });
         this.connectSourceObserver();
-        this.adjustImageSourceFrom = this.protectSyncAfterAsync(this.adjustImageSourceFrom);
+        this.adjustImageSourceFrom = this.protectSyncAfterAsync(
+            this.adjustImageSourceFrom,
+        );
     }
 
     destroy() {
@@ -62,7 +64,7 @@ export class ImageShapeHoverEffect extends Interaction {
                                 }
                                 // Start animations.
                                 const animateEls = this.svgInEl.querySelectorAll(
-                                    "#hoverEffects animateTransform, #hoverEffects animate"
+                                    "#hoverEffects animateTransform, #hoverEffects animate",
                                 );
                                 animateEls.forEach((animateTransformEl) => {
                                     animateTransformEl.removeAttribute("begin");
@@ -76,7 +78,7 @@ export class ImageShapeHoverEffect extends Interaction {
                     } else {
                         this.setImgSrc(this.svgInEl, resolve);
                     }
-                })
+                }),
         );
     }
 
@@ -84,7 +86,11 @@ export class ImageShapeHoverEffect extends Interaction {
         this.lastMouseEvent = this.lastMouseEvent.then(
             () =>
                 new Promise((resolve) => {
-                    if (!this.originalImgSrc || !this.svgInEl || !this.el.dataset.hoverEffect) {
+                    if (
+                        !this.originalImgSrc ||
+                        !this.svgInEl ||
+                        !this.el.dataset.hoverEffect
+                    ) {
                         resolve();
                         return;
                     }
@@ -92,7 +98,7 @@ export class ImageShapeHoverEffect extends Interaction {
                         // Reverse animations.
                         this.svgOutEl = this.svgInEl.cloneNode(true);
                         const animateTransformEls = this.svgOutEl.querySelectorAll(
-                            "#hoverEffects animateTransform, #hoverEffects animate"
+                            "#hoverEffects animateTransform, #hoverEffects animate",
                         );
                         animateTransformEls.forEach((animateTransformEl) => {
                             let valuesValue = animateTransformEl.getAttribute("values");
@@ -101,7 +107,7 @@ export class ImageShapeHoverEffect extends Interaction {
                         });
                     }
                     this.setImgSrc(this.svgOutEl, resolve);
-                })
+                }),
         );
     }
 
@@ -118,7 +124,7 @@ export class ImageShapeHoverEffect extends Interaction {
         // Add random class to prevent browser from caching image. Otherwise the
         // animations do not trigger more than once.
         const previousRandomClass = [...svg.classList].find((cl) =>
-            cl.startsWith("o_shape_anim_random_")
+            cl.startsWith("o_shape_anim_random_"),
         );
         svg.classList.remove(previousRandomClass);
         svg.classList.add("o_shape_anim_random_" + Date.now());

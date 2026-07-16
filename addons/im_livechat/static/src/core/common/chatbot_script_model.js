@@ -1,5 +1,5 @@
 /** @odoo-module native */
-import { Record, fields } from "@mail/core/common/record";
+import { fields, Record } from "@mail/core/common/record";
 
 export class ChatbotScript extends Record {
     static _name = "chatbot.script";

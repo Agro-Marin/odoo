@@ -1,6 +1,6 @@
 /** @odoo-module native */
-import { BaseHeader } from "@website/interactions/header/base_header";
 import { registry } from "@web/core/registry";
+import { BaseHeader } from "@website/interactions/header/base_header";
 
 const BaseHeaderEdit = (I) =>
     class extends I {

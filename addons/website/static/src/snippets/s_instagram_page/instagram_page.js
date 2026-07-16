@@ -1,8 +1,7 @@
 /** @odoo-module native */
-import { Interaction } from "@web/public/interaction";
-import { registry } from "@web/core/registry";
-
 import { _t } from "@web/core/l10n/translation";
+import { registry } from "@web/core/registry";
+import { Interaction } from "@web/public/interaction";
 
 // Note that Instagram can automatically detect the language of the user and
 // translate the embed.

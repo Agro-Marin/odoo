@@ -1,6 +1,7 @@
 /** @odoo-module native */
-import { SearchModal } from "./search_modal.js";
 import { registry } from "@web/core/registry";
+
+import { SearchModal } from "./search_modal.js";
 
 const SearchModalEdit = (I) =>
     class extends I {

@@ -24,10 +24,10 @@ export function unhideConditionalElements() {
     const conditionalEls = document.querySelectorAll('[data-visibility="conditional"]');
 
     const desktopMegaMenuLiEls = getClosestLiEls(
-        "header#top nav:not(.o_header_mobile) .o_mega_menu_toggle"
+        "header#top nav:not(.o_header_mobile) .o_mega_menu_toggle",
     );
     const mobileMegaMenuLiEls = getClosestLiEls(
-        "header#top nav.o_header_mobile .o_mega_menu_toggle"
+        "header#top nav.o_header_mobile .o_mega_menu_toggle",
     );
     for (const conditionalEl of conditionalEls) {
         // For mega menu block, add conditional visibility to the navbar link

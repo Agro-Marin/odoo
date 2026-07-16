@@ -1,5 +1,6 @@
 import { localization } from "@web/core/l10n/localization";
 import { translatedTermsGlobal } from "@web/core/l10n/translation";
+import { stepUtils } from "@web_tour/tour_utils";
 import {
     clickOnEditAndWaitEditMode,
     clickOnEditAndWaitEditModeInTranslatedPage,
@@ -8,7 +9,6 @@ import {
     registerWebsitePreviewTour,
     testSwitchWebsite,
 } from "@website/js/tours/tour_utils";
-import { stepUtils } from "@web_tour/tour_utils";
 
 registerWebsitePreviewTour(
     "snippet_translation",
@@ -18,7 +18,8 @@ registerWebsitePreviewTour(
     () => [
         {
             content: "Wait for website preview and check language",
-            trigger: ":iframe html:has(body:contains(welcome to your)):has(.o_top_fixed_element)",
+            trigger:
+                ":iframe html:has(body:contains(welcome to your)):has(.o_top_fixed_element)",
             run: () => {
                 if (localization.code !== "fu_GB") {
                     console.error("the user language is not properly set");
@@ -38,7 +39,7 @@ registerWebsitePreviewTour(
             content: "Check that the save button contains 'in fu_GB'",
             trigger: '.btn[data-action="save"]:contains("Save in fu_GB")',
         },
-    ]
+    ],
 );
 registerWebsitePreviewTour(
     "snippet_translation_changing_lang",
@@ -54,7 +55,8 @@ registerWebsitePreviewTour(
         },
         {
             content: "Select the language to Parseltongue",
-            trigger: ":iframe .js_language_selector .js_change_lang[data-url_code=pa_GB]",
+            trigger:
+                ":iframe .js_language_selector .js_change_lang[data-url_code=pa_GB]",
             run: "click",
         },
         {
@@ -98,7 +100,7 @@ registerWebsitePreviewTour(
             trigger:
                 ':iframe .s_cover .btn-outline-secondary:contains("Contact us in Parseltongue")',
         },
-    ]
+    ],
 );
 registerWebsitePreviewTour(
     "snippet_translation_switching_website",
@@ -119,9 +121,10 @@ registerWebsitePreviewTour(
         ...insertSnippet({ id: "s_cover", name: "Cover", groupName: "Intro" }),
         {
             content: "Check that contact us contain Fake User Lang",
-            trigger: ":iframe .s_cover .btn-outline-secondary:contains('Fake User Lang')",
+            trigger:
+                ":iframe .s_cover .btn-outline-secondary:contains('Fake User Lang')",
         },
-    ]
+    ],
 );
 registerWebsitePreviewTour(
     "snippet_dialog_rtl",
@@ -147,5 +150,5 @@ registerWebsitePreviewTour(
             trigger:
                 ":iframe link[type='text/css'][href*='/web.assets_frontend.rtl']:not(:visible)",
         },
-    ]
+    ],
 );

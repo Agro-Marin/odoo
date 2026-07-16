@@ -1,11 +1,12 @@
 /** @odoo-module native */
+import { registry } from "@web/core/registry";
 import { KanbanController } from "@web/views/kanban/kanban_controller";
 import { kanbanView } from "@web/views/kanban/kanban_view";
-import { registry } from "@web/core/registry";
+
 import { LivechatLookingForHelpReloadMixin } from "../livechat_looking_for_help_controller_mixin.js";
 
 class DiscussChannelKanbanLookingForHelpController extends LivechatLookingForHelpReloadMixin(
-    KanbanController
+    KanbanController,
 ) {}
 
 const discussChannelLookingForHelpKanbanView = {
@@ -17,5 +18,5 @@ registry
     .category("views")
     .add(
         "im_livechat.discuss_channel_looking_for_help_kanban",
-        discussChannelLookingForHelpKanbanView
+        discussChannelLookingForHelpKanbanView,
     );

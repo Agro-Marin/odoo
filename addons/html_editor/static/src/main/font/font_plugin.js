@@ -1,14 +1,19 @@
 /** @odoo-module native */
+import { isHtmlContentSupported } from "@html_editor/core/selection_plugin";
 import { Plugin } from "@html_editor/plugin";
-import { isBlock, closestBlock } from "@html_editor/utils/blocks";
+import {
+    getBaseContainerSelector,
+    SUPPORTED_BASE_CONTAINER_NAMES,
+} from "@html_editor/utils/base_container";
+import { closestBlock, isBlock } from "@html_editor/utils/blocks";
 import { unwrapContents } from "@html_editor/utils/dom";
 import {
+    isContentEditableAncestor,
+    isEmptyBlock,
     isParagraphRelatedElement,
     isRedundantElement,
-    isEmptyBlock,
     isVisibleTextNode,
     isZWS,
-    isContentEditableAncestor,
 } from "@html_editor/utils/dom_info";
 import {
     ancestors,
@@ -20,23 +25,19 @@ import {
 } from "@html_editor/utils/dom_traversal";
 import {
     convertNumericToUnit,
-    getCSSVariableValue,
-    getHtmlStyle,
-    getFontSizeDisplayValue,
     FONT_SIZE_CLASSES,
+    getCSSVariableValue,
+    getFontSizeDisplayValue,
+    getHtmlStyle,
 } from "@html_editor/utils/formatting";
+import { weakMemoize } from "@html_editor/utils/functions";
 import { DIRECTIONS } from "@html_editor/utils/position";
-import { _t } from "@web/core/l10n/translation";
-import { FontSelector } from "./font_selector.js";
-import {
-    getBaseContainerSelector,
-    SUPPORTED_BASE_CONTAINER_NAMES,
-} from "@html_editor/utils/base_container";
 import { READ, withSequence } from "@html_editor/utils/resource";
 import { reactive } from "@odoo/owl";
+import { _t } from "@web/core/l10n/translation";
+
+import { FontSelector } from "./font_selector.js";
 import { FontSizeSelector } from "./font_size_selector.js";
-import { isHtmlContentSupported } from "@html_editor/core/selection_plugin";
-import { weakMemoize } from "@html_editor/utils/functions";
 
 /** @typedef {import("plugins").TranslatedString} TranslatedString */
 
@@ -208,10 +209,13 @@ export class FontPlugin extends Plugin {
                         this.updateFontSizeSelectorParams();
                     },
                     onSelected: (item) => {
-                        this.dependencies.format.formatSelection("setFontSizeClassName", {
-                            formatProps: { className: item.className },
-                            applyStyle: true,
-                        });
+                        this.dependencies.format.formatSelection(
+                            "setFontSizeClassName",
+                            {
+                                formatProps: { className: item.className },
+                                applyStyle: true,
+                            },
+                        );
                         this.updateFontSizeSelectorParams();
                     },
                     onBlur: () => this.dependencies.selection.focusEditable(),
@@ -318,7 +322,10 @@ export class FontPlugin extends Plugin {
             this.handleSplitBlockPRE.bind(this),
             this.handleSplitBlockquote.bind(this),
         ],
-        delete_backward_overrides: withSequence(20, this.handleDeleteBackward.bind(this)),
+        delete_backward_overrides: withSequence(
+            20,
+            this.handleDeleteBackward.bind(this),
+        ),
         delete_backward_word_overrides: this.handleDeleteBackward.bind(this),
 
         /** Predicates */
@@ -345,19 +352,21 @@ export class FontPlugin extends Plugin {
         this.fontSize = reactive({ displayName: "" });
         this.font = reactive({ displayName: "" });
         this.blockFormatIsAvailableMemoized = weakMemoize(
-            (selection) => isHtmlContentSupported(selection) && this.dependencies.dom.canSetBlock()
+            (selection) =>
+                isHtmlContentSupported(selection) &&
+                this.dependencies.dom.canSetBlock(),
         );
         this.availableFontItems = this.getResource("font_items").filter(
             ({ tagName }) =>
                 !SUPPORTED_BASE_CONTAINER_NAMES.includes(tagName.toUpperCase()) ||
-                this.config.baseContainers.includes(tagName.toUpperCase())
+                this.config.baseContainers.includes(tagName.toUpperCase()),
         );
     }
 
     normalize(root) {
         for (const el of selectElements(
             root,
-            "strong, b, span[style*='font-weight: bolder'], small"
+            "strong, b, span[style*='font-weight: bolder'], small",
         )) {
             if (isRedundantElement(el)) {
                 unwrapContents(el);
@@ -366,7 +375,8 @@ export class FontPlugin extends Plugin {
     }
 
     get fontName() {
-        const sel = this.dependencies.selection.getSelectionData().deepEditableSelection;
+        const sel =
+            this.dependencies.selection.getSelectionData().deepEditableSelection;
         // if (!sel) {
         //     return "Normal";
         // }
@@ -375,10 +385,12 @@ export class FontPlugin extends Plugin {
         const tagName = block.tagName.toLowerCase();
 
         const matchingItems = this.availableFontItems.filter((item) =>
-            item.selector ? block.matches(item.selector) : item.tagName === tagName
+            item.selector ? block.matches(item.selector) : item.tagName === tagName,
         );
 
-        const matchingItemsWitoutExtraClass = matchingItems.filter((item) => !item.extraClass);
+        const matchingItemsWitoutExtraClass = matchingItems.filter(
+            (item) => !item.extraClass,
+        );
 
         if (!matchingItems.length) {
             return _t("Normal");
@@ -391,7 +403,8 @@ export class FontPlugin extends Plugin {
     }
 
     get fontSizeName() {
-        const sel = this.dependencies.selection.getSelectionData().deepEditableSelection;
+        const sel =
+            this.dependencies.selection.getSelectionData().deepEditableSelection;
         if (!sel) {
             return fontSizeItems[0].name;
         }
@@ -442,18 +455,21 @@ export class FontPlugin extends Plugin {
         }
 
         // Nodes to the right of the split position.
-        const nodesAfterTarget = [...rightLeafOnlyNotBlockPath(targetNode, targetOffset)];
+        const nodesAfterTarget = [
+            ...rightLeafOnlyNotBlockPath(targetNode, targetOffset),
+        ];
         if (
             !nodesAfterTarget.length ||
             (nodesAfterTarget.length === 1 && nodesAfterTarget[0].nodeName === "BR") ||
             isEmptyBlock(closestBlockNode)
         ) {
             // Remove the last empty block node within pre tag
-            const [beforeElement, afterElement] = this.dependencies.split.splitElementBlock({
-                targetNode,
-                targetOffset,
-                blockToSplit: closestBlockNode,
-            });
+            const [beforeElement, afterElement] =
+                this.dependencies.split.splitElementBlock({
+                    targetNode,
+                    targetOffset,
+                    blockToSplit: closestBlockNode,
+                });
             const isPreBlock = beforeElement.nodeName === "PRE";
             const baseContainer = isPreBlock
                 ? this.dependencies.baseContainer.createBaseContainer()
@@ -465,7 +481,8 @@ export class FontPlugin extends Plugin {
                 beforeElement.remove();
                 closestPre.after(afterElement);
             }
-            const dir = closestBlockNode.getAttribute("dir") || closestPre.getAttribute("dir");
+            const dir =
+                closestBlockNode.getAttribute("dir") || closestPre.getAttribute("dir");
             if (dir) {
                 baseContainer.setAttribute("dir", dir);
             }
@@ -511,10 +528,15 @@ export class FontPlugin extends Plugin {
         }
 
         const selection = this.dependencies.selection.getEditableSelection();
-        const previousElementSibling = selection.anchorNode?.childNodes[selection.anchorOffset - 1];
-        const nextElementSibling = selection.anchorNode?.childNodes[selection.anchorOffset];
+        const previousElementSibling =
+            selection.anchorNode?.childNodes[selection.anchorOffset - 1];
+        const nextElementSibling =
+            selection.anchorNode?.childNodes[selection.anchorOffset];
         // Double enter at the end of blockquote => we should break out of the blockquote element.
-        if (previousElementSibling?.tagName === "BR" && nextElementSibling?.tagName === "BR") {
+        if (
+            previousElementSibling?.tagName === "BR" &&
+            nextElementSibling?.tagName === "BR"
+        ) {
             nextElementSibling.remove();
             previousElementSibling.remove();
             this.dependencies.split.splitElementBlock({
@@ -528,7 +550,10 @@ export class FontPlugin extends Plugin {
             return true;
         }
 
-        this.dependencies.lineBreak.insertLineBreakElement({ targetNode, targetOffset });
+        this.dependencies.lineBreak.insertLineBreakElement({
+            targetNode,
+            targetOffset,
+        });
         return true;
     }
 
@@ -541,7 +566,7 @@ export class FontPlugin extends Plugin {
      */
     handleSplitBlockHeading(params) {
         const closestHeading = closestElement(params.targetNode, (element) =>
-            headingTags.includes(element.tagName)
+            headingTags.includes(element.tagName),
         );
         if (closestHeading) {
             const [, newElement] = this.dependencies.split.splitElementBlock(params);
@@ -552,7 +577,8 @@ export class FontPlugin extends Plugin {
                 headingTags.includes(newElement.tagName) &&
                 !descendants(newElement).some(isVisibleTextNode)
             ) {
-                const baseContainer = this.dependencies.baseContainer.createBaseContainer();
+                const baseContainer =
+                    this.dependencies.baseContainer.createBaseContainer();
                 const dir = newElement.getAttribute("dir");
                 if (dir) {
                     baseContainer.setAttribute("dir", dir);
@@ -572,7 +598,8 @@ export class FontPlugin extends Plugin {
      */
     handleDeleteBackward({ startContainer, startOffset, endContainer, endOffset }) {
         // Detect if cursor is at the start of the editable (collapsed range).
-        const rangeIsCollapsed = startContainer === endContainer && startOffset === endOffset;
+        const rangeIsCollapsed =
+            startContainer === endContainer && startOffset === endOffset;
         const closestHandledElement = closestElement(endContainer, handledElemSelector);
         if (!rangeIsCollapsed && closestHandledElement?.tagName !== "BLOCKQUOTE") {
             return;
@@ -582,7 +609,11 @@ export class FontPlugin extends Plugin {
             return;
         }
         // Check if unremovable.
-        if (this.getResource("unremovable_node_predicates").some((p) => p(closestHandledElement))) {
+        if (
+            this.getResource("unremovable_node_predicates").some((p) =>
+                p(closestHandledElement),
+            )
+        ) {
             return;
         }
         const baseContainer = this.dependencies.baseContainer.createBaseContainer();

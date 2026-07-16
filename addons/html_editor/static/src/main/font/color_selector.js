@@ -1,16 +1,17 @@
 /** @odoo-module native */
-import { isColorGradient } from "@web/core/utils/format/colors";
+import { useDropdownAutoVisibility } from "@html_editor/dropdown_autovisibility_hook";
+import { getCSSVariableValue, getHtmlStyle } from "@html_editor/utils/formatting";
 import { Component, useState } from "@odoo/owl";
 import {
-    useColorPicker,
     DEFAULT_COLORS,
     DEFAULT_THEME_COLOR_VARS,
+    useColorPicker,
 } from "@web/components/color_picker/color_picker";
-import { effect } from "@web/core/utils/reactive";
-import { toolbarButtonProps } from "../toolbar/toolbar.js";
-import { getCSSVariableValue, getHtmlStyle } from "@html_editor/utils/formatting";
+import { isColorGradient } from "@web/core/utils/format/colors";
 import { useChildRef } from "@web/core/utils/hooks";
-import { useDropdownAutoVisibility } from "@html_editor/dropdown_autovisibility_hook";
+import { effect } from "@web/core/utils/reactive";
+
+import { toolbarButtonProps } from "../toolbar/toolbar.js";
 
 export class ColorSelector extends Component {
     static template = "html_editor.ColorSelector";
@@ -41,7 +42,7 @@ export class ColorSelector extends Component {
         this.colorSelectorState = useState({ isOpen: false });
         const htmlStyle = getHtmlStyle(document);
         const defaultThemeColors = DEFAULT_THEME_COLOR_VARS.map((color) =>
-            getCSSVariableValue(color, htmlStyle)
+            getCSSVariableValue(color, htmlStyle),
         );
         this.solidColors = [
             ...DEFAULT_COLORS.flat(),
@@ -54,12 +55,12 @@ export class ColorSelector extends Component {
                 this.state.selectedColor = selectedColors[this.props.mode];
                 this.state.defaultTab = "solid";
                 this.state.selectedTab = this.getCorrespondingColorTab(
-                    selectedColors[this.props.mode]
+                    selectedColors[this.props.mode],
                 );
                 this.state.getTargetedElements = this.props.getTargetedElements;
                 this.state.mode = this.props.mode;
             },
-            [this.props.getSelectedColors()]
+            [this.props.getSelectedColors()],
         );
 
         const colorPickerRef = useChildRef();
@@ -87,7 +88,7 @@ export class ColorSelector extends Component {
                     this.colorSelectorState.isOpen = true;
                 },
                 ref: colorPickerRef,
-            }
+            },
         );
         useDropdownAutoVisibility(this.env.overlayState, colorPickerRef);
     }

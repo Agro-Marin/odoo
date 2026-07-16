@@ -1,6 +1,18 @@
+import { nodeSize } from "@html_editor/utils/position";
 import { describe, expect, test } from "@odoo/hoot";
+import {
+    click,
+    keyDown,
+    keyUp,
+    manuallyDispatchProgrammaticEvent,
+    press,
+    queryAll,
+} from "@odoo/hoot-dom";
+import { animationFrame, tick } from "@odoo/hoot-mock";
+
 import { setupEditor, testEditor } from "../_helpers/editor.js";
 import { unformat } from "../_helpers/format.js";
+import { getContent, setSelection } from "../_helpers/selection.js";
 import {
     bold,
     insertText,
@@ -8,17 +20,6 @@ import {
     setColor,
     simulateArrowKeyPress,
 } from "../_helpers/user_actions.js";
-import { getContent, setSelection } from "../_helpers/selection.js";
-import {
-    click,
-    keyDown,
-    keyUp,
-    press,
-    queryAll,
-    manuallyDispatchProgrammaticEvent,
-} from "@odoo/hoot-dom";
-import { animationFrame, tick } from "@odoo/hoot-mock";
-import { nodeSize } from "@html_editor/utils/position";
 
 function expectContentToBe(el, html) {
     expect(getContent(el)).toBe(unformat(html));
@@ -36,7 +37,7 @@ describe("custom selection", () => {
                         <td>e]f</td>
                     </tr>
                 </tbody>
-            </table>`)
+            </table>`),
         );
         expect(getContent(el)).toBe(
             unformat(`
@@ -50,10 +51,10 @@ describe("custom selection", () => {
                     </tr>
                 </tbody>
             </table>
-            <p data-selection-placeholder=""><br></p>`)
+            <p data-selection-placeholder=""><br></p>`),
         );
         const overlayColorTDs = queryAll("table td").map(
-            (td) => getComputedStyle(td)["box-shadow"]
+            (td) => getComputedStyle(td)["box-shadow"],
         );
         // Unselected cells should have the default background color, without any overlay
         expect(overlayColorTDs[0]).toBe("none");
@@ -1486,7 +1487,7 @@ describe("move cursor with arrow keys", () => {
                             </tr>
                         </tbody>
                     </table>
-                    <p data-selection-placeholder=""><br></p>`
+                    <p data-selection-placeholder=""><br></p>`,
                 ),
                 contentAfter: unformat(`
                     <table>
@@ -1719,7 +1720,7 @@ describe("move cursor with arrow keys", () => {
                             </tr>
                         </tbody>
                     </table>
-                    <p data-selection-placeholder=""><br></p>`
+                    <p data-selection-placeholder=""><br></p>`,
                 ),
                 contentAfter: unformat(`
                     <table>
@@ -1762,8 +1763,8 @@ describe("symmetrical selection", () => {
                         <tr><td>[]<br></td><td><br></td><td><br></td></tr>
                         <tr><td><br></td><td><br></td><td><br></td></tr>
                     </tbody>
-                </table>`
-            )
+                </table>`,
+            ),
         );
 
         press(["Shift", "ArrowRight"]);
@@ -1779,7 +1780,7 @@ describe("symmetrical selection", () => {
                     <tr><td><br></td><td><br></td><td><br></td></tr>
                 </tbody>
             </table>
-            <p data-selection-placeholder="" style="margin: -9px 0px 8px;"><br></p>`
+            <p data-selection-placeholder="" style="margin: -9px 0px 8px;"><br></p>`,
         );
 
         press(["Shift", "ArrowRight"]);
@@ -1795,7 +1796,7 @@ describe("symmetrical selection", () => {
                     <tr><td><br></td><td><br></td><td><br></td></tr>
                 </tbody>
             </table>
-            <p data-selection-placeholder="" style="margin: -9px 0px 8px;"><br></p>`
+            <p data-selection-placeholder="" style="margin: -9px 0px 8px;"><br></p>`,
         );
 
         press(["Shift", "ArrowDown"]);
@@ -1811,7 +1812,7 @@ describe("symmetrical selection", () => {
                     <tr><td class="o_selected_td"><br></td><td class="o_selected_td">]<br></td><td><br></td></tr>
                 </tbody>
             </table>
-            <p data-selection-placeholder="" style="margin: -9px 0px 8px;"><br></p>`
+            <p data-selection-placeholder="" style="margin: -9px 0px 8px;"><br></p>`,
         );
 
         press(["Shift", "ArrowLeft"]);
@@ -1827,7 +1828,7 @@ describe("symmetrical selection", () => {
                     <tr><td class="o_selected_td">]<br></td><td><br></td><td><br></td></tr>
                 </tbody>
             </table>
-            <p data-selection-placeholder="" style="margin: -9px 0px 8px;"><br></p>`
+            <p data-selection-placeholder="" style="margin: -9px 0px 8px;"><br></p>`,
         );
 
         press(["Shift", "ArrowUp"]);
@@ -1843,7 +1844,7 @@ describe("symmetrical selection", () => {
                     <tr><td><br></td><td><br></td><td><br></td></tr>
                 </tbody>
             </table>
-            <p data-selection-placeholder="" style="margin: -9px 0px 8px;"><br></p>`
+            <p data-selection-placeholder="" style="margin: -9px 0px 8px;"><br></p>`,
         );
     });
 
@@ -1855,8 +1856,8 @@ describe("symmetrical selection", () => {
                         <tr><td>[]<br></td><td><br></td><td><br></td></tr>
                         <tr><td><br></td><td><br></td><td><br></td></tr>
                     </tbody>
-                </table>`
-            )
+                </table>`,
+            ),
         );
         insertText(editor, "ab");
         await animationFrame();
@@ -1870,7 +1871,7 @@ describe("symmetrical selection", () => {
                     <tr><td><br></td><td><br></td><td><br></td></tr>
                 </tbody>
             </table>
-            <p data-selection-placeholder="" style="margin: -9px 0px 8px;"><br></p>`
+            <p data-selection-placeholder="" style="margin: -9px 0px 8px;"><br></p>`,
         );
         const firstTd = el.querySelector("td");
         setSelection({
@@ -1892,7 +1893,7 @@ describe("symmetrical selection", () => {
                     <tr><td><br></td><td><br></td><td><br></td></tr>
                 </tbody>
             </table>
-            <p data-selection-placeholder="" style="margin: -9px 0px 8px;"><br></p>`
+            <p data-selection-placeholder="" style="margin: -9px 0px 8px;"><br></p>`,
         );
     });
 
@@ -1904,8 +1905,8 @@ describe("symmetrical selection", () => {
                         <tr><td><br></td><td>ab</td><td><br></td></tr>
                         <tr><td><br></td><td><br></td><td><br></td></tr>
                     </tbody>
-                </table>`
-            )
+                </table>`,
+            ),
         );
 
         const secondTd = el.querySelectorAll("td")[1];
@@ -1928,7 +1929,7 @@ describe("symmetrical selection", () => {
                     <tr><td><br></td><td><br></td><td><br></td></tr>
                 </tbody>
             </table>
-            <p data-selection-placeholder="" style="margin: -9px 0px 8px;"><br></p>`
+            <p data-selection-placeholder="" style="margin: -9px 0px 8px;"><br></p>`,
         );
 
         press(["Shift", "ArrowLeft"]);
@@ -1943,7 +1944,7 @@ describe("symmetrical selection", () => {
                     <tr><td><br></td><td><br></td><td><br></td></tr>
                 </tbody>
             </table>
-            <p data-selection-placeholder="" style="margin: -9px 0px 8px;"><br></p>`
+            <p data-selection-placeholder="" style="margin: -9px 0px 8px;"><br></p>`,
         );
     });
 });
@@ -1957,8 +1958,8 @@ describe("single cell selection", () => {
                         <tr><td>[]<br></td><td><br></td><td><br></td></tr>
                         <tr><td><br></td><td><br></td><td><br></td></tr>
                     </tbody>
-                </table>`
-            )
+                </table>`,
+            ),
         );
 
         const BORDER_SENSITIVITY = 5;
@@ -1988,7 +1989,7 @@ describe("single cell selection", () => {
                     <tr><td><br></td><td><br></td><td><br></td></tr>
                 </tbody>
             </table>
-            <p data-selection-placeholder="" style="margin: -9px 0px 8px;"><br></p>`
+            <p data-selection-placeholder="" style="margin: -9px 0px 8px;"><br></p>`,
         );
     });
 
@@ -2000,8 +2001,8 @@ describe("single cell selection", () => {
                         <tr><td>ab[]c<br></td><td><br></td><td><br></td></tr>
                         <tr><td><br></td><td><br></td><td><br></td></tr>
                     </tbody>
-                </table>`
-            )
+                </table>`,
+            ),
         );
 
         const BORDER_SENSITIVITY = 5;
@@ -2031,7 +2032,7 @@ describe("single cell selection", () => {
                     <tr><td><br></td><td><br></td><td><br></td></tr>
                 </tbody>
             </table>
-            <p data-selection-placeholder="" style="margin: -9px 0px 8px;"><br></p>`
+            <p data-selection-placeholder="" style="margin: -9px 0px 8px;"><br></p>`,
         );
     });
 
@@ -2043,8 +2044,8 @@ describe("single cell selection", () => {
                         <tr><td>ab[]c<br></td><td><br></td><td><br></td></tr>
                         <tr><td><br></td><td><br></td><td><br></td></tr>
                     </tbody>
-                </table>`
-            )
+                </table>`,
+            ),
         );
 
         const firstTd = el.querySelector("td");
@@ -2063,7 +2064,7 @@ describe("single cell selection", () => {
                     <tr><td><br></td><td><br></td><td><br></td></tr>
                 </tbody>
             </table>
-            <p data-selection-placeholder="" style="margin: -9px 0px 8px;"><br></p>`
+            <p data-selection-placeholder="" style="margin: -9px 0px 8px;"><br></p>`,
         );
     });
 
@@ -2075,8 +2076,8 @@ describe("single cell selection", () => {
                         <tr><td>[]<br></td><td><br></td><td><br></td></tr>
                         <tr><td><br></td><td><br></td><td><br></td></tr>
                     </tbody>
-                </table>`
-            )
+                </table>`,
+            ),
         );
 
         const firstTd = el.querySelector("td");
@@ -2096,7 +2097,7 @@ describe("single cell selection", () => {
                     <tr><td><br></td><td><br></td><td><br></td></tr>
                 </tbody>
             </table>
-            <p data-selection-placeholder="" style="margin: -9px 0px 8px;"><br></p>`
+            <p data-selection-placeholder="" style="margin: -9px 0px 8px;"><br></p>`,
         );
     });
 
@@ -2220,8 +2221,8 @@ describe("deselecting table", () => {
                         <tr><td><br></td><td><br></td><td><br></td></tr>
                         <tr><td><br></td><td><br></td><td>]<br></td></tr>
                     </tbody>
-                </table>`
-            )
+                </table>`,
+            ),
         );
 
         expectContentToBe(
@@ -2233,7 +2234,7 @@ describe("deselecting table", () => {
                         <tr><td class="o_selected_td"><br></td><td class="o_selected_td"><br></td><td class="o_selected_td">]<br></td></tr>
                     </tbody>
                 </table>
-                <p data-selection-placeholder="" style="margin: -9px 0px 8px;"><br></p>`
+                <p data-selection-placeholder="" style="margin: -9px 0px 8px;"><br></p>`,
         );
 
         press(["Shift", "ArrowUp"]);
@@ -2248,7 +2249,7 @@ describe("deselecting table", () => {
                     <tr><td><br></td><td><br></td><td><br></td></tr>
                 </tbody>
             </table>
-            <p data-selection-placeholder="" style="margin: -9px 0px 8px;"><br></p>`
+            <p data-selection-placeholder="" style="margin: -9px 0px 8px;"><br></p>`,
         );
     });
     test("deselect table when clicking outside of editor", async () => {
@@ -2259,8 +2260,8 @@ describe("deselecting table", () => {
                         <tr><td>[]<br></td><td><br></td><td><br></td></tr>
                         <tr><td><br></td><td><br></td><td><br></td></tr>
                     </tbody>
-                </table>`
-            )
+                </table>`,
+            ),
         );
 
         const BORDER_SENSITIVITY = 5;
@@ -2288,7 +2289,7 @@ describe("deselecting table", () => {
                     <tr><td><br></td><td><br></td><td><br></td></tr>
                 </tbody>
             </table>
-            <p data-selection-placeholder="" style="margin: -9px 0px 8px;"><br></p>`
+            <p data-selection-placeholder="" style="margin: -9px 0px 8px;"><br></p>`,
         );
 
         const selection = document.getSelection();
@@ -2305,7 +2306,7 @@ describe("deselecting table", () => {
                     <tr><td><br></td><td><br></td><td><br></td></tr>
                 </tbody>
             </table>
-            <p data-selection-placeholder="" style="margin: -9px 0px 8px;"><br></p>`
+            <p data-selection-placeholder="" style="margin: -9px 0px 8px;"><br></p>`,
         );
     });
 });
@@ -2324,7 +2325,7 @@ describe("keyboard navigation with multiline", () => {
                     <tr><td>A4</td><td>B4</td><td>C4</td><td>D4</td><td>E4</td></tr>
                     <tr><td>A5</td><td>B5</td><td>C5</td><td>D5</td><td>E5</td></tr>
                     </tbody></table>
-                `)
+                `),
             );
             const events = await press("ArrowUp");
             expect(events[0].defaultPrevented).toBe(true);
@@ -2341,7 +2342,7 @@ describe("keyboard navigation with multiline", () => {
                     <tr><td>A5</td><td>B5</td><td>C5</td><td>D5</td><td>E5</td></tr>
                     </tbody></table>
                     <p data-selection-placeholder=""><br></p>
-                `)
+                `),
             );
         });
         test("should allow default text navigation when pressing up from text's second line", async () => {
@@ -2356,7 +2357,7 @@ describe("keyboard navigation with multiline", () => {
                     <tr><td>A4</td><td>B4</td><td>C4</td><td>D4</td><td>E4</td></tr>
                     <tr><td>A5</td><td>B5</td><td>C5</td><td>D5</td><td>E5</td></tr>
                     </tbody></table>
-                `)
+                `),
             );
             await simulateArrowKeyPress(editor, "ArrowUp");
             expect(getContent(el)).toBe(
@@ -2372,7 +2373,7 @@ describe("keyboard navigation with multiline", () => {
                     <tr><td>A5</td><td>B5</td><td>C5</td><td>D5</td><td>E5</td></tr>
                     </tbody></table>
                     <p data-selection-placeholder=""><br></p>
-                `)
+                `),
             );
         });
         test("should reach cell below when pressing down from text's last line", async () => {
@@ -2387,7 +2388,7 @@ describe("keyboard navigation with multiline", () => {
                     <tr><td>A4</td><td>B4</td><td>C4</td><td>D4</td><td>E4</td></tr>
                     <tr><td>A5</td><td>B5</td><td>C5</td><td>D5</td><td>E5</td></tr>
                     </tbody></table>
-                `)
+                `),
             );
             const events = await press("ArrowDown");
             expect(events[0].defaultPrevented).toBe(true);
@@ -2404,7 +2405,7 @@ describe("keyboard navigation with multiline", () => {
                     <tr><td>A5</td><td>B5</td><td>C5</td><td>D5</td><td>E5</td></tr>
                     </tbody></table>
                     <p data-selection-placeholder=""><br></p>
-                `)
+                `),
             );
         });
         test("should allow default text navigation when pressing down from text's non-last line", async () => {
@@ -2419,7 +2420,7 @@ describe("keyboard navigation with multiline", () => {
                     <tr><td>A4</td><td>B4</td><td>C4</td><td>D4</td><td>E4</td></tr>
                     <tr><td>A5</td><td>B5</td><td>C5</td><td>D5</td><td>E5</td></tr>
                     </tbody></table>
-                `)
+                `),
             );
             await simulateArrowKeyPress(editor, "ArrowDown");
             expect(getContent(el)).toBe(
@@ -2435,7 +2436,7 @@ describe("keyboard navigation with multiline", () => {
                     <tr><td>A5</td><td>B5</td><td>C5</td><td>D5</td><td>E5</td></tr>
                     </tbody></table>
                     <p data-selection-placeholder=""><br></p>
-                `)
+                `),
             );
         });
         test("should reach begin of cell when pressing Ctrl+ArrowUp", async () => {
@@ -2450,7 +2451,7 @@ describe("keyboard navigation with multiline", () => {
                     <tr><td>A4</td><td>B4</td><td>C4</td><td>D4</td><td>E4</td></tr>
                     <tr><td>A5</td><td>B5</td><td>C5</td><td>D5</td><td>E5</td></tr>
                     </tbody></table>
-                `)
+                `),
             );
             await simulateArrowKeyPress(editor, ["Control", "ArrowUp"]);
             expect(getContent(el)).toBe(
@@ -2466,7 +2467,7 @@ describe("keyboard navigation with multiline", () => {
                     <tr><td>A5</td><td>B5</td><td>C5</td><td>D5</td><td>E5</td></tr>
                     </tbody></table>
                     <p data-selection-placeholder=""><br></p>
-                `)
+                `),
             );
         });
         test("should reach end of cell when pressing Ctrl+ArrowDown", async () => {
@@ -2481,7 +2482,7 @@ describe("keyboard navigation with multiline", () => {
                     <tr><td>A4</td><td>B4</td><td>C4</td><td>D4</td><td>E4</td></tr>
                     <tr><td>A5</td><td>B5</td><td>C5</td><td>D5</td><td>E5</td></tr>
                     </tbody></table>
-                `)
+                `),
             );
             await simulateArrowKeyPress(editor, ["Control", "ArrowDown"]);
             expect(getContent(el)).toBe(
@@ -2497,7 +2498,7 @@ describe("keyboard navigation with multiline", () => {
                     <tr><td>A5</td><td>B5</td><td>C5</td><td>D5</td><td>E5</td></tr>
                     </tbody></table>
                     <p data-selection-placeholder=""><br></p>
-                `)
+                `),
             );
         });
     });
@@ -2514,7 +2515,7 @@ describe("keyboard navigation with multiline", () => {
                     <tr><td>A4</td><td>B4</td><td>C4</td><td>D4</td><td>E4</td></tr>
                     <tr><td>A5</td><td>B5</td><td>C5</td><td>D5</td><td>E5</td></tr>
                     </tbody></table>
-                `)
+                `),
             );
             await simulateArrowKeyPress(editor, ["Shift", "ArrowUp"]);
             expect(getContent(el)).toBe(
@@ -2530,7 +2531,7 @@ describe("keyboard navigation with multiline", () => {
                     <tr><td>A5</td><td>B5</td><td>C5</td><td>D5</td><td>E5</td></tr>
                     </tbody></table>
                     <p data-selection-placeholder=""><br></p>
-                `)
+                `),
             );
         });
         test("should allow default text selection when pressing shift+up from text's second line", async () => {
@@ -2545,7 +2546,7 @@ describe("keyboard navigation with multiline", () => {
                     <tr><td>A4</td><td>B4</td><td>C4</td><td>D4</td><td>E4</td></tr>
                     <tr><td>A5</td><td>B5</td><td>C5</td><td>D5</td><td>E5</td></tr>
                     </tbody></table>
-                `)
+                `),
             );
             await simulateArrowKeyPress(editor, ["Shift", "ArrowUp"]);
             expect(getContent(el)).toBe(
@@ -2561,7 +2562,7 @@ describe("keyboard navigation with multiline", () => {
                     <tr><td>A5</td><td>B5</td><td>C5</td><td>D5</td><td>E5</td></tr>
                     </tbody></table>
                     <p data-selection-placeholder=""><br></p>
-                `)
+                `),
             );
         });
         test("should select current cell when pressing shift+down from text's last line", async () => {
@@ -2576,7 +2577,7 @@ describe("keyboard navigation with multiline", () => {
                     <tr><td>A4</td><td>B4</td><td>C4</td><td>D4</td><td>E4</td></tr>
                     <tr><td>A5</td><td>B5</td><td>C5</td><td>D5</td><td>E5</td></tr>
                     </tbody></table>
-                `)
+                `),
             );
             await simulateArrowKeyPress(editor, ["Shift", "ArrowDown"]);
             expect(getContent(el)).toBe(
@@ -2592,7 +2593,7 @@ describe("keyboard navigation with multiline", () => {
                     <tr><td>A5</td><td>B5</td><td>C5</td><td>D5</td><td>E5</td></tr>
                     </tbody></table>
                     <p data-selection-placeholder=""><br></p>
-                `)
+                `),
             );
         });
         test("should allow default text selection when pressing shift+down from text's non-last line", async () => {
@@ -2607,7 +2608,7 @@ describe("keyboard navigation with multiline", () => {
                     <tr><td>A4</td><td>B4</td><td>C4</td><td>D4</td><td>E4</td></tr>
                     <tr><td>A5</td><td>B5</td><td>C5</td><td>D5</td><td>E5</td></tr>
                     </tbody></table>
-                `)
+                `),
             );
             await simulateArrowKeyPress(editor, ["Shift", "ArrowDown"]);
             expect(getContent(el)).toBe(
@@ -2623,7 +2624,7 @@ describe("keyboard navigation with multiline", () => {
                     <tr><td>A5</td><td>B5</td><td>C5</td><td>D5</td><td>E5</td></tr>
                     </tbody></table>
                     <p data-selection-placeholder=""><br></p>
-                `)
+                `),
             );
         });
         test("should select whole cell when pressing Ctrl+Shift+ArrowUp", async () => {
@@ -2638,7 +2639,7 @@ describe("keyboard navigation with multiline", () => {
                     <tr><td>A4</td><td>B4</td><td>C4</td><td>D4</td><td>E4</td></tr>
                     <tr><td>A5</td><td>B5</td><td>C5</td><td>D5</td><td>E5</td></tr>
                     </tbody></table>
-                `)
+                `),
             );
             await simulateArrowKeyPress(editor, ["Control", "Shift", "ArrowUp"]);
             expect(getContent(el)).toBe(
@@ -2654,7 +2655,7 @@ describe("keyboard navigation with multiline", () => {
                     <tr><td>A5</td><td>B5</td><td>C5</td><td>D5</td><td>E5</td></tr>
                     </tbody></table>
                     <p data-selection-placeholder=""><br></p>
-                `)
+                `),
             );
         });
         test("should select whole cell when pressing Ctrl+Shift+ArrowDown", async () => {
@@ -2669,7 +2670,7 @@ describe("keyboard navigation with multiline", () => {
                     <tr><td>A4</td><td>B4</td><td>C4</td><td>D4</td><td>E4</td></tr>
                     <tr><td>A5</td><td>B5</td><td>C5</td><td>D5</td><td>E5</td></tr>
                     </tbody></table>
-                `)
+                `),
             );
             await simulateArrowKeyPress(editor, ["Control", "Shift", "ArrowDown"]);
             expect(getContent(el)).toBe(
@@ -2685,7 +2686,7 @@ describe("keyboard navigation with multiline", () => {
                     <tr><td>A5</td><td>B5</td><td>C5</td><td>D5</td><td>E5</td></tr>
                     </tbody></table>
                     <p data-selection-placeholder=""><br></p>
-                `)
+                `),
             );
         });
     });
@@ -2702,7 +2703,7 @@ describe("keyboard navigation with multiline", () => {
                     <tr><td>A4</td><td>B4</td><td>C4</td><td>D4</td><td>E4</td></tr>
                     <tr><td>A5</td><td>B5</td><td>C5</td><td>D5</td><td>E5</td></tr>
                     </tbody></table>
-                `)
+                `),
             );
             await keyDown("Shift");
             let events = await press("ArrowUp");
@@ -2720,7 +2721,7 @@ describe("keyboard navigation with multiline", () => {
                     <tr><td>A5</td><td>B5</td><td>C5</td><td>D5</td><td>E5</td></tr>
                     </tbody></table>
                     <p data-selection-placeholder=""><br></p>
-                `)
+                `),
             );
             events = await press("ArrowUp");
             await keyUp("Shift");
@@ -2739,7 +2740,7 @@ describe("keyboard navigation with multiline", () => {
                     <tr><td>A5</td><td>B5</td><td>C5</td><td>D5</td><td>E5</td></tr>
                     </tbody></table>
                     <p data-selection-placeholder=""><br></p>
-                `)
+                `),
             );
             events = await press("ArrowUp");
             await tick();
@@ -2757,7 +2758,7 @@ describe("keyboard navigation with multiline", () => {
                     <tr><td>A5</td><td>B5</td><td>C5</td><td>D5</td><td>E5</td></tr>
                     </tbody></table>
                     <p data-selection-placeholder=""><br></p>
-                `)
+                `),
             );
         });
         test("should move from reached selection (downwards)", async () => {
@@ -2772,7 +2773,7 @@ describe("keyboard navigation with multiline", () => {
                     <tr><td>A4</td><td>B4</td><td>C4</td><td>D4</td><td>E4</td></tr>
                     <tr><td>A5</td><td>B5</td><td>C5</td><td>D5</td><td>E5</td></tr>
                     </tbody></table>
-                `)
+                `),
             );
             await keyDown("Shift");
             let events = await press("ArrowDown");
@@ -2790,7 +2791,7 @@ describe("keyboard navigation with multiline", () => {
                     <tr><td>A5</td><td>B5</td><td>C5</td><td>D5</td><td>E5</td></tr>
                     </tbody></table>
                     <p data-selection-placeholder=""><br></p>
-                `)
+                `),
             );
             events = await press("ArrowDown");
             await keyUp("Shift");
@@ -2809,7 +2810,7 @@ describe("keyboard navigation with multiline", () => {
                     <tr><td>A5</td><td>B5</td><td>C5</td><td>D5</td><td>E5</td></tr>
                     </tbody></table>
                     <p data-selection-placeholder=""><br></p>
-                `)
+                `),
             );
             events = await press("ArrowDown");
             await tick();
@@ -2827,7 +2828,7 @@ describe("keyboard navigation with multiline", () => {
                     <tr><td>A5</td><td>B5</td><td>[]C5</td><td>D5</td><td>E5</td></tr>
                     </tbody></table>
                     <p data-selection-placeholder=""><br></p>
-                `)
+                `),
             );
         });
     });

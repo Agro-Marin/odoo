@@ -21,7 +21,7 @@ export class SelectTranslateDialog extends Component {
         this.optionEl.textContent = value;
         this.optionEl.classList.toggle(
             "oe_translated",
-            value !== this.optionEl.dataset.initialTranslationValue
+            value !== this.optionEl.dataset.initialTranslationValue,
         );
     }
 

@@ -1,6 +1,7 @@
 /** @odoo-module native */
 import { registry } from "@web/core/registry";
 import { Dropdown } from "@web/libs/bootstrap";
+
 import { MegaMenuDropdown } from "./mega_menu_dropdown.js";
 
 const MegaMenuDropdownEdit = (I) =>
@@ -11,18 +12,19 @@ const MegaMenuDropdownEdit = (I) =>
                 ...this.dynamicContent[".o_mega_menu_toggle"],
                 "t-on-click": (ev) => {
                     const toggleEl = ev.currentTarget;
-                    const megaMenuEl = toggleEl.parentElement.querySelector(".o_mega_menu");
+                    const megaMenuEl =
+                        toggleEl.parentElement.querySelector(".o_mega_menu");
                     // Activate the mega menu options when shown.
                     if (!megaMenuEl || !megaMenuEl.classList.contains("show")) {
                         this.websiteEditService.callShared(
                             "builderOptions",
-                            "deactivateContainers"
+                            "deactivateContainers",
                         );
                     } else {
                         this.websiteEditService.callShared(
                             "builderOptions",
                             "updateContainers",
-                            megaMenuEl
+                            megaMenuEl,
                         );
                     }
                 },
@@ -35,7 +37,9 @@ const MegaMenuDropdownEdit = (I) =>
 
             // Hide all the open mega menus when destroying the interaction.
             this.registerCleanup(() => {
-                const megaMenuToggleEls = this.el.querySelectorAll(".o_mega_menu_toggle.show");
+                const megaMenuToggleEls = this.el.querySelectorAll(
+                    ".o_mega_menu_toggle.show",
+                );
                 for (const megaMenuToggleEl of megaMenuToggleEls) {
                     const bsDropdown = Dropdown.getOrCreateInstance(megaMenuToggleEl);
                     bsDropdown.hide();

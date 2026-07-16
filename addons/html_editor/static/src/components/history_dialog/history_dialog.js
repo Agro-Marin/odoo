@@ -1,19 +1,26 @@
 /** @odoo-module native */
-import { luxon } from "@web/core/l10n/luxon";
-import { Dialog } from "@web/ui/dialog/dialog";
-import { Notebook } from "@web/components/notebook/notebook";
-import { formatDateTime } from "@web/core/l10n/dates";
-import { useService } from "@web/core/utils/hooks";
-import { memoize } from "@web/core/utils/functions";
-import { Component, onMounted, useState, markup, onWillStart, onWillDestroy } from "@odoo/owl";
-import { _t } from "@web/core/l10n/translation";
-import { user } from "@web/services/user";
 import { HtmlViewer } from "@html_editor/components/html_viewer/html_viewer";
 import { READONLY_MAIN_EMBEDDINGS } from "@html_editor/others/embedded_components/embedding_sets";
+import {
+    Component,
+    markup,
+    onMounted,
+    onWillDestroy,
+    onWillStart,
+    useState,
+} from "@odoo/owl";
+import { Notebook } from "@web/components/notebook/notebook";
+import { loadBundle } from "@web/core/assets";
 import { browser } from "@web/core/browser/browser";
 import { cookie } from "@web/core/browser/cookie";
-import { loadBundle } from "@web/core/assets";
+import { formatDateTime } from "@web/core/l10n/dates";
+import { luxon } from "@web/core/l10n/luxon";
+import { _t } from "@web/core/l10n/translation";
 import { htmlReplaceAll } from "@web/core/utils/dom/html";
+import { memoize } from "@web/core/utils/functions";
+import { useService } from "@web/core/utils/hooks";
+import { user } from "@web/services/user";
+import { Dialog } from "@web/ui/dialog/dialog";
 
 const { DateTime } = luxon;
 
@@ -70,14 +77,14 @@ export class HistoryDialog extends Component {
             const record = await this.orm.read(
                 this.props.recordModel,
                 [this.props.recordId],
-                ["create_date", "create_uid"]
+                ["create_date", "create_uid"],
             );
             revisionData.push({
                 revision_id: revisionId,
                 create_date: DateTime.fromFormat(
                     record[0]["create_date"],
                     "yyyy-MM-dd HH:mm:ss",
-                    { zone: "utc" }
+                    { zone: "utc" },
                 ).toISO(),
                 create_uid: record[0]["create_uid"][0],
                 create_user_name: record[0]["create_uid"][1],
@@ -94,9 +101,12 @@ export class HistoryDialog extends Component {
     }
 
     resize() {
-        const dialogContainer = document.querySelector(".html-history-dialog-container");
+        const dialogContainer = document.querySelector(
+            ".html-history-dialog-container",
+        );
         const computedStyle = getComputedStyle(dialogContainer);
-        this.state.cssMaxHeight = parseInt(computedStyle.height.replace("px", "")) - 160;
+        this.state.cssMaxHeight =
+            parseInt(computedStyle.height.replace("px", "")) - 160;
     }
 
     getConfig(value) {
@@ -123,7 +133,8 @@ export class HistoryDialog extends Component {
         this.state.revisionId = revisionId;
         this.state.revisionContent = await this.getRevisionContent(revisionId);
         this.state.revisionComparison = await this.getRevisionComparison(revisionId);
-        this.state.revisionComparisonSplit = await this.getRevisionComparisonSplit(revisionId);
+        this.state.revisionComparisonSplit =
+            await this.getRevisionComparisonSplit(revisionId);
         this.state.revisionLoading = false;
     }
 
@@ -135,10 +146,10 @@ export class HistoryDialog extends Component {
             const comparison = await this.orm.call(
                 this.props.recordModel,
                 "html_field_history_get_comparison_at_revision",
-                [this.props.recordId, this.props.versionedFieldName, revisionId]
+                [this.props.recordId, this.props.versionedFieldName, revisionId],
             );
             return this._removeExternalBlockHtml(markup(comparison));
-        }.bind(this)
+        }.bind(this),
     );
 
     getRevisionComparisonSplit = memoize(
@@ -149,11 +160,12 @@ export class HistoryDialog extends Component {
             let unifiedDiffString = await this.orm.call(
                 this.props.recordModel,
                 "html_field_history_get_unified_diff_at_revision",
-                [this.props.recordId, this.props.versionedFieldName, revisionId]
+                [this.props.recordId, this.props.versionedFieldName, revisionId],
             );
             // Remove unnecessary linebreaks
             unifiedDiffString = unifiedDiffString.replace(/^\s*[\r\n]/gm, "");
-            const colorScheme = cookie.get("color_scheme") === "dark" ? "dark" : "light";
+            const colorScheme =
+                cookie.get("color_scheme") === "dark" ? "dark" : "light";
             // eslint-disable-next-line no-undef
             const diffHtml = Diff2Html.html(unifiedDiffString, {
                 drawFileList: false,
@@ -162,7 +174,7 @@ export class HistoryDialog extends Component {
                 colorScheme: colorScheme,
             });
             return markup(diffHtml);
-        }.bind(this)
+        }.bind(this),
     );
 
     getRevisionContent = memoize(
@@ -171,22 +183,22 @@ export class HistoryDialog extends Component {
                 const curentContent = await this.orm.read(
                     this.props.recordModel,
                     [this.props.recordId],
-                    [this.props.versionedFieldName]
+                    [this.props.versionedFieldName],
                 );
                 if (!curentContent || !curentContent.length) {
                     return this.props.noContentHelper;
                 }
                 return this._removeExternalBlockHtml(
-                    markup(curentContent[0][this.props.versionedFieldName])
+                    markup(curentContent[0][this.props.versionedFieldName]),
                 );
             }
             const content = await this.orm.call(
                 this.props.recordModel,
                 "html_field_history_get_content_at_revision",
-                [this.props.recordId, this.props.versionedFieldName, revisionId]
+                [this.props.recordId, this.props.versionedFieldName, revisionId],
             );
             return this._removeExternalBlockHtml(markup(content));
-        }.bind(this)
+        }.bind(this),
     );
 
     async _onRestoreRevisionClick() {
@@ -199,7 +211,7 @@ export class HistoryDialog extends Component {
     _removeExternalBlockHtml(baseHtml) {
         const filteringRegex = /<[a-z ]+data-embedded="(?:(?!<).)+<\/[a-z]+>/gim;
         const placeholderHtml = markup`<div class="embedded-history-dialog-placeholder">${_t(
-            "Dynamic element"
+            "Dynamic element",
         )}</div>`;
         return htmlReplaceAll(baseHtml, filteringRegex, () => placeholderHtml);
     }
@@ -214,7 +226,7 @@ export class HistoryDialog extends Component {
         const userTZ = user.tz || "local";
         return formatDateTime(
             DateTime.fromISO(revision["create_date"], { zone: "utc" }).setZone(userTZ),
-            { showSeconds: false }
+            { showSeconds: false },
         );
     }
     getRevisionClasses(revision) {
@@ -222,7 +234,8 @@ export class HistoryDialog extends Component {
 
         if (
             this.state.revisionId !== -1 &&
-            (this.state.revisionId < revision.revision_id || revision.revision_id === -1)
+            (this.state.revisionId < revision.revision_id ||
+                revision.revision_id === -1)
         ) {
             classesStr += " targeted";
         } else if (this.state.revisionId === revision.revision_id) {
@@ -240,6 +253,8 @@ export class HistoryDialog extends Component {
 
     get currentRevision() {
         const id = this.state?.revisionId || this.state.revisionsData[0]["revision_id"];
-        return this.state.revisionsData.find((revision) => revision["revision_id"] === id);
+        return this.state.revisionsData.find(
+            (revision) => revision["revision_id"] === id,
+        );
     }
 }

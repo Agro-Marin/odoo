@@ -1,7 +1,7 @@
 /** @odoo-module native */
+import { Component } from "@odoo/owl";
 import { registry } from "@web/core/registry";
 import { standardWidgetProps } from "@web/views/widgets/standard_widget_props";
-import { Component } from "@odoo/owl";
 
 export class ColorsResetButton extends Component {
     static template = `im_livechat.ColorsResetButton`;

@@ -33,7 +33,7 @@ export class TogglePriceListDescriptionAction extends BuilderAction {
                     "d-block",
                     "mt-2",
                     "pe-5",
-                    "text-muted"
+                    "text-muted",
                 );
                 if (params.descriptionExtraClass) {
                     descriptionEl.classList.add(params.descriptionExtraClass);

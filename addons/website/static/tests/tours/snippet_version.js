@@ -22,13 +22,14 @@ registerWebsitePreviewTour(
             groupName: "Content",
         }),
         {
-            content: "Test t-snippet and t-snippet-call: snippets have data-snippet set",
+            content:
+                "Test t-snippet and t-snippet-call: snippets have data-snippet set",
             trigger: ".o-snippets-menu .o_snippets_container_body > .o_snippet",
             run: function () {
                 // Tests done here as all these are not visible on the page
                 const draggableSnippets = [
                     ...document.querySelectorAll(
-                        ".o-snippets-menu .o_snippets_container_body > .o_snippet:not([data-module-id]) > :nth-child(2)"
+                        ".o-snippets-menu .o_snippets_container_body > .o_snippet:not([data-module-id]) > :nth-child(2)",
                     ),
                 ];
                 if (
@@ -36,22 +37,22 @@ registerWebsitePreviewTour(
                     !draggableSnippets.every((el) => el.dataset.snippet)
                 ) {
                     console.error(
-                        "error Some t-snippet are missing their template name or there are no snippets to drop"
+                        "error Some t-snippet are missing their template name or there are no snippets to drop",
                     );
                 }
                 if (
                     !document
                         .querySelector("iframe:not(.o_ignore_in_tour)")
                         .contentDocument.querySelector(
-                            '#wrap [data-snippet="s_test_snip"] [data-snippet="s_share"]'
+                            '#wrap [data-snippet="s_test_snip"] [data-snippet="s_share"]',
                         )
                 ) {
                     console.error(
-                        "error Dropped a s_test_snip snippet but missing s_share template name in it"
+                        "error Dropped a s_test_snip snippet but missing s_share template name in it",
                     );
                 }
             },
         },
         ...clickOnSave(),
-    ]
+    ],
 );

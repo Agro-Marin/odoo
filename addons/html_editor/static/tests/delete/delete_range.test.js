@@ -1,7 +1,8 @@
+import { CORE_PLUGINS } from "@html_editor/plugin_sets";
 import { describe, expect, test } from "@odoo/hoot";
+
 import { setupEditor, testEditor } from "../_helpers/editor.js";
 import { unformat } from "../_helpers/format.js";
-import { CORE_PLUGINS } from "@html_editor/plugin_sets";
 import { getContent, setSelection } from "../_helpers/selection.js";
 
 async function testCoreEditor(testConfig) {
@@ -72,14 +73,16 @@ describe("deleteRange method", () => {
             await testCoreEditor({
                 contentBefore: "<p><i>[abc</i>de<i>fg]h</i></p>",
                 stepFunction: deleteRange,
-                contentAfterEdit: '<p><i data-oe-zws-empty-inline="">[]\u200b</i><i>h</i></p>',
+                contentAfterEdit:
+                    '<p><i data-oe-zws-empty-inline="">[]\u200b</i><i>h</i></p>',
             });
         });
         test("delete across two inlines, end one left empty (should  fill empty inline) ", async () => {
             await testCoreEditor({
                 contentBefore: "<p><i>a[bc</i>de<i>fgh]</i></p>",
                 stepFunction: deleteRange,
-                contentAfterEdit: '<p><i>a[]</i><i data-oe-zws-empty-inline="">\u200b</i></p>',
+                contentAfterEdit:
+                    '<p><i>a[]</i><i data-oe-zws-empty-inline="">\u200b</i></p>',
             });
         });
         test("delete across two inlines, both left empty (should fill both)", async () => {
@@ -232,7 +235,7 @@ describe("deleteRange method", () => {
                 `<table><tbody>
                     <tr><td><br></td><td><br></td></tr>
                     <tr><td><br></td><td><br></td></tr>
-                </tbody></table>`
+                </tbody></table>`,
             );
             const { editor, el } = await setupEditor(contentBefore);
             // Place the cursor inside the BR.
@@ -253,7 +256,7 @@ describe("deleteRange method", () => {
                     <tr><td><br></td><td><br></td></tr>
                     <tr><td>]<br></td><td><br></td></tr>
                 </tbody></table>
-                <p data-selection-placeholder=""><br></p>`
+                <p data-selection-placeholder=""><br></p>`,
             );
             expect(getContent(el)).toBe(contentAfter);
         });
@@ -367,7 +370,7 @@ describe("deleteSelection", () => {
                             <p>mno</p>
                         </div>
                     </div>
-                    <p>gh]i</p>`
+                    <p>gh]i</p>`,
                 ),
                 stepFunction: deleteSelection,
                 contentAfter: unformat(
@@ -375,7 +378,7 @@ describe("deleteSelection", () => {
                     <div class="oe_unremovable">
                         <div class="oe_unremovable"><br></div>
                     </div>
-                    <p>i</p>`
+                    <p>i</p>`,
                 ),
             });
         });
@@ -393,7 +396,7 @@ describe("deleteSelection", () => {
                             <div class="oe_unremovable">mno</div>
                         </div>
                     </div>
-                    <p>gh]i</p>`
+                    <p>gh]i</p>`,
                 ),
                 stepFunction: deleteSelection,
                 contentAfter: unformat(
@@ -403,7 +406,7 @@ describe("deleteSelection", () => {
                         <div class="oe_unremovable"><br></div>
                         <div class="oe_unremovable"><br></div>
                     </div>
-                    <p>i</p>`
+                    <p>i</p>`,
                 ),
             });
         });
@@ -420,7 +423,7 @@ describe("deleteSelection", () => {
                                 <div class="col-6 o-contenteditable-true">def</div>
                             </div>
                         </div>
-                        <p>gh]i</p>`
+                        <p>gh]i</p>`,
                     ),
                     stepFunction: deleteSelection,
                     contentAfterEdit: unformat(
@@ -431,7 +434,7 @@ describe("deleteSelection", () => {
                                 <div class="col-6 o-contenteditable-true" contenteditable="true"><p o-we-hint-text="Empty column" class="o-we-hint"><br></p></div>
                             </div>
                         </div>
-                        <p>i</p>`
+                        <p>i</p>`,
                     ),
                     contentAfter: unformat(
                         `<div class="container o_text_columns o-contenteditable-false">
@@ -440,7 +443,7 @@ describe("deleteSelection", () => {
                                 <div class="col-6 o-contenteditable-true"><p><br></p></div>
                             </div>
                         </div>
-                        <p>i</p>`
+                        <p>i</p>`,
                     ),
                 });
             });
@@ -454,7 +457,7 @@ describe("deleteSelection", () => {
                                 <div class="col-6 o-contenteditable-true">def</div>
                             </div>
                         </div>
-                        <p>gh]i</p>`
+                        <p>gh]i</p>`,
                     ),
                     stepFunction: deleteSelection,
                     contentAfter: "<p>x[]i</p>",
@@ -474,7 +477,7 @@ describe("deleteSelection", () => {
                             <tr>
                                 <td>d</td> <td>e</td> <td>f</td> 
                             </tr>
-                        </tbody></table>`
+                        </tbody></table>`,
                     ),
                     stepFunction: deleteSelection,
                     contentAfter: unformat(
@@ -485,7 +488,7 @@ describe("deleteSelection", () => {
                             <tr>
                                 <td>d</td> <td>e</td> <td>f</td> 
                             </tr>
-                        </tbody></table>`
+                        </tbody></table>`,
                     ),
                 });
             });
@@ -498,7 +501,7 @@ describe("deleteSelection", () => {
                                 <td><p>abc</p></td><td><p>def</p></td>
                             </tr>
                         </tbody></table>
-                        <p>gh]i</p>`
+                        <p>gh]i</p>`,
                     ),
                     stepFunction: deleteSelection,
                     contentAfter: "<p>a[]i</p>",
@@ -516,7 +519,7 @@ describe("deleteSelection", () => {
                             <h1>def</h1>]
                             <h1>ghi</h1>
                         </li>
-                    </ul>`
+                    </ul>`,
                 ),
                 stepFunction: deleteSelection,
                 contentAfter: unformat(
@@ -525,7 +528,7 @@ describe("deleteSelection", () => {
                         <li>
                             <h1>ghi</h1>
                         </li>
-                    </ul>`
+                    </ul>`,
                 ),
             });
         });
@@ -541,7 +544,7 @@ describe("deleteSelection", () => {
                             <p>ghi</p>]
                             <p>jkl</p>
                         </li>
-                    </ul>`
+                    </ul>`,
                 ),
                 stepFunction: deleteSelection,
                 contentAfter: unformat(
@@ -550,7 +553,7 @@ describe("deleteSelection", () => {
                             <h1>abc</h1>
                             <p>[]jkl</p>
                         </li>
-                    </ul>`
+                    </ul>`,
                 ),
             });
         });

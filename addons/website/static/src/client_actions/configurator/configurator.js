@@ -1,35 +1,34 @@
 /** @odoo-module native */
-import { browser } from "@web/core/browser/browser";
-
-import { AutoComplete } from "@web/components/autocomplete/autocomplete";
-import { getActiveHotkey } from "@web/core/browser/hotkeys";
-import { delay } from "@web/core/utils/concurrency";
-import { getDataURLFromFile, redirect } from "@web/core/utils/urls";
 import { getCSSVariableValue } from "@html_editor/utils/formatting";
-import { _t } from "@web/core/l10n/translation";
-import { svgToPNG, webpToPNG } from "@website/js/utils";
-import { escapeRegExp } from "@web/core/utils/format/strings";
-import { useAutofocus, useService } from "@web/core/utils/hooks";
-import { registry } from "@web/core/registry";
-import { rpc } from "@web/core/network/rpc";
-import { mixCssColors } from "@web/core/utils/format/colors";
-import { router } from "@web/core/browser/router";
 import {
     Component,
     onMounted,
+    onWillStart,
     reactive,
     useEffect,
     useEnv,
+    useExternalListener,
     useRef,
     useState,
     useSubEnv,
-    onWillStart,
-    useExternalListener,
 } from "@odoo/owl";
-import { standardActionServiceProps } from "@web/webclient/actions/action_service";
-import { Dropdown } from "@web/libs/bootstrap";
-import { fuzzyLevenshteinLookup } from "@web/core/utils/search";
+import { AutoComplete } from "@web/components/autocomplete/autocomplete";
+import { browser } from "@web/core/browser/browser";
 import { isBrowserSafari } from "@web/core/browser/feature_detection";
+import { getActiveHotkey } from "@web/core/browser/hotkeys";
+import { router } from "@web/core/browser/router";
+import { _t } from "@web/core/l10n/translation";
+import { rpc } from "@web/core/network/rpc";
+import { registry } from "@web/core/registry";
+import { delay } from "@web/core/utils/concurrency";
+import { mixCssColors } from "@web/core/utils/format/colors";
+import { escapeRegExp } from "@web/core/utils/format/strings";
+import { useAutofocus, useService } from "@web/core/utils/hooks";
+import { fuzzyLevenshteinLookup } from "@web/core/utils/search";
+import { getDataURLFromFile, redirect } from "@web/core/utils/urls";
+import { Dropdown } from "@web/libs/bootstrap";
+import { standardActionServiceProps } from "@web/webclient/actions/action_service";
+import { svgToPNG, webpToPNG } from "@website/js/utils";
 
 const sessionStorage = browser.sessionStorage;
 
@@ -113,7 +112,11 @@ const MAX_NBR_DISPLAY_MAIN_THEMES = 3;
  * theme names and their related text svgs (as result of a Promise). The length
  * of the list is at most 'resultNbrMax'.
  */
-async function getRecommendedThemes(orm, state, resultNbrMax = MAX_NBR_DISPLAY_MAIN_THEMES) {
+async function getRecommendedThemes(
+    orm,
+    state,
+    resultNbrMax = MAX_NBR_DISPLAY_MAIN_THEMES,
+) {
     return orm.call("website", "configurator_recommended_themes", [], {
         industry_id: state.selectedIndustry.id,
         palette: state.selectedPalette,
@@ -169,7 +172,9 @@ export class DescriptionScreen extends Component {
         for (const industry of this.state.industries) {
             let industryWords = this._splitToSet(industry.label);
             if (industry.synonyms) {
-                industryWords = industryWords.union(this._splitToSet(industry.synonyms));
+                industryWords = industryWords.union(
+                    this._splitToSet(industry.synonyms),
+                );
             }
             this.dictionarySet = this.dictionarySet.union(industryWords);
         }
@@ -186,7 +191,7 @@ export class DescriptionScreen extends Component {
                     this.purposeSelectionRef.el.focus();
                 }
             },
-            () => [this.state.selectedType, this.state.selectedIndustry]
+            () => [this.state.selectedType, this.state.selectedIndustry],
         );
 
         this.safariHackFocusedOutDropdown = null;
@@ -215,7 +220,8 @@ export class DescriptionScreen extends Component {
     get sources() {
         return [
             {
-                options: (request) => (request.length < 1 ? [] : this._autocompleteSearch(request)),
+                options: (request) =>
+                    request.length < 1 ? [] : this._autocompleteSearch(request),
             },
         ];
     }
@@ -251,7 +257,7 @@ export class DescriptionScreen extends Component {
         // That order should be kept after manipulating the recordset.
         let matches = this.state.industries.filter((val, index) =>
             // To match, every term should be contained in the label
-            terms.every((term) => val.label.toLowerCase().includes(term))
+            terms.every((term) => val.label.toLowerCase().includes(term)),
         );
 
         matches = matches.sort((x, y) => x.hitCountOrder - y.hitCountOrder);
@@ -266,7 +272,9 @@ export class DescriptionScreen extends Component {
         } else {
             let synonymMatches = this.state.industries.filter((val, index) => {
                 // To match, every term should be contained in the synonym
-                for (const candidate of [...(val.synonyms || "").split(this.splitRegex)]) {
+                for (const candidate of [
+                    ...(val.synonyms || "").split(this.splitRegex),
+                ]) {
                     // Check if industry label has already matched
                     if (
                         terms.every((term) => candidate.toLowerCase().includes(term)) &&
@@ -277,7 +285,9 @@ export class DescriptionScreen extends Component {
                 }
                 return false;
             });
-            synonymMatches = synonymMatches.sort((x, y) => x.hitCountOrder - y.hitCountOrder);
+            synonymMatches = synonymMatches.sort(
+                (x, y) => x.hitCountOrder - y.hitCountOrder,
+            );
             matches = matches.concat(synonymMatches);
             if (matches.length > limit) {
                 matches = matches.slice(0, limit);
@@ -320,7 +330,9 @@ export class DescriptionScreen extends Component {
             let bitIndex = 0;
             while (bitIndex < matchTermOrder.labelBits.length) {
                 const currentBit = matchTermOrder.labelBits[bitIndex];
-                const splitBits = currentBit.split(new RegExp(`(${escapeRegExp(term)})`));
+                const splitBits = currentBit.split(
+                    new RegExp(`(${escapeRegExp(term)})`),
+                );
                 matchTermOrder.labelBits.splice(bitIndex, 1, ...splitBits);
                 bitIndex += splitBits.length;
             }
@@ -445,11 +457,13 @@ export class PaletteSelectionScreen extends Component {
             const file = logoSelectInput.files[0];
             if (file.size > 2500000) {
                 this.notification.add(
-                    _t("The logo is too large. Please upload a logo smaller than 2.5 MB."),
+                    _t(
+                        "The logo is too large. Please upload a logo smaller than 2.5 MB.",
+                    ),
                     {
                         title: file.name,
                         type: "warning",
-                    }
+                    },
                 );
                 return;
             }
@@ -486,7 +500,7 @@ export class PaletteSelectionScreen extends Component {
             "base.document.layout",
             "extract_image_primary_secondary_colors",
             [img],
-            { mitigate: 255 }
+            { mitigate: 255 },
         );
         this.state.setRecommendedPalette(color1, color2);
     }
@@ -524,7 +538,12 @@ export class ApplyConfiguratorScreen extends Component {
 
         const attemptConfiguratorApply = async (data, retryCount = 0) => {
             try {
-                return await this.orm.silent.call("website", "configurator_apply", [], data);
+                return await this.orm.silent.call(
+                    "website",
+                    "configurator_apply",
+                    [],
+                    data,
+                );
             } catch (error) {
                 // Wait a bit before retrying or allowing manual retry.
                 await delay(5000);
@@ -556,7 +575,7 @@ export class ApplyConfiguratorScreen extends Component {
                 ];
             }
             const resp = await attemptConfiguratorApply(
-                this.getConfigurationData(selectedFeatures, selectedPalette, themeName)
+                this.getConfigurationData(selectedFeatures, selectedPalette, themeName),
             );
 
             this.props.clearStorage();
@@ -567,8 +586,8 @@ export class ApplyConfiguratorScreen extends Component {
             // been installed.
             redirect(
                 `/odoo/action-website.website_preview?website_id=${encodeURIComponent(
-                    resp.website_id
-                )}`
+                    resp.website_id,
+                )}`,
             );
         }
     }
@@ -581,8 +600,9 @@ export class ApplyConfiguratorScreen extends Component {
             selected_palette: selectedPalette,
             theme_name: themeName,
             website_purpose:
-                WEBSITE_PURPOSES[this.state.selectedPurpose || this.state.formerSelectedPurpose]
-                    .name,
+                WEBSITE_PURPOSES[
+                    this.state.selectedPurpose || this.state.formerSelectedPurpose
+                ].name,
             website_type: WEBSITE_TYPES[this.state.selectedType].name,
             logo_attachment_id: this.state.logoAttachmentId,
         };
@@ -611,7 +631,8 @@ export class FeaturesSelectionScreen extends Component {
     }
 
     async buildWebsite() {
-        const industryId = this.state.selectedIndustry && this.state.selectedIndustry.id;
+        const industryId =
+            this.state.selectedIndustry && this.state.selectedIndustry.id;
         if (!industryId) {
             return this.props.navigate(ROUTES.descriptionScreen);
         }
@@ -664,8 +685,11 @@ export class ThemeSelectionScreen extends ApplyConfiguratorScreen {
 
         useEffect(
             () =>
-                this.blockUiDuringImageLoading(this.state.extraThemes, this.extraThemeSVGPreviews),
-            () => [this.state.extraThemes]
+                this.blockUiDuringImageLoading(
+                    this.state.extraThemes,
+                    this.extraThemeSVGPreviews,
+                ),
+            () => [this.state.extraThemes],
         );
     }
 
@@ -699,7 +723,7 @@ export class ThemeSelectionScreen extends ApplyConfiguratorScreen {
         themes.forEach((theme, idx) => {
             const svgEl = new DOMParser().parseFromString(
                 theme.svg,
-                "image/svg+xml"
+                "image/svg+xml",
             ).documentElement;
             for (const imgEl of svgEl.querySelectorAll("image")) {
                 proms.push(
@@ -709,16 +733,16 @@ export class ThemeSelectionScreen extends ApplyConfiguratorScreen {
                             () => {
                                 resolve(imgEl);
                             },
-                            { once: true }
+                            { once: true },
                         );
                         imgEl.addEventListener(
                             "error",
                             () => {
                                 reject(imgEl);
                             },
-                            { once: true }
+                            { once: true },
                         );
-                    })
+                    }),
                 );
             }
             themeSVGPreviews[idx].el.appendChild(svgEl);
@@ -739,13 +763,13 @@ export class ThemeSelectionScreen extends ApplyConfiguratorScreen {
         const themes = await getRecommendedThemes(
             this.orm,
             this.state,
-            this.maxNbrDisplayExtraThemes
+            this.maxNbrDisplayExtraThemes,
         );
         // Filter the extra themes to not propose a theme that is already
         // present in the main themes.
         const mainThemeNames = this.state.themes.map((theme) => theme.name);
         this.state.extraThemes = themes.filter(
-            (extraTheme) => !mainThemeNames.includes(extraTheme.name)
+            (extraTheme) => !mainThemeNames.includes(extraTheme.name),
         );
         this.state.extraThemesLoaded = true;
         this.uiService.unblock();
@@ -814,7 +838,7 @@ export class Store {
             .filter((feature) => feature.module_state !== "installed")
             .forEach((feature) => {
                 feature.selected = feature.website_config_preselection.includes(
-                    WEBSITE_TYPES[id].name
+                    WEBSITE_TYPES[id].name,
                 );
             });
         this.selectedType = id;
@@ -832,7 +856,10 @@ export class Store {
             .forEach((feature) => {
                 // need to check id, since we set to undefined in mount() to avoid the auto next screen on back button
                 feature.selected |=
-                    id && feature.website_config_preselection.includes(WEBSITE_PURPOSES[id].name);
+                    id &&
+                    feature.website_config_preselection.includes(
+                        WEBSITE_PURPOSES[id].name,
+                    );
             });
         this.selectedPurpose = id;
     }
@@ -954,7 +981,9 @@ export class Configurator extends Component {
 
     get pathname() {
         return `/website/configurator${
-            this.state.currentStep ? `/${encodeURIComponent(this.state.currentStep)}` : ""
+            this.state.currentStep
+                ? `/${encodeURIComponent(this.state.currentStep)}`
+                : ""
         }`;
     }
 
@@ -966,7 +995,7 @@ export class Configurator extends Component {
         history.pushState(
             { skipRouteChange: true, configuratorStep: this.state.currentStep },
             "",
-            this.pathname
+            this.pathname,
         );
     }
 
@@ -1009,7 +1038,7 @@ export class Configurator extends Component {
 
     async getInitialState() {
         // Load values from python and iap
-        var results = await this.orm.call("website", "configurator_init");
+        const results = await this.orm.call("website", "configurator_init");
         const r = {
             industries: results.industries,
             logo: results.logo ? "data:image/png;base64," + results.logo : false,
@@ -1032,11 +1061,14 @@ export class Configurator extends Component {
             for (let j = 1; j <= 5; j += 1) {
                 palette[`color${j}`] = getCSSVariableValue(
                     `o-palette-${paletteName}-o-color-${j}`,
-                    style
+                    style,
                 );
             }
             CUSTOM_BG_COLOR_ATTRS.forEach((attr) => {
-                palette[attr] = getCSSVariableValue(`o-palette-${paletteName}-${attr}-bg`, style);
+                palette[attr] = getCSSVariableValue(
+                    `o-palette-${paletteName}-${attr}-bg`,
+                    style,
+                );
             });
             palettes[paletteName] = palette;
         });
@@ -1056,7 +1088,9 @@ export class Configurator extends Component {
                 selected: feature.module_state === "installed",
             });
             const wtp = features[feature.id]["website_config_preselection"];
-            features[feature.id]["website_config_preselection"] = wtp ? wtp.split(",") : [];
+            features[feature.id]["website_config_preselection"] = wtp
+                ? wtp.split(",")
+                : [];
         });
 
         // Palette color used by default as background color for menu and footer.

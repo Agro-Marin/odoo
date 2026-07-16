@@ -1,6 +1,12 @@
 /** @odoo-module native */
 import { closestElement } from "@html_editor/utils/dom_traversal";
-import { Component, onMounted, useEffect, useExternalListener, useRef } from "@odoo/owl";
+import {
+    Component,
+    onMounted,
+    useEffect,
+    useExternalListener,
+    useRef,
+} from "@odoo/owl";
 import { Dropdown } from "@web/components/dropdown/dropdown";
 import { DropdownItem } from "@web/components/dropdown/dropdown_item";
 import { _t } from "@web/core/l10n/translation";
@@ -47,10 +53,11 @@ export class TableMenu extends Component {
                     this.isLast = !tr.nextElementSibling;
                     this.isTableHeader = [...tr.children][0].nodeName === "TH";
                 }
-                this.items = this.props.type === "column" ? this.colItems() : this.rowItems();
+                this.items =
+                    this.props.type === "column" ? this.colItems() : this.rowItems();
                 this.updatePosition();
             },
-            () => [this.props.target]
+            () => [this.props.target],
         );
         if (this.props.document.defaultView.frameElement) {
             useExternalListener(this.props.document, "scroll", () => {
@@ -171,7 +178,8 @@ export class TableMenu extends Component {
                 name: "reset_column_size",
                 icon: "fa-table",
                 text: _t("Reset column size"),
-                action: (target) => this.props.resetColumnWidth(target.closest("td, th")),
+                action: (target) =>
+                    this.props.resetColumnWidth(target.closest("td, th")),
             },
             this.hasCustomTableSize && {
                 name: "reset_table_size",

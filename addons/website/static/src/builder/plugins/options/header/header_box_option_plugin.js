@@ -1,4 +1,5 @@
 /** @odoo-module native */
+import { StyleAction } from "@html_builder/core/core_builder_action_plugin";
 import {
     getCurrentShadow,
     getDefaultShadow,
@@ -6,10 +7,10 @@ import {
     SetShadowModeAction,
     shadowToString,
 } from "@html_builder/plugins/shadow_option_plugin";
-import { StyleAction } from "@html_builder/core/core_builder_action_plugin";
-import { registry } from "@web/core/registry";
 import { Plugin } from "@html_editor/plugin";
 import { withSequence } from "@html_editor/utils/resource";
+import { registry } from "@web/core/registry";
+
 import { HeaderBoxOption } from "./header_box_option.js";
 import { HEADER_BOX } from "./header_option_plugin.js";
 
@@ -65,7 +66,8 @@ export class SetShadowModeHeaderAction extends SetShadowModeAction {
         this.dependencies.customizeWebsite.withCustomHistory(this);
     }
     async apply({ value: shadowMode }) {
-        const defaultShadow = shadowMode === "none" ? "none" : getDefaultShadow(shadowMode);
+        const defaultShadow =
+            shadowMode === "none" ? "none" : getDefaultShadow(shadowMode);
         return this.dependencies.customizeWebsite.customizeWebsiteVariables({
             "menu-box-shadow": defaultShadow,
         });
@@ -89,4 +91,6 @@ export class SetShadowHeaderAction extends SetShadowAction {
     }
 }
 
-registry.category("website-plugins").add(HeaderBoxOptionPlugin.id, HeaderBoxOptionPlugin);
+registry
+    .category("website-plugins")
+    .add(HeaderBoxOptionPlugin.id, HeaderBoxOptionPlugin);

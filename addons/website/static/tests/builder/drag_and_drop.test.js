@@ -1,10 +1,10 @@
-import { expect, test } from "@odoo/hoot";
-import { contains } from "@web/../tests/web_test_helpers";
 import {
     getDragMoveHelper,
     setupHTMLBuilder,
     waitForEndOfOperation,
 } from "@html_builder/../tests/helpers";
+import { expect, test } from "@odoo/hoot";
+import { contains } from "@web/../tests/web_test_helpers";
 
 const dropzoneSelectors = {
     selector: "section",
@@ -17,7 +17,7 @@ test("Drag and drop basic test", async () => {
             <section class="section-1"><div><p>Text 1</p></div></section>
             <section class="section-2"><div><p>Text 2</p></div></section>
         `,
-        { dropzoneSelectors }
+        { dropzoneSelectors },
     );
 
     await contains(":iframe section.section-1").click();

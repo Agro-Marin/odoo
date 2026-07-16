@@ -18,7 +18,8 @@ const makeSteps = (steps = []) => [
         run: "click",
     },
     {
-        content: "Check that discarding actually warns when there are dirty changes, and cancel",
+        content:
+            "Check that discarding actually warns when there are dirty changes, and cancel",
         trigger: ".modal-footer .btn-secondary",
         run: "click",
     },
@@ -66,7 +67,7 @@ registerWebsitePreviewTour(
         url: "/",
         edition: true,
     },
-    () => makeSteps()
+    () => makeSteps(),
 );
 
 registerWebsitePreviewTour(
@@ -109,11 +110,14 @@ registerWebsitePreviewTour(
                     "Add useless space at the end of the snippet class attribute, then click on it",
                 trigger: ":iframe .s_text_image",
                 async run(actions) {
-                    this.anchor.setAttribute("class", this.anchor.getAttribute("class") + " ");
+                    this.anchor.setAttribute(
+                        "class",
+                        this.anchor.getAttribute("class") + " ",
+                    );
                     return actions.click();
                 },
             },
-        ])
+        ]),
 );
 
 registerWebsitePreviewTour(
@@ -142,7 +146,8 @@ registerWebsitePreviewTour(
             trigger: ':iframe #wrap .s_text_image p:contains("SomeTestText")',
         },
         {
-            content: "Click elsewhere to be sure the editor fully process the new content",
+            content:
+                "Click elsewhere to be sure the editor fully process the new content",
             trigger: ":iframe #wrap .s_text_image img",
             run: "click",
         },
@@ -157,7 +162,9 @@ registerWebsitePreviewTour(
                 if (dirtyCount !== 1) {
                     console.error(dirtyCount + " dirty flag(s) found");
                 } else {
-                    this.anchor.querySelector("#wrap").classList.add("o_dirty_as_expected");
+                    this.anchor
+                        .querySelector("#wrap")
+                        .classList.add("o_dirty_as_expected");
                 }
             },
         },
@@ -165,5 +172,5 @@ registerWebsitePreviewTour(
             content: "Check previous step went through correctly about dirty flags",
             trigger: ":iframe #wrap.o_dirty_as_expected",
         },
-    ]
+    ],
 );

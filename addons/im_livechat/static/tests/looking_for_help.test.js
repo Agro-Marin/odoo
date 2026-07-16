@@ -1,8 +1,6 @@
 import { waitForChannels } from "@bus/../tests/bus_test_helpers";
-
 import { defineLivechatModels } from "@im_livechat/../tests/livechat_test_helpers";
 import { LFH_UNSUBSCRIBE_DELAY } from "@im_livechat/core/public_web/discuss_app_model_patch";
-
 import {
     click,
     contains,
@@ -12,10 +10,8 @@ import {
     start,
     startServer,
 } from "@mail/../tests/mail_test_helpers";
-
 import { advanceTime, describe, expect, test } from "@odoo/hoot";
 import { tick, waitFor } from "@odoo/hoot-dom";
-
 import {
     Command,
     getService,
@@ -107,7 +103,7 @@ test("Do not auto-open chat window on new message when locally pinned", async ()
     });
     await start();
     getService("bus_service").subscribe("discuss.channel/new_message", () =>
-        expect.step("discuss.channel/new_message")
+        expect.step("discuss.channel/new_message"),
     );
     await openDiscuss();
     await contains(".o-mail-DiscussSidebarCategory-livechatNeedHelp .oi-chevron-down");
@@ -141,7 +137,10 @@ test("Enable/disable looking for help when category is opened/folded", async () 
             .search_read([["id", "=", serverState.groupLivechatId]])
             .map(({ id }) => id),
     });
-    localStorage.setItem("discuss_sidebar_category_im_livechat.category_need_help_open", false);
+    localStorage.setItem(
+        "discuss_sidebar_category_im_livechat.category_need_help_open",
+        false,
+    );
     await start();
     patchWithCleanup(getService("bus_service"), {
         addChannel: (channelName) => {
@@ -202,12 +201,20 @@ test("Show join button when help is required and self is not a member", async ()
     await start();
     await openDiscuss(channel);
     await contains(".o-mail-DiscussSidebarCategory-livechatNeedHelp .oi-chevron-down");
-    await contains(".o-livechat-LivechatStatusSelection .active", { text: "Looking for help" });
+    await contains(".o-livechat-LivechatStatusSelection .active", {
+        text: "Looking for help",
+    });
     await click("button[name='join-livechat-needing-help']");
-    await contains(".o-livechat-LivechatStatusSelection .active", { text: "In progress" });
+    await contains(".o-livechat-LivechatStatusSelection .active", {
+        text: "In progress",
+    });
     await contains("button[name='join-livechat-needing-help']", { count: 0 });
-    await click(".o-livechat-LivechatStatusSelection button", { text: "Looking for help" });
-    await contains(".o-livechat-LivechatStatusSelection .active", { text: "Looking for help" });
+    await click(".o-livechat-LivechatStatusSelection button", {
+        text: "Looking for help",
+    });
+    await contains(".o-livechat-LivechatStatusSelection .active", {
+        text: "Looking for help",
+    });
     // Now that we are members, the button is not shown, even if help is required.
     await contains("button[name='join-livechat-needing-help']", { count: 0 });
 });
@@ -231,7 +238,9 @@ test("Show notification when joining a channel that already received help", asyn
         add: (message, options) => expect.step(`${options.type} - ${message}`),
     });
     await openDiscuss(channel);
-    await contains(".o-livechat-LivechatStatusSelection .active", { text: "Looking for help" });
+    await contains(".o-livechat-LivechatStatusSelection .active", {
+        text: "Looking for help",
+    });
     await click("button[name='join-livechat-needing-help']");
     expect.waitForSteps(["warning - Someone has already joined this conversation"]);
 });
@@ -260,7 +269,9 @@ test("Hide 'help already received' notification when channel is not visible", as
         add: (message, options) => expect.step(`${options.type} - ${message}`),
     });
     await openDiscuss(channel);
-    await contains(".o-livechat-LivechatStatusSelection .active", { text: "Looking for help" });
+    await contains(".o-livechat-LivechatStatusSelection .active", {
+        text: "Looking for help",
+    });
     await click("button[name='join-livechat-needing-help']");
     expect.waitForSteps(["warning - Someone has already joined this conversation"]);
     canRespondDeferred = new Deferred();
@@ -288,7 +299,9 @@ test("Expertise matching hint is shown in the sidebar when chat is looking for h
         user_ids: [Command.create({ name: "jane" })],
     });
     const expertiseIds = pyEnv["im_livechat.expertise"].create([{ name: "pricing" }]);
-    pyEnv["res.users"].write([serverState.userId], { livechat_expertise_ids: expertiseIds });
+    pyEnv["res.users"].write([serverState.userId], {
+        livechat_expertise_ids: expertiseIds,
+    });
     pyEnv["discuss.channel"].create([
         {
             channel_type: "livechat",
@@ -305,10 +318,10 @@ test("Expertise matching hint is shown in the sidebar when chat is looking for h
     await start();
     await openDiscuss();
     await waitFor(
-        ".o-mail-DiscussSidebarChannel:text(bob):has([title='Relevant to your expertise'])"
+        ".o-mail-DiscussSidebarChannel:text(bob):has([title='Relevant to your expertise'])",
     );
     await waitFor(".o-mail-DiscussSidebarChannel:text(jane)");
     await waitFor(
-        ".o-mail-DiscussSidebarChannel:text(jane):not(:has([title='Relevant to your expertise']))"
+        ".o-mail-DiscussSidebarChannel:text(jane):not(:has([title='Relevant to your expertise']))",
     );
 });

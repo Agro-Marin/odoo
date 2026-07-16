@@ -1,10 +1,10 @@
 /** @odoo-module native */
 import { registry } from "@web/core/registry";
-import { user } from "@web/services/user";
 import {
     Many2ManyTagsField,
     many2ManyTagsField,
 } from "@web/fields/relational/many2many_tags/many2many_tags_field";
+import { user } from "@web/services/user";
 
 const fieldRegistry = registry.category("fields");
 
@@ -29,4 +29,7 @@ export const chatbotScriptTriggeringAnswersMany2Many = {
     component: ChatbotScriptTriggeringAnswersMany2Many,
 };
 
-fieldRegistry.add("chatbot_triggering_answers_widget", chatbotScriptTriggeringAnswersMany2Many);
+fieldRegistry.add(
+    "chatbot_triggering_answers_widget",
+    chatbotScriptTriggeringAnswersMany2Many,
+);

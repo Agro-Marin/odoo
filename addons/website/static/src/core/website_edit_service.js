@@ -1,18 +1,21 @@
 /** @odoo-module native */
 import { registry } from "@web/core/registry";
+import { omit } from "@web/core/utils/collections/objects";
+import { patch } from "@web/core/utils/patch";
 import { PublicRoot } from "@web/legacy/js/public/public_root";
 import { Colibri } from "@web/public/colibri";
 import { Interaction } from "@web/public/interaction";
-import { patch } from "@web/core/utils/patch";
 import { setupIgnoreDOMMutations } from "@website/js/content/auto_hide_menu";
-import { omit } from "@web/core/utils/collections/objects";
 
 export function buildEditableInteractions(builders) {
     const result = [];
 
     const mixinPerInteraction = new Map();
     for (const makeEditable of builders) {
-        mixinPerInteraction.set(makeEditable.Interaction, makeEditable.mixin || ((C) => C));
+        mixinPerInteraction.set(
+            makeEditable.Interaction,
+            makeEditable.mixin || ((C) => C),
+        );
     }
     for (const makeEditable of builders) {
         if (makeEditable.isAbstract) {
@@ -26,7 +29,7 @@ export function buildEditableInteractions(builders) {
             if (mixin) {
                 mixins.push(mixin);
             } else {
-                console.log(`No mixin defined for: ${I.name}`);
+                console.warn(`No mixin defined for: ${I.name}`);
             }
             I = I.__proto__;
         }
@@ -66,14 +69,18 @@ export const websiteEditService = {
             publicInteractions.stopInteractions(target);
             if (mode === "edit") {
                 if (!editableInteractions) {
-                    const builders = registry.category("public.interactions.edit").getAll();
+                    const builders = registry
+                        .category("public.interactions.edit")
+                        .getAll();
                     editableInteractions = buildEditableInteractions(builders);
                 }
                 publicInteractions.editMode = true;
                 publicInteractions.activate(editableInteractions);
             } else if (mode === "preview") {
                 if (!previewInteractions) {
-                    const builders = registry.category("public.interactions.preview").getAll();
+                    const builders = registry
+                        .category("public.interactions.preview")
+                        .getAll();
                     previewInteractions = buildEditableInteractions(builders);
                 }
                 publicInteractions.activate(previewInteractions, target);
@@ -132,7 +139,8 @@ export const websiteEditService = {
                     },
                     protectSyncAfterAsync(interaction, name, fn) {
                         fn = super.protectSyncAfterAsync(interaction, name, fn);
-                        return (...args) => historyCallbacks.ignoreDOMMutations(() => fn(...args));
+                        return (...args) =>
+                            historyCallbacks.ignoreDOMMutations(() => fn(...args));
                     },
                     addListener(target, event, fn, options) {
                         const boundFn = fn.bind(this.interaction);
@@ -151,24 +159,36 @@ export const websiteEditService = {
                         const parts = event.split(".");
                         if (parts.includes("keepInHistory") || options?.keepInHistory) {
                             stealth = false;
-                            event = parts.filter((part) => part !== "keepInHistory").join(".");
+                            event = parts
+                                .filter((part) => part !== "keepInHistory")
+                                .join(".");
                             delete options?.keepInHistory;
                         }
                         let stealthFn = fn;
-                        if (historyCallbacks.ignoreDOMMutations && !fn.isHandler && stealth) {
+                        if (
+                            historyCallbacks.ignoreDOMMutations &&
+                            !fn.isHandler &&
+                            stealth
+                        ) {
                             stealthFn = (...args) =>
                                 historyCallbacks.ignoreDOMMutations(() => fn(...args));
                         }
                         return super.addListener(target, event, stealthFn, options);
                     },
                     applyAttr(...args) {
-                        historyCallbacks.ignoreDOMMutations(() => super.applyAttr(...args));
+                        historyCallbacks.ignoreDOMMutations(() =>
+                            super.applyAttr(...args),
+                        );
                     },
                     applyTOut(...args) {
-                        historyCallbacks.ignoreDOMMutations(() => super.applyTOut(...args));
+                        historyCallbacks.ignoreDOMMutations(() =>
+                            super.applyTOut(...args),
+                        );
                     },
                     startInteraction(...args) {
-                        historyCallbacks.ignoreDOMMutations(() => super.startInteraction(...args));
+                        historyCallbacks.ignoreDOMMutations(() =>
+                            super.startInteraction(...args),
+                        );
                     },
                 }),
                 patch(Interaction.prototype, {
@@ -236,13 +256,17 @@ export const websiteEditService = {
                             const mustBeRefreshed =
                                 super.shouldStop(el, interaction) ||
                                 interaction.interaction.isImpactedBy(el);
-                            return mustBeRefreshed && interaction.interaction.shouldStop();
+                            return (
+                                mustBeRefreshed && interaction.interaction.shouldStop()
+                            );
                         }
                         return super.shouldStop(el, interaction);
                     },
 
                     stopInteractionByName(name) {
-                        const IToStop = registry.category("public.interactions").get(name);
+                        const IToStop = registry
+                            .category("public.interactions")
+                            .get(name);
                         const interactions = [];
                         for (const interaction of this.interactions) {
                             if (interaction.interaction.constructor === IToStop) {
@@ -254,7 +278,7 @@ export const websiteEditService = {
                         }
                         this.interactions = interactions;
                     },
-                })
+                }),
             );
         };
         const uninstallPatches = () => {
@@ -275,7 +299,9 @@ export const websiteEditService = {
                 if (shared[pluginName][methodName]) {
                     return shared[pluginName][methodName](...args);
                 } else {
-                    console.error(`Method "${methodName}" not found on plugin "${pluginName}".`);
+                    console.error(
+                        `Method "${methodName}" not found on plugin "${pluginName}".`,
+                    );
                 }
             } else {
                 console.error(`Plugin "${pluginName}" not found.`);
@@ -305,7 +331,7 @@ export const websiteEditService = {
                     detail: {
                         websiteEditService,
                     },
-                })
+                }),
             );
             Object.assign(shared, ev.shared);
             historyCallbacks.ignoreDOMMutations = shared.history.ignoreDOMMutations;
@@ -315,7 +341,7 @@ export const websiteEditService = {
         window.parent.document.addEventListener("edit_page", handleEditPage);
         window.parent.document.addEventListener(
             "edit_interaction_plugin_loaded",
-            handlePluginLoaded
+            handlePluginLoaded,
         );
 
         // Clean up parent document listeners when iframe unloads to prevent
@@ -324,7 +350,7 @@ export const websiteEditService = {
             window.parent.document.removeEventListener("edit_page", handleEditPage);
             window.parent.document.removeEventListener(
                 "edit_interaction_plugin_loaded",
-                handlePluginLoaded
+                handlePluginLoaded,
             );
         });
 
@@ -352,7 +378,8 @@ export function withHistory(dynamicContent) {
     for (const [selector, content] of Object.entries(dynamicContent)) {
         result[selector] = {};
         for (const [key, value] of Object.entries(content)) {
-            result[selector][key.startsWith("t-on-") ? `${key}.keepInHistory` : key] = value;
+            result[selector][key.startsWith("t-on-") ? `${key}.keepInHistory` : key] =
+                value;
         }
     }
     return result;

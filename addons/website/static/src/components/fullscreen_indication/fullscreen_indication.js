@@ -1,7 +1,7 @@
 /** @odoo-module native */
-import { useBus } from "@web/core/utils/hooks";
-import { EventBus, Component, useState, markup } from "@odoo/owl";
+import { Component, EventBus, markup, useState } from "@odoo/owl";
 import { _t } from "@web/core/l10n/translation";
+import { useBus } from "@web/core/utils/hooks";
 
 export class FullscreenIndication extends Component {
     static props = {
@@ -28,6 +28,8 @@ export class FullscreenIndication extends Component {
     }
 
     get fullScreenIndicationText() {
-        return _t("Press %(key)s to exit full screen", { key: markup`<span>esc</span>` });
+        return _t("Press %(key)s to exit full screen", {
+            key: markup`<span>esc</span>`,
+        });
     }
 }

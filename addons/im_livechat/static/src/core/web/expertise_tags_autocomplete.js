@@ -1,13 +1,12 @@
 /** @odoo-module native */
 import { Component } from "@odoo/owl";
-
-import { _t } from "@web/core/l10n/translation";
-import { rpc } from "@web/core/network/rpc";
-import { x2ManyCommands } from "@web/model/relational_model/commands";
 import { useTagNavigation } from "@web/components/record_selectors/tag_navigation_hook";
 import { TagsList } from "@web/components/tags_list/tags_list";
+import { _t } from "@web/core/l10n/translation";
+import { rpc } from "@web/core/network/rpc";
 import { useService } from "@web/core/utils/hooks";
 import { Many2XAutocomplete } from "@web/fields/relational/many2x_autocomplete";
+import { x2ManyCommands } from "@web/model/relational_model/commands";
 
 /**
  * @typedef {Object} Props
@@ -45,7 +44,7 @@ export class ExpertiseTagsAutocomplete extends Component {
     createAndLinkExpertise(name) {
         if (
             this.props.channel.livechat_expertise_ids.some(
-                (expertise) => expertise.name === name.trim()
+                (expertise) => expertise.name === name.trim(),
             )
         ) {
             return;
@@ -62,7 +61,9 @@ export class ExpertiseTagsAutocomplete extends Component {
         if (!toAdd.length) {
             return;
         }
-        this.writeExpertises(toAdd.map((expertise) => x2ManyCommands.link(expertise.id)));
+        this.writeExpertises(
+            toAdd.map((expertise) => x2ManyCommands.link(expertise.id)),
+        );
     }
 
     get placeholder() {
@@ -81,6 +82,8 @@ export class ExpertiseTagsAutocomplete extends Component {
     }
 
     isSelected(expertiseId) {
-        return this.props.channel.livechat_expertise_ids.some((e) => e.id === expertiseId);
+        return this.props.channel.livechat_expertise_ids.some(
+            (e) => e.id === expertiseId,
+        );
     }
 }

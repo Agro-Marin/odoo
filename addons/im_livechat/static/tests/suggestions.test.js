@@ -1,4 +1,3 @@
-import { describe, test } from "@odoo/hoot";
 import {
     click,
     contains,
@@ -7,7 +6,9 @@ import {
     start,
     startServer,
 } from "@mail/../tests/mail_test_helpers";
+import { describe, test } from "@odoo/hoot";
 import { Command, serverState } from "@web/../tests/web_test_helpers";
+
 import { defineLivechatModels } from "./livechat_test_helpers.js";
 
 describe.current.tags("desktop");
@@ -22,7 +23,10 @@ test("Suggestions are shown after delimiter was used in text (::)", async () => 
     const channelId = pyEnv["discuss.channel"].create({
         channel_type: "livechat",
         channel_member_ids: [
-            Command.create({ partner_id: serverState.partnerId, livechat_member_type: "agent" }),
+            Command.create({
+                partner_id: serverState.partnerId,
+                livechat_member_type: "agent",
+            }),
             Command.create({
                 partner_id: serverState.publicPartnerId,
                 livechat_member_type: "visitor",
@@ -69,11 +73,16 @@ test("Cannot mention other channels in a livechat", async () => {
 
 test("Internal user mention shows their live chat username", async () => {
     const pyEnv = await startServer();
-    pyEnv["res.partner"].write([serverState.partnerId], { user_livechat_username: "Batman" });
+    pyEnv["res.partner"].write([serverState.partnerId], {
+        user_livechat_username: "Batman",
+    });
     const channelId = pyEnv["discuss.channel"].create({
         channel_type: "livechat",
         channel_member_ids: [
-            Command.create({ partner_id: serverState.partnerId, livechat_member_type: "agent" }),
+            Command.create({
+                partner_id: serverState.partnerId,
+                livechat_member_type: "agent",
+            }),
             Command.create({
                 partner_id: serverState.publicPartnerId,
                 livechat_member_type: "visitor",

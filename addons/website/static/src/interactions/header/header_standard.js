@@ -1,6 +1,6 @@
 /** @odoo-module native */
-import { BaseHeader } from "@website/interactions/header/base_header";
 import { registry } from "@web/core/registry";
+import { BaseHeader } from "@website/interactions/header/base_header";
 
 export class HeaderStandard extends BaseHeader {
     static selector = "header.o_header_standard:not(.o_header_sidebar)";
@@ -35,7 +35,7 @@ export class HeaderStandard extends BaseHeader {
         clonedHeader.classList.add(
             "o_header_is_scrolled",
             "o_header_affixed",
-            "o_header_no_transition"
+            "o_header_no_transition",
         );
         const endHeaderHeight = clonedHeader.offsetHeight;
         clonedHeader.remove();
@@ -60,17 +60,17 @@ export class HeaderStandard extends BaseHeader {
         const reachTransitionPoint =
             scroll > this.transitionPoint + this.topGap && this.transitionPossible;
 
-        if (this.atTop == reachHeaderBottom) {
+        if (this.atTop === reachHeaderBottom) {
             this.el.classList.add("o_transformed_not_affixed");
         }
-        this.el.style.transition = this.atTop == reachHeaderBottom ? "none" : "";
+        this.el.style.transition = this.atTop === reachHeaderBottom ? "none" : "";
         this.atTop = !reachHeaderBottom;
 
         reachTransitionPoint
             ? this.transformShow()
             : reachHeaderBottom
-            ? this.transformHide()
-            : this.transformShow();
+              ? this.transformHide()
+              : this.transformShow();
         void this.el.offsetWidth; // Force a paint refresh
 
         this.hideEl?.classList.toggle("hidden", reachHeaderBottom);

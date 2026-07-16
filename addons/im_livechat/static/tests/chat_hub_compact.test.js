@@ -1,9 +1,9 @@
-import { Command, serverState } from "@web/../tests/web_test_helpers";
-import { click, contains } from "@mail/../tests/mail_test_helpers_contains";
 import { defineLivechatModels } from "@im_livechat/../tests/livechat_test_helpers";
 import { setupChatHub, start, startServer } from "@mail/../tests/mail_test_helpers";
+import { click, contains } from "@mail/../tests/mail_test_helpers_contains";
 import { withGuest } from "@mail/../tests/mock_server/mail_mock_server";
 import { describe, test } from "@odoo/hoot";
+import { Command, serverState } from "@web/../tests/web_test_helpers";
 import { rpc } from "@web/core/network/rpc";
 
 describe.current.tags("desktop");
@@ -15,7 +15,10 @@ test("Do not open chat windows automatically when chat hub is compact", async ()
     const guestId = pyEnv["mail.guest"].create({ name: "Visitor" });
     const channelId = pyEnv["discuss.channel"].create({
         channel_member_ids: [
-            Command.create({ partner_id: serverState.partnerId, livechat_member_type: "agent" }),
+            Command.create({
+                partner_id: serverState.partnerId,
+                livechat_member_type: "agent",
+            }),
             Command.create({ guest_id: guestId, livechat_member_type: "visitor" }),
         ],
         channel_type: "livechat",
@@ -35,7 +38,7 @@ test("Do not open chat windows automatically when chat hub is compact", async ()
             },
             thread_id: channelId,
             thread_model: "discuss.channel",
-        })
+        }),
     );
     await contains(".o-mail-ChatHub-bubbleBtn .badge", { text: "1" });
     await click("button.o-mail-ChatHub-bubbleBtn");

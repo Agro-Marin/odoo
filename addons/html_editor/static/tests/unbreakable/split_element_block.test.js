@@ -1,7 +1,8 @@
 import { expect, test } from "@odoo/hoot";
+
 import { setupEditor, testEditor } from "../_helpers/editor.js";
-import { splitBlock } from "../_helpers/user_actions.js";
 import { getContent } from "../_helpers/selection.js";
+import { splitBlock } from "../_helpers/user_actions.js";
 
 test("should replace splitElementBlock with insertLineBreak (selection start)", async () => {
     await testEditor({
@@ -31,7 +32,7 @@ test("should not split a contenteditable='false'", async () => {
     expect(getContent(el)).toBe(
         '<p data-selection-placeholder=""><br></p>' +
             '<p contenteditable="false">ab</p>' +
-            '<p data-selection-placeholder="" style="margin: -9px 0px 8px;"><br></p>'
+            '<p data-selection-placeholder="" style="margin: -9px 0px 8px;"><br></p>',
     );
 });
 test("should split an explicit contenteditable='true' if its ancestor isContentEditable", async () => {

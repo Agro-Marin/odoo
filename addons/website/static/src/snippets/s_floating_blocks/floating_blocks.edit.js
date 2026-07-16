@@ -1,5 +1,6 @@
 /** @odoo-module native */
 import { registry } from "@web/core/registry";
+
 import { FloatingBlocks } from "./floating_blocks.js";
 
 const FloatingBlocksEdit = (I) =>
@@ -34,13 +35,16 @@ const FloatingBlocksEdit = (I) =>
             this.renderAt(
                 "website.s_floating_blocks.alert.empty",
                 {},
-                this.el.querySelector(".s_floating_blocks_wrapper")
+                this.el.querySelector(".s_floating_blocks_wrapper"),
             );
             super.start();
         }
         onAddCard() {
             const applySpec = { editingElement: this.el };
-            this.services["website_edit"].applyAction("addFloatingBlockCard", applySpec);
+            this.services["website_edit"].applyAction(
+                "addFloatingBlockCard",
+                applySpec,
+            );
         }
     };
 

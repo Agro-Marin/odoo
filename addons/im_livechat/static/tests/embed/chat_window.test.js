@@ -15,8 +15,12 @@ import {
     triggerHotkey,
 } from "@mail/../tests/mail_test_helpers";
 import { describe, test } from "@odoo/hoot";
-import { asyncStep, serverState, waitForSteps, withUser } from "@web/../tests/web_test_helpers";
-
+import {
+    asyncStep,
+    serverState,
+    waitForSteps,
+    withUser,
+} from "@web/../tests/web_test_helpers";
 import { deserializeDateTime } from "@web/core/l10n/dates";
 import { rpc } from "@web/core/network/rpc";
 import { getOrigin } from "@web/core/utils/urls";
@@ -27,7 +31,9 @@ defineLivechatModels();
 test("internal users can upload file to temporary thread", async () => {
     const pyEnv = await startServer();
     await loadDefaultEmbedConfig();
-    const [partnerUser] = pyEnv["res.users"].search_read([["id", "=", serverState.partnerId]]);
+    const [partnerUser] = pyEnv["res.users"].search_read([
+        ["id", "=", serverState.partnerId],
+    ]);
     await start({ authenticateAs: partnerUser });
     await click(".o-livechat-LivechatButton");
     const file = new File(["hello, world"], "text.txt", { type: "text/plain" });
@@ -35,7 +41,9 @@ test("internal users can upload file to temporary thread", async () => {
     await click(".o-mail-Composer button[title='More Actions']");
     await contains(".dropdown-item:contains('Attach files')");
     await inputFiles(".o-mail-Composer .o_input_file", [file]);
-    await contains(".o-mail-AttachmentContainer:not(.o-isUploading):contains(text.txt) .fa-check");
+    await contains(
+        ".o-mail-AttachmentContainer:not(.o-isUploading):contains(text.txt) .fa-check",
+    );
     await triggerHotkey("Enter");
     await contains(".o-mail-Message .o-mail-AttachmentContainer:contains(text.txt)");
 });
@@ -43,7 +51,9 @@ test("internal users can upload file to temporary thread", async () => {
 test("Conversation name is operator livechat user name", async () => {
     const pyEnv = await startServer();
     await loadDefaultEmbedConfig();
-    pyEnv["res.partner"].write(serverState.partnerId, { user_livechat_username: "MitchellOp" });
+    pyEnv["res.partner"].write(serverState.partnerId, {
+        user_livechat_username: "MitchellOp",
+    });
     await start({ authenticateAs: false });
     await click(".o-livechat-LivechatButton");
     await contains(".o-mail-ChatWindow-header", { text: "MitchellOp" });
@@ -63,7 +73,9 @@ test("Portal users should not be able to start a call", async () => {
         name: "Joel",
         user_ids: [joelUid],
     });
-    pyEnv["res.partner"].write(serverState.partnerId, { user_livechat_username: "MitchellOp" });
+    pyEnv["res.partner"].write(serverState.partnerId, {
+        user_livechat_username: "MitchellOp",
+    });
     await start({ authenticateAs: { login: "joel", password: "joel" } });
     await click(".o-livechat-LivechatButton");
     await contains(".o-mail-ChatWindow-header:text('MitchellOp')");
@@ -72,7 +84,9 @@ test("Portal users should not be able to start a call", async () => {
     await contains(".o-mail-Message[data-persistent]:contains('Hello MitchellOp!')");
     await contains(".o-mail-ChatWindow-header .o-mail-ActionList-button", { count: 2 });
     await contains(".o-mail-ChatWindow-header .o-mail-ActionList-button[title='Fold']");
-    await contains(".o-mail-ChatWindow-header .o-mail-ActionList-button[title*='Close']");
+    await contains(
+        ".o-mail-ChatWindow-header .o-mail-ActionList-button[title*='Close']",
+    );
     await contains(".o-discuss-Call", { count: 0 });
     // simulate operator starts call
     const [channelId] = pyEnv["discuss.channel"].search([
@@ -84,7 +98,7 @@ test("Portal users should not be able to start a call", async () => {
         ],
     ]);
     await withUser(serverState.userId, () =>
-        rpc("/mail/rtc/channel/join_call", { channel_id: channelId }, { silent: true })
+        rpc("/mail/rtc/channel/join_call", { channel_id: channelId }, { silent: true }),
     );
     await contains(".o-discuss-Call button", { count: 2 });
     await contains(".o-discuss-Call button[title='Join Video Call']");
@@ -92,14 +106,20 @@ test("Portal users should not be able to start a call", async () => {
     // still same actions in header
     await contains(".o-mail-ChatWindow-header .o-mail-ActionList-button", { count: 2 });
     await contains(".o-mail-ChatWindow-header .o-mail-ActionList-button[title='Fold']");
-    await contains(".o-mail-ChatWindow-header .o-mail-ActionList-button[title*='Close']");
+    await contains(
+        ".o-mail-ChatWindow-header .o-mail-ActionList-button[title*='Close']",
+    );
 });
 
 test("avatar url contains access token for non-internal users", async () => {
     const pyEnv = await startServer();
     await loadDefaultEmbedConfig();
-    pyEnv["res.partner"].write(serverState.partnerId, { user_livechat_username: "MitchellOp" });
-    const [partner] = pyEnv["res.partner"].search_read([["id", "=", serverState.partnerId]]);
+    pyEnv["res.partner"].write(serverState.partnerId, {
+        user_livechat_username: "MitchellOp",
+    });
+    const [partner] = pyEnv["res.partner"].search_read([
+        ["id", "=", serverState.partnerId],
+    ]);
     await start({ authenticateAs: false });
     await click(".o-livechat-LivechatButton");
     await contains(
@@ -107,14 +127,14 @@ test("avatar url contains access token for non-internal users", async () => {
             partner.id
         }/avatar_128?access_token=${partner.id}&unique=${
             deserializeDateTime(partner.write_date).ts
-        }"]`
+        }"]`,
     );
     await contains(
         `.o-mail-Message-avatar[data-src="${getOrigin()}/web/image/res.partner/${
             partner.id
         }/avatar_128?access_token=${partner.id}&unique=${
             deserializeDateTime(partner.write_date).ts
-        }"]`
+        }"]`,
     );
     await insertText(".o-mail-Composer-input", "Hello World!");
     triggerHotkey("Enter");
@@ -123,7 +143,7 @@ test("avatar url contains access token for non-internal users", async () => {
     await contains(
         `.o-mail-Message-avatar[data-src="${getOrigin()}/web/image/mail.guest/${
             guest.id
-        }/avatar_128?access_token=${guest.id}&unique=${deserializeDateTime(guest.write_date).ts}"]`
+        }/avatar_128?access_token=${guest.id}&unique=${deserializeDateTime(guest.write_date).ts}"]`,
     );
 });
 
@@ -153,7 +173,9 @@ test("can close confirm livechat with keyboard", async () => {
     });
     await triggerHotkey("Enter");
     await waitForSteps(["/im_livechat/visitor_leave_session"]);
-    await contains(".o-mail-ChatWindow", { text: "Did we correctly answer your question?" });
+    await contains(".o-mail-ChatWindow", {
+        text: "Did we correctly answer your question?",
+    });
 });
 
 test("Should not show IM status of agents", async () => {

@@ -17,7 +17,7 @@ registerWebsitePreviewTour(
         ...changeOptionInPopover(
             "Rating",
             "Title Position",
-            "[data-class-action='s_rating_inline']"
+            "[data-class-action='s_rating_inline']",
         ),
         {
             content: "Check whether s_rating_inline class applied or not",
@@ -26,7 +26,7 @@ registerWebsitePreviewTour(
         ...changeOptionInPopover(
             "Rating",
             "Title Position",
-            "[data-class-action='s_rating_no_title']"
+            "[data-class-action='s_rating_no_title']",
         ),
         {
             content: "Check whether s_rating_no_title class applied or not",
@@ -37,5 +37,5 @@ registerWebsitePreviewTour(
             content: "Check whether s_rating_no_title class removed or not",
             trigger: ":iframe .s_rating:not(.s_rating_no_title)",
         },
-    ]
+    ],
 );

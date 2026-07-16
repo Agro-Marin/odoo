@@ -1,7 +1,6 @@
 /** @odoo-module native */
 import { ResUsers } from "@mail/core/common/res_users_model";
 import { fields } from "@mail/model/misc";
-
 import { patch } from "@web/core/utils/patch";
 
 /** @type {import("models").ResUsers} */

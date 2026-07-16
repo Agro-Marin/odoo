@@ -1,6 +1,6 @@
 /** @odoo-module native */
-import { useRef, onMounted, useState, useEffect, onWillDestroy } from "@odoo/owl";
 import { BaseOptionComponent } from "@html_builder/core/utils";
+import { onMounted, onWillDestroy, useEffect, useRef, useState } from "@odoo/owl";
 
 /** @import { Coordinates, Place } from './google_maps_option_plugin.js' */
 
@@ -25,9 +25,10 @@ export class GoogleMapsOption extends BaseOptionComponent {
         });
         useEffect(
             () => {
-                this.env.getEditingElement().dataset.pinAddress = this.state.formattedAddress;
+                this.env.getEditingElement().dataset.pinAddress =
+                    this.state.formattedAddress;
             },
-            () => [this.state.formattedAddress]
+            () => [this.state.formattedAddress],
         );
         onMounted(async () => {
             this.initializeAutocomplete(this.inputRef.el);
@@ -58,7 +59,7 @@ export class GoogleMapsOption extends BaseOptionComponent {
             this.autocompleteListener = mapsAPI.event.addListener(
                 this.googleMapsAutocomplete,
                 "place_changed",
-                this.onPlaceChanged.bind(this)
+                this.onPlaceChanged.bind(this),
             );
             if (!this.state.formattedAddress) {
                 const editingElement = this.env.getEditingElement();

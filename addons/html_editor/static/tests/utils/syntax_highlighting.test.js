@@ -1,5 +1,6 @@
 import { getPreValue } from "@html_editor/others/embedded_components/core/syntax_highlighting/syntax_highlighting_utils";
 import { describe, expect, test } from "@odoo/hoot";
+
 import { insertTestHtml } from "../_helpers/editor.js";
 
 describe("getPreValue", () => {
@@ -20,7 +21,7 @@ describe("getPreValue", () => {
 
     test("strips html tags and decodes all entities", () => {
         const [pre] = insertTestHtml(
-            "<pre><span>&lt;div&gt;</span><br><strong>&amp;</strong><br>&#x27;quote&#x27;<br>&quot;double&quot;<br>&#x60;backtick&#x60;</pre>"
+            "<pre><span>&lt;div&gt;</span><br><strong>&amp;</strong><br>&#x27;quote&#x27;<br>&quot;double&quot;<br>&#x60;backtick&#x60;</pre>",
         );
         expect(getPreValue(pre)).toBe("<div>\n&\n'quote'\n\"double\"\n`backtick`");
     });
@@ -32,7 +33,7 @@ describe("getPreValue", () => {
 
     test("converts br to newlines even when pre has display none", () => {
         const [container] = insertTestHtml(
-            '<div style="display:none"><pre>hidden<br>content<br><br><br></pre></div>'
+            '<div style="display:none"><pre>hidden<br>content<br><br><br></pre></div>',
         );
         const pre = container.querySelector("pre");
         expect(getPreValue(pre)).toBe("hidden\ncontent\n\n");

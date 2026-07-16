@@ -5,8 +5,8 @@ import { advanceTime, animationFrame, queryFirst } from "@odoo/hoot-dom";
 import { Component, xml } from "@odoo/owl";
 import { mountWithCleanup, patchWithCleanup } from "@web/../tests/web_test_helpers";
 import { browser } from "@web/core/browser/browser";
-import { Macro } from "@web/core/utils/macro";
 import { registry } from "@web/core/registry";
+import { Macro } from "@web/core/utils/macro";
 
 describe.current.tags("desktop");
 
@@ -28,7 +28,7 @@ async function waitForMacro() {
 }
 class Root extends Component {
     static components = {};
-    static template = xml/*html*/ `
+    static template = xml /*html*/ `
         <t>
             <div class="container">
                 <button class="button0">Button 0</button>
@@ -89,7 +89,7 @@ afterEach(() => {
 
 test("element is no longer visible", async () => {
     macro.onStep = ({ index }) => {
-        if (index == 2) {
+        if (index === 2) {
             setTimeout(() => {
                 queryFirst(".container").classList.add("d-none");
             }, 400);
@@ -108,7 +108,7 @@ ${expectedError}`,
 
 test("change text", async () => {
     macro.onStep = ({ index }) => {
-        if (index == 2) {
+        if (index === 2) {
             setTimeout(() => {
                 queryFirst(".button1").textContent = "Text has changed :)";
             }, 400);
@@ -135,7 +135,7 @@ Initial element has changed:
 
 test("change attributes", async () => {
     macro.onStep = ({ index }) => {
-        if (index == 2) {
+        if (index === 2) {
             setTimeout(() => {
                 const button1 = queryFirst(".button1");
                 button1.classList.add("brol");
@@ -172,7 +172,7 @@ ${expectedError}`,
 
 test("add child node", async () => {
     macro.onStep = ({ index }) => {
-        if (index == 4) {
+        if (index === 4) {
             setTimeout(() => {
                 const addElement = document.createElement("div");
                 addElement.classList.add("brol");

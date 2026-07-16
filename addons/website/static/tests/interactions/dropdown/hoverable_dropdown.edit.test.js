@@ -1,7 +1,9 @@
-import { startInteractions, setupInteractionWhiteList } from "@web/../tests/public/helpers";
-
 import { describe, expect, test } from "@odoo/hoot";
 import { hover, leave } from "@odoo/hoot-dom";
+import {
+    setupInteractionWhiteList,
+    startInteractions,
+} from "@web/../tests/public/helpers";
 
 import { switchToEditMode } from "../../helpers.js";
 
@@ -24,7 +26,7 @@ test("[EDIT] onMouseLeave doesn't work in edit mode", async () => {
             </div>
         </header>
     `,
-        { waitForStart: true, editMode: true }
+        { waitForStart: true, editMode: true },
     );
     await switchToEditMode(core);
     expect(".dropdown-toggle").not.toHaveClass("show");
@@ -60,7 +62,7 @@ test("[EDIT] onMouseEnter doesn't work in edit mode if another dropdown is opene
             </div>
         </header>
     `,
-        { waitForStart: true, editMode: true }
+        { waitForStart: true, editMode: true },
     );
     await switchToEditMode(core);
     expect(".dropdown-toggle").not.toHaveClass("show");

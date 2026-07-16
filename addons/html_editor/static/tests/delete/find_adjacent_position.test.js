@@ -1,9 +1,10 @@
-import { describe, expect, test } from "@odoo/hoot";
-import { setupEditor } from "../_helpers/editor.js";
-import { getContent, setSelection } from "../_helpers/selection.js";
-import { unformat } from "../_helpers/format.js";
 import { FilePlugin } from "@html_editor/main/media/file_plugin";
 import { CORE_PLUGINS } from "@html_editor/plugin_sets";
+import { describe, expect, test } from "@odoo/hoot";
+
+import { setupEditor } from "../_helpers/editor.js";
+import { unformat } from "../_helpers/format.js";
+import { getContent, setSelection } from "../_helpers/selection.js";
 
 function findAdjacentPosition(editor, direction) {
     const deletePlugin = editor.plugins.find((p) => p.constructor.id === "delete");
@@ -89,8 +90,10 @@ describe("findAdjacentPosition method", () => {
                 assertAdjacentPositions(editor, previous, next);
             });
             test("Should find position after paragraph break", async () => {
-                const previous = '<div><p>a[]</p><span contenteditable="false">b</span></div>';
-                const next = '<div><p>a</p>[]<span contenteditable="false">b</span></div>';
+                const previous =
+                    '<div><p>a[]</p><span contenteditable="false">b</span></div>';
+                const next =
+                    '<div><p>a</p>[]<span contenteditable="false">b</span></div>';
                 const { editor } = await setupEditor(previous);
                 assertAdjacentPositions(
                     editor,
@@ -99,7 +102,7 @@ describe("findAdjacentPosition method", () => {
                         '<p data-selection-placeholder=""><br></p>',
                     '<p data-selection-placeholder=""><br></p>' +
                         next +
-                        '<p data-selection-placeholder=""><br></p>'
+                        '<p data-selection-placeholder=""><br></p>',
                 );
             });
             test("Should find position before filebox", async () => {
@@ -110,14 +113,14 @@ describe("findAdjacentPosition method", () => {
                 const [node, offset] = findAdjacentPosition(editor, "backward");
                 setSelection({ anchorNode: node, anchorOffset: offset });
                 expect(getContent(el)).toBe(
-                    `<div class="o-paragraph">\ufeff[]<span contenteditable="false" class="o_file_box"></span>\ufeff</div>`
+                    `<div class="o-paragraph">\ufeff[]<span contenteditable="false" class="o_file_box"></span>\ufeff</div>`,
                 );
             });
         });
         describe("Blocks", () => {
             test("Should find position after the div", async () => {
                 const { editor, el } = await setupEditor(
-                    '<p>a[]</p><div contenteditable="false">b</div><p>c</p>'
+                    '<p>a[]</p><div contenteditable="false">b</div><p>c</p>',
                 );
                 const [node, offset] = findAdjacentPosition(editor, "forward");
                 setSelection({ anchorNode: node, anchorOffset: offset });
@@ -126,12 +129,12 @@ describe("findAdjacentPosition method", () => {
                     // it's the desirable one to compose a range for deletion,
                     // allowing to remove the div with deleteForward without
                     // afecting the paragraph after it.
-                    '<p>a</p><div contenteditable="false">b</div>[]<p>c</p>'
+                    '<p>a</p><div contenteditable="false">b</div>[]<p>c</p>',
                 );
             });
             test("Should find position before the div", async () => {
                 const { editor, el } = await setupEditor(
-                    '<p>a</p><div contenteditable="false">b</div><p>[]c</p>'
+                    '<p>a</p><div contenteditable="false">b</div><p>[]c</p>',
                 );
                 const [node, offset] = findAdjacentPosition(editor, "backward");
                 setSelection({ anchorNode: node, anchorOffset: offset });
@@ -140,7 +143,7 @@ describe("findAdjacentPosition method", () => {
                     // it's the desirable one to compose a range for deletion,
                     // allowing to remove the div with deleteBackward without
                     // afecting the paragraph before it.
-                    '<p>a</p>[]<div contenteditable="false">b</div><p>c</p>'
+                    '<p>a</p>[]<div contenteditable="false">b</div><p>c</p>',
                 );
             });
         });
@@ -174,7 +177,7 @@ describe("findAdjacentPosition method", () => {
                         <p contenteditable="true">[]def</p>
                     </div>
                     <p>fgh</p>
-                `)
+                `),
             );
             const [node, offset] = findAdjacentPosition(editor, "backward");
             expect(node).toBe(null);
@@ -188,7 +191,7 @@ describe("findAdjacentPosition method", () => {
                         <p contenteditable="true">def[]</p>
                     </div>
                     <p>fgh</p>
-                `)
+                `),
             );
             const [node, offset] = findAdjacentPosition(editor, "forward");
             expect(node).toBe(null);
@@ -202,7 +205,7 @@ describe("findAdjacentPosition method", () => {
                         <p contenteditable="true">def</p>
                     </div>
                     <p>[]fgh</p>
-                `)
+                `),
             );
             const [node, offset] = findAdjacentPosition(editor, "backward");
             setSelection({ anchorNode: node, anchorOffset: offset });
@@ -217,7 +220,7 @@ describe("findAdjacentPosition method", () => {
                         <p contenteditable="true">def</p>
                     </div>
                     <p>fgh</p>
-                `)
+                `),
             );
         });
         test("Should find position after the div", async () => {
@@ -228,7 +231,7 @@ describe("findAdjacentPosition method", () => {
                         <p>abc</p>
                         <p contenteditable="true">def</p>
                     </div>
-                `)
+                `),
             );
             const [node, offset] = findAdjacentPosition(editor, "forward");
             setSelection({ anchorNode: node, anchorOffset: offset });
@@ -243,7 +246,7 @@ describe("findAdjacentPosition method", () => {
                         <p contenteditable="true">def</p>
                     </div>[]
                     <p data-selection-placeholder=""><br></p>
-                `)
+                `),
             );
         });
     });

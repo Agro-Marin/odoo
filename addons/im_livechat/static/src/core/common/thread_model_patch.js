@@ -1,7 +1,6 @@
 /** @odoo-module native */
 import { fields } from "@mail/core/common/record";
 import { Thread } from "@mail/core/common/thread_model";
-
 import { _t } from "@web/core/l10n/translation";
 import { patch } from "@web/core/utils/patch";
 import { url } from "@web/core/utils/urls";
@@ -12,7 +11,9 @@ patch(Thread.prototype, {
         this.livechat_end_dt = fields.Datetime();
         this.livechat_lang_id = fields.One("res.lang");
         this.livechat_operator_id = fields.One("res.partner");
-        this.livechat_conversation_tag_ids = fields.Many("im_livechat.conversation.tag");
+        this.livechat_conversation_tag_ids = fields.Many(
+            "im_livechat.conversation.tag",
+        );
         this.livechatVisitorMember = fields.One("discuss.channel.member", {
             compute() {
                 if (this.channel_type !== "livechat") {
@@ -21,10 +22,10 @@ patch(Thread.prototype, {
                 // For livechat threads, the correspondent is the first
                 // channel member that is not the operator.
                 const orderedChannelMembers = [...this.channel_member_ids].sort(
-                    (a, b) => a.id - b.id
+                    (a, b) => a.id - b.id,
                 );
                 const isFirstMemberOperator = orderedChannelMembers[0]?.partner_id?.eq(
-                    this.livechat_operator_id
+                    this.livechat_operator_id,
                 );
                 const visitor = isFirstMemberOperator
                     ? orderedChannelMembers[1]

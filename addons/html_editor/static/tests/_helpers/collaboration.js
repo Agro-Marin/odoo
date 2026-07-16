@@ -4,6 +4,7 @@ import { MAIN_PLUGINS } from "@html_editor/plugin_sets";
 import { createDOMPathGenerator } from "@html_editor/utils/dom_traversal";
 import { DIRECTIONS } from "@html_editor/utils/position";
 import { after, expect } from "@odoo/hoot";
+
 import { setupEditor } from "./editor.js";
 
 /**
@@ -33,7 +34,9 @@ import { setupEditor } from "./editor.js";
  */
 
 function historyMissingParentSteps(peerInfos, peerInfo, { step, fromStepId }) {
-    const missingSteps = peerInfos[step.peerId].collaborationPlugin.historyGetMissingSteps({
+    const missingSteps = peerInfos[
+        step.peerId
+    ].collaborationPlugin.historyGetMissingSteps({
         fromStepId,
         toStepId: step.id,
     });
@@ -74,7 +77,11 @@ export const setupMultiEditor = async (spec) => {
                 selection = parseMultipleTextualSelection(editable, peerId);
             },
             config: {
-                Plugins: [...defaultPlugins, CollaborationPlugin, ...(spec.Plugins || [])],
+                Plugins: [
+                    ...defaultPlugins,
+                    CollaborationPlugin,
+                    ...(spec.Plugins || []),
+                ],
                 collaboration: { peerId },
                 resources: {
                     ...spec.resources,
@@ -96,7 +103,8 @@ export const setupMultiEditor = async (spec) => {
         }
         peerInfo.plugins = base.plugins;
         // TODO @phoenix refactor tests, no need to assign every plugin individually
-        const getPlugin = (id) => base.editor.plugins.find((x) => x.constructor.id === id);
+        const getPlugin = (id) =>
+            base.editor.plugins.find((x) => x.constructor.id === id);
         peerInfo.collaborationPlugin = getPlugin("collaboration");
         peerInfo.historyPlugin = getPlugin("history");
     }
@@ -177,9 +185,12 @@ export const validateSameHistory = (peerInfos) => {
             message: "The history size should be the same.",
         });
         for (let i = 0; i < historyLength; i++) {
-            expect(PeerInfo.historyPlugin.steps[i].id).toBe(peerInfo.historyPlugin.steps[i].id, {
-                message: `History steps are not consistent accross peers.`,
-            });
+            expect(PeerInfo.historyPlugin.steps[i].id).toBe(
+                peerInfo.historyPlugin.steps[i].id,
+                {
+                    message: `History steps are not consistent accross peers.`,
+                },
+            );
         }
     }
 };
@@ -215,12 +226,16 @@ export function renderTextualSelection(peerInfos) {
         cursorNodes[focusNodeId] = cursorNodes[focusNodeId] || [];
         cursorNodes[focusNodeId].push({ type: "focus", peerId, offset: focusOffset });
         cursorNodes[anchorNodeId] = cursorNodes[anchorNodeId] || [];
-        cursorNodes[anchorNodeId].push({ type: "anchor", peerId, offset: anchorOffset });
+        cursorNodes[anchorNodeId].push({
+            type: "anchor",
+            peerId,
+            offset: anchorOffset,
+        });
     }
 
     for (const nodeId of Object.keys(cursorNodes)) {
         cursorNodes[nodeId] = cursorNodes[nodeId].sort(
-            (a, b) => b.offset - a.offset || b.peerId.localeCompare(a.peerId)
+            (a, b) => b.offset - a.offset || b.peerId.localeCompare(a.peerId),
         );
     }
 

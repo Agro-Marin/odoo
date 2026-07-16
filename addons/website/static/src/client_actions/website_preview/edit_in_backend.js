@@ -1,7 +1,7 @@
 /** @odoo-module native */
-import { registry } from "@web/core/registry";
-import { useService, useBus } from "@web/core/utils/hooks";
 import { Component, onWillStart, useState } from "@odoo/owl";
+import { registry } from "@web/core/registry";
+import { useBus, useService } from "@web/core/utils/hooks";
 
 const websiteSystrayRegistry = registry.category("website_systray");
 

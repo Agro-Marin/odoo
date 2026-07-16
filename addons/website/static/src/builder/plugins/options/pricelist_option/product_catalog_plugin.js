@@ -1,12 +1,12 @@
 /** @odoo-module native */
+import { BaseOptionComponent } from "@html_builder/core/utils";
+import { BaseAddProductOption } from "@html_builder/plugins/add_product_option";
+import { BorderConfigurator } from "@html_builder/plugins/border_configurator_option";
 import { BEGIN, SNIPPET_SPECIFIC_END } from "@html_builder/utils/option_sequence";
 import { Plugin } from "@html_editor/plugin";
 import { isElement } from "@html_editor/utils/dom_info";
 import { withSequence } from "@html_editor/utils/resource";
 import { registry } from "@web/core/registry";
-import { BaseAddProductOption } from "@html_builder/plugins/add_product_option";
-import { BaseOptionComponent } from "@html_builder/core/utils";
-import { BorderConfigurator } from "@html_builder/plugins/border_configurator_option";
 
 export class ProductCatalogDescriptionOption extends BaseOptionComponent {
     static template = "website.ProductCatalogDescriptionOption";
@@ -40,15 +40,20 @@ class ProductCatalogOptionPlugin extends Plugin {
             selector: ".s_product_catalog_dish",
             dropNear: ".s_product_catalog_dish",
         },
-        is_movable_selector: { selector: ".s_product_catalog_dish", direction: "vertical" },
+        is_movable_selector: {
+            selector: ".s_product_catalog_dish",
+            direction: "vertical",
+        },
         // Protect pricelist item, price, and description blocks from being
         // split/merged by the delete plugin.
         unsplittable_node_predicates: (node) =>
             isElement(node) &&
             node.matches(
-                ".s_product_catalog_dish, .s_product_catalog_dish_price, .s_product_catalog_dish_description"
+                ".s_product_catalog_dish, .s_product_catalog_dish_price, .s_product_catalog_dish_description",
             ),
     };
 }
 
-registry.category("website-plugins").add(ProductCatalogOptionPlugin.id, ProductCatalogOptionPlugin);
+registry
+    .category("website-plugins")
+    .add(ProductCatalogOptionPlugin.id, ProductCatalogOptionPlugin);

@@ -1,14 +1,14 @@
+import { ChatGPTTranslatePlugin } from "@html_editor/main/chatgpt/chatgpt_translate_plugin";
+import { MAIN_PLUGINS } from "@html_editor/plugin_sets";
 import { expect, test } from "@odoo/hoot";
 import { press, waitFor } from "@odoo/hoot-dom";
 import { animationFrame } from "@odoo/hoot-mock";
 import { contains, onRpc } from "@web/../tests/web_test_helpers";
 import { loadLanguages } from "@web/core/l10n/translation";
 import { user } from "@web/services/user";
+
 import { setupEditor } from "./_helpers/editor.js";
 import { getContent } from "./_helpers/selection.js";
-
-import { ChatGPTTranslatePlugin } from "@html_editor/main/chatgpt/chatgpt_translate_plugin";
-import { MAIN_PLUGINS } from "@html_editor/plugin_sets";
 import { expandToolbar } from "./_helpers/toolbar.js";
 import { execCommand } from "./_helpers/userCommands.js";
 
@@ -29,7 +29,9 @@ test("ChatGPT dialog opens in translate mode when clicked on translate button in
     // ``LanguageSelector`` non-deterministic. Pin it to a single language so
     // the toolbar consistently renders a button (not a dropdown).
     loadLanguages.installedLanguages = false;
-    onRpc("res.lang", "get_installed", () => [["fr_BE", "French (BE) / Français (BE)"]]);
+    onRpc("res.lang", "get_installed", () => [
+        ["fr_BE", "French (BE) / Français (BE)"],
+    ]);
     await setupEditor("<p>te[s]t</p>", {
         config: { Plugins: [...MAIN_PLUGINS, ChatGPTTranslatePlugin] },
     });
@@ -92,13 +94,17 @@ test("Translate should be disabled if selection spans across non editable conten
 });
 
 test("Translate should be disabled if selection spans across non editable content or unsplittable (5)", async () => {
-    await setupEditor('<div>a[b</div><div>c]d</div><div class="oe_unbreakable">e</div>');
+    await setupEditor(
+        '<div>a[b</div><div>c]d</div><div class="oe_unbreakable">e</div>',
+    );
     await expandToolbar();
     expect(".o-we-toolbar [name='translate']").not.toHaveAttribute("disabled");
 });
 
 test("Translate should be disabled if selection spans across non editable content or unsplittable (6)", async () => {
-    await setupEditor('<div>a[b</div><div>cd</div><div class="oe_unbreakable">e]</div>');
+    await setupEditor(
+        '<div>a[b</div><div>cd</div><div class="oe_unbreakable">e]</div>',
+    );
     await expandToolbar();
     expect(".o-we-toolbar [name='translate']").toHaveAttribute("disabled");
 });
@@ -170,7 +176,9 @@ test("press escape to close translate dialog", async () => {
     // ``loadLanguages.installedLanguages`` state, and the test never
     // reaches the dialog.
     loadLanguages.installedLanguages = false;
-    onRpc("res.lang", "get_installed", () => [["fr_BE", "French (BE) / Français (BE)"]]);
+    onRpc("res.lang", "get_installed", () => [
+        ["fr_BE", "French (BE) / Français (BE)"],
+    ]);
     await setupEditor("<p>[test]</p>", {
         config: { Plugins: [...MAIN_PLUGINS, ChatGPTTranslatePlugin] },
     });

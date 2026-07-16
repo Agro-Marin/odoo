@@ -37,7 +37,7 @@ registerWebsitePreviewTour(
                 "Ensure all images are loaded to avoid CORS is misconfigured on the API server, image will be treated as non-dynamic.",
             trigger: ".modal .o_load_done_msg",
         },
-    ]
+    ],
 );
 
 registerWebsitePreviewTour(
@@ -83,16 +83,16 @@ registerWebsitePreviewTour(
                 ".o_select_media_dialog .o_we_existing_attachments .o_existing_attachment_cell img[src^='/html_editor/shape/illustration/']",
             run() {
                 const listEl = this.anchor.closest(
-                    ".o_select_media_dialog .o_we_existing_attachments"
+                    ".o_select_media_dialog .o_we_existing_attachments",
                 );
                 const selector =
                     ".o_existing_attachment_cell img[src^='/html_editor/shape/illustration/']";
                 const uploadedImgs = listEl.querySelectorAll(
-                    `${selector}[title='${this.anchor.title}']`
+                    `${selector}[title='${this.anchor.title}']`,
                 );
                 if (uploadedImgs.length !== 1) {
                     throw new Error(
-                        `${uploadedImgs.length} attachment(s) were found. Exactly 1 should have been created.`
+                        `${uploadedImgs.length} attachment(s) were found. Exactly 1 should have been created.`,
                     );
                 }
             },
@@ -109,7 +109,8 @@ registerWebsitePreviewTour(
         },
         {
             content: "Try to crop the image",
-            trigger: "#oe_snippets .o_we_customize_panel .o_we_user_value_widget[data-crop='true']",
+            trigger:
+                "#oe_snippets .o_we_customize_panel .o_we_user_value_widget[data-crop='true']",
             run: "click",
         },
         {
@@ -117,7 +118,7 @@ registerWebsitePreviewTour(
             trigger: ".o_notification_manager .o_notification",
         },
         ...clickOnSave(),
-    ]
+    ],
 );
 
 registerWebsitePreviewTour(
@@ -160,7 +161,7 @@ registerWebsitePreviewTour(
             trigger: ":iframe .s_social_media .fa-instagram",
         },
         ...clickOnSave(),
-    ]
+    ],
 );
 
 registerWebsitePreviewTour(
@@ -177,7 +178,8 @@ registerWebsitePreviewTour(
         }),
         {
             content: "Click on the image",
-            trigger: ":iframe .s_text_image img:not(:visible), :iframe .s_text_image img",
+            trigger:
+                ":iframe .s_text_image img:not(:visible), :iframe .s_text_image img",
             run: "click",
         },
         changeOption("Image", "[data-label='Shape'] .dropdown-toggle"),
@@ -193,7 +195,8 @@ registerWebsitePreviewTour(
         },
         {
             content: "Click on the 'Icons' tab",
-            trigger: '.o_select_media_dialog .o_notebook_headers .nav-item a:contains("Icons")',
+            trigger:
+                '.o_select_media_dialog .o_notebook_headers .nav-item a:contains("Icons")',
             run: "click",
         },
         {
@@ -206,7 +209,7 @@ registerWebsitePreviewTour(
             content: "Checks that the icon doesn't have a shape",
             trigger: ":iframe .s_text_image .fa-heart:not([data-shape])",
         },
-    ]
+    ],
 );
 
 registerWebsitePreviewTour(
@@ -236,7 +239,7 @@ registerWebsitePreviewTour(
                     new InputEvent("input", {
                         inputType: "insertText",
                         data: "/",
-                    })
+                    }),
                 );
             },
         },
@@ -259,5 +262,5 @@ registerWebsitePreviewTour(
             content: "Verify that the icon was inserted",
             trigger: ":iframe .s_text_block p > span.fa",
         },
-    ]
+    ],
 );

@@ -59,7 +59,10 @@ export class BaseCountdownAction extends BuilderAction {
         const endMessageEl = editingElement.querySelector(".s_countdown_end_message");
 
         // Only hide countdown in one case
-        editingElement.classList.toggle("hide-countdown", value === "message_no_countdown");
+        editingElement.classList.toggle(
+            "hide-countdown",
+            value === "message_no_countdown",
+        );
 
         // Only have redirect url attribute in one case
         if (value === "redirect") {
@@ -70,9 +73,11 @@ export class BaseCountdownAction extends BuilderAction {
 
         if (value === "message" || value === "message_no_countdown") {
             if (!endMessageEl) {
-                const existingEndMessage = this.editingElEndMessages.get(editingElement);
+                const existingEndMessage =
+                    this.editingElEndMessages.get(editingElement);
                 editingElement.appendChild(
-                    existingEndMessage || renderToElement("website.s_countdown.end_message")
+                    existingEndMessage ||
+                        renderToElement("website.s_countdown.end_message"),
                 );
             }
         } else {
@@ -168,4 +173,6 @@ export class SetLayoutAction extends BaseCountdownAction {
         return this.isLayoutApplied(context);
     }
 }
-registry.category("website-plugins").add(CountdownOptionPlugin.id, CountdownOptionPlugin);
+registry
+    .category("website-plugins")
+    .add(CountdownOptionPlugin.id, CountdownOptionPlugin);

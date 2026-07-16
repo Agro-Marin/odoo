@@ -33,6 +33,6 @@ export function getColumnIndex(td) {
  */
 export function getTableCells(table) {
     return [...table.querySelectorAll("td, th")].filter(
-        (cell) => closestElement(cell, "table") === table
+        (cell) => closestElement(cell, "table") === table,
     );
 }

@@ -1,6 +1,5 @@
 /** @odoo-module native */
-import { Component, useRef, useState, useEffect } from "@odoo/owl";
-
+import { Component, useEffect, useRef, useState } from "@odoo/owl";
 import { useService } from "@web/core/utils/hooks";
 import { debounce } from "@web/core/utils/timing";
 
@@ -13,9 +12,13 @@ export class LivechatButton extends Component {
         this.store = useService("mail.store");
         /** @type {import('@im_livechat/embed/common/livechat_service').LivechatService} */
         this.livechatService = useService("im_livechat.livechat");
-        this.onClick = debounce(this.onClick.bind(this), LivechatButton.DEBOUNCE_DELAY, {
-            leading: true,
-        });
+        this.onClick = debounce(
+            this.onClick.bind(this),
+            LivechatButton.DEBOUNCE_DELAY,
+            {
+                leading: true,
+            },
+        );
         this.ref = useRef("button");
         this.state = useState({ animateNotification: this.isShown });
         useEffect(
@@ -27,7 +30,7 @@ export class LivechatButton extends Component {
                     };
                 }
             },
-            () => [this.isShown, this.ref.el?.getRootNode().host?.classList]
+            () => [this.isShown, this.ref.el?.getRootNode().host?.classList],
         );
     }
 

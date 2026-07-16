@@ -1,7 +1,6 @@
 /** @odoo-module native */
-import { Interaction } from "@web/public/interaction";
 import { registry } from "@web/core/registry";
-
+import { Interaction } from "@web/public/interaction";
 import { onceAllImagesLoaded } from "@website/utils/images";
 
 /**
@@ -45,4 +44,6 @@ export class ImageLazyLoading extends Interaction {
     }
 }
 
-registry.category("public.interactions").add("website.image_lazy_loading", ImageLazyLoading);
+registry
+    .category("public.interactions")
+    .add("website.image_lazy_loading", ImageLazyLoading);

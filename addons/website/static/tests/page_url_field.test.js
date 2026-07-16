@@ -14,7 +14,7 @@ class Product extends models.Model {
     url = fields.Char({
         onChange(record) {
             // factice onchange to cause onchange calls
-        }
+        },
     });
     old_url = fields.Char();
 }
@@ -52,5 +52,5 @@ test("PageUrlField in form view", async () => {
     expect(`#changed`).toHaveCount(1);
     await advanceTime(100);
     expect(`#changed`).toHaveCount(0);
-    expect.verifySteps(['onchange /testab', 'onchange /test']);
+    expect.verifySteps(["onchange /testab", "onchange /test"]);
 });

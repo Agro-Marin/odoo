@@ -1,17 +1,17 @@
+import {
+    addBuilderPlugin,
+    getDragHelper,
+    waitForEndOfOperation,
+} from "@html_builder/../tests/helpers";
+import { BlockTab } from "@html_builder/sidebar/block_tab";
+import { Plugin } from "@html_editor/plugin";
+import { withSequence } from "@html_editor/utils/resource";
 import { expect, test } from "@odoo/hoot";
 import { contains, onRpc, patchWithCleanup } from "@web/../tests/web_test_helpers";
 import {
     defineWebsiteModels,
     setupWebsiteBuilder,
 } from "@website/../tests/builder/website_helpers";
-import {
-    addBuilderPlugin,
-    getDragHelper,
-    waitForEndOfOperation,
-} from "@html_builder/../tests/helpers";
-import { withSequence } from "@html_editor/utils/resource";
-import { Plugin } from "@html_editor/plugin";
-import { BlockTab } from "@html_builder/sidebar/block_tab";
 
 defineWebsiteModels();
 
@@ -33,7 +33,7 @@ test("Drag & drop an 'Image' snippet opens the dialog to select an image", async
     expect(".o-website-builder_sidebar .fa-undo").not.toBeEnabled();
 
     const { moveTo, drop } = await contains(
-        ".o-website-builder_sidebar [name='Image'] .o_snippet_thumbnail"
+        ".o-website-builder_sidebar [name='Image'] .o_snippet_thumbnail",
     ).drag();
     expect(":iframe .oe_drop_zone:nth-child(1)").toHaveCount(1);
     expect(":iframe .oe_drop_zone:nth-child(3)").toHaveCount(1);
@@ -63,7 +63,7 @@ test("Drag & drop an 'Image' snippet does not add a step in the history if we ca
     expect(".o-website-builder_sidebar .fa-undo").not.toBeEnabled();
 
     const { moveTo, drop } = await contains(
-        ".o-website-builder_sidebar [name='Image'] .o_snippet_thumbnail"
+        ".o-website-builder_sidebar [name='Image'] .o_snippet_thumbnail",
     ).drag();
     expect(":iframe .oe_drop_zone:nth-child(1)").toHaveCount(1);
     expect(":iframe .oe_drop_zone:nth-child(3)").toHaveCount(1);
@@ -114,7 +114,7 @@ test("Check that all the `on_snippet_dropped_handlers` work with the correct sni
 
     const { waitSidebarUpdated } = await setupWebsiteBuilder(`<div><p>Text</p></div>`);
     const { moveTo, drop } = await contains(
-        ".o-website-builder_sidebar [name='Image'] .o_snippet_thumbnail"
+        ".o-website-builder_sidebar [name='Image'] .o_snippet_thumbnail",
     ).drag();
     await moveTo(":iframe .oe_drop_zone");
     await drop(getDragHelper());

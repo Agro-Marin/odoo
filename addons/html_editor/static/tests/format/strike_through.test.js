@@ -1,17 +1,18 @@
 import { expect, test } from "@odoo/hoot";
-import { tick } from "@odoo/hoot-mock";
 import { press } from "@odoo/hoot-dom";
+import { tick } from "@odoo/hoot-mock";
 import { patchWithCleanup } from "@web/../tests/web_test_helpers";
+
 import { setupEditor, testEditor } from "../_helpers/editor.js";
+import { unformat } from "../_helpers/format.js";
 import { getContent, setSelection } from "../_helpers/selection.js";
 import {
     insertText,
+    simulateArrowKeyPress,
     strikeThrough,
     tripleClick,
-    simulateArrowKeyPress,
     undo,
 } from "../_helpers/user_actions.js";
-import { unformat } from "../_helpers/format.js";
 
 test("should make a few characters strikeThrough", async () => {
     await testEditor({
@@ -262,7 +263,9 @@ test("should remove empty strikeThrough when changing selection", async () => {
 
     strikeThrough(editor);
     await tick();
-    expect(getContent(el)).toBe(`<p>ab<s data-oe-zws-empty-inline="">\u200B[]</s>cd</p>`);
+    expect(getContent(el)).toBe(
+        `<p>ab<s data-oe-zws-empty-inline="">\u200B[]</s>cd</p>`,
+    );
 
     await simulateArrowKeyPress(editor, "ArrowLeft");
     await tick(); // await selectionchange
@@ -278,7 +281,9 @@ test("should not add history step for strikethrough on collapsed selection", asy
     // step. The empty inline tag is temporary: auto-cleaned if unused. We want
     // to avoid having a phantom step in the history.
     await press(["ctrl", "5"]);
-    expect(getContent(el)).toBe(`<p>abcd<s data-oe-zws-empty-inline="">\u200B[]</s></p>`);
+    expect(getContent(el)).toBe(
+        `<p>abcd<s data-oe-zws-empty-inline="">\u200B[]</s></p>`,
+    );
 
     await insertText(editor, "A");
     expect(getContent(el)).toBe(`<p>abcd<s>A[]</s></p>`);

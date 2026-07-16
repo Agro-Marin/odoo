@@ -51,10 +51,10 @@ registerWebsitePreviewTour(
                 await onceAllImagesLoaded(imgEl);
                 if (imgEl.naturalWidth === 0 || imgEl.naturalHeight === 0) {
                     throw new Error(
-                        "Even though the original image was a 404, the option should have been applied on the placeholder image"
+                        "Even though the original image was a 404, the option should have been applied on the placeholder image",
                     );
                 }
             },
         },
-    ]
+    ],
 );

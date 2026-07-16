@@ -1,12 +1,13 @@
 /** @odoo-module native */
+import { isHtmlContentSupported } from "@html_editor/core/selection_plugin";
 import { Plugin } from "@html_editor/plugin";
 import { closestElement } from "@html_editor/utils/dom_traversal";
 import { reactive } from "@odoo/owl";
 import { _t } from "@web/core/l10n/translation";
+import { registry } from "@web/core/registry";
+
 import { TableMenu } from "./table_menu.js";
 import { TablePicker } from "./table_picker.js";
-import { isHtmlContentSupported } from "@html_editor/core/selection_plugin";
-import { registry } from "@web/core/registry";
 
 /**
  * This plugin only contains the table ui feature (table picker, menus, ...).
@@ -93,8 +94,15 @@ export class TableUIPlugin extends Plugin {
             return;
         }
         const targetCell = closestElement(target, "td, th");
-        if (targetCell && targetCell !== this.activeTd && this.editable.contains(targetCell)) {
-            if (ev.target.isContentEditable && closestElement(target, "table").isContentEditable) {
+        if (
+            targetCell &&
+            targetCell !== this.activeTd &&
+            this.editable.contains(targetCell)
+        ) {
+            if (
+                ev.target.isContentEditable &&
+                closestElement(target, "table").isContentEditable
+            ) {
                 this.setActiveTd(targetCell);
             }
         } else if (this.activeTd) {
@@ -125,11 +133,15 @@ export class TableUIPlugin extends Plugin {
     }
 
     closeColumnMenu() {
-        registry.category(this.config.localOverlayContainers.key).remove(this.columnMenuOverlayKey);
+        registry
+            .category(this.config.localOverlayContainers.key)
+            .remove(this.columnMenuOverlayKey);
     }
 
     closeRowMenu() {
-        registry.category(this.config.localOverlayContainers.key).remove(this.rowMenuOverlayKey);
+        registry
+            .category(this.config.localOverlayContainers.key)
+            .remove(this.rowMenuOverlayKey);
     }
 
     setActiveTd(td) {
@@ -161,18 +173,22 @@ export class TableUIPlugin extends Plugin {
             clearRowContent: withAddStep(this.dependencies.table.clearRowContent),
         };
         if (td.cellIndex === 0) {
-            registry.category(this.config.localOverlayContainers.key).add(this.rowMenuOverlayKey, {
-                Component: TableMenu,
-                props: {
-                    document: this.document,
-                    type: "row",
-                    target: td,
-                    dropdownState: this.createDropdownState(this.closeColumnMenu.bind(this)),
-                    direction: this.config.direction || "ltr",
-                    close: () => this.closeRowMenu(),
-                    ...tableMethods,
-                },
-            });
+            registry
+                .category(this.config.localOverlayContainers.key)
+                .add(this.rowMenuOverlayKey, {
+                    Component: TableMenu,
+                    props: {
+                        document: this.document,
+                        type: "row",
+                        target: td,
+                        dropdownState: this.createDropdownState(
+                            this.closeColumnMenu.bind(this),
+                        ),
+                        direction: this.config.direction || "ltr",
+                        close: () => this.closeRowMenu(),
+                        ...tableMethods,
+                    },
+                });
         }
         if (td.parentElement.rowIndex === 0) {
             registry
@@ -183,7 +199,9 @@ export class TableUIPlugin extends Plugin {
                         document: this.document,
                         type: "column",
                         target: td,
-                        dropdownState: this.createDropdownState(this.closeRowMenu.bind(this)),
+                        dropdownState: this.createDropdownState(
+                            this.closeRowMenu.bind(this),
+                        ),
                         direction: this.config.direction || "ltr",
                         close: () => this.closeColumnMenu(),
                         ...tableMethods,

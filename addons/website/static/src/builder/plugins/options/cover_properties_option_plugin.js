@@ -1,11 +1,12 @@
 /** @odoo-module native */
-import { Plugin } from "@html_editor/plugin";
-import { registry } from "@web/core/registry";
-import { CoverPropertiesOption } from "@website/builder/plugins/options/cover_properties_option";
 import { BuilderAction } from "@html_builder/core/builder_action";
-import { rpc } from "@web/core/network/rpc";
+import { Plugin } from "@html_editor/plugin";
 import { withSequence } from "@html_editor/utils/resource";
+import { rpc } from "@web/core/network/rpc";
+import { registry } from "@web/core/registry";
 import { COVER_PROPERTIES } from "@website/builder/option_sequence";
+import { CoverPropertiesOption } from "@website/builder/plugins/options/cover_properties_option";
+
 import { coverSizeClassLabels } from "./cover_properties_option.js";
 
 class CoverPropertiesOptionPlugin extends Plugin {
@@ -24,28 +25,33 @@ class CoverPropertiesOptionPlugin extends Plugin {
     };
 
     async savePendingBackgroundImage(editableEl = this.editable) {
-        for (const coverEl of editableEl.querySelectorAll(".o_record_cover_container")) {
+        for (const coverEl of editableEl.querySelectorAll(
+            ".o_record_cover_container",
+        )) {
             const bgEl = coverEl.querySelector(".o_record_cover_image");
             const bgImage = bgEl?.style.backgroundImage;
             if (bgImage && bgEl.classList.contains("o_b64_cover_image_to_save")) {
                 const resModel = coverEl.dataset.resModel;
                 const resID = Number(coverEl.dataset.resId);
                 if (!resModel || !resID) {
-                    throw new Error("There should be a model and id associated to the cover");
+                    throw new Error(
+                        "There should be a model and id associated to the cover",
+                    );
                 }
 
                 // Checks if the image is in base64 format for RPC call. Relying
                 // only on the presence of the class "o_b64_cover_image_to_save" is not
                 // robust enough.
                 const groups = bgImage.match(
-                    /url\("data:(?<mimetype>.*);base64,(?<imageData>.*)"\)/
+                    /url\("data:(?<mimetype>.*);base64,(?<imageData>.*)"\)/,
                 )?.groups;
                 if (groups?.imageData) {
-                    const modelName = await this.services.website.getUserModelName(resModel);
+                    const modelName =
+                        await this.services.website.getUserModelName(resModel);
                     const recordNameEl = bgEl
                         .closest("body")
                         .querySelector(
-                            `[data-oe-model="${resModel}"][data-oe-id="${resID}"][data-oe-field="name"]`
+                            `[data-oe-model="${resModel}"][data-oe-id="${resID}"][data-oe-field="name"]`,
                         );
                     const recordName = recordNameEl
                         ? `'${recordNameEl.textContent.replaceAll("/", "")}'`
@@ -85,12 +91,15 @@ class CoverPropertiesOptionPlugin extends Plugin {
 
     readCoverPoperties(el) {
         const coverProperties = {};
-        const bg = el.querySelector(".o_record_cover_image")?.style.backgroundImage || "";
+        const bg =
+            el.querySelector(".o_record_cover_image")?.style.backgroundImage || "";
         coverProperties["background-image"] = bg;
 
         // TODO: `o_record_has_cover` should be handled using model field, not
         // resize_class to avoid all of this.
-        let coverClass = Object.keys(coverSizeClassLabels).find((e) => el.classList.contains(e));
+        let coverClass = Object.keys(coverSizeClassLabels).find((e) =>
+            el.classList.contains(e),
+        );
         if (bg && bg !== "none") {
             coverClass += " o_record_has_cover";
         }
@@ -99,7 +108,8 @@ class CoverPropertiesOptionPlugin extends Plugin {
         coverProperties.text_align_class =
             ["text-center", "text-end"].find((e) => el.classList.contains(e)) || "";
 
-        coverProperties.opacity = el.querySelector(".o_record_cover_filter")?.style.opacity || 0.0;
+        coverProperties.opacity =
+            el.querySelector(".o_record_cover_filter")?.style.opacity || 0.0;
 
         coverProperties.background_color_class = [...el.classList.values()]
             .filter((e) => e.startsWith("bg-") || e.startsWith("o_cc"))
@@ -118,7 +128,9 @@ class CoverPropertiesOptionPlugin extends Plugin {
 export class BaseCoverPropertiesAction extends BuilderAction {
     static id = "baseCoverProperties";
     markCoverPropertiesToBeSaved({ editingElement }) {
-        editingElement.closest(".o_record_cover_container").dataset.coverPropertiesToBeSaved = true;
+        editingElement.closest(
+            ".o_record_cover_container",
+        ).dataset.coverPropertiesToBeSaved = true;
     }
 }
 
@@ -139,7 +151,9 @@ export class SetCoverBackgroundAction extends BaseCoverPropertiesAction {
                 onlyImages: true,
                 save: (imageEl) => {
                     resultPromise = (async () => {
-                        const b64ToSave = imageEl.getAttribute("src").startsWith("data:");
+                        const b64ToSave = imageEl
+                            .getAttribute("src")
+                            .startsWith("data:");
                         return { imageSrc: imageEl.getAttribute("src"), b64ToSave };
                     })();
                 },
@@ -148,7 +162,8 @@ export class SetCoverBackgroundAction extends BaseCoverPropertiesAction {
     }
 
     isApplied({ editingElement, params: { mainParam: setBackground } }) {
-        const bg = editingElement.querySelector(".o_record_cover_image").style.backgroundImage;
+        const bg = editingElement.querySelector(".o_record_cover_image").style
+            .backgroundImage;
         return !setBackground === (!bg || bg === "none");
     }
     apply({ editingElement, loadResult: { imageSrc, b64ToSave, cancel } = {} }) {
@@ -173,13 +188,17 @@ export class SetCoverBackgroundAction extends BaseCoverPropertiesAction {
             value: imageSrc ? `url('${imageSrc}')` : "",
         });
 
-        editingElement.closest(".o_record_cover_container").dataset.coverPropertiesToBeSaved = true;
+        editingElement.closest(
+            ".o_record_cover_container",
+        ).dataset.coverPropertiesToBeSaved = true;
     }
 }
 export class MarkCoverPropertiesToBeSavedAction extends BaseCoverPropertiesAction {
     static id = "markCoverPropertiesToBeSaved";
     apply({ editingElement }) {
-        editingElement.closest(".o_record_cover_container").dataset.coverPropertiesToBeSaved = true;
+        editingElement.closest(
+            ".o_record_cover_container",
+        ).dataset.coverPropertiesToBeSaved = true;
     }
 }
 

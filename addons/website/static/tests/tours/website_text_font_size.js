@@ -1,10 +1,10 @@
-import {
-    insertSnippet,
-    goToTheme,
-    registerWebsitePreviewTour,
-    clickToolbarButton,
-} from "@website/js/tours/tour_utils";
 import { FONT_SIZE_CLASSES } from "@html_editor/utils/formatting";
+import {
+    clickToolbarButton,
+    goToTheme,
+    insertSnippet,
+    registerWebsitePreviewTour,
+} from "@website/js/tours/tour_utils";
 
 const classNameInfo = new Map();
 classNameInfo.set("display-1-fs", {
@@ -92,7 +92,7 @@ function checkComputedFontSize(fontSizeClass, stage) {
             if (gapBetweenSizes > gapTolerance) {
                 console.error(
                     `When applied class ${fontSizeClass}, the font size is ` +
-                        `${computedFontSize} instead of ~${expectedFontSize}`
+                        `${computedFontSize} instead of ~${expectedFontSize}`,
                 );
             }
         },
@@ -105,7 +105,7 @@ function getFontSizeTestSteps(fontSizeClass) {
         ...clickToolbarButton(
             `text block first paragraph [${fontSizeClass}]`,
             ".s_text_block p",
-            "Select font size"
+            "Select font size",
         ),
         {
             content: `Select ${fontSizeClass} in the dropdown`,
@@ -222,5 +222,5 @@ registerWebsitePreviewTour(
             content: "Verify that the text block has been deleted",
             trigger: ":iframe #wrap:not(:has(.s_text_block))",
         },
-    ]
+    ],
 );

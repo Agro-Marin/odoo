@@ -1,8 +1,8 @@
 import {
     clickOnEditAndWaitEditMode,
     clickOnSave,
-    insertSnippet,
     goBackToBlocks,
+    insertSnippet,
     registerWebsitePreviewTour,
 } from "@website/js/tours/tour_utils";
 
@@ -29,7 +29,11 @@ registerWebsitePreviewTour(
         edition: true,
     },
     () => [
-        ...insertSnippet({ id: "s_table_of_content", name: "Table of Content", groupName: "Text" }),
+        ...insertSnippet({
+            id: "s_table_of_content",
+            name: "Table of Content",
+            groupName: "Text",
+        }),
         {
             content: "Drag the Text snippet group and drop it.",
             trigger:
@@ -38,7 +42,8 @@ registerWebsitePreviewTour(
         },
         {
             content: "Click on the s_table_of_content snippet.",
-            trigger: ':iframe .o_add_snippets_preview [data-snippet="s_table_of_content"]',
+            trigger:
+                ':iframe .o_add_snippets_preview [data-snippet="s_table_of_content"]',
             run: "click",
         },
         // To make sure that the public widgets of the two previous ones started.
@@ -94,7 +99,8 @@ registerWebsitePreviewTour(
         },
         {
             content: "The mobile TOC should not be visible on desktop",
-            trigger: ":iframe .s_table_of_content.o_snippet_desktop_invisible:not(:visible)",
+            trigger:
+                ":iframe .s_table_of_content.o_snippet_desktop_invisible:not(:visible)",
         },
         {
             content: "Toggle the mobile view",
@@ -107,7 +113,8 @@ registerWebsitePreviewTour(
         },
         {
             content: "The desktop TOC should not be visible on mobile",
-            trigger: ":iframe .s_table_of_content.o_snippet_mobile_invisible:not(:visible)",
+            trigger:
+                ":iframe .s_table_of_content.o_snippet_mobile_invisible:not(:visible)",
         },
-    ]
+    ],
 );

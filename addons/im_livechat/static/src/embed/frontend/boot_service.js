@@ -4,7 +4,6 @@ import { canLoadLivechat } from "@im_livechat/embed/common/misc";
 import { LivechatRoot } from "@im_livechat/embed/frontend/livechat_root";
 import { App } from "@odoo/owl";
 import { appTranslateFn } from "@web/core/l10n/translation";
-
 import { registry } from "@web/core/registry";
 import { getTemplate } from "@web/core/templates";
 

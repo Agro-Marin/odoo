@@ -1,7 +1,7 @@
 /** @odoo-module native */
 import { registry } from "@web/core/registry";
-import { Interaction } from "@web/public/interaction";
 import { getScrollingElement } from "@web/core/utils/dom/scrolling";
+import { Interaction } from "@web/public/interaction";
 
 export class AnimateOverflow extends Interaction {
     static selector = "#wrapwrap";
@@ -34,7 +34,7 @@ export class AnimateOverflow extends Interaction {
         // other conditions (for example: an animated image in a block which is
         // hidden on mobile would not have the issue).
         this.forceOverflowXYHidden = [...animatedElements].some(
-            (el) => window.getComputedStyle(el).transform !== "none"
+            (el) => window.getComputedStyle(el).transform !== "none",
         );
     }
 
@@ -43,7 +43,9 @@ export class AnimateOverflow extends Interaction {
     }
 }
 
-registry.category("public.interactions").add("website.animate_overflow", AnimateOverflow);
+registry
+    .category("public.interactions")
+    .add("website.animate_overflow", AnimateOverflow);
 
 registry.category("public.interactions.edit").add("website.animate_overflow", {
     Interaction: AnimateOverflow,

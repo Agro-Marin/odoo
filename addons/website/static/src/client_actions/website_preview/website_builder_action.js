@@ -13,28 +13,32 @@ import {
     useState,
     useSubEnv,
 } from "@odoo/owl";
+import { ResizablePanel } from "@web/components/resizable_panel/resizable_panel";
 import { LazyComponent, loadBundle } from "@web/core/assets";
 import { browser } from "@web/core/browser/browser";
+import {
+    isBrowserChrome,
+    isBrowserMicrosoftEdge,
+} from "@web/core/browser/feature_detection";
 import { getActiveHotkey } from "@web/core/browser/hotkeys";
+import { router } from "@web/core/browser/router";
 import { _t } from "@web/core/l10n/translation";
-import { registry } from "@web/core/registry";
-import { ResizablePanel } from "@web/components/resizable_panel/resizable_panel";
 import { RPCError } from "@web/core/network/rpc";
+import { registry } from "@web/core/registry";
 import { Deferred } from "@web/core/utils/concurrency";
+import { getScrollingElement } from "@web/core/utils/dom/scrolling";
 import { uniqueId } from "@web/core/utils/functions";
-import { useChildRef, useService, useBus } from "@web/core/utils/hooks";
+import { useBus, useChildRef, useService } from "@web/core/utils/hooks";
 import { effect } from "@web/core/utils/reactive";
+import { renderToElement } from "@web/core/utils/render";
 import { redirect } from "@web/core/utils/urls";
 import { standardActionServiceProps } from "@web/webclient/actions/action_service";
 import { AddPageDialog } from "@website/components/dialog/add_page_dialog";
 import { ResourceEditor } from "@website/components/resource_editor/resource_editor";
+
+import { CreatePageMessage } from "./create_page_message.js";
 import { isHTTPSorNakedDomainRedirection } from "./utils.js";
 import { WebsiteSystrayItem } from "./website_systray_item.js";
-import { renderToElement } from "@web/core/utils/render";
-import { isBrowserChrome, isBrowserMicrosoftEdge } from "@web/core/browser/feature_detection";
-import { router } from "@web/core/browser/router";
-import { getScrollingElement } from "@web/core/utils/dom/scrolling";
-import { CreatePageMessage } from "./create_page_message.js";
 
 const websiteSystrayRegistry = registry.category("website_systray");
 
@@ -87,14 +91,19 @@ export class WebsiteBuilderClientAction extends Component {
         useSubEnv({
             builderRef: useRef("container"),
         });
-        this.state = useState({ isEditing: false, showSidebar: true, key: 1, is404: false });
+        this.state = useState({
+            isEditing: false,
+            showSidebar: true,
+            key: 1,
+            is404: false,
+        });
         this.websiteContext = useState(this.websiteService.context);
         this.component = useComponent();
 
         useBus(
             websiteSystrayRegistry,
             "CONTENT-UPDATED",
-            () => (this.state.is404 = this.websiteService.is404)
+            () => (this.state.is404 = this.websiteService.is404),
         );
 
         onMounted(() => {
@@ -107,7 +116,7 @@ export class WebsiteBuilderClientAction extends Component {
                     }
                     this.toggleIsMobile(websiteContext.isMobile);
                 },
-                [this.websiteContext]
+                [this.websiteContext],
             );
         });
 
@@ -121,7 +130,7 @@ export class WebsiteBuilderClientAction extends Component {
             const updateWebsiteId = (websiteId) => {
                 const encodedPath = encodeURIComponent(this.path);
                 this.initialUrl = `/website/force/${encodeURIComponent(
-                    websiteId
+                    websiteId,
                 )}?path=${encodedPath}`;
                 this.websiteService.currentWebsiteId = websiteId;
             };
@@ -153,7 +162,8 @@ export class WebsiteBuilderClientAction extends Component {
                     this.env.services["html_builder.snippets"]
                         .getSnippetModel(this.snippetsTemplate)
                         .reload({
-                            lang: this.websiteService.currentWebsite?.default_lang_id.code,
+                            lang: this.websiteService.currentWebsite?.default_lang_id
+                                .code,
                             website_id: this.websiteService.currentWebsite?.id,
                         });
                 });
@@ -180,11 +190,13 @@ export class WebsiteBuilderClientAction extends Component {
                     this.addSystrayItems();
                 }
             },
-            [this.state]
+            [this.state],
         );
         useEffect(
             (isEditing) => {
-                document.querySelector("body").classList.toggle("o_builder_open", isEditing);
+                document
+                    .querySelector("body")
+                    .classList.toggle("o_builder_open", isEditing);
                 if (isEditing) {
                     // When entering edit mode, the navbar animates upwards.
                     // To avoid an abrupt disappearance, we delay adding the
@@ -197,11 +209,13 @@ export class WebsiteBuilderClientAction extends Component {
                             .classList.add("d-none");
                     }, 200);
                 } else {
-                    document.querySelector(".o_main_navbar")?.classList.remove("d-none");
+                    document
+                        .querySelector(".o_main_navbar")
+                        ?.classList.remove("d-none");
                 }
                 return () => clearTimeout(this.navBarTimeout);
             },
-            () => [this.state.isEditing]
+            () => [this.state.isEditing],
         );
     }
 
@@ -211,7 +225,7 @@ export class WebsiteBuilderClientAction extends Component {
 
     get websiteBuilderProps() {
         const iframeLoaded = this.iframeLoaded.then((el) =>
-            this.waitForIframeReady().then(() => el)
+            this.waitForIframeReady().then(() => el),
         );
         const builderProps = {
             closeEditor: this.reloadIframeAndCloseEditor.bind(this),
@@ -225,7 +239,8 @@ export class WebsiteBuilderClientAction extends Component {
             isMobile: this.websiteContext.isMobile,
             config: {
                 initialTarget: this.target,
-                initialTab: this.initialTab || this.translation ? "customize" : "blocks",
+                initialTab:
+                    this.initialTab || this.translation ? "customize" : "blocks",
                 builderSidebar: {
                     withHiddenSidebar: async (cb) => {
                         try {
@@ -263,7 +278,7 @@ export class WebsiteBuilderClientAction extends Component {
                     props: this.systrayProps,
                     isDisplayed: () => true,
                 },
-                { sequence: -100 }
+                { sequence: -100 },
             );
             websiteSystrayRegistry.trigger("EDIT-WEBSITE");
         }
@@ -297,7 +312,7 @@ export class WebsiteBuilderClientAction extends Component {
                 detail: {
                     iframeDocument: this.websiteContent.el.contentDocument.document,
                 },
-            })
+            }),
         );
         this.unblockIframe();
         this.state.isEditing = true;
@@ -341,7 +356,7 @@ export class WebsiteBuilderClientAction extends Component {
         if (
             !isHTTPSorNakedDomainRedirection(
                 iframe.contentWindow.location.origin,
-                window.location.origin
+                window.location.origin,
             )
         ) {
             // If another domain ends up loading in the iframe (for example,
@@ -353,9 +368,14 @@ export class WebsiteBuilderClientAction extends Component {
             return;
         }
         const currentTitle = iframe.contentDocument.title;
-        history.replaceState(history.state, currentTitle, iframe.contentDocument.location.href);
+        history.replaceState(
+            history.state,
+            currentTitle,
+            iframe.contentDocument.location.href,
+        );
         this.title.setParts({ action: currentTitle });
-        const frontendIconEl = iframe.contentDocument.querySelector("link[rel~='icon']");
+        const frontendIconEl =
+            iframe.contentDocument.querySelector("link[rel~='icon']");
         if (frontendIconEl) {
             document.querySelector("link[rel~='icon']").href = frontendIconEl.href;
         }
@@ -380,7 +400,6 @@ export class WebsiteBuilderClientAction extends Component {
         iframe.contentDocument.body.setAttribute("is-ready", "false");
         if (isBrowserChrome() && !iframe.src.includes("iframe_reload")) {
             try {
-                /* eslint-disable no-unused-expressions */
                 iframe.contentWindow.location.href;
             } catch (err) {
                 if (err.name === "SecurityError") {
@@ -388,9 +407,15 @@ export class WebsiteBuilderClientAction extends Component {
                     // Note that iframe's `src` is the URL used to start the
                     // website preview, it's not sync'd with iframe navigation.
                     const srcUrl = new URL(iframe.src);
-                    const pathUrl = new URL(srcUrl.searchParams.get("path"), srcUrl.origin);
+                    const pathUrl = new URL(
+                        srcUrl.searchParams.get("path"),
+                        srcUrl.origin,
+                    );
                     pathUrl.searchParams.set("iframe_reload", "1");
-                    srcUrl.searchParams.set("path", `${pathUrl.pathname}${pathUrl.search}`);
+                    srcUrl.searchParams.set(
+                        "path",
+                        `${pathUrl.pathname}${pathUrl.search}`,
+                    );
                     // We could inject `pathUrl` directly but keep the same
                     // expected URL format `/website/force/1?path=..`
                     iframe.src = srcUrl.toString();
@@ -407,7 +432,11 @@ export class WebsiteBuilderClientAction extends Component {
         this.websiteService.pageDocument = this.websiteContent.el.contentDocument;
         const url = new URL(this.websiteService.contentWindow.location.href);
         if (url.searchParams.has("edit_translations")) {
-            deleteQueryParam("edit_translations", this.websiteService.contentWindow, true);
+            deleteQueryParam(
+                "edit_translations",
+                this.websiteService.contentWindow,
+                true,
+            );
         }
 
         this.toggleIsMobile(this.websiteContext.isMobile);
@@ -524,7 +553,10 @@ export class WebsiteBuilderClientAction extends Component {
                         resolve();
                     }
                 });
-                observer.observe(doc.body, { attributes: true, attributeFilter: ["is-ready"] });
+                observer.observe(doc.body, {
+                    attributes: true,
+                    attributeFilter: ["is-ready"],
+                });
             }
         });
     }
@@ -557,7 +589,7 @@ export class WebsiteBuilderClientAction extends Component {
             const encodedPath = pathSegments.join("/");
             this.websiteContent.el.contentWindow.location.href = new URL(
                 encodedPath,
-                this.websiteContent.el.contentWindow.location
+                this.websiteContent.el.contentWindow.location,
             );
         } else {
             this.websiteContent.el.contentWindow.location.reload();
@@ -571,8 +603,8 @@ export class WebsiteBuilderClientAction extends Component {
         const websiteId = this.websiteService.currentWebsite.id;
         redirect(
             `/odoo/action-website.website_preview?website_id=${encodeURIComponent(
-                websiteId
-            )}&path=${currentPath}&enable_editor=1`
+                websiteId,
+            )}&path=${currentPath}&enable_editor=1`,
         );
     }
 
@@ -587,7 +619,10 @@ export class WebsiteBuilderClientAction extends Component {
             this.reloadWebClient();
         } catch (e) {
             if (e instanceof RPCError) {
-                const message = _t("Could not install module %s", snippet.moduleDisplayName);
+                const message = _t(
+                    "Could not install module %s",
+                    snippet.moduleDisplayName,
+                );
                 this.notification.add(message, {
                     type: "danger",
                     sticky: true,
@@ -609,17 +644,19 @@ export class WebsiteBuilderClientAction extends Component {
                 this.websiteService.websiteRootInstance = event.detail.rootInstance;
                 deferred.resolve();
             },
-            { once: true }
+            { once: true },
         );
     }
 
     async addWelcomeMessage() {
         if (this.websiteService.isRestrictedEditor && !this.state.isEditing) {
             const wrapEl = this.websiteContent.el.contentDocument.querySelector(
-                "#wrapwrap.homepage #wrap"
+                "#wrapwrap.homepage #wrap",
             );
             if (wrapEl && !wrapEl.innerHTML.trim()) {
-                this.welcomeMessageEl = renderToElement("website.homepage_editor_welcome_message");
+                this.welcomeMessageEl = renderToElement(
+                    "website.homepage_editor_welcome_message",
+                );
                 wrapEl.replaceChildren(this.welcomeMessageEl);
             }
         }
@@ -633,7 +670,7 @@ export class WebsiteBuilderClientAction extends Component {
                 // accumulate across iframe reloads.
                 this.unregisterHotkeyIframe?.();
                 this.unregisterHotkeyIframe = this.hotkeyService.registerIframe(
-                    this.websiteContent.el
+                    this.websiteContent.el,
                 );
                 if (!this._hotkeyIframeCleanupRegistered) {
                     this._hotkeyIframeCleanupRegistered = true;
@@ -641,7 +678,7 @@ export class WebsiteBuilderClientAction extends Component {
                 }
                 this.websiteContent.el.contentWindow.addEventListener(
                     "beforeunload",
-                    this.onPageUnload.bind(this)
+                    this.onPageUnload.bind(this),
                 );
 
                 this.addListeners(this.websiteContent.el.contentDocument);
@@ -657,7 +694,9 @@ export class WebsiteBuilderClientAction extends Component {
         const websiteDoc = this.websiteContent.el?.contentDocument;
         const fallBackDoc = this.iframefallback.el?.contentDocument;
         if (!this.state.isEditing && websiteDoc && fallBackDoc) {
-            fallBackDoc.documentElement.replaceWith(websiteDoc.documentElement.cloneNode(true));
+            fallBackDoc.documentElement.replaceWith(
+                websiteDoc.documentElement.cloneNode(true),
+            );
             const currentScrollEl = getScrollingElement(websiteDoc);
             const scrollElement = getScrollingElement(fallBackDoc);
             scrollElement.scrollTop = currentScrollEl.scrollTop;
@@ -668,7 +707,7 @@ export class WebsiteBuilderClientAction extends Component {
     cleanIframeFallback() {
         // Remove autoplay in all iframes urls so videos are not
         const iframesEl = this.iframefallback.el.contentDocument.querySelectorAll(
-            'iframe[src]:not([src=""])'
+            'iframe[src]:not([src=""])',
         );
         for (const iframeEl of iframesEl) {
             const url = new URL(iframeEl.src);
@@ -687,7 +726,7 @@ export class WebsiteBuilderClientAction extends Component {
         this.websitePreviewRef.el.classList.toggle("o_is_mobile", isMobile);
         this.websiteContent.el?.contentDocument.documentElement.classList.toggle(
             "o_is_mobile",
-            isMobile
+            isMobile,
         );
     }
 
@@ -724,7 +763,7 @@ export class WebsiteBuilderClientAction extends Component {
         const path = this.websiteService.contentWindow.location;
         const debugMode = this.env.debug ? `&debug=${this.env.debug}` : "";
         redirect(
-            `/odoo/action-website.website_preview?path=${encodeURIComponent(path)}${debugMode}`
+            `/odoo/action-website.website_preview?path=${encodeURIComponent(path)}${debugMode}`,
         );
     }
 

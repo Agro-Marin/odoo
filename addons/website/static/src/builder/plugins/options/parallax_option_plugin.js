@@ -1,11 +1,12 @@
 /** @odoo-module native */
+import { BuilderAction } from "@html_builder/core/builder_action";
 import { applyFunDependOnSelectorAndExclude } from "@html_builder/plugins/utils";
 import { filterExtends } from "@html_builder/utils/utils";
 import { Plugin } from "@html_editor/plugin";
-import { registry } from "@web/core/registry";
-import { BaseWebsiteBackgroundOption } from "./background_option.js";
-import { BuilderAction } from "@html_builder/core/builder_action";
 import { withSequence } from "@html_editor/utils/resource";
+import { registry } from "@web/core/registry";
+
+import { BaseWebsiteBackgroundOption } from "./background_option.js";
 
 /**
  * @typedef { Object } WebsiteParallaxShared
@@ -22,14 +23,15 @@ class WebsiteParallaxPlugin extends Plugin {
             SetParallaxTypeAction,
         },
         on_bg_image_hide_handlers: this.onBgImageHide.bind(this),
-        content_not_editable_selectors: ".s_parallax_bg, section.s_parallax > .oe_structure",
+        content_not_editable_selectors:
+            ".s_parallax_bg, section.s_parallax > .oe_structure",
         system_node_selectors: ".s_parallax_bg",
         get_target_element_providers: withSequence(1, this.getTargetElement),
     };
     setup() {
         this.backgroundOptionClasses = filterExtends(
             this.getResource("builder_options"),
-            BaseWebsiteBackgroundOption
+            BaseWebsiteBackgroundOption,
         );
     }
     applyParallaxType({ editingElement, value }) {
@@ -38,7 +40,7 @@ class WebsiteParallaxPlugin extends Plugin {
         editingElement.classList.toggle("s_parallax_is_fixed", value === "fixed");
         editingElement.classList.toggle(
             "s_parallax_no_overflow_hidden",
-            value === "none" || value === "fixed"
+            value === "none" || value === "fixed",
         );
         const typeValues = {
             none: 0,
@@ -63,10 +65,16 @@ class WebsiteParallaxPlugin extends Plugin {
                 parallaxEl = document.createElement("span");
                 parallaxEl.classList.add("s_parallax_bg");
                 editingElement.prepend(parallaxEl);
-                this.dependencies.backgroundImageOption.changeEditingEl(editingElement, parallaxEl);
+                this.dependencies.backgroundImageOption.changeEditingEl(
+                    editingElement,
+                    parallaxEl,
+                );
             }
         } else if (parallaxEl) {
-            this.dependencies.backgroundImageOption.changeEditingEl(parallaxEl, editingElement);
+            this.dependencies.backgroundImageOption.changeEditingEl(
+                parallaxEl,
+                editingElement,
+            );
             parallaxEl.remove();
         }
     }
@@ -75,7 +83,7 @@ class WebsiteParallaxPlugin extends Plugin {
             applyFunDependOnSelectorAndExclude(
                 this.removeParallax.bind(this),
                 rootEl,
-                backgroundClass
+                backgroundClass,
             );
         }
     }
@@ -98,7 +106,9 @@ class WebsiteParallaxPlugin extends Plugin {
         }
     }
     getTargetElement(editingEl) {
-        return editingEl.classList.contains("s_parallax_bg") ? editingEl.parentElement : editingEl;
+        return editingEl.classList.contains("s_parallax_bg")
+            ? editingEl.parentElement
+            : editingEl;
     }
 }
 export class SetParallaxTypeAction extends BuilderAction {
@@ -109,7 +119,7 @@ export class SetParallaxTypeAction extends BuilderAction {
     }
     isApplied({ editingElement, value }) {
         const attributeValue = parseFloat(
-            editingElement.dataset.scrollBackgroundRatio?.trim() || 0
+            editingElement.dataset.scrollBackgroundRatio?.trim() || 0,
         );
         if (attributeValue === 0) {
             return value === "none";
@@ -134,4 +144,6 @@ export class SetParallaxTypeAction extends BuilderAction {
     }
 }
 
-registry.category("website-plugins").add(WebsiteParallaxPlugin.id, WebsiteParallaxPlugin);
+registry
+    .category("website-plugins")
+    .add(WebsiteParallaxPlugin.id, WebsiteParallaxPlugin);

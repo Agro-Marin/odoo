@@ -1,8 +1,9 @@
 /** @odoo-module native */
 import { Plugin } from "@html_editor/plugin";
-import { registry } from "@web/core/registry";
-import { HeaderNavigationOption } from "./header_navigation_option.js";
 import { withSequence } from "@html_editor/utils/resource";
+import { registry } from "@web/core/registry";
+
+import { HeaderNavigationOption } from "./header_navigation_option.js";
 import { HEADER_NAVIGATION } from "./header_option_plugin.js";
 
 class HeaderNavigationOptionPlugin extends Plugin {

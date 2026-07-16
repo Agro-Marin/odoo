@@ -19,7 +19,11 @@ class BootstrapOptionPlugin extends Plugin {
         // Dropdown attributes to ignore.
         const dropdownClasses = ["show"];
         const dropdownToggleAttributes = ["aria-expanded"];
-        const dropdownMenuAttributes = ["data-popper-placement", "style", "data-bs-popper"];
+        const dropdownMenuAttributes = [
+            "data-popper-placement",
+            "style",
+            "data-bs-popper",
+        ];
         // Offcanvas attributes to ignore.
         const offcanvasClasses = ["show", "showing"];
         const offcanvasAttributes = ["aria-modal", "aria-hidden", "role", "style"];
@@ -50,14 +54,18 @@ class BootstrapOptionPlugin extends Plugin {
             return true;
         }
         if (record.type === "childList") {
-            const addedOrRemovedNode = (record.addedTrees[0] || record.removedTrees[0]).node;
+            const addedOrRemovedNode = (record.addedTrees[0] || record.removedTrees[0])
+                .node;
             // Do not record the addition/removal of the offcanvas backdrop.
             return !(
-                isElement(addedOrRemovedNode) && addedOrRemovedNode.matches(".offcanvas-backdrop")
+                isElement(addedOrRemovedNode) &&
+                addedOrRemovedNode.matches(".offcanvas-backdrop")
             );
         }
         return true;
     }
 }
 
-registry.category("website-plugins").add(BootstrapOptionPlugin.id, BootstrapOptionPlugin);
+registry
+    .category("website-plugins")
+    .add(BootstrapOptionPlugin.id, BootstrapOptionPlugin);

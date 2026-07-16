@@ -1,12 +1,11 @@
 /** @odoo-module native */
-import { Interaction } from "@web/public/interaction";
-import { Modal } from "@web/libs/bootstrap";
-import { registry } from "@web/core/registry";
-
 import { browser } from "@web/core/browser/browser";
 import { cookie } from "@web/core/browser/cookie";
-import { utils as uiUtils, SIZES } from "@web/ui/block/ui_service";
+import { registry } from "@web/core/registry";
 import { getTabableElements } from "@web/core/utils/dom/ui";
+import { Modal } from "@web/libs/bootstrap";
+import { Interaction } from "@web/public/interaction";
+import { SIZES, utils as uiUtils } from "@web/ui/block/ui_service";
 
 export class Popup extends Interaction {
     static selector = ".s_popup:not(#website_cookies_bar)";
@@ -42,10 +41,12 @@ export class Popup extends Interaction {
             this.bsModal.dispose();
         });
 
-        this.modalShownOnClickEl = this.el.querySelector(".modal[data-display='onClick']");
+        this.modalShownOnClickEl = this.el.querySelector(
+            ".modal[data-display='onClick']",
+        );
         if (this.modalShownOnClickEl) {
             this.showModalBtnEl = document.querySelector(
-                `[href="#${this.modalShownOnClickEl.id}"]`
+                `[href="#${this.modalShownOnClickEl.id}"]`,
             );
             // Check if a hash exists and if the modal needs to be opened when
             // the page loads (e.g. The user has clicked a button on the
@@ -70,7 +71,10 @@ export class Popup extends Interaction {
             const deviceInvisible = isMobile
                 ? el.classList.contains("o_snippet_mobile_invisible")
                 : el.classList.contains("o_snippet_desktop_invisible");
-            return (visibilitySelectors && el.matches(visibilitySelectors)) || deviceInvisible;
+            return (
+                (visibilitySelectors && el.matches(visibilitySelectors)) ||
+                deviceInvisible
+            );
         });
         if (!this.popupAlreadyShown && !emptyPopup) {
             this.bindPopup();
@@ -169,9 +173,14 @@ export class Popup extends Interaction {
         }
         // The focus should stay free for no backdrop popups.
         if (this.el.querySelector(".s_popup_no_backdrop")) {
-            this.addListener(this.el, "hide.bs.modal", () => previouslyFocusedEl.focus(), {
-                once: true,
-            });
+            this.addListener(
+                this.el,
+                "hide.bs.modal",
+                () => previouslyFocusedEl.focus(),
+                {
+                    once: true,
+                },
+            );
             return;
         }
         const onKeydown = (ev) => {
@@ -201,7 +210,7 @@ export class Popup extends Interaction {
                 removeOnKeydown();
                 previouslyFocusedEl.focus();
             },
-            { once: true }
+            { once: true },
         );
     }
 

@@ -1,9 +1,9 @@
 /** @odoo-module native */
+import { isSmallInteger } from "@html_builder/utils/utils";
+import { generateHTMLId } from "@html_builder/utils/utils_css";
 import { _t } from "@web/core/l10n/translation";
 import { escape } from "@web/core/utils/format/strings";
 import { renderToElement } from "@web/core/utils/render";
-import { generateHTMLId } from "@html_builder/utils/utils_css";
-import { isSmallInteger } from "@html_builder/utils/utils";
 
 export const VISIBILITY_DATASET = [
     "visibilityDependency",
@@ -35,7 +35,7 @@ export function getParsedDataFor(formId, parentEl) {
             // replaces the `'` by `"` if they are before `,` or `:` or `]` or `}`
             .replace(/'(\s*[,:\]}])/g, '"$1')
             // replaces the `'` by `"` if they are after `{` or `[` or `,` or `:`
-            .replace(/([{[:,]\s*)'/g, '$1"')
+            .replace(/([{[:,]\s*)'/g, '$1"'),
     );
 }
 
@@ -124,7 +124,10 @@ export function renderField(field, resetId = false) {
     if (!field.id) {
         field.id = generateHTMLId();
     }
-    const params = { field: { ...field }, defaultName: escape(field.string || _t("Field")) };
+    const params = {
+        field: { ...field },
+        defaultName: escape(field.string || _t("Field")),
+    };
     if (["url", "email", "tel"].includes(field.type)) {
         params.field.inputType = field.type;
     }
@@ -144,9 +147,13 @@ export function renderField(field, resetId = false) {
     }
     const template = document.createElement("template");
     const renderType = field.type === "tags" ? "many2many" : field.type;
-    template.content.append(renderToElement("website.form_field_" + renderType, params));
+    template.content.append(
+        renderToElement("website.form_field_" + renderType, params),
+    );
     if (field.description && field.description !== true) {
-        const descriptionEl = template.content.querySelector(".s_website_form_field_description");
+        const descriptionEl = template.content.querySelector(
+            ".s_website_form_field_description",
+        );
         descriptionEl.replaceWith(field.description);
     }
     template.content
@@ -218,7 +225,8 @@ export function getFieldFormat(fieldEl) {
     const format = {
         labelPosition: getLabelPosition(fieldEl),
         labelWidth: fieldEl.querySelector(".s_website_form_label").style.width,
-        multiPosition: (multipleInputEl && multipleInputEl.dataset.display) || "horizontal",
+        multiPosition:
+            (multipleInputEl && multipleInputEl.dataset.display) || "horizontal",
         col: [...fieldEl.classList].filter((el) => el.match(/^col-/g)).join(" "),
         offset: [...fieldEl.classList].filter((el) => el.match(/^offset-/g)).join(" "),
         requiredMark: requiredMark,
@@ -270,7 +278,7 @@ export function setActiveProperties(fieldEl, field) {
     const classList = fieldEl.classList;
     const textarea = fieldEl.querySelector("textarea");
     const input = fieldEl.querySelector(
-        'input[type="text"], input[type="email"], input[type="number"], input[type="tel"], input[type="url"], textarea'
+        'input[type="text"], input[type="email"], input[type="number"], input[type="tel"], input[type="url"], textarea',
     );
     const fileInputEl = fieldEl.querySelector("input[type=file]");
     const description = fieldEl.querySelector(".s_website_form_field_description");
@@ -304,7 +312,7 @@ export function replaceFieldElement(oldFieldEl, fieldEl) {
     const inputEl = oldFieldEl.querySelector("input");
     const dataFillWith = inputEl ? inputEl.dataset.fillWith : undefined;
     const hasConditionalVisibility = oldFieldEl.classList.contains(
-        "s_website_form_field_hidden_if"
+        "s_website_form_field_hidden_if",
     );
     const previousInputEl = oldFieldEl.querySelector(".s_website_form_input");
     const previousName = previousInputEl.name;
@@ -312,14 +320,16 @@ export function replaceFieldElement(oldFieldEl, fieldEl) {
     [...oldFieldEl.childNodes].forEach((node) => node.remove());
     [...fieldEl.childNodes].forEach((node) => oldFieldEl.appendChild(node));
     [...fieldEl.attributes].forEach((el) => oldFieldEl.removeAttribute(el.nodeName));
-    [...fieldEl.attributes].forEach((el) => oldFieldEl.setAttribute(el.nodeName, el.nodeValue));
+    [...fieldEl.attributes].forEach((el) =>
+        oldFieldEl.setAttribute(el.nodeName, el.nodeValue),
+    );
     if (hasConditionalVisibility) {
         oldFieldEl.classList.add("s_website_form_field_hidden_if", "d-none");
     }
     const dependentFieldEls = oldFieldEl
         .closest("form")
         .querySelectorAll(
-            `.s_website_form_field[data-visibility-dependency="${CSS.escape(previousName)}"]`
+            `.s_website_form_field[data-visibility-dependency="${CSS.escape(previousName)}"]`,
         );
     const newFormInputEl = oldFieldEl.querySelector(".s_website_form_input");
     const newName = newFormInputEl.name;
@@ -348,9 +358,12 @@ export function replaceFieldElement(oldFieldEl, fieldEl) {
  */
 export function getActiveField(fieldEl, { noRecords, fields } = {}) {
     let field;
-    const labelText = fieldEl.querySelector(".s_website_form_label_content")?.innerText || "";
+    const labelText =
+        fieldEl.querySelector(".s_website_form_label_content")?.innerText || "";
     if (isFieldCustom(fieldEl)) {
-        const inputName = fieldEl.querySelector(".s_website_form_input").getAttribute("name");
+        const inputName = fieldEl
+            .querySelector(".s_website_form_input")
+            .getAttribute("name");
         field = getCustomField(fieldEl.dataset.type, labelText, inputName);
     } else {
         field = Object.assign({}, fields[getFieldName(fieldEl)]);
@@ -398,7 +411,9 @@ export function getNewRecordId(fieldEl) {
     if (selectEl) {
         options = [...selectEl.querySelectorAll("option")];
     } else if (multipleInputsEl) {
-        options = [...multipleInputsEl.querySelectorAll(".checkbox input, .radio input")];
+        options = [
+            ...multipleInputsEl.querySelectorAll(".checkbox input, .radio input"),
+        ];
     }
     // TODO: @owl-option factorize code above
     const targetEl = fieldEl.querySelector(".s_website_form_input");
@@ -449,8 +464,8 @@ export function findCircular(dependentFieldEl, targetFieldEl) {
         // field.
         let dependentFieldEls = Array.from(
             formEl.querySelectorAll(
-                `.s_website_form_input[name="${CSS.escape(dependentFieldName)}"]`
-            )
+                `.s_website_form_input[name="${CSS.escape(dependentFieldName)}"]`,
+            ),
         ).map((el) => el.closest(".s_website_form_field"));
         // Remove the duplicated fields. This could happen if the field has
         // multiple inputs ("Multiple Checkboxes" for example.)
@@ -470,7 +485,7 @@ export function findCircular(dependentFieldEl, targetFieldEl) {
                     dependencyInputEl &&
                     recursiveFindCircular(
                         dependencyInputEl.closest(".s_website_form_field"),
-                        targetFieldEl
+                        targetFieldEl,
                     )
                 ) {
                     return true;
@@ -501,7 +516,9 @@ export function getDomain(formEl, name, type, relation) {
     }
     const field = allFormsInfo
         .get(formEl)
-        .fields.find((el) => el.name === name && el.type === type && el.relation === relation);
+        .fields.find(
+            (el) => el.name === name && el.type === type && el.relation === relation,
+        );
     return field && field.domain;
 }
 
@@ -516,7 +533,9 @@ export function getListItems(fieldEl) {
     if (selectEl) {
         options = [...selectEl.querySelectorAll("option")];
     } else if (multipleInputsEl) {
-        options = [...multipleInputsEl.querySelectorAll(".checkbox input, .radio input")];
+        options = [
+            ...multipleInputsEl.querySelectorAll(".checkbox input, .radio input"),
+        ];
     }
     return options.map((opt) => {
         const name = selectEl ? opt : opt.nextElementSibling;

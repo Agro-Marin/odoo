@@ -44,7 +44,11 @@ export const uploadLocalFileService = {
          * @param {Function} setAbortCallback
          * @returns {Promise<Object[]>} attachments
          */
-        async function filesToAttachments(files, { resModel, resId }, setAbortCallback) {
+        async function filesToAttachments(
+            files,
+            { resModel, resId },
+            setAbortCallback,
+        ) {
             const attachments = [];
             await uploadService.uploadFiles(
                 files,
@@ -52,7 +56,7 @@ export const uploadLocalFileService = {
                 (attachment) => {
                     attachments.push(attachment);
                 },
-                setAbortCallback
+                setAbortCallback,
             );
             return attachments;
         }
@@ -75,14 +79,14 @@ export const uploadLocalFileService = {
                 multiple = false,
                 accessToken = false,
                 setAbortCallback = () => {},
-            } = {}
+            } = {},
         ) {
             try {
                 const files = await selectLocalFiles({ multiple, accept });
                 const attachments = await filesToAttachments(
                     files,
                     { resModel, resId },
-                    setAbortCallback
+                    setAbortCallback,
                 );
                 if (accessToken && attachments.length && !attachments[0].public) {
                     await addAccessToken(attachments);
@@ -100,9 +104,11 @@ export const uploadLocalFileService = {
          * @returns {Promise<Object[]>}
          */
         async function addAccessToken(attachments) {
-            const accessTokens = await orm.call("ir.attachment", "generate_access_token", [
-                attachments.map((a) => a.id),
-            ]);
+            const accessTokens = await orm.call(
+                "ir.attachment",
+                "generate_access_token",
+                [attachments.map((a) => a.id)],
+            );
             attachments.forEach((attachment, index) => {
                 attachment.access_token = accessTokens[index];
             });

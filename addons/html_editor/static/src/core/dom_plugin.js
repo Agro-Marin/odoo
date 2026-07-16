@@ -1,4 +1,8 @@
 /** @odoo-module native */
+import { isHtmlContentSupported } from "@html_editor/core/selection_plugin";
+import { baseContainerGlobalSelector } from "@html_editor/utils/base_container";
+import { normalizeCursorPosition } from "@html_editor/utils/selection";
+
 import { Plugin } from "../plugin.js";
 import { closestBlock, isBlock } from "../utils/blocks.js";
 import {
@@ -16,18 +20,18 @@ import {
     getDeepestPosition,
     isContentEditable,
     isContentEditableAncestor,
+    isEditorTab,
     isEmptyBlock,
     isListElement,
     isListItemElement,
     isParagraphRelatedElement,
-    isProtecting,
+    isPhrasingContent,
     isProtected,
+    isProtecting,
     isSelfClosingElement,
     isShrunkBlock,
     isTangible,
     isUnprotecting,
-    isEditorTab,
-    isPhrasingContent,
 } from "../utils/dom_info.js";
 import {
     childNodes,
@@ -39,9 +43,6 @@ import {
 } from "../utils/dom_traversal.js";
 import { FONT_SIZE_CLASSES, TEXT_STYLE_CLASSES } from "../utils/formatting.js";
 import { childNodeIndex, nodeSize, rightPos } from "../utils/position.js";
-import { normalizeCursorPosition } from "@html_editor/utils/selection";
-import { baseContainerGlobalSelector } from "@html_editor/utils/base_container";
-import { isHtmlContentSupported } from "@html_editor/core/selection_plugin";
 
 /**
  * Get distinct connected parents of nodes
@@ -85,7 +86,14 @@ function getConnectedParents(nodes) {
 
 export class DomPlugin extends Plugin {
     static id = "dom";
-    static dependencies = ["baseContainer", "selection", "history", "split", "delete", "lineBreak"];
+    static dependencies = [
+        "baseContainer",
+        "selection",
+        "history",
+        "split",
+        "delete",
+        "lineBreak",
+    ];
     static shared = [
         "insert",
         "copyAttributes",
@@ -112,7 +120,8 @@ export class DomPlugin extends Plugin {
         clean_for_save_handlers: ({ root }) => {
             this.removeEmptyClassAndStyleAttributes(root);
         },
-        clipboard_content_processors: this.removeEmptyClassAndStyleAttributes.bind(this),
+        clipboard_content_processors:
+            this.removeEmptyClassAndStyleAttributes.bind(this),
         functional_empty_node_predicates: [isSelfClosingElement, isEditorTab],
     };
 
@@ -207,7 +216,8 @@ export class DomPlugin extends Plugin {
             unwrapContents(container.lastChild);
         }
 
-        startNode = startNode || this.dependencies.selection.getEditableSelection().anchorNode;
+        startNode =
+            startNode || this.dependencies.selection.getEditableSelection().anchorNode;
 
         const shouldUnwrap = (node) =>
             (isParagraphRelatedElement(node) || isListItemElement(node)) &&
@@ -219,9 +229,12 @@ export class DomPlugin extends Plugin {
             !this.dependencies.split.isUnsplittable(node) &&
             (node.nodeName === block.nodeName ||
                 (this.dependencies.baseContainer.isCandidateForBaseContainer(node) &&
-                    this.dependencies.baseContainer.isCandidateForBaseContainer(block)) ||
+                    this.dependencies.baseContainer.isCandidateForBaseContainer(
+                        block,
+                    )) ||
                 block.nodeName === "PRE" ||
-                (block.nodeName === "DIV" && this.dependencies.split.isUnsplittable(block))) &&
+                (block.nodeName === "DIV" &&
+                    this.dependencies.split.isUnsplittable(block))) &&
             // If the selection anchorNode is the editable itself, the content
             // should not be unwrapped.
             !this.isEditionBoundary(selection.anchorNode);
@@ -230,14 +243,20 @@ export class DomPlugin extends Plugin {
         const firstLeafNode = firstLeaf(container);
         if (
             isBlock(firstLeafNode) &&
-            !(closestElement(firstLeafNode, "[contenteditable]")?.contentEditable === "false")
+            !(
+                closestElement(firstLeafNode, "[contenteditable]")?.contentEditable ===
+                "false"
+            )
         ) {
             fillEmpty(firstLeafNode);
         }
         const lastLeafNode = lastLeaf(container);
         if (
             isBlock(lastLeafNode) &&
-            !(closestElement(lastLeafNode, "[contenteditable]")?.contentEditable === "false")
+            !(
+                closestElement(lastLeafNode, "[contenteditable]")?.contentEditable ===
+                "false"
+            )
         ) {
             fillEmpty(lastLeafNode);
         }
@@ -247,14 +266,17 @@ export class DomPlugin extends Plugin {
         // <p> or <li>.
         if (
             container.childElementCount === 1 &&
-            (this.dependencies.baseContainer.isCandidateForBaseContainer(container.firstChild) ||
+            (this.dependencies.baseContainer.isCandidateForBaseContainer(
+                container.firstChild,
+            ) ||
                 shouldUnwrap(container.firstChild))
         ) {
             const nodeToUnwrap = container.firstElementChild;
             container.replaceChildren(...childNodes(nodeToUnwrap));
         } else if (container.childElementCount > 1) {
             const isSelectionAtStart =
-                firstLeaf(block) === selection.anchorNode && selection.anchorOffset === 0;
+                firstLeaf(block) === selection.anchorNode &&
+                selection.anchorOffset === 0;
             const isSelectionAtEnd =
                 lastLeaf(block) === selection.focusNode &&
                 selection.focusOffset === nodeSize(selection.focusNode);
@@ -264,10 +286,17 @@ export class DomPlugin extends Plugin {
                 // container to extract and paste the text content of the list.
                 if (isListItemElement(container.firstChild)) {
                     const deepestBlock = closestBlock(firstLeaf(container.firstChild));
-                    this.dependencies.split.splitAroundUntil(deepestBlock, container.firstChild);
-                    container.firstElementChild.replaceChildren(...childNodes(deepestBlock));
+                    this.dependencies.split.splitAroundUntil(
+                        deepestBlock,
+                        container.firstChild,
+                    );
+                    container.firstElementChild.replaceChildren(
+                        ...childNodes(deepestBlock),
+                    );
                 }
-                containerFirstChild.replaceChildren(...childNodes(container.firstElementChild));
+                containerFirstChild.replaceChildren(
+                    ...childNodes(container.firstElementChild),
+                );
                 container.firstElementChild.remove();
             }
             // Grab the content of the last child block and isolate it.
@@ -276,10 +305,17 @@ export class DomPlugin extends Plugin {
                 // to extract and paste the text content of the list.
                 if (isListItemElement(container.lastChild)) {
                     const deepestBlock = closestBlock(lastLeaf(container.lastChild));
-                    this.dependencies.split.splitAroundUntil(deepestBlock, container.lastChild);
-                    container.lastElementChild.replaceChildren(...childNodes(deepestBlock));
+                    this.dependencies.split.splitAroundUntil(
+                        deepestBlock,
+                        container.lastChild,
+                    );
+                    container.lastElementChild.replaceChildren(
+                        ...childNodes(deepestBlock),
+                    );
                 }
-                containerLastChild.replaceChildren(...childNodes(container.lastElementChild));
+                containerLastChild.replaceChildren(
+                    ...childNodes(container.lastElementChild),
+                );
                 container.lastElementChild.remove();
             }
         }
@@ -327,7 +363,11 @@ export class DomPlugin extends Plugin {
         // If all the Html have been isolated, We force a split of the parent element
         // to have the need new line in the final result
         if (!container.hasChildNodes()) {
-            if (this.dependencies.split.isUnsplittable(closestBlock(currentNode.nextSibling))) {
+            if (
+                this.dependencies.split.isUnsplittable(
+                    closestBlock(currentNode.nextSibling),
+                )
+            ) {
                 this.dependencies.lineBreak.insertLineBreakNode({
                     targetNode: currentNode.nextSibling,
                     targetOffset: 0,
@@ -357,7 +397,11 @@ export class DomPlugin extends Plugin {
                         (isListItemElement(currentNode.parentElement) &&
                             !this.dependencies.split.isUnsplittable(nodeToInsert)))
                 ) {
-                    if (this.dependencies.split.isUnsplittable(currentNode.parentElement)) {
+                    if (
+                        this.dependencies.split.isUnsplittable(
+                            currentNode.parentElement,
+                        )
+                    ) {
                         // If we have to insert an unsplittable element, we cannot afford to
                         // unwrap it we need to search for a more suitable spot to put it
                         if (this.dependencies.split.isUnsplittable(nodeToInsert)) {
@@ -365,7 +409,8 @@ export class DomPlugin extends Plugin {
                                 break;
                             }
                             currentNode = currentNode.parentElement;
-                            doesCurrentNodeAllowsP = allowsParagraphRelatedElements(currentNode);
+                            doesCurrentNodeAllowsP =
+                                allowsParagraphRelatedElements(currentNode);
                             continue;
                         } else {
                             makeContentsInline(container);
@@ -380,7 +425,7 @@ export class DomPlugin extends Plugin {
                     if (offset) {
                         const [left, right] = this.dependencies.split.splitElement(
                             currentNode.parentElement,
-                            offset
+                            offset,
                         );
                         currentNode = insertBefore ? right : left;
                         const otherNode = insertBefore ? left : right;
@@ -396,7 +441,8 @@ export class DomPlugin extends Plugin {
                         }
                         currentNode = currentNode.parentElement;
                     }
-                    doesCurrentNodeAllowsP = allowsParagraphRelatedElements(currentNode);
+                    doesCurrentNodeAllowsP =
+                        allowsParagraphRelatedElements(currentNode);
                 }
                 if (
                     isListItemElement(currentNode.parentElement) &&
@@ -405,7 +451,9 @@ export class DomPlugin extends Plugin {
                 ) {
                     const br = document.createElement("br");
                     currentNode[
-                        isEmptyBlock(currentNode) || !isTangible(currentNode) ? "before" : "after"
+                        isEmptyBlock(currentNode) || !isTangible(currentNode)
+                            ? "before"
+                            : "after"
                     ](br);
                 }
             }
@@ -430,7 +478,9 @@ export class DomPlugin extends Plugin {
         // Remove the empty text node created earlier
         textNode.remove();
         allInsertedNodes.push(...lastInsertedNodes);
-        this.getResource("after_insert_handlers").forEach((handler) => handler(allInsertedNodes));
+        this.getResource("after_insert_handlers").forEach((handler) =>
+            handler(allInsertedNodes),
+        );
         let insertedNodesParents = getConnectedParents(allInsertedNodes);
         for (const parent of insertedNodesParents) {
             if (
@@ -440,7 +490,8 @@ export class DomPlugin extends Plugin {
             ) {
                 // Ensure that edition boundaries do not have inline content.
                 wrapInlinesInBlocks(parent, {
-                    baseContainerNodeName: this.dependencies.baseContainer.getDefaultNodeName(),
+                    baseContainerNodeName:
+                        this.dependencies.baseContainer.getDefaultNodeName(),
                 });
             }
         }
@@ -475,7 +526,11 @@ export class DomPlugin extends Plugin {
             isListElement(lastInsertedNode)
                 ? rightPos(lastLeaf(lastInsertedNode))
                 : rightPos(lastInsertedNode);
-        lastPosition = normalizeCursorPosition(lastPosition[0], lastPosition[1], "right");
+        lastPosition = normalizeCursorPosition(
+            lastPosition[0],
+            lastPosition[1],
+            "right",
+        );
 
         if (!this.config.allowInlineAtRoot && this.isEditionBoundary(lastPosition[0])) {
             // Correct the position if it happens to be in the editable root.
@@ -483,7 +538,7 @@ export class DomPlugin extends Plugin {
         }
         this.dependencies.selection.setSelection(
             { anchorNode: lastPosition[0], anchorOffset: lastPosition[1] },
-            { normalize: false }
+            { normalize: false },
         );
         return firstInsertedNodes.concat(insertedNodes).concat(lastInsertedNodes);
     }
@@ -513,7 +568,10 @@ export class DomPlugin extends Plugin {
      * @param {HTMLElement} target
      */
     copyAttributes(source, target) {
-        if (source?.nodeType !== Node.ELEMENT_NODE || target?.nodeType !== Node.ELEMENT_NODE) {
+        if (
+            source?.nodeType !== Node.ELEMENT_NODE ||
+            target?.nodeType !== Node.ELEMENT_NODE
+        ) {
             return;
         }
         const ignoredAttrs = new Set(this.getResource("system_attributes"));
@@ -613,7 +671,9 @@ export class DomPlugin extends Plugin {
             (isParagraphRelatedElement(block) ||
                 isListItemElement(block) ||
                 isPhrasingContent(block)) &&
-            this.getResource("unremovable_node_predicates").some((predicate) => predicate(block))
+            this.getResource("unremovable_node_predicates").some((predicate) =>
+                predicate(block),
+            )
         );
     }
 
@@ -622,8 +682,10 @@ export class DomPlugin extends Plugin {
         return targetedBlocks.filter(
             (block) =>
                 this.isRetaggingSafe(block) &&
-                !descendants(block).some((descendant) => targetedBlocks.includes(descendant)) &&
-                block.isContentEditable
+                !descendants(block).some((descendant) =>
+                    targetedBlocks.includes(descendant),
+                ) &&
+                block.isContentEditable,
         );
     }
 
@@ -643,7 +705,7 @@ export class DomPlugin extends Plugin {
         }
         if (this.dependencies.baseContainer.isCandidateForBaseContainer(newCandidate)) {
             const baseContainer = this.dependencies.baseContainer.createBaseContainer(
-                newCandidate.nodeName
+                newCandidate.nodeName,
             );
             this.copyAttributes(newCandidate, baseContainer);
             newCandidate = baseContainer;
@@ -657,7 +719,10 @@ export class DomPlugin extends Plugin {
                 isPhrasingContent(block) ||
                 block.nodeName === "BLOCKQUOTE"
             ) {
-                if (newCandidate.matches(baseContainerGlobalSelector) && isListItemElement(block)) {
+                if (
+                    newCandidate.matches(baseContainerGlobalSelector) &&
+                    isListItemElement(block)
+                ) {
                     continue;
                 }
                 this.dispatchTo("before_set_tag_handlers", block, tagName, cursors);
@@ -669,7 +734,12 @@ export class DomPlugin extends Plugin {
                 // the semantic tag being used (especially for h1 ones).
                 // This is why those are not in `TEXT_STYLE_CLASSES`.
                 const headingClasses = ["h1", "h2", "h3", "h4", "h5", "h6"];
-                removeClass(newEl, ...FONT_SIZE_CLASSES, ...TEXT_STYLE_CLASSES, ...headingClasses);
+                removeClass(
+                    newEl,
+                    ...FONT_SIZE_CLASSES,
+                    ...TEXT_STYLE_CLASSES,
+                    ...headingClasses,
+                );
                 delete newEl.style.fontSize;
                 if (extraClass) {
                     newEl.classList.add(extraClass);

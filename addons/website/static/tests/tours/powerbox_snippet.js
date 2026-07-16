@@ -34,7 +34,7 @@ registerWebsitePreviewTour(
                     new InputEvent("input", {
                         inputType: "insertText",
                         data: "/",
-                    })
+                    }),
                 );
             },
         },
@@ -47,7 +47,7 @@ registerWebsitePreviewTour(
             content: "Check if s_alert snipept is inserted",
             trigger: ":iframe .s_alert",
         },
-    ]
+    ],
 );
 
 registerWebsitePreviewTour(
@@ -80,7 +80,7 @@ registerWebsitePreviewTour(
                     new InputEvent("input", {
                         inputType: "insertText",
                         data: "/",
-                    })
+                    }),
                 );
             },
         },
@@ -100,7 +100,7 @@ registerWebsitePreviewTour(
                         key: "DummyKey",
                         code: "KeyDummy",
                         cancelable: true,
-                    })
+                    }),
                 );
             },
         },
@@ -119,7 +119,7 @@ registerWebsitePreviewTour(
                         key: "DummyKey",
                         code: "KeyDummy",
                         cancelable: true,
-                    })
+                    }),
                 );
             },
         },
@@ -136,5 +136,5 @@ registerWebsitePreviewTour(
             content: "Check if s_alert snippet is inserted",
             trigger: ":iframe .s_alert",
         },
-    ]
+    ],
 );

@@ -48,7 +48,7 @@ test("persisted session history", async () => {
             store: { "discuss.channel": [{ id: channelId }] },
             persisted: true,
             livechatUserId: serverState.publicUserId,
-        })
+        }),
     );
     pyEnv["mail.message"].create({
         author_id: serverState.partnerId,
@@ -59,7 +59,10 @@ test("persisted session history", async () => {
     });
     setupChatHub({ opened: [channelId] });
     await start({
-        authenticateAs: { ...pyEnv["mail.guest"].read(guestId)[0], _name: "mail.guest" },
+        authenticateAs: {
+            ...pyEnv["mail.guest"].read(guestId)[0],
+            _name: "mail.guest",
+        },
     });
     await contains(".o-mail-Message-content", { text: "Old message in history" });
 });
@@ -72,8 +75,13 @@ test("previous operator prioritized", async () => {
         name: "John Doe",
         user_ids: [userId],
     });
-    pyEnv["im_livechat.channel"].write([livechatChannelId], { user_ids: [Command.link(userId)] });
-    expirableStorage.setItem("im_livechat_previous_operator", JSON.stringify(previousOperatorId));
+    pyEnv["im_livechat.channel"].write([livechatChannelId], {
+        user_ids: [Command.link(userId)],
+    });
+    expirableStorage.setItem(
+        "im_livechat_previous_operator",
+        JSON.stringify(previousOperatorId),
+    );
     await start({ authenticateAs: false });
     await click(".o-livechat-LivechatButton");
     await contains(".o-mail-Message-author", { text: "John Doe" });
@@ -136,7 +144,7 @@ test("Only necessary requests are made when creating a new chat", async () => {
                     context: { ...userContext(), temporary_id: 0.8200000000000001 },
                 })}`,
             ],
-        }
+        },
     );
 });
 
@@ -144,7 +152,9 @@ test("do not create new thread when operator answers to visitor", async () => {
     const pyEnv = await startServer();
     const livechatChannelId = await loadDefaultEmbedConfig();
     const guestId = pyEnv["mail.guest"].create({ name: "Visitor 11" });
-    onRpc("/im_livechat/get_session", async () => asyncStep("/im_livechat/get_session"));
+    onRpc("/im_livechat/get_session", async () =>
+        asyncStep("/im_livechat/get_session"),
+    );
     onRpc("/mail/message/post", async () => asyncStep("/mail/message/post"));
     const channelId = pyEnv["discuss.channel"].create({
         channel_member_ids: [
@@ -158,7 +168,9 @@ test("do not create new thread when operator answers to visitor", async () => {
     });
     setupChatHub({ opened: [channelId] });
     await start({
-        authenticateAs: pyEnv["res.users"].search_read([["id", "=", serverState.userId]])[0],
+        authenticateAs: pyEnv["res.users"].search_read([
+            ["id", "=", serverState.userId],
+        ])[0],
     });
     await insertText(".o-mail-Composer-input", "Hello!");
     await triggerHotkey("Enter");

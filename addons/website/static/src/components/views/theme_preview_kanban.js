@@ -1,12 +1,13 @@
 /** @odoo-module native */
-import { ControlPanel } from "@web/search/control_panel/control_panel";
-import { kanbanView } from "@web/views/kanban/kanban_view";
-import { KanbanController } from "@web/views/kanban/kanban_controller";
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
-import { useLoaderOnClick } from "./theme_preview_form.js";
+import { ControlPanel } from "@web/search/control_panel/control_panel";
+import { KanbanController } from "@web/views/kanban/kanban_controller";
 import { KanbanRecord } from "@web/views/kanban/kanban_record";
 import { KanbanRenderer } from "@web/views/kanban/kanban_renderer";
+import { kanbanView } from "@web/views/kanban/kanban_view";
+
+import { useLoaderOnClick } from "./theme_preview_form.js";
 
 class ThemePreviewKanbanController extends KanbanController {
     /**

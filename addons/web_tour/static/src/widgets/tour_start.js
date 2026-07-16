@@ -1,7 +1,7 @@
 /** @odoo-module native */
-import { charField, CharField } from "@web/fields/basic/char/char_field";
-import { useService } from "@web/core/utils/hooks";
 import { registry } from "@web/core/registry";
+import { useService } from "@web/core/utils/hooks";
+import { CharField, charField } from "@web/fields/basic/char/char_field";
 
 export class TourStartWidget extends CharField {
     static template = "web_tour.TourStartWidget";

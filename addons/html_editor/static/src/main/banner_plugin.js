@@ -1,18 +1,23 @@
 /** @odoo-module native */
+import { isHtmlContentSupported } from "@html_editor/core/selection_plugin";
 import { Plugin } from "@html_editor/plugin";
+import { closestBlock } from "@html_editor/utils/blocks";
 import { fillEmpty, fillShrunkPhrasingParent } from "@html_editor/utils/dom";
-import { closestElement, descendants, selectElements } from "@html_editor/utils/dom_traversal";
+import {
+    closestElement,
+    descendants,
+    selectElements,
+} from "@html_editor/utils/dom_traversal";
 import { parseHTML } from "@html_editor/utils/html";
 import { withSequence } from "@html_editor/utils/resource";
 import { htmlEscape } from "@odoo/owl";
 import { _t } from "@web/core/l10n/translation";
-import { closestBlock } from "@html_editor/utils/blocks";
+
 import { isEmptyBlock, isParagraphRelatedElement } from "../utils/dom_info.js";
-import { isHtmlContentSupported } from "@html_editor/core/selection_plugin";
 
 function checkCommandAvailablePredicates(selection) {
-    return this.getResource("banner_command_available_predicates").every((predicateFn) =>
-        predicateFn(selection)
+    return this.getResource("banner_command_available_predicates").every(
+        (predicateFn) => predicateFn(selection),
     );
 }
 
@@ -24,7 +29,14 @@ function checkCommandAvailablePredicates(selection) {
 export class BannerPlugin extends Plugin {
     static id = "banner";
     // sanitize plugin is required to handle `contenteditable` attribute.
-    static dependencies = ["baseContainer", "history", "dom", "emoji", "selection", "sanitize"];
+    static dependencies = [
+        "baseContainer",
+        "history",
+        "dom",
+        "emoji",
+        "selection",
+        "sanitize",
+    ];
     static shared = ["insertBanner"];
     /** @type {import("plugins").EditorResources} */
     resources = {
@@ -80,7 +92,7 @@ export class BannerPlugin extends Plugin {
                         _t("Monospace Banner"),
                         undefined,
                         "secondary",
-                        "font-monospace"
+                        "font-monospace",
                     );
                 },
             },
@@ -113,7 +125,7 @@ export class BannerPlugin extends Plugin {
         ],
         normalize_handlers: withSequence(
             5, // before tabs are aligned
-            this.handle_monospace_tab_to_spaces.bind(this)
+            this.handle_monospace_tab_to_spaces.bind(this),
         ),
         power_buttons_visibility_predicates: ({ anchorNode }) =>
             !closestElement(anchorNode, ".o_editor_banner"),
@@ -155,7 +167,7 @@ export class BannerPlugin extends Plugin {
         const baseContainerHtml = baseContainer.outerHTML;
         const emojiHtml = emoji
             ? `<i class="o_editor_banner_icon mb-3 fst-normal" data-oe-aria-label="${htmlEscape(
-                  title
+                  title,
               )}">${emoji}</i>`
             : "";
         const bannerElement = parseHTML(
@@ -167,11 +179,13 @@ export class BannerPlugin extends Plugin {
                 <div class="${contentClass}o_editor_banner_content o-contenteditable-true w-100 px-3">
                     ${baseContainerHtml}
                 </div>
-            </div>`
+            </div>`,
         ).childNodes[0];
         this.dependencies.dom.insert(bannerElement);
         this.dependencies.selection.setCursorEnd(
-            bannerElement.querySelector(`.o_editor_banner_content > ${baseContainer.tagName}`)
+            bannerElement.querySelector(
+                `.o_editor_banner_content > ${baseContainer.tagName}`,
+            ),
         );
         this.dependencies.history.addStep();
     }
@@ -188,7 +202,10 @@ export class BannerPlugin extends Plugin {
 
     // Transform empty banner into base container on backspace.
     handleDeleteBackward(range) {
-        const editorBannerContent = closestElement(range.endContainer, ".o_editor_banner_content");
+        const editorBannerContent = closestElement(
+            range.endContainer,
+            ".o_editor_banner_content",
+        );
         if (!isEmptyBlock(editorBannerContent)) {
             return;
         }
@@ -201,7 +218,10 @@ export class BannerPlugin extends Plugin {
     }
 
     handle_monospace_tab_to_spaces(root) {
-        for (const el of selectElements(root, ".font-monospace.o_editor_banner .oe-tabs")) {
+        for (const el of selectElements(
+            root,
+            ".font-monospace.o_editor_banner .oe-tabs",
+        )) {
             const spacesElement = document.createTextNode("\u00A0\u00A0\u00A0\u00A0");
             el.replaceWith(spacesElement);
         }
@@ -211,7 +231,7 @@ export class BannerPlugin extends Plugin {
         const selection = this.dependencies.selection.getEditableSelection();
         const monospaceBannerElement = closestElement(
             selection.anchorNode,
-            ".font-monospace.o_editor_banner"
+            ".font-monospace.o_editor_banner",
         );
         if (!monospaceBannerElement) {
             return;
@@ -225,10 +245,13 @@ export class BannerPlugin extends Plugin {
                     (n) =>
                         n.nodeType === Node.TEXT_NODE &&
                         n.textContent.length &&
-                        n.textContent !== "\u200b"
+                        n.textContent !== "\u200b",
                 );
                 if (textNode) {
-                    textNode.textContent = textNode.textContent.replace(fourSpacesRe, "");
+                    textNode.textContent = textNode.textContent.replace(
+                        fourSpacesRe,
+                        "",
+                    );
                 }
             }
         }

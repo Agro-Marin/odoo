@@ -1,9 +1,11 @@
-import { startInteractions, setupInteractionWhiteList } from "@web/../tests/public/helpers";
-
 import { describe, expect, test } from "@odoo/hoot";
 import { queryOne } from "@odoo/hoot-dom";
 import { advanceTime } from "@odoo/hoot-mock";
 import { markup } from "@odoo/owl";
+import {
+    setupInteractionWhiteList,
+    startInteractions,
+} from "@web/../tests/public/helpers";
 import { patch } from "@web/core/utils/patch";
 import { Chart } from "@website/snippets/s_chart/chart";
 
@@ -35,16 +37,18 @@ test("chart is started when there is an element .s_chart", async () => {
                 })}">
                 <h2>A Chart Title</h2>
                 <canvas/>
-            </div>`.toString()
+            </div>`.toString(),
     );
     expect(core.interactions).toHaveLength(1);
     await advanceTime(0);
     const canvas = queryOne("canvas");
-    const data = canvas.getContext("2d").getImageData(0, 0, canvas.width, canvas.height).data;
+    const data = canvas
+        .getContext("2d")
+        .getImageData(0, 0, canvas.width, canvas.height).data;
     const dataLength = data.length;
     let isCanvasBlank = true;
     for (let i = 0; i < dataLength; i++) {
-        if (data[i] != 0) {
+        if (data[i] !== 0) {
             isCanvasBlank = false;
         }
     }

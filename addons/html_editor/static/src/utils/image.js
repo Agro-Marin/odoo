@@ -14,7 +14,7 @@ const SUPPORTED_MIMETYPES = [
 
 const headResponseCache = new Cache(
     async (src) => await fetch(src, { method: "HEAD" }),
-    JSON.stringify
+    JSON.stringify,
 );
 
 /**

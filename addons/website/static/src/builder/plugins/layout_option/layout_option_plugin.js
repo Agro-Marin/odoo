@@ -1,4 +1,5 @@
 /** @odoo-module native */
+import { BuilderAction } from "@html_builder/core/builder_action";
 import { getRow } from "@html_builder/utils/column_layout_utils";
 import {
     convertToNormalColumn,
@@ -6,11 +7,11 @@ import {
     toggleGridMode,
 } from "@html_builder/utils/grid_layout_utils";
 import { Plugin } from "@html_editor/plugin";
-import { registry } from "@web/core/registry";
-import { LayoutGridOption, LayoutOption } from "./layout_option.js";
 import { withSequence } from "@html_editor/utils/resource";
+import { registry } from "@web/core/registry";
 import { LAYOUT, LAYOUT_GRID } from "@website/builder/option_sequence";
-import { BuilderAction } from "@html_builder/core/builder_action";
+
+import { LayoutGridOption, LayoutOption } from "./layout_option.js";
 
 class LayoutOptionPlugin extends Plugin {
     static id = "LayoutOption";
@@ -30,7 +31,7 @@ class LayoutOptionPlugin extends Plugin {
     onCloned({ cloneEl }) {
         const cloneElClassList = cloneEl.classList;
         const offsetClasses = [...cloneElClassList].filter((cls) =>
-            cls.match(/^offset-(lg-)?([0-9]{1,2})$/)
+            cls.match(/^offset-(lg-)?([0-9]{1,2})$/),
         );
         cloneElClassList.remove(...offsetClasses);
     }
@@ -51,7 +52,7 @@ export class SetGridLayoutAction extends BuilderAction {
         toggleGridMode(
             editingElement,
             this.dependencies.selection.preserveSelection,
-            this.config.mobileBreakpoint
+            this.config.mobileBreakpoint,
         );
     }
     isApplied({ editingElement }) {

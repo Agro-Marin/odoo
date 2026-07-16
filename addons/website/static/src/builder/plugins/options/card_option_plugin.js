@@ -6,9 +6,10 @@ import {
     CARD_PARENT_HANDLERS,
     WEBSITE_BG_APPLY_TO,
 } from "@website/builder/plugins/options/utils";
+
 import { BaseWebsiteBackgroundOption } from "./background_option.js";
-import { CarouselCardsItemOption } from "./carousel_cards_item_option.js";
 import { CardOption, CardWithoutWidthOption } from "./card_option.js";
+import { CarouselCardsItemOption } from "./carousel_cards_item_option.js";
 
 export class WebsiteBackgroundCardOption extends BaseWebsiteBackgroundOption {
     static selector = CARD_PARENT_HANDLERS;

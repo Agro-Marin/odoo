@@ -48,7 +48,8 @@ export class AttributeTranslateDialog extends Component {
             },
             revert: () => {
                 for (const attr of Object.keys(this.modifiedAttrs)) {
-                    this.translationInfos[attr].translation = oldValue[attr].translation;
+                    this.translationInfos[attr].translation =
+                        oldValue[attr].translation;
                 }
             },
         });

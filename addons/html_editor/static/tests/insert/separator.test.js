@@ -1,9 +1,10 @@
 import { describe, expect, test } from "@odoo/hoot";
+import { animationFrame, click, tick } from "@odoo/hoot-dom";
+
 import { setupEditor, testEditor } from "../_helpers/editor.js";
 import { getContent } from "../_helpers/selection.js";
-import { execCommand } from "../_helpers/userCommands.js";
 import { simulateArrowKeyPress } from "../_helpers/user_actions.js";
-import { animationFrame, click, tick } from "@odoo/hoot-dom";
+import { execCommand } from "../_helpers/userCommands.js";
 
 async function insertSeparator(editor) {
     execCommand(editor, "insertSeparator");
@@ -72,15 +73,18 @@ describe("insert separator", () => {
 
     test("should insert a separator before a empty p element inside a table cell", async () => {
         await testEditor({
-            contentBefore: "<table><tbody><tr><td><p>[]<br></p></td></tr></tbody></table>",
+            contentBefore:
+                "<table><tbody><tr><td><p>[]<br></p></td></tr></tbody></table>",
             stepFunction: insertSeparator,
-            contentAfter: "<table><tbody><tr><td><hr><p>[]<br></p></td></tr></tbody></table>",
+            contentAfter:
+                "<table><tbody><tr><td><hr><p>[]<br></p></td></tr></tbody></table>",
         });
     });
 
     test("should insert a separator after a p element containing text inside a table cell", async () => {
         await testEditor({
-            contentBefore: "<table><tbody><tr><td><p>content[]</p></td></tr></tbody></table>",
+            contentBefore:
+                "<table><tbody><tr><td><p>content[]</p></td></tr></tbody></table>",
             stepFunction: insertSeparator,
             contentAfter:
                 "<table><tbody><tr><td><p>content</p><hr><p>[]<br></p></td></tr></tbody></table>",
@@ -111,7 +115,7 @@ describe("insert separator", () => {
         el.append(div);
         editor.shared.history.addStep();
         expect(getContent(el)).toBe(
-            `<p o-we-hint-text='Type "/" for commands' class="o-we-hint">[]<br></p><div><hr contenteditable="false"></div><p data-selection-placeholder=""><br></p>`
+            `<p o-we-hint-text='Type "/" for commands' class="o-we-hint">[]<br></p><div><hr contenteditable="false"></div><p data-selection-placeholder=""><br></p>`,
         );
     });
 
@@ -119,35 +123,39 @@ describe("insert separator", () => {
         const { el, editor } = await setupEditor("<p>abc</p><p>x[]yz</p>");
         await insertSeparator(editor);
         expect(getContent(el)).toBe(
-            `<p>abc</p><p>xyz</p><hr contenteditable="false"><p o-we-hint-text='Type "/" for commands' class="o-we-hint">[]<br></p>`
+            `<p>abc</p><p>xyz</p><hr contenteditable="false"><p o-we-hint-text='Type "/" for commands' class="o-we-hint">[]<br></p>`,
         );
 
         simulateArrowKeyPress(editor, ["Shift", "ArrowUp"]);
         await animationFrame();
 
         expect(getContent(el)).toBe(
-            `<p>abc</p><p>xyz]</p><hr contenteditable="false" class="o_selected_hr"><p>[<br></p>`
+            `<p>abc</p><p>xyz]</p><hr contenteditable="false" class="o_selected_hr"><p>[<br></p>`,
         );
     });
 
     test("should remove custom selection on separator when not selected", async () => {
         const { el, editor } = await setupEditor(
-            '<p>[abc</p><hr contenteditable="false"><p>xyz]</p>'
+            '<p>[abc</p><hr contenteditable="false"><p>xyz]</p>',
         );
         expect(getContent(el)).toBe(
-            `<p>[abc</p><hr contenteditable="false" class="o_selected_hr"><p>xyz]</p>`
+            `<p>[abc</p><hr contenteditable="false" class="o_selected_hr"><p>xyz]</p>`,
         );
 
         simulateArrowKeyPress(editor, ["Shift", "ArrowUp"]);
         await animationFrame();
 
-        expect(getContent(el)).toBe(`<p>[abc]</p><hr contenteditable="false"><p>xyz</p>`);
+        expect(getContent(el)).toBe(
+            `<p>[abc]</p><hr contenteditable="false"><p>xyz</p>`,
+        );
     });
 
     test("should remove custom selection on separator when click outside of editor", async () => {
-        const { el } = await setupEditor('<p>[abc</p><hr contenteditable="false"><p>xyz]</p>');
+        const { el } = await setupEditor(
+            '<p>[abc</p><hr contenteditable="false"><p>xyz]</p>',
+        );
         expect(getContent(el)).toBe(
-            `<p>[abc</p><hr contenteditable="false" class="o_selected_hr"><p>xyz]</p>`
+            `<p>[abc</p><hr contenteditable="false" class="o_selected_hr"><p>xyz]</p>`,
         );
 
         const selection = document.getSelection();

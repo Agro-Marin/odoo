@@ -1,17 +1,18 @@
 /** @odoo-module native */
-import { CheckBox } from "@web/components/checkbox/checkbox";
-import { Popover } from "@web/libs/bootstrap";
-import { _t } from "@web/core/l10n/translation";
-import { useService, useAutofocus } from "@web/core/utils/hooks";
-import { sprintf } from "@web/core/utils/format/strings";
-import { WebsiteDialog } from "./dialog.js";
-import { standardFieldProps } from "@web/fields/standard_field_props";
-import { FormViewDialog } from "@web/views/view_dialogs/form_view_dialog";
-import { formView } from "@web/views/form/form_view";
-import { renderToFragment } from "@web/core/utils/render";
 import { Component, onWillDestroy, useEffect, useRef, useState, xml } from "@odoo/owl";
-import { FormController } from "@web/views/form/form_controller";
+import { CheckBox } from "@web/components/checkbox/checkbox";
+import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
+import { sprintf } from "@web/core/utils/format/strings";
+import { useAutofocus, useService } from "@web/core/utils/hooks";
+import { renderToFragment } from "@web/core/utils/render";
+import { standardFieldProps } from "@web/fields/standard_field_props";
+import { Popover } from "@web/libs/bootstrap";
+import { FormController } from "@web/views/form/form_controller";
+import { formView } from "@web/views/form/form_view";
+import { FormViewDialog } from "@web/views/view_dialogs/form_view_dialog";
+
+import { WebsiteDialog } from "./dialog.js";
 
 export class PageDependencies extends Component {
     static template = "website.PageDependencies";
@@ -39,7 +40,7 @@ export class PageDependencies extends Component {
             () => {
                 this.fetchDependencies();
             },
-            () => []
+            () => [],
         );
         this.state = useState({
             dependencies: {},
@@ -55,10 +56,11 @@ export class PageDependencies extends Component {
     }
 
     async fetchDependencies() {
-        this.state.dependencies = await this.orm.call("website", "search_url_dependencies", [
-            this.props.resModel,
-            await this.getResIds(),
-        ]);
+        this.state.dependencies = await this.orm.call(
+            "website",
+            "search_url_dependencies",
+            [this.props.resModel, await this.getResIds()],
+        );
     }
 
     showDependencies() {
@@ -106,7 +108,7 @@ export class FormPageDependencies extends PageDependencies {
         const records = await this.orm.read(
             this.props.record.resModel,
             [this.props.record.resId],
-            ["target_model_id"]
+            ["target_model_id"],
         );
         return records.map((record) => record.target_model_id[0]);
     }
@@ -124,7 +126,9 @@ export const formPageDependenciesWidget = {
         };
     },
 };
-registry.category("view_widgets").add("form_page_dependencies", formPageDependenciesWidget);
+registry
+    .category("view_widgets")
+    .add("form_page_dependencies", formPageDependenciesWidget);
 
 export class DeletePageDialog extends Component {
     static template = "website.DeletePageDialog";
@@ -187,7 +191,7 @@ export class DuplicatePageDialog extends Component {
                     await this.orm.call("website.page", "clone_page", [
                         this.props.pageIds[count],
                         name,
-                    ])
+                    ]),
                 );
             }
         }
@@ -238,7 +242,7 @@ export class PagePropertiesDialog extends FormViewDialog {
                         ? "website.website_page_properties_view_form"
                         : "website.website_page_properties_base_view_form",
                 },
-                this.viewProps.context
+                this.viewProps.context,
             ),
             ...(this.isPage
                 ? {

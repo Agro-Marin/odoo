@@ -1,8 +1,8 @@
 /** @odoo-module native */
-import { BurgerMenu } from "@web/webclient/burger_menu/burger_menu";
-import { useService } from "@web/core/utils/hooks";
 import { registry } from "@web/core/registry";
+import { useService } from "@web/core/utils/hooks";
 import { patch } from "@web/core/utils/patch";
+import { BurgerMenu } from "@web/webclient/burger_menu/burger_menu";
 
 const websiteSystrayRegistry = registry.category("website_systray");
 
@@ -15,7 +15,7 @@ patch(BurgerMenu.prototype, {
             websiteSystrayRegistry.add(
                 "burger_menu",
                 registry.category("systray").get("burger_menu"),
-                { sequence: 0 }
+                { sequence: 0 },
             );
         }
     },
@@ -25,7 +25,10 @@ patch(BurgerMenu.prototype, {
      */
     get currentAppSections() {
         const currentAppSections = super.currentAppSections;
-        if (this.currentApp && this.currentApp.xmlid === "website.menu_website_configuration") {
+        if (
+            this.currentApp &&
+            this.currentApp.xmlid === "website.menu_website_configuration"
+        ) {
             return this.websiteCustomMenus
                 .addCustomMenus(currentAppSections)
                 .filter((section) => section.childrenTree.length);

@@ -1,5 +1,6 @@
 /** @odoo-module native */
 import { registry } from "@web/core/registry";
+
 import { AnnouncementScroll } from "./announcement_scroll.js";
 
 export const AnnouncementScrollEdit = (I) =>
@@ -16,7 +17,7 @@ export const AnnouncementScrollEdit = (I) =>
                 el.matches(
                     `.s_announcement_scroll_marquee_container,
                     .s_announcement_scroll_marquee_item:first-child,
-                    .s_announcement_scroll_marquee_item:first-child > [data-oe-translation-source-sha]`
+                    .s_announcement_scroll_marquee_item:first-child > [data-oe-translation-source-sha]`,
                 )
             );
         }

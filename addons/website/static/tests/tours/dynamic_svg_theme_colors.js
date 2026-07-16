@@ -43,7 +43,7 @@ registerWebsitePreviewTour(
                 this.anchor.setAttribute(
                     "src",
                     "/html_editor/shape/illustration/dynamic-svg-test" +
-                        `?c1=${COLOR_1_ENC}&c2=${COLOR_2_ENC}&unique=4a2363`
+                        `?c1=${COLOR_1_ENC}&c2=${COLOR_2_ENC}&unique=4a2363`,
                 );
             },
         },
@@ -55,7 +55,7 @@ registerWebsitePreviewTour(
                     this.anchor,
                     COLOR_1,
                     COLOR_2,
-                    "Dynamic SVG theme colors were not applied."
+                    "Dynamic SVG theme colors were not applied.",
                 );
             },
         },
@@ -78,7 +78,7 @@ registerWebsitePreviewTour(
                     this.anchor,
                     COLOR_3,
                     COLOR_2,
-                    "Dynamic SVG color did not update."
+                    "Dynamic SVG color did not update.",
                 );
             },
         },
@@ -96,9 +96,9 @@ registerWebsitePreviewTour(
                     this.anchor,
                     COLOR_1,
                     COLOR_2,
-                    "Dynamic SVG theme colors were not restored."
+                    "Dynamic SVG theme colors were not restored.",
                 );
             },
         },
-    ]
+    ],
 );

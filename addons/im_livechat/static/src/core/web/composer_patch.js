@@ -1,7 +1,6 @@
 /** @odoo-module native */
 import { Composer } from "@mail/core/common/composer";
 import { _t } from "@web/core/l10n/translation";
-
 import { patch } from "@web/core/utils/patch";
 
 patch(Composer.prototype, {
@@ -31,7 +30,7 @@ patch(Composer.prototype, {
         return (
             this.thread?.channel_type === "livechat" &&
             this.store.discuss.livechats.some(
-                (thread) => thread.notEq(this.thread) && thread.isUnread
+                (thread) => thread.notEq(this.thread) && thread.isUnread,
             )
         );
     },

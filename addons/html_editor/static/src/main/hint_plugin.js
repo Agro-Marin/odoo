@@ -1,10 +1,11 @@
 /** @odoo-module native */
 import { Plugin } from "@html_editor/plugin";
-import { isEditorTab, isEmptyBlock, isProtected } from "@html_editor/utils/dom_info";
 import { removeClass } from "@html_editor/utils/dom";
+import { isEditorTab, isEmptyBlock, isProtected } from "@html_editor/utils/dom_info";
 import { descendants, selectElements } from "@html_editor/utils/dom_traversal";
-import { closestBlock } from "../utils/blocks.js";
 import { debounce } from "@web/core/utils/timing";
+
+import { closestBlock } from "../utils/blocks.js";
 
 /**
  * @typedef {import("@html_editor/editor").EditorContext} EditorContext
@@ -37,7 +38,10 @@ export class HintPlugin extends Plugin {
         content_updated_handlers: this.updateHints.bind(this),
 
         hint_targets_providers: (selectionData, editable) => {
-            if (!selectionData.currentSelectionIsInEditable || !selectionData.documentSelection) {
+            if (
+                !selectionData.currentSelectionIsInEditable ||
+                !selectionData.documentSelection
+            ) {
                 return [];
             }
             const blockEl = closestBlock(selectionData.documentSelection.anchorNode);
@@ -71,7 +75,9 @@ export class HintPlugin extends Plugin {
         this.updateHints();
     }
 
-    triggerDebouncedUpdateHints(selectionData = this.dependencies.selection.getSelectionData()) {
+    triggerDebouncedUpdateHints(
+        selectionData = this.dependencies.selection.getSelectionData(),
+    ) {
         if (selectionData.documentSelectionIsInEditable) {
             this.clearHints();
         }
@@ -89,7 +95,9 @@ export class HintPlugin extends Plugin {
             const hints = this.getResource("hints");
             for (const provideTargets of this.getResource("hint_targets_providers")) {
                 for (const target of provideTargets(selectionData, this.editable)) {
-                    const nodeHint = hints.find((h) => target.matches(h.selector))?.text;
+                    const nodeHint = hints.find((h) =>
+                        target.matches(h.selector),
+                    )?.text;
                     if (
                         target &&
                         nodeHint &&
@@ -113,7 +121,9 @@ export class HintPlugin extends Plugin {
     removeHint(el) {
         el.removeAttribute("o-we-hint-text");
         removeClass(el, "o-we-hint");
-        this.getResource("system_style_properties").forEach((n) => el.style.removeProperty(n));
+        this.getResource("system_style_properties").forEach((n) =>
+            el.style.removeProperty(n),
+        );
     }
 
     clearHints(root = this.editable) {

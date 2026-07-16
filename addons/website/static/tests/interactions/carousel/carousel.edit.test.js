@@ -1,7 +1,11 @@
-import { startInteractions, setupInteractionWhiteList } from "@web/../tests/public/helpers";
 import { describe, expect, test } from "@odoo/hoot";
-import { switchToEditMode } from "../../helpers.js";
 import { queryAll } from "@odoo/hoot-dom";
+import {
+    setupInteractionWhiteList,
+    startInteractions,
+} from "@web/../tests/public/helpers";
+
+import { switchToEditMode } from "../../helpers.js";
 
 setupInteractionWhiteList("website.carousel_edit");
 
@@ -41,7 +45,7 @@ test("[EDIT] carousel_edit resets slide to attributes", async () => {
             </div>
         </section>
     `,
-        { waitForStart: true, editMode: true }
+        { waitForStart: true, editMode: true },
     );
     await switchToEditMode(core);
 

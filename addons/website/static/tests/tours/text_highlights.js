@@ -1,9 +1,9 @@
+import { editorsWeakMap } from "@html_editor/../tests/tours/helpers/editor";
 import {
+    clickToolbarButton,
     insertSnippet,
     registerWebsitePreviewTour,
-    clickToolbarButton,
 } from "@website/js/tours/tour_utils";
-import { editorsWeakMap } from "@html_editor/../tests/tours/helpers/editor";
 
 function applyHighlight(target, targetName, highlight) {
     return [
@@ -55,15 +55,21 @@ registerWebsitePreviewTour(
             content: "Check that the highlights was correctly applied",
             trigger: ":iframe .s_title .o_text_highlight",
             run() {
-                if (this.anchor.querySelectorAll("svg").length !== countLines(this.anchor)) {
-                    throw new Error("The highlight svgs are not correctly applied to text lines");
+                if (
+                    this.anchor.querySelectorAll("svg").length !==
+                    countLines(this.anchor)
+                ) {
+                    throw new Error(
+                        "The highlight svgs are not correctly applied to text lines",
+                    );
                 }
             },
         },
         ...applyHighlight(".s_cover h1", "snippet title", "underline"),
         {
             content: "Check that the highlight was applied",
-            trigger: ":iframe .s_cover h1 span.o_text_highlight_underline svg.o_text_highlight_svg",
+            trigger:
+                ":iframe .s_cover h1 span.o_text_highlight_underline svg.o_text_highlight_svg",
         },
         {
             content: "Disable the highlight effect",
@@ -81,13 +87,17 @@ registerWebsitePreviewTour(
             trigger: ":iframe .s_cover p",
             run() {
                 const iframeDOC = document.querySelector(
-                    ".o_iframe_container > iframe"
+                    ".o_iframe_container > iframe",
                 ).contentDocument;
                 const firstLine = document.createElement("strong");
                 firstLine.textContent = "Text content line A";
                 const secondLine = document.createElement("i");
                 secondLine.textContent = "Text content line B";
-                this.anchor.replaceChildren(firstLine, document.createElement("br"), secondLine);
+                this.anchor.replaceChildren(
+                    firstLine,
+                    document.createElement("br"),
+                    secondLine,
+                );
                 const editor = editorsWeakMap.get(this.anchor.ownerDocument);
                 editor.shared.history.addStep();
                 // Select the whole content.
@@ -141,5 +151,5 @@ registerWebsitePreviewTour(
             trigger:
                 ":iframe .s_cover p:has(strong:contains(Text content line A) + br + i:contains(Text content line B))",
         },
-    ]
+    ],
 );

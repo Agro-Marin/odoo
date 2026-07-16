@@ -8,5 +8,5 @@ registerWebsitePreviewTour(
     {
         url: "/",
     },
-    () => [...clickOnEditAndWaitEditMode()]
+    () => [...clickOnEditAndWaitEditMode()],
 );

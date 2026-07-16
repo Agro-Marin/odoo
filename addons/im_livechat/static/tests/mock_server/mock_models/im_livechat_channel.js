@@ -1,6 +1,11 @@
 import { mailDataHelpers } from "@mail/../tests/mock_server/mail_mock_server";
-
-import { Command, fields, getKwArgs, makeKwArgs, models } from "@web/../tests/web_test_helpers";
+import {
+    Command,
+    fields,
+    getKwArgs,
+    makeKwArgs,
+    models,
+} from "@web/../tests/web_test_helpers";
 
 export class LivechatChannel extends models.ServerModel {
     _name = "im_livechat.channel";
@@ -17,8 +22,8 @@ export class LivechatChannel extends models.ServerModel {
             "mail.record/insert",
             new mailDataHelpers.Store(
                 this.browse(id),
-                makeKwArgs({ fields: ["are_you_inside", "name"] })
-            ).get_result()
+                makeKwArgs({ fields: ["are_you_inside", "name"] }),
+            ).get_result(),
         );
     }
 
@@ -31,8 +36,8 @@ export class LivechatChannel extends models.ServerModel {
             "mail.record/insert",
             new mailDataHelpers.Store(
                 this.browse(id),
-                makeKwArgs({ fields: ["are_you_inside", "name"] })
-            ).get_result()
+                makeKwArgs({ fields: ["are_you_inside", "name"] }),
+            ).get_result(),
         );
     }
 
@@ -61,20 +66,25 @@ export class LivechatChannel extends models.ServerModel {
                 unpin_dt: "2021-01-01 12:00:00",
             }),
         ];
-        const guest = ResUsers._is_public(this.env.uid) && MailGuest._get_guest_from_context();
+        const guest =
+            ResUsers._is_public(this.env.uid) && MailGuest._get_guest_from_context();
         if (guest) {
             membersToAdd.push(
-                Command.create({ guest_id: guest.id, livechat_member_type: "visitor" })
+                Command.create({ guest_id: guest.id, livechat_member_type: "visitor" }),
             );
         }
         let visitorUser;
-        if (this.env.user && !ResUsers._is_public(this.env.uid) && this.env.user !== agent) {
+        if (
+            this.env.user &&
+            !ResUsers._is_public(this.env.uid) &&
+            this.env.user !== agent
+        ) {
             visitorUser = this.env.user;
             membersToAdd.push(
                 Command.create({
                     livechat_member_type: "visitor",
                     partner_id: visitorUser.partner_id,
-                })
+                }),
             );
         }
         const membersName = [
@@ -101,8 +111,9 @@ export class LivechatChannel extends models.ServerModel {
     _get_operator(id, previous_operator_id) {
         const availableUsers = this._compute_available_operator_ids(id);
         return (
-            availableUsers.find((operator) => operator.partner_id === previous_operator_id) ??
-            availableUsers[0]
+            availableUsers.find(
+                (operator) => operator.partner_id === previous_operator_id,
+            ) ?? availableUsers[0]
         );
     }
 
@@ -111,7 +122,7 @@ export class LivechatChannel extends models.ServerModel {
         fields = kwargs.fields;
         store._add_record_fields(
             this,
-            fields.filter((field) => field !== "are_you_inside")
+            fields.filter((field) => field !== "are_you_inside"),
         );
         for (const livechatChannel of this) {
             if (fields.includes("are_you_inside")) {

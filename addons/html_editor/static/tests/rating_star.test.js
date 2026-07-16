@@ -1,6 +1,10 @@
 import { expect, test } from "@odoo/hoot";
 import { advanceTime, click, press } from "@odoo/hoot-dom";
+import { animationFrame } from "@odoo/hoot-mock";
+
 import { setupEditor, testEditor } from "./_helpers/editor.js";
+import { getContent } from "./_helpers/selection.js";
+import { expectElementCount } from "./_helpers/ui_expectations.js";
 import {
     deleteBackward,
     deleteForward,
@@ -8,9 +12,6 @@ import {
     simulateArrowKeyPress,
     splitBlock,
 } from "./_helpers/user_actions.js";
-import { getContent } from "./_helpers/selection.js";
-import { animationFrame } from "@odoo/hoot-mock";
-import { expectElementCount } from "./_helpers/ui_expectations.js";
 
 /**
  * Rating Star Element Tests
@@ -24,7 +25,7 @@ test("add 3 star elements", async () => {
 
     await press("Enter");
     expect(getContent(el)).toBe(
-        `<p>\uFEFF<span contenteditable="false" class="o_stars"><i class="fa-regular fa-star" contenteditable="false">\u200B</i><i class="fa-regular fa-star" contenteditable="false">\u200B</i><i class="fa-regular fa-star" contenteditable="false">\u200B</i></span>\uFEFF[]</p>`
+        `<p>\uFEFF<span contenteditable="false" class="o_stars"><i class="fa-regular fa-star" contenteditable="false">\u200B</i><i class="fa-regular fa-star" contenteditable="false">\u200B</i><i class="fa-regular fa-star" contenteditable="false">\u200B</i></span>\uFEFF[]</p>`,
     );
 });
 
@@ -36,59 +37,59 @@ test("add 5 star elements", async () => {
 
     await press("Enter");
     expect(getContent(el)).toBe(
-        `<p>\uFEFF<span contenteditable="false" class="o_stars"><i class="fa-regular fa-star" contenteditable="false">\u200B</i><i class="fa-regular fa-star" contenteditable="false">\u200B</i><i class="fa-regular fa-star" contenteditable="false">\u200B</i><i class="fa-regular fa-star" contenteditable="false">\u200B</i><i class="fa-regular fa-star" contenteditable="false">\u200B</i></span>\uFEFF[]</p>`
+        `<p>\uFEFF<span contenteditable="false" class="o_stars"><i class="fa-regular fa-star" contenteditable="false">\u200B</i><i class="fa-regular fa-star" contenteditable="false">\u200B</i><i class="fa-regular fa-star" contenteditable="false">\u200B</i><i class="fa-regular fa-star" contenteditable="false">\u200B</i><i class="fa-regular fa-star" contenteditable="false">\u200B</i></span>\uFEFF[]</p>`,
     );
 });
 
 test("select star rating", async () => {
     const { el } = await setupEditor(
-        `<p><span contenteditable="false" class="o_stars"><i class="fa-regular fa-star" contenteditable="false">\u200B</i><i class="o_stars fa-regular fa-star" contenteditable="false">\u200B</i><i class="o_stars fa-regular fa-star" contenteditable="false">\u200B</i></span>[]</p>`
+        `<p><span contenteditable="false" class="o_stars"><i class="fa-regular fa-star" contenteditable="false">\u200B</i><i class="o_stars fa-regular fa-star" contenteditable="false">\u200B</i><i class="o_stars fa-regular fa-star" contenteditable="false">\u200B</i></span>[]</p>`,
     );
 
     await click("i.fa-regular.fa-star:first");
     await animationFrame();
     expect(getContent(el)).toBe(
-        `<p>\uFEFF<span contenteditable="false" class="o_stars"><i class="fa-solid fa-star" contenteditable="false">\u200B</i><i class="o_stars fa-regular fa-star" contenteditable="false">\u200B</i><i class="o_stars fa-regular fa-star" contenteditable="false">\u200B</i></span>\uFEFF[]</p>`
+        `<p>\uFEFF<span contenteditable="false" class="o_stars"><i class="fa-solid fa-star" contenteditable="false">\u200B</i><i class="o_stars fa-regular fa-star" contenteditable="false">\u200B</i><i class="o_stars fa-regular fa-star" contenteditable="false">\u200B</i></span>\uFEFF[]</p>`,
     );
 
     await click("i.fa-regular.fa-star:last");
     await animationFrame();
     expect(getContent(el)).toBe(
-        `<p>\uFEFF<span contenteditable="false" class="o_stars"><i class="fa-solid fa-star" contenteditable="false">\u200B</i><i class="o_stars fa-solid fa-star" contenteditable="false">\u200B</i><i class="o_stars fa-solid fa-star" contenteditable="false">\u200B</i></span>\uFEFF[]</p>`
+        `<p>\uFEFF<span contenteditable="false" class="o_stars"><i class="fa-solid fa-star" contenteditable="false">\u200B</i><i class="o_stars fa-solid fa-star" contenteditable="false">\u200B</i><i class="o_stars fa-solid fa-star" contenteditable="false">\u200B</i></span>\uFEFF[]</p>`,
     );
 
     await click("i.fa-solid.fa-star:last");
     await animationFrame();
     expect(getContent(el)).toBe(
-        `<p>\uFEFF<span contenteditable="false" class="o_stars"><i class="fa-regular fa-star" contenteditable="false">\u200B</i><i class="o_stars fa-regular fa-star" contenteditable="false">\u200B</i><i class="o_stars fa-regular fa-star" contenteditable="false">\u200B</i></span>\uFEFF[]</p>`
+        `<p>\uFEFF<span contenteditable="false" class="o_stars"><i class="fa-regular fa-star" contenteditable="false">\u200B</i><i class="o_stars fa-regular fa-star" contenteditable="false">\u200B</i><i class="o_stars fa-regular fa-star" contenteditable="false">\u200B</i></span>\uFEFF[]</p>`,
     );
 });
 
 test("should insert two empty paragraphs when Enter is pressed twice before the star element", async () => {
     const { el, editor } = await setupEditor(
-        `<p>\u200B[]<span contenteditable="false" class="o_stars o_three_stars"><i class="fa-regular fa-star" contenteditable="false">\u200B</i><i class="o_stars fa-regular fa-star" contenteditable="false">\u200B</i><i class="o_stars fa-regular fa-star" contenteditable="false">\u200B</i></span>\u200B</p>`
+        `<p>\u200B[]<span contenteditable="false" class="o_stars o_three_stars"><i class="fa-regular fa-star" contenteditable="false">\u200B</i><i class="o_stars fa-regular fa-star" contenteditable="false">\u200B</i><i class="o_stars fa-regular fa-star" contenteditable="false">\u200B</i></span>\u200B</p>`,
     );
     splitBlock(editor);
     expect(getContent(el)).toBe(
-        `<p><br></p><p>\uFEFF[]<span contenteditable="false" class="o_stars o_three_stars"><i class="fa-regular fa-star" contenteditable="false">\u200B</i><i class="o_stars fa-regular fa-star" contenteditable="false">\u200B</i><i class="o_stars fa-regular fa-star" contenteditable="false">\u200B</i></span>\uFEFF\u200B</p>`
+        `<p><br></p><p>\uFEFF[]<span contenteditable="false" class="o_stars o_three_stars"><i class="fa-regular fa-star" contenteditable="false">\u200B</i><i class="o_stars fa-regular fa-star" contenteditable="false">\u200B</i><i class="o_stars fa-regular fa-star" contenteditable="false">\u200B</i></span>\uFEFF\u200B</p>`,
     );
     splitBlock(editor);
     expect(getContent(el)).toBe(
-        `<p><br></p><p><br></p><p>\uFEFF[]<span contenteditable="false" class="o_stars o_three_stars"><i class="fa-regular fa-star" contenteditable="false">\u200B</i><i class="o_stars fa-regular fa-star" contenteditable="false">\u200B</i><i class="o_stars fa-regular fa-star" contenteditable="false">\u200B</i></span>\uFEFF\u200B</p>`
+        `<p><br></p><p><br></p><p>\uFEFF[]<span contenteditable="false" class="o_stars o_three_stars"><i class="fa-regular fa-star" contenteditable="false">\u200B</i><i class="o_stars fa-regular fa-star" contenteditable="false">\u200B</i><i class="o_stars fa-regular fa-star" contenteditable="false">\u200B</i></span>\uFEFF\u200B</p>`,
     );
 });
 
 test("should insert two empty paragraphs when Enter is pressed twice after the star element", async () => {
     const { el, editor } = await setupEditor(
-        `<p>\u200B<span contenteditable="false" class="o_stars o_three_stars"><i class="fa-regular fa-star" contenteditable="false">\u200B</i><i class="o_stars fa-regular fa-star" contenteditable="false">\u200B</i><i class="o_stars fa-regular fa-star" contenteditable="false">\u200B</i></span>\u200B[]</p>`
+        `<p>\u200B<span contenteditable="false" class="o_stars o_three_stars"><i class="fa-regular fa-star" contenteditable="false">\u200B</i><i class="o_stars fa-regular fa-star" contenteditable="false">\u200B</i><i class="o_stars fa-regular fa-star" contenteditable="false">\u200B</i></span>\u200B[]</p>`,
     );
     splitBlock(editor);
     expect(getContent(el)).toBe(
-        `<p>\u200B\uFEFF<span contenteditable="false" class="o_stars o_three_stars"><i class="fa-regular fa-star" contenteditable="false">\u200B</i><i class="o_stars fa-regular fa-star" contenteditable="false">\u200B</i><i class="o_stars fa-regular fa-star" contenteditable="false">\u200B</i></span>\uFEFF</p><p o-we-hint-text='Type "/" for commands' class="o-we-hint">[]<br></p>`
+        `<p>\u200B\uFEFF<span contenteditable="false" class="o_stars o_three_stars"><i class="fa-regular fa-star" contenteditable="false">\u200B</i><i class="o_stars fa-regular fa-star" contenteditable="false">\u200B</i><i class="o_stars fa-regular fa-star" contenteditable="false">\u200B</i></span>\uFEFF</p><p o-we-hint-text='Type "/" for commands' class="o-we-hint">[]<br></p>`,
     );
     splitBlock(editor);
     expect(getContent(el)).toBe(
-        `<p>\u200B\uFEFF<span contenteditable="false" class="o_stars o_three_stars"><i class="fa-regular fa-star" contenteditable="false">\u200B</i><i class="o_stars fa-regular fa-star" contenteditable="false">\u200B</i><i class="o_stars fa-regular fa-star" contenteditable="false">\u200B</i></span>\uFEFF</p><p><br></p><p o-we-hint-text='Type "/" for commands' class="o-we-hint">[]<br></p>`
+        `<p>\u200B\uFEFF<span contenteditable="false" class="o_stars o_three_stars"><i class="fa-regular fa-star" contenteditable="false">\u200B</i><i class="o_stars fa-regular fa-star" contenteditable="false">\u200B</i><i class="o_stars fa-regular fa-star" contenteditable="false">\u200B</i></span>\uFEFF</p><p><br></p><p o-we-hint-text='Type "/" for commands' class="o-we-hint">[]<br></p>`,
     );
 });
 
@@ -145,7 +146,7 @@ test("stars line should be reachable with up/down", async () => {
 test.tags("desktop");
 test("should not open icon toolbar when inserting a paragraph break before the star element", async () => {
     const { editor } = await setupEditor(
-        `<p>\u200B[]<span contenteditable="false" class="o_stars o_three_stars"><i class="fa fa-star-o" contenteditable="false">\u200B</i><i class="o_stars fa fa-star-o" contenteditable="false">\u200B</i><i class="o_stars fa fa-star-o" contenteditable="false">\u200B</i></span>\u200B</p>`
+        `<p>\u200B[]<span contenteditable="false" class="o_stars o_three_stars"><i class="fa fa-star-o" contenteditable="false">\u200B</i><i class="o_stars fa fa-star-o" contenteditable="false">\u200B</i><i class="o_stars fa fa-star-o" contenteditable="false">\u200B</i></span>\u200B</p>`,
     );
     splitBlock(editor);
     await advanceTime(100);

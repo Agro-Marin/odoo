@@ -1,9 +1,10 @@
 /** @odoo-module native */
+import { getVideoUrl } from "@html_editor/utils/url";
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
 import { ImageField, imageField } from "@web/fields/media/image/image_field";
+
 import { CustomMediaDialog } from "./custom_media_dialog.js";
-import { getVideoUrl } from "@html_editor/utils/url";
 
 export class X2ManyImageField extends ImageField {
     static template = "html_editor.ImageField";
@@ -39,7 +40,7 @@ export class X2ManyImageField extends ImageField {
             "ir.attachment",
             [["id", "=", attachment[0].id]],
             ["id", "datas", "name"],
-            {}
+            {},
         );
         if (!attachmentRecord[0].datas) {
             // URL type attachments are mostly demo records which don't have any ir.attachment datas
@@ -48,7 +49,7 @@ export class X2ManyImageField extends ImageField {
                 `Cannot add URL type attachment "${attachmentRecord[0].name}". Please try to reupload this image.`,
                 {
                     type: "warning",
-                }
+                },
             );
         }
         await this.props.record.update({
@@ -58,7 +59,11 @@ export class X2ManyImageField extends ImageField {
     }
 
     async onVideoSave(videoInfo) {
-        const url = getVideoUrl(videoInfo[0].platform, videoInfo[0].videoId, videoInfo[0].params);
+        const url = getVideoUrl(
+            videoInfo[0].platform,
+            videoInfo[0].videoId,
+            videoInfo[0].params,
+        );
         await this.props.record.update({
             video_url: url.href,
             name: videoInfo[0].platform + " - [Video]",

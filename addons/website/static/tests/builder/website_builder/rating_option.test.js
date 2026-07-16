@@ -1,8 +1,8 @@
+import { expect, test } from "@odoo/hoot";
 import {
     defineWebsiteModels,
     setupWebsiteBuilderWithSnippet,
 } from "@website/../tests/builder/website_helpers";
-import { expect, test } from "@odoo/hoot";
 
 defineWebsiteModels();
 

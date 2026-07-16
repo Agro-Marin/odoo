@@ -1,8 +1,6 @@
 /** @odoo-module native */
 import { LivechatChannel } from "@im_livechat/core/common/livechat_channel_model";
-
 import { useSequential } from "@mail/utils/common/hooks";
-
 import { _t } from "@web/core/l10n/translation";
 import { patch } from "@web/core/utils/patch";
 
@@ -17,7 +15,9 @@ const livechatChannelPatch = {
             });
         }
         await sequential(() =>
-            this.store.env.services.orm.call("im_livechat.channel", "action_join", [this.id])
+            this.store.env.services.orm.call("im_livechat.channel", "action_join", [
+                this.id,
+            ]),
         );
     },
     get joinTitle() {
@@ -31,7 +31,9 @@ const livechatChannelPatch = {
             });
         }
         await sequential(() =>
-            this.store.env.services.orm.call("im_livechat.channel", "action_quit", [this.id])
+            this.store.env.services.orm.call("im_livechat.channel", "action_quit", [
+                this.id,
+            ]),
         );
     },
     get leaveTitle() {

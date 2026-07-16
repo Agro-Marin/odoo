@@ -87,7 +87,13 @@ export const textHighlightFactory = {
                 `25 30.595-17.195 9.779-8.698 11.715-18.55 5.669-30.249-1.131-2.196-3.256-4.079-5.33-5.56-7.981-5.736-17.773-7.48-26.459-11.534-13.249-6.175-27.541-6.916-41.343-10` +
                 `.167-.817-.188-1.571-.64-2.35-.966.037-.364.088-.728.125-1.092Z`,
         ];
-        return drawPath({ ...params, mode: "fill", template, SVGWidth: 200, SVGHeight: 120 });
+        return drawPath({
+            ...params,
+            mode: "fill",
+            template,
+            SVGWidth: 200,
+            SVGHeight: 120,
+        });
     },
     circle_3: (params) => {
         const template = (w, h) => [
@@ -98,7 +104,13 @@ export const textHighlightFactory = {
                 `5-109.66 18.762-8.18 3.883-15.497 9.177-21.359 14.752-9.725 9.27-8.044 19.889 3.727 28.032 4.862 3.383 10.997 6.233 17.269 8.237 14.406 4.605 30.04 5.544 48.58 5.` +
                 `763l.092-.03ZM130.37 3.573c-24.813-1.88-48.263 1.378-70.44 9.146 22.814-5.481 46.172-9.02 70.44-9.146Z`,
         ];
-        return drawPath({ ...params, mode: "fill", template, SVGWidth: 200, SVGHeight: 90 });
+        return drawPath({
+            ...params,
+            mode: "fill",
+            template,
+            SVGWidth: 200,
+            SVGHeight: 90,
+        });
     },
     over_underline: (params) => {
         const template = (w, h) => [`M 0,0 h ${w}`, `M 0,${h} h ${w}`];
@@ -174,7 +186,13 @@ export const textHighlightFactory = {
                 ` 2.289-2.281 4.221-5.693 6.877-6.42 2.624-.718 5.992 1.26 9.599 2.216-.044.054.636-.565.96-1.348 1.048-2.499 2.883-3.4 5.42-2.825 2.775.62 5.474 1.304 6.284 4.76.` +
                 `216.89 1.285 2.042 2.159 2.248 7.58 1.793 7.6 1.739 8.108 9.55v.012Z`,
         ];
-        return drawPath({ ...params, mode: "fill", template, SVGWidth: 200, SVGHeight: 61 });
+        return drawPath({
+            ...params,
+            mode: "fill",
+            template,
+            SVGWidth: 200,
+            SVGHeight: 61,
+        });
     },
     jagged: (params) => {
         const template = (w, h) => [
@@ -191,7 +209,8 @@ export const textHighlightFactory = {
         const template = (w, h) => [`M 0,${h} L${w},0`];
         return drawPath({ ...params, mode: "free", template });
     },
-    strikethrough: (params) => drawPath({ ...params, mode: "line", position: "center" }),
+    strikethrough: (params) =>
+        drawPath({ ...params, mode: "line", position: "center" }),
     bold: (params) => {
         const template = (w, h) => [
             `M136.604 41.568c5.373.513 10.746 1.047 16.12 1.479 14.437 1.13 29.327 4.047 42.858-4.294 4.92-3.04 2.346-13.56-2.687-13.395-.825.02-1.` +
@@ -199,7 +218,13 @@ export const textHighlightFactory = {
                 `455 3.84 19.893c9.727 2.24 19.454 4.335 29.214 6.307-1.085 1.09-1.764 2.671-2.023 4.356-.615.061-1.214.102-1.83.164-6.748.74-6.959 14.587 0 14.361l107.42-3.513h-.` +
                 `016Z`,
         ];
-        return drawPath({ ...params, mode: "fill", template, SVGWidth: 200, SVGHeight: 46 });
+        return drawPath({
+            ...params,
+            mode: "fill",
+            template,
+            SVGWidth: 200,
+            SVGHeight: 46,
+        });
     },
     bold_1: (params) => {
         const template = (w, h) => [
@@ -207,7 +232,13 @@ export const textHighlightFactory = {
                 `C196.78 9.573 195.931.8 189.264.983L13.784 5.678c-7.226.2-7.497 9.422-1.499 11.32-2.186 0-4.354 0-6.54-.017-7.696-.05-7.624 11.286 0 11.635 8.22.383 16.423.733 24` +
                 `.643 1.016l-7.823.35c-7.624.349-7.678 11.985 0 11.635 55.915-2.53 111.813-5.077 167.729-7.607h-.018Z`,
         ];
-        return drawPath({ ...params, mode: "fill", template, SVGWidth: 200, SVGHeight: 42 });
+        return drawPath({
+            ...params,
+            mode: "fill",
+            template,
+            SVGWidth: 200,
+            SVGHeight: 42,
+        });
     },
     bold_2: (params) => {
         const template = (w, h) => [
@@ -217,7 +248,13 @@ export const textHighlightFactory = {
                 `.218-.35 20.437-.38 30.655-.577C51.236.78 66.94-.04 82.635.264c14.652.273 29.296 1.655 43.948 2.643 19.822 1.336 39.643 2.02 59.455-.426.923-.121 1.835-.5 2.758-.` +
                 `622 1.329-.183 2.688-.456 4.008-.274 3.829.501 7.073 5.666 7.192 11.21.09 4.466-1.418 6.213-6.775 7.428v-.03Z`,
         ];
-        return drawPath({ ...params, mode: "fill", template, SVGWidth: 200, SVGHeight: 43 });
+        return drawPath({
+            ...params,
+            mode: "fill",
+            template,
+            SVGWidth: 200,
+            SVGHeight: 43,
+        });
     },
 };
 
@@ -235,18 +272,22 @@ export function makeHighlightSvgs(highlightEl, highlightID) {
         // The default value for `--text-highlight-width` is 0.1em.
         highlightEl.style.setProperty(
             "--text-highlight-width",
-            `${Math.round(parseFloat(style.fontSize) * 0.1)}px`
+            `${Math.round(parseFloat(style.fontSize) * 0.1)}px`,
         );
     }
 
-    const textNodes = descendants(highlightEl).filter((el) => el.nodeType === Node.TEXT_NODE);
-    const rects = textNodes.map((node) => getTextnodeRects(node, 0, node.length)).flat();
+    const textNodes = descendants(highlightEl).filter(
+        (el) => el.nodeType === Node.TEXT_NODE,
+    );
+    const rects = textNodes
+        .map((node) => getTextnodeRects(node, 0, node.length))
+        .flat();
     const finalRects = rectToBatch(rects).map((rects) => getBiggestBoxFromBoxes(rects));
 
     const sizePerChar = memoize(() => {
         const numberOfChar = textNodes.reduce(
             (acc, node) => acc + node.textContent.replaceAll(/\s/g, "").length,
-            0
+            0,
         );
         return finalRects.reduce((acc, rect) => acc + rect.width, 0) / numberOfChar;
     });
@@ -256,21 +297,27 @@ export function makeHighlightSvgs(highlightEl, highlightID) {
     // Note: We cannot use `getClientRects()` as we want to be able to draw
     // text highlights in the snippet/page dialogs where iframe is scaled.
     const inPreviewIframe =
-        highlightEl.ownerDocument.documentElement.classList.contains("o_add_snippets_preview");
+        highlightEl.ownerDocument.documentElement.classList.contains(
+            "o_add_snippets_preview",
+        );
     const scale = inPreviewIframe ? highlightEl.offsetWidth / containerRect.width : 1;
     const rtl = window.getComputedStyle(highlightEl).direction === "rtl";
     const firstRect = highlightEl.getClientRects()[0];
     const svgs = [];
     for (const rects of finalRects) {
-        const svg = makeHighlightSvg(highlightID || getCurrentTextHighlight(highlightEl), {
-            width: rects.width * scale,
-            height: rects.height * scale,
-            numberOfCharPerWidth,
-        });
+        const svg = makeHighlightSvg(
+            highlightID || getCurrentTextHighlight(highlightEl),
+            {
+                width: rects.width * scale,
+                height: rects.height * scale,
+                numberOfCharPerWidth,
+            },
+        );
         svgs.push(svg);
         svg.style.top = `${(rects.y - firstRect.y) * scale}px`;
         svg.style.bottom = `0px`;
-        if (rtl) {  // Position from the right instead of left and mirror the SVG
+        if (rtl) {
+            // Position from the right instead of left and mirror the SVG
             svg.style.right = `${(firstRect.right - rects.right) * scale}px`;
             svg.dataset.rtlIntendedRightPosition = rects.right;
             svg.style.transform = "scale(-1, 1)";
@@ -299,7 +346,9 @@ export function adaptHighlightPosition(highlightEl, svg) {
     // Reposition element in RTL to what was intended because
     // safari positionning work differently than other browsers
     if ("rtlIntendedRightPosition" in svg.dataset) {
-        const rightPositionDelta = svg.getBoundingClientRect().right - parseFloat(svg.dataset.rtlIntendedRightPosition);
+        const rightPositionDelta =
+            svg.getBoundingClientRect().right -
+            parseFloat(svg.dataset.rtlIntendedRightPosition);
         svg.style.right = `${parseFloat(svg.style.right) + rightPositionDelta}px`;
     }
 }
@@ -331,7 +380,7 @@ export function makeHighlightSvg(highlightID, params) {
         "o_content_no_merge",
         "position-absolute",
         "overflow-visible",
-        "pe-none"
+        "pe-none",
     );
     textHighlightFactory[highlightID](params).forEach((pathEl) => {
         // pathEl.classList.add(`o_text_highlight_path_${highlightID}`);
@@ -448,7 +497,12 @@ function rectToBatch(rects) {
 }
 function getBiggestBoxFromBoxes(includedBoxes) {
     const firstBox = includedBoxes[0];
-    const combinedRect = new DOMRect(firstBox.x, firstBox.y, firstBox.width, firstBox.height);
+    const combinedRect = new DOMRect(
+        firstBox.x,
+        firstBox.y,
+        firstBox.width,
+        firstBox.height,
+    );
     for (const box of includedBoxes) {
         if (box.x < combinedRect.x) {
             combinedRect.x = box.x;

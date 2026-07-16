@@ -1,9 +1,8 @@
 /** @odoo-module native */
 import { CloseConfirmation } from "@im_livechat/core/common/close_confirmation";
-
 import { ChatWindow } from "@mail/core/common/chat_window";
-
 import { patch } from "@web/core/utils/patch";
+
 import { CW_LIVECHAT_STEP } from "./chat_window_model_patch.js";
 
 Object.assign(ChatWindow.components, { CloseConfirmation });

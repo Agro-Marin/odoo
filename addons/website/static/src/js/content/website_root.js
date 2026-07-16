@@ -1,7 +1,7 @@
 /** @odoo-module native */
+import { pick } from "@web/core/utils/collections/objects";
 import publicRootData from "@web/legacy/js/public/public_root";
 import { initZoomOdoo } from "@website/libs/zoomodoo/zoomodoo";
-import { pick } from "@web/core/utils/collections/objects";
 
 export const WebsiteRoot = publicRootData.PublicRoot.extend({
     events: Object.assign({}, publicRootData.PublicRoot.prototype.events || {}, {
@@ -9,13 +9,17 @@ export const WebsiteRoot = publicRootData.PublicRoot.extend({
         "click .js_publish_management .js_publish_btn": "_onPublishBtnClick",
         "shown.bs.modal": "_onModalShown",
     }),
-    custom_events: Object.assign({}, publicRootData.PublicRoot.prototype.custom_events || {}, {
-        gmap_api_request: "_onGMapAPIRequest",
-        gmap_api_key_request: "_onGMapAPIKeyRequest",
-        ready_to_clean_for_save: "_onWidgetsStopRequest",
-        seo_object_request: "_onSeoObjectRequest",
-        will_remove_snippet: "_onWidgetsStopRequest",
-    }),
+    custom_events: Object.assign(
+        {},
+        publicRootData.PublicRoot.prototype.custom_events || {},
+        {
+            gmap_api_request: "_onGMapAPIRequest",
+            gmap_api_key_request: "_onGMapAPIKeyRequest",
+            ready_to_clean_for_save: "_onWidgetsStopRequest",
+            seo_object_request: "_onSeoObjectRequest",
+            will_remove_snippet: "_onWidgetsStopRequest",
+        },
+    ),
 
     /**
      * @override
@@ -47,33 +51,36 @@ export const WebsiteRoot = publicRootData.PublicRoot.extend({
      * @override
      */
     _getContext: function (context) {
-        var html = document.documentElement;
+        const html = document.documentElement;
         return Object.assign(
             {
                 website_id: html.getAttribute("data-website-id") | 0,
             },
-            this._super.apply(this, arguments)
+            this._super.apply(this, arguments),
         );
     },
     /**
      * @override
      */
     _getExtraContext: function (context) {
-        var html = document.documentElement;
+        const html = document.documentElement;
         return Object.assign(
             {
-                editable: !!(html.dataset.editable || document.querySelectorAll("[data-oe-model]").length), // temporary hack, this should be done in python
+                editable: !!(
+                    html.dataset.editable ||
+                    document.querySelectorAll("[data-oe-model]").length
+                ), // temporary hack, this should be done in python
                 translatable: !!html.dataset.translatable,
                 edit_translations: !!html.dataset.edit_translations,
             },
-            this._super.apply(this, arguments)
+            this._super.apply(this, arguments),
         );
     },
     /**
      * @override
      */
     _getPublicWidgetsRegistry: function (options) {
-        var registry = this._super.apply(this, arguments);
+        const registry = this._super.apply(this, arguments);
         if (options.editableMode) {
             const toPick = Object.keys(registry).filter((key) => {
                 const PublicWidget = registry[key];
@@ -108,10 +115,10 @@ export const WebsiteRoot = publicRootData.PublicRoot.extend({
         }
         const target = ev.currentTarget;
         // retrieve the hash before the redirect
-        var redirect = {
+        const redirect = {
             lang: encodeURIComponent(target.dataset.urlCode),
             url: encodeURIComponent(
-                target.getAttribute("href").replace(/[&?]edit_translations[^&?]+/, "")
+                target.getAttribute("href").replace(/[&?]edit_translations[^&?]+/, ""),
             ),
             hash: encodeURIComponent(window.location.hash),
         };
@@ -123,7 +130,10 @@ export const WebsiteRoot = publicRootData.PublicRoot.extend({
      */
     async _onGMapAPIRequest(ev) {
         ev.stopPropagation();
-        const apiKey = await this.website_map.loadGMapAPI(ev.data.editableMode, ev.data.refetch);
+        const apiKey = await this.website_map.loadGMapAPI(
+            ev.data.editableMode,
+            ev.data.refetch,
+        );
         ev.data.onSuccess(apiKey);
     },
     /**
@@ -142,7 +152,7 @@ export const WebsiteRoot = publicRootData.PublicRoot.extend({
      * @param {OdooEvent} ev
      */
     _onSeoObjectRequest: function (ev) {
-        var res = this._unslugHtmlDataObject("seo-object");
+        const res = this._unslugHtmlDataObject("seo-object");
         ev.data.callback(res);
     },
     /**
@@ -154,8 +164,8 @@ export const WebsiteRoot = publicRootData.PublicRoot.extend({
      * if not found
      */
     _unslugHtmlDataObject: function (dataAttr) {
-        var repr = document.documentElement.dataset[dataAttr];
-        var match = repr && repr.match(/(.+)\((-?\d+),(.*)\)/);
+        const repr = document.documentElement.dataset[dataAttr];
+        const match = repr && repr.match(/(.+)\((-?\d+),(.*)\)/);
         if (!match) {
             return null;
         }

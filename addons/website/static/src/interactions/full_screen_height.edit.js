@@ -1,5 +1,6 @@
 /** @odoo-module native */
 import { registry } from "@web/core/registry";
+
 import { FullScreenHeight } from "./full_screen_height.js";
 
 const FullScreenHeightEdit = (I) =>

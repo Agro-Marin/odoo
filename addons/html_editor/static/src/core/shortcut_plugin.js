@@ -1,7 +1,8 @@
 /** @odoo-module native */
-import { Plugin, isValidTargetForDomListener } from "../plugin.js";
 import { closestBlock } from "@html_editor/utils/blocks";
 import { leftLeafOnlyNotBlockPath } from "@html_editor/utils/dom_state";
+
+import { isValidTargetForDomListener, Plugin } from "../plugin.js";
 
 /**
  * @typedef {Object} Shortcut
@@ -65,15 +66,19 @@ export class ShortCutPlugin extends Plugin {
                 bypassEditableProtection: true,
                 global: true,
                 area: () => this.editable,
-            }
+            },
         );
         if (document !== this.document) {
             // Detach the iframe hotkey listeners when the plugin is destroyed so
             // re-created editors don't accumulate listeners on a reused window.
-            this._cleanups.push(hotkeyService.registerIframe({ contentWindow: this.window }));
+            this._cleanups.push(
+                hotkeyService.registerIframe({ contentWindow: this.window }),
+            );
         }
         for (const shortcut of this.getResource("shortcuts")) {
-            const command = this.dependencies.userCommand.getCommand(shortcut.commandId);
+            const command = this.dependencies.userCommand.getCommand(
+                shortcut.commandId,
+            );
             this.addShortcut(
                 shortcut.hotkey,
                 () => {
@@ -82,7 +87,7 @@ export class ShortCutPlugin extends Plugin {
                 {
                     isAvailable: command.isAvailable,
                     global: !!shortcut.global,
-                }
+                },
             );
         }
         this.shorthands = this.getResource("shorthands");
@@ -101,9 +106,11 @@ export class ShortCutPlugin extends Plugin {
                 allowRepeat: true,
                 isAvailable: (target) =>
                     (!isAvailable ||
-                        isAvailable(this.dependencies.selection.getEditableSelection())) &&
+                        isAvailable(
+                            this.dependencies.selection.getEditableSelection(),
+                        )) &&
                     (global || isValidTargetForDomListener(target)),
-            })
+            }),
         );
     }
 
@@ -112,7 +119,10 @@ export class ShortCutPlugin extends Plugin {
             return;
         }
         const selection = this.dependencies.selection.getEditableSelection();
-        if (!(this.checkPredicates("are_shorthands_available", selection.anchorNode) ?? true)) {
+        if (!(
+            this.checkPredicates("are_shorthands_available", selection.anchorNode) ??
+            true
+        )) {
             return;
         }
         const blockEl = closestBlock(selection.anchorNode);
@@ -127,9 +137,13 @@ export class ShortCutPlugin extends Plugin {
             leftLeaf = leftDOMPath.next().value;
         }
         const precedingText = blockEl.textContent.substring(0, spaceOffset - 1);
-        const matchedShortcut = this.shorthands.find(({ pattern }) => pattern.test(precedingText));
+        const matchedShortcut = this.shorthands.find(({ pattern }) =>
+            pattern.test(precedingText),
+        );
         if (matchedShortcut) {
-            const command = this.dependencies.userCommand.getCommand(matchedShortcut.commandId);
+            const command = this.dependencies.userCommand.getCommand(
+                matchedShortcut.commandId,
+            );
             if (command && command.isAvailable(selection)) {
                 this.dependencies.selection.setSelection({
                     anchorNode: blockEl.firstChild,

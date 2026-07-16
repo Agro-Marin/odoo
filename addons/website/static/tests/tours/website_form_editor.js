@@ -1,14 +1,14 @@
+import { editorsWeakMap } from "@html_editor/../tests/tours/helpers/editor";
+import { stepUtils } from "@web_tour/tour_utils";
 import {
     changeOption,
+    changeOptionInPopover,
     clickOnEditAndWaitEditMode,
     clickOnSave,
-    insertSnippet,
     goBackToBlocks,
+    insertSnippet,
     registerWebsitePreviewTour,
-    changeOptionInPopover,
 } from "@website/js/tours/tour_utils";
-import { stepUtils } from "@web_tour/tour_utils";
-import { editorsWeakMap } from "@html_editor/../tests/tours/helpers/editor";
 
 // Visibility possible values:
 const VISIBLE = "Always Visible";
@@ -85,7 +85,7 @@ const addField = function (
     label,
     required,
     isCustom,
-    display = { visibility: VISIBLE, condition: "" }
+    display = { visibility: VISIBLE, condition: "" },
 ) {
     const data = isCustom
         ? `[data-action-id='customField'][data-action-value='${name}']`
@@ -115,7 +115,8 @@ const addField = function (
     if (display.condition) {
         ret.push({
             content: "Set the visibility condition",
-            trigger: ".o_customize_tab [data-name='hidden_condition_additional_text'] input",
+            trigger:
+                ".o_customize_tab [data-name='hidden_condition_additional_text'] input",
             run: `edit ${display.condition} && press Tab`,
         });
     }
@@ -123,7 +124,8 @@ const addField = function (
         testText += ".s_website_form_required";
         ret.push({
             content: "Mark the field as required",
-            trigger: ".o_customize_tab div[data-action-id='toggleRequired'] input[type='checkbox']",
+            trigger:
+                ".o_customize_tab div[data-action-id='toggleRequired'] input[type='checkbox']",
             run: "click",
         });
     }
@@ -247,12 +249,16 @@ registerWebsitePreviewTour(
         ...addCustomField("char", "text", "Conditional Visibility Check 1", false),
         ...addCustomField("char", "text", "Conditional Visibility Check 2", false),
         ...changeOptionInPopover("Field", "Visibility", "Visible only if"),
-        ...selectButtonByData("Your Name", "[data-action-value='Conditional Visibility Check 1']"),
+        ...selectButtonByData(
+            "Your Name",
+            "[data-action-value='Conditional Visibility Check 1']",
+        ),
         ...addCustomField("char", "text", "Conditional Visibility Check 2", false),
         ...selectFieldByLabel("Conditional Visibility Check 1"),
         ...changeOptionInPopover("Field", "Visibility", "Visible only if"),
         {
-            content: "Open list of the visibility selector of Conditional Visibility Check 1",
+            content:
+                "Open list of the visibility selector of Conditional Visibility Check 1",
             trigger: ".o_customize_tab button:contains('Your Name')",
             run: "click",
         },
@@ -265,7 +271,10 @@ registerWebsitePreviewTour(
         ...addCustomField("char", "text", "Conditional Visibility Check 3", false),
         ...addCustomField("char", "text", "Conditional Visibility Check 4", false),
         ...changeOptionInPopover("Field", "Visibility", "Visible only if"),
-        ...selectButtonByData("Your Name", "[data-action-value='Conditional Visibility Check 3']"),
+        ...selectButtonByData(
+            "Your Name",
+            "[data-action-value='Conditional Visibility Check 3']",
+        ),
         {
             content:
                 "Change the label of 'Conditional Visibility Check 4' and change it to 'Conditional Visibility Check 3'",
@@ -274,8 +283,10 @@ registerWebsitePreviewTour(
             run: "edit Conditional Visibility Check 3 && click body",
         },
         {
-            content: "Check that the conditional visibility of the renamed field is removed",
-            trigger: ".o_customize_tab [data-label='Visibility'] button:contains('Always Visible')",
+            content:
+                "Check that the conditional visibility of the renamed field is removed",
+            trigger:
+                ".o_customize_tab [data-label='Visibility'] button:contains('Always Visible')",
         },
         ...addCustomField("char", "text", "Conditional Visibility Check 5", false),
         ...addCustomField("char", "text", "Conditional Visibility Check 6", false),
@@ -288,7 +299,8 @@ registerWebsitePreviewTour(
             run: "edit Conditional Visibility Check 5 && click body",
         },
         {
-            content: "Open list of the visibility selector of Conditional Visibility Check 1",
+            content:
+                "Open list of the visibility selector of Conditional Visibility Check 1",
             trigger: ".o_customize_tab button:contains('Your Name')",
             run: "click",
         },
@@ -303,7 +315,8 @@ registerWebsitePreviewTour(
             condition: "odoo",
         }),
         {
-            content: "Ensure that the description has correctly been added on the field",
+            content:
+                "Ensure that the description has correctly been added on the field",
             trigger:
                 ":iframe .s_website_form_field:contains('Test conditional visibility') .s_website_form_field_description",
         },
@@ -508,7 +521,7 @@ registerWebsitePreviewTour(
                     const addedOptionEl = document
                         .querySelector("iframe")
                         .contentDocument.querySelector(
-                            '.s_website_form_field select option[value="44 - UK"]'
+                            '.s_website_form_field select option[value="44 - UK"]',
                         );
                     if (!addedOptionEl) {
                         console.error("The number option was not correctly added");
@@ -531,7 +544,8 @@ registerWebsitePreviewTour(
 
         ...addExistingField("attachment_ids", "file", "Invoice Scan"),
         {
-            content: "Insure the history step of the editor is not checking for unbreakable",
+            content:
+                "Insure the history step of the editor is not checking for unbreakable",
             trigger: ":iframe #wrapwrap",
             run() {
                 const editor = editorsWeakMap.get(this.anchor.ownerDocument);
@@ -545,7 +559,8 @@ registerWebsitePreviewTour(
             run: "click",
         },
         {
-            content: "Verify that the button options do not have clone/remove/save buttons.",
+            content:
+                "Verify that the button options do not have clone/remove/save buttons.",
             trigger:
                 "div[data-container-title='Button'] .options-container-header:not(:has(.oe_snippet_remove, .oe_snippet_clone, .oe_snippet_save))",
         },
@@ -573,7 +588,8 @@ registerWebsitePreviewTour(
         },
         {
             content: "Check the resulting button",
-            trigger: ":iframe .s_website_form_send.btn.btn-sm.btn-custom.rounded-circle",
+            trigger:
+                ":iframe .s_website_form_send.btn.btn-sm.btn-custom.rounded-circle",
         },
         // Add a default value to a auto-fillable field.
         ...selectFieldByLabel("Your Name"),
@@ -586,7 +602,9 @@ registerWebsitePreviewTour(
         // Add two fields: the 1st one's visibility is tied to the 2nd one
         // being set, and the 2nd one is autopopulated. As a result, both
         // should be visible by default.
-        ...addCustomField("char", "text", "field A", false, { visibility: CONDITIONALVISIBILITY }),
+        ...addCustomField("char", "text", "field A", false, {
+            visibility: CONDITIONALVISIBILITY,
+        }),
         ...addCustomField("char", "text", "field B", false),
         ...selectFieldByLabel("field A"),
         ...selectButtonByData("Your Name", "[data-action-value='field B']"),
@@ -611,15 +629,20 @@ registerWebsitePreviewTour(
             run: "click",
         },
         {
-            content: "Check that the offset and width of the Phone Number field are still correct",
+            content:
+                "Check that the offset and width of the Phone Number field are still correct",
             trigger: ':iframe .s_website_form_field input[data-fill-with="phone"]',
             run: function () {
                 const fieldEl = this.anchor.closest(".s_website_form_field");
                 if (!fieldEl.classList.contains("offset-lg-3")) {
-                    throw new Error("The offset of the Phone Number field should have been kept");
+                    throw new Error(
+                        "The offset of the Phone Number field should have been kept",
+                    );
                 }
                 if (!fieldEl.classList.contains("col-lg-9")) {
-                    throw new Error("The width of the Phone Number field should have been kept");
+                    throw new Error(
+                        "The width of the Phone Number field should have been kept",
+                    );
                 }
             },
         },
@@ -688,7 +711,8 @@ registerWebsitePreviewTour(
         ...selectFieldByLabel("field A"),
         {
             content: "Verify that the form editor appeared",
-            trigger: ".o_customize_tab div[data-container-title='Form'] .we-bg-options-container",
+            trigger:
+                ".o_customize_tab div[data-container-title='Form'] .we-bg-options-container",
         },
         ...selectButtonByText("Is set", "Contains"),
         {
@@ -802,7 +826,9 @@ registerWebsitePreviewTour(
         },
         // Test a field visibility when it's tied to another Date [Time] field
         // being set.
-        ...addCustomField("char", "text", "field D", false, { visibility: CONDITIONALVISIBILITY }),
+        ...addCustomField("char", "text", "field D", false, {
+            visibility: CONDITIONALVISIBILITY,
+        }),
         ...addCustomField("date", "text", "field E", false),
         ...selectFieldByLabel("field D"),
         ...selectButtonByData("Your Name", "[data-action-value='field E']"),
@@ -876,7 +902,8 @@ registerWebsitePreviewTour(
         ...addCustomField("char", "text", "Check description option", false),
         changeOption("Field", "[data-action-id='toggleDescription'] input"),
         {
-            content: "Ensure that the description has correctly been added on the field",
+            content:
+                "Ensure that the description has correctly been added on the field",
             trigger:
                 ":iframe .s_website_form_field:contains('Check description option') .s_website_form_field_description",
         },
@@ -887,7 +914,7 @@ registerWebsitePreviewTour(
             // We have to this that way because the input type = hidden.
             trigger: ':iframe form:has(input[name="email_to"][value="test@test.test"])',
         },
-    ]
+    ],
 );
 
 function editContactUs(steps) {
@@ -918,7 +945,7 @@ registerWebsitePreviewTour(
                 trigger: "div[data-label='Recipient Email'] input",
                 run: "edit test@test.test",
             },
-        ])
+        ]),
 );
 registerWebsitePreviewTour(
     "website_form_contactus_edition_no_email",
@@ -938,7 +965,7 @@ registerWebsitePreviewTour(
                 trigger:
                     "div[data-label='Recipient Email'] input:value('website_form_contactus_edition_no_email@mail.com')",
             },
-        ])
+        ]),
 );
 
 registerWebsitePreviewTour(
@@ -972,8 +999,13 @@ registerWebsitePreviewTour(
                 const requiredFields = this.anchor
                     .closest("[data-snippet]")
                     .querySelectorAll(".s_website_form_required");
-                if (requiredFields.length !== NB_NON_ESSENTIAL_REQUIRED_FIELDS_IN_DEFAULT_FORM) {
-                    console.error("The amount of required fields seems to have changed");
+                if (
+                    requiredFields.length !==
+                    NB_NON_ESSENTIAL_REQUIRED_FIELDS_IN_DEFAULT_FORM
+                ) {
+                    console.error(
+                        "The amount of required fields seems to have changed",
+                    );
                 }
             },
         },
@@ -1028,12 +1060,15 @@ registerWebsitePreviewTour(
                 // fields. For the robustness of the test, check that amount
                 // of field stays the same.
                 const essentialFields = this.anchor.querySelectorAll(
-                    ".s_website_form_model_required"
+                    ".s_website_form_model_required",
                 );
                 if (
-                    essentialFields.length !== ESSENTIAL_FIELDS_VALID_DATA_FOR_DEFAULT_FORM.length
+                    essentialFields.length !==
+                    ESSENTIAL_FIELDS_VALID_DATA_FOR_DEFAULT_FORM.length
                 ) {
-                    console.error("The amount of model-required fields seems to have changed");
+                    console.error(
+                        "The amount of model-required fields seems to have changed",
+                    );
                 }
             },
         },
@@ -1068,7 +1103,8 @@ registerWebsitePreviewTour(
         },
         {
             content: "Check the form was sent (success page without form)",
-            trigger: ':iframe body:not(:has([data-snippet="s_website_form"])) .fa-paper-plane',
+            trigger:
+                ':iframe body:not(:has([data-snippet="s_website_form"])) .fa-paper-plane',
         },
         {
             content: "Go back to the form",
@@ -1092,9 +1128,10 @@ registerWebsitePreviewTour(
         },
         {
             content: "Check the form was again sent (success page without form)",
-            trigger: ':iframe body:not(:has([data-snippet="s_website_form"])) .fa-paper-plane',
+            trigger:
+                ':iframe body:not(:has([data-snippet="s_website_form"])) .fa-paper-plane',
         },
-    ]
+    ],
 );
 
 registerWebsitePreviewTour(
@@ -1110,7 +1147,7 @@ registerWebsitePreviewTour(
                 trigger: "[data-action-id='setMark'] input",
                 run: "edit **",
             },
-        ])
+        ]),
 );
 
 registerWebsitePreviewTour(
@@ -1136,7 +1173,7 @@ registerWebsitePreviewTour(
                 ":iframe form[action='/my/address/submit']:not(:has([data-snippet='s_website_form']))",
             run: () => null,
         },
-    ]
+    ],
 );
 
 // Check that the editable form content is actually editable.
@@ -1167,7 +1204,11 @@ registerWebsitePreviewTour(
             },
         },
         goBackToBlocks(),
-        ...insertSnippet({ id: "s_three_columns", name: "Columns", groupName: "Columns" }),
+        ...insertSnippet({
+            id: "s_three_columns",
+            name: "Columns",
+            groupName: "Columns",
+        }),
         {
             content: "Select the first column",
             trigger: ":iframe .s_three_columns .row > :nth-child(1)",
@@ -1205,7 +1246,7 @@ registerWebsitePreviewTour(
             run: "click",
         },
         ...clickOnSave(),
-    ]
+    ],
 );
 
 registerWebsitePreviewTour(
@@ -1246,9 +1287,10 @@ registerWebsitePreviewTour(
         },
         {
             content: "Check the form was again sent (success page without form)",
-            trigger: ":iframe body:not(:has([data-snippet='s_website_form'])) .fa-paper-plane",
+            trigger:
+                ":iframe body:not(:has([data-snippet='s_website_form'])) .fa-paper-plane",
         },
-    ]
+    ],
 );
 
 registerWebsitePreviewTour(
@@ -1275,10 +1317,12 @@ registerWebsitePreviewTour(
             groupName: "Contact & Forms",
         }),
         compareIds({
-            content: "Check that the first field of both the form snippets have different IDs",
+            content:
+                "Check that the first field of both the form snippets have different IDs",
             firstElSelector: ".s_website_form input[name='name']",
             secondElSelector: ".s_title_form .s_website_form input[name='name']",
-            errorMessage: "The first fields of two different form snippet have the same ID",
+            errorMessage:
+                "The first fields of two different form snippet have the same ID",
         }),
         {
             content: "Click on the form snippet",
@@ -1287,7 +1331,8 @@ registerWebsitePreviewTour(
         },
         {
             content: "Delete the form snippet",
-            trigger: "[data-container-title='Form'] .options-container-header .oe_snippet_remove",
+            trigger:
+                "[data-container-title='Form'] .options-container-header .oe_snippet_remove",
             run: "click",
         },
         // Cloning a snippet with form in it should generate new IDs for the
@@ -1311,8 +1356,10 @@ registerWebsitePreviewTour(
             content:
                 "Check if the first field of forms in original and cloned snippets have different IDs",
             firstElSelector: ".s_title_form .s_website_form input[name='name']",
-            secondElSelector: ".s_title_form:nth-of-type(2) .s_website_form input[name='name']",
-            errorMessage: "The first fields of original and cloned form snippet have the same ID",
+            secondElSelector:
+                ".s_title_form:nth-of-type(2) .s_website_form input[name='name']",
+            errorMessage:
+                "The first fields of original and cloned form snippet have the same ID",
         }),
         // Cloning a form itself should should generate new IDs for the cloned
         // form fields.
@@ -1323,7 +1370,8 @@ registerWebsitePreviewTour(
         },
         {
             content: "Clone the form",
-            trigger: "[data-container-title='Form'] .options-container-header .oe_snippet_clone",
+            trigger:
+                "[data-container-title='Form'] .options-container-header .oe_snippet_clone",
             run: "click",
         },
         {
@@ -1334,8 +1382,10 @@ registerWebsitePreviewTour(
             content:
                 "Check if the first field of original and cloned form snippets have different IDs",
             firstElSelector: ".s_title_form .s_website_form input[name='name']",
-            secondElSelector: ".s_title_form .s_website_form:nth-of-type(2) input[name='name']",
-            errorMessage: "The first fields of original and cloned form snippet have the same ID",
+            secondElSelector:
+                ".s_title_form .s_website_form:nth-of-type(2) input[name='name']",
+            errorMessage:
+                "The first fields of original and cloned form snippet have the same ID",
         }),
         // Cloning a field should generate new ID for the cloned field
         {
@@ -1345,14 +1395,16 @@ registerWebsitePreviewTour(
         },
         {
             content: "Clone the name field",
-            trigger: "[data-container-title='Field'] .options-container-header .oe_snippet_clone",
+            trigger:
+                "[data-container-title='Field'] .options-container-header .oe_snippet_clone",
             run: "click",
         },
         compareIds({
             content: "Check if both, original and cloned name fields have unique IDs",
             firstElSelector: ".s_title_form .s_website_form input[name='name']",
-            secondElSelector: ".s_title_form [data-name='Field']:nth-of-type(3) input[name='name']",
+            secondElSelector:
+                ".s_title_form [data-name='Field']:nth-of-type(3) input[name='name']",
             errorMessage: "Original and cloned fields have the same ID",
         }),
-    ]
+    ],
 );

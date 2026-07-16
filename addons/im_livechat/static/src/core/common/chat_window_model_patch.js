@@ -23,7 +23,9 @@ const chatWindowPatch = {
             this.livechatStep = CW_LIVECHAT_STEP.NONE;
             return super.close(...arguments);
         }
-        const isSelfVisitor = this.thread.livechatVisitorMember?.persona?.eq(this.store.self);
+        const isSelfVisitor = this.thread.livechatVisitorMember?.persona?.eq(
+            this.store.self,
+        );
         switch (this.livechatStep) {
             case CW_LIVECHAT_STEP.NONE: {
                 if (this.thread.isTransient) {
@@ -38,7 +40,10 @@ const chatWindowPatch = {
                 if (this.thread.livechat_end_dt) {
                     if (isSelfVisitor) {
                         this.livechatStep = CW_LIVECHAT_STEP.FEEDBACK;
-                        this.open({ focus: true, notifyState: this.thread?.state !== "open" });
+                        this.open({
+                            focus: true,
+                            notifyState: this.thread?.state !== "open",
+                        });
                     } else {
                         super.close(...arguments);
                     }
@@ -58,7 +63,10 @@ const chatWindowPatch = {
             case CW_LIVECHAT_STEP.CONFIRM_CLOSE: {
                 this.actionsDisabled = false;
                 if (isSelfVisitor) {
-                    this.open({ focus: true, notifyState: this.thread?.state !== "open" });
+                    this.open({
+                        focus: true,
+                        notifyState: this.thread?.state !== "open",
+                    });
                     this.livechatStep = CW_LIVECHAT_STEP.FEEDBACK;
                 } else {
                     this.livechatStep = CW_LIVECHAT_STEP.NONE;

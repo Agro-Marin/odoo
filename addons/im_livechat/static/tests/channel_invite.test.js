@@ -1,8 +1,15 @@
-import { click, contains, openDiscuss, start, startServer } from "@mail/../tests/mail_test_helpers";
+import {
+    click,
+    contains,
+    openDiscuss,
+    start,
+    startServer,
+} from "@mail/../tests/mail_test_helpers";
 import { describe, test } from "@odoo/hoot";
-import { Command, serverState } from "@web/../tests/web_test_helpers";
-import { defineLivechatModels } from "./livechat_test_helpers.js";
 import { mockDate } from "@odoo/hoot-mock";
+import { Command, serverState } from "@web/../tests/web_test_helpers";
+
+import { defineLivechatModels } from "./livechat_test_helpers.js";
 
 describe.current.tags("desktop");
 defineLivechatModels();
@@ -19,7 +26,9 @@ test("Can invite a partner to a livechat channel", async () => {
         { name: "pricing" },
         { name: "events" },
     ]);
-    pyEnv["res.partner"].write([serverState.partnerId], { user_livechat_username: "Mitch (FR)" });
+    pyEnv["res.partner"].write([serverState.partnerId], {
+        user_livechat_username: "Mitch (FR)",
+    });
     const userId = pyEnv["res.users"].create({
         name: "James",
         livechat_lang_ids: langIds,
@@ -56,7 +65,7 @@ test("Can invite a partner to a livechat channel", async () => {
         parent: [".o-discuss-ChannelInvitation-selectable", { text: "James" }],
     });
     await contains(
-        ".o-discuss-ChannelInvitation-selectable:contains('James English French German pricing events')"
+        ".o-discuss-ChannelInvitation-selectable:contains('James English French German pricing events')",
     );
     await click("button:enabled", { text: "Invite" });
     await contains(".o-mail-NotificationMessage", {
@@ -85,7 +94,10 @@ test("Available operators come first", async () => {
     const guestId = pyEnv["mail.guest"].create({ name: "Visitor #1" });
     const channelId = pyEnv["discuss.channel"].create({
         channel_member_ids: [
-            Command.create({ partner_id: serverState.partnerId, livechat_member_type: "agent" }),
+            Command.create({
+                partner_id: serverState.partnerId,
+                livechat_member_type: "agent",
+            }),
             Command.create({ guest_id: guestId, livechat_member_type: "visitor" }),
         ],
         channel_type: "livechat",
@@ -95,8 +107,12 @@ test("Available operators come first", async () => {
     await contains(".o-livechat-ChannelInfoList"); // wait for auto-open of this panel
     await click("button[title='Invite People']");
     await contains(".o-discuss-ChannelInvitation-selectable", { count: 2 });
-    await contains(":nth-child(1 of .o-discuss-ChannelInvitation-selectable)", { text: "Ron" });
-    await contains(":nth-child(2 of .o-discuss-ChannelInvitation-selectable)", { text: "Harry" });
+    await contains(":nth-child(1 of .o-discuss-ChannelInvitation-selectable)", {
+        text: "Ron",
+    });
+    await contains(":nth-child(2 of .o-discuss-ChannelInvitation-selectable)", {
+        text: "Harry",
+    });
 });
 
 test("Partners invited most frequently by the current user come first", async () => {
@@ -151,13 +167,19 @@ test("Partners invited most frequently by the current user come first", async ()
     await click(".o-mail-DiscussSidebarChannel", { text: "Visitor #1" });
     await contains(".o-livechat-ChannelInfoList"); // wait for auto-open of this panel
     await click("button[title='Invite People']");
-    await click("input", { parent: [".o-discuss-ChannelInvitation-selectable", { text: "John" }] });
+    await click("input", {
+        parent: [".o-discuss-ChannelInvitation-selectable", { text: "John" }],
+    });
     await click("button:enabled", { text: "Invite" });
     await click(".o-mail-DiscussSidebarChannel", { text: "Visitor #2" });
     await click("button[title='Invite People']");
     await contains(".o-discuss-ChannelInvitation-selectable", { count: 2 });
-    await contains(":nth-child(1 of .o-discuss-ChannelInvitation-selectable)", { text: "John" });
-    await contains(":nth-child(2 of .o-discuss-ChannelInvitation-selectable)", { text: "Albert" });
+    await contains(":nth-child(1 of .o-discuss-ChannelInvitation-selectable)", {
+        text: "John",
+    });
+    await contains(":nth-child(2 of .o-discuss-ChannelInvitation-selectable)", {
+        text: "Albert",
+    });
 });
 
 test("shows operators are in call", async () => {
@@ -186,7 +208,10 @@ test("shows operators are in call", async () => {
     const channelId = pyEnv["discuss.channel"].create({
         channel_type: "livechat",
         channel_member_ids: [
-            Command.create({ partner_id: serverState.partnerId, livechat_member_type: "agent" }),
+            Command.create({
+                partner_id: serverState.partnerId,
+                livechat_member_type: "agent",
+            }),
             Command.create({ guest_id: guestId, livechat_member_type: "visitor" }),
         ],
     });
@@ -196,9 +221,12 @@ test("shows operators are in call", async () => {
     await click("[title='Invite People']");
     await contains(".o-discuss-ChannelInvitation-selectable:contains('bob in a call')");
     await contains(".o-discuss-ChannelInvitation-selectable:contains('john')");
-    await contains(".o-discuss-ChannelInvitation-selectable:contains('john in a call')", {
-        count: 0,
-    });
+    await contains(
+        ".o-discuss-ChannelInvitation-selectable:contains('john in a call')",
+        {
+            count: 0,
+        },
+    );
 });
 
 test("Operator invite shows livechat_username", async () => {

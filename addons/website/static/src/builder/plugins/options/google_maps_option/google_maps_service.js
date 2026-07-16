@@ -1,12 +1,12 @@
 /** @odoo-module native */
 /* eslint-disable no-async-promise-executor */
 
+import { markup } from "@odoo/owl";
 import { loadJS } from "@web/core/assets";
-import { registry } from "@web/core/registry";
 import { _t } from "@web/core/l10n/translation";
 import { rpc } from "@web/core/network/rpc";
+import { registry } from "@web/core/registry";
 import { user } from "@web/services/user";
-import { markup } from "@odoo/owl";
 
 registry.category("services").add("google_maps", {
     dependencies: ["notification"],
@@ -54,8 +54,8 @@ registry.category("services").add("google_maps", {
                                 });
                                 await loadJS(
                                     `https://maps.googleapis.com/maps/api/js?v=3.exp&libraries=places&callback=odoo_gmaps_api_post_load&key=${encodeURIComponent(
-                                        key
-                                    )}`
+                                        key,
+                                    )}`,
                                 );
                             }
                             await promiseKeys[key];
@@ -69,7 +69,7 @@ registry.category("services").add("google_maps", {
                                         <span>${message}</span><br/>
                                         <a href="/odoo/action-website.action_website_configuration">${urlTitle}</a>
                                     </div>`,
-                                    { type: "warning", sticky: true }
+                                    { type: "warning", sticky: true },
                                 );
                             }
                             resolve(false);
@@ -105,7 +105,7 @@ registry.category("services").add("google_maps", {
                                 ? undefined
                                 : _t(
                                       "Invalid API Key. The following error was returned by Google: %(error)s",
-                                      { error: await response.text() }
+                                      { error: await response.text() },
                                   ),
                         };
                     } catch {
@@ -129,8 +129,8 @@ registry.category("services").add("google_maps", {
             async fetchGoogleMaps(key) {
                 return await fetch(
                     `https://maps.googleapis.com/maps/api/staticmap?center=belgium&size=10x10&key=${encodeURIComponent(
-                        key
-                    )}`
+                        key,
+                    )}`,
                 );
             },
         };

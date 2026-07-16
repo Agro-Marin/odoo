@@ -27,13 +27,15 @@ export class ImageHoverPlugin extends Plugin {
         default_shape_handlers: (dataset) =>
             dataset.hoverEffect && "html_builder/geometric/geo_square",
         post_compute_shape_listeners: async (svg, params) => {
-            let rgba = null;
+            let rgba;
             let rbg = null;
             let opacity = null;
             // Add the required parts for the hover effects to the SVG.
             const hoverEffectName = params.hoverEffect;
             const hoverEffectsSvg = await this.getSvgHoverEffects();
-            const hoverEffectEls = hoverEffectsSvg.querySelectorAll(`#${hoverEffectName} > *`);
+            const hoverEffectEls = hoverEffectsSvg.querySelectorAll(
+                `#${hoverEffectName} > *`,
+            );
             hoverEffectEls.forEach((hoverEffectEl) => {
                 svg.appendChild(hoverEffectEl.cloneNode(true));
             });
@@ -42,32 +44,41 @@ export class ImageHoverPlugin extends Plugin {
             const animateEl = svg.querySelector("animate");
             const animateTransformEls = svg.querySelectorAll("animateTransform");
             const animateElValues = animateEl?.getAttribute("values");
-            let animateTransformElValues = animateTransformEls[0]?.getAttribute("values");
+            let animateTransformElValues =
+                animateTransformEls[0]?.getAttribute("values");
             if (params.hoverEffectColor) {
                 rgba = convertCSSColorToRgba(params.hoverEffectColor);
                 rbg = `rgb(${rgba.red},${rgba.green},${rgba.blue})`;
                 opacity = rgba.opacity / 100;
                 if (!["outline", "image_mirror_blur"].includes(hoverEffectName)) {
-                    svg.querySelector('[fill="hover_effect_color"]').setAttribute("fill", rbg);
+                    svg.querySelector('[fill="hover_effect_color"]').setAttribute(
+                        "fill",
+                        rbg,
+                    );
                     animateEl.setAttribute(
                         "values",
-                        animateElValues.replace("hover_effect_opacity", opacity)
+                        animateElValues.replace("hover_effect_opacity", opacity),
                     );
                 }
             }
             switch (hoverEffectName) {
                 case "outline": {
-                    svg.querySelector('[stroke="hover_effect_color"]').setAttribute("stroke", rbg);
-                    svg.querySelector('[stroke-opacity="hover_effect_opacity"]').setAttribute(
-                        "stroke-opacity",
-                        opacity
+                    svg.querySelector('[stroke="hover_effect_color"]').setAttribute(
+                        "stroke",
+                        rbg,
                     );
+                    svg.querySelector(
+                        '[stroke-opacity="hover_effect_opacity"]',
+                    ).setAttribute("stroke-opacity", opacity);
                     // The stroke width needs to be multiplied by two because half
                     // of the stroke is invisible since it is centered on the path.
                     const strokeWidth = parseInt(params.hoverEffectStrokeWidth) * 2;
                     animateEl.setAttribute(
                         "values",
-                        animateElValues.replace("hover_effect_stroke_width", strokeWidth)
+                        animateElValues.replace(
+                            "hover_effect_stroke_width",
+                            strokeWidth,
+                        ),
                     );
                     break;
                 }
@@ -81,7 +92,7 @@ export class ImageHoverPlugin extends Plugin {
                     // image is zoomed.
                     imageEl.setAttribute(
                         "style",
-                        "transform-origin: center; width: 100%; height: 100%"
+                        "transform-origin: center; width: 100%; height: 100%",
                     );
                     imageEl.setAttribute("preserveAspectRatio", "none");
                     svg.setAttribute("viewBox", "0 0 1 1");
@@ -89,21 +100,27 @@ export class ImageHoverPlugin extends Plugin {
                     clipPathEl.setAttribute("clipPathUnits", "userSpaceOnUse");
                     const clipPathValue = imageEl.getAttribute("clip-path");
                     imageEl.removeAttribute("clip-path");
-                    const gEl = document.createElementNS("http://www.w3.org/2000/svg", "g");
+                    const gEl = document.createElementNS(
+                        "http://www.w3.org/2000/svg",
+                        "g",
+                    );
                     gEl.setAttribute("clip-path", clipPathValue);
                     imageEl.parentNode.replaceChild(gEl, imageEl);
                     gEl.appendChild(imageEl);
                     let zoomValue = 1.01 + parseInt(params.hoverEffectIntensity) / 200;
                     animateTransformEls[0].setAttribute(
                         "values",
-                        animateTransformElValues.replace("hover_effect_zoom", zoomValue)
+                        animateTransformElValues.replace(
+                            "hover_effect_zoom",
+                            zoomValue,
+                        ),
                     );
                     if (hoverEffectName === "image_zoom_out") {
                         // Set zoom intensity for the image.
                         const styleAttr = svg.querySelector("style");
                         styleAttr.textContent = styleAttr.textContent.replace(
                             "hover_effect_zoom",
-                            zoomValue
+                            zoomValue,
                         );
                     }
                     if (hoverEffectName === "dolly_zoom") {
@@ -116,7 +133,10 @@ export class ImageHoverPlugin extends Plugin {
                                     animateTransformEl.getAttribute("values");
                                 animateTransformEl.setAttribute(
                                     "values",
-                                    animateTransformElValues.replace("hover_effect_zoom", zoomValue)
+                                    animateTransformElValues.replace(
+                                        "hover_effect_zoom",
+                                        zoomValue,
+                                    ),
                                 );
                             }
                         });
@@ -131,10 +151,14 @@ export class ImageHoverPlugin extends Plugin {
                     imageMirrorEl.setAttribute("id", "shapeImageMirror");
                     imageMirrorEl.setAttribute("filter", "url(#blurFilter)");
                     imageEl.insertAdjacentElement("beforebegin", imageMirrorEl);
-                    const zoomValue = 0.99 - parseInt(params.hoverEffectIntensity) / 200;
+                    const zoomValue =
+                        0.99 - parseInt(params.hoverEffectIntensity) / 200;
                     animateTransformEls[0].setAttribute(
                         "values",
-                        animateTransformElValues.replace("hover_effect_zoom", zoomValue)
+                        animateTransformElValues.replace(
+                            "hover_effect_zoom",
+                            zoomValue,
+                        ),
                     );
                     break;
                 }
@@ -187,10 +211,12 @@ export class ImageHoverPlugin extends Plugin {
         const defaultColor = { hoverEffectColor: "rgba(0, 0, 0, 0)" };
         const defaultEffectValues = {
             overlay: () => ({
-                hoverEffectColor: this.dependencies.imageToolOption.getCSSColorValue("black-25"),
+                hoverEffectColor:
+                    this.dependencies.imageToolOption.getCSSColorValue("black-25"),
             }),
             outline: () => ({
-                hoverEffectColor: this.dependencies.imageToolOption.getCSSColorValue("primary"),
+                hoverEffectColor:
+                    this.dependencies.imageToolOption.getCSSColorValue("primary"),
                 hoverEffectStrokeWidth: 10,
             }),
             image_zoom_in: () => defaultColor,
@@ -213,7 +239,10 @@ export class SetHoverEffectAction extends BuilderAction {
         return editingElement.dataset.hoverEffect === hoverEffectId;
     }
     async apply({ editingElement, value: hoverEffectId, isPreviewing }) {
-        await this.dependencies.imageHover.setHoverEffect(editingElement, hoverEffectId);
+        await this.dependencies.imageHover.setHoverEffect(
+            editingElement,
+            hoverEffectId,
+        );
         if (isPreviewing) {
             // Wait a tick to ensure the interactions are restarted.
             // Simulate a mouseenter event to trigger the hover effect. (See
@@ -230,8 +259,9 @@ export class SetHoverEffectIntensityAction extends BuilderAction {
 
     getValue({ editingElement }) {
         return parseInt(
-            editingElement.dataset.hoverEffectIntensity || this.defaultHoverEffectIntensity,
-            10
+            editingElement.dataset.hoverEffectIntensity ||
+                this.defaultHoverEffectIntensity,
+            10,
         );
     }
     async apply({ editingElement, value: intensity }) {

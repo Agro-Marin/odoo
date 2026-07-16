@@ -1,20 +1,21 @@
 /** @odoo-module native */
-import DOMPurify from "dompurify";
-import { Component, markup, whenReady, validate } from "@odoo/owl";
-import { browser } from "@web/core/browser/browser";
+import { Component, markup, validate, whenReady } from "@odoo/owl";
 import { DropdownItem } from "@web/components/dropdown/dropdown_item";
-import { registry } from "@web/core/registry";
-import { session } from "@web/session";
 import { loadBundle } from "@web/core/assets";
+import { browser } from "@web/core/browser/browser";
+import { translationIsReady } from "@web/core/l10n/translation";
+import { registry } from "@web/core/registry";
+import { redirect } from "@web/core/utils/urls";
+import { session } from "@web/session";
 import { createPointerState } from "@web_tour/js/tour_pointer/tour_pointer_state";
+import {
+    TOUR_RECORDER_ACTIVE_LOCAL_STORAGE_KEY,
+    tourRecorderState,
+} from "@web_tour/js/tour_recorder/tour_recorder_state";
 import { tourState } from "@web_tour/js/tour_state";
 import { callWithUnloadCheck } from "@web_tour/js/utils/tour_utils";
-import {
-    tourRecorderState,
-    TOUR_RECORDER_ACTIVE_LOCAL_STORAGE_KEY,
-} from "@web_tour/js/tour_recorder/tour_recorder_state";
-import { redirect } from "@web/core/utils/urls";
-import { translationIsReady } from "@web/core/l10n/translation";
+
+import DOMPurify from "dompurify";
 
 class OnboardingItem extends Component {
     static components = { DropdownItem };
@@ -102,7 +103,9 @@ export const tourService = {
         }
 
         async function getTourFromDB(tourName) {
-            const tour = await orm.call("web_tour.tour", "get_tour_json_by_name", [tourName]);
+            const tour = await orm.call("web_tour.tour", "get_tour_json_by_name", [
+                tourName,
+            ]);
             if (!tour) {
                 throw new Error(`Tour '${tourName}' is not found in the database.`);
             }
@@ -121,7 +124,7 @@ export const tourService = {
                 console.error(
                     `Error in schema for TourStep ${JSON.stringify(step, null, 4)}\n${
                         error.message
-                    }`
+                    }`,
                 );
             }
         }
@@ -136,9 +139,13 @@ export const tourService = {
                 return;
             }
 
-            const tour = options.fromDB ? { name: tourName, url: options.url } : tourFromRegistry;
+            const tour = options.fromDB
+                ? { name: tourName, url: options.url }
+                : tourFromRegistry;
             if (!session.is_public && !toursEnabled && options.mode === "manual") {
-                toursEnabled = await orm.call("res.users", "switch_tour_enabled", [!toursEnabled]);
+                toursEnabled = await orm.call("res.users", "switch_tour_enabled", [
+                    !toursEnabled,
+                ]);
             }
 
             let tourConfig = {
@@ -157,7 +164,11 @@ export const tourService = {
             tourState.setCurrentIndex(0);
 
             const willUnload = callWithUnloadCheck(() => {
-                if (tour.url && tourConfig.startUrl != tour.url && tourConfig.redirect) {
+                if (
+                    tour.url &&
+                    tourConfig.startUrl !== tour.url &&
+                    tourConfig.redirect
+                ) {
                     redirect(tour.url);
                 }
             });
@@ -182,33 +193,33 @@ export const tourService = {
 
             if (tourConfig.mode === "auto") {
                 await loadBundle("web_tour.automatic", { css: false });
-                const { TourAutomatic } = await import(
-                    "@web_tour/js/tour_automatic/tour_automatic"
-                );
+                const { TourAutomatic } =
+                    await import("@web_tour/js/tour_automatic/tour_automatic");
                 new TourAutomatic(tour).start();
             } else {
                 await loadBundle("web_tour.interactive");
-                const { TourPointer } = await import(
-                    "@web_tour/js/tour_pointer/tour_pointer"
-                );
+                const { TourPointer } =
+                    await import("@web_tour/js/tour_pointer/tour_pointer");
                 pointer.stop = overlay.add(
                     TourPointer,
                     {
                         pointerState: pointer.state,
-                        bounce: !(tourConfig.mode === "auto" && tourConfig.keepWatchBrowser),
+                        bounce: !(
+                            tourConfig.mode === "auto" && tourConfig.keepWatchBrowser
+                        ),
                     },
                     {
                         sequence: 1100, // sequence based on bootstrap z-index values.
-                    }
+                    },
                 );
-                const { TourInteractive } = await import(
-                    "@web_tour/js/tour_interactive/tour_interactive"
-                );
+                const { TourInteractive } =
+                    await import("@web_tour/js/tour_interactive/tour_interactive");
                 new TourInteractive(tour).start(env, pointer, async () => {
                     pointer.stop();
                     tourState.clear();
                     browser.console.log("tour succeeded");
-                    let message = tourConfig.rainbowManMessage || tour.rainbowManMessage;
+                    let message =
+                        tourConfig.rainbowManMessage || tour.rainbowManMessage;
                     if (message) {
                         message = DOMPurify.sanitize(tourConfig.rainbowManMessage);
                         effect.add({
@@ -217,7 +228,9 @@ export const tourService = {
                         });
                     }
 
-                    const nextTour = await orm.call("web_tour.tour", "consume", [tour.name]);
+                    const nextTour = await orm.call("web_tour.tour", "consume", [
+                        tour.name,
+                    ]);
                     if (nextTour) {
                         startTour(nextTour.name, {
                             mode: "manual",
@@ -231,19 +244,20 @@ export const tourService = {
 
         async function tourRecorder() {
             await loadBundle("web_tour.recorder");
-            const { TourRecorder } = await import(
-                "@web_tour/js/tour_recorder/tour_recorder"
-            );
+            const { TourRecorder } =
+                await import("@web_tour/js/tour_recorder/tour_recorder");
             const remove = overlay.add(
                 TourRecorder,
                 {
                     onClose: () => {
                         remove();
-                        browser.localStorage.removeItem(TOUR_RECORDER_ACTIVE_LOCAL_STORAGE_KEY);
+                        browser.localStorage.removeItem(
+                            TOUR_RECORDER_ACTIVE_LOCAL_STORAGE_KEY,
+                        );
                         tourRecorderState.clear();
                     },
                 },
-                { sequence: 99999 }
+                { sequence: 99999 },
             );
         }
 
@@ -255,7 +269,9 @@ export const tourService = {
         }
 
         if (!window.frameElement) {
-            const paramsTourName = new URLSearchParams(browser.location.search).get("tour");
+            const paramsTourName = new URLSearchParams(browser.location.search).get(
+                "tour",
+            );
             if (paramsTourName) {
                 startTour(paramsTourName, { mode: "manual", fromDB: true });
             }

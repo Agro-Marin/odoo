@@ -1,10 +1,14 @@
 /** @odoo-module native */
+import { BuilderAction } from "@html_builder/core/builder_action";
 import { Plugin } from "@html_editor/plugin";
 import { withSequence } from "@html_editor/utils/resource";
 import { registry } from "@web/core/registry";
+
 import { DynamicSnippetCarouselOption } from "./dynamic_snippet_carousel_option.js";
-import { DYNAMIC_SNIPPET, setDatasetIfUndefined } from "./dynamic_snippet_option_plugin.js";
-import { BuilderAction } from "@html_builder/core/builder_action";
+import {
+    DYNAMIC_SNIPPET,
+    setDatasetIfUndefined,
+} from "./dynamic_snippet_option_plugin.js";
 
 /**
  * @typedef { Object } DynamicSnippetCarouselOptionShared
@@ -29,7 +33,10 @@ class DynamicSnippetCarouselOptionPlugin extends Plugin {
         builder_actions: {
             SetCarouselSliderSpeedAction,
         },
-        builder_options: withSequence(DYNAMIC_SNIPPET_CAROUSEL, DynamicSnippetCarouselOption),
+        builder_options: withSequence(
+            DYNAMIC_SNIPPET_CAROUSEL,
+            DynamicSnippetCarouselOption,
+        ),
         dynamic_snippet_template_updated: this.onTemplateUpdated.bind(this),
         on_snippet_dropped_handlers: this.onSnippetDropped.bind(this),
     };
@@ -58,11 +65,15 @@ class DynamicSnippetCarouselOptionPlugin extends Plugin {
             await this.setOptionsDefaultValues(snippetEl, this.modelNameFilter);
         }
     }
-    async setOptionsDefaultValues(snippetEl, modelNameFilter, contextualFilterDomain = []) {
+    async setOptionsDefaultValues(
+        snippetEl,
+        modelNameFilter,
+        contextualFilterDomain = [],
+    ) {
         await this.dependencies.dynamicSnippetOption.setOptionsDefaultValues(
             snippetEl,
             modelNameFilter,
-            contextualFilterDomain
+            contextualFilterDomain,
         );
         setDatasetIfUndefined(snippetEl, "carouselInterval", "5000");
     }

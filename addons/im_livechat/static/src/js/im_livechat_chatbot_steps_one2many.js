@@ -1,8 +1,8 @@
 /** @odoo-module native */
 import { registry } from "@web/core/registry";
+import { X2ManyField, x2ManyField } from "@web/fields/relational/x2many/x2many_field";
 import { useX2ManyCrud } from "@web/fields/relational/x2many_crud";
 import { useOpenX2ManyRecord } from "@web/fields/relational/x2many_dialog";
-import { X2ManyField, x2ManyField } from "@web/fields/relational/x2many/x2many_field";
 import { ListRenderer } from "@web/views/list/list_renderer";
 
 const fieldRegistry = registry.category("fields");
@@ -38,7 +38,10 @@ export class ChatbotStepsOne2many extends X2ManyField {
     setup() {
         super.setup();
 
-        const { saveRecord, updateRecord } = useX2ManyCrud(() => this.list, this.isMany2Many);
+        const { saveRecord, updateRecord } = useX2ManyCrud(
+            () => this.list,
+            this.isMany2Many,
+        );
 
         const openRecord = useOpenX2ManyRecord({
             resModel: this.list.resModel,

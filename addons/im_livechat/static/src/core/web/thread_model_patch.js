@@ -4,7 +4,6 @@ import { fields } from "@mail/model/misc";
 import { convertBrToLineBreak } from "@mail/utils/common/format";
 import { _t } from "@web/core/l10n/translation";
 import { rpc } from "@web/core/network/rpc";
-
 import { patch } from "@web/core/utils/patch";
 
 patch(Thread.prototype, {
@@ -41,6 +40,9 @@ patch(Thread.prototype, {
         if (this.livechat_status === status) {
             return;
         }
-        rpc("/im_livechat/session/update_status", { channel_id: this.id, livechat_status: status });
+        rpc("/im_livechat/session/update_status", {
+            channel_id: this.id,
+            livechat_status: status,
+        });
     },
 });

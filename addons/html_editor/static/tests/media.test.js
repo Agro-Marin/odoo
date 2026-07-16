@@ -1,16 +1,17 @@
+import { ImageCrop } from "@html_editor/main/media/image_crop";
+import { ImageSelector } from "@html_editor/main/media/media_dialog/image_selector";
 import { EDITABLE_MEDIA_CLASS } from "@html_editor/utils/dom_info";
 import { describe, expect, test } from "@odoo/hoot";
 import { click, dblclick, press, waitFor, waitForNone } from "@odoo/hoot-dom";
 import { animationFrame, tick } from "@odoo/hoot-mock";
 import { makeMockEnv, onRpc, patchWithCleanup } from "@web/../tests/web_test_helpers";
+import { delay } from "@web/core/utils/concurrency";
+
 import { cleanHints } from "./_helpers/dispatch.js";
 import { base64Img, setupEditor, testEditor } from "./_helpers/editor.js";
 import { getContent } from "./_helpers/selection.js";
 import { expectElementCount } from "./_helpers/ui_expectations.js";
 import { deleteBackward, deleteForward, insertText } from "./_helpers/user_actions.js";
-import { delay } from "@web/core/utils/concurrency";
-import { ImageCrop } from "@html_editor/main/media/image_crop";
-import { ImageSelector } from "@html_editor/main/media/media_dialog/image_selector";
 
 test("Can replace an image", async () => {
     onRpc("ir.attachment", "search_read", () => [
@@ -24,7 +25,10 @@ test("Can replace an image", async () => {
         },
     ]);
     const env = await makeMockEnv();
-    await setupEditor(`<p> <img class="img-fluid" src="/web/static/img/logo.png"> </p>`, { env });
+    await setupEditor(
+        `<p> <img class="img-fluid" src="/web/static/img/logo.png"> </p>`,
+        { env },
+    );
     expect("img[src='/web/static/img/logo.png']").toHaveCount(1);
     await click("img");
     await tick(); // selectionchange
@@ -51,7 +55,7 @@ test("Replace an image with link by a document should remove the link", async ()
     const env = await makeMockEnv();
     await setupEditor(
         `<p><a href="http://test.com"><img class="img-fluid" src="/web/static/img/logo.png"></a></p>`,
-        { env }
+        { env },
     );
     expect("img[src='/web/static/img/logo.png']").toHaveCount(1);
     await click("img");
@@ -71,9 +75,12 @@ test("Replace an image with link by a document should remove the link", async ()
 test("Replace an image by icon should remove invalid classes", async () => {
     onRpc("ir.attachment", "search_read", () => []);
     const env = await makeMockEnv();
-    await setupEditor(`<p><img class="img-fluid w-100" src="/web/static/img/logo.png"></p>`, {
-        env,
-    });
+    await setupEditor(
+        `<p><img class="img-fluid w-100" src="/web/static/img/logo.png"></p>`,
+        {
+            env,
+        },
+    );
     expect("img[src='/web/static/img/logo.png']").toHaveCount(1);
     expect("img[src='/web/static/img/logo.png']").toHaveClass("img-fluid w-100");
     await click("img");
@@ -107,7 +114,7 @@ test("Selection is collapsed after the image after replacing it", async () => {
     const env = await makeMockEnv();
     const { el } = await setupEditor(
         `<p>abc<img class="img-fluid" src="/web/static/img/logo.png">def</p>`,
-        { env }
+        { env },
     );
     await click("img");
     await waitFor(".o-we-toolbar");
@@ -122,7 +129,7 @@ test("Selection is collapsed after the image after replacing it", async () => {
 test("should not preserve image styles when replacing an image with an icon", async () => {
     onRpc("ir.attachment", "search_read", () => []);
     const { el } = await setupEditor(
-        `<p><img class="img-fluid" src="/web/static/img/logo.png" style="width: 25%; transform: scaleX(2) scaleY(1);"></p>`
+        `<p><img class="img-fluid" src="/web/static/img/logo.png" style="width: 25%; transform: scaleX(2) scaleY(1);"></p>`,
     );
     expect("img[src='/web/static/img/logo.png']").toHaveCount(1);
     await click("img");
@@ -136,14 +143,14 @@ test("should not preserve image styles when replacing an image with an icon", as
     await click(".fa-martini-glass-empty");
     await animationFrame();
     expect(getContent(el).replace(/<img.*?>/, "<img>")).toBe(
-        `<p>\ufeff[<span class="fa-solid fa-martini-glass-empty" style="" contenteditable="false">\u200b</span>]\ufeff</p>`
+        `<p>\ufeff[<span class="fa-solid fa-martini-glass-empty" style="" contenteditable="false">\u200b</span>]\ufeff</p>`,
     );
 });
 
 test("should not preserve image shape classes when replacing an image with an icon", async () => {
     onRpc("ir.attachment", "search_read", () => []);
     const { el } = await setupEditor(
-        `<p><img class="img-fluid rounded rounded-circle shadow img-thumbnail" src="/web/static/img/logo.png"></p>`
+        `<p><img class="img-fluid rounded rounded-circle shadow img-thumbnail" src="/web/static/img/logo.png"></p>`,
     );
     expect("img[src='/web/static/img/logo.png']").toHaveCount(1);
     await click("img");
@@ -156,7 +163,7 @@ test("should not preserve image shape classes when replacing an image with an ic
     await click(".fa-glass");
     await animationFrame();
     expect(getContent(el).replace(/<img.*?>/, "<img>")).toBe(
-        `<p>\ufeff[<span class="fa-solid fa-glass" contenteditable="false">\u200b</span>]\ufeff</p>`
+        `<p>\ufeff[<span class="fa-solid fa-glass" contenteditable="false">\u200b</span>]\ufeff</p>`,
     );
 });
 
@@ -222,7 +229,7 @@ describe("(non-)editable media", () => {
     describe("toolbar", () => {
         test("toolbar should open when clicking on an image in an editable context", async () => {
             const { editor } = await setupEditor(
-                `<div contenteditable="true"><img src="${base64Img}"></div>`
+                `<div contenteditable="true"><img src="${base64Img}"></div>`,
             );
             await click("img");
             await animationFrame();
@@ -231,23 +238,23 @@ describe("(non-)editable media", () => {
             await click(".o-we-toolbar button[name='image_delete']");
             cleanHints(editor);
             expect(getContent(editor.editable)).toBe(
-                `<div contenteditable="true" class="o-paragraph">[]<br></div>`
+                `<div contenteditable="true" class="o-paragraph">[]<br></div>`,
             );
         });
         test("toolbar should not open when clicking on an image in an non-editable context", async () => {
             const { editor } = await setupEditor(
-                `<div contenteditable="false"><img src="${base64Img}"></div>`
+                `<div contenteditable="false"><img src="${base64Img}"></div>`,
             );
             await click("img");
             await animationFrame();
             await expectElementCount(".o-we-toolbar", 0);
             expect(getContent(editor.editable)).toBe(
-                `<p data-selection-placeholder=""><br></p><div contenteditable="false">[<img src="${base64Img}">]</div><p data-selection-placeholder=""><br></p>`
+                `<p data-selection-placeholder=""><br></p><div contenteditable="false">[<img src="${base64Img}">]</div><p data-selection-placeholder=""><br></p>`,
             );
         });
         test("toolbar should open when clicking on an editable image in a non-editable context", async () => {
             const { editor } = await setupEditor(
-                `<div contenteditable="false"><img src="${base64Img}" class="${EDITABLE_MEDIA_CLASS}"></div>`
+                `<div contenteditable="false"><img src="${base64Img}" class="${EDITABLE_MEDIA_CLASS}"></div>`,
             );
             await click("img");
             await animationFrame();
@@ -255,7 +262,7 @@ describe("(non-)editable media", () => {
             // Now pressing the delete button should remove the image.
             await click(".o-we-toolbar button[name='image_delete']");
             expect(getContent(editor.editable)).toBe(
-                `<p data-selection-placeholder=""><br></p><div contenteditable="false">[]<br></div><p data-selection-placeholder=""><br></p>`
+                `<p data-selection-placeholder=""><br></p><div contenteditable="false">[]<br></div><p data-selection-placeholder=""><br></p>`,
             );
         });
     });
@@ -345,7 +352,7 @@ test("cropper should not open for external image", async () => {
     }));
 
     await setupEditor(
-        `<p>[<img src="https://download.odoocdn.com/icons/website/static/description/icon.png">]</p>`
+        `<p>[<img src="https://download.odoocdn.com/icons/website/static/description/icon.png">]</p>`,
     );
     const imageTransform = await waitFor('button[name="image_transform"]');
     imageTransform.click();
@@ -433,7 +440,9 @@ test("double-click on image in Media Dialog executes onClickAttachment only once
     });
 
     const env = await makeMockEnv();
-    await setupEditor(`<p><img class="img-fluid" src="/web/static/img/logo.png"></p>`, { env });
+    await setupEditor(`<p><img class="img-fluid" src="/web/static/img/logo.png"></p>`, {
+        env,
+    });
     await click("img");
     await waitFor(".o-we-toolbar");
     await click("button[name='replace_image']");

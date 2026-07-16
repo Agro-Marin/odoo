@@ -1,16 +1,17 @@
+import { MAIN_EMBEDDINGS } from "@html_editor/others/embedded_components/embedding_sets";
+import { EMBEDDED_COMPONENT_PLUGINS, MAIN_PLUGINS } from "@html_editor/plugin_sets";
 import { beforeEach, describe, expect, test } from "@odoo/hoot";
+import { animationFrame } from "@odoo/hoot-dom";
+
 import { setupEditor, testEditor } from "../_helpers/editor.js";
 import { unformat } from "../_helpers/format.js";
 import { getContent } from "../_helpers/selection.js";
-import { deleteForward, insertText, tripleClick } from "../_helpers/user_actions.js";
-import { EMBEDDED_COMPONENT_PLUGINS, MAIN_PLUGINS } from "@html_editor/plugin_sets";
-import { animationFrame } from "@odoo/hoot-dom";
 import {
     compareHighlightedContent,
     highlightedPre,
     patchPrism,
 } from "../_helpers/syntax_highlighting.js";
-import { MAIN_EMBEDDINGS } from "@html_editor/others/embedded_components/embedding_sets";
+import { deleteForward, insertText, tripleClick } from "../_helpers/user_actions.js";
 
 /**
  * content of the "deleteForward" sub suite in editor.test.js
@@ -111,7 +112,8 @@ describe("Selection collapsed", () => {
 
         test("should merge SPAN node correctly ", async () => {
             await testEditor({
-                contentBefore: '<div>a<span class="a">bc[]</span><span class="a">de</span>f</div>',
+                contentBefore:
+                    '<div>a<span class="a">bc[]</span><span class="a">de</span>f</div>',
                 stepFunction: deleteForward,
                 contentAfter: '<div>a<span class="a">bc[]e</span>f</div>',
             });
@@ -170,7 +172,8 @@ describe("Selection collapsed", () => {
                 },
                 contentAfterEdit:
                     '<p>ab<span class="style" data-oe-zws-empty-inline="">[]\u200B</span>ef</p>',
-                contentAfter: '<p>ab<span class="style" data-oe-zws-empty-inline="">[]\u200B</span>ef</p>',
+                contentAfter:
+                    '<p>ab<span class="style" data-oe-zws-empty-inline="">[]\u200B</span>ef</p>',
             });
         });
 
@@ -422,13 +425,15 @@ describe("Selection collapsed", () => {
                     contentBefore:
                         '<p>abc[]</p><p>def</p><p style="margin-bottom: 0px;"> orphan node</p>',
                     stepFunction: deleteForward,
-                    contentAfter: '<p>abc[]def</p><p style="margin-bottom: 0px;"> orphan node</p>',
+                    contentAfter:
+                        '<p>abc[]def</p><p style="margin-bottom: 0px;"> orphan node</p>',
                 });
             });
 
             test("should delete the space if the second <p> is display inline", async () => {
                 await testEditor({
-                    contentBefore: '<div>abc[] <p style="display: inline;">def</p></div>',
+                    contentBefore:
+                        '<div>abc[] <p style="display: inline;">def</p></div>',
                     stepFunction: deleteForward,
                     contentAfter: '<div>abc[]<p style="display: inline;">def</p></div>',
                 });
@@ -471,7 +476,8 @@ describe("Selection collapsed", () => {
 
             test("should delete the space if the second <p> is display inline", async () => {
                 await testEditor({
-                    contentBefore: '<div>abc[]x <p style="display: inline;">def</p></div>',
+                    contentBefore:
+                        '<div>abc[]x <p style="display: inline;">def</p></div>',
                     stepFunction: twoDeleteForward,
                     contentAfter: '<div>abc[]<p style="display: inline;">def</p></div>',
                 });
@@ -1074,7 +1080,8 @@ describe("Selection collapsed", () => {
 
         test("should merge a text following a paragraph (keeping the text) (2)", async () => {
             await testEditor({
-                contentBefore: '<p>ab[]</p><p style="margin-bottom: 0px;">cd</p><p>ef</p>',
+                contentBefore:
+                    '<p>ab[]</p><p style="margin-bottom: 0px;">cd</p><p>ef</p>',
                 stepFunction: deleteForward,
                 contentAfter: "<p>ab[]cd</p><p>ef</p>",
             });
@@ -1104,7 +1111,8 @@ describe("Selection collapsed", () => {
                 contentBefore:
                     '<p><span class="a">dom to[]</span></p><p><span class="b">edit</span></p>',
                 stepFunction: deleteForward,
-                contentAfter: '<p><span class="a">dom to[]</span><span class="b">edit</span></p>',
+                contentAfter:
+                    '<p><span class="a">dom to[]</span><span class="b">edit</span></p>',
             });
         });
 
@@ -1240,7 +1248,7 @@ describe("Selection collapsed", () => {
                             <tr><td>cd</td><td>ef</td></tr>
                             <tr><td>gh</td><td>ij</td></tr>
                         </tbody></table>
-                        <p>kl</p>`
+                        <p>kl</p>`,
                 ),
                 stepFunction: deleteForward,
                 contentAfter: unformat(
@@ -1249,7 +1257,7 @@ describe("Selection collapsed", () => {
                             <tr><td>cd</td><td>ef</td></tr>
                             <tr><td>gh</td><td>ij</td></tr>
                         </tbody></table>
-                        <p>kl</p>`
+                        <p>kl</p>`,
                 ),
             });
         });
@@ -1262,7 +1270,7 @@ describe("Selection collapsed", () => {
                             <tr><td>cd</td><td>ef</td></tr>
                             <tr><td>gh</td><td>ij[]</td></tr>
                         </tbody></table>
-                        <p>kl</p>`
+                        <p>kl</p>`,
                 ),
                 stepFunction: deleteForward,
                 contentAfter: unformat(
@@ -1271,7 +1279,7 @@ describe("Selection collapsed", () => {
                             <tr><td>cd</td><td>ef</td></tr>
                             <tr><td>gh</td><td>ij[]</td></tr>
                         </tbody></table>
-                        <p>kl</p>`
+                        <p>kl</p>`,
                 ),
             });
         });
@@ -1284,7 +1292,7 @@ describe("Selection collapsed", () => {
                                 <td><ul><li>[a</li><li>b</li><li>c]</li></ul></td>
                                 <td><ul><li>A</li><li>B</li><li>C</li></ul></td>
                             </tr>
-                        </tbody></table>`
+                        </tbody></table>`,
                 ),
                 stepFunction: deleteForward,
                 contentAfter: unformat(
@@ -1293,7 +1301,7 @@ describe("Selection collapsed", () => {
                                 <td><ul><li>[]<br></li></ul></td>
                                 <td><ul><li>A</li><li>B</li><li>C</li></ul></td>
                             </tr>
-                        </tbody></table>`
+                        </tbody></table>`,
                 ),
             });
         });
@@ -1360,7 +1368,8 @@ describe("Selection not collapsed", () => {
         await testEditor({
             contentBefore: '<p>a<span class="style-class">[bcde]</span>f</p>',
             stepFunction: deleteForward,
-            contentAfter: '<p>a<span class="style-class" data-oe-zws-empty-inline="">[]\u200B</span>f</p>',
+            contentAfter:
+                '<p>a<span class="style-class" data-oe-zws-empty-inline="">[]\u200B</span>f</p>',
         });
     });
 
@@ -1630,17 +1639,20 @@ describe("Selection not collapsed", () => {
         expect(getContent(el)).toBe("<h1>[abc]</h1><p>def</p>");
         deleteForward(editor);
         expect(getContent(el)).toBe(
-            '<h1 o-we-hint-text="Heading 1" class="o-we-hint">[]<br></h1><p>def</p>'
+            '<h1 o-we-hint-text="Heading 1" class="o-we-hint">[]<br></h1><p>def</p>',
         );
     });
     test.tags("desktop");
     test("should delete a heading (triple click delete) (2)", async () => {
-        const { editor, el } = await setupEditor("<h1>abc</h1><p><br></p><p>def</p>", {});
+        const { editor, el } = await setupEditor(
+            "<h1>abc</h1><p><br></p><p>def</p>",
+            {},
+        );
         await tripleClick(el.querySelector("h1"));
         expect(getContent(el)).toBe("<h1>[abc]</h1><p><br></p><p>def</p>");
         deleteForward(editor);
         expect(getContent(el)).toBe(
-            '<h1 o-we-hint-text="Heading 1" class="o-we-hint">[]<br></h1><p><br></p><p>def</p>'
+            '<h1 o-we-hint-text="Heading 1" class="o-we-hint">[]<br></h1><p><br></p><p>def</p>',
         );
     });
 
@@ -1668,7 +1680,7 @@ describe("Selection not collapsed", () => {
                         <tr><td>cd</td><td>ef</td></tr>
                         <tr><td>gh</td><td>ij</td></tr>
                     </tbody></table>
-                    <p>k]l</p>`
+                    <p>k]l</p>`,
             ),
             stepFunction: deleteForward,
             contentAfter: "<p>a[]l</p>",
@@ -1682,7 +1694,7 @@ describe("Selection not collapsed", () => {
                         <tr><td>cd</td><td class="o_selected_td">e[f</td><td>gh</td></tr>
                         <tr><td>ij</td><td class="o_selected_td">k]l</td><td>mn</td></tr>
                         <tr><td>op</td><td>qr</td><td>st</td></tr>
-                    </tbody></table>`
+                    </tbody></table>`,
             ),
             stepFunction: deleteForward,
             contentAfter: unformat(
@@ -1690,7 +1702,7 @@ describe("Selection not collapsed", () => {
                         <tr><td>cd</td><td><p>[]<br></p></td><td>gh</td></tr>
                         <tr><td>ij</td><td><p><br></p></td><td>mn</td></tr>
                         <tr><td>op</td><td>qr</td><td>st</td></tr>
-                    </tbody></table>`
+                    </tbody></table>`,
             ),
         });
     });
@@ -1703,12 +1715,12 @@ describe("Selection not collapsed", () => {
                         <tr><td>cd</td><td>ef</td></tr>
                         <tr><td>g]h</td><td>ij</td></tr>
                     </tbody></table>
-                    <p>kl</p>`
+                    <p>kl</p>`,
             ),
             stepFunction: deleteForward,
             contentAfter: unformat(
                 `<p>a[]</p>
-                    <p>kl</p>`
+                    <p>kl</p>`,
             ),
         });
     });
@@ -1721,12 +1733,12 @@ describe("Selection not collapsed", () => {
                         <tr><td>cd</td><td>ef</td></tr>
                         <tr><td>gh</td><td>i[j</td></tr>
                     </tbody></table>
-                    <p>k]l</p>`
+                    <p>k]l</p>`,
             ),
             stepFunction: deleteForward,
             contentAfter: unformat(
                 `<p>ab</p>
-                    <p>[]l</p>`
+                    <p>[]l</p>`,
             ),
         });
     });
@@ -1739,7 +1751,7 @@ describe("Selection not collapsed", () => {
                         <tr><td>cd</td><td>ef</td></tr>
                         <tr><td>gh</td><td>ij</td></tr>
                     </tbody></table>
-                    <p>k]l</p>`
+                    <p>k]l</p>`,
             ),
             stepFunction: deleteForward,
             contentAfter: `<p>a[]l</p>`,
@@ -1760,7 +1772,7 @@ describe("Selection not collapsed", () => {
                     <table><tbody>
                         <tr><td>cd</td><td>e]f</td></tr>
                         <tr><td>gh</td><td>ij</td></tr>
-                    </tbody></table>`
+                    </tbody></table>`,
             ),
             stepFunction: deleteForward,
             contentAfter: `<p>[]<br></p>`,
@@ -1785,7 +1797,7 @@ describe("Selection not collapsed", () => {
                         <tr><td>cd</td><td>ef</td></tr>
                         <tr><td>gh</td><td>ij</td></tr>
                     </tbody></table>
-                    <p>67]</p>`
+                    <p>67]</p>`,
             ),
             stepFunction: deleteForward,
             contentAfter: `<p>0[]</p>`,
@@ -1810,7 +1822,7 @@ describe("Selection not collapsed", () => {
                         <tr><td>cd</td><td>ef</td></tr>
                         <tr><td>gh</td><td>ij</td></tr>
                     </tbody></table>
-                    <p>67]</p>`
+                    <p>67]</p>`,
             ),
             stepFunction: deleteForward,
             contentAfter: `<p>[]<br></p>`,
@@ -1821,7 +1833,8 @@ describe("Selection not collapsed", () => {
         await testEditor({
             contentBefore: '<p>ab<b class="oe_unremovable">[cd]</b>ef</p>',
             stepFunction: deleteForward,
-            contentAfter: '<p>ab<b class="oe_unremovable" data-oe-zws-empty-inline="">[]\u200B</b>ef</p>',
+            contentAfter:
+                '<p>ab<b class="oe_unremovable" data-oe-zws-empty-inline="">[]\u200B</b>ef</p>',
         });
     });
 

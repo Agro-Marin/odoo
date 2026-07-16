@@ -1,10 +1,10 @@
 /** @odoo-module native */
+import { BaseOptionComponent } from "@html_builder/core/utils";
+import { SNIPPET_SPECIFIC_NEXT } from "@html_builder/utils/option_sequence";
 import { Plugin } from "@html_editor/plugin";
+import { withSequence } from "@html_editor/utils/resource";
 import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
-import { withSequence } from "@html_editor/utils/resource";
-import { SNIPPET_SPECIFIC_NEXT } from "@html_builder/utils/option_sequence";
-import { BaseOptionComponent } from "@html_builder/core/utils";
 
 export class NavbarLogoOption extends BaseOptionComponent {
     static template = "website.NavbarLogoOption";
@@ -22,4 +22,6 @@ class NavbarLogoOptionPlugin extends Plugin {
     };
 }
 
-registry.category("website-plugins").add(NavbarLogoOptionPlugin.id, NavbarLogoOptionPlugin);
+registry
+    .category("website-plugins")
+    .add(NavbarLogoOptionPlugin.id, NavbarLogoOptionPlugin);

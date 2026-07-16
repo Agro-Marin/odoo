@@ -1,17 +1,18 @@
 /** @odoo-module native */
-import { Plugin } from "@html_editor/plugin";
-import { withSequence } from "@html_editor/utils/resource";
+import { DISABLED_NAMESPACE } from "@html_editor/main/toolbar/toolbar_plugin";
 import { getEmbeddedProps } from "@html_editor/others/embedded_component_utils";
+import { Plugin } from "@html_editor/plugin";
+import { closestBlock } from "@html_editor/utils/blocks";
+import { removeInvisibleWhitespace } from "@html_editor/utils/dom";
+import { closestElement } from "@html_editor/utils/dom_traversal";
+import { withSequence } from "@html_editor/utils/resource";
+import { getActiveHotkey } from "@web/core/browser/hotkeys";
+
 import {
     DEFAULT_LANGUAGE_ID,
     getPreValue,
     newlinesToLineBreaks,
 } from "../../core/syntax_highlighting/syntax_highlighting_utils.js";
-import { removeInvisibleWhitespace } from "@html_editor/utils/dom";
-import { getActiveHotkey } from "@web/core/browser/hotkeys";
-import { closestBlock } from "@html_editor/utils/blocks";
-import { DISABLED_NAMESPACE } from "@html_editor/main/toolbar/toolbar_plugin";
-import { closestElement } from "@html_editor/utils/dom_traversal";
 
 const CODE_BLOCK_CLASS = "o_syntax_highlighting";
 const CODE_BLOCK_SELECTOR = `div.${CODE_BLOCK_CLASS}`;
@@ -51,14 +52,17 @@ export class SyntaxHighlightingPlugin extends Plugin {
         toolbar_namespace_providers: withSequence(70, (targetedNodes) => {
             if (
                 targetedNodes.length &&
-                targetedNodes.every((node) => closestElement(node, ".o_syntax_highlighting"))
+                targetedNodes.every((node) =>
+                    closestElement(node, ".o_syntax_highlighting"),
+                )
             ) {
                 return DISABLED_NAMESPACE;
             }
         }),
 
         /** Processors */
-        clipboard_content_processors: (clonedContent) => this.cleanForSave(clonedContent),
+        clipboard_content_processors: (clonedContent) =>
+            this.cleanForSave(clonedContent),
 
         /** Predicates */
         link_compatible_selection_predicates: () => {
@@ -71,7 +75,12 @@ export class SyntaxHighlightingPlugin extends Plugin {
     setup() {
         this.addCodeBlocks();
         this.addDomListener(this.editable, "keydown", (ev) => {
-            const arrowHandled = ["arrowup", "control+arrowup", "arrowdown", "control+arrowdown"];
+            const arrowHandled = [
+                "arrowup",
+                "control+arrowup",
+                "arrowdown",
+                "control+arrowdown",
+            ];
             if (arrowHandled.includes(getActiveHotkey(ev))) {
                 this.navigateAroundCodeBlock(ev);
             }
@@ -80,7 +89,8 @@ export class SyntaxHighlightingPlugin extends Plugin {
 
     navigateAroundCodeBlock(ev) {
         const isArrowUp = ev.key === "ArrowUp";
-        const selection = this.dependencies.selection.getSelectionData().deepEditableSelection;
+        const selection =
+            this.dependencies.selection.getSelectionData().deepEditableSelection;
         if (!selection.isCollapsed) {
             return;
         }
@@ -139,7 +149,7 @@ export class SyntaxHighlightingPlugin extends Plugin {
     addCodeBlocks(root = this.editable, preserveFocus = false) {
         const targetedNodes = this.dependencies.selection.getTargetedNodes();
         const nonEmbeddedPres = [...root.querySelectorAll("pre")].filter(
-            (pre) => !pre.closest(CODE_BLOCK_SELECTOR)
+            (pre) => !pre.closest(CODE_BLOCK_SELECTOR),
         );
         for (const pre of nonEmbeddedPres) {
             const isPreInSelection = !targetedNodes.some((node) => !pre.contains(node));
@@ -147,19 +157,20 @@ export class SyntaxHighlightingPlugin extends Plugin {
                 value: getPreValue(pre),
                 languageId: pre.dataset.languageId || DEFAULT_LANGUAGE_ID,
             });
-            const codeBlock = this.dependencies.embeddedComponents.renderBlueprintToElement(
-                "html_editor.EmbeddedSyntaxHighlightingBlueprint",
-                { embeddedProps },
-                () => {
-                    if (preserveFocus && isPreInSelection) {
-                        const textarea = codeBlock.querySelector("textarea");
-                        if (textarea !== codeBlock.ownerDocument.activeElement) {
-                            textarea.focus();
-                            this.dependencies.history.stageFocus();
+            const codeBlock =
+                this.dependencies.embeddedComponents.renderBlueprintToElement(
+                    "html_editor.EmbeddedSyntaxHighlightingBlueprint",
+                    { embeddedProps },
+                    () => {
+                        if (preserveFocus && isPreInSelection) {
+                            const textarea = codeBlock.querySelector("textarea");
+                            if (textarea !== codeBlock.ownerDocument.activeElement) {
+                                textarea.focus();
+                                this.dependencies.history.stageFocus();
+                            }
                         }
-                    }
-                }
-            );
+                    },
+                );
             pre.before(codeBlock);
             if (isPreInSelection) {
                 // Removing the pre will make us lose the selection. The DOM
@@ -179,14 +190,16 @@ export class SyntaxHighlightingPlugin extends Plugin {
                     this.dependencies.history.stageSelection();
                     const component = target.closest(`[data-embedded='${name}']`);
                     const embeddedProps = getEmbeddedProps(component);
-                    const baseContainer = this.dependencies.baseContainer.createBaseContainer();
+                    const baseContainer =
+                        this.dependencies.baseContainer.createBaseContainer();
                     baseContainer.textContent = embeddedProps.value;
                     component.replaceWith(baseContainer);
                     newlinesToLineBreaks(baseContainer);
                     this.dependencies.selection.setCursorStart(baseContainer);
                     this.dependencies.history.addStep();
                 },
-                setSelection: (selection) => this.dependencies.selection.setSelection(selection),
+                setSelection: (selection) =>
+                    this.dependencies.selection.setSelection(selection),
             });
             props.host.removeAttribute("data-syntax-highlighting-autofocus");
         }

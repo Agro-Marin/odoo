@@ -1,13 +1,13 @@
 /** @odoo-module native */
+import { useDropdownAutoVisibility } from "@html_editor/dropdown_autovisibility_hook";
+import { toolbarButtonProps } from "@html_editor/main/toolbar/toolbar";
 import { Component, onWillStart, useState } from "@odoo/owl";
-import { useChildRef, useService } from "@web/core/utils/hooks";
 import { Dropdown } from "@web/components/dropdown/dropdown";
 import { DropdownItem } from "@web/components/dropdown/dropdown_item";
 import { loadLanguages } from "@web/core/l10n/translation";
 import { jsToPyLocale } from "@web/core/l10n/utils";
-import { toolbarButtonProps } from "@html_editor/main/toolbar/toolbar";
+import { useChildRef, useService } from "@web/core/utils/hooks";
 import { user } from "@web/services/user";
-import { useDropdownAutoVisibility } from "@html_editor/dropdown_autovisibility_hook";
 
 export class LanguageSelector extends Component {
     static template = "html_editor.LanguageSelector";

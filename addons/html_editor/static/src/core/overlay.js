@@ -9,9 +9,9 @@ import {
     useSubEnv,
     xml,
 } from "@odoo/owl";
-import { OVERLAY_SYMBOL } from "@web/ui/overlay/overlay_container";
 import { usePosition } from "@web/core/position/position_hook";
 import { useActiveElement } from "@web/ui/block/ui_service";
+import { OVERLAY_SYMBOL } from "@web/ui/overlay/overlay_container";
 
 export class EditorOverlay extends Component {
     static template = xml`
@@ -77,7 +77,7 @@ export class EditorOverlay extends Component {
                         resizeObserver.unobserve(root);
                     };
                 },
-                () => [rootRef.el]
+                () => [rootRef.el],
             );
         }
 
@@ -171,7 +171,7 @@ export class EditorOverlay extends Component {
         const shouldBeVisible = this.shouldOverlayBeVisible(
             overlayElement,
             solution,
-            scrollContainer
+            scrollContainer,
         );
         overlayElement.style.visibility = shouldBeVisible ? "visible" : "hidden";
         this.overlayState.isOverlayVisible = shouldBeVisible;
@@ -189,7 +189,8 @@ export class EditorOverlay extends Component {
         const scrollContainerRect = scrollContainer.getBoundingClientRect();
         let scrollContainerTop = scrollContainerRect.top;
         if (scrollContainer.ownerDocument !== overlayElement.ownerDocument) {
-            const frameElement = scrollContainer.ownerDocument.defaultView?.frameElement;
+            const frameElement =
+                scrollContainer.ownerDocument.defaultView?.frameElement;
             if (frameElement) {
                 scrollContainerTop += frameElement.getBoundingClientRect().top;
             }

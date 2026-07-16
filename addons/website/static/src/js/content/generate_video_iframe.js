@@ -68,7 +68,9 @@ export function generateVideoIframe(parentEl, manageIframeSrcFct) {
     iframeEl.setAttribute("allowfullscreen", "allowfullscreen");
     iframeEl.setAttribute("referrerpolicy", "strict-origin-when-cross-origin");
     parentEl.appendChild(iframeEl);
-    manageIframeSrcFct ? manageIframeSrcFct(iframeEl, src) : manageIframeSrcOnLoad(iframeEl, src);
+    manageIframeSrcFct
+        ? manageIframeSrcFct(iframeEl, src)
+        : manageIframeSrcOnLoad(iframeEl, src);
 
     return iframeEl;
 }

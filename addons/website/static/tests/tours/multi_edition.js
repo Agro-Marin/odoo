@@ -27,7 +27,8 @@ registerWebsitePreviewTour(
         },
         {
             trigger: `.o-snippets-menu .o_block_tab:not(.o_we_ongoing_insertion) .o_snippet[name="Separator"].o_draggable .o_snippet_thumbnail`,
-            content: "Drag the Separator building block and drop it at the bottom of the page.",
+            content:
+                "Drag the Separator building block and drop it at the bottom of the page.",
             run: "drag_and_drop :iframe .oe_drop_zone:last",
         },
         ...clickOnSave(),
@@ -39,5 +40,5 @@ registerWebsitePreviewTour(
             content: "Check that the footer was properly saved",
             trigger: ":iframe footer .s_hr",
         },
-    ]
+    ],
 );

@@ -1,6 +1,6 @@
 /** @odoo-module native */
-import { Interaction } from "@web/public/interaction";
 import { registry } from "@web/core/registry";
+import { Interaction } from "@web/public/interaction";
 
 export class CarouselEdit extends Interaction {
     static selector = "section > .carousel";
@@ -62,7 +62,7 @@ export class CarouselEdit extends Interaction {
             // Restore the carousel controls.
             const indicatorEls = this.el.querySelectorAll(".carousel-indicators > *");
             indicatorEls.forEach((indicatorEl, i) =>
-                indicatorEl.setAttribute("data-bs-slide-to", i)
+                indicatorEl.setAttribute("data-bs-slide-to", i),
             );
         }
     }

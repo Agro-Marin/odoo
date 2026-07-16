@@ -23,7 +23,7 @@ test("Only two quick actions are shown", async () => {
     await loadDefaultEmbedConfig();
     const env = await start({ authenticateAs: false });
     env.services.bus_service.subscribe("discuss.channel/new_message", () =>
-        asyncStep("discuss.channel/new_message")
+        asyncStep("discuss.channel/new_message"),
     );
     await click(".o-livechat-LivechatButton");
     await contains(".o-mail-ChatWindow");
@@ -40,7 +40,9 @@ test("Only two quick actions are shown", async () => {
     await contains("[title='Expand']");
     await click("[title='Expand']");
     await contains(".o-dropdown-item:contains('Reply')");
-    await contains(".o-mail-Message-actions i, .o-mail-Message-moreMenu i", { count: 8 });
+    await contains(".o-mail-Message-actions i, .o-mail-Message-moreMenu i", {
+        count: 8,
+    });
     await contains(".o-dropdown-item:contains('View Reactions')");
     await contains(".o-dropdown-item:contains('Mark as Unread')");
     await contains(".o-dropdown-item:contains('Delete')");

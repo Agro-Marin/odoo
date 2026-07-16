@@ -1,10 +1,11 @@
 import { findInSelection } from "@html_editor/utils/selection";
 import { describe, expect, test } from "@odoo/hoot";
 import { press } from "@odoo/hoot-dom";
+
 import { setupEditor, testEditor } from "../_helpers/editor.js";
 import { unformat } from "../_helpers/format.js";
-import { undo } from "../_helpers/user_actions.js";
 import { getContent } from "../_helpers/selection.js";
+import { undo } from "../_helpers/user_actions.js";
 
 function addRow(position) {
     return (editor) => {
@@ -420,7 +421,7 @@ describe("row", () => {
                             </tr>
                         </tbody>
                     </table>
-                    <p data-selection-placeholder=""><br></p>`
+                    <p data-selection-placeholder=""><br></p>`,
                 ),
                 stepFunction: removeRow(),
                 contentAfter: "<p>[]<br></p>",
@@ -719,7 +720,7 @@ describe("column", () => {
                             <tr> <td>cd</td> </tr>
                         </tbody>
                     </table>
-                    <p data-selection-placeholder=""><br></p>`
+                    <p data-selection-placeholder=""><br></p>`,
                 ),
                 stepFunction: removeColumn(),
                 contentAfter: "<p>[]<br></p>",
@@ -756,7 +757,7 @@ describe("tab", () => {
                     <td><p><br></p></td>
                 </tr>
             </tbody></table>
-            <p data-selection-placeholder=""><br></p>`
+            <p data-selection-placeholder=""><br></p>`,
         );
 
         expect(getContent(el)).toBe(expectedContent);
@@ -766,7 +767,7 @@ describe("tab", () => {
         expect(getContent(el)).toBe(
             '<p data-selection-placeholder=""><br></p>' +
                 contentBefore +
-                '<p data-selection-placeholder=""><br></p>'
+                '<p data-selection-placeholder=""><br></p>',
         );
     });
 

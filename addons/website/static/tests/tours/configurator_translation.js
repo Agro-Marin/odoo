@@ -81,7 +81,8 @@ registry.category("web_tour.tours").add("configurator_translation", {
     steps: () => [
         ...runConfiguratorFlow("in fr", "Parseltongue_privacy"),
         {
-            content: "Check if the current interface language is active and monkey patch terms",
+            content:
+                "Check if the current interface language is active and monkey patch terms",
             trigger: "body",
             run() {
                 if (localization.code !== "pa_GB") {
@@ -97,7 +98,8 @@ registry.category("web_tour.tours").add("configurator_translation", {
             // in Parseltongue. (The editor should be in the website's default
             // language, which should be parseltongue in this test.)
             content: "exit edit mode",
-            trigger: ".o-snippets-top-actions button.btn-success:contains('Save_Parseltongue')",
+            trigger:
+                ".o-snippets-top-actions button.btn-success:contains('Save_Parseltongue')",
             run: "click",
         },
         {
@@ -132,7 +134,8 @@ registry.category("web_tour.tours").add("configurator_page_creation", {
             trigger: "[data-id='landing'] .o_page_template[data-configurator-page]",
         },
         {
-            content: "Configurator pages should appear at the start of the landing category",
+            content:
+                "Configurator pages should appear at the start of the landing category",
             trigger:
                 "[data-id='landing'] .row > :first-child .o_page_template:first-of-type[data-configurator-page]",
         },

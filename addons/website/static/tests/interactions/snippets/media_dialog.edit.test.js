@@ -1,5 +1,9 @@
 import { describe, expect, test } from "@odoo/hoot";
-import { setupInteractionWhiteList, startInteractions } from "@web/../tests/public/helpers";
+import {
+    setupInteractionWhiteList,
+    startInteractions,
+} from "@web/../tests/public/helpers";
+
 import { switchToEditMode } from "../../helpers.js";
 
 describe.current.tags("interaction_dev");
@@ -25,9 +29,12 @@ test("media video: iframe not replaced in edition if present", async () => {
 });
 
 test("media video: iframe replaced in edition if not present", async () => {
-    const { core } = await startInteractions(videoTemplate.replace(/<iframe.*<\/iframe>/, ""), {
-        editMode: true,
-    });
+    const { core } = await startInteractions(
+        videoTemplate.replace(/<iframe.*<\/iframe>/, ""),
+        {
+            editMode: true,
+        },
+    );
     expect("iframe").toHaveCount(0);
     await switchToEditMode(core);
     expect("iframe").toHaveCount(1);

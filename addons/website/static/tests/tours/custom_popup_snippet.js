@@ -21,7 +21,8 @@ registerWebsitePreviewTour(
         ...clickOnSnippet(snippets[1]),
         {
             content: "save this snippet to save later",
-            trigger: ".options-container[data-container-title='Popup'] .oe_snippet_save",
+            trigger:
+                ".options-container[data-container-title='Popup'] .oe_snippet_save",
             run: "click",
         },
         {
@@ -39,5 +40,5 @@ registerWebsitePreviewTour(
             content: "check whether new custom popup is visible or not.",
             trigger: ":iframe section[data-snippet='s_banner']",
         },
-    ]
+    ],
 );

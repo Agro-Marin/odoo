@@ -1,12 +1,13 @@
 /** @odoo-module native */
 import { splitTextNode } from "@html_editor/utils/dom";
+import { closestElement } from "@html_editor/utils/dom_traversal";
+
 import { Plugin } from "../plugin.js";
+import { closestBlock, isBlock } from "../utils/blocks.js";
 import { CTGROUPS, CTYPES } from "../utils/content_types.js";
+import { nextLeaf } from "../utils/dom_info.js";
 import { getState, isFakeLineBreak, prepareUpdate } from "../utils/dom_state.js";
 import { DIRECTIONS, leftPos, rightPos } from "../utils/position.js";
-import { closestElement } from "@html_editor/utils/dom_traversal";
-import { closestBlock, isBlock } from "../utils/blocks.js";
-import { nextLeaf } from "../utils/dom_info.js";
 
 /**
  * @typedef { Object } LineBreakShared
@@ -23,7 +24,11 @@ import { nextLeaf } from "../utils/dom_info.js";
 export class LineBreakPlugin extends Plugin {
     static dependencies = ["selection", "history", "input", "delete"];
     static id = "lineBreak";
-    static shared = ["insertLineBreak", "insertLineBreakNode", "insertLineBreakElement"];
+    static shared = [
+        "insertLineBreak",
+        "insertLineBreakNode",
+        "insertLineBreakElement",
+    ];
     /** @type {import("plugins").EditorResources} */
     resources = {
         beforeinput_handlers: this.onBeforeInput.bind(this),
@@ -38,7 +43,8 @@ export class LineBreakPlugin extends Plugin {
 
     insertLineBreak() {
         this.dispatchTo("before_line_break_handlers");
-        let selection = this.dependencies.selection.getSelectionData().deepEditableSelection;
+        let selection =
+            this.dependencies.selection.getSelectionData().deepEditableSelection;
         if (!selection.isCollapsed) {
             // @todo @phoenix collapseIfZWS is not tested
             // this.shared.collapseIfZWS();
@@ -70,7 +76,12 @@ export class LineBreakPlugin extends Plugin {
             targetNode = targetNode.parentElement;
         }
 
-        if (this.delegateTo("insert_line_break_element_overrides", { targetNode, targetOffset })) {
+        if (
+            this.delegateTo("insert_line_break_element_overrides", {
+                targetNode,
+                targetOffset,
+            })
+        ) {
             return;
         }
 
@@ -104,7 +115,10 @@ export class LineBreakPlugin extends Plugin {
         }
         if (
             isFakeLineBreak(brEl) &&
-            !(getState(...leftPos(brEl), DIRECTIONS.LEFT).cType & (CTGROUPS.BLOCK | CTYPES.BR))
+            !(
+                getState(...leftPos(brEl), DIRECTIONS.LEFT).cType &
+                (CTGROUPS.BLOCK | CTYPES.BR)
+            )
         ) {
             const brEl2 = this.document.createElement("br");
             brEl.before(brEl2);

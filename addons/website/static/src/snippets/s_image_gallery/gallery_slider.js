@@ -1,9 +1,8 @@
 /** @odoo-module native */
-import { Interaction } from "@web/public/interaction";
-import { Carousel } from "@web/libs/bootstrap";
-import { registry } from "@web/core/registry";
-
 import { isVisible } from "@html_editor/utils/dom_info";
+import { registry } from "@web/core/registry";
+import { Carousel } from "@web/libs/bootstrap";
+import { Interaction } from "@web/public/interaction";
 
 /**
  * This interaction is kept for compatibility with snippets dropped before 18.0.
@@ -49,7 +48,8 @@ export class GallerySlider extends Interaction {
                     if (!isVisible(indicatorParentEl)) {
                         if (!indicatorParentEl.style.display) {
                             indicatorParentEl.style.display = "block";
-                            indicatorWidth = this.indicatorEl.getBoundingClientRect().width;
+                            indicatorWidth =
+                                this.indicatorEl.getBoundingClientRect().width;
                             indicatorParentEl.style.display = "";
                         }
                         break;
@@ -62,7 +62,7 @@ export class GallerySlider extends Interaction {
                     indicatorWidth /
                         (this.liEls.length > 0
                             ? this.liEls[0].getBoundingClientRect().width
-                            : undefined)
+                            : undefined),
                 ) - 3; // - navigator - 1 to leave some space
             this.realNbPerPage = this.nbPerPage || 1;
             this.nbPages = Math.ceil(this.liEls.length / this.realNbPerPage);
@@ -85,7 +85,7 @@ export class GallerySlider extends Interaction {
         }
         this.waitForTimeout(() => {
             const itemEl = this.carouselEl.querySelector(
-                ".carousel-inner .carousel-item-prev, .carousel-inner .carousel-item-next"
+                ".carousel-inner .carousel-item-prev, .carousel-inner .carousel-item-next",
             );
             if (!itemEl) {
                 return;
@@ -94,7 +94,9 @@ export class GallerySlider extends Interaction {
             for (const liEl of this.liEls) {
                 liEl.classList.remove("active");
             }
-            const selectedLiEl = [...this.liEls].find((el) => el.dataset.bsSlideTo === `${index}`);
+            const selectedLiEl = [...this.liEls].find(
+                (el) => el.dataset.bsSlideTo === `${index}`,
+            );
             selectedLiEl?.classList.add("active");
         }, 0);
     }
@@ -110,7 +112,9 @@ export class GallerySlider extends Interaction {
         }
         this.page += dispatchedEl.classList.contains("o_indicators_left") ? -1 : 1;
         this.page = Math.max(0, Math.min(this.nbPages - 1, this.page)); // should not be necessary
-        Carousel.getOrCreateInstance(this.carouselEl).to(this.page * this.realNbPerPage);
+        Carousel.getOrCreateInstance(this.carouselEl).to(
+            this.page * this.realNbPerPage,
+        );
         // We dont use hide() before the slide animation in the editor because there is a traceback
         // TO DO: fix this traceback
         if (this.hideOnClickIndicator) {
@@ -122,7 +126,7 @@ export class GallerySlider extends Interaction {
         for (let i = 0; i < this.liEls.length; i++) {
             this.liEls[i].classList.toggle(
                 "d-none",
-                i < this.page * this.nbPerPage || i >= (this.page + 1) * this.nbPerPage
+                i < this.page * this.nbPerPage || i >= (this.page + 1) * this.nbPerPage,
             );
         }
         if (this.prevEl) {
@@ -145,7 +149,9 @@ export class GallerySlider extends Interaction {
 
     onSlidCarousel() {
         if (this.liEls) {
-            const active = [...this.liEls].filter((el) => el.classList.contains("active"));
+            const active = [...this.liEls].filter((el) =>
+                el.classList.contains("active"),
+            );
             const index = active.length ? [...this.liEls].indexOf(active[0]) : 0;
             this.page = Math.floor(index / this.realNbPerPage);
         }

@@ -1,8 +1,8 @@
 /** @odoo-module native */
 import {
     onMounted,
-    onRendered,
     onPatched,
+    onRendered,
     onWillDestroy,
     reactive,
     toRaw,
@@ -84,10 +84,12 @@ export function useEditableDescendants(host) {
     const component = useComponent();
     if (!component.env.getEditableDescendants) {
         throw new Error(
-            "Missing `getEditableDescendants` function in the `embedding` provided to the `EmbeddedComponentPlugin`."
+            "Missing `getEditableDescendants` function in the `embedding` provided to the `EmbeddedComponentPlugin`.",
         );
     }
-    const editableDescendants = Object.freeze(component.env.getEditableDescendants(host));
+    const editableDescendants = Object.freeze(
+        component.env.getEditableDescendants(host),
+    );
     const refs = {};
     const renders = {};
     for (const name of Object.keys(editableDescendants)) {
@@ -103,7 +105,8 @@ export function useEditableDescendants(host) {
     };
     if (component.env.editorShared?.selection) {
         onRendered(() => {
-            _restoreSelection = component.env.editorShared.selection.preserveSelection().restore;
+            _restoreSelection =
+                component.env.editorShared.selection.preserveSelection().restore;
         });
     }
     onMounted(() => {
@@ -151,7 +154,7 @@ function embeddedStateProxyHandler(state, stateChangeManager) {
                 !stateChangeManager.previousEmbeddedState
             ) {
                 stateChangeManager.previousEmbeddedState = JSON.parse(
-                    JSON.stringify(stateChangeManager.embeddedState)
+                    JSON.stringify(stateChangeManager.embeddedState),
                 );
             }
             return Reflect.set(target, key, value, receiver);
@@ -159,7 +162,7 @@ function embeddedStateProxyHandler(state, stateChangeManager) {
         deleteProperty(target, key) {
             if (Reflect.has(target, key) && !stateChangeManager.previousEmbeddedState) {
                 stateChangeManager.previousEmbeddedState = JSON.parse(
-                    JSON.stringify(stateChangeManager.embeddedState)
+                    JSON.stringify(stateChangeManager.embeddedState),
                 );
             }
             return Reflect.deleteProperty(target, key);
@@ -311,11 +314,11 @@ export class StateChangeManager {
         this.state = state;
         this.embeddedState = reactive(
             this.assignDeepProxyCopy({}, state),
-            this.batchedChangeState()
+            this.batchedChangeState(),
         );
         this.embeddedStateProxy = new Proxy(
             this.embeddedState,
-            embeddedStateProxyHandler(state, this)
+            embeddedStateProxyHandler(state, this),
         );
         // First subscription to changes.
         observeAllKeys(this.embeddedStateProxy);
@@ -363,7 +366,7 @@ export class StateChangeManager {
             this.commitStateChange(state, stateChange.previous, stateChange.next);
             const sortedState = sortedCopy(state);
             this.config.host.dataset.embeddedProps = JSON.stringify(
-                this.stateToEmbeddedProps(this.config.host, sortedState)
+                this.stateToEmbeddedProps(this.config.host, sortedState),
             );
             if (this.isLiveComponent && !this.previousEmbeddedState) {
                 // Update the embeddedState only if there is no pending change.
@@ -431,7 +434,7 @@ export class StateChangeManager {
         this.commitStateChange(
             this.state,
             previousEmbeddedState,
-            JSON.parse(JSON.stringify(this.embeddedState))
+            JSON.parse(JSON.stringify(this.embeddedState)),
         );
         const sortedState = sortedCopy(this.state);
         const next = JSON.stringify(sortedState);
@@ -442,9 +445,11 @@ export class StateChangeManager {
                 previous: JSON.parse(previous),
                 next: JSON.parse(next),
             };
-            this.config.host.dataset.embeddedState = JSON.stringify(this.previousStateChange);
+            this.config.host.dataset.embeddedState = JSON.stringify(
+                this.previousStateChange,
+            );
             this.config.host.dataset.embeddedProps = JSON.stringify(
-                this.stateToEmbeddedProps(this.config.host, sortedState)
+                this.stateToEmbeddedProps(this.config.host, sortedState),
             );
             this.config.commitStateChanges();
         }
@@ -603,7 +608,7 @@ export function useEmbeddedState(host) {
     const component = useComponent();
     if (!component.env.getStateChangeManager) {
         throw new Error(
-            "Missing `getStateChangeManager` function in the `embedding` provided to the `EmbeddedComponentPlugin`."
+            "Missing `getStateChangeManager` function in the `embedding` provided to the `EmbeddedComponentPlugin`.",
         );
     }
     const stateChangeManager = component.env.getStateChangeManager(host);

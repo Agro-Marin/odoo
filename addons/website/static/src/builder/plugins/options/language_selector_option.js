@@ -1,10 +1,11 @@
 /** @odoo-module native */
-import { Plugin } from "@html_editor/plugin";
-import { registry } from "@web/core/registry";
-import { withSequence } from "@html_editor/utils/resource";
-import { after } from "@html_builder/utils/option_sequence";
-import { HEADER_BOX } from "./header/header_option_plugin.js";
 import { BaseOptionComponent } from "@html_builder/core/utils";
+import { after } from "@html_builder/utils/option_sequence";
+import { Plugin } from "@html_editor/plugin";
+import { withSequence } from "@html_editor/utils/resource";
+import { registry } from "@web/core/registry";
+
+import { HEADER_BOX } from "./header/header_option_plugin.js";
 
 export class LanguageSelectorOption extends BaseOptionComponent {
     static template = "website.LanguageSelectorOption";

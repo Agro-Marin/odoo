@@ -14,7 +14,7 @@ registerWebsitePreviewTour(
             trigger: ':iframe body:not([data-hello="world"])',
             content: "Check that the editor DOM matches its website-generic features",
         },
-    ]
+    ],
 );
 
 // Good practice would have been to use `registerWebsitePreviewTour`

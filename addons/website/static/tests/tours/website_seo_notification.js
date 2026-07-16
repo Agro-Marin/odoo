@@ -56,7 +56,8 @@ registerWebsitePreviewTour(
         },
         {
             content: "Check the SEO notification is displayed",
-            trigger: ".o_notification_manager .o_notification:contains('Page title not set.')",
+            trigger:
+                ".o_notification_manager .o_notification:contains('Page title not set.')",
         },
         {
             trigger: "body:not(:has(.o_notification_manager .o_notification))",
@@ -71,7 +72,8 @@ registerWebsitePreviewTour(
         },
         {
             content: "Click on My Account",
-            trigger: ":iframe #o_main_nav .js_usermenu a.dropdown-item.ps-3:contains('My Account')",
+            trigger:
+                ":iframe #o_main_nav .js_usermenu a.dropdown-item.ps-3:contains('My Account')",
             run: "click",
         },
         {
@@ -89,5 +91,5 @@ registerWebsitePreviewTour(
             content: "Check the SEO notification should not be displayed",
             trigger: "body:not(:has(.o_notification_manager .o_notification))",
         },
-    ]
+    ],
 );

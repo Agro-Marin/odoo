@@ -1,4 +1,6 @@
+import { dummyBase64Img } from "@html_builder/../tests/helpers";
 import { setSelection } from "@html_editor/../tests/_helpers/selection";
+import { expectElementCount } from "@html_editor/../tests/_helpers/ui_expectations";
 import { describe, expect, test } from "@odoo/hoot";
 import {
     advanceTime,
@@ -9,25 +11,24 @@ import {
     queryAll,
     queryFirst,
     queryOne,
+    setInputRange,
     waitFor,
     waitForNone,
-    setInputRange,
 } from "@odoo/hoot-dom";
 import { contains, onRpc } from "@web/../tests/web_test_helpers";
+
+import { testImg } from "./image_test_helpers.js";
 import {
     defineWebsiteModels,
     setupWebsiteBuilder,
     setupWebsiteBuilderOeId,
 } from "./website_helpers.js";
-import { dummyBase64Img } from "@html_builder/../tests/helpers";
-import { testImg } from "./image_test_helpers.js";
-import { expectElementCount } from "@html_editor/../tests/_helpers/ui_expectations";
 
 defineWebsiteModels();
 
 test("click on Image shouldn't open toolbar", async () => {
     const { getEditor } = await setupWebsiteBuilder(
-        `<div><p>a</p><img class=a_nice_img src='${dummyBase64Img}'></div>`
+        `<div><p>a</p><img class=a_nice_img src='${dummyBase64Img}'></div>`,
     );
     const editor = getEditor();
     const p = editor.editable.querySelector("p");
@@ -51,12 +52,14 @@ test("Double click on image and replace it", async () => {
         },
     ]);
     const { waitSidebarUpdated } = await setupWebsiteBuilder(
-        `<div><img class=a_nice_img src='${dummyBase64Img}'></div>`
+        `<div><img class=a_nice_img src='${dummyBase64Img}'></div>`,
     );
     expect(".modal-content").toHaveCount(0);
     await dblclick(":iframe img.a_nice_img");
     await animationFrame();
-    expect(".modal-content:contains(Select a media) .o_upload_media_button").toHaveCount(1);
+    expect(
+        ".modal-content:contains(Select a media) .o_upload_media_button",
+    ).toHaveCount(1);
     expect("div.o-tooltip").toHaveCount(0);
     await contains(".o_select_media_dialog .o_button_area[aria-label='logo']").click();
     await waitSidebarUpdated();
@@ -67,7 +70,9 @@ test("Double click on image and replace it", async () => {
 });
 
 test("simple click on Image", async () => {
-    await setupWebsiteBuilder(`<div><img class=a_nice_img src='${dummyBase64Img}'></div>`);
+    await setupWebsiteBuilder(
+        `<div><img class=a_nice_img src='${dummyBase64Img}'></div>`,
+    );
     await click(":iframe img.a_nice_img");
     await waitFor("div.o-tooltip");
     expect("div.o-tooltip").toHaveCount(1);
@@ -85,7 +90,7 @@ test("double click on text", async () => {
 
 test("image should not be draggable", async () => {
     const { getEditor } = await setupWebsiteBuilder(
-        `<div><p>a</p><img class=a_nice_img src='${dummyBase64Img}'></div>`
+        `<div><p>a</p><img class=a_nice_img src='${dummyBase64Img}'></div>`,
     );
     const editor = getEditor();
     const img = editor.editable.querySelector("img");
@@ -119,7 +124,7 @@ test("pasted/dropped images are converted to attachments on save in website edit
         const { params } = await request.json();
         expect(
             params.data ===
-                "iVBORw0KGgoAAAANSUhEUgAAAAgAAAAIAQMAAAD+wSzIAAAABlBMVEX///+/v7+jQ3Y5AAAADklEQVQI12P4AIX8EAgALgAD/aNpbtEAAAAASUVORK5CYII="
+                "iVBORw0KGgoAAAANSUhEUgAAAAgAAAAIAQMAAAD+wSzIAAAABlBMVEX///+/v7+jQ3Y5AAAADklEQVQI12P4AIX8EAgALgAD/aNpbtEAAAAASUVORK5CYII=",
         ).toBe(true);
         expect(params.res_id).toBe(`${setupWebsiteBuilderOeId}`);
         expect(params.res_model).toBe("ir.ui.view");
@@ -148,19 +153,21 @@ test("pasted/dropped images are converted to attachments on save in website edit
     const editor = getEditor();
 
     // Paste image
-    var p = queryOne(":iframe section > p:has(br)");
+    const p = queryOne(":iframe section > p:has(br)");
     setSelection({ anchorNode: p, anchorOffset: 0 });
     pasteFile(
         editor,
         createBase64ImageFile(
-            "iVBORw0KGgoAAAANSUhEUgAAAAgAAAAIAQMAAAD+wSzIAAAABlBMVEX///+/v7+jQ3Y5AAAADklEQVQI12P4AIX8EAgALgAD/aNpbtEAAAAASUVORK5CYII"
-        )
+            "iVBORw0KGgoAAAANSUhEUgAAAAgAAAAIAQMAAAD+wSzIAAAABlBMVEX///+/v7+jQ3Y5AAAADklEQVQI12P4AIX8EAgALgAD/aNpbtEAAAAASUVORK5CYII",
+        ),
     );
 
     // Check if image is set to be saved as attachment
     await waitFor(":iframe img.o_b64_image_to_save");
     expect(
-        queryOne(":iframe img.o_b64_image_to_save").src.startsWith("data:image/png;base64,")
+        queryOne(":iframe img.o_b64_image_to_save").src.startsWith(
+            "data:image/png;base64,",
+        ),
     ).toBe(true);
 
     // Save and check if image has been saved as attachment
@@ -216,20 +223,18 @@ test("pasted/dropped images are converted to attachments on snippet save", async
     pasteFile(editor, createBase64ImageFile(imageData, "image-1.png"));
 
     // Check if image is set to be saved as attachment
-    expect(await waitFor(":iframe [test-id='1'] img.o_b64_image_to_save")).toHaveAttribute(
-        "src",
-        /^data:image\/png;base64,/
-    );
+    expect(
+        await waitFor(":iframe [test-id='1'] img.o_b64_image_to_save"),
+    ).toHaveAttribute("src", /^data:image\/png;base64,/);
 
     p = queryOne(":iframe section[test-id='2'] > p:has(br)");
     setSelection({ anchorNode: p, anchorOffset: 0 });
     pasteFile(editor, createBase64ImageFile(imageData, "image-2.png"));
 
     // Check if image is set to be saved as attachment
-    expect(await waitFor(":iframe [test-id='2'] img.o_b64_image_to_save")).toHaveAttribute(
-        "src",
-        /^data:image\/png;base64,/
-    );
+    expect(
+        await waitFor(":iframe [test-id='2'] img.o_b64_image_to_save"),
+    ).toHaveAttribute("src", /^data:image\/png;base64,/);
 
     // Save snippet of section 1 and check if its image has been saved as attachment
     await contains(":iframe [test-id='1']").click();
@@ -261,12 +266,23 @@ describe("Image format/optimize", () => {
         await editor.shared.operation.next(() => {});
 
         const img = queryFirst(":iframe .test-options-target img");
-        expect(":iframe .test-options-target img").toHaveAttribute("data-attachment-id", "1");
-        expect(":iframe .test-options-target img").toHaveAttribute("data-original-id", "1");
-        expect(":iframe .test-options-target img").toHaveAttribute("data-mimetype", "image/webp");
+        expect(":iframe .test-options-target img").toHaveAttribute(
+            "data-attachment-id",
+            "1",
+        );
+        expect(":iframe .test-options-target img").toHaveAttribute(
+            "data-original-id",
+            "1",
+        );
+        expect(":iframe .test-options-target img").toHaveAttribute(
+            "data-mimetype",
+            "image/webp",
+        );
         expect(img.src.startsWith("data:image/webp;base64,")).toBe(true);
         await waitFor("[data-label='Format']");
-        expect(queryFirst("[data-label='Format'] .dropdown").textContent).toMatch(/800px/);
+        expect(queryFirst("[data-label='Format'] .dropdown").textContent).toMatch(
+            /800px/,
+        );
     });
     test("should set the quality of an image to 50", async () => {
         const { getEditor, waitSidebarUpdated } = await setupWebsiteBuilder(`

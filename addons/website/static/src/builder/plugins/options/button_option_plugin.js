@@ -50,7 +50,9 @@ class ButtonOptionPlugin extends Plugin {
             }
 
             // Preview the button.
-            const initialState = this.adaptButtons(snippetEl, { isDragAndDropPreview: true });
+            const initialState = this.adaptButtons(snippetEl, {
+                isDragAndDropPreview: true,
+            });
             // Store the restore function to undo the preview.
             dragState.restoreButtonPreview = () => {
                 const { isWrapped, previousClassName, nextClassName } = initialState;
@@ -110,7 +112,10 @@ class ButtonOptionPlugin extends Plugin {
      *   - [isDragAndDropPreview = false]
      * @returns {Object} the info needed to restore the drag and drop preview
      */
-    adaptButtons(editingElement, { adaptAppearance = true, isDragAndDropPreview = false }) {
+    adaptButtons(
+        editingElement,
+        { adaptAppearance = true, isDragAndDropPreview = false },
+    ) {
         let previousSiblingEl = editingElement.previousElementSibling;
         let nextSiblingEl = editingElement.nextElementSibling;
         // If we are in the case of a drag and drop preview, ignore the
@@ -153,8 +158,12 @@ class ButtonOptionPlugin extends Plugin {
                 // its appearance to match its sibling.
                 // TODO this should consider the old option classes (for already
                 // existing buttons) + custom ?
-                const styleClass = styleClasses.find((c) => siblingButtonEl.classList.contains(c));
-                const sizeClass = sizeClasses.find((c) => siblingButtonEl.classList.contains(c));
+                const styleClass = styleClasses.find((c) =>
+                    siblingButtonEl.classList.contains(c),
+                );
+                const sizeClass = sizeClasses.find((c) =>
+                    siblingButtonEl.classList.contains(c),
+                );
 
                 if (styleClass) {
                     editingElement.classList.remove("btn-primary");

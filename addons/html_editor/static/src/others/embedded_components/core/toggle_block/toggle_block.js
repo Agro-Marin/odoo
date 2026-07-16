@@ -4,8 +4,8 @@ import {
     getEmbeddedProps,
     useEditableDescendants,
 } from "@html_editor/others/embedded_component_utils";
-import { browser } from "@web/core/browser/browser";
 import { Component, useEffect, useExternalListener, useState } from "@odoo/owl";
+import { browser } from "@web/core/browser/browser";
 
 const sessionStorage = browser.sessionStorage;
 export class EmbeddedToggleBlockComponent extends Component {
@@ -28,7 +28,7 @@ export class EmbeddedToggleBlockComponent extends Component {
                 this.restoreSelection();
                 this.restoreSelection = this.neutralRestoreSelection;
             },
-            () => [this.restoreSelection]
+            () => [this.restoreSelection],
         );
     }
 

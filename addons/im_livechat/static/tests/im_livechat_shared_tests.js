@@ -1,4 +1,3 @@
-import { expect } from "@odoo/hoot";
 import {
     click,
     contains,
@@ -6,6 +5,7 @@ import {
     start,
     startServer,
 } from "@mail/../tests/mail_test_helpers";
+import { expect } from "@odoo/hoot";
 import { Command, onRpc, serverState } from "@web/../tests/web_test_helpers";
 
 export async function livechatLastAgentLeaveFromChatWindow() {
@@ -23,7 +23,10 @@ export async function livechatLastAgentLeaveFromChatWindow() {
     const channelId = pyEnv["discuss.channel"].create({
         channel_type: "livechat",
         channel_member_ids: [
-            Command.create({ partner_id: serverState.partnerId, livechat_member_type: "agent" }),
+            Command.create({
+                partner_id: serverState.partnerId,
+                livechat_member_type: "agent",
+            }),
             Command.create({ guest_id: guestId, livechat_member_type: "visitor" }),
         ],
         livechat_channel_id: livechatChannelId,

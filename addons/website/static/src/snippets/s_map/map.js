@@ -1,8 +1,7 @@
 /** @odoo-module native */
-import { Interaction } from "@web/public/interaction";
 import { registry } from "@web/core/registry";
-
-import { generateGMapLink, generateGMapIframe } from "@website/js/utils";
+import { Interaction } from "@web/public/interaction";
+import { generateGMapIframe, generateGMapLink } from "@website/js/utils";
 
 export class Map extends Interaction {
     static selector = ".s_map";
@@ -16,7 +15,10 @@ export class Map extends Interaction {
             if (dataset.mapAddress) {
                 const iframeEl = generateGMapIframe();
                 this.el.querySelector(".s_map_color_filter").before(iframeEl);
-                this.services.website_cookies.manageIframeSrc(iframeEl, generateGMapLink(dataset));
+                this.services.website_cookies.manageIframeSrc(
+                    iframeEl,
+                    generateGMapLink(dataset),
+                );
             }
         }
     }

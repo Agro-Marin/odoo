@@ -1,20 +1,24 @@
 /** @odoo-module native */
-import { registry } from "@web/core/registry";
-import { Plugin } from "@html_editor/plugin";
-import { withSequence } from "@html_editor/utils/resource";
-import { rpc } from "@web/core/network/rpc";
+import { BuilderAction } from "@html_builder/core/builder_action";
+import { BaseOptionComponent } from "@html_builder/core/utils";
+import { BorderConfigurator } from "@html_builder/plugins/border_configurator_option";
+import { ShadowOption } from "@html_builder/plugins/shadow_option";
 import {
     SNIPPET_SPECIFIC_END,
     SNIPPET_SPECIFIC_NEXT,
     splitBetween,
 } from "@html_builder/utils/option_sequence";
-import { BuilderAction } from "@html_builder/core/builder_action";
-import { FooterTemplateChoice, FooterTemplateOption } from "./footer_template_option.js";
+import { Plugin } from "@html_editor/plugin";
+import { withSequence } from "@html_editor/utils/resource";
 import { reactive } from "@odoo/owl";
 import { _t } from "@web/core/l10n/translation";
-import { BaseOptionComponent } from "@html_builder/core/utils";
-import { BorderConfigurator } from "@html_builder/plugins/border_configurator_option";
-import { ShadowOption } from "@html_builder/plugins/shadow_option";
+import { rpc } from "@web/core/network/rpc";
+import { registry } from "@web/core/registry";
+
+import {
+    FooterTemplateChoice,
+    FooterTemplateOption,
+} from "./footer_template_option.js";
 
 /** @typedef {import("@odoo/owl").Component} Component */
 
@@ -45,13 +49,13 @@ if (__ERROR_CHECK__.length > 0) {
 }
 
 export {
-    FOOTER_TEMPLATE,
-    FOOTER_COLORS,
-    FOOTER_WIDTH,
-    FOOTER_SLIDEOUT,
-    FOOTER_SCROLL_TO,
-    FOOTER_COPYRIGHT,
     FOOTER_BORDER,
+    FOOTER_COLORS,
+    FOOTER_COPYRIGHT,
+    FOOTER_SCROLL_TO,
+    FOOTER_SLIDEOUT,
+    FOOTER_TEMPLATE,
+    FOOTER_WIDTH,
 };
 
 export class FooterWidthOption extends BaseOptionComponent {
@@ -124,7 +128,11 @@ class FooterOptionPlugin extends Plugin {
         footer_templates_providers: [
             () =>
                 [
-                    { name: "default", title: _t("Default"), view: "website.footer_custom" },
+                    {
+                        name: "default",
+                        title: _t("Default"),
+                        view: "website.footer_custom",
+                    },
                     { name: "descriptive", title: _t("Descriptive") },
                     { name: "centered", title: _t("Centered") },
                     { name: "links", title: _t("Links") },
@@ -154,7 +162,9 @@ class FooterOptionPlugin extends Plugin {
         // dropzone flickers otherwise when it is in grid mode).
         let restore = () => {};
         const wrapwrapEl = this.editable;
-        const hasFooterScrollEffect = wrapwrapEl.classList.contains("o_footer_effect_enable");
+        const hasFooterScrollEffect = wrapwrapEl.classList.contains(
+            "o_footer_effect_enable",
+        );
         if (hasFooterScrollEffect) {
             wrapwrapEl.classList.remove("o_footer_effect_enable");
             restore = () => {
@@ -169,14 +179,16 @@ class FooterOptionPlugin extends Plugin {
 
         // we don't wait for all promises to resolve and show the ones available
         // as soon as they are (and keep them in the order of the providers)
-        const templatesByProvider = this.getResource("footer_templates_providers").map((p) => {
-            const provided = [];
-            Promise.resolve(p()).then((t) => {
-                provided.push(...t);
-                templates.splice(0, Infinity, ...templatesByProvider.flat());
-            });
-            return provided;
-        });
+        const templatesByProvider = this.getResource("footer_templates_providers").map(
+            (p) => {
+                const provided = [];
+                Promise.resolve(p()).then((t) => {
+                    provided.push(...t);
+                    templates.splice(0, Infinity, ...templatesByProvider.flat());
+                });
+                return provided;
+            },
+        );
 
         return templates;
     }
@@ -212,7 +224,7 @@ export class WebsiteConfigFooterAction extends BuilderAction {
         await Promise.all([
             this.dependencies.customizeWebsite.makeSCSSCusto(
                 "/website/static/src/scss/options/user_values.scss",
-                vars
+                vars,
             ),
             rpc("/website/update_footer_template", {
                 template_key: view,

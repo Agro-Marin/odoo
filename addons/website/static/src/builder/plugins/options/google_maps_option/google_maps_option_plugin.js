@@ -1,12 +1,13 @@
 /** @odoo-module native */
-import { registry } from "@web/core/registry";
-import { _t } from "@web/core/l10n/translation";
-import { renderToElement } from "@web/core/utils/render";
+import { BuilderAction } from "@html_builder/core/builder_action";
 import { Plugin } from "@html_editor/plugin";
+import { _t } from "@web/core/l10n/translation";
+import { registry } from "@web/core/registry";
+import { Deferred } from "@web/core/utils/concurrency";
+import { renderToElement } from "@web/core/utils/render";
+
 import { GoogleMapsApiKeyDialog } from "./google_maps_api_key_dialog.js";
 import { GoogleMapsOption } from "./google_maps_option.js";
-import { Deferred } from "@web/core/utils/concurrency";
-import { BuilderAction } from "@html_builder/core/builder_action";
 
 /**
  * A `google.maps.places.PlaceResult` object.
@@ -192,7 +193,7 @@ export class GoogleMapsOptionPlugin extends Plugin {
                 },
                 {
                     onClose: () => resolve(isInvalidated),
-                }
+                },
             );
         });
         return didReconfigure;
@@ -211,7 +212,9 @@ export class GoogleMapsOptionPlugin extends Plugin {
         const p = coordinates.substring(1).slice(0, -1).split(",");
         const location = new this.mapsAPI.LatLng(p[0] || 0, p[1] || 0);
         return new Promise((resolve) => {
-            const placesService = new this.placesAPI.PlacesService(document.createElement("div"));
+            const placesService = new this.placesAPI.PlacesService(
+                document.createElement("div"),
+            );
             placesService.nearbySearch(
                 {
                     // Do a 'nearbySearch' followed by 'getDetails' to avoid using
@@ -241,14 +244,14 @@ export class GoogleMapsOptionPlugin extends Plugin {
                                 } else {
                                     resolve();
                                 }
-                            }
+                            },
                         );
                     } else if (GMAPS_CRITICAL_ERRORS.includes(status)) {
                         resolve({ error: status });
                     } else {
                         resolve();
                     }
-                }
+                },
             );
         });
     }
@@ -270,9 +273,9 @@ export class GoogleMapsOptionPlugin extends Plugin {
 
             this.notification.add(
                 _t(
-                    "A Google Maps error occurred. Make sure to read the key configuration popup carefully."
+                    "A Google Maps error occurred. Make sure to read the key configuration popup carefully.",
                 ),
-                { type: "danger", sticky: true }
+                { type: "danger", sticky: true },
             );
             // Try again: invalidate the API key then restart interactions.
             this.orm
@@ -282,7 +285,9 @@ export class GoogleMapsOptionPlugin extends Plugin {
                 .then(() => {
                     this.wasApiKeyInvalidated = true;
                     this.isGoogleMapsErrorBeingHandled = false;
-                    this.dependencies.edit_interaction.restartInteractions(editingElement);
+                    this.dependencies.edit_interaction.restartInteractions(
+                        editingElement,
+                    );
                 });
         }
     }
@@ -313,4 +318,6 @@ export class ShowDescriptionAction extends BuilderAction {
     }
 }
 
-registry.category("website-plugins").add(GoogleMapsOptionPlugin.id, GoogleMapsOptionPlugin);
+registry
+    .category("website-plugins")
+    .add(GoogleMapsOptionPlugin.id, GoogleMapsOptionPlugin);

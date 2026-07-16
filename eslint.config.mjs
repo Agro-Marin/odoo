@@ -351,6 +351,10 @@ export default [
             "addons/sale_stock/**/*.js",
             "addons/mrp/**/*.js",
             "addons/purchase_stock/**/*.js",
+            "addons/html_editor/**/*.js",
+            "addons/web_tour/**/*.js",
+            "addons/website/**/*.js",
+            "addons/im_livechat/**/*.js",
         ],
         rules: {
             "no-console": ["error", { allow: ["warn", "error"] }],
@@ -650,6 +654,17 @@ export default [
                 // error — clearer than a lint warning, and impossible to
                 // suppress with eslint-disable.
             ],
+        },
+    },
+
+    // columnize.test.js — hand-formatted HTML-fixture test with inline
+    // `/* eslint-disable */` blocks placed mid-expression. Prettier mangles
+    // those into INVALID JS (spurious extra `)`), so its formatter must not run
+    // on this file. The fixtures are deliberately hand-aligned; leave them be.
+    {
+        files: ["**/html_editor/static/tests/columnize.test.js"],
+        rules: {
+            "prettier/prettier": "off",
         },
     },
 ];

@@ -25,7 +25,7 @@ export const READ = 0;
 export function withSequence(sequenceNumber, object) {
     if (typeof sequenceNumber !== "number") {
         throw new Error(
-            `sequenceNumber must be a number. Got ${sequenceNumber} (${typeof sequenceNumber}).`
+            `sequenceNumber must be a number. Got ${sequenceNumber} (${typeof sequenceNumber}).`,
         );
     }
     return {

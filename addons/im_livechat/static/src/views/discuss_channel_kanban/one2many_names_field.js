@@ -6,7 +6,9 @@ import { ListX2ManyField } from "@web/fields/relational/x2many/list_x2many_field
 export class One2manyNamesField extends ListX2ManyField {
     get formattedValue() {
         return formatList(
-            this.props.record.data[this.props.name].records.map((r) => r.data.display_name)
+            this.props.record.data[this.props.name].records.map(
+                (r) => r.data.display_name,
+            ),
         );
     }
 }

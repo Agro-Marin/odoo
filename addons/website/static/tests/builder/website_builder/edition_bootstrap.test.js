@@ -17,7 +17,7 @@ test("Opening a dropdown should not add mutations to the history", async () => {
         {
             loadIframeBundles: true,
             loadAssetsFrontendJS: true,
-        }
+        },
     );
     await contains(":iframe .dropdown-toggle").click();
     const editor = getEditor();
@@ -39,7 +39,7 @@ test("Opening an offcancas should not add mutations to the history", async () =>
         {
             loadIframeBundles: true,
             loadAssetsFrontendJS: true,
-        }
+        },
     );
     await contains(":iframe .toggleCanvas").click();
     const editor = getEditor();

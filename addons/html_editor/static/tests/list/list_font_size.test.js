@@ -1,5 +1,8 @@
+import { nodeSize } from "@html_editor/utils/position";
+import { before, test } from "@odoo/hoot";
+
 import { testEditor } from "../_helpers/editor.js";
-import { test, before } from "@odoo/hoot";
+import { unformat } from "../_helpers/format.js";
 import {
     setFontSize,
     splitBlock,
@@ -7,11 +10,12 @@ import {
     toggleUnorderedList,
 } from "../_helpers/user_actions.js";
 import { execCommand } from "../_helpers/userCommands.js";
-import { unformat } from "../_helpers/format.js";
-import { nodeSize } from "@html_editor/utils/position";
 
 before(async () => {
-    const font = new FontFace("Roboto", "url(/web/static/fonts/google/Roboto/Roboto-Regular.ttf)");
+    const font = new FontFace(
+        "Roboto",
+        "url(/web/static/fonts/google/Roboto/Roboto-Regular.ttf)",
+    );
     await font.load();
     document.fonts.add(font);
     await document.fonts.ready;
@@ -102,7 +106,8 @@ test("should not apply font size to list item when selection excludes trailing e
 
 test("should apply font-size on fully selected list items with empty text nodes at list boundaries", async () => {
     await testEditor({
-        contentBefore: '<ul><li><a href="#">abc</a></li><li><a href="#">abc</a></li></ul>',
+        contentBefore:
+            '<ul><li><a href="#">abc</a></li><li><a href="#">abc</a></li></ul>',
         contentBeforeEdit:
             '<ul><li>\ufeff<a href="#">\ufeffabc\ufeff</a>\ufeff</li><li>\ufeff<a href="#">\ufeffabc\ufeff</a>\ufeff</li></ul>',
         stepFunction: (editor) => {
@@ -116,7 +121,10 @@ test("should apply font-size on fully selected list items with empty text nodes 
                 focusOffset: nodeSize(listItems[1].lastChild),
             });
             // Empty text node at start of first <li>
-            listItems[0].insertBefore(document.createTextNode(""), listItems[0].firstChild);
+            listItems[0].insertBefore(
+                document.createTextNode(""),
+                listItems[0].firstChild,
+            );
             // Empty text node at end of second <li>
             listItems[1].appendChild(document.createTextNode(""));
             setFontSize("32px")(editor);
@@ -203,7 +211,8 @@ test("should carry font-size of list item to paragraph", async () => {
     await testEditor({
         contentBefore: '<ol><li style="font-size: 18px;">[]abc</li><li>def</li></ol>',
         stepFunction: toggleOrderedList,
-        contentAfter: '<p><span style="font-size: 18px;">[]abc</span></p><ol><li>def</li></ol>',
+        contentAfter:
+            '<p><span style="font-size: 18px;">[]abc</span></p><ol><li>def</li></ol>',
     });
 });
 
@@ -218,7 +227,8 @@ test("should carry font-size of list item to paragraph (2)", async () => {
 
 test("should carry font-size of list item to paragraph (3)", async () => {
     await testEditor({
-        contentBefore: '<ol><li style="font-size: 18px;">abc</li><li>[]def</li><li>ghi</li></ol>',
+        contentBefore:
+            '<ol><li style="font-size: 18px;">abc</li><li>[]def</li><li>ghi</li></ol>',
         stepFunction: toggleOrderedList,
         contentAfter:
             '<ol><li style="font-size: 18px;">abc</li></ol><p>[]def</p><ol><li>ghi</li></ol>',
@@ -246,7 +256,9 @@ test("should keep list item font-size on toggling list twice", async () => {
             toggleOrderedList(editor);
             // Strip padding-inline-start from the OL — its exact value
             // depends on font rendering and varies across environments.
-            editor.editable.querySelector("ol")?.style.removeProperty("padding-inline-start");
+            editor.editable
+                .querySelector("ol")
+                ?.style.removeProperty("padding-inline-start");
         },
         contentAfter:
             '<ol><li style="font-size: 18px;">[abc</li><li style="font-size: 32px;">def]</li></ol>',
@@ -297,7 +309,8 @@ test("should pad list based on font-size", async () => {
     const className = "h2-fs";
     await testEditor({
         contentBefore: "<ol><li>[a]</li></ol>",
-        stepFunction: (editor) => execCommand(editor, "formatFontSizeClassName", { className }),
+        stepFunction: (editor) =>
+            execCommand(editor, "formatFontSizeClassName", { className }),
         contentAfter: `<ol><li class="${className}">[a]</li></ol>`,
     });
 });

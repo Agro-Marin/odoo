@@ -26,7 +26,7 @@ registry.category("command_provider").add("im_livechat.channel_join_leave", {
         const activeChannels = new Set(
             Object.values(store["im_livechat.channel"].records)
                 .filter((c) => c.threads.length > 0)
-                .map((c) => c.id)
+                .map((c) => c.id),
         );
         // Show live chat channels with ongoing conversations first
         return Object.values(store["im_livechat.channel"].records)

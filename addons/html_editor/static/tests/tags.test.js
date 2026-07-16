@@ -1,10 +1,11 @@
 import { describe, expect, test } from "@odoo/hoot";
 import { press, queryFirst } from "@odoo/hoot-dom";
+import { animationFrame } from "@odoo/hoot-mock";
+import { defineStyle } from "@web/../tests/web_test_helpers";
+
 import { setupEditor, testEditor } from "./_helpers/editor.js";
 import { getContent, setSelection } from "./_helpers/selection.js";
 import { insertText, tripleClick, undo } from "./_helpers/user_actions.js";
-import { animationFrame } from "@odoo/hoot-mock";
-import { defineStyle } from "@web/../tests/web_test_helpers";
 
 function setTag(tagName) {
     return (editor) => editor.shared.dom.setBlock({ tagName });
@@ -137,7 +138,8 @@ describe("to paragraph", () => {
             contentBefore:
                 '<h1>[before</h1><h1 contenteditable="false">noneditable</h1><h1>after]</h1>',
             stepFunction: setTag("p"),
-            contentAfter: '<p>[before</p><h1 contenteditable="false">noneditable</h1><p>after]</p>',
+            contentAfter:
+                '<p>[before</p><h1 contenteditable="false">noneditable</h1><p>after]</p>',
         });
     });
 
@@ -156,7 +158,8 @@ describe("to paragraph", () => {
             contentBefore:
                 '<h3 class="h4-fs" style="text-align: center;">[abc<span style="font-size: 32px;">de</span><strong>fg</strong>]</h3>',
             stepFunction: setTag("p"),
-            contentAfter: '<p style="text-align: center;">[abcde<strong>fg</strong>]</p>',
+            contentAfter:
+                '<p style="text-align: center;">[abcde<strong>fg</strong>]</p>',
         });
     });
 });
@@ -276,13 +279,15 @@ describe("to heading 1", () => {
             contentBefore:
                 '<h2 class="h4-fs" style="text-align: center;">[abc<span style="font-size: 32px;">de</span><strong>fg</strong>]</h2>',
             stepFunction: setTag("h1"),
-            contentAfter: '<h1 style="text-align: center;">[abcde<strong>fg</strong>]</h1>',
+            contentAfter:
+                '<h1 style="text-align: center;">[abcde<strong>fg</strong>]</h1>',
         });
     });
 
     test("should convert h2 to h1 and remove the classes", async () => {
         await testEditor({
-            contentBefore: '<h2 class="h3-fs">[Enhance] Your <strong>Experience</strong></h2>',
+            contentBefore:
+                '<h2 class="h3-fs">[Enhance] Your <strong>Experience</strong></h2>',
             stepFunction: setTag("h1"),
             contentAfter: "<h1>[Enhance] Your <strong>Experience</strong></h1>",
         });
@@ -354,7 +359,8 @@ describe("to heading 2", () => {
             contentBefore:
                 '<h3 class="h4-fs" style="text-align: center;">[abc<span style="font-size: 32px;">de</span><strong>fg</strong>]</h3>',
             stepFunction: setTag("h2"),
-            contentAfter: '<h2 style="text-align: center;">[abcde<strong>fg</strong>]</h2>',
+            contentAfter:
+                '<h2 style="text-align: center;">[abcde<strong>fg</strong>]</h2>',
         });
     });
 });
@@ -428,7 +434,8 @@ describe("to heading 3", () => {
             contentBefore:
                 '<h2 class="h4-fs" style="text-align: center;">[abc<span style="font-size: 32px;">de</span><strong>fg]</strong></h2>',
             stepFunction: setTag("h3"),
-            contentAfter: '<h3 style="text-align: center;">[abcde<strong>fg]</strong></h3>',
+            contentAfter:
+                '<h3 style="text-align: center;">[abcde<strong>fg]</strong></h3>',
         });
     });
 });
@@ -481,7 +488,8 @@ describe("to pre", () => {
         await testEditor({
             contentBefore: '<ul><li class="nav-item" id="test">[abcd]</li></ul>',
             stepFunction: setTag("pre"),
-            contentAfter: '<ul><li class="nav-item" id="test"><pre>[abcd]</pre></li></ul>',
+            contentAfter:
+                '<ul><li class="nav-item" id="test"><pre>[abcd]</pre></li></ul>',
         });
     });
 
@@ -500,7 +508,8 @@ describe("to pre", () => {
             contentBefore:
                 '<h3 class="h4-fs" style="text-align: center;">[abc<span style="font-size: 32px;">de</span><strong>fg</strong>]</h3>',
             stepFunction: setTag("pre"),
-            contentAfter: '<pre style="text-align: center;">[abcde<strong>fg</strong>]</pre>',
+            contentAfter:
+                '<pre style="text-align: center;">[abcde<strong>fg</strong>]</pre>',
         });
     });
 });
@@ -564,7 +573,8 @@ describe("to blockquote", () => {
 
     test("should not transfer attributes of list to blockquote", async () => {
         await testEditor({
-            contentBefore: '<ul><li class="nav-item" style="color: red;">[abcd]</li></ul>',
+            contentBefore:
+                '<ul><li class="nav-item" style="color: red;">[abcd]</li></ul>',
             stepFunction: setTag("blockquote"),
             contentAfter:
                 '<ul><li class="nav-item" style="color: red;"><blockquote>[abcd]</blockquote></li></ul>',
@@ -635,7 +645,9 @@ describe("transform", () => {
     test("should transform space preceding by a hashtag to heading 1", async () => {
         const { el, editor } = await setupEditor("<p>[]</p>");
         await insertText(editor, "# ");
-        expect(getContent(el)).toBe(`<h1 o-we-hint-text="Heading 1" class="o-we-hint">[]<br></h1>`);
+        expect(getContent(el)).toBe(
+            `<h1 o-we-hint-text="Heading 1" class="o-we-hint">[]<br></h1>`,
+        );
 
         undo(editor);
         expect(getContent(el)).toBe(`<p># []</p>`);
@@ -644,13 +656,17 @@ describe("transform", () => {
     test("should transform space preceding by two hashtags to heading 2", async () => {
         const { el, editor } = await setupEditor("<p>[]</p>");
         await insertText(editor, "## ");
-        expect(getContent(el)).toBe(`<h2 o-we-hint-text="Heading 2" class="o-we-hint">[]<br></h2>`);
+        expect(getContent(el)).toBe(
+            `<h2 o-we-hint-text="Heading 2" class="o-we-hint">[]<br></h2>`,
+        );
     });
 
     test("should transform space preceding by three hashtags to heading 3", async () => {
         const { el, editor } = await setupEditor("<p>[]<br></p>");
         await insertText(editor, "### ");
-        expect(getContent(el)).toBe(`<h3 o-we-hint-text="Heading 3" class="o-we-hint">[]<br></h3>`);
+        expect(getContent(el)).toBe(
+            `<h3 o-we-hint-text="Heading 3" class="o-we-hint">[]<br></h3>`,
+        );
     });
 
     test("should transform space preceding by a hashtag at the starting of text to heading 1", async () => {
@@ -684,7 +700,7 @@ describe("transform", () => {
         const { el, editor } = await setupEditor("<p>[]<br></p>");
         await insertText(editor, "--- ");
         expect(getContent(el)).toBe(
-            `<p data-selection-placeholder="" style="margin: 8px 0px -9px;"><br></p><hr contenteditable="false"><p o-we-hint-text='Type "/" for commands' class="o-we-hint">[]<br></p>`
+            `<p data-selection-placeholder="" style="margin: 8px 0px -9px;"><br></p><hr contenteditable="false"><p o-we-hint-text='Type "/" for commands' class="o-we-hint">[]<br></p>`,
         );
     });
 
@@ -692,7 +708,7 @@ describe("transform", () => {
         const { el, editor } = await setupEditor("<p>[]abc</p>");
         await insertText(editor, "--- ");
         expect(getContent(el)).toBe(
-            `<p data-selection-placeholder="" style="margin: 8px 0px -9px;"><br></p><hr contenteditable="false"><p>[]abc</p>`
+            `<p data-selection-placeholder="" style="margin: 8px 0px -9px;"><br></p><hr contenteditable="false"><p>[]abc</p>`,
         );
     });
 
@@ -700,7 +716,7 @@ describe("transform", () => {
         const { el, editor } = await setupEditor("<p>[]<br></p>");
         await insertText(editor, "> ");
         expect(getContent(el)).toBe(
-            `<blockquote o-we-hint-text="Quote" class="o-we-hint">[]<br></blockquote>`
+            `<blockquote o-we-hint-text="Quote" class="o-we-hint">[]<br></blockquote>`,
         );
     });
 

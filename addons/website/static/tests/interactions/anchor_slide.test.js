@@ -1,12 +1,11 @@
-import {
-    isElementVerticallyInViewportOf,
-    startInteractions,
-    setupInteractionWhiteList,
-} from "@web/../tests/public/helpers";
-
 import { describe, expect, test } from "@odoo/hoot";
 import { animationFrame, click, queryOne } from "@odoo/hoot-dom";
 import { advanceTime } from "@odoo/hoot-mock";
+import {
+    isElementVerticallyInViewportOf,
+    setupInteractionWhiteList,
+    startInteractions,
+} from "@web/../tests/public/helpers";
 
 setupInteractionWhiteList("website.anchor_slide");
 

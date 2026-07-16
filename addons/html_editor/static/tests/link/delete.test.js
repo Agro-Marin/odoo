@@ -1,12 +1,19 @@
 import { describe, test, tick } from "@odoo/hoot";
+
 import { base64Img, testEditor } from "../_helpers/editor.js";
-import { deleteBackward, deleteImage, simulateArrowKeyPress, undo } from "../_helpers/user_actions.js";
+import {
+    deleteBackward,
+    deleteImage,
+    simulateArrowKeyPress,
+    undo,
+} from "../_helpers/user_actions.js";
 
 describe("delete selection involving links", () => {
     test("should remove link", async () => {
         await testEditor({
             contentBefore: '<p><a href="#">[abc</a>d]ef</p>',
-            contentBeforeEdit: '<p>\ufeff<a href="#">\ufeff[abc\ufeff</a>\ufeffd]ef</p>',
+            contentBeforeEdit:
+                '<p>\ufeff<a href="#">\ufeff[abc\ufeff</a>\ufeffd]ef</p>',
             stepFunction: deleteBackward,
             contentAfterEdit: "<p>[]ef</p>",
             contentAfter: "<p>[]ef</p>",
@@ -15,7 +22,8 @@ describe("delete selection involving links", () => {
     test("should remove link (2)", async () => {
         await testEditor({
             contentBefore: '<p>ab[c<a href="#">def]</a></p>',
-            contentBeforeEdit: '<p>ab[c\ufeff<a href="#">\ufeffdef]\ufeff</a>\ufeff</p>',
+            contentBeforeEdit:
+                '<p>ab[c\ufeff<a href="#">\ufeffdef]\ufeff</a>\ufeff</p>',
             stepFunction: deleteBackward,
             contentAfterEdit: "<p>ab[]</p>",
             contentAfter: "<p>ab[]</p>",

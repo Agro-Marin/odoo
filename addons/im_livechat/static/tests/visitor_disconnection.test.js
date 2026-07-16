@@ -1,16 +1,16 @@
-import { Command, patchWithCleanup, serverState } from "@web/../tests/web_test_helpers";
 import { defineLivechatModels } from "@im_livechat/../tests/livechat_test_helpers";
 import {
+    click,
     contains,
     setupChatHub,
     start,
     startServer,
-    click,
 } from "@mail/../tests/mail_test_helpers";
-import { describe, test } from "@odoo/hoot";
-import { mockDate } from "@odoo/hoot-mock";
 import { Store } from "@mail/core/common/store_service";
 import { Thread } from "@mail/core/common/thread";
+import { describe, test } from "@odoo/hoot";
+import { mockDate } from "@odoo/hoot-mock";
+import { Command, patchWithCleanup, serverState } from "@web/../tests/web_test_helpers";
 
 describe.current.tags("desktop");
 defineLivechatModels();
@@ -29,7 +29,10 @@ test("Visitor going offline shows disconnection banner to operator", async () =>
             .search_read([["id", "=", serverState.groupLivechatId]])
             .map(({ id }) => id),
     });
-    const guestId = pyEnv["mail.guest"].create({ name: "Visitor", im_status: "online" });
+    const guestId = pyEnv["mail.guest"].create({
+        name: "Visitor",
+        im_status: "online",
+    });
     const livechatChannelId = pyEnv["im_livechat.channel"].create({
         name: "HR",
         user_ids: [serverState.userId],
@@ -37,7 +40,10 @@ test("Visitor going offline shows disconnection banner to operator", async () =>
     const channel_id = pyEnv["discuss.channel"].create({
         channel_type: "livechat",
         channel_member_ids: [
-            Command.create({ partner_id: serverState.partnerId, livechat_member_type: "agent" }),
+            Command.create({
+                partner_id: serverState.partnerId,
+                livechat_member_type: "agent",
+            }),
             Command.create({ guest_id: guestId, livechat_member_type: "visitor" }),
         ],
         livechat_channel_id: livechatChannelId,
@@ -66,7 +72,9 @@ test("Visitor going offline shows disconnection banner to operator", async () =>
     mockDate("2025-01-05 12:00:00", +1);
     await click("button[title*='Fold']");
     await click(".o-mail-ChatBubble");
-    await contains(".o-livechat-VisitorDisconnected", { text: `Visitor is disconnected` });
+    await contains(".o-livechat-VisitorDisconnected", {
+        text: `Visitor is disconnected`,
+    });
     pyEnv["bus.bus"]._sendone(guestId, "bus.bus/im_status_updated", {
         partner_id: false,
         guest_id: guestId,

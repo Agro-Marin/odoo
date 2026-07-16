@@ -1,11 +1,15 @@
 import { before, describe, expect, test } from "@odoo/hoot";
+
 import { setupEditor, testEditor } from "../_helpers/editor.js";
 import { unformat } from "../_helpers/format.js";
-import { splitBlock, keydownTab, undo, tripleClick } from "../_helpers/user_actions.js";
 import { getContent } from "../_helpers/selection.js";
+import { keydownTab, splitBlock, tripleClick, undo } from "../_helpers/user_actions.js";
 
 before(async () => {
-    const font = new FontFace("Roboto", "url(/web/static/fonts/google/Roboto/Roboto-Regular.ttf)");
+    const font = new FontFace(
+        "Roboto",
+        "url(/web/static/fonts/google/Roboto/Roboto-Regular.ttf)",
+    );
     await font.load();
     document.fonts.add(font);
     await document.fonts.ready;
@@ -1364,7 +1368,6 @@ describe("Mixed: list + paragraph", () => {
 
         await keydownTab(editor);
 
-        /* eslint-disable */
         const expectedContent =
             unformat(`
             <ul>
@@ -1375,7 +1378,7 @@ describe("Mixed: list + paragraph", () => {
                 </li>
             </ul>`) +
             '<p><span class="oe-tabs" contenteditable="false" style="width: 40px;">\t</span>\u200bdef]</p>';
-        /* eslint-enable */
+
         expect(getContent(el)).toBe(expectedContent);
 
         // Check that it was done as single history step.

@@ -1,4 +1,5 @@
 /** @odoo-module native */
+import { isHtmlContentSupported } from "@html_editor/core/selection_plugin";
 import {
     DocumentSelector,
     renderStaticFileBox,
@@ -8,7 +9,7 @@ import { closestElement, firstLeaf, lastLeaf } from "@html_editor/utils/dom_trav
 import { nodeSize } from "@html_editor/utils/position";
 import { withSequence } from "@html_editor/utils/resource";
 import { _t } from "@web/core/l10n/translation";
-import { isHtmlContentSupported } from "@html_editor/core/selection_plugin";
+
 import { DISABLED_NAMESPACE } from "../toolbar/toolbar_plugin.js";
 
 export class FilePlugin extends Plugin {
@@ -26,7 +27,8 @@ export class FilePlugin extends Plugin {
             icon: "fa-upload",
             run: this.uploadAndInsertFiles.bind(this),
             isAvailable: (selection) =>
-                this.isUploadCommandAvailable(selection) && isHtmlContentSupported(selection),
+                this.isUploadCommandAvailable(selection) &&
+                isHtmlContentSupported(selection),
         },
         powerbox_items: {
             categoryId: "media",
@@ -51,7 +53,8 @@ export class FilePlugin extends Plugin {
         toolbar_namespace_providers: withSequence(
             80,
             (targetedNodes, editableSelection) =>
-                closestElement(editableSelection.anchorNode, ".o_file_box") && DISABLED_NAMESPACE
+                closestElement(editableSelection.anchorNode, ".o_file_box") &&
+                DISABLED_NAMESPACE,
         ),
 
         /** Predicates */
@@ -71,7 +74,10 @@ export class FilePlugin extends Plugin {
     }
 
     onClick(ev) {
-        const fileNameEl = closestElement(ev.target, ".o_file_name_container .o_link_readonly");
+        const fileNameEl = closestElement(
+            ev.target,
+            ".o_file_name_container .o_link_readonly",
+        );
         if (!fileNameEl || fileNameEl.isContentEditable) {
             return;
         }
@@ -102,7 +108,10 @@ export class FilePlugin extends Plugin {
     }
 
     onKeyDown(ev) {
-        const fileNameEl = closestElement(ev.target, ".o_file_name_container .o_link_readonly");
+        const fileNameEl = closestElement(
+            ev.target,
+            ".o_file_name_container .o_link_readonly",
+        );
         if (!fileNameEl) {
             return;
         }
@@ -144,7 +153,10 @@ export class FilePlugin extends Plugin {
 
     onPointerDown(ev) {
         const activeElement = this.document.activeElement;
-        const fileNameEl = closestElement(activeElement, ".o_file_name_container .o_link_readonly");
+        const fileNameEl = closestElement(
+            activeElement,
+            ".o_file_name_container .o_link_readonly",
+        );
         if (!fileNameEl || fileNameEl.contains(ev.target)) {
             return;
         }
@@ -165,7 +177,9 @@ export class FilePlugin extends Plugin {
 
     async uploadAndInsertFiles() {
         // Upload
-        const uploadParams = this.config.publicAttachments ? {} : { ...this.recordInfo };
+        const uploadParams = this.config.publicAttachments
+            ? {}
+            : { ...this.recordInfo };
         const attachments = await this.services.uploadLocalFiles.upload(uploadParams, {
             multiple: true,
             accessToken: true,

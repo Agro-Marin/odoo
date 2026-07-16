@@ -1,5 +1,6 @@
 /** @odoo-module native */
 import { BaseOptionComponent } from "@html_builder/core/utils";
+
 import { CardImageAlignmentOption } from "./card_image_alignment_option.js";
 
 export class CarouselCardsItemOption extends BaseOptionComponent {

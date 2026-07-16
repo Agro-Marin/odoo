@@ -1,9 +1,9 @@
 import {
     clickOnSave,
+    clickToolbarButton,
     insertSnippet,
     registerWebsitePreviewTour,
     selectFullText,
-    clickToolbarButton,
 } from "@website/js/tours/tour_utils";
 
 registerWebsitePreviewTour(
@@ -22,13 +22,13 @@ registerWebsitePreviewTour(
             "first text block in the snippet",
             "#wrap .s_text_block p",
             "Animate Text",
-            true
+            true,
         ),
         ...clickToolbarButton(
             "second text block in the snippet",
             "#wrap .s_text_block p:last",
             "Apply highlight",
-            true
+            true,
         ),
         {
             content: "Apply underline highlight option from highlight options",
@@ -38,7 +38,8 @@ registerWebsitePreviewTour(
         ...clickOnSave(),
         {
             content: "Change the language to French",
-            trigger: ':iframe .js_language_selector .js_change_lang[data-url_code="fr"]',
+            trigger:
+                ':iframe .js_language_selector .js_change_lang[data-url_code="fr"]',
             run: "click",
         },
         {
@@ -59,7 +60,7 @@ registerWebsitePreviewTour(
         // Select the highlighted text content and check highlight options were displayed.
         selectFullText(
             "snippet highlighted text content",
-            "#wrap .s_text_block p:last .o_text_highlight"
+            "#wrap .s_text_block p:last .o_text_highlight",
         ),
         {
             content: "Expand the toolbar for more buttons",
@@ -67,7 +68,8 @@ registerWebsitePreviewTour(
             run: "click",
         },
         {
-            content: "Check that the highlight options were displayed and open highlight options",
+            content:
+                "Check that the highlight options were displayed and open highlight options",
             trigger: ".o-we-toolbar button[title='Apply highlight'].active",
             run: "click",
         },
@@ -93,7 +95,10 @@ registerWebsitePreviewTour(
             trigger: ".o-we-toolbar button[title='Animate Text'].active",
         },
         // Select a text content without any option.
-        selectFullText("text content without any option", "footer .s_text_block p:first span"),
+        selectFullText(
+            "text content without any option",
+            "footer .s_text_block p:first span",
+        ),
         {
             content: "Expand the toolbar for more buttons",
             trigger: ".o-we-toolbar button[name='expand_toolbar']",
@@ -106,7 +111,7 @@ registerWebsitePreviewTour(
         },
         selectFullText(
             "highlighted text content again",
-            "#wrap .s_text_block p:last .o_text_highlight"
+            "#wrap .s_text_block p:last .o_text_highlight",
         ),
         {
             content: "Expand the toolbar for more buttons",
@@ -123,5 +128,5 @@ registerWebsitePreviewTour(
             content: "Check that the highlight effect was correctly translated",
             trigger: ":iframe .s_text_block:has(.o_text_highlight_jagged)",
         },
-    ]
+    ],
 );

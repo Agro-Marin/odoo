@@ -1,16 +1,20 @@
 /** @odoo-module native */
-import { registry } from "@web/core/registry";
+import { BuilderAction } from "@html_builder/core/builder_action";
+import { BaseOptionComponent } from "@html_builder/core/utils";
+import {
+    SNIPPET_SPECIFIC,
+    SNIPPET_SPECIFIC_END,
+} from "@html_builder/utils/option_sequence";
+import { forwardToThumbnail } from "@html_builder/utils/utils_css";
 import { Plugin } from "@html_editor/plugin";
 import { loadImageInfo } from "@html_editor/utils/image_processing";
-import { ImageGalleryComponent } from "./image_gallery_option.js";
-import { renderToElement } from "@web/core/utils/render";
-import { updateCarouselIndicators } from "../carousel_option_plugin.js";
-import { BuilderAction } from "@html_builder/core/builder_action";
 import { withSequence } from "@html_editor/utils/resource";
-import { SNIPPET_SPECIFIC, SNIPPET_SPECIFIC_END } from "@html_builder/utils/option_sequence";
+import { registry } from "@web/core/registry";
 import { uniqueId } from "@web/core/utils/functions";
-import { BaseOptionComponent } from "@html_builder/core/utils";
-import { forwardToThumbnail } from "@html_builder/utils/utils_css";
+import { renderToElement } from "@web/core/utils/render";
+
+import { updateCarouselIndicators } from "../carousel_option_plugin.js";
+import { ImageGalleryComponent } from "./image_gallery_option.js";
 
 /**
  * @typedef { Object } ImageGalleryOptionShared
@@ -37,7 +41,13 @@ class ImageGalleryOption extends Plugin {
         "builderOptions",
         "imagePostProcess",
     ];
-    static shared = ["processImages", "getMode", "setImages", "restoreSelection", "getColumns"];
+    static shared = [
+        "processImages",
+        "getMode",
+        "setImages",
+        "restoreSelection",
+        "getColumns",
+    ];
     /** @type {import("plugins").WebsiteResources} */
     resources = {
         builder_options: [
@@ -56,8 +66,10 @@ class ImageGalleryOption extends Plugin {
         reorder_items_handlers: this.reorderGalleryItems.bind(this),
         on_will_remove_handlers: this.onWillRemove.bind(this),
         on_removed_handlers: this.onRemoved.bind(this),
-        on_replaced_media_handlers: ({ newMediaEl }) => this.updateCarouselThumbnail(newMediaEl),
-        on_image_updated_handlers: ({ imageEl }) => this.updateCarouselThumbnail(imageEl),
+        on_replaced_media_handlers: ({ newMediaEl }) =>
+            this.updateCarouselThumbnail(newMediaEl),
+        on_image_updated_handlers: ({ imageEl }) =>
+            this.updateCarouselThumbnail(imageEl),
         on_image_saved_handlers: ({ imageEl }) => this.updateCarouselThumbnail(imageEl),
         on_snippet_dropped_handlers: ({ snippetEl }) => {
             const carousels = snippetEl.querySelectorAll(".s_image_gallery .carousel");
@@ -77,7 +89,9 @@ class ImageGalleryOption extends Plugin {
     };
 
     setup() {
-        const slideshowCarousels = this.document.querySelectorAll(".s_image_gallery .carousel");
+        const slideshowCarousels = this.document.querySelectorAll(
+            ".s_image_gallery .carousel",
+        );
         this.addCarouselListener(slideshowCarousels);
     }
 
@@ -85,7 +99,9 @@ class ImageGalleryOption extends Plugin {
         for (const carousel of carousels) {
             const id = uniqueId("slideshow_");
             carousel.id = id;
-            const controllerButtons = carousel.querySelectorAll(".o_carousel_controllers button");
+            const controllerButtons = carousel.querySelectorAll(
+                ".o_carousel_controllers button",
+            );
             for (const button of controllerButtons) {
                 button.setAttribute("data-bs-target", `#${id}`);
             }
@@ -152,7 +168,9 @@ class ImageGalleryOption extends Plugin {
                 updateCarouselIndicators(carouselEl, newPosition);
 
                 // Activate the active image.
-                const activeImageEl = galleryEl.querySelector(".carousel-item.active img");
+                const activeImageEl = galleryEl.querySelector(
+                    ".carousel-item.active img",
+                );
                 this.dependencies.builderOptions.setNextTarget(activeImageEl);
             }
         }
@@ -166,7 +184,12 @@ class ImageGalleryOption extends Plugin {
      */
     setImages(imageGalleryElement, mode, images) {
         if (mode !== this.getMode(imageGalleryElement)) {
-            imageGalleryElement.classList.remove("o_nomode", "o_masonry", "o_grid", "o_slideshow");
+            imageGalleryElement.classList.remove(
+                "o_nomode",
+                "o_masonry",
+                "o_grid",
+                "o_slideshow",
+            );
             imageGalleryElement.classList.add(`o_${mode}`);
         }
         switch (mode) {
@@ -275,10 +298,13 @@ class ImageGalleryOption extends Plugin {
 
     slideshow(imageGalleryElement, itemEls) {
         const container = this.getContainer(imageGalleryElement);
-        const currentInterval = imageGalleryElement.querySelector(".carousel")?.dataset.bsInterval;
+        const currentInterval =
+            imageGalleryElement.querySelector(".carousel")?.dataset.bsInterval;
         const carouselEl = imageGalleryElement.querySelector(".carousel");
         const colorContrast =
-            carouselEl && carouselEl.classList.contains("carousel-dark") ? "carousel-dark" : " ";
+            carouselEl && carouselEl.classList.contains("carousel-dark")
+                ? "carousel-dark"
+                : " ";
 
         const imagesData = itemEls.map((itemEl) => {
             const imgEl = this.getImageElement(itemEl);
@@ -312,11 +338,17 @@ class ImageGalleryOption extends Plugin {
             slideshowEl
                 .querySelector(".carousel .o_carousel_controllers")
                 ?.classList.remove("d-none");
-            slideshowEl.querySelector(".carousel .carousel-inner")?.classList.remove("d-none");
+            slideshowEl
+                .querySelector(".carousel .carousel-inner")
+                ?.classList.remove("d-none");
         } else {
             imageGalleryElement.style.removeProperty("height");
-            slideshowEl.querySelector(".carousel .o_carousel_controllers")?.classList.add("d-none");
-            slideshowEl.querySelector(".carousel .carousel-inner")?.classList.add("d-none");
+            slideshowEl
+                .querySelector(".carousel .o_carousel_controllers")
+                ?.classList.add("d-none");
+            slideshowEl
+                .querySelector(".carousel .carousel-inner")
+                ?.classList.add("d-none");
         }
         this.addDomListener(slideshowEl, "slid.bs.carousel", this.onCarouselSlid);
     }
@@ -330,7 +362,8 @@ class ImageGalleryOption extends Plugin {
     async processImages(editingElement, newImages = []) {
         await this.transformImagesToWebp(newImages);
         this.setImageProperties(editingElement, newImages);
-        const { clonedImgs, imageToSelect } = await this.cloneContainerImages(editingElement);
+        const { clonedImgs, imageToSelect } =
+            await this.cloneContainerImages(editingElement);
         return { images: [...clonedImgs, ...newImages], imageToSelect };
     }
 
@@ -344,7 +377,7 @@ class ImageGalleryOption extends Plugin {
                 "mw-100",
                 "mx-auto",
                 "rounded",
-                "object-fit-cover"
+                "object-fit-cover",
             );
             image.dataset.index = ++lastIndex;
         }
@@ -356,7 +389,9 @@ class ImageGalleryOption extends Plugin {
             const { mimetypeBeforeConversion } = { ...img.dataset, ...newDataset };
             if (
                 mimetypeBeforeConversion &&
-                !["image/gif", "image/svg+xml", "image/webp"].includes(mimetypeBeforeConversion)
+                !["image/gif", "image/svg+xml", "image/webp"].includes(
+                    mimetypeBeforeConversion,
+                )
             ) {
                 // Convert to webp but keep original width.
                 const update = await this.dependencies.imagePostProcess.processImage({
@@ -383,12 +418,15 @@ class ImageGalleryOption extends Plugin {
             // and not correctly loaded from cache, we use a clone of the
             // image to force the loading.
             const newImg = image.cloneNode(true);
-            const imgEl = newImg.tagName === "IMG" ? newImg : newImg.querySelector(":scope > img");
+            const imgEl =
+                newImg.tagName === "IMG"
+                    ? newImg
+                    : newImg.querySelector(":scope > img");
             imgEl.loading = "eager";
             imgLoaded.push(
                 imgEl.decode().then(() => {
                     imgEl.loading = "lazy";
-                })
+                }),
             );
             if (currentContainers.at(-1)?.element === image) {
                 imageToSelect = newImg;
@@ -419,7 +457,9 @@ class ImageGalleryOption extends Plugin {
 
     getImages(currentContainer) {
         const imgs = currentContainer.querySelectorAll("img");
-        return [...imgs].sort((imgA, imgB) => this.getIndex(imgA) - this.getIndex(imgB));
+        return [...imgs].sort(
+            (imgA, imgB) => this.getIndex(imgA) - this.getIndex(imgB),
+        );
     }
 
     getIndex(img) {
@@ -437,7 +477,7 @@ class ImageGalleryOption extends Plugin {
 
     getContainer(imageGalleryElement) {
         return imageGalleryElement.querySelector(
-            ".container, .container-fluid, .o_container_small"
+            ".container, .container-fluid, .o_container_small",
         );
     }
 
@@ -490,12 +530,19 @@ export class AddImageAction extends BuilderAction {
         if (!selectedImages) {
             return [];
         }
-        return this.dependencies.imageGalleryOption.processImages(editingElement, selectedImages);
+        return this.dependencies.imageGalleryOption.processImages(
+            editingElement,
+            selectedImages,
+        );
     }
     apply({ editingElement, loadResult: { images } }) {
         if (images && images.length) {
             const mode = this.dependencies.imageGalleryOption.getMode(editingElement);
-            this.dependencies.imageGalleryOption.setImages(editingElement, mode, images);
+            this.dependencies.imageGalleryOption.setImages(
+                editingElement,
+                mode,
+                images,
+            );
         }
     }
 }
@@ -515,10 +562,14 @@ export class SetImageGalleryLayoutAction extends BuilderAction {
     }
     apply({ isPreviewing, editingElement, params: { mainParam: mode }, loadResult }) {
         if (mode !== this.dependencies.imageGalleryOption.getMode(editingElement)) {
-            this.dependencies.imageGalleryOption.setImages(editingElement, mode, loadResult.images);
+            this.dependencies.imageGalleryOption.setImages(
+                editingElement,
+                mode,
+                loadResult.images,
+            );
             this.dependencies.imageGalleryOption.restoreSelection(
                 loadResult.imageToSelect,
-                isPreviewing
+                isPreviewing,
             );
         }
     }
@@ -532,22 +583,31 @@ export class SetImageGalleryColumnsAction extends BuilderAction {
     load({ editingElement }) {
         return this.dependencies.imageGalleryOption.processImages(editingElement);
     }
-    apply({ isPreviewing, editingElement, params: { mainParam: columns }, loadResult }) {
-        if (columns !== this.dependencies.imageGalleryOption.getColumns(editingElement)) {
+    apply({
+        isPreviewing,
+        editingElement,
+        params: { mainParam: columns },
+        loadResult,
+    }) {
+        if (
+            columns !== this.dependencies.imageGalleryOption.getColumns(editingElement)
+        ) {
             editingElement.dataset.columns = columns;
             this.dependencies.imageGalleryOption.setImages(
                 editingElement,
                 this.dependencies.imageGalleryOption.getMode(editingElement),
-                loadResult.images
+                loadResult.images,
             );
             this.dependencies.imageGalleryOption.restoreSelection(
                 loadResult.imageToSelect,
-                isPreviewing
+                isPreviewing,
             );
         }
     }
     isApplied({ editingElement, params: { mainParam: columns } }) {
-        return columns === this.dependencies.imageGalleryOption.getColumns(editingElement);
+        return (
+            columns === this.dependencies.imageGalleryOption.getColumns(editingElement)
+        );
     }
 }
 

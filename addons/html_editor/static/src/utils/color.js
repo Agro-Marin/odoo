@@ -1,6 +1,7 @@
 /** @odoo-module native */
 import { closestElement } from "@html_editor/utils/dom_traversal";
 import { isColorGradient } from "@web/core/utils/format/colors";
+
 import { isElement } from "./dom_info.js";
 
 export const COLOR_PALETTE_COMPATIBILITY_COLOR_NAMES = [
@@ -74,7 +75,7 @@ EDITOR_COLOR_CSS_VARIABLES.push(
     "white-25",
     "white-50",
     "white-75",
-    "white-85"
+    "white-85",
 );
 
 /**
@@ -171,7 +172,9 @@ export function getTextColorOrClass(node) {
     if (node.style.color) {
         return { type: "style", value: node.style.color };
     }
-    const textColorClass = [...node.classList].find((cls) => TEXT_CLASSES_REGEX.test(cls));
+    const textColorClass = [...node.classList].find((cls) =>
+        TEXT_CLASSES_REGEX.test(cls),
+    );
     if (textColorClass) {
         return { type: "class", value: textColorClass };
     }

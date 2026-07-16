@@ -11,8 +11,8 @@ import {
 import { isFakeLineBreak } from "./dom_state.js";
 import { closestElement, createDOMPathGenerator } from "./dom_traversal.js";
 import {
-    DIRECTIONS,
     childNodeIndex,
+    DIRECTIONS,
     endPos,
     leftPos,
     nodeSize,
@@ -40,7 +40,8 @@ export function getCursorDirection(anchorNode, anchorOffset, focusNode, focusOff
         }
         return anchorOffset < focusOffset ? DIRECTIONS.RIGHT : DIRECTIONS.LEFT;
     }
-    return anchorNode.compareDocumentPosition(focusNode) & Node.DOCUMENT_POSITION_FOLLOWING
+    return anchorNode.compareDocumentPosition(focusNode) &
+        Node.DOCUMENT_POSITION_FOLLOWING
         ? DIRECTIONS.RIGHT
         : DIRECTIONS.LEFT;
 }
@@ -58,25 +59,31 @@ export function findInSelection(selection, selector) {
         return (
             commonElementAncestor &&
             [...commonElementAncestor.querySelectorAll(selector)].find((node) =>
-                selection.intersectsNode(node)
+                selection.intersectsNode(node),
             )
         );
     }
 }
 
-const leftLeafOnlyInScopeNotBlockEditablePath = createDOMPathGenerator(DIRECTIONS.LEFT, {
-    leafOnly: true,
-    inScope: true,
-    stopTraverseFunction: (node) => isNotEditableNode(node) || isBlock(node),
-    stopFunction: (node) => isNotEditableNode(node) || isBlock(node),
-});
+const leftLeafOnlyInScopeNotBlockEditablePath = createDOMPathGenerator(
+    DIRECTIONS.LEFT,
+    {
+        leafOnly: true,
+        inScope: true,
+        stopTraverseFunction: (node) => isNotEditableNode(node) || isBlock(node),
+        stopFunction: (node) => isNotEditableNode(node) || isBlock(node),
+    },
+);
 
-const rightLeafOnlyInScopeNotBlockEditablePath = createDOMPathGenerator(DIRECTIONS.RIGHT, {
-    leafOnly: true,
-    inScope: true,
-    stopTraverseFunction: (node) => isNotEditableNode(node) || isBlock(node),
-    stopFunction: (node) => isNotEditableNode(node) || isBlock(node),
-});
+const rightLeafOnlyInScopeNotBlockEditablePath = createDOMPathGenerator(
+    DIRECTIONS.RIGHT,
+    {
+        leafOnly: true,
+        inScope: true,
+        stopTraverseFunction: (node) => isNotEditableNode(node) || isBlock(node),
+        stopFunction: (node) => isNotEditableNode(node) || isBlock(node),
+    },
+);
 
 export function normalizeSelfClosingElement(node, offset) {
     if (isSelfClosingElement(node)) {
@@ -142,20 +149,30 @@ export function normalizeDeepCursorPosition(node, offset) {
         }
     }
     if (el) {
-        const leftInlineNode = leftLeafOnlyInScopeNotBlockEditablePath(el, elOffset).next().value;
+        const leftInlineNode = leftLeafOnlyInScopeNotBlockEditablePath(
+            el,
+            elOffset,
+        ).next().value;
         let leftVisibleEmpty = false;
         if (leftInlineNode) {
             leftVisibleEmpty =
-                isSelfClosingElement(leftInlineNode) || !isContentEditable(leftInlineNode);
-            [node, offset] = leftVisibleEmpty ? rightPos(leftInlineNode) : endPos(leftInlineNode);
+                isSelfClosingElement(leftInlineNode) ||
+                !isContentEditable(leftInlineNode);
+            [node, offset] = leftVisibleEmpty
+                ? rightPos(leftInlineNode)
+                : endPos(leftInlineNode);
         }
         if (!leftInlineNode || leftVisibleEmpty) {
-            const rightInlineNode = rightLeafOnlyInScopeNotBlockEditablePath(el, elOffset).next()
-                .value;
+            const rightInlineNode = rightLeafOnlyInScopeNotBlockEditablePath(
+                el,
+                elOffset,
+            ).next().value;
             if (rightInlineNode) {
                 const closest = closestElement(rightInlineNode);
                 const rightVisibleEmpty =
-                    isSelfClosingElement(rightInlineNode) || !closest || !closest.isContentEditable;
+                    isSelfClosingElement(rightInlineNode) ||
+                    !closest ||
+                    !closest.isContentEditable;
                 if (!(leftVisibleEmpty && rightVisibleEmpty)) {
                     [node, offset] = rightVisibleEmpty
                         ? leftPos(rightInlineNode)
@@ -177,7 +194,10 @@ function updateCursorBeforeMove(destParent, destIndex, node, cursor) {
         if (cursor.offset === childIndex && cursor.offset === 0) {
             // Keep cursor before the moved node if it's the first child before the move
             [cursor.node, cursor.offset] = [destParent, destIndex];
-        } else if (cursor.offset === childIndex + 1 && cursor.offset === nodeSize(cursor.node)) {
+        } else if (
+            cursor.offset === childIndex + 1 &&
+            cursor.offset === nodeSize(cursor.node)
+        ) {
             // Keep cursor after the moved node if it's the last child before the move
             [cursor.node, cursor.offset] = [destParent, destIndex + 1];
         } else if (cursor.offset > childIndex) {
@@ -189,15 +209,24 @@ function updateCursorBeforeMove(destParent, destIndex, node, cursor) {
 function updateCursorBeforeRemove(node, cursor) {
     if (node.contains(cursor.node)) {
         [cursor.node, cursor.offset] = [node.parentNode, childNodeIndex(node)];
-    } else if (cursor.node === node.parentNode && cursor.offset > childNodeIndex(node)) {
+    } else if (
+        cursor.node === node.parentNode &&
+        cursor.offset > childNodeIndex(node)
+    ) {
         cursor.offset -= 1;
     }
 }
 
 function updateCursorBeforeUnwrap(node, cursor) {
     if (cursor.node === node) {
-        [cursor.node, cursor.offset] = [node.parentNode, cursor.offset + childNodeIndex(node)];
-    } else if (cursor.node === node.parentNode && cursor.offset > childNodeIndex(node)) {
+        [cursor.node, cursor.offset] = [
+            node.parentNode,
+            cursor.offset + childNodeIndex(node),
+        ];
+    } else if (
+        cursor.node === node.parentNode &&
+        cursor.offset > childNodeIndex(node)
+    ) {
         cursor.offset += nodeSize(node) - 1;
     }
 }
@@ -236,7 +265,8 @@ export const callbacksForCursorUpdate = {
     /** @type {(node: HTMLElement) => (cursor: Cursor) => void} */
     unwrap: (node) => (cursor) => updateCursorBeforeUnwrap(node, cursor),
     /** @type {(node: HTMLElement) => (cursor: Cursor) => void} */
-    merge: (node) => (cursor) => updateCursorBeforeMergeIntoPreviousSibling(node, cursor),
+    merge: (node) => (cursor) =>
+        updateCursorBeforeMergeIntoPreviousSibling(node, cursor),
 };
 
 /**
@@ -261,7 +291,8 @@ export function getAdjacentCharacter(selection, side, editable) {
     let adjacentCharacter;
     while (!adjacentCharacter && focusNode) {
         if (side === "previous") {
-            adjacentCharacter = focusOffset > 0 && focusNode.textContent[focusOffset - 1];
+            adjacentCharacter =
+                focusOffset > 0 && focusNode.textContent[focusOffset - 1];
         } else {
             adjacentCharacter = focusNode.textContent[focusOffset];
         }
@@ -277,7 +308,11 @@ export function getAdjacentCharacter(selection, side, editable) {
             adjacentCharacter = focusNode && focusNode.textContent[characterIndex];
         }
     }
-    if (!focusNode || !isContentEditable(focusNode) || closestBlock(focusNode) !== originalBlock) {
+    if (
+        !focusNode ||
+        !isContentEditable(focusNode) ||
+        closestBlock(focusNode) !== originalBlock
+    ) {
         return undefined;
     }
     return adjacentCharacter;

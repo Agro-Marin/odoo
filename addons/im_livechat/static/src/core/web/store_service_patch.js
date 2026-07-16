@@ -2,7 +2,6 @@
 import { Store } from "@mail/core/common/store_service";
 import { compareDatetime } from "@mail/utils/common/misc";
 import { _t } from "@web/core/l10n/translation";
-
 import { patch } from "@web/core/utils/patch";
 
 /** @type {import("models").Store} */
@@ -10,7 +9,9 @@ const storePatch = {
     setup() {
         super.setup(...arguments);
         this.livechatChannels = this.makeCachedFetchData("im_livechat.channel");
-        this.livechatSelfExpertises = this.makeCachedFetchData("/im_livechat/fetch_self_expertise");
+        this.livechatSelfExpertises = this.makeCachedFetchData(
+            "/im_livechat/fetch_self_expertise",
+        );
         this.has_access_livechat = false;
     },
     /**
@@ -31,7 +32,7 @@ const storePatch = {
                 (t1, t2) =>
                     !t2.livechat_end_dt - !t1.livechat_end_dt ||
                     compareDatetime(t1.lastInterestDt, t2.lastInterestDt) ||
-                    t1.id - t2.id
+                    t1.id - t2.id,
             );
         if (!oldestUnreadThread) {
             return false;

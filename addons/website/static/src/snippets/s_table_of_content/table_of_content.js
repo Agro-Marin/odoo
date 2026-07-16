@@ -1,10 +1,9 @@
 /** @odoo-module native */
-import { Interaction } from "@web/public/interaction";
 import { registry } from "@web/core/registry";
-
-import { patch } from "@web/core/utils/patch";
 import { closestScrollableY, isScrollableY } from "@web/core/utils/dom/scrolling";
 import { isVisible } from "@web/core/utils/dom/ui";
+import { patch } from "@web/core/utils/patch";
+import { Interaction } from "@web/public/interaction";
 import { AnchorSlide } from "@website/interactions/anchor_slide";
 
 const getSelector = (element) => {
@@ -47,14 +46,18 @@ export class TableOfContent extends Interaction {
         ".s_table_of_content_navbar": {
             "t-att-style": () => ({
                 top: this.isHorizontal ? undefined : `${this.position}px`,
-                maxHeight: this.isHorizontal ? undefined : `calc(100vh - ${this.position + 40}px)`,
+                maxHeight: this.isHorizontal
+                    ? undefined
+                    : `calc(100vh - ${this.position + 40}px)`,
             }),
         },
     };
 
     setup() {
         this.position = 20;
-        this.isHorizontal = this.el.classList.contains("s_table_of_content_horizontal_navbar");
+        this.isHorizontal = this.el.classList.contains(
+            "s_table_of_content_horizontal_navbar",
+        );
 
         this.scrollBound = this.process.bind(this);
         this.offsets = [];
@@ -77,8 +80,8 @@ export class TableOfContent extends Interaction {
         this.updateTableOfContentNavbarPosition();
         this.registerCleanup(
             this.services.website_menus.registerCallback(
-                this.updateTableOfContentNavbarPosition.bind(this)
-            )
+                this.updateTableOfContentNavbarPosition.bind(this),
+            ),
         );
 
         this.addListener(this.scrollTarget, "scroll", this.scrollBound);
@@ -95,7 +98,9 @@ export class TableOfContent extends Interaction {
         }
 
         let position = this.isHorizontal ? 0 : 20;
-        for (const el of this.el.ownerDocument.querySelectorAll(".o_top_fixed_element")) {
+        for (const el of this.el.ownerDocument.querySelectorAll(
+            ".o_top_fixed_element",
+        )) {
             position += el.getBoundingClientRect().bottom;
         }
 
@@ -123,12 +128,16 @@ export class TableOfContent extends Interaction {
         this.targets = [];
         this.scrollHeight = this.getScrollHeight();
         const targets = [
-            ...this.tocElement.querySelectorAll(".nav-link, .list-group-item, .dropdown-item"),
+            ...this.tocElement.querySelectorAll(
+                ".nav-link, .list-group-item, .dropdown-item",
+            ),
         ];
         targets
             .map((element) => {
                 const targetSelector = getSelector(element);
-                const target = targetSelector ? document.querySelector(targetSelector) : null;
+                const target = targetSelector
+                    ? document.querySelector(targetSelector)
+                    : null;
                 if (target) {
                     const targetBCR = target.getBoundingClientRect();
 
@@ -166,7 +175,9 @@ export class TableOfContent extends Interaction {
         const link = this.tocElement.querySelector(queries.join(","));
         link.classList.add("active");
         if (link.classList.contains("dropdown-item")) {
-            link.closest(".dropdown").querySelector(".dropdown-toggle").classList.add("active");
+            link.closest(".dropdown")
+                .querySelector(".dropdown-toggle")
+                .classList.add("active");
         } else {
             const listGroupEls = parents(link, ".nav, .list-group");
             for (const listGroupEl of listGroupEls) {
@@ -191,7 +202,7 @@ export class TableOfContent extends Interaction {
 
     clear() {
         const itemEls = this.tocElement.querySelectorAll(
-            ".nav-link, .list-group-item, .dropdown-item"
+            ".nav-link, .list-group-item, .dropdown-item",
         );
         for (const itemEl of itemEls) {
             itemEl.classList.remove("active");
@@ -202,7 +213,9 @@ export class TableOfContent extends Interaction {
         const scrollTop = this.scrollElement.scrollTop + this.offset;
         const scrollHeight = this.getScrollHeight();
         const maxScroll =
-            this.offset + scrollHeight - this.scrollElement.getBoundingClientRect().height;
+            this.offset +
+            scrollHeight -
+            this.scrollElement.getBoundingClientRect().height;
         if (this.scrollHeight !== scrollHeight) {
             this.refresh();
         }
@@ -217,11 +230,12 @@ export class TableOfContent extends Interaction {
             this.activeTarget = null;
             this.clear();
         } else {
-            for (let i = this.offsets.length; i--; ) {
+            for (let i = this.offsets.length; i--;) {
                 const isActiveTarget =
                     this.activeTarget !== this.targets[i] &&
                     scrollTop >= this.offsets[i] &&
-                    (typeof this.offsets[i + 1] === "undefined" || scrollTop < this.offsets[i + 1]);
+                    (typeof this.offsets[i + 1] === "undefined" ||
+                        scrollTop < this.offsets[i + 1]);
 
                 if (isActiveTarget) {
                     this.activate(this.targets[i]);
@@ -245,7 +259,7 @@ patch(AnchorSlide.prototype, {
         let extraOffset = super.computeExtraOffset(...arguments);
         if (this.el.classList.contains("table_of_content_link")) {
             const tableOfContentNavbarEl = this.el.closest(
-                ".s_table_of_content_navbar_sticky.s_table_of_content_horizontal_navbar"
+                ".s_table_of_content_navbar_sticky.s_table_of_content_horizontal_navbar",
             );
             if (tableOfContentNavbarEl) {
                 extraOffset += tableOfContentNavbarEl.getBoundingClientRect().height;
@@ -255,4 +269,6 @@ patch(AnchorSlide.prototype, {
     },
 });
 
-registry.category("public.interactions").add("website.table_of_content", TableOfContent);
+registry
+    .category("public.interactions")
+    .add("website.table_of_content", TableOfContent);

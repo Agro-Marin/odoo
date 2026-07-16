@@ -42,5 +42,5 @@ registerWebsitePreviewTour(
             content: "Check that the custom snippet category is not here",
             trigger: ".o-website-builder_sidebar:not(:has(.o_snippet[name='Custom']))",
         },
-    ]
+    ],
 );

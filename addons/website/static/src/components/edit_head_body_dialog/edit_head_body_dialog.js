@@ -1,8 +1,8 @@
 /** @odoo-module native */
-import { useService } from "@web/core/utils/hooks";
 import { Component, onWillStart, useState } from "@odoo/owl";
-import { Dialog } from "@web/ui/dialog/dialog";
 import { CodeEditor } from "@web/components/code_editor/code_editor";
+import { useService } from "@web/core/utils/hooks";
+import { Dialog } from "@web/ui/dialog/dialog";
 
 /**
  * A dialog that let the user edit the code that will be injected in the <head>
@@ -29,7 +29,7 @@ export class EditHeadBodyDialog extends Component {
             const websites = await this.orm.read(
                 "website",
                 [this.website.currentWebsite.id],
-                ["custom_code_head", "custom_code_footer"]
+                ["custom_code_head", "custom_code_footer"],
             );
             const website = websites[0];
             this.state.head = website.custom_code_head || "";

@@ -7,10 +7,11 @@ import {
 import { Plugin } from "@html_editor/plugin";
 import { withSequence } from "@html_editor/utils/resource";
 import { registry } from "@web/core/registry";
+
 import { HeaderElementsOption } from "./header_elements_option.js";
 import { HeaderFontOption } from "./header_font_option.js";
-import { HeaderTemplateOption } from "./header_template_option.js";
 import { HeaderIconBackgroundOption } from "./header_icon_background_option.js";
+import { HeaderTemplateOption } from "./header_template_option.js";
 import { HeaderTopOptions } from "./header_top_options.js";
 
 const [
@@ -28,13 +29,13 @@ if (__ERROR_CHECK__.length > 0) {
 }
 
 export {
-    HEADER_TEMPLATE,
-    HEADER_FONT,
     HEADER_BOX,
-    HEADER_NAVIGATION,
     HEADER_ELEMENTS,
-    HEADER_ICON_BACKGROUND,
     HEADER_END,
+    HEADER_FONT,
+    HEADER_ICON_BACKGROUND,
+    HEADER_NAVIGATION,
+    HEADER_TEMPLATE,
 };
 
 export class HeaderOptionPlugin extends Plugin {
@@ -63,7 +64,9 @@ export class HeaderOptionPlugin extends Plugin {
         // to avoid wrapping the button in a <p> or <div>, which would remove
         // this button if it's empty
         are_inlines_allowed_at_root_predicates: (node) =>
-            node.matches("#o_main_nav .oe_structure_solo .oe_unremovable [contenteditable='true']"),
+            node.matches(
+                "#o_main_nav .oe_structure_solo .oe_unremovable [contenteditable='true']",
+            ),
     };
 }
 

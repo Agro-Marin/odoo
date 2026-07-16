@@ -1,9 +1,8 @@
 /** @odoo-module native */
-import { Interaction } from "@web/public/interaction";
-import { Modal } from "@web/libs/bootstrap";
 import { registry } from "@web/core/registry";
-
 import { isScrollableY } from "@web/core/utils/dom/scrolling";
+import { Modal } from "@web/libs/bootstrap";
+import { Interaction } from "@web/public/interaction";
 
 export class NoBackdropPopup extends Interaction {
     static selector = ".s_popup_no_backdrop";
@@ -52,7 +51,7 @@ export class NoBackdropPopup extends Interaction {
         this.removeResizeListener = this.addListener(
             window,
             "resize",
-            this.throttledUpdateScrollbar
+            this.throttledUpdateScrollbar,
         );
         this.resizeObserver = new window.ResizeObserver(() => {
             // When the size of the modal changes, the scrollbar needs to be
@@ -72,4 +71,6 @@ export class NoBackdropPopup extends Interaction {
     }
 }
 
-registry.category("public.interactions").add("website.no_backdrop_popup", NoBackdropPopup);
+registry
+    .category("public.interactions")
+    .add("website.no_backdrop_popup", NoBackdropPopup);

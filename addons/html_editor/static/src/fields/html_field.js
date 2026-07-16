@@ -1,19 +1,24 @@
 /** @odoo-module native */
-import { HtmlUpgradeManager } from "@html_editor/html_migrations/html_upgrade_manager";
+import { DYNAMIC_PLACEHOLDER_PLUGINS } from "@html_editor/backend/plugin_sets";
+import { HtmlViewer } from "@html_editor/components/html_viewer/html_viewer";
+import { EditorVersionPlugin } from "@html_editor/core/editor_version_plugin";
+import { isHtmlContentSupported } from "@html_editor/core/selection_plugin";
 import { stripVersion } from "@html_editor/html_migrations/html_migrations_utils";
+import { HtmlUpgradeManager } from "@html_editor/html_migrations/html_upgrade_manager";
 import { stripHistoryIds } from "@html_editor/others/collaboration/collaboration_odoo_plugin";
+import {
+    MAIN_EMBEDDINGS,
+    READONLY_MAIN_EMBEDDINGS,
+} from "@html_editor/others/embedded_components/embedding_sets";
 import {
     COLLABORATION_PLUGINS,
     EMBEDDED_COMPONENT_PLUGINS,
     MAIN_PLUGINS,
     NO_EMBEDDED_COMPONENTS_FALLBACK_PLUGINS,
 } from "@html_editor/plugin_sets";
-import { DYNAMIC_PLACEHOLDER_PLUGINS } from "@html_editor/backend/plugin_sets";
-import {
-    MAIN_EMBEDDINGS,
-    READONLY_MAIN_EMBEDDINGS,
-} from "@html_editor/others/embedded_components/embedding_sets";
 import { normalizeHTML } from "@html_editor/utils/html";
+import { withSequence } from "@html_editor/utils/resource";
+import { fixInvalidHTML, instanceofMarkup } from "@html_editor/utils/sanitize";
 import { Wysiwyg } from "@html_editor/wysiwyg";
 import { Component, markup, status, useRef, useState } from "@odoo/owl";
 import { ModelEvent } from "@web/core/events";
@@ -25,11 +30,6 @@ import { useBus, useService } from "@web/core/utils/hooks";
 import { useRecordObserver } from "@web/fields/hooks/record_observer";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 import { TranslationButton } from "@web/fields/translation_button";
-import { HtmlViewer } from "@html_editor/components/html_viewer/html_viewer";
-import { EditorVersionPlugin } from "@html_editor/core/editor_version_plugin";
-import { withSequence } from "@html_editor/utils/resource";
-import { fixInvalidHTML, instanceofMarkup } from "@html_editor/utils/sanitize";
-import { isHtmlContentSupported } from "@html_editor/core/selection_plugin";
 
 const HTML_FIELD_METADATA_ATTRIBUTES = ["data-last-history-steps"];
 
@@ -86,10 +86,10 @@ export class HtmlField extends Component {
             // races the tab-close save, which then sees no changes and skips the
             // sendBeacon -- silently dropping the edit (and hanging tests that
             // await the beacon). Mirrors the NEED_LOCAL_CHANGES handler below.
-            detail.proms.push(this.commitChanges({ urgent: true }))
+            detail.proms.push(this.commitChanges({ urgent: true })),
         );
         useBus(model.bus, ModelEvent.NEED_LOCAL_CHANGES, ({ detail }) =>
-            detail.proms.push(this.commitChanges())
+            detail.proms.push(this.commitChanges()),
         );
         this.busService = this.env.services.bus_service;
         this.ormService = useService("orm");
@@ -99,7 +99,7 @@ export class HtmlField extends Component {
             key: 0,
             showCodeView: false,
             containsComplexHTML: computeContainsComplexHTML(
-                this.props.record.data[this.props.name]
+                this.props.record.data[this.props.name],
             ),
         });
 
@@ -107,16 +107,23 @@ export class HtmlField extends Component {
             // Reset Wysiwyg when we discard or onchange value
             const newValue = fixInvalidHTML(record.data[this.props.name]);
             if (!this.isDirty) {
-                const value = normalizeHTML(newValue, this.clearElementToCompare.bind(this));
+                const value = normalizeHTML(
+                    newValue,
+                    this.clearElementToCompare.bind(this),
+                );
                 if (this.lastValue !== value) {
                     this.state.key++;
-                    this.state.containsComplexHTML = computeContainsComplexHTML(newValue);
+                    this.state.containsComplexHTML =
+                        computeContainsComplexHTML(newValue);
                     this.lastValue = value;
                 }
             }
         });
         useRecordObserver((record) => {
-            const value = record.data[this.props.dynamicPlaceholderModelReferenceField || "model"];
+            const value =
+                record.data[
+                    this.props.dynamicPlaceholderModelReferenceField || "model"
+                ];
             // update Dynamic Placeholder reference model
             if (this.props.dynamicPlaceholder && this.editor) {
                 this.editor.shared.dynamicPlaceholder?.updateDphDefaultModel(value);
@@ -140,7 +147,9 @@ export class HtmlField extends Component {
     }
 
     get displayReadonly() {
-        return this.props.readonly || (this.sandboxedPreview && !this.state.showCodeView);
+        return (
+            this.props.readonly || (this.sandboxedPreview && !this.state.showCodeView)
+        );
     }
 
     get wysiwygKey() {
@@ -174,7 +183,8 @@ export class HtmlField extends Component {
 
     async getEditorContent() {
         const content = this.editor.getElContent();
-        const oldSrcToNewSrcMap = await this.editor.shared.imageSave?.savePendingImages(content);
+        const oldSrcToNewSrcMap =
+            await this.editor.shared.imageSave?.savePendingImages(content);
         // Update the actual editable if still in the DOM.
         if (this.editor.editable && oldSrcToNewSrcMap) {
             this.editor.editable
@@ -186,7 +196,7 @@ export class HtmlField extends Component {
                     }
                     unsavedImage.classList.remove(
                         "o_b64_image_to_save",
-                        "o_modified_image_to_save"
+                        "o_modified_image_to_save",
                     );
                 });
         }
@@ -283,7 +293,9 @@ export class HtmlField extends Component {
             dropImageAsAttachment: true, // @todo @phoenix always true ?
             dynamicPlaceholder: this.props.dynamicPlaceholder,
             dynamicPlaceholderResModel:
-                this.props.record.data[this.props.dynamicPlaceholderModelReferenceField || "model"],
+                this.props.record.data[
+                    this.props.dynamicPlaceholderModelReferenceField || "model"
+                ],
             direction: localization.direction || "ltr",
             getRecordInfo: () => {
                 const { resModel, resId, data, fields, id } = this.props.record;
@@ -394,7 +406,7 @@ export const htmlField = {
         }
         if ("cleanEmptyStructuralContainers" in options) {
             editorConfig.cleanEmptyStructuralContainers = Boolean(
-                options.cleanEmptyStructuralContainers
+                options.cleanEmptyStructuralContainers,
             );
         }
         return {
@@ -406,7 +418,9 @@ export const htmlField = {
             dynamicPlaceholderModelReferenceField:
                 options.dynamic_placeholder_model_reference_field,
             embeddedComponents:
-                "embedded_components" in options ? Boolean(options.embedded_components) : true,
+                "embedded_components" in options
+                    ? Boolean(options.embedded_components)
+                    : true,
             sandboxedPreview: Boolean(options.sandboxedPreview),
             cssReadonlyAssetId: options.cssReadonly,
             codeview: Boolean(odoo.debug && options.codeview),

@@ -1,6 +1,7 @@
 /** @odoo-module native */
 import { BaseOptionComponent } from "@html_builder/core/utils";
 import { onWillStart } from "@odoo/owl";
+
 import { basicHeaderOptionSettings } from "./basicHeaderOptionSettings.js";
 
 export class HeaderNavigationOption extends BaseOptionComponent {

@@ -1,13 +1,14 @@
+import { captionEmbedding } from "@html_editor/others/embedded_components/backend/caption/caption";
+import { EMBEDDED_COMPONENT_PLUGINS, MAIN_PLUGINS } from "@html_editor/plugin_sets";
 import { describe, expect, getFixture, test } from "@odoo/hoot";
-import { hover, click } from "@odoo/hoot-dom";
+import { click, hover } from "@odoo/hoot-dom";
 import { animationFrame, tick } from "@odoo/hoot-mock";
 import { contains } from "@web/../tests/web_test_helpers";
+
 import { base64Img, setupEditor } from "./_helpers/editor.js";
-import { getContent } from "./_helpers/selection.js";
 import { unformat } from "./_helpers/format.js";
+import { getContent } from "./_helpers/selection.js";
 import { expectElementCount } from "./_helpers/ui_expectations.js";
-import { EMBEDDED_COMPONENT_PLUGINS, MAIN_PLUGINS } from "@html_editor/plugin_sets";
-import { captionEmbedding } from "@html_editor/others/embedded_components/backend/caption/caption";
 
 describe.current.tags("desktop");
 
@@ -50,15 +51,18 @@ test("should show the hook when hovering a figure element", async () => {
                 },
             },
             styleContent: styles,
-        }
+        },
     );
     await hover(el.querySelector("figure"));
     expect(".oe-sidewidget-move").toHaveCount(1);
 });
 test("should not show the hook when hovering a DIV which is not a baseContainer", async () => {
-    const { el } = await setupEditor(`<p>a[]</p><div class="oe_unbreakable"><br></div><p>b</p>`, {
-        styleContent: styles,
-    });
+    const { el } = await setupEditor(
+        `<p>a[]</p><div class="oe_unbreakable"><br></div><p>b</p>`,
+        {
+            styleContent: styles,
+        },
+    );
     await hover(el.querySelector("div"));
     expect(".oe-sidewidget-move").toHaveCount(0);
 });
@@ -68,7 +72,7 @@ describe("drag", () => {
             `<p>a[]</p><div class="oe_unbreakable"><br></div><div>d</div><p>b</p><p>c</p>`,
             {
                 styleContent: styles,
-            }
+            },
         );
         await animationFrame();
         const firstP = el.querySelector("p");
@@ -79,7 +83,7 @@ describe("drag", () => {
         expect(".oe-dropzone-box-side").toHaveCount(8);
         await drop(".oe-dropzone-box-side:eq(0)");
         expect(getContent(el)).toBe(
-            `<p>a[]</p><div class="oe_unbreakable"><br></div><div class="o-paragraph">d</div><p>b</p><p>c</p>`
+            `<p>a[]</p><div class="oe_unbreakable"><br></div><div class="o-paragraph">d</div><p>b</p><p>c</p>`,
         );
     });
     test("should drop at the same place after the same element", async () => {
@@ -87,7 +91,7 @@ describe("drag", () => {
             `<p>a[]</p><div class="oe_unbreakable"><br></div><div>d</div><p>b</p><p>c</p>`,
             {
                 styleContent: styles,
-            }
+            },
         );
         await animationFrame();
         const firstP = el.querySelector("p");
@@ -98,7 +102,7 @@ describe("drag", () => {
         expect(".oe-dropzone-box-side").toHaveCount(8);
         await drop(".oe-dropzone-box-side:eq(1)");
         expect(getContent(el)).toBe(
-            `<p>a[]</p><div class="oe_unbreakable"><br></div><div class="o-paragraph">d</div><p>b</p><p>c</p>`
+            `<p>a[]</p><div class="oe_unbreakable"><br></div><div class="o-paragraph">d</div><p>b</p><p>c</p>`,
         );
     });
     test("should drop before the next baseContainer", async () => {
@@ -106,7 +110,7 @@ describe("drag", () => {
             `<p>a[]</p><div class="oe_unbreakable"><br></div><div>d</div><p>b</p><p>c</p>`,
             {
                 styleContent: styles,
-            }
+            },
         );
         await animationFrame();
         const firstP = el.querySelector("p");
@@ -117,7 +121,7 @@ describe("drag", () => {
         expect(".oe-dropzone-box-side").toHaveCount(8);
         await drop(".oe-dropzone-box-side:eq(2)");
         expect(getContent(el)).toBe(
-            `<p data-selection-placeholder=""><br></p><div class="oe_unbreakable"><br></div><p>a[]</p><div class="o-paragraph">d</div><p>b</p><p>c</p>`
+            `<p data-selection-placeholder=""><br></p><div class="oe_unbreakable"><br></div><p>a[]</p><div class="o-paragraph">d</div><p>b</p><p>c</p>`,
         );
     });
     test("should drop after the next baseContainer", async () => {
@@ -125,7 +129,7 @@ describe("drag", () => {
             `<p>a[]</p><div class="oe_unbreakable"><br></div><div>d</div><p>b</p><p>c</p>`,
             {
                 styleContent: styles,
-            }
+            },
         );
         await animationFrame();
         const firstP = el.querySelector("p");
@@ -136,13 +140,16 @@ describe("drag", () => {
         expect(".oe-dropzone-box-side").toHaveCount(8);
         await drop(".oe-dropzone-box-side:eq(3)");
         expect(getContent(el)).toBe(
-            `<p data-selection-placeholder=""><br></p><div class="oe_unbreakable"><br></div><div class="o-paragraph">d</div><p>a[]</p><p>b</p><p>c</p>`
+            `<p data-selection-placeholder=""><br></p><div class="oe_unbreakable"><br></div><div class="o-paragraph">d</div><p>a[]</p><p>b</p><p>c</p>`,
         );
     });
     test("should drop LI at correct position within list", async () => {
-        const { el } = await setupEditor(`<ol><li>a[]</li><li>b</li><li>c</li><li>d</li></ol>`, {
-            styleContent: styles,
-        });
+        const { el } = await setupEditor(
+            `<ol><li>a[]</li><li>b</li><li>c</li><li>d</li></ol>`,
+            {
+                styleContent: styles,
+            },
+        );
         await animationFrame();
         const firstLI = el.querySelector("li");
         await hover(firstLI);
@@ -155,14 +162,16 @@ describe("drag", () => {
         expect(dropzones).toHaveLength(8);
         await handle.moveTo(dropzones[5]);
         await handle.drop();
-        expect(getContent(el)).toBe(`<ol><li>b</li><li>c</li><li>a[]</li><li>d</li></ol>`);
+        expect(getContent(el)).toBe(
+            `<ol><li>b</li><li>c</li><li>a[]</li><li>d</li></ol>`,
+        );
     });
     test("should drop LI from bulleted list to checklist at correct position", async () => {
         const { el } = await setupEditor(
             `<ul><li>a[]</li><li>b</li><li>c</li><li>d</li></ul><p>p</p><ul class="o_checklist"><li>One</li><li>Two</li></ul>`,
             {
                 styleContent: styles,
-            }
+            },
         );
         await animationFrame();
         const firstLI = el.querySelector("li");
@@ -177,7 +186,7 @@ describe("drag", () => {
         await handle.moveTo(dropzones[11]);
         await handle.drop();
         expect(getContent(el)).toBe(
-            `<ul><li>b</li><li>c</li><li>d</li></ul><p>p</p><ul class="o_checklist"><li>One</li><li>a[]</li><li>Two</li></ul>`
+            `<ul><li>b</li><li>c</li><li>d</li></ul><p>p</p><ul class="o_checklist"><li>One</li><li>a[]</li><li>Two</li></ul>`,
         );
     });
     test("should wrap LI in new UL or OL when moved outside existing list", async () => {
@@ -185,7 +194,7 @@ describe("drag", () => {
             `<ul class="o_checklist"><li>a[]</li><li>b</li><li>c</li><li>d</li></ul><p>e</p>`,
             {
                 styleContent: styles,
-            }
+            },
         );
         await animationFrame();
         const firstLI = el.querySelector("li");
@@ -200,7 +209,7 @@ describe("drag", () => {
         await handle.moveTo(dropzones[9]);
         await handle.drop();
         expect(getContent(el)).toBe(
-            `<ul class="o_checklist"><li>b</li><li>c</li><li>d</li></ul><p>e</p><ul class="o_checklist"><li>a[]</li></ul>`
+            `<ul class="o_checklist"><li>b</li><li>c</li><li>d</li></ul><p>e</p><ul class="o_checklist"><li>a[]</li></ul>`,
         );
     });
     test("should wrap non-LI element in LI and insert it into list at correct position", async () => {
@@ -208,7 +217,7 @@ describe("drag", () => {
             `<ul class="o_checklist"><li>a[]</li><li>b</li><li>c</li><li>d</li></ul><p>e</p>`,
             {
                 styleContent: styles,
-            }
+            },
         );
         await animationFrame();
         const p = el.querySelector("p");
@@ -223,7 +232,7 @@ describe("drag", () => {
         await handle.moveTo(dropzones[3]);
         await handle.drop();
         expect(getContent(el)).toBe(
-            `<ul class="o_checklist"><li>a</li><li>b</li><li><p>[]e</p></li><li>c</li><li>d</li></ul>`
+            `<ul class="o_checklist"><li>a</li><li>b</li><li><p>[]e</p></li><li>c</li><li>d</li></ul>`,
         );
     });
     test("should do nothing when dropping outside the editable", async () => {
@@ -231,7 +240,7 @@ describe("drag", () => {
             `<p>a[]</p><div class="oe_unbreakable"><br></div><div>d</div><p>b</p><p>c</p>`,
             {
                 styleContent: styles,
-            }
+            },
         );
         await animationFrame();
         const firstP = el.querySelector("p");
@@ -244,7 +253,7 @@ describe("drag", () => {
         getFixture().appendChild(outsideArea);
         await drop(outsideArea);
         expect(getContent(el)).toBe(
-            `<p>a[]</p><div class="oe_unbreakable"><br></div><div class="o-paragraph">d</div><p>b</p><p>c</p>`
+            `<p>a[]</p><div class="oe_unbreakable"><br></div><div class="o-paragraph">d</div><p>b</p><p>c</p>`,
         );
     });
     test("should do nothing when dropping outside the editable and after hovering a hook", async () => {
@@ -252,7 +261,7 @@ describe("drag", () => {
             `<p>a[]</p><div class="oe_unbreakable"><br></div><div>d</div><p>b</p><p>c</p>`,
             {
                 styleContent: styles,
-            }
+            },
         );
         await animationFrame();
         const firstP = el.querySelector("p");
@@ -266,7 +275,7 @@ describe("drag", () => {
         getFixture().appendChild(outsideArea);
         await drop(outsideArea);
         expect(getContent(el)).toBe(
-            `<p>a[]</p><div class="oe_unbreakable"><br></div><div class="o-paragraph">d</div><p>b</p><p>c</p>`
+            `<p>a[]</p><div class="oe_unbreakable"><br></div><div class="o-paragraph">d</div><p>b</p><p>c</p>`,
         );
     });
     test("should move cursor to moved node start if selection was outside", async () => {
@@ -281,11 +290,11 @@ describe("drag", () => {
                     </tbody>
                 </table>
                 <p>ef[]</p>
-                <p>gh</p>`
+                <p>gh</p>`,
             ),
             {
                 styleContent: styles,
-            }
+            },
         );
         const table = el.querySelector("table");
         await hover(table);
@@ -304,8 +313,8 @@ describe("drag", () => {
                         </tr>
                     </tbody>
                 </table>
-                <p>gh</p>`
-            )
+                <p>gh</p>`,
+            ),
         );
     });
     test("should preserve selection if inside moved node", async () => {
@@ -320,11 +329,11 @@ describe("drag", () => {
                     </tbody>
                 </table>
                 <p>ef</p>
-                <p>gh</p>`
+                <p>gh</p>`,
             ),
             {
                 styleContent: styles,
-            }
+            },
         );
         const table = el.querySelector("table");
         await hover(table);
@@ -343,8 +352,8 @@ describe("drag", () => {
                         </tr>
                     </tbody>
                 </table>
-                <p>gh</p>`
-            )
+                <p>gh</p>`,
+            ),
         );
     });
 });
@@ -381,7 +390,7 @@ describe("click", () => {
             `),
             {
                 styleContent: styles,
-            }
+            },
         );
         await animationFrame();
         const firstTable = el.querySelector("table");
@@ -403,7 +412,7 @@ describe("click", () => {
                     </tbody>
                 </table>
                 <p><br></p>
-            `)
+            `),
         );
         await expectElementCount(".o-we-toolbar", 1);
     });
@@ -424,7 +433,7 @@ describe("click", () => {
             `),
             {
                 styleContent: styles,
-            }
+            },
         );
         await animationFrame();
         const firstTable = el.querySelector("table");
@@ -446,7 +455,7 @@ describe("click", () => {
                     </tbody>
                 </table>
                 <p><br></p>
-            `)
+            `),
         );
         await expectElementCount(".o-we-toolbar", 1);
     });
@@ -460,9 +469,9 @@ describe("click", () => {
                         <p>Some</p>
                         <p>text[]</p>
                     </div>
-                </div><p>def</p>`
+                </div><p>def</p>`,
             ),
-            { styleContent: styles }
+            { styleContent: styles },
         );
         await animationFrame();
         const banner = el.querySelector(".o_editor_banner");
@@ -480,7 +489,7 @@ describe("click", () => {
                         <p>text</p>
                     </div>
                 </div>]<p>def</p>
-            `)
+            `),
         );
         await expectElementCount(".o-we-toolbar", 1);
     });

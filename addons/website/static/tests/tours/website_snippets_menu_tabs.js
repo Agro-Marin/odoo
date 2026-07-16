@@ -31,5 +31,5 @@ registerWebsitePreviewTour(
             content: "Verify that the customize panel is not empty.",
             trigger: ".o_theme_tab .options-container",
         },
-    ]
+    ],
 );

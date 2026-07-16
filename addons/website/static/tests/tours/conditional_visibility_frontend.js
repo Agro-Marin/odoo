@@ -8,11 +8,11 @@ registry.category("web_tour.tours").add("conditional_visibility_2", {
             trigger: "body #wrapwrap",
             run: function (actions) {
                 const style = window.getComputedStyle(
-                    this.anchor.getElementsByClassName("s_text_image")[0]
+                    this.anchor.getElementsByClassName("s_text_image")[0],
                 );
                 if (style.display === "none") {
                     console.error(
-                        "error This item should now be visible because utm_medium === email"
+                        "error This item should now be visible because utm_medium === email",
                     );
                 }
             },

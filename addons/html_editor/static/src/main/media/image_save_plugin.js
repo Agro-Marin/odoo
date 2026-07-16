@@ -48,16 +48,16 @@ export class ImageSavePlugin extends Plugin {
                 const oldSrc = el.getAttribute("src");
                 await this.saveB64Image(el, resModel, resId);
                 oldSrcToNewSrcMap.set(oldSrc, el.getAttribute("src"));
-            }
+            },
         );
-        const modifiedProms = [...editableEl.querySelectorAll(".o_modified_image_to_save")].map(
-            async (el) => {
-                const { resModel, resId } = this.getRecordInfo(getClosestSavable(el));
-                const oldSrc = el.getAttribute("src");
-                await this.saveModifiedImage(el, resModel, resId);
-                oldSrcToNewSrcMap.set(oldSrc, el.getAttribute("src"));
-            }
-        );
+        const modifiedProms = [
+            ...editableEl.querySelectorAll(".o_modified_image_to_save"),
+        ].map(async (el) => {
+            const { resModel, resId } = this.getRecordInfo(getClosestSavable(el));
+            const oldSrc = el.getAttribute("src");
+            await this.saveModifiedImage(el, resModel, resId);
+            oldSrcToNewSrcMap.set(oldSrc, el.getAttribute("src"));
+        });
         const proms = [...b64Proms, ...modifiedProms];
         const hasChange = !!proms.length;
         if (hasChange) {
@@ -117,7 +117,7 @@ export class ImageSavePlugin extends Plugin {
                     [accessToken] = await this.services.orm.call(
                         "ir.attachment",
                         "generate_access_token",
-                        [attachment.id]
+                        [attachment.id],
                     );
                 }
                 src += `?access_token=${encodeURIComponent(accessToken)}`;
@@ -149,7 +149,9 @@ export class ImageSavePlugin extends Plugin {
             image.src = getImageSrc(el);
             await new Promise((resolve) => image.addEventListener("load", resolve));
             const originalSize = Math.max(image.width, image.height);
-            const smallerSizes = [1024, 512, 256, 128].filter((size) => size < originalSize);
+            const smallerSizes = [1024, 512, 256, 128].filter(
+                (size) => size < originalSize,
+            );
             for (const size of [originalSize, ...smallerSizes]) {
                 const ratio = size / originalSize;
                 const canvas = document.createElement("canvas");
@@ -167,7 +169,7 @@ export class ImageSavePlugin extends Plugin {
                     0,
                     0,
                     canvas.width,
-                    canvas.height
+                    canvas.height,
                 );
                 altData[size] = {
                     "image/jpeg": canvas.toDataURL("image/jpeg").split(",")[1],
@@ -190,7 +192,7 @@ export class ImageSavePlugin extends Plugin {
                     ? el.dataset.mimetype
                     : el.getAttribute("src").split(":")[1].split(";")[0],
                 name: el.dataset.fileName ? el.dataset.fileName : null,
-            }
+            },
         );
         el.classList.remove("o_modified_image_to_save");
         if (isBackground) {

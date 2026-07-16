@@ -1,9 +1,9 @@
 import {
+    changeOptionInPopover,
     clickOnSnippet,
     insertSnippet,
     registerWebsitePreviewTour,
     toggleMobilePreview,
-    changeOptionInPopover,
 } from "@website/js/tours/tour_utils";
 
 const columnCountOptSelector = "div[data-label='Layout'] .dropdown-toggle";
@@ -73,7 +73,8 @@ registerWebsitePreviewTour(
         },
         ...changeOptionInPopover("Columns", "Layout", "[data-action-value='2']"),
         {
-            content: "Check that there are still 5 items in the row and click on the last one",
+            content:
+                "Check that there are still 5 items in the row and click on the last one",
             trigger: `${columnsSnippetRow} > :nth-child(5)`,
             run: "click",
         },
@@ -94,7 +95,8 @@ registerWebsitePreviewTour(
         },
         {
             content: "Set 3 columns on mobile",
-            trigger: ".o_popover div[data-action-id='changeColumnCount'][data-action-value='3']",
+            trigger:
+                ".o_popover div[data-action-id='changeColumnCount'][data-action-value='3']",
             run: "click",
         },
         {
@@ -112,7 +114,9 @@ registerWebsitePreviewTour(
             content: "Add a fake resized class on mobile to the 2nd item",
             trigger: `${columnsSnippetRow} > :nth-child(2)`,
             async run() {
-                const overlayEl = document.querySelector(".oe_overlay.oe_active .o_side_x.e");
+                const overlayEl = document.querySelector(
+                    ".oe_overlay.oe_active .o_side_x.e",
+                );
 
                 const triggerPointerEvent = (type, x, y) => {
                     const event = new PointerEvent(type, {
@@ -177,7 +181,8 @@ registerWebsitePreviewTour(
             run: "click",
         },
         {
-            content: "Change the orders of the 5th and 6th items to override the mobile orders",
+            content:
+                "Change the orders of the 5th and 6th items to override the mobile orders",
             trigger: ".o_overlay_options [aria-label='Move left']",
             run: "click",
         },
@@ -185,7 +190,7 @@ registerWebsitePreviewTour(
             content: "Check that there are no orders anymore",
             trigger: `${columnsSnippetRow}:not(:has([style*='order: 0;'])):not(:has(.order-lg-0))`,
         },
-    ]
+    ],
 );
 
 registerWebsitePreviewTour(
@@ -195,8 +200,16 @@ registerWebsitePreviewTour(
         edition: true,
     },
     () => [
-        ...insertSnippet({ id: "s_three_columns", name: "Columns", groupName: "Columns" }),
-        ...insertSnippet({ id: "s_text_image", name: "Text - Image", groupName: "Content" }),
+        ...insertSnippet({
+            id: "s_three_columns",
+            name: "Columns",
+            groupName: "Columns",
+        }),
+        ...insertSnippet({
+            id: "s_text_image",
+            name: "Text - Image",
+            groupName: "Content",
+        }),
         ...toggleMobilePreview(true),
         // Add a mobile order to the "Columns" snippet columns.
         ...changeFirstAndSecondColumnsMobileOrder(columnsSnippetRow, "Columns"),
@@ -245,5 +258,5 @@ registerWebsitePreviewTour(
                 `${columnsSnippetRow}:has(.order-lg-0[style*='order: 0;']:nth-child(1))` +
                 ":has(.order-lg-0[style*='order: 1;']:nth-child(2))",
         },
-    ]
+    ],
 );

@@ -1,8 +1,9 @@
 /** @odoo-module native */
 /* global google */
 
-import { GoogleMap } from "./google_map.js";
 import { registry } from "@web/core/registry";
+
+import { GoogleMap } from "./google_map.js";
 
 const GoogleMapEdit = (I) =>
     class extends I {
@@ -19,20 +20,20 @@ const GoogleMapEdit = (I) =>
                     typeof google.maps === "object" &&
                     !this.websiteEditService.callShared(
                         "googleMapsOption",
-                        "shouldRefetchApiKey"
+                        "shouldRefetchApiKey",
                     )) ||
                 (await this.loadGoogleMaps(false));
             if (isLoaded) {
                 this.canStart = await this.websiteEditService.callShared(
                     "googleMapsOption",
                     "initializeGoogleMaps",
-                    [this.el, google.maps]
+                    [this.el, google.maps],
                 );
             } else {
                 this.websiteEditService.callShared(
                     "googleMapsOption",
                     "failedToInitializeGoogleMaps",
-                    [this.el]
+                    [this.el],
                 );
             }
         }
@@ -47,25 +48,32 @@ const GoogleMapEdit = (I) =>
         async loadGoogleMaps(forceReconfigure = false) {
             /** @type {string | undefined} */
             const apiKey = await this.websiteMapService.getGMapAPIKey(true);
-            const apiKeyValidation = await this.websiteMapService.validateGMapApiKey(apiKey);
+            const apiKeyValidation =
+                await this.websiteMapService.validateGMapApiKey(apiKey);
             const shouldReconfigure = forceReconfigure || !apiKeyValidation.isValid;
             let didReconfigure = false;
             if (shouldReconfigure) {
                 didReconfigure = await this.websiteEditService.callShared(
                     "googleMapsOption",
                     "configureGMapsAPI",
-                    apiKey
+                    apiKey,
                 );
                 if (!didReconfigure) {
-                    this.websiteEditService.callShared("remove", "removeElement", this.el);
+                    this.websiteEditService.callShared(
+                        "remove",
+                        "removeElement",
+                        this.el,
+                    );
                 }
             }
             if (!shouldReconfigure || didReconfigure) {
                 const shouldRefetch = this.websiteEditService.callShared(
                     "googleMapsOption",
-                    "shouldRefetchApiKey"
+                    "shouldRefetchApiKey",
                 );
-                return !!(await this.loadGoogleMapsAPIFromService(shouldRefetch || didReconfigure));
+                return !!(await this.loadGoogleMapsAPIFromService(
+                    shouldRefetch || didReconfigure,
+                ));
             } else {
                 return false;
             }
@@ -80,8 +88,14 @@ const GoogleMapEdit = (I) =>
          *                                      key if found.
          */
         async loadGoogleMapsAPIFromService(shouldRefetch) {
-            const apiKey = await this.websiteMapService.loadGMapAPI(true, shouldRefetch);
-            this.websiteEditService.callShared("googleMapsOption", "shouldNotRefetchApiKey");
+            const apiKey = await this.websiteMapService.loadGMapAPI(
+                true,
+                shouldRefetch,
+            );
+            this.websiteEditService.callShared(
+                "googleMapsOption",
+                "shouldNotRefetchApiKey",
+            );
             return !!apiKey;
         }
     };

@@ -1,6 +1,6 @@
 /** @odoo-module native */
 // import { registry } from "@web/core/registry";
-import { Component, xml, useState } from "@odoo/owl";
+import { Component, useState, xml } from "@odoo/owl";
 import { useService } from "@web/core/utils/hooks";
 
 // -----------------------------------------------------------------------------

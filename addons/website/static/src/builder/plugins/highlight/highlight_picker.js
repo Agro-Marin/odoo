@@ -1,9 +1,9 @@
 /** @odoo-module native */
-import { onMounted, useRef, Component, onWillDestroy } from "@odoo/owl";
+import { Component, onMounted, onWillDestroy, useRef } from "@odoo/owl";
 import {
     applyTextHighlight,
-    textHighlightFactory,
     getCurrentTextHighlight,
+    textHighlightFactory,
 } from "@website/js/highlight_utils";
 
 export class HighlightPicker extends Component {

@@ -1,15 +1,16 @@
 /** @odoo-module native */
 import { Component, useState, xml } from "@odoo/owl";
 import { Dropdown } from "@web/components/dropdown/dropdown";
-import { DropdownItem } from "@web/components/dropdown/dropdown_item";
 import { useDropdownState } from "@web/components/dropdown/dropdown_hooks";
-import { useHotkey } from "@web/services/hotkeys/hotkey_hook";
+import { DropdownItem } from "@web/components/dropdown/dropdown_item";
 import { _t } from "@web/core/l10n/translation";
 import { rpc } from "@web/core/network/rpc";
-import { user } from "@web/services/user";
-import { useService } from "@web/core/utils/hooks";
 import { sprintf } from "@web/core/utils/format/strings";
+import { useService } from "@web/core/utils/hooks";
 import { redirect } from "@web/core/utils/urls";
+import { useHotkey } from "@web/services/hotkeys/hotkey_hook";
+import { user } from "@web/services/user";
+
 import { InstallModuleDialog } from "./install_module_dialog.js";
 
 export const MODULE_STATUS = {
@@ -123,7 +124,7 @@ export class NewContentSystrayItem extends Component {
         if (!element.description2) {
             element.description2 = sprintf(
                 _t('Install "%s"'),
-                this.modulesInfo[element.moduleName].name
+                this.modulesInfo[element.moduleName].name,
             );
         }
         const tmp = element.description;
@@ -153,12 +154,15 @@ export class NewContentSystrayItem extends Component {
                         .searchRead(
                             "ir.module.module",
                             [["name", "in", moduleNames]],
-                            ["id", "name", "shortdesc"]
+                            ["id", "name", "shortdesc"],
                         )) {
-                        this.modulesInfo[record.name] = { id: record.id, name: record.shortdesc };
+                        this.modulesInfo[record.name] = {
+                            id: record.id,
+                            name: record.shortdesc,
+                        };
                     }
                 }
-            })()
+            })(),
         );
 
         proms.push(
@@ -176,12 +180,12 @@ export class NewContentSystrayItem extends Component {
                     {
                         models: modelsToCheck,
                     },
-                    { cache: true }
+                    { cache: true },
                 );
                 for (const [model, access] of Object.entries(accesses)) {
                     elementsToUpdate[model].isDisplayed = access;
                 }
-            })()
+            })(),
         );
 
         await Promise.all(proms);
@@ -191,7 +195,7 @@ export class NewContentSystrayItem extends Component {
         rpc(
             "/website/get_new_page_templates",
             { context: { website_id: this.website.currentWebsiteId } },
-            { cache: true, silent: true }
+            { cache: true, silent: true },
         );
     }
 
@@ -200,14 +204,16 @@ export class NewContentSystrayItem extends Component {
             .filter(({ status }) => status !== MODULE_STATUS.NOT_INSTALLED)
             .concat(
                 this.state.newContentElements.filter(
-                    ({ status }) => status === MODULE_STATUS.NOT_INSTALLED
-                )
+                    ({ status }) => status === MODULE_STATUS.NOT_INSTALLED,
+                ),
             )
             .filter((el) => ("isDisplayed" in el ? el.isDisplayed : user.isSystem));
     }
 
     async installModule(id, redirectUrl) {
-        await this.orm.silent.call("ir.module.module", "button_immediate_install", [id]);
+        await this.orm.silent.call("ir.module.module", "button_immediate_install", [
+            id,
+        ]);
         if (redirectUrl) {
             this.website.prepareOutLoader();
             redirect(redirectUrl);
@@ -224,7 +230,9 @@ export class NewContentSystrayItem extends Component {
             // the feature with patches from the installed module.
             this.website.prepareOutLoader();
             const encodedPath = encodeURIComponent(url.toString());
-            redirect(`/odoo/action-website.website_preview?website_id=${id}&path=${encodedPath}`);
+            redirect(
+                `/odoo/action-website.website_preview?website_id=${id}&path=${encodedPath}`,
+            );
         }
     }
 
@@ -239,28 +247,35 @@ export class NewContentSystrayItem extends Component {
             installationText: sprintf(this.newContentText.installNeeded, name),
             installModule: async () => {
                 // Update the NewContentElement with installing icon and text.
-                this.state.newContentElements = this.state.newContentElements.map((el) => {
-                    if (el.moduleXmlId === element.moduleXmlId) {
-                        el.status = MODULE_STATUS.INSTALLING;
-                        el.icon = xml`<i class="fa-solid fa-circle-notch fa-spin"/>`;
-                        el.title = sprintf(this.newContentText.installPleaseWait, name);
-                    }
-                    return el;
-                });
+                this.state.newContentElements = this.state.newContentElements.map(
+                    (el) => {
+                        if (el.moduleXmlId === element.moduleXmlId) {
+                            el.status = MODULE_STATUS.INSTALLING;
+                            el.icon = xml`<i class="fa-solid fa-circle-notch fa-spin"/>`;
+                            el.title = sprintf(
+                                this.newContentText.installPleaseWait,
+                                name,
+                            );
+                        }
+                        return el;
+                    },
+                );
                 this.website.showLoader({ title: _t("Building your %s", name) });
                 try {
                     await this.installModule(id, element.redirectUrl);
                 } catch (error) {
                     this.website.hideLoader();
                     // Update the NewContentElement with failure icon and text.
-                    this.state.newContentElements = this.state.newContentElements.map((el) => {
-                        if (el.moduleXmlId === element.moduleXmlId) {
-                            el.status = MODULE_STATUS.FAILED_TO_INSTALL;
-                            el.icon = xml`<i class="fa-solid fa-exclamation-triangle"/>`;
-                            el.title = sprintf(this.newContentText.failed, name);
-                        }
-                        return el;
-                    });
+                    this.state.newContentElements = this.state.newContentElements.map(
+                        (el) => {
+                            if (el.moduleXmlId === element.moduleXmlId) {
+                                el.status = MODULE_STATUS.FAILED_TO_INSTALL;
+                                el.icon = xml`<i class="fa-solid fa-exclamation-triangle"/>`;
+                                el.title = sprintf(this.newContentText.failed, name);
+                            }
+                            return el;
+                        },
+                    );
                     console.error(error);
                 }
             },

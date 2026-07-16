@@ -1,12 +1,12 @@
 /** @odoo-module native */
-import { SNIPPET_SPECIFIC_END } from "@html_builder/utils/option_sequence";
-import { Plugin } from "@html_editor/plugin";
-import { registry } from "@web/core/registry";
-import { _t } from "@web/core/l10n/translation";
-import { getCommonAncestor, selectElements } from "@html_editor/utils/dom_traversal";
-import { withSequence } from "@html_editor/utils/resource";
 import { BuilderAction } from "@html_builder/core/builder_action";
 import { BaseOptionComponent } from "@html_builder/core/utils";
+import { SNIPPET_SPECIFIC_END } from "@html_builder/utils/option_sequence";
+import { Plugin } from "@html_editor/plugin";
+import { getCommonAncestor, selectElements } from "@html_editor/utils/dom_traversal";
+import { withSequence } from "@html_editor/utils/resource";
+import { _t } from "@web/core/l10n/translation";
+import { registry } from "@web/core/registry";
 
 /**
  * @typedef { Object } InstagramOptionShared
@@ -38,7 +38,10 @@ class InstagramOptionPlugin extends Plugin {
 
     normalize(root) {
         const nodes = [
-            ...selectElements(root, ".s_instagram_page[data-instagram-page-is-default]"),
+            ...selectElements(
+                root,
+                ".s_instagram_page[data-instagram-page-is-default]",
+            ),
         ];
         if (nodes.length) {
             this.loadAndSetPage(nodes);
@@ -55,7 +58,7 @@ class InstagramOptionPlugin extends Plugin {
         const res = await this.services.orm.read(
             "website",
             [this.services.website.currentWebsite.id],
-            ["social_instagram"]
+            ["social_instagram"],
         );
         if (res && res[0].social_instagram) {
             this.instagramUrl = this.instagramPageNameFromUrl(res[0].social_instagram);
@@ -63,7 +66,7 @@ class InstagramOptionPlugin extends Plugin {
             // WARNING: the call to ignoreDOMMutations is very dangerous,
             // and should be avoided in most cases (if you think you need those, ask html_editor team)
             const hasChanged = this.dependencies.history.ignoreDOMMutations(() =>
-                this.setPage(nodes)
+                this.setPage(nodes),
             );
 
             if (hasChanged) {
@@ -118,7 +121,8 @@ export class InstagramPageAction extends BuilderAction {
     apply({ editingElement, value }) {
         delete editingElement.dataset.instagramPageIsDefault;
         if (value.includes(this.instagramUrlStr)) {
-            value = this.dependencies.instagramOption.instagramPageNameFromUrl(value) || "";
+            value =
+                this.dependencies.instagramOption.instagramPageNameFromUrl(value) || "";
         }
         editingElement.dataset["instagramPage"] = value;
         if (value === "") {
@@ -129,4 +133,6 @@ export class InstagramPageAction extends BuilderAction {
     }
 }
 
-registry.category("website-plugins").add(InstagramOptionPlugin.id, InstagramOptionPlugin);
+registry
+    .category("website-plugins")
+    .add(InstagramOptionPlugin.id, InstagramOptionPlugin);

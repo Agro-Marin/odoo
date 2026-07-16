@@ -1,5 +1,4 @@
 import { mailDataHelpers } from "@mail/../tests/mock_server/mail_mock_server";
-
 import { patch } from "@web/core/utils/patch";
 
 patch(mailDataHelpers, {
@@ -15,11 +14,16 @@ patch(mailDataHelpers, {
                     ["livechat_visitor_id", "=", channel.livechat_visitor_id],
                 ],
                 0,
-                5
+                5,
             );
-            store._add_record_fields(WebsiteVisitor.browse(channel.livechat_visitor_id), {
-                discuss_channel_ids: mailDataHelpers.Store.many(DiscussChannel.browse(channelIds)),
-            });
+            store._add_record_fields(
+                WebsiteVisitor.browse(channel.livechat_visitor_id),
+                {
+                    discuss_channel_ids: mailDataHelpers.Store.many(
+                        DiscussChannel.browse(channelIds),
+                    ),
+                },
+            );
         }
     },
 });

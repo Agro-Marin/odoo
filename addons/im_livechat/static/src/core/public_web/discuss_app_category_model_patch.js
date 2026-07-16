@@ -1,8 +1,8 @@
 /** @odoo-module native */
-import { patch } from "@web/core/utils/patch";
-import { DiscussAppCategory } from "@mail/discuss/core/public_web/discuss_app_category_model";
 import { fields } from "@mail/core/common/record";
+import { DiscussAppCategory } from "@mail/discuss/core/public_web/discuss_app_category_model";
 import { compareDatetime } from "@mail/utils/common/misc";
+import { patch } from "@web/core/utils/patch";
 
 patch(DiscussAppCategory.prototype, {
     setup() {
@@ -23,7 +23,9 @@ patch(DiscussAppCategory.prototype, {
             return t1.id - t2.id;
         }
         if (this.livechat_channel_id || this.eq(this.app?.defaultLivechatCategory)) {
-            return compareDatetime(t2.lastInterestDt, t1.lastInterestDt) || t2.id - t1.id;
+            return (
+                compareDatetime(t2.lastInterestDt, t1.lastInterestDt) || t2.id - t1.id
+            );
         }
         return super.sortThreads(t1, t2);
     },

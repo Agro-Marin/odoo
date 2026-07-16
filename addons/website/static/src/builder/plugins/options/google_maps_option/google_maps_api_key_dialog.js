@@ -1,8 +1,8 @@
 /** @odoo-module native */
+import { Component, useRef, useState } from "@odoo/owl";
 import { _t } from "@web/core/l10n/translation";
-import { Dialog } from "@web/ui/dialog/dialog";
 import { useChildRef, useService } from "@web/core/utils/hooks";
-import { Component, useState, useRef } from "@odoo/owl";
+import { Dialog } from "@web/ui/dialog/dialog";
 
 /**
  * @typedef {import('./google_map_option_plugin.js').ApiKeyValidation} ApiKeyValidation
@@ -41,7 +41,7 @@ export class GoogleMapsApiKeyDialog extends Component {
             buttons.forEach((button) => button.setAttribute("disabled", true));
             /** @type {ApiKeyValidation} */
             const apiKeyValidation = await this.googleMapsService.validateGMapsApiKey(
-                this.state.apiKey
+                this.state.apiKey,
             );
             this.state.apiKeyValidation = apiKeyValidation;
             if (apiKeyValidation.isValid) {

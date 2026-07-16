@@ -1,7 +1,10 @@
-import { setupInteractionWhiteList, startInteractions } from "@web/../tests/public/helpers";
 import { beforeEach, describe, expect, test } from "@odoo/hoot";
 import { queryAll } from "@odoo/hoot-dom";
 import { enableTransitions } from "@odoo/hoot-mock";
+import {
+    setupInteractionWhiteList,
+    startInteractions,
+} from "@web/../tests/public/helpers";
 
 setupInteractionWhiteList("website.carousel_slider");
 beforeEach(enableTransitions);

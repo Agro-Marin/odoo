@@ -1,10 +1,10 @@
 /** @odoo-module native */
+import { markup } from "@odoo/owl";
 import { loadJS } from "@web/core/assets";
-import { registry } from "@web/core/registry";
 import { _t } from "@web/core/l10n/translation";
 import { rpc } from "@web/core/network/rpc";
+import { registry } from "@web/core/registry";
 import { user } from "@web/services/user";
-import { markup } from "@odoo/owl";
 
 export const websiteMapService = {
     dependencies: ["public.interactions", "notification"],
@@ -57,8 +57,8 @@ export const websiteMapService = {
                                 });
                                 await loadJS(
                                     `https://maps.googleapis.com/maps/api/js?v=3.exp&libraries=places&callback=odoo_gmap_api_post_load&key=${encodeURIComponent(
-                                        key
-                                    )}`
+                                        key,
+                                    )}`,
                                 );
                             }
                             await promiseKeys[key];
@@ -72,7 +72,7 @@ export const websiteMapService = {
                                         <span>${message}</span><br/>
                                         <a href="/odoo/action-website.action_website_configuration">${urlTitle}</a>
                                     </div>`,
-                                    { type: "warning", sticky: true }
+                                    { type: "warning", sticky: true },
                                 );
                             }
                             return false;
@@ -108,7 +108,7 @@ export const websiteMapService = {
                                 ? undefined
                                 : _t(
                                       "Invalid API Key. The following error was returned by Google: %(error)s",
-                                      { error: await response.text() }
+                                      { error: await response.text() },
                                   ),
                         };
                     } catch {
@@ -132,8 +132,8 @@ export const websiteMapService = {
             async fetchGoogleMap(key) {
                 return await fetch(
                     `https://maps.googleapis.com/maps/api/staticmap?center=belgium&size=10x10&key=${encodeURIComponent(
-                        key
-                    )}`
+                        key,
+                    )}`,
                 );
             },
         };

@@ -29,11 +29,14 @@ export class TableOfContentManager {
     fetchValidHeadings(element) {
         const inEmbeddedHeadings = new Set(
             element.querySelectorAll(
-                HEADINGS.map((heading) => `[data-embedded] ${heading}`).join(",")
-            )
+                HEADINGS.map((heading) => `[data-embedded] ${heading}`).join(","),
+            ),
         );
         return Array.from(element.querySelectorAll(HEADINGS.join(",")))
-            .filter((heading) => heading.innerText.trim().replaceAll("\u200B", "").length > 0)
+            .filter(
+                (heading) =>
+                    heading.innerText.trim().replaceAll("\u200B", "").length > 0,
+            )
             .filter((heading) => !inEmbeddedHeadings.has(heading));
     }
 

@@ -1,5 +1,6 @@
 /** @odoo-module native */
 import { registry } from "@web/core/registry";
+
 import { InstagramPage } from "./instagram_page.js";
 
 const InstagramPageEdit = (I) =>

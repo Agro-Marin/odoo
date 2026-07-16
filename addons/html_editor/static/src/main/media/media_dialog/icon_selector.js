@@ -1,8 +1,8 @@
 /** @odoo-module native */
-import { SearchMedia } from "./search_media.js";
 import { fonts } from "@html_editor/utils/fonts";
-
 import { Component, useState } from "@odoo/owl";
+
+import { SearchMedia } from "./search_media.js";
 
 export class IconSelector extends Component {
     static mediaSpecificClasses = ["fa-solid"];
@@ -33,7 +33,7 @@ export class IconSelector extends Component {
         } else {
             this.state.fonts = this.props.fonts.map((font) => {
                 const icons = font.icons.filter(
-                    (icon) => icon.alias.indexOf(this.state.needle.toLowerCase()) >= 0
+                    (icon) => icon.alias.indexOf(this.state.needle.toLowerCase()) >= 0,
                 );
                 return { ...font, icons };
             });
@@ -73,8 +73,8 @@ export class IconSelector extends Component {
                         const alias = icon.names.join(",");
                         const id = `${base}_${alias}`;
                         return [id, { ...icon, alias, id }];
-                    })
-                ).values()
+                    }),
+                ).values(),
             );
             return { base, icons: uniqueIcons };
         });

@@ -38,7 +38,10 @@ test("Close without feedback", async () => {
     await startServer();
     await loadDefaultEmbedConfig();
     onRpcBefore((route) => {
-        if (route === "/im_livechat/visitor_leave_session" || route === "/im_livechat/feedback") {
+        if (
+            route === "/im_livechat/visitor_leave_session" ||
+            route === "/im_livechat/feedback"
+        ) {
             asyncStep(route);
         }
     });
@@ -69,7 +72,7 @@ test("Last operator leaving ends the livechat", async () => {
     await withUser(operatorUserId, () =>
         getService("orm").call("discuss.channel", "action_unfollow", [
             [Object.values(getService("mail.store").Thread.records).at(-1).id],
-        ])
+        ]),
     );
     await contains("span", { text: "This livechat conversation has ended" });
     await contains(".o-mail-Composer-input", { count: 0 });
@@ -119,7 +122,9 @@ test("Closing folded chat window should open it with feedback", async () => {
     await click("[title*='Close Chat Window']");
     await click(".o-livechat-CloseConfirmation-leave");
     await click(".o-mail-ChatHub-bubbleBtn");
-    await contains(".o-mail-ChatWindow p", { text: "Did we correctly answer your question?" });
+    await contains(".o-mail-ChatWindow p", {
+        text: "Did we correctly answer your question?",
+    });
 });
 
 test("Start new session from feedback panel", async () => {

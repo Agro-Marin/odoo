@@ -1,11 +1,11 @@
 /** @odoo-module native */
-import { registry } from "@web/core/registry";
+import { BuilderAction } from "@html_builder/core/builder_action";
+import { BaseOptionComponent } from "@html_builder/core/utils";
+import { after } from "@html_builder/utils/option_sequence";
 import { Plugin } from "@html_editor/plugin";
 import { withSequence } from "@html_editor/utils/resource";
-import { BuilderAction } from "@html_builder/core/builder_action";
-import { after } from "@html_builder/utils/option_sequence";
+import { registry } from "@web/core/registry";
 import { WEBSITE_BACKGROUND_OPTIONS } from "@website/builder/option_sequence";
-import { BaseOptionComponent } from "@html_builder/core/utils";
 
 class SetItemTextAction extends BuilderAction {
     static id = "setItemTextAction";

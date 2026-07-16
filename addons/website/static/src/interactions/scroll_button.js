@@ -1,8 +1,7 @@
 /** @odoo-module native */
-import { AnchorSlide } from "@website/interactions/anchor_slide";
 import { registry } from "@web/core/registry";
-
 import { isVisible } from "@web/core/utils/dom/ui";
+import { AnchorSlide } from "@website/interactions/anchor_slide";
 
 export class ScrollButton extends AnchorSlide {
     static selector = ".o_scroll_button";

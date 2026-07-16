@@ -1,13 +1,14 @@
-import { describe, test } from "@odoo/hoot";
 import {
-    SIZES,
     click,
     contains,
     patchUiSize,
+    SIZES,
     start,
     startServer,
 } from "@mail/../tests/mail_test_helpers";
+import { describe, test } from "@odoo/hoot";
 import { Command, serverState } from "@web/../tests/web_test_helpers";
+
 import { defineLivechatModels } from "./livechat_test_helpers.js";
 
 describe.current.tags("desktop");
@@ -26,7 +27,10 @@ test("Livechat button is present when there is at least one livechat thread", as
     const pyEnv = await startServer();
     pyEnv["discuss.channel"].create({
         channel_member_ids: [
-            Command.create({ partner_id: serverState.partnerId, livechat_member_type: "agent" }),
+            Command.create({
+                partner_id: serverState.partnerId,
+                livechat_member_type: "agent",
+            }),
             Command.create({
                 partner_id: serverState.publicPartnerId,
                 livechat_member_type: "visitor",

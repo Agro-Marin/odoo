@@ -1,13 +1,14 @@
-import { expect, test } from "@odoo/hoot";
-import { setupEditor, testEditor } from "../_helpers/editor.js";
-import { unformat } from "../_helpers/format.js";
-import { setSelection, setContent, getContent } from "../_helpers/selection.js";
-import { deleteBackward, insertText, undo } from "../_helpers/user_actions.js";
-import { parseHTML } from "@html_editor/utils/html";
 import { Plugin } from "@html_editor/plugin";
 import { MAIN_PLUGINS } from "@html_editor/plugin_sets";
-import { execCommand } from "../_helpers/userCommands.js";
+import { parseHTML } from "@html_editor/utils/html";
+import { expect, test } from "@odoo/hoot";
+
+import { setupEditor, testEditor } from "../_helpers/editor.js";
+import { unformat } from "../_helpers/format.js";
+import { getContent, setContent, setSelection } from "../_helpers/selection.js";
 import { expectElementCount } from "../_helpers/ui_expectations.js";
+import { deleteBackward, insertText, undo } from "../_helpers/user_actions.js";
+import { execCommand } from "../_helpers/userCommands.js";
 
 test("should ignore protected elements children mutations (true)", async () => {
     await testEditor({
@@ -18,7 +19,7 @@ test("should ignore protected elements children mutations (true)", async () => {
         stepFunction: async (editor) => {
             await insertText(editor, "bc");
             const protectedParagraph = editor.editable.querySelector(
-                '[data-oe-protected="true"] > p'
+                '[data-oe-protected="true"] > p',
             );
             protectedParagraph.append(document.createTextNode("b"));
             editor.shared.history.addStep();
@@ -43,7 +44,7 @@ test("should not ignore unprotected elements children mutations (false)", async 
         stepFunction: async (editor) => {
             await insertText(editor, "bc");
             const unProtectedParagraph = editor.editable.querySelector(
-                '[data-oe-protected="false"] > p'
+                '[data-oe-protected="false"] > p',
             );
             setSelection({ anchorNode: unProtectedParagraph, anchorOffset: 1 });
             await insertText(editor, "bc");
@@ -60,20 +61,22 @@ test("should not ignore unprotected elements children mutations (false)", async 
 });
 
 test("should not update activeSelection when clicking inside a protected node", async () => {
-    const { el, editor } = await setupEditor(`<p><span data-oe-protected="true"></span>[]</p>`);
+    const { el, editor } = await setupEditor(
+        `<p><span data-oe-protected="true"></span>[]</p>`,
+    );
     const span = el.querySelector("span");
-    let editableSelection = editor.shared.selection.getEditableSelection();
+    editor.shared.selection.getEditableSelection();
     const documentSelection = editor.document.getSelection();
     documentSelection.removeAllRanges();
     const range = editor.document.createRange();
     range.selectNodeContents(span);
     // Set document range inside the protected zone
     documentSelection.addRange(range);
-    editableSelection = editor.shared.selection.getEditableSelection();
+    const editableSelection = editor.shared.selection.getEditableSelection();
     // Ensure that the editable selection stayed unchanged
     setSelection(editableSelection);
     expect(getContent(el)).toBe(
-        `<p><span data-oe-protected="true" contenteditable="false"></span>[]</p>`
+        `<p><span data-oe-protected="true" contenteditable="false"></span>[]</p>`,
     );
 });
 
@@ -106,16 +109,20 @@ test("should not normalize protected elements children (true)", async () => {
 });
 
 test("should not remove/merge empty (identical) protecting nodes", async () => {
-    const { el, editor } = await setupEditor(`<p><span data-oe-protected="true"></span>[]</p>`);
-    editor.shared.dom.insert(parseHTML(editor.document, `<span data-oe-protected="true"></span>`));
+    const { el, editor } = await setupEditor(
+        `<p><span data-oe-protected="true"></span>[]</p>`,
+    );
+    editor.shared.dom.insert(
+        parseHTML(editor.document, `<span data-oe-protected="true"></span>`),
+    );
     editor.shared.history.addStep();
     expect(getContent(el)).toBe(
         unformat(
             `<p>
                 <span data-oe-protected="true" contenteditable="false"></span>
                 <span data-oe-protected="true" contenteditable="false"></span>[]
-            </p>`
-        )
+            </p>`,
+        ),
     );
 });
 
@@ -141,7 +148,7 @@ test("should normalize unprotected elements children (false)", async () => {
                         <ul><li><p>abc</p><p><br></p></li></ul>
                     </div>
                 </div>
-                <p data-selection-placeholder=""><br></p>`
+                <p data-selection-placeholder=""><br></p>`,
         ),
     });
 });
@@ -158,7 +165,7 @@ test("should not handle table selection in protected elements children (true)", 
             <div data-oe-protected="true" contenteditable="false">
                     <p>a[bc</p><table><tbody><tr><td>a]b</td><td>cd</td><td>ef</td></tr></tbody></table>
                 </div>
-                <p data-selection-placeholder=""><br></p>`
+                <p data-selection-placeholder=""><br></p>`,
         ),
     });
 });
@@ -200,7 +207,7 @@ test("should handle table selection in unprotected elements", async () => {
                         <p data-selection-placeholder=""><br></p>
                     </div>
                 </div>
-                <p data-selection-placeholder=""><br></p>`
+                <p data-selection-placeholder=""><br></p>`,
         ),
     });
 });
@@ -229,7 +236,7 @@ test("should not remove contenteditable attribute of a protected node", async ()
                         <p>content</p>
                     </div>
                 </div>
-                <p data-selection-placeholder=""><br></p>`
+                <p data-selection-placeholder=""><br></p>`,
         ),
     });
 });
@@ -258,26 +265,26 @@ test("should not select a protected table even if it is contenteditable='true'",
                         <td>cd]</td>
                     </tr></tbody></table>
                 </div>
-                <p data-selection-placeholder=""><br></p>`
+                <p data-selection-placeholder=""><br></p>`,
         ),
     });
 });
 
 test("select a protected element shouldn't open the toolbar", async () => {
     const { el } = await setupEditor(
-        `<div><p>[a]</p></div><div data-oe-protected="true"><p>b</p><div data-oe-protected="false">c</div></div>`
+        `<div><p>[a]</p></div><div data-oe-protected="true"><p>b</p><div data-oe-protected="false">c</div></div>`,
     );
     await expectElementCount(".o-we-toolbar", 1);
 
     setContent(
         el,
-        `<div><p>a</p></div><div data-oe-protected="true"><p>[b]</p><div data-oe-protected="false">c</div></div>`
+        `<div><p>a</p></div><div data-oe-protected="true"><p>[b]</p><div data-oe-protected="false">c</div></div>`,
     );
     await expectElementCount(".o-we-toolbar", 0);
 
     setContent(
         el,
-        `<div><p>a</p></div><div data-oe-protected="true"><p>b</p><div data-oe-protected="false">[c]</div></div>`
+        `<div><p>a</p></div><div data-oe-protected="true"><p>b</p><div data-oe-protected="false">[c]</div></div>`,
     );
     await expectElementCount(".o-we-toolbar", 1);
 });
@@ -289,7 +296,7 @@ const configWithoutSelectionPlaceholder = {
 test("should protect disconnected nodes", async () => {
     const { editor, el, plugins } = await setupEditor(
         `<div data-oe-protected="true"><p>a</p></div><p>a</p>`,
-        configWithoutSelectionPlaceholder
+        configWithoutSelectionPlaceholder,
     );
     const div = el.querySelector("div");
     const protectedP = div.querySelector("p");
@@ -300,14 +307,15 @@ test("should protect disconnected nodes", async () => {
     expect(lastStep.mutations.length).toBe(1);
     expect(lastStep.mutations[0].type).toBe("remove");
     expect(
-        plugins.get("history").unserializeNode(lastStep.mutations[0].serializedNode).outerHTML
+        plugins.get("history").unserializeNode(lastStep.mutations[0].serializedNode)
+            .outerHTML,
     ).toBe(`<div data-oe-protected="true" contenteditable="false"></div>`);
 });
 
 test("should not crash when changing attributes and removing a protecting anchor", async () => {
     const { editor, el, plugins } = await setupEditor(
         `<div data-oe-protected="true" data-attr="value"><p>a</p></div><p>a</p>`,
-        configWithoutSelectionPlaceholder
+        configWithoutSelectionPlaceholder,
     );
     const div = el.querySelector("div");
     div.dataset.attr = "other";
@@ -318,21 +326,22 @@ test("should not crash when changing attributes and removing a protecting anchor
     expect(lastStep.mutations[0].type).toBe("attributes");
     expect(lastStep.mutations[1].type).toBe("remove");
     expect(
-        plugins.get("history").unserializeNode(lastStep.mutations[1].serializedNode).outerHTML
+        plugins.get("history").unserializeNode(lastStep.mutations[1].serializedNode)
+            .outerHTML,
     ).toBe(
-        `<div data-oe-protected="true" data-attr="other" contenteditable="false"><p>a</p></div>`
+        `<div data-oe-protected="true" data-attr="other" contenteditable="false"><p>a</p></div>`,
     );
 });
 
 test("removing a protected node should be undo-able", async () => {
     const { editor, el } = await setupEditor(
-        `<div data-oe-protected="true"><p>a</p></div><p>[]a</p>`
+        `<div data-oe-protected="true"><p>a</p></div><p>[]a</p>`,
     );
     deleteBackward(editor);
     expect(getContent(el)).toBe(`<p>[]a</p>`);
     undo(editor);
     expect(getContent(el)).toBe(
-        `<p data-selection-placeholder=""><br></p><div data-oe-protected="true" contenteditable="false"><p>a</p></div><p>[]a</p>`
+        `<p data-selection-placeholder=""><br></p><div data-oe-protected="true" contenteditable="false"><p>a</p></div><p>[]a</p>`,
     );
 });
 
@@ -355,7 +364,7 @@ test("removing a recursively protected then unprotected node should be undo-able
                 <p>y</p>
             </div>
             <p>[]z</p>
-        `)
+        `),
     );
     const protectPlugin = plugins.get("protectedNode");
     const protectingNodes = [...el.querySelectorAll(`[data-oe-protected="true"]`)];
@@ -365,10 +374,10 @@ test("removing a recursively protected then unprotected node should be undo-able
         unprotectedDescendants.push([...unprotectingNode.childNodes]);
     }
     expect(protectPlugin.filterDescendantsToRemove(protectingNodes[0])).toEqual(
-        unprotectedDescendants[0]
+        unprotectedDescendants[0],
     );
     expect(protectPlugin.filterDescendantsToRemove(protectingNodes[1])).toEqual(
-        unprotectedDescendants[1]
+        unprotectedDescendants[1],
     );
     deleteBackward(editor);
     expect([...unprotectingNodes[0].childNodes]).toEqual([]);
@@ -394,7 +403,7 @@ test("removing a recursively protected then unprotected node should be undo-able
                 <p>y</p>
             </div>
             <p>[]z</p>
-        `)
+        `),
     );
 });
 
@@ -406,7 +415,7 @@ test("removing a protected node and then removing its protected parent should be
                     <div class="b"></div>
                 </div>
             </div>
-        `)
+        `),
     );
     const historyPlugin = plugins.get("history");
     expect(editor.shared.history.getHistorySteps().length).toBe(1);
@@ -419,7 +428,7 @@ test("removing a protected node and then removing its protected parent should be
     expect(editor.shared.history.getHistorySteps().length).toBe(1);
     expect(historyPlugin.currentStep.mutations).toEqual([]);
     expect(getContent(el)).toBe(
-        `<p data-selection-placeholder=""><br></p><div data-oe-protected="true" contenteditable="false"></div><p data-selection-placeholder=""><br></p>`
+        `<p data-selection-placeholder=""><br></p><div data-oe-protected="true" contenteditable="false"></div><p data-selection-placeholder=""><br></p>`,
     );
 });
 
@@ -433,7 +442,7 @@ test("removing a protected ancestor, then a protected descendant, then its prote
                     </div>
                 </div>
             </div>
-        `)
+        `),
     );
     const historyPlugin = plugins.get("history");
     expect(editor.shared.history.getHistorySteps().length).toBe(1);
@@ -448,7 +457,7 @@ test("removing a protected ancestor, then a protected descendant, then its prote
     expect(editor.shared.history.getHistorySteps().length).toBe(1);
     expect(historyPlugin.currentStep.mutations).toEqual([]);
     expect(getContent(el)).toBe(
-        `<p data-selection-placeholder=""><br></p><div data-oe-protected="true" contenteditable="false"></div><p data-selection-placeholder=""><br></p>`
+        `<p data-selection-placeholder=""><br></p><div data-oe-protected="true" contenteditable="false"></div><p data-selection-placeholder=""><br></p>`,
     );
 });
 
@@ -461,7 +470,7 @@ test("moving a protected node at an unprotected location, only remove should be 
             <div data-oe-protected="true">
                 <p class="a"></p>
             </div>
-        `)
+        `),
     );
     const historyPlugin = plugins.get("history");
     expect(editor.shared.history.getHistorySteps().length).toBe(1);
@@ -487,7 +496,7 @@ test("moving a protected node at an unprotected location, only remove should be 
             <p data-selection-placeholder=""><br></p>
             <div data-oe-protected="true" contenteditable="false"></div>
             <p data-selection-placeholder=""><br></p>
-        `)
+        `),
     );
 });
 
@@ -500,7 +509,7 @@ test("moving an unprotected node at a protected location, only add should be ign
                 </div>
             </div>
             <div class="b" data-oe-protected="true"></div>
-        `)
+        `),
     );
     const historyPlugin = plugins.get("history");
     expect(editor.shared.history.getHistorySteps().length).toBe(1);
@@ -526,7 +535,7 @@ test("moving an unprotected node at a protected location, only add should be ign
                 <p class="a">content</p>
             </div>
             <p data-selection-placeholder=""><br></p>
-        `)
+        `),
     );
 });
 
@@ -536,7 +545,7 @@ test("sequentially added nodes under a protecting parent are correctly protected
             <div data-oe-protected="true">
                 content
             </div>
-        `)
+        `),
     );
     const protectedPlugin = plugins.get("protectedNode");
     expect(editor.shared.history.getHistorySteps().length).toBe(1);
@@ -556,7 +565,7 @@ test("sequentially added nodes under a protecting parent are correctly protected
                 content
             </div>
             <p data-selection-placeholder=""><br></p>
-        `)
+        `),
     );
     node.remove();
     editor.shared.history.addStep();
@@ -568,7 +577,7 @@ test("sequentially added nodes under a protecting parent are correctly protected
                 content
             </div>
             <p data-selection-placeholder=""><br></p>
-        `)
+        `),
     );
     expect(editor.shared.history.getHistorySteps().length).toBe(1);
 });
@@ -582,7 +591,7 @@ test("don't protect a node under data-oe-protected='false' through delete and un
                 </div>
             </div>
             <p>[]a</p>
-        `)
+        `),
     );
     const protectedPlugin = plugins.get("protectedNode");
     expect(editor.shared.history.getHistorySteps().length).toBe(1);
@@ -605,7 +614,7 @@ test("don't protect a node under data-oe-protected='false' through delete and un
                 </div>
             </div>
             <p>[]a</p>
-        `)
+        `),
     );
     deleteBackward(editor);
     undo(editor);
@@ -619,7 +628,7 @@ test("don't protect a node under data-oe-protected='false' through delete and un
                 </div>
             </div>
             <p>[]a</p>
-        `)
+        `),
     );
     expect(editor.shared.history.getHistorySteps().length).toBe(4);
 });
@@ -652,7 +661,7 @@ test("protected plugin is robust against other plugins which can filter mutation
         `),
         // Put FilterPlugin as the first plugin, so that its filter is applied before
         // protected_node_plugin.
-        { config: { Plugins: [FilterPlugin, ...MAIN_PLUGINS] } }
+        { config: { Plugins: [FilterPlugin, ...MAIN_PLUGINS] } },
     );
     const historyPlugin = plugins.get("history");
     expect(editor.shared.history.getHistorySteps().length).toBe(1);
@@ -665,6 +674,6 @@ test("protected plugin is robust against other plugins which can filter mutation
     expect(editor.shared.history.getHistorySteps().length).toBe(1);
     expect(historyPlugin.currentStep.mutations).toEqual([]);
     expect(getContent(el)).toBe(
-        `<p data-selection-placeholder=""><br></p><div data-oe-protected="true" contenteditable="false"></div><p data-selection-placeholder=""><br></p>`
+        `<p data-selection-placeholder=""><br></p><div data-oe-protected="true" contenteditable="false"></div><p data-selection-placeholder=""><br></p>`,
     );
 });

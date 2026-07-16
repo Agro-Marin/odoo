@@ -1,19 +1,31 @@
-import { describe, expect, test, beforeEach, Deferred, animationFrame } from "@odoo/hoot";
-import { waitFor, waitForNone, click, queryOne } from "@odoo/hoot-dom";
+import { SavePlugin } from "@html_builder/core/save_plugin";
+import { setupEditor } from "@html_editor/../tests/_helpers/editor";
+import { setSelection } from "@html_editor/../tests/_helpers/selection";
+import { expectElementCount } from "@html_editor/../tests/_helpers/ui_expectations";
+import { insertText } from "@html_editor/../tests/_helpers/user_actions";
+import { MAIN_PLUGINS } from "@html_editor/plugin_sets";
+import {
+    animationFrame,
+    beforeEach,
+    Deferred,
+    describe,
+    expect,
+    test,
+} from "@odoo/hoot";
+import { click, queryOne, waitFor, waitForNone } from "@odoo/hoot-dom";
+import {
+    contains,
+    mockService,
+    onRpc,
+    patchWithCleanup,
+} from "@web/../tests/web_test_helpers";
+import { browser } from "@web/core/browser/browser";
 import {
     defineWebsiteModels,
     setupWebsiteBuilder,
 } from "@website/../tests/builder/website_helpers";
-import { setupEditor } from "@html_editor/../tests/_helpers/editor";
-import { setSelection } from "@html_editor/../tests/_helpers/selection";
-import { expectElementCount } from "@html_editor/../tests/_helpers/ui_expectations";
-import { patchWithCleanup, mockService, onRpc, contains } from "@web/../tests/web_test_helpers";
-import { MAIN_PLUGINS } from "@html_editor/plugin_sets";
 import { MenuDataPlugin } from "@website/builder/plugins/menu_data_plugin";
 import { MenuDialog } from "@website/components/dialog/edit_menu";
-import { SavePlugin } from "@html_builder/core/save_plugin";
-import { insertText } from "@html_editor/../tests/_helpers/user_actions";
-import { browser } from "@web/core/browser/browser";
 
 defineWebsiteModels();
 
@@ -35,11 +47,14 @@ describe("NavbarLinkPopover", () => {
             <p>Outside</p>`,
             {
                 config: { Plugins: [...MAIN_PLUGINS, MenuDataPlugin, SavePlugin] },
-            }
+            },
         );
         await expectElementCount(".o-we-linkpopover", 0);
         // selection inside a top menu link
-        setSelection({ anchorNode: el.querySelector(".nav-link > span"), anchorOffset: 0 });
+        setSelection({
+            anchorNode: el.querySelector(".nav-link > span"),
+            anchorOffset: 0,
+        });
         await waitFor(".o-we-linkpopover");
         // remove link button replaced with sitemap button
         expect(".o-we-linkpopover:has(i.fa-chain-broken)").toHaveCount(0);
@@ -60,15 +75,21 @@ describe("NavbarLinkPopover", () => {
             </ul>`,
             {
                 config: { Plugins: [...MAIN_PLUGINS, MenuDataPlugin, SavePlugin] },
-            }
+            },
         );
         expect(".o-we-linkpopover:has(button.js_edit_menu)").toHaveCount(0);
         // open navbar link popover
-        setSelection({ anchorNode: el.querySelector(".nav-link > span"), anchorOffset: 0 });
+        setSelection({
+            anchorNode: el.querySelector(".nav-link > span"),
+            anchorOffset: 0,
+        });
         await waitFor(".o-we-linkpopover");
         expect(".o-we-linkpopover:has(button.js_edit_menu)").toHaveCount(1);
         // selection in the same link
-        setSelection({ anchorNode: el.querySelector(".nav-link > span"), anchorOffset: 1 });
+        setSelection({
+            anchorNode: el.querySelector(".nav-link > span"),
+            anchorOffset: 1,
+        });
         await waitFor(".o-we-linkpopover");
         expect(".o-we-linkpopover:has(button.js_edit_menu)").toHaveCount(1);
     });
@@ -94,11 +115,14 @@ describe("NavbarLinkPopover", () => {
             </ul>`,
             {
                 config: { Plugins: [...MAIN_PLUGINS, MenuDataPlugin, SavePlugin] },
-            }
+            },
         );
         expect(".o-we-linkpopover:has(button.js_edit_menu)").toHaveCount(0);
         // selection in dropdown menu
-        setSelection({ anchorNode: el.querySelector(".dropdown-item > span"), anchorOffset: 0 });
+        setSelection({
+            anchorNode: el.querySelector(".dropdown-item > span"),
+            anchorOffset: 0,
+        });
         await waitFor(".o-we-linkpopover");
         expect(".o-we-linkpopover:has(button.js_edit_menu)").toHaveCount(1);
     });
@@ -124,12 +148,15 @@ describe("NavbarLinkPopover", () => {
             </ul>`,
             {
                 config: { Plugins: [...MAIN_PLUGINS, MenuDataPlugin, SavePlugin] },
-            }
+            },
         );
 
         await expectElementCount(".o-we-linkpopover", 0);
         // selection inside a top menu link
-        setSelection({ anchorNode: el.querySelector(".nav-link > span"), anchorOffset: 0 });
+        setSelection({
+            anchorNode: el.querySelector(".nav-link > span"),
+            anchorOffset: 0,
+        });
         await waitFor(".o-we-linkpopover");
         await click(".o-we-linkpopover a");
         expect.verifySteps(["website page url prefixed"]);
@@ -148,7 +175,7 @@ describe("MenuDialog", () => {
             </ul>`,
             {
                 config: { Plugins: [...MAIN_PLUGINS, MenuDataPlugin, SavePlugin] },
-            }
+            },
         );
         patchWithCleanup(MenuDialog.prototype, {
             setup() {
@@ -162,7 +189,10 @@ describe("MenuDialog", () => {
         }));
         expect(".o-we-linkpopover:has(button.js_edit_menu)").toHaveCount(0);
         // open navbar link popover
-        setSelection({ anchorNode: el.querySelector(".nav-link > span"), anchorOffset: 0 });
+        setSelection({
+            anchorNode: el.querySelector(".nav-link > span"),
+            anchorOffset: 0,
+        });
         await waitFor(".o-we-linkpopover");
         expect(".o-we-linkpopover:has(button.js_edit_menu)").toHaveCount(1);
         // click the link edit button
@@ -229,7 +259,7 @@ describe("EditMenuDialog", () => {
             </ul>`,
             {
                 config: { Plugins: [...MAIN_PLUGINS, MenuDataPlugin, SavePlugin] },
-            }
+            },
         );
 
         onRpc(({ model, method, args }) => {
@@ -248,7 +278,10 @@ describe("EditMenuDialog", () => {
 
         expect(".o-we-linkpopover:has(button.js_edit_menu)").toHaveCount(0);
         // open navbar link popover
-        setSelection({ anchorNode: el.querySelector(".nav-link > span"), anchorOffset: 0 });
+        setSelection({
+            anchorNode: el.querySelector(".nav-link > span"),
+            anchorOffset: 0,
+        });
         await waitFor(".o-we-linkpopover");
         expect(".o-we-linkpopover:has(button.js_edit_menu)").toHaveCount(1);
         // click on edit menu button
@@ -271,7 +304,7 @@ describe("EditMenuDialog", () => {
             </ul>`,
             {
                 config: { Plugins: [...MAIN_PLUGINS, MenuDataPlugin, SavePlugin] },
-            }
+            },
         );
 
         onRpc(({ model, method, args }) => {
@@ -310,7 +343,7 @@ describe("EditMenuDialog", () => {
             </section>`,
             {
                 openEditor: true,
-            }
+            },
         );
 
         onRpc(({ method, model, args }) => {
@@ -329,13 +362,16 @@ describe("EditMenuDialog", () => {
         const editor = getEditor();
 
         // add some text
-        var p = queryOne(":iframe section > p");
+        const p = queryOne(":iframe section > p");
         setSelection({ anchorNode: p, anchorOffset: 0 });
         await insertText(editor, "EDITED ");
         expect(p).toHaveInnerHTML("EDITED TEXT");
 
         // open navbar link popover
-        setSelection({ anchorNode: queryOne(":iframe .nav-link > span"), anchorOffset: 0 });
+        setSelection({
+            anchorNode: queryOne(":iframe .nav-link > span"),
+            anchorOffset: 0,
+        });
 
         // open menu editor and save
         await waitFor(".o-we-linkpopover");
@@ -415,13 +451,17 @@ describe("EditMenuDialog", () => {
             });
             await contains(":iframe header").click();
 
-            onRpc("website.menu", "get_tree", () => ({ ...sampleMenuData, children: [] }));
+            onRpc("website.menu", "get_tree", () => ({
+                ...sampleMenuData,
+                children: [],
+            }));
             await contains("button:contains('Edit Menu')").click();
 
             patchWithCleanup(MenuDialog.prototype, {
                 setup() {
                     super.setup();
-                    this.website.pageDocument = builder.getEditableContent().ownerDocument;
+                    this.website.pageDocument =
+                        builder.getEditableContent().ownerDocument;
                 },
                 onClickOk() {
                     // little lie to avoid calling `toRelativeIfSameDomain`,

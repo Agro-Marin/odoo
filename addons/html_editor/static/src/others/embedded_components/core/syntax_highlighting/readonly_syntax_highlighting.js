@@ -2,7 +2,12 @@
 import { Component, onMounted, onWillStart, xml } from "@odoo/owl";
 import { loadBundle } from "@web/core/assets";
 import { cookie } from "@web/core/browser/cookie";
-import { DEFAULT_LANGUAGE_ID, getPreValue, highlightPre } from "./syntax_highlighting_utils.js";
+
+import {
+    DEFAULT_LANGUAGE_ID,
+    getPreValue,
+    highlightPre,
+} from "./syntax_highlighting_utils.js";
 
 export class ReadonlySyntaxHighlightingComponent extends Component {
     static props = {
@@ -17,14 +22,18 @@ export class ReadonlySyntaxHighlightingComponent extends Component {
         onWillStart(() =>
             loadBundle(
                 `html_editor.assets_prism${cookie.get("color_scheme") === "dark" ? "_dark" : ""}`,
-                { targetDoc: this.props.host.ownerDocument }
-            )
+                { targetDoc: this.props.host.ownerDocument },
+            ),
         );
         onMounted(() => {
             const owlRoot = [...(this.props.host.children || [])].find(
-                (child) => child.nodeName === "OWL-ROOT"
+                (child) => child.nodeName === "OWL-ROOT",
             );
-            highlightPre(owlRoot || this.props.host, this.props.value, this.props.languageId);
+            highlightPre(
+                owlRoot || this.props.host,
+                this.props.value,
+                this.props.languageId,
+            );
         });
     }
 }

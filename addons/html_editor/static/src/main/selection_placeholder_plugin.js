@@ -26,7 +26,8 @@ export class SelectionPlaceholderPlugin extends Plugin {
         external_history_step_handlers: this.updatePlaceholders.bind(this),
         normalize_handlers: withSequence(100, this.updatePlaceholders.bind(this)),
         step_added_handlers: this.updatePlaceholders.bind(this),
-        selectionchange_handlers: (selectionData) => this.onSelectionChange(selectionData),
+        selectionchange_handlers: (selectionData) =>
+            this.onSelectionChange(selectionData),
         clean_for_save_handlers: withSequence(0, ({ root }) => {
             for (const placeholder of root.querySelectorAll(PLACEHOLDER_SELECTOR)) {
                 placeholder.remove();
@@ -63,12 +64,20 @@ export class SelectionPlaceholderPlugin extends Plugin {
         this.addDomListener(
             this.editable,
             "focusout",
-            () => this.editable.querySelectorAll(`.${BLINKER_CLASS}`).forEach(this.cleanBlinker),
-            { isGlobal: true }
+            () =>
+                this.editable
+                    .querySelectorAll(`.${BLINKER_CLASS}`)
+                    .forEach(this.cleanBlinker),
+            { isGlobal: true },
         );
-        this.addDomListener(this.editable, "focusin", () => this.resetBlinkerClasses(), {
-            isGlobal: true,
-        });
+        this.addDomListener(
+            this.editable,
+            "focusin",
+            () => this.resetBlinkerClasses(),
+            {
+                isGlobal: true,
+            },
+        );
     }
 
     /**
@@ -82,16 +91,22 @@ export class SelectionPlaceholderPlugin extends Plugin {
                 .filter((result) => result !== undefined);
             return !!results.length && results.every(Boolean);
         };
-        const isSelectionBlocker = (node) => checkPredicate("selection_blocker_predicates", node);
-        const placeholderParents = [this.editable, ...this.editable.querySelectorAll("*")].filter(
-            (container) => checkPredicate("selection_placeholder_container_predicates", container)
+        const isSelectionBlocker = (node) =>
+            checkPredicate("selection_blocker_predicates", node);
+        const placeholderParents = [
+            this.editable,
+            ...this.editable.querySelectorAll("*"),
+        ].filter((container) =>
+            checkPredicate("selection_placeholder_container_predicates", container),
         );
 
         const marginUpdates = [];
         // 1. Update current placeholders.
-        for (const placeholder of this.editable.querySelectorAll(PLACEHOLDER_SELECTOR)) {
+        for (const placeholder of this.editable.querySelectorAll(
+            PLACEHOLDER_SELECTOR,
+        )) {
             const siblings = ["before", "after"].map((side) =>
-                getNonWhitespaceSibling(side, placeholder)
+                getNonWhitespaceSibling(side, placeholder),
             );
             if (!isEmpty(placeholder) || !siblings.filter(Boolean).length) {
                 // Persist non-empty placeholders and any suddenly lonely placeholder.
@@ -126,11 +141,13 @@ export class SelectionPlaceholderPlugin extends Plugin {
                 // selection blocker.
                 if (!sibling || isSelectionBlocker(sibling)) {
                     // Create the placeholder.
-                    const placeholder = this.dependencies.baseContainer.createBaseContainer();
+                    const placeholder =
+                        this.dependencies.baseContainer.createBaseContainer();
                     fillEmpty(placeholder);
                     placeholder.setAttribute(PLACEHOLDER_ATTRIBUTE, "");
                     // Position the placeholder.
-                    const siblings = side === "before" ? [sibling, blocker] : [blocker, sibling];
+                    const siblings =
+                        side === "before" ? [sibling, blocker] : [blocker, sibling];
                     // Insert the placeholder.
                     blocker[side](placeholder);
                     pendingMarginUpdates.push({
@@ -171,12 +188,16 @@ export class SelectionPlaceholderPlugin extends Plugin {
         const middleMargin = Math.abs(marginBefore - marginAfter) / 2;
         if (middleMargin) {
             const positiveMargin = Math.abs(
-                middleMargin - (marginAfter >= marginBefore ? marginAfter : marginBefore)
+                middleMargin -
+                    (marginAfter >= marginBefore ? marginAfter : marginBefore),
             );
             const negativeMargin = -1 - middleMargin;
-            const marginTop = marginAfter >= marginBefore ? positiveMargin : negativeMargin;
-            const marginBottom = marginAfter >= marginBefore ? negativeMargin : positiveMargin;
-            return () => (placeholder.style.margin = `${marginTop}px 0 ${marginBottom}px`);
+            const marginTop =
+                marginAfter >= marginBefore ? positiveMargin : negativeMargin;
+            const marginBottom =
+                marginAfter >= marginBefore ? negativeMargin : positiveMargin;
+            return () =>
+                (placeholder.style.margin = `${marginTop}px 0 ${marginBottom}px`);
         }
     }
 
@@ -210,14 +231,23 @@ export class SelectionPlaceholderPlugin extends Plugin {
      *
      * @param {import("@html_editor/core/selection_plugin").EditorSelection} selection
      */
-    resetBlinkerClasses(selection = this.dependencies.selection.getEditableSelection()) {
+    resetBlinkerClasses(
+        selection = this.dependencies.selection.getEditableSelection(),
+    ) {
         const anchorPlaceholder =
-            selection.isCollapsed && closestElement(selection.anchorNode, PLACEHOLDER_SELECTOR);
-        if (anchorPlaceholder && this.document.activeElement.contains(anchorPlaceholder)) {
+            selection.isCollapsed &&
+            closestElement(selection.anchorNode, PLACEHOLDER_SELECTOR);
+        if (
+            anchorPlaceholder &&
+            this.document.activeElement.contains(anchorPlaceholder)
+        ) {
             anchorPlaceholder.classList.add(BLINKER_CLASS);
         }
         for (const blinker of this.editable.querySelectorAll(`.${BLINKER_CLASS}`)) {
-            if (blinker !== anchorPlaceholder || !this.document.activeElement.contains(blinker)) {
+            if (
+                blinker !== anchorPlaceholder ||
+                !this.document.activeElement.contains(blinker)
+            ) {
                 this.cleanBlinker(blinker);
             }
         }
@@ -256,9 +286,12 @@ export class SelectionPlaceholderPlugin extends Plugin {
  */
 const getNonWhitespaceSibling = (side, node) => {
     const siblings =
-        side === "before" ? getAdjacentPreviousSiblings(node) : getAdjacentNextSiblings(node);
+        side === "before"
+            ? getAdjacentPreviousSiblings(node)
+            : getAdjacentNextSiblings(node);
     return siblings.find(
-        (sibling) => !(sibling.nodeType === Node.TEXT_NODE && !sibling.textContent.trim())
+        (sibling) =>
+            !(sibling.nodeType === Node.TEXT_NODE && !sibling.textContent.trim()),
     );
 };
 /**

@@ -1,12 +1,13 @@
-import { expect, test } from "@odoo/hoot";
-import { registry } from "@web/core/registry";
-import { contains } from "@web/../tests/web_test_helpers";
-import { defineWebsiteModels, setupWebsiteBuilder } from "./website_helpers.js";
 import {
     confirmAddSnippet,
     getDragHelper,
     waitForEndOfOperation,
 } from "@html_builder/../tests/helpers";
+import { expect, test } from "@odoo/hoot";
+import { contains } from "@web/../tests/web_test_helpers";
+import { registry } from "@web/core/registry";
+
+import { defineWebsiteModels, setupWebsiteBuilder } from "./website_helpers.js";
 
 defineWebsiteModels();
 
@@ -25,7 +26,7 @@ test("preprocess modifies the snippet", async () => {
         onIframeLoaded: (iframe) => (iframeEl = iframe),
     });
     const { moveTo, drop } = await contains(
-        ".o-snippets-menu #snippet_groups .o_snippet_thumbnail"
+        ".o-snippets-menu #snippet_groups .o_snippet_thumbnail",
     ).drag();
     await moveTo(iframeEl);
     await drop(getDragHelper());

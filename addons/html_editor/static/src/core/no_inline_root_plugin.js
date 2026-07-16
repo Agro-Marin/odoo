@@ -1,9 +1,13 @@
 /** @odoo-module native */
-import { getDeepestPosition, isParagraphRelatedElement } from "@html_editor/utils/dom_info";
+import {
+    getDeepestPosition,
+    isParagraphRelatedElement,
+} from "@html_editor/utils/dom_info";
+import { childNodes } from "@html_editor/utils/dom_traversal";
+import { endPos, startPos } from "@html_editor/utils/position";
+
 import { Plugin } from "../plugin.js";
 import { isNotAllowedContent } from "./selection_plugin.js";
-import { endPos, startPos } from "@html_editor/utils/position";
-import { childNodes } from "@html_editor/utils/dom_traversal";
 
 export class NoInlineRootPlugin extends Plugin {
     static id = "noInlineRoot";
@@ -11,7 +15,8 @@ export class NoInlineRootPlugin extends Plugin {
 
     /** @type {import("plugins").EditorResources} */
     resources = {
-        fix_selection_on_editable_root_overrides: this.fixSelectionOnEditableRoot.bind(this),
+        fix_selection_on_editable_root_overrides:
+            this.fixSelectionOnEditableRoot.bind(this),
     };
 
     setup() {
@@ -46,9 +51,16 @@ export class NoInlineRootPlugin extends Plugin {
         delete this.currentKeyDown;
 
         if (key?.startsWith("Arrow")) {
-            return this.fixSelectionOnEditableRootArrowKeys(nodeAfterCursor, nodeBeforeCursor, key);
+            return this.fixSelectionOnEditableRootArrowKeys(
+                nodeAfterCursor,
+                nodeBeforeCursor,
+                key,
+            );
         }
-        return this.fixSelectionOnEditableRootGeneric(nodeAfterCursor, nodeBeforeCursor);
+        return this.fixSelectionOnEditableRootGeneric(
+            nodeAfterCursor,
+            nodeBeforeCursor,
+        );
     }
     /**
      * @param {Node} nodeAfterCursor
@@ -63,12 +75,16 @@ export class NoInlineRootPlugin extends Plugin {
         const directionForward = ["ArrowRight", "ArrowDown"].includes(key);
         let node = directionForward ? nodeAfterCursor : nodeBeforeCursor;
         while (node && isNotAllowedContent(node)) {
-            node = directionForward ? node.nextElementSibling : node.previousElementSibling;
+            node = directionForward
+                ? node.nextElementSibling
+                : node.previousElementSibling;
         }
         if (!node) {
             return false;
         }
-        let [anchorNode, anchorOffset] = directionForward ? startPos(node) : endPos(node);
+        let [anchorNode, anchorOffset] = directionForward
+            ? startPos(node)
+            : endPos(node);
         [anchorNode, anchorOffset] = getDeepestPosition(anchorNode, anchorOffset);
         this.dependencies.selection.setSelection({ anchorNode, anchorOffset });
         return true;

@@ -1,19 +1,20 @@
 import { describe, expect, test } from "@odoo/hoot";
-import { unformat } from "../_helpers/format.js";
+
 import { base64Img } from "../_helpers/editor.js";
+import { unformat } from "../_helpers/format.js";
 
 describe("unformat", () => {
     test("should trim space between a tag name and an attribute", () => {
         expect(
             unformat(`<div
-        class="something">`)
+        class="something">`),
         ).toBe(`<div class="something">`);
     });
     test("should trim space at the beginning and end of the string", () => {
         expect(
             unformat(`
                 <div>abc</div>
-            `)
+            `),
         ).toBe(`<div>abc</div>`);
     });
     test("should trim space between a node and its text content", () => {
@@ -21,16 +22,16 @@ describe("unformat", () => {
             unformat(
                 `<div>
                     abc
-                </div>`
-            )
+                </div>`,
+            ),
         ).toBe(`<div>abc</div>`);
     });
     test("should trim space between nodes", () => {
         expect(
             unformat(
                 `<div>abc</div>
-                <p>def</p>`
-            )
+                <p>def</p>`,
+            ),
         ).toBe(`<div>abc</div><p>def</p>`);
     });
     test("should not trim space between words in text content", () => {
@@ -41,8 +42,8 @@ describe("unformat", () => {
             unformat(
                 `<div>
                     text     \ufeff     
-                </div>`
-            )
+                </div>`,
+            ),
         ).toBe(`<div>text     \ufeff</div>`);
     });
     test("should not remove spaces within an attribute", () => {
@@ -75,7 +76,7 @@ describe("unformat", () => {
                         </b>
                     </p>
                 </fake-node>
-            `)
+            `),
         ).toBe(
             `<div>` +
                 `abc
@@ -99,7 +100,7 @@ describe("unformat", () => {
                 `vwx` +
                 `</b>` +
                 `</p>` +
-                `</fake-node>`
+                `</fake-node>`,
         );
     });
 });

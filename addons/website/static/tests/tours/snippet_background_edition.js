@@ -51,7 +51,9 @@ function addCheck(steps, checkX, checkNoX, xType, noSwitch = false) {
 
     const name = typeToName(xType);
     const selectorCheckX = checkX && `[data-color="${checkX}"].selected`;
-    const selectorCheckNoX = checkNoX ? `[data-color="${checkNoX}"]:not(.selected)` : null;
+    const selectorCheckNoX = checkNoX
+        ? `[data-color="${checkNoX}"]:not(.selected)`
+        : null;
 
     const step = {
         trigger: selectorCheckX || selectorCheckNoX,
@@ -112,7 +114,7 @@ function updateAndCheckCustomGradient({ updateStep, checkGradient }) {
         checkGradient,
         checkGradient !== gradients[0] && gradients[0],
         "gradient",
-        true
+        true,
     );
     return steps;
 }
@@ -239,14 +241,14 @@ registerWebsitePreviewTour(
             trigger: `:iframe .${snippets[0].id}.o_cc1`,
             run: function () {
                 const parts = backgroundImageCssToParts(
-                    getComputedStyle(this.anchor)["background-image"]
+                    getComputedStyle(this.anchor)["background-image"],
                 );
                 if (!parts.url || !parts.url.startsWith("url(")) {
                     throw new Error("An image should have been added as background.");
                 }
                 if (parts.gradient !== gradients[1]) {
                     throw new Error(
-                        "The gradient should have been kept when adding the background image"
+                        "The gradient should have been kept when adding the background image",
                     );
                 }
             },
@@ -261,10 +263,12 @@ registerWebsitePreviewTour(
             finalSelector: `:iframe .${snippets[0].id}.o_cc1:not([style*="${gradients[1]}"])`,
             finalRun: function () {
                 const parts = backgroundImageCssToParts(
-                    getComputedStyle(this.anchor)["background-image"]
+                    getComputedStyle(this.anchor)["background-image"],
                 );
                 if (!parts.url || !parts.url.startsWith("url(")) {
-                    throw new Error("The image should have been kept when changing the gradient");
+                    throw new Error(
+                        "The image should have been kept when changing the gradient",
+                    );
                 }
                 if (parts.gradient !== gradients[0]) {
                     throw new Error("The gradient should have been changed");
@@ -315,7 +319,8 @@ registerWebsitePreviewTour(
                 content: "Delete step",
                 run: "click",
             },
-            checkGradient: "linear-gradient(135deg, rgb(203, 94, 238) 0%, rgb(75, 225, 236) 100%)",
+            checkGradient:
+                "linear-gradient(135deg, rgb(203, 94, 238) 0%, rgb(75, 225, 236) 100%)",
         }),
         // Linear
         ...updateAndCheckCustomGradient({
@@ -324,7 +329,8 @@ registerWebsitePreviewTour(
                 content: "Change angle",
                 run: "edit 50 && click .o_color_picker_inputs",
             },
-            checkGradient: "linear-gradient(50deg, rgb(203, 94, 238) 0%, rgb(75, 225, 236) 100%)",
+            checkGradient:
+                "linear-gradient(50deg, rgb(203, 94, 238) 0%, rgb(75, 225, 236) 100%)",
         }),
         // Radial
         ...updateAndCheckCustomGradient({
@@ -390,10 +396,12 @@ registerWebsitePreviewTour(
             finalSelector: `:iframe .${snippets[0].id}.o_cc1:not(.bg-${backgroundColors[1].code})`,
             finalRun() {
                 const parts = backgroundImageCssToParts(
-                    getComputedStyle(this.anchor)["background-image"]
+                    getComputedStyle(this.anchor)["background-image"],
                 );
                 if (!parts.url || !parts.url.startsWith("url(")) {
-                    throw new Error("The image should have been kept when re-adding the gradient");
+                    throw new Error(
+                        "The image should have been kept when re-adding the gradient",
+                    );
                 }
                 if (parts.gradient !== gradients[1]) {
                     throw new Error("The gradient should have been re-added");
@@ -418,5 +426,5 @@ registerWebsitePreviewTour(
             content:
                 "All color classes and properties should have been removed and image should still be applied",
         },
-    ]
+    ],
 );

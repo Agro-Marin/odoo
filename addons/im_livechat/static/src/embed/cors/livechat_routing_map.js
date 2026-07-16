@@ -28,13 +28,16 @@ livechatRoutingMap
     .add("/mail/rtc/channel/leave_call", "/im_livechat/cors/rtc/channel/leave_call")
     .add(
         "/mail/rtc/session/notify_call_members",
-        "/im_livechat/cors/rtc/session/notify_call_members"
+        "/im_livechat/cors/rtc/session/notify_call_members",
     )
     .add(
         "/mail/rtc/session/update_and_broadcast",
-        "/im_livechat/cors/rtc/session/update_and_broadcast"
+        "/im_livechat/cors/rtc/session/update_and_broadcast",
     )
-    .add("/im_livechat/visitor_leave_session", "/im_livechat/cors/visitor_leave_session")
+    .add(
+        "/im_livechat/visitor_leave_session",
+        "/im_livechat/cors/visitor_leave_session",
+    )
     .add("/im_livechat/get_session", "/im_livechat/cors/get_session")
     .add("/im_livechat/init", "/im_livechat/cors/init")
     .add("/im_livechat/feedback", "/im_livechat/cors/feedback")

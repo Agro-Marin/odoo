@@ -1,16 +1,24 @@
 import { MAIN_EMBEDDINGS } from "@html_editor/others/embedded_components/embedding_sets";
+import { EmbeddedFilePlugin } from "@html_editor/others/embedded_components/plugins/embedded_file_plugin/embedded_file_plugin";
 import { EMBEDDED_COMPONENT_PLUGINS, MAIN_PLUGINS } from "@html_editor/plugin_sets";
 import { isZwnbsp } from "@html_editor/utils/dom_info";
+import { nodeSize } from "@html_editor/utils/position";
 import { describe, expect, test } from "@odoo/hoot";
-import { animationFrame, click, press, queryAll, queryOne, waitFor } from "@odoo/hoot-dom";
+import {
+    animationFrame,
+    click,
+    press,
+    queryAll,
+    queryOne,
+    waitFor,
+} from "@odoo/hoot-dom";
 import { onRpc, patchWithCleanup } from "@web/../tests/web_test_helpers";
+
 import { setupEditor, testEditor } from "./_helpers/editor.js";
 import { getContent } from "./_helpers/selection.js";
+import { expandToolbar } from "./_helpers/toolbar.js";
 import { deleteBackward, insertText } from "./_helpers/user_actions.js";
 import { execCommand } from "./_helpers/userCommands.js";
-import { expandToolbar } from "./_helpers/toolbar.js";
-import { nodeSize } from "@html_editor/utils/position";
-import { EmbeddedFilePlugin } from "@html_editor/others/embedded_components/plugins/embedded_file_plugin/embedded_file_plugin";
 
 const configWithEmbeddedFile = {
     Plugins: [
@@ -78,7 +86,7 @@ describe("file command", () => {
             await waitFor('.o_file_box .o_file_name_container:contains("file.txt")');
 
             const [fileNameEl1, fileNameEl2] = queryAll(
-                ".o_file_box .o_file_name_container .o_link_readonly"
+                ".o_file_box .o_file_name_container .o_link_readonly",
             );
 
             // File names are read-only by default.
@@ -141,7 +149,9 @@ describe("file command", () => {
             execCommand(editor, "uploadFile");
             await waitFor('.o_file_box .o_file_name_container:contains("file.txt")');
 
-            const fileNameEl = queryOne(".o_file_box .o_file_name_container .o_link_readonly");
+            const fileNameEl = queryOne(
+                ".o_file_box .o_file_name_container .o_link_readonly",
+            );
 
             // File name is read-only by default.
             expect(fileNameEl).toHaveAttribute("contenteditable", "false");
@@ -175,7 +185,9 @@ describe("file command", () => {
             execCommand(editor, "uploadFile");
             await waitFor('.o_file_box .o_file_name_container:contains("file.txt")');
 
-            const fileNameEl = queryOne(".o_file_box .o_file_name_container .o_link_readonly");
+            const fileNameEl = queryOne(
+                ".o_file_box .o_file_name_container .o_link_readonly",
+            );
 
             // Enable editing on the file name.
             await click(fileNameEl);
@@ -209,7 +221,9 @@ describe("file command", () => {
             execCommand(editor, "uploadFile");
             await waitFor('.o_file_box .o_file_name_container:contains("file.txt")');
 
-            const fileNameEl = queryOne(".o_file_box .o_file_name_container .o_link_readonly");
+            const fileNameEl = queryOne(
+                ".o_file_box .o_file_name_container .o_link_readonly",
+            );
 
             // Enable editing on the file name.
             await click(fileNameEl);
@@ -312,7 +326,9 @@ describe("document tab in media dialog", () => {
             await click(".nav-link:contains('Documents')");
             await animationFrame();
             await click(".o_we_attachment_highlight .o_button_area");
-            expect(".odoo-editor-editable .o_file_box a:contains('file.txt')").toHaveCount(1);
+            expect(
+                ".odoo-editor-editable .o_file_box a:contains('file.txt')",
+            ).toHaveCount(1);
         });
     });
 });
@@ -332,7 +348,9 @@ describe("powerbutton", () => {
     });
 
     test("file powerbutton uploads a file directly via the system's selector (embedded component)", async () => {
-        const { editor } = await setupEditor("<p>[]<br></p>", { config: configWithEmbeddedFile });
+        const { editor } = await setupEditor("<p>[]<br></p>", {
+            config: configWithEmbeddedFile,
+        });
         const mockedUpload = patchUpload(editor);
         // Click on the upload powerbutton.
         await click(".power_button.fa-upload");
@@ -378,14 +396,14 @@ describe("zero width no-break space", () => {
     test("should not add two contiguous ZWNBSP between two file cards (2)", async () => {
         const { el } = await setupEditor(
             '<p>abc<span data-embedded="file" class="o_file_box" contenteditable="false"></span>x[]<span data-embedded="file" class="o_file_box" contenteditable="false"></span></p>',
-            { config: { ...configWithEmbeddedFile, resources: {} } } // disable embedded component rendering
+            { config: { ...configWithEmbeddedFile, resources: {} } }, // disable embedded component rendering
         );
         expect(getContent(el)).toBe(
-            '<p>abc\ufeff<span data-embedded="file" class="o_file_box" contenteditable="false"></span>\ufeffx[]\ufeff<span data-embedded="file" class="o_file_box" contenteditable="false"></span>\ufeff</p>'
+            '<p>abc\ufeff<span data-embedded="file" class="o_file_box" contenteditable="false"></span>\ufeffx[]\ufeff<span data-embedded="file" class="o_file_box" contenteditable="false"></span>\ufeff</p>',
         );
         press("Backspace");
         expect(getContent(el)).toBe(
-            '<p>abc\ufeff<span data-embedded="file" class="o_file_box" contenteditable="false"></span>\ufeff[]<span data-embedded="file" class="o_file_box" contenteditable="false"></span>\ufeff</p>'
+            '<p>abc\ufeff<span data-embedded="file" class="o_file_box" contenteditable="false"></span>\ufeff[]<span data-embedded="file" class="o_file_box" contenteditable="false"></span>\ufeff</p>',
         );
     });
 });
@@ -393,10 +411,10 @@ describe("zero width no-break space", () => {
 test("Should delete the file box", async () => {
     const { el } = await setupEditor(
         '<p>[ab<span data-embedded="file" class="o_file_box" contenteditable="false"></span>x<span data-embedded="file" class="o_file_box" contenteditable="false"></span>]</p>',
-        { config: { ...configWithEmbeddedFile, resources: {} } } // disable embedded component rendering
+        { config: { ...configWithEmbeddedFile, resources: {} } }, // disable embedded component rendering
     );
     press("Backspace");
     expect(getContent(el)).toBe(
-        `<p o-we-hint-text='Type "/" for commands' class="o-we-hint">[]<br></p>`
+        `<p o-we-hint-text='Type "/" for commands' class="o-we-hint">[]<br></p>`,
     );
 });

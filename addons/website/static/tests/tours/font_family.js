@@ -1,5 +1,5 @@
-import { registerWebsitePreviewTour, goToTheme } from "@website/js/tours/tour_utils";
 import { patch } from "@web/core/utils/patch";
+import { goToTheme, registerWebsitePreviewTour } from "@website/js/tours/tour_utils";
 
 registerWebsitePreviewTour(
     "website_font_family",
@@ -21,7 +21,8 @@ registerWebsitePreviewTour(
             run: "click",
         },
         {
-            content: "Verify that the 'Arvo' font family is correctly applied to the heading.",
+            content:
+                "Verify that the 'Arvo' font family is correctly applied to the heading.",
             trigger: "button.dropdown-toggle span[style*='font-family: Arvo;']",
         },
         {
@@ -37,11 +38,13 @@ registerWebsitePreviewTour(
             // such as o_we_add_font_btn.
             run: function () {
                 const options = odoo.loader.modules.get(
-                    "@website/builder/plugins/customize_website_plugin"
+                    "@website/builder/plugins/customize_website_plugin",
                 )["CustomizeWebsitePlugin"];
                 patch(options.prototype, {
                     async reloadBundles() {
-                        console.error("The font family selector value get reload to its default.");
+                        console.error(
+                            "The font family selector value get reload to its default.",
+                        );
                     },
                 });
             },
@@ -60,5 +63,5 @@ registerWebsitePreviewTour(
             content: "Check that 'Arvo' font family is still applied and not reverted",
             trigger: "button:has(span[style*='font-family: Arvo;'])",
         },
-    ]
+    ],
 );

@@ -1,7 +1,10 @@
 /** @odoo-module native */
-import { registerThreadAction, threadActionsRegistry } from "@mail/core/common/thread_actions";
 import "@mail/discuss/call/common/thread_actions";
 
+import {
+    registerThreadAction,
+    threadActionsRegistry,
+} from "@mail/core/common/thread_actions";
 import { _t } from "@web/core/l10n/translation";
 import { patch } from "@web/core/utils/patch";
 

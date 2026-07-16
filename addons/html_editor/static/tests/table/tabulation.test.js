@@ -1,5 +1,6 @@
 import { describe, test } from "@odoo/hoot";
 import { press } from "@odoo/hoot-dom";
+
 import { testEditor } from "../_helpers/editor.js";
 import { unformat } from "../_helpers/format.js";
 

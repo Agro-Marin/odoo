@@ -15,9 +15,9 @@ import {
     serverState,
     waitForSteps,
 } from "@web/../tests/web_test_helpers";
-import { defineLivechatModels } from "./livechat_test_helpers.js";
-
 import { rpc } from "@web/core/network/rpc";
+
+import { defineLivechatModels } from "./livechat_test_helpers.js";
 
 describe.current.tags("desktop");
 defineLivechatModels();
@@ -27,7 +27,10 @@ test("Can execute help command on livechat channels", async () => {
     const guestId = pyEnv["mail.guest"].create({ name: "Visitor 11" });
     const channelId = pyEnv["discuss.channel"].create({
         channel_member_ids: [
-            Command.create({ partner_id: serverState.partnerId, livechat_member_type: "agent" }),
+            Command.create({
+                partner_id: serverState.partnerId,
+                livechat_member_type: "agent",
+            }),
             Command.create({ guest_id: guestId, livechat_member_type: "visitor" }),
         ],
         channel_type: "livechat",
@@ -49,7 +52,10 @@ test('Receives visitor typing status "is typing"', async () => {
     const guestId = pyEnv["mail.guest"].create({ name: "Visitor 20" });
     const channelId = pyEnv["discuss.channel"].create({
         channel_member_ids: [
-            Command.create({ partner_id: serverState.partnerId, livechat_member_type: "agent" }),
+            Command.create({
+                partner_id: serverState.partnerId,
+                livechat_member_type: "agent",
+            }),
             Command.create({ guest_id: guestId, livechat_member_type: "visitor" }),
         ],
         channel_type: "livechat",
@@ -64,7 +70,7 @@ test('Receives visitor typing status "is typing"', async () => {
         rpc("/discuss/channel/notify_typing", {
             is_typing: true,
             channel_id: channel.id,
-        })
+        }),
     );
     await contains(".o-discuss-Typing", { text: "Visitor 20 is typing..." });
 });

@@ -1,10 +1,16 @@
+import { BuilderAction } from "@html_builder/core/builder_action";
 import { Plugin } from "@html_editor/plugin";
 import { expect, test } from "@odoo/hoot";
 import { xml } from "@odoo/owl";
 import { contains } from "@web/../tests/web_test_helpers";
 import { uniqueId } from "@web/core/utils/functions";
-import { addOption, addPlugin, defineWebsiteModels, setupWebsiteBuilder } from "./website_helpers.js";
-import { BuilderAction } from "@html_builder/core/builder_action";
+
+import {
+    addOption,
+    addPlugin,
+    defineWebsiteModels,
+    setupWebsiteBuilder,
+} from "./website_helpers.js";
 
 defineWebsiteModels();
 

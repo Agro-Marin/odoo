@@ -1,10 +1,10 @@
 import { expect, test } from "@odoo/hoot";
+import { waitFor } from "@odoo/hoot-dom";
 import { contains } from "@web/../tests/web_test_helpers";
 import {
     defineWebsiteModels,
     setupWebsiteBuilder,
 } from "@website/../tests/builder/website_helpers";
-import { waitFor } from "@odoo/hoot-dom";
 
 defineWebsiteModels();
 
@@ -25,7 +25,9 @@ test("add parallax changes editing element", async () => {
     expect(":iframe section .s_parallax_bg").toHaveStyle("background-repeat: repeat");
 });
 test("add parallax removes classes on the original editing element", async () => {
-    await setupWebsiteAndOpenParallaxOptions({ editingElClasses: "o_modified_image_to_save" });
+    await setupWebsiteAndOpenParallaxOptions({
+        editingElClasses: "o_modified_image_to_save",
+    });
     await contains("[data-action-value='fixed']").click();
     expect(":iframe section").not.toHaveClass("o_modified_image_to_save");
     expect(":iframe section .s_parallax_bg").toHaveClass("o_modified_image_to_save");
@@ -77,14 +79,14 @@ test("remove parallax from inner block", async () => {
             </section>`);
     await contains(":iframe section#section_b").click();
     await contains(
-        "[data-container-title='SectionB'] [data-label='Scroll Effect'] button.o-dropdown"
+        "[data-container-title='SectionB'] [data-label='Scroll Effect'] button.o-dropdown",
     ).click();
     await contains("[data-action-value='top']").click();
     expect(":iframe section#section_b").toHaveClass("parallax");
     expect(":iframe section#section_b > .s_parallax_bg").toHaveCount();
 
     await contains(
-        "[data-container-title='SectionB'] [data-label='Scroll Effect'] button.o-dropdown"
+        "[data-container-title='SectionB'] [data-label='Scroll Effect'] button.o-dropdown",
     ).click();
     await contains("[data-action-value='none']").click();
     expect(":iframe section#section_b > .s_parallax_bg").not.toHaveCount();
@@ -106,7 +108,7 @@ test("parallax scroll effect 'none' doesn't remove the color filter", async () =
 
 async function setupWebsiteAndOpenParallaxOptions(
     { editingElClasses = "" } = {},
-    builderOptions = {}
+    builderOptions = {},
 ) {
     const backgroundImageUrl = "url('/web/image/123/transparent.png')";
     const editingElClass = editingElClasses ? `class=${editingElClasses}` : "";
@@ -114,7 +116,7 @@ async function setupWebsiteAndOpenParallaxOptions(
         `
         <section ${editingElClass} style="background-image: ${backgroundImageUrl}; width: 500px; height:500px">
         </section>`,
-        builderOptions
+        builderOptions,
     );
     await contains(":iframe section").click();
     await websiteBuilder.waitSidebarUpdated();

@@ -97,7 +97,10 @@ export const stepUtils = {
                 run: "click",
             },
         ].map((step) =>
-            this.addDebugHelp(this._getHelpMessage("goToApp", dataMenuXmlid, description), step)
+            this.addDebugHelp(
+                this._getHelpMessage("goToApp", dataMenuXmlid, description),
+                step,
+            ),
         );
     },
 
@@ -115,9 +118,11 @@ export const stepUtils = {
                 trigger: ".o_statusbar_buttons",
                 async run({ queryFirst, click }) {
                     const buttonOutSideDropdownMenu = queryFirst(
-                        `.o_statusbar_buttons button:enabled:contains('${innerTextButton}')`
+                        `.o_statusbar_buttons button:enabled:contains('${innerTextButton}')`,
                     );
-                    const node = queryFirst(".o_statusbar_buttons button:has(.oi-ellipsis-v)");
+                    const node = queryFirst(
+                        ".o_statusbar_buttons button:has(.oi-ellipsis-v)",
+                    );
                     if (!buttonOutSideDropdownMenu && node) {
                         await click(node);
                     }
@@ -128,13 +133,17 @@ export const stepUtils = {
                 content: description,
                 tooltipPosition: "bottom",
                 run: "click",
-            }
+            },
         );
         return steps.map((step) =>
             this.addDebugHelp(
-                this._getHelpMessage("statusbarButtonsSteps", innerTextButton, description),
-                step
-            )
+                this._getHelpMessage(
+                    "statusbarButtonsSteps",
+                    innerTextButton,
+                    description,
+                ),
+                step,
+            ),
         );
     },
 
@@ -170,9 +179,13 @@ export const stepUtils = {
             },
         ].map((step) =>
             this.addDebugHelp(
-                this._getHelpMessage("mobileKanbanSearchMany2X", modalTitle, valueSearched),
-                step
-            )
+                this._getHelpMessage(
+                    "mobileKanbanSearchMany2X",
+                    modalTitle,
+                    valueSearched,
+                ),
+                step,
+            ),
         );
     },
     /**

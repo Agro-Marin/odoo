@@ -1,5 +1,8 @@
-import { testSwitchWebsite, registerWebsitePreviewTour } from "@website/js/tours/tour_utils";
 import { registry } from "@web/core/registry";
+import {
+    registerWebsitePreviewTour,
+    testSwitchWebsite,
+} from "@website/js/tours/tour_utils";
 
 // TODO: This part should be moved in a QUnit test
 const checkKanbanGroupBy = [
@@ -116,7 +119,8 @@ const checkWebsiteFilters = [
         run: "click",
     },
     {
-        content: "Check if we got an extra homepage that does not belong to any website",
+        content:
+            "Check if we got an extra homepage that does not belong to any website",
         trigger:
             ".o_list_table .o_data_row .o_data_cell[name=name]:contains('Home'):eq(0) " +
             "~ .o_data_cell[name=website_id]:empty",
@@ -231,7 +235,8 @@ registerWebsitePreviewTour(
         },
         {
             content: "Click on Pages",
-            trigger: 'a.dropdown-item[data-menu-xmlid="website.menu_website_pages_list"]',
+            trigger:
+                'a.dropdown-item[data-menu-xmlid="website.menu_website_pages_list"]',
             run: "click",
         },
         ...checkKanbanGroupBy,
@@ -266,7 +271,7 @@ registerWebsitePreviewTour(
             content: "Check that all pages have been removed",
             trigger: ".o_list_renderer tbody:not(:has([data-id]))",
         },
-    ]
+    ],
 );
 
 registerWebsitePreviewTour(
@@ -283,7 +288,8 @@ registerWebsitePreviewTour(
         },
         {
             content: "Click on Pages",
-            trigger: 'a.dropdown-item[data-menu-xmlid="website.menu_website_pages_list"]',
+            trigger:
+                'a.dropdown-item[data-menu-xmlid="website.menu_website_pages_list"]',
             run: " click",
         },
         {
@@ -293,7 +299,7 @@ registerWebsitePreviewTour(
                 "~ .o_data_cell[name=website_id]:contains('Test Website')",
         },
         ...verifySelectedWebsiteFilter("Test Website"),
-    ]
+    ],
 );
 
 registry.category("web_tour.tours").add("website_page_manager_direct_access", {
@@ -322,7 +328,8 @@ registerWebsitePreviewTour(
         },
         {
             content: "Click on Pages",
-            trigger: 'a.dropdown-item[data-menu-xmlid="website.menu_website_pages_list"]',
+            trigger:
+                'a.dropdown-item[data-menu-xmlid="website.menu_website_pages_list"]',
             run: "click",
         },
         ...duplicateSinglePage,
@@ -330,5 +337,5 @@ registerWebsitePreviewTour(
         {
             trigger: "td:contains('/test-duplicate-2-1')",
         },
-    ]
+    ],
 );

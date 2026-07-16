@@ -34,8 +34,13 @@ class TimelineListOptionPlugin extends Plugin {
             selector: ".s_timeline_list_row",
             dropNear: ".s_timeline_list_row",
         },
-        is_movable_selector: { selector: ".s_timeline_list_row", direction: "vertical" },
+        is_movable_selector: {
+            selector: ".s_timeline_list_row",
+            direction: "vertical",
+        },
     };
 }
 
-registry.category("website-plugins").add(TimelineListOptionPlugin.id, TimelineListOptionPlugin);
+registry
+    .category("website-plugins")
+    .add(TimelineListOptionPlugin.id, TimelineListOptionPlugin);

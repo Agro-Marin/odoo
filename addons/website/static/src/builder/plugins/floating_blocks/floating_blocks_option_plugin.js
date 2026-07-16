@@ -1,12 +1,12 @@
 /** @odoo-module native */
-import { Plugin } from "@html_editor/plugin";
-import { registry } from "@web/core/registry";
-import { withSequence } from "@html_editor/utils/resource";
-import { after } from "@html_builder/utils/option_sequence";
-import { DEVICE_VISIBILITY } from "@website/builder/option_sequence";
-import { renderToElement } from "@web/core/utils/render";
 import { BuilderAction } from "@html_builder/core/builder_action";
 import { BaseOptionComponent } from "@html_builder/core/utils";
+import { after } from "@html_builder/utils/option_sequence";
+import { Plugin } from "@html_editor/plugin";
+import { withSequence } from "@html_editor/utils/resource";
+import { registry } from "@web/core/registry";
+import { renderToElement } from "@web/core/utils/render";
+import { DEVICE_VISIBILITY } from "@website/builder/option_sequence";
 
 export class FloatingBlocksOption extends BaseOptionComponent {
     static template = "website.FloatingBlocksOption";
@@ -54,4 +54,6 @@ export class AddFloatingBlockCardAction extends BuilderAction {
     }
 }
 
-registry.category("website-plugins").add(FloatingBlocksOptionPlugin.id, FloatingBlocksOptionPlugin);
+registry
+    .category("website-plugins")
+    .add(FloatingBlocksOptionPlugin.id, FloatingBlocksOptionPlugin);

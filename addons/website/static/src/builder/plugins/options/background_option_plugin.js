@@ -1,10 +1,10 @@
 /** @odoo-module native */
-import { Plugin } from "@html_editor/plugin";
-import { registry } from "@web/core/registry";
-import { withSequence } from "@html_editor/utils/resource";
 import { BuilderAction } from "@html_builder/core/builder_action";
-import { _t } from "@web/core/l10n/translation";
 import { VideoSelector } from "@html_editor/main/media/media_dialog/video_selector";
+import { Plugin } from "@html_editor/plugin";
+import { withSequence } from "@html_editor/utils/resource";
+import { _t } from "@web/core/l10n/translation";
+import { registry } from "@web/core/registry";
 
 /**
  * @typedef { Object } WebsiteBackgroundVideoShared
@@ -128,7 +128,9 @@ export class ToggleBgVideoAction extends BuilderAction {
     static id = "toggleBgVideo";
     static dependencies = ["websiteBackgroundVideoPlugin"];
     load(context) {
-        return this.dependencies.websiteBackgroundVideoPlugin.loadReplaceBackgroundVideo(context);
+        return this.dependencies.websiteBackgroundVideoPlugin.loadReplaceBackgroundVideo(
+            context,
+        );
     }
     apply({ editingElement, params, loadResult }) {
         this.dependencies.websiteBackgroundVideoPlugin.applyReplaceBackgroundVideo({
@@ -158,10 +160,14 @@ export class ReplaceBgVideoAction extends BuilderAction {
     static id = "replaceBgVideo";
     static dependencies = ["websiteBackgroundVideoPlugin"];
     load(context) {
-        return this.dependencies.websiteBackgroundVideoPlugin.loadReplaceBackgroundVideo(context);
+        return this.dependencies.websiteBackgroundVideoPlugin.loadReplaceBackgroundVideo(
+            context,
+        );
     }
     apply(context) {
-        return this.dependencies.websiteBackgroundVideoPlugin.applyReplaceBackgroundVideo(context);
+        return this.dependencies.websiteBackgroundVideoPlugin.applyReplaceBackgroundVideo(
+            context,
+        );
     }
 }
 

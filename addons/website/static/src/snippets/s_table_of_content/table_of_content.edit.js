@@ -1,5 +1,6 @@
 /** @odoo-module native */
 import { registry } from "@web/core/registry";
+
 import { TableOfContent } from "./table_of_content.js";
 
 export const TableOfContentEdit = (I) =>

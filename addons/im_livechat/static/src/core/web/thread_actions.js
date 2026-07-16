@@ -1,9 +1,7 @@
 /** @odoo-module native */
-import { registerThreadAction } from "@mail/core/common/thread_actions";
-
 import { LIVECHAT_INFO_DEFAULT_OPEN_LS } from "@im_livechat/core/public_web/discuss_app_model_patch";
 import { LivechatChannelInfoList } from "@im_livechat/core/web/livechat_channel_info_list";
-
+import { registerThreadAction } from "@mail/core/common/thread_actions";
 import { _t } from "@web/core/l10n/translation";
 
 registerThreadAction("livechat-info", {
@@ -43,7 +41,7 @@ registerThreadAction("livechat-status", {
     panelOuterClass: "o-livechat-ChannelInfoList bg-inherit",
     icon: ({ store, thread }) => {
         const btn = store.livechatStatusButtons.find(
-            (btn) => btn.status === thread.livechat_status
+            (btn) => btn.status === thread.livechat_status,
         );
         if (!btn) {
             return undefined;
@@ -71,12 +69,12 @@ registerThreadAction("join-livechat-needing-help", {
         const hasJoined = await store.env.services.orm.call(
             "discuss.channel",
             "livechat_join_channel_needing_help",
-            [[thread.id]]
+            [[thread.id]],
         );
         if (!hasJoined && thread.isDisplayed) {
             store.env.services.notification.add(
                 _t("Someone has already joined this conversation"),
-                { type: "warning" }
+                { type: "warning" },
             );
         }
     },

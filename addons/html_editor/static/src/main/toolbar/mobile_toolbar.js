@@ -1,5 +1,6 @@
 /** @odoo-module native */
 import { Component, onMounted, useExternalListener, useRef } from "@odoo/owl";
+
 import { Toolbar } from "./toolbar.js";
 
 export class ToolbarMobile extends Component {
@@ -25,8 +26,16 @@ export class ToolbarMobile extends Component {
             // iframe origin or sandbox restriction
             this.targetWindow = window;
         }
-        useExternalListener(this.targetWindow.visualViewport, "resize", this.fixToolbarPosition);
-        useExternalListener(this.targetWindow.visualViewport, "scroll", this.fixToolbarPosition);
+        useExternalListener(
+            this.targetWindow.visualViewport,
+            "resize",
+            this.fixToolbarPosition,
+        );
+        useExternalListener(
+            this.targetWindow.visualViewport,
+            "scroll",
+            this.fixToolbarPosition,
+        );
 
         onMounted(() => this.fixToolbarPosition());
     }
@@ -38,7 +47,8 @@ export class ToolbarMobile extends Component {
         const visualViewport = this.targetWindow.visualViewport;
         const keyboardHeight = Math.max(
             0,
-            this.targetWindow.innerHeight - (visualViewport.height + visualViewport.offsetTop)
+            this.targetWindow.innerHeight -
+                (visualViewport.height + visualViewport.offsetTop),
         );
 
         this.toolbar.el.style.bottom = `${keyboardHeight}px`;

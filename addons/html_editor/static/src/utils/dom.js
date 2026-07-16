@@ -1,4 +1,10 @@
 /** @odoo-module native */
+import {
+    baseContainerGlobalSelector,
+    createBaseContainer,
+} from "@html_editor/utils/base_container";
+
+import { isEmptyBlock, isPhrasingContent } from "../utils/dom_info.js";
 import { closestBlock, isBlock } from "./blocks.js";
 import {
     isElement,
@@ -10,14 +16,9 @@ import {
     nextLeaf,
     previousLeaf,
 } from "./dom_info.js";
-import { callbacksForCursorUpdate } from "./selection.js";
-import { isEmptyBlock, isPhrasingContent } from "../utils/dom_info.js";
 import { childNodes, descendants } from "./dom_traversal.js";
 import { childNodeIndex, DIRECTIONS, nodeSize } from "./position.js";
-import {
-    baseContainerGlobalSelector,
-    createBaseContainer,
-} from "@html_editor/utils/base_container";
+import { callbacksForCursorUpdate } from "./selection.js";
 
 /** @typedef {import("@html_editor/core/selection_plugin").Cursors} Cursors */
 
@@ -53,7 +54,7 @@ export function makeContentsInline(node) {
  */
 export function wrapInlinesInBlocks(
     element,
-    { baseContainerNodeName = "P", cursors = { update: () => {} } } = {}
+    { baseContainerNodeName = "P", cursors = { update: () => {} } } = {},
 ) {
     // Helpers to manipulate preserving selection.
     const wrapInBlock = (node, cursors) => {
@@ -75,7 +76,10 @@ export function wrapInlinesInBlocks(
         return block;
     };
     const appendToCurrentBlock = (currentBlock, node, cursors) => {
-        if (currentBlock.matches(baseContainerGlobalSelector) && !isPhrasingContent(node)) {
+        if (
+            currentBlock.matches(baseContainerGlobalSelector) &&
+            !isPhrasingContent(node)
+        ) {
             const block = currentBlock.ownerDocument.createElement("DIV");
             cursors.update(callbacksForCursorUpdate.before(currentBlock, block));
             currentBlock.before(block);
@@ -169,7 +173,11 @@ export function removeStyle(element, ...styleProperties) {
  */
 export function fillEmpty(el) {
     const document = el.ownerDocument;
-    if (!isVisible(el) && !el.hasAttribute("data-oe-zws-empty-inline") && !isBlock(el)) {
+    if (
+        !isVisible(el) &&
+        !el.hasAttribute("data-oe-zws-empty-inline") &&
+        !isBlock(el)
+    ) {
         const zws = document.createTextNode("\u200B");
         el.appendChild(zws);
         el.setAttribute("data-oe-zws-empty-inline", "");
@@ -277,7 +285,9 @@ export function cleanTextNode(node, char, cursors) {
     } else {
         cursors?.update((cursor) => {
             if (cursor.node === node) {
-                cursor.offset -= removedIndexes.filter((index) => cursor.offset > index).length;
+                cursor.offset -= removedIndexes.filter(
+                    (index) => cursor.offset > index,
+                ).length;
             }
         });
     }
@@ -358,8 +368,11 @@ export function removeInvisibleWhitespace(el, cursors) {
         new RegExp(`^${whitespaceRegex.source}+`),
         new RegExp(`${whitespaceRegex.source}+$`),
     ].map((regex) => (node) => node?.textContent.match(regex)?.[0]?.length || 0);
-    const isInlineElement = (node) => node?.nodeType === Node.ELEMENT_NODE && !isBlock(node);
-    const textChildren = descendants(el).filter((child) => child.nodeType === Node.TEXT_NODE);
+    const isInlineElement = (node) =>
+        node?.nodeType === Node.ELEMENT_NODE && !isBlock(node);
+    const textChildren = descendants(el).filter(
+        (child) => child.nodeType === Node.TEXT_NODE,
+    );
     let removedTrailingSpaceBefore = false;
     let index = 0;
     for (const child of textChildren) {
@@ -387,7 +400,7 @@ export function removeInvisibleWhitespace(el, cursors) {
         child.textContent = child.textContent
             .substring(
                 leadingWhitespace,
-                child.textContent.length - trailingWhitespace || leadingWhitespace
+                child.textContent.length - trailingWhitespace || leadingWhitespace,
             )
             .replace(new RegExp(`^${whitespaceRegex.source}+`), " ")
             .replace(new RegExp(`${whitespaceRegex.source}+$`), " ");

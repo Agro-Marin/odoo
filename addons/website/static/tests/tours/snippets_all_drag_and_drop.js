@@ -1,11 +1,11 @@
-import {
-    clickOnEditAndWaitEditMode,
-    insertSnippet,
-    goBackToBlocks,
-    clickOnSnippet,
-    changeOptionInPopover,
-} from "@website/js/tours/tour_utils";
 import { registry } from "@web/core/registry";
+import {
+    changeOptionInPopover,
+    clickOnEditAndWaitEditMode,
+    clickOnSnippet,
+    goBackToBlocks,
+    insertSnippet,
+} from "@website/js/tours/tour_utils";
 
 export const SUB_SNIPPET_TEMPLATES = {
     s_masonry_block_default_template: "s_masonry_block",
@@ -22,12 +22,14 @@ const DROP_IN_ONLY_SNIPPETS = {
 };
 
 // Extract the snippets names from the URL parameters.
-let snippetsNames = new URL(document.location.href).searchParams.get("snippets_names") || "";
+let snippetsNames =
+    new URL(document.location.href).searchParams.get("snippets_names") || "";
 // When this test is loaded in the backend, the search params aren't as easy to
 // read as before. Little trickery to make this test run.
 const searchParams = new URLSearchParams(window.location.search).get("path");
 if (searchParams) {
-    snippetsNames = new URLSearchParams(searchParams.split("/")[1]).get("snippets_names") || "";
+    snippetsNames =
+        new URLSearchParams(searchParams.split("/")[1]).get("snippets_names") || "";
     snippetsNames = snippetsNames.split(",");
 }
 
@@ -47,10 +49,12 @@ registry.category("web_tour.tours").add("snippets_all_drag_and_drop", {
                 "s_newsletter_subscribe_popup",
                 "s_newsletter_benefits_popup",
             ].includes(snippet.name);
-            const isDropInOnlySnippet = Object.keys(DROP_IN_ONLY_SNIPPETS).includes(snippet.name);
+            const isDropInOnlySnippet = Object.keys(DROP_IN_ONLY_SNIPPETS).includes(
+                snippet.name,
+            );
             const snippetKey = SUB_SNIPPET_TEMPLATES[snippet.name] || snippet.name;
 
-            let draggableElSelector = "";
+            let draggableElSelector;
             if (snippet.group) {
                 draggableElSelector = `.o_block_tab:not(.o_we_ongoing_insertion) #snippet_groups [data-snippet-group="${snippet.group}"] .o_snippet_thumbnail`;
             } else {
@@ -132,7 +136,7 @@ registry.category("web_tour.tours").add("snippets_all_drag_and_drop", {
                     // without us noticing it.
                     if (steps.length < 500) {
                         console.error(
-                            `This test is not behaving as it should, got only ${steps.length} steps.`
+                            `This test is not behaving as it should, got only ${steps.length} steps.`,
                         );
                     }
                 },
@@ -140,7 +144,11 @@ registry.category("web_tour.tours").add("snippets_all_drag_and_drop", {
             // This first step is needed as it will be used later for inner snippets.
             // Without this, it will dropped inside the footer and will need an extra
             // selector.
-            ...insertSnippet({ id: "s_text_image", name: "Text - Image", groupName: "Content" }),
+            ...insertSnippet({
+                id: "s_text_image",
+                name: "Text - Image",
+                groupName: "Content",
+            }),
             {
                 content: "Click on s_text_image snippet",
                 trigger: ":iframe #wrap.o_editable [data-snippet='s_text_image']",

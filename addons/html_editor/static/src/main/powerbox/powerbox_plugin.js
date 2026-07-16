@@ -1,13 +1,14 @@
 /** @odoo-module native */
 import { Plugin } from "@html_editor/plugin";
+import { baseContainerGlobalSelector } from "@html_editor/utils/base_container";
+import { closestElement } from "@html_editor/utils/dom_traversal";
+import { withSequence } from "@html_editor/utils/resource";
 import { reactive } from "@odoo/owl";
 import { _t } from "@web/core/l10n/translation";
 import { rotate } from "@web/core/utils/collections/arrays";
-import { Powerbox } from "./powerbox.js";
-import { withSequence } from "@html_editor/utils/resource";
 import { omit, pick } from "@web/core/utils/collections/objects";
-import { baseContainerGlobalSelector } from "@html_editor/utils/base_container";
-import { closestElement } from "@html_editor/utils/dom_traversal";
+
+import { Powerbox } from "./powerbox.js";
 
 /** @typedef { import("@html_editor/core/selection_plugin").EditorSelection } EditorSelection */
 /** @typedef { import("@html_editor/core/user_command_plugin").UserCommand } UserCommand */
@@ -138,8 +139,13 @@ export class PowerboxPlugin extends Plugin {
      */
     getAvailablePowerboxCommands() {
         const selection = this.dependencies.selection.getEditableSelection();
-        const blacklistSelector = this.getResource("powerbox_blacklist_selectors").join(", ");
-        if (blacklistSelector && closestElement(selection.anchorNode).matches(blacklistSelector)) {
+        const blacklistSelector = this.getResource("powerbox_blacklist_selectors").join(
+            ", ",
+        );
+        if (
+            blacklistSelector &&
+            closestElement(selection.anchorNode).matches(blacklistSelector)
+        ) {
             return [];
         }
         return this.powerboxCommands.filter((cmd) => cmd.isAvailable(selection));
@@ -154,7 +160,7 @@ export class PowerboxPlugin extends Plugin {
         /** @type {PowerboxCategory[]} */
         const categories = this.getResource("powerbox_categories");
         const categoryDict = Object.fromEntries(
-            categories.map((category) => [category.id, category])
+            categories.map((category) => [category.id, category]),
         );
         return powerboxItems.map((/** @type {PowerboxItem} */ item) => {
             const command = this.dependencies.userCommand.getCommand(item.commandId);
@@ -178,7 +184,12 @@ export class PowerboxPlugin extends Plugin {
      * @param {Function} [params.onApplyCommand=() => {}]
      * @param {Function} [params.onClose=() => {}]
      */
-    openPowerbox({ commands, categories, onApplyCommand = () => {}, onClose = () => {} } = {}) {
+    openPowerbox({
+        commands,
+        categories,
+        onApplyCommand = () => {},
+        onClose = () => {},
+    } = {}) {
         this.closePowerbox();
         if (!commands.length) {
             return;
@@ -197,7 +208,7 @@ export class PowerboxPlugin extends Plugin {
             const orderCommands = [];
             for (const category of categories) {
                 orderCommands.push(
-                    ...commands.filter((command) => command.categoryId === category.id)
+                    ...commands.filter((command) => command.categoryId === category.id),
                 );
             }
             commands = orderCommands;
@@ -237,13 +248,21 @@ export class PowerboxPlugin extends Plugin {
             case "ArrowUp": {
                 ev.preventDefault();
                 ev.stopImmediatePropagation();
-                this.state.currentIndex = rotate(this.state.currentIndex, this.state.commands, -1);
+                this.state.currentIndex = rotate(
+                    this.state.currentIndex,
+                    this.state.commands,
+                    -1,
+                );
                 break;
             }
             case "ArrowDown": {
                 ev.preventDefault();
                 ev.stopImmediatePropagation();
-                this.state.currentIndex = rotate(this.state.currentIndex, this.state.commands, 1);
+                this.state.currentIndex = rotate(
+                    this.state.currentIndex,
+                    this.state.commands,
+                    1,
+                );
                 break;
             }
             case "ArrowLeft":

@@ -1,12 +1,13 @@
 import { describe, expect, test } from "@odoo/hoot";
 import { waitFor } from "@odoo/hoot-dom";
 import { animationFrame } from "@odoo/hoot-mock";
+import { markup } from "@odoo/owl";
+import { htmlJoin } from "@web/core/utils/dom/html";
+import { range } from "@web/core/utils/format/numbers";
+
 import { setupWysiwyg } from "./_helpers/editor.js";
 import { getContent, setContent, setSelection } from "./_helpers/selection.js";
 import { expectElementCount } from "./_helpers/ui_expectations.js";
-import { range } from "@web/core/utils/format/numbers";
-import { htmlJoin } from "@web/core/utils/dom/html";
-import { markup } from "@odoo/owl";
 
 describe("Wysiwyg Component", () => {
     test("Wysiwyg component can be instantiated", async () => {
@@ -45,7 +46,9 @@ describe("Wysiwyg Component", () => {
             iframe: true,
             config: {
                 content: htmlJoin(
-                    range(0, 30).map(() => markup`<p>editable text inside the iframe</p>`)
+                    range(0, 30).map(
+                        () => markup`<p>editable text inside the iframe</p>`,
+                    ),
                 ),
             },
         });

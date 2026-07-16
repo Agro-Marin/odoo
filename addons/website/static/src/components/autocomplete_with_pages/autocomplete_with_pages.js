@@ -1,6 +1,6 @@
 /** @odoo-module native */
-import { AutoComplete } from "@web/components/autocomplete/autocomplete";
 import { useEffect } from "@odoo/owl";
+import { AutoComplete } from "@web/components/autocomplete/autocomplete";
 
 export class AutoCompleteWithPages extends AutoComplete {
     static props = {
@@ -37,7 +37,7 @@ export class AutoCompleteWithPages extends AutoComplete {
                     input.removeEventListener("focus", targetFocus);
                 };
             },
-            () => [this.targetDropdown, this.inputRef.el]
+            () => [this.targetDropdown, this.inputRef.el],
         );
     }
 

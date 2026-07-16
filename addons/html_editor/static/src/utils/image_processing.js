@@ -1,12 +1,21 @@
 /** @odoo-module native */
+import { loadBundle } from "@web/core/assets";
 import { rpc } from "@web/core/network/rpc";
 import { pick } from "@web/core/utils/collections/objects";
-import { loadBundle } from "@web/core/assets";
+
 import { getImageSrc } from "./image.js";
 
 // Fields returned by cropperjs 'getData' method, also need to be passed when
 // initializing the cropper to reuse the previous crop.
-export const cropperDataFields = ["x", "y", "width", "height", "rotate", "scaleX", "scaleY"];
+export const cropperDataFields = [
+    "x",
+    "y",
+    "width",
+    "height",
+    "rotate",
+    "scaleX",
+    "scaleY",
+];
 export const cropperDataFieldsWithAspectRatio = [...cropperDataFields, "aspectRatio"];
 export const isGif = (mimetype) => mimetype === "image/gif";
 
@@ -117,14 +126,17 @@ async function _updateImageData(src, key = "objectURL") {
     if (currentImageData && currentImageData[key]) {
         return currentImageData[key];
     }
-    let value = "";
+    let value;
     const blob = await fetch(src).then((res) => res.blob());
     if (key === "dataURL") {
         value = await createDataURL(blob);
     } else {
         value = URL.createObjectURL(blob);
     }
-    imageCache.set(src, Object.assign(currentImageData || {}, { [key]: value, size: blob.size }));
+    imageCache.set(
+        src,
+        Object.assign(currentImageData || {}, { [key]: value, size: blob.size }),
+    );
     return value;
 }
 
@@ -164,7 +176,7 @@ export async function activateCropper(image, aspectRatio, dataset, { onReady } =
             Object.entries(pick(dataset, ...cropperDataFields)).map(([key, value]) => [
                 key,
                 parseFloat(value),
-            ])
+            ]),
         ),
         // Can't use 0 because it's falsy and cropperjs will then use its defaults (200x100)
         minContainerWidth: 1,
@@ -215,7 +227,9 @@ export async function loadImageInfo(el, attachmentSrc = "") {
     const srcUrl = new URL(src, docHref);
     let relativeSrc = decodeURI(srcUrl.pathname);
 
-    let match = relativeSrc.match(/\/(?:web_editor|html_editor)\/image_shape\/(\w+\.\w+)/);
+    let match = relativeSrc.match(
+        /\/(?:web_editor|html_editor)\/image_shape\/(\w+\.\w+)/,
+    );
     if (el.dataset.shape && match) {
         match = match[1];
         if (match.endsWith("_perspective")) {
@@ -231,7 +245,7 @@ export async function loadImageInfo(el, attachmentSrc = "") {
     const { original } = await rpc(
         "/html_editor/get_image_info",
         { src: relativeSrc },
-        { cache: true }
+        { cache: true },
     );
     // If src was an absolute "external" URL, we consider unlikely that its
     // relative part matches something from the DB and even if it does, nothing

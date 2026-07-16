@@ -1,12 +1,11 @@
 /** @odoo-module native */
+import { expirableStorage } from "@im_livechat/core/common/expirable_storage";
+import { GUEST_TOKEN_STORAGE_KEY } from "@im_livechat/embed/common/store_service_patch";
 import { livechatRoutingMap } from "@im_livechat/embed/cors/livechat_routing_map";
-
 import { browser } from "@web/core/browser/browser";
 import { rpc } from "@web/core/network/rpc";
 import { registry } from "@web/core/registry";
 import { session } from "@web/session";
-import { expirableStorage } from "@im_livechat/core/common/expirable_storage";
-import { GUEST_TOKEN_STORAGE_KEY } from "@im_livechat/embed/common/store_service_patch";
 
 (async function boot() {
     const { fetch } = browser;

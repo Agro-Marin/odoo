@@ -10,7 +10,10 @@ export class SaveTranslationPlugin extends Plugin {
     /** @type {import("plugins").WebsiteResources} */
     resources = {
         pre_save_handlers: this.saveDelayTranslations.bind(this),
-        save_elements_overrides: withSequence(20, this.saveTranslationElements.bind(this)),
+        save_elements_overrides: withSequence(
+            20,
+            this.saveTranslationElements.bind(this),
+        ),
     };
 
     async saveDelayTranslations(groupedDirtyElements) {
@@ -36,7 +39,7 @@ export class SaveTranslationPlugin extends Plugin {
                     record_id: [Number(els[0].dataset["oeId"])],
                     field_name: els[0].dataset["oeField"],
                     translations,
-                })
+                }),
             );
         }
         return Promise.all(updateTranslationProms);
@@ -50,12 +53,14 @@ export class SaveTranslationPlugin extends Plugin {
     async saveTranslationElements(els) {
         if (els[0].dataset["oeTranslationSourceSha"]) {
             const translations = {};
-            translations[this.services.website.currentWebsite.metadata.lang] = Object.assign(
-                {},
-                ...els.map((el) => ({
-                    [el.dataset["oeTranslationSourceSha"]]: this.getEscapedElement(el).innerHTML,
-                }))
-            );
+            translations[this.services.website.currentWebsite.metadata.lang] =
+                Object.assign(
+                    {},
+                    ...els.map((el) => ({
+                        [el.dataset["oeTranslationSourceSha"]]:
+                            this.getEscapedElement(el).innerHTML,
+                    })),
+                );
             return rpc("/website/field/translation/update", {
                 model: els[0].dataset["oeModel"],
                 record_id: [Number(els[0].dataset["oeId"])],
@@ -74,7 +79,7 @@ export class SaveTranslationPlugin extends Plugin {
         for (const element of allElements) {
             if (
                 element.matches(
-                    "object,iframe,script,style,[data-oe-model]:not([data-oe-model='ir.ui.view'])"
+                    "object,iframe,script,style,[data-oe-model]:not([data-oe-model='ir.ui.view'])",
                 )
             ) {
                 exclusion.push(element);

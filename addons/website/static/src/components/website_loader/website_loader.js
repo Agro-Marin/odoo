@@ -1,9 +1,9 @@
 /** @odoo-module native */
-import { rpc } from "@web/core/network/rpc";
-import { useBus, useService } from "@web/core/utils/hooks";
-import { sprintf } from "@web/core/utils/format/strings";
+import { Component, EventBus, markup, useEffect, useState } from "@odoo/owl";
 import { _t } from "@web/core/l10n/translation";
-import { EventBus, Component, markup, useEffect, useState } from "@odoo/owl";
+import { rpc } from "@web/core/network/rpc";
+import { sprintf } from "@web/core/utils/format/strings";
+import { useBus, useService } from "@web/core/utils/hooks";
 
 export class WebsiteLoader extends Component {
     static props = {
@@ -60,13 +60,15 @@ export class WebsiteLoader extends Component {
                     const messagesToDisplay = [...defaultMessages]; // Start with defaultMessages
                     if (selectedFeatures.length > 0) {
                         // Merge defaultMessages with the relevant waitingMessages
-                        messagesToDisplay.push(...this.getWaitingMessages(selectedFeatures));
+                        messagesToDisplay.push(
+                            ...this.getWaitingMessages(selectedFeatures),
+                        );
                     }
 
                     this.waitingMessages.splice(
                         0,
                         this.waitingMessages.length,
-                        ...messagesToDisplay
+                        ...messagesToDisplay,
                     );
 
                     // Request the number of modules/dependencies to install
@@ -79,7 +81,7 @@ export class WebsiteLoader extends Component {
                     };
                 }
             },
-            () => [this.state.selectedFeatures]
+            () => [this.state.selectedFeatures],
         );
 
         // Cycle through the waitingMessages every 6s
@@ -99,15 +101,21 @@ export class WebsiteLoader extends Component {
                     return () => clearInterval(messagesInterval);
                 }
             },
-            () => [this.waitingMessages.length]
+            () => [this.waitingMessages.length],
         );
 
         // Prevent user from closing/refreshing the window
         useEffect(
             (isVisible) => {
                 if (isVisible) {
-                    window.addEventListener("beforeunload", this.showRefreshConfirmation);
-                    if (!this.state.selectedFeatures || this.state.selectedFeatures.length === 0) {
+                    window.addEventListener(
+                        "beforeunload",
+                        this.showRefreshConfirmation,
+                    );
+                    if (
+                        !this.state.selectedFeatures ||
+                        this.state.selectedFeatures.length === 0
+                    ) {
                         // If there is no feature selected, we fake the progress
                         // for theme installation and configurator_apply. If
                         // there is at least 1 feature selected, the progress
@@ -115,15 +123,21 @@ export class WebsiteLoader extends Component {
                         this.initProgressBar();
                     }
                 } else {
-                    window.removeEventListener("beforeunload", this.showRefreshConfirmation);
+                    window.removeEventListener(
+                        "beforeunload",
+                        this.showRefreshConfirmation,
+                    );
                 }
 
                 return () => {
-                    window.removeEventListener("beforeunload", this.showRefreshConfirmation);
+                    window.removeEventListener(
+                        "beforeunload",
+                        this.showRefreshConfirmation,
+                    );
                     clearInterval(this.updateProgressInterval);
                 };
             },
-            () => [this.state.isVisible]
+            () => [this.state.isVisible],
         );
 
         useBus(this.props.bus, "SHOW-WEBSITE-LOADER", (ev) => {
@@ -219,7 +233,7 @@ export class WebsiteLoader extends Component {
                 selected_features: selectedFeatures,
                 total_features: this.featuresInstallInfo.total,
             },
-            { silent: true }
+            { silent: true },
         );
         if (
             !this.featuresInstallInfo.total ||
@@ -229,7 +243,10 @@ export class WebsiteLoader extends Component {
         }
         this.initProgressBar();
         if (this.featuresInstallInfo.nbInstalled !== this.featuresInstallInfo.total) {
-            this.trackModulesTimeout = setTimeout(() => this.trackModules(selectedFeatures), 1000);
+            this.trackModulesTimeout = setTimeout(
+                () => this.trackModules(selectedFeatures),
+                1000,
+            );
         }
     }
 

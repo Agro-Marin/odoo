@@ -8,8 +8,8 @@ import {
 import { withGuest } from "@mail/../tests/mock_server/mail_mock_server";
 import { describe, test } from "@odoo/hoot";
 import { Command, patchWithCleanup, serverState } from "@web/../tests/web_test_helpers";
-
 import { rpc } from "@web/core/network/rpc";
+
 import { defineLivechatModels } from "./livechat_test_helpers.js";
 
 describe.current.tags("desktop");
@@ -35,7 +35,10 @@ test("push notifications are Odoo toaster on Android", async () => {
         name: "Livechat 1",
         channel_type: "livechat",
         channel_member_ids: [
-            Command.create({ partner_id: serverState.partnerId, livechat_member_type: "agent" }),
+            Command.create({
+                partner_id: serverState.partnerId,
+                livechat_member_type: "agent",
+            }),
             Command.create({ guest_id: guestId, livechat_member_type: "visitor" }),
         ],
     });
@@ -52,7 +55,7 @@ test("push notifications are Odoo toaster on Android", async () => {
             },
             thread_model: "discuss.channel",
             thread_id: channelId,
-        })
+        }),
     );
     await contains(".o_notification:has(.o_notification_bar.bg-info)", {
         text: "Visitor. Hello world!",
