@@ -45,7 +45,11 @@ export class MessageReactionMenu extends Component {
                     this.state.reaction = this.props.message.reactions[0];
                 }
             },
-            () => [this.props.message.reactions.length],
+            // signature over contents, not just length: a simultaneous
+            // remove-of-A + add-of-C in one bus update keeps the length but
+            // drops A's record (keyed by AND(message, content)), leaving
+            // state.reaction pointing at a detached reaction
+            () => [this.props.message.reactions.map((r) => r.content).join()],
         );
         onMounted(() => {
             if (!this.store.emojiLoader.loaded) {

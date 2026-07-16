@@ -154,6 +154,31 @@ test("Opening a category sends the updated user setting to the server.", async (
     ]);
 });
 
+test("receiving a category broadcast does NOT re-issue the settings RPC", async () => {
+    // regression: the receiving tab ran the full `open` setter on the
+    // broadcast, firing one identical set_res_users_settings per listening
+    // tab. Drive the actual receiver path (the service's message listener).
+    let settingsRpcCount = 0;
+    onRpc("res.users.settings", "set_res_users_settings", () => {
+        settingsRpcCount++;
+    });
+    await start();
+    await openDiscuss();
+    await contains(".o-mail-DiscussSidebarCategory:contains('Channels') .oi");
+    const store = getService("mail.store");
+    const service = getService("discuss.core.public.web");
+    const category = store.DiscussAppCategory.get("channels");
+    const wasOpen = category.open;
+    const before = settingsRpcCount;
+    // simulate the message another tab's toggle broadcasts
+    service.sidebarCategoriesBroadcast.dispatchEvent(
+        new MessageEvent("message", { data: { id: "channels", open: !wasOpen } }),
+    );
+    await animationFrame();
+    expect(category.open).toBe(!wasOpen); // local mirror updated
+    expect(settingsRpcCount).toBe(before); // but no server write
+});
+
 test("channel - command: should have view command when category is unfolded", async () => {
     await start();
     await openDiscuss();

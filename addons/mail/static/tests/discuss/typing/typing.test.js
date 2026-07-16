@@ -572,6 +572,34 @@ test("[text composer] current partner notify no longer is typing to thread membe
     await waitForSteps(["notify_typing:false"]);
 });
 
+test("[text composer] stop still notifies is_typing:false when it lands after the long-typing flag reset", async () => {
+    // regression: the last keystroke fell just before the 50s LONG_TYPING
+    // flag reset, so the 5s stop debounce fired AFTER the flag was cleared;
+    // stopTyping() saw the re-notification flag false and sent nothing,
+    // leaving the indicator stuck on other clients until their 60s expiry.
+    const pyEnv = await startServer();
+    const channelId = pyEnv["discuss.channel"].create({ name: "general" });
+    onRpcBefore("/discuss/channel/notify_typing", (args) =>
+        asyncStep(`notify_typing:${args.is_typing}`),
+    );
+    await start();
+    await openDiscuss(channelId);
+    await advanceTime(Store.FETCH_DATA_DEBOUNCE_DELAY);
+    await insertText(".o-mail-Composer-input", "a");
+    await waitForSteps(["notify_typing:true"]);
+    // type every <5s (so the stop debounce keeps re-arming) up to just
+    // before LONG_TYPING, WITHOUT re-notifying (typingNotified stays true,
+    // so the 50s reset timer armed at the first keystroke is never rearmed)
+    const tick = SHORT_TYPING - 1000;
+    for (let t = tick; t < LONG_TYPING; t += tick) {
+        await advanceTime(tick);
+        await insertText(".o-mail-Composer-input", "a");
+    }
+    // now let the 50s reset fire, then the pending 5s stop debounce
+    await advanceTime(SHORT_TYPING);
+    await waitForSteps(["notify_typing:false"]);
+});
+
 test.tags("html composer");
 test("current partner notify no longer is typing to thread members after 5 seconds inactivity", async () => {
     const pyEnv = await startServer();
