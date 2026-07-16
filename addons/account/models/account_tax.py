@@ -392,44 +392,55 @@ class AccountTax(models.Model):
         "repartition_line_ids.factor_percent",
         "repartition_line_ids.use_in_tax_closing",
         "repartition_line_ids.tag_ids",
+        # Lines are added/removed through the document-type-filtered fields;
+        # depending only on `repartition_line_ids` misses those membership
+        # changes (a new line via invoice_/refund_repartition_line_ids would not
+        # refresh the snapshot until an unrelated later write, which then diffs
+        # against a stale baseline and spams the change-log).
+        "invoice_repartition_line_ids",
+        "refund_repartition_line_ids",
     )
     def _compute_repartition_lines_str(self):
+        # Always maintain the snapshot, regardless of `is_used`. `is_used` is a
+        # non-stored compute with no @api.depends, so its cache can be stale
+        # (False) exactly when repartition lines are edited on a freshly-used
+        # tax; gating the snapshot on it left the stored state behind, so the
+        # next unrelated write diffed against an outdated snapshot and spammed
+        # the change-log. The `is_used` gate stays where it belongs — on the
+        # *logging* (`_message_log` / `_message_log_repartition_lines`).
         for tax in self:
-            repartition_lines_str = tax.repartition_lines_str or ""
-            if tax.is_used:
-                repartition_line_info = {}
-                invoice_sequence = 0
-                refund_sequence = 0
-                for repartition_line in tax.repartition_line_ids.sorted(
-                    key=lambda r: (r.document_type, r.sequence)
-                ):
-                    # Clean sequence numbers to avoid unnecessary logging when complex
-                    # operations are executed such as:
-                    #   1. Create a invoice repartition line with a factor of 50%
-                    #   2. Delete the invoice line above
-                    #   3. Update the last refund repartition line factor to 50%
-                    sequence = (
-                        (invoice_sequence := invoice_sequence + 1)
-                        if repartition_line.document_type == "invoice"
-                        else (refund_sequence := refund_sequence + 1)
-                    )
-                    # Keys and values are stored as language-neutral tokens
-                    # (not translated strings): this string is persisted and later
-                    # diffed against a previous snapshot in
-                    # `_message_log_repartition_lines`, which may run under a
-                    # different user language. Translation happens only at render
-                    # time. Storing translated text here made the diff crash with a
-                    # KeyError whenever the language changed between two edits.
-                    repartition_line_info[
-                        (repartition_line.document_type, sequence)
-                    ] = {
-                        "factor_percent": repartition_line.factor_percent,
-                        "account": repartition_line.account_id.display_name or None,
-                        "tax_grids": repartition_line.tag_ids.mapped("name") or None,
-                        "use_in_tax_closing": bool(repartition_line.use_in_tax_closing),
-                    }
-                repartition_lines_str = str(repartition_line_info)
-            tax.repartition_lines_str = repartition_lines_str
+            repartition_line_info = {}
+            invoice_sequence = 0
+            refund_sequence = 0
+            for repartition_line in tax.repartition_line_ids.sorted(
+                key=lambda r: (r.document_type, r.sequence)
+            ):
+                # Clean sequence numbers to avoid unnecessary logging when complex
+                # operations are executed such as:
+                #   1. Create a invoice repartition line with a factor of 50%
+                #   2. Delete the invoice line above
+                #   3. Update the last refund repartition line factor to 50%
+                sequence = (
+                    (invoice_sequence := invoice_sequence + 1)
+                    if repartition_line.document_type == "invoice"
+                    else (refund_sequence := refund_sequence + 1)
+                )
+                # Keys and values are stored as stable, context-neutral
+                # tokens (not rendered strings): this snapshot is persisted
+                # and later diffed against a previous one in
+                # `_message_log_repartition_lines`, which may run under a
+                # different language/company. Rendering happens only at
+                # display time. In particular the account is stored by *id*,
+                # not `display_name`: since account codes are company-
+                # dependent, storing the rendered name made every recompute in
+                # another company context look like a change and spam the log.
+                repartition_line_info[(repartition_line.document_type, sequence)] = {
+                    "factor_percent": repartition_line.factor_percent,
+                    "account": repartition_line.account_id.id or None,
+                    "tax_grids": repartition_line.tag_ids.mapped("name") or None,
+                    "use_in_tax_closing": bool(repartition_line.use_in_tax_closing),
+                }
+            tax.repartition_lines_str = str(repartition_line_info)
 
     def _repartition_line_field_label(self, key):
         """Translate a stored (language-neutral) repartition-line key into a
@@ -441,13 +452,18 @@ class AccountTax(models.Model):
             "use_in_tax_closing": _("Use in tax closing"),
         }.get(key, key)
 
-    def _repartition_line_field_value(self, value):
-        """Render a stored (language-neutral) repartition-line value for display,
-        translating boolean/empty sentinels in the current user language."""
+    def _repartition_line_field_value(self, key, value):
+        """Render a stored (context-neutral) repartition-line value for display,
+        resolving ids/sentinels in the current user language and company."""
         if value is None:
             return _("None")
         if isinstance(value, bool):
             return _("True") if value else _("False")
+        if key == "account" and isinstance(value, int):
+            # Stored as an id; render the account's name now. `value` may be a
+            # legacy display_name string from an older snapshot — leave those
+            # as-is (handled by the `return value` fallthrough below).
+            return self.env["account.account"].browse(value).display_name
         return value
 
     def _message_log_repartition_lines(self, old_values_str, new_values_str):
@@ -499,10 +515,10 @@ class AccountTax(models.Model):
                             </li>
                         """).format(
                                 old=self._repartition_line_field_value(
-                                    old_value[diff_key]
+                                    diff_key, old_value[diff_key]
                                 ),
                                 new=self._repartition_line_field_value(
-                                    new_value[diff_key]
+                                    diff_key, new_value[diff_key]
                                 ),
                                 diff=self._repartition_line_field_label(diff_key),
                             )
@@ -528,7 +544,7 @@ class AccountTax(models.Model):
                             <span class='o-mail-Message-trackingField ms-1 fst-italic text-muted'>({diff})</span>
                         </li>
                     """).format(
-                            value=self._repartition_line_field_value(value[key]),
+                            value=self._repartition_line_field_value(key, value[key]),
                             diff=self._repartition_line_field_label(key),
                         )
                         for key in value
@@ -553,16 +569,22 @@ class AccountTax(models.Model):
                 ._get("account.tax", "repartition_lines_str")
                 .id
             )
+            tracking_value_ids = kwargs.get("tracking_value_ids") or []
             # Iterate over a copy: we mutate `tracking_value_ids` in the loop.
-            for tracked_value_id in list(kwargs["tracking_value_ids"]):
+            for tracked_value_id in list(tracking_value_ids):
                 if tracked_value_id[2]["field_id"] == repartition_line_str_field_id:
-                    kwargs["tracking_value_ids"].remove(tracked_value_id)
+                    tracking_value_ids.remove(tracked_value_id)
                     self._message_log_repartition_lines(
                         tracked_value_id[2]["old_value_char"],
                         tracked_value_id[2]["new_value_char"],
                     )
 
-            return super()._message_log(**kwargs)
+            # If the repartition snapshot was the only tracked change (already
+            # logged above in human-readable form) and there is no explicit body,
+            # don't post an empty chatter message.
+            if tracking_value_ids or kwargs.get("body"):
+                return super()._message_log(**kwargs)
+            return None
         return None
 
     @api.depends("company_id")

@@ -94,10 +94,15 @@ class TestAccountTax(AccountTestInvoicingCommon):
         """Modifications of a used tax should be logged."""
 
         self.set_up_and_use_tax()
+        tax = self.company_data["default_tax_sale"]
+        # `set_up_and_use_tax` adds two repartition lines to the (already used)
+        # tax, which are correctly logged when they happen. Measure only the
+        # messages produced by the scalar update below.
+        messages_before = tax.message_ids
 
-        self.company_data["default_tax_sale"].write(
+        tax.write(
             {
-                "name": self.company_data["default_tax_sale"].name + " MODIFIED",
+                "name": tax.name + " MODIFIED",
                 "amount": 21,
                 "amount_type": "fixed",
                 "type_tax_use": "purchase",
@@ -107,14 +112,15 @@ class TestAccountTax(AccountTestInvoicingCommon):
             }
         )
         self.flush_tracking()
+        new_messages = tax.message_ids - messages_before
         self.assertEqual(
-            len(self.company_data["default_tax_sale"].message_ids),
+            len(new_messages),
             1,
             "Only 1 message should have been created when updating all the values.",
         )
         # There are 7 tracked values in account.tax and we update each of them, each on should be included in the message
         self.assertEqual(
-            len(self.company_data["default_tax_sale"].message_ids.tracking_value_ids),
+            len(new_messages.tracking_value_ids),
             7,
             "The number of updated value should be 7.",
         )
