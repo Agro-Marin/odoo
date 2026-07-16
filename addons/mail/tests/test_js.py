@@ -15,9 +15,11 @@ reused from ``web`` via ``HOOTCommon``, imported through the module object
 unittest loader does not collect ``web``'s base meta-tests a second time under
 ``mail``.
 
-Only the **desktop** preset is wired here — that is the validated baseline. A
-``MobileMailSuite`` mirroring ``web``'s mobile pass can be added once the mail
-suites are confirmed green under the mobile preset.
+Both presets are wired: ``MailSuite`` (desktop, the validated baseline) and
+``MobileMailSuite`` (375x667 touch viewport), mirroring ``web``'s
+``WebSuite`` / ``MobileWebSuite`` pair. HOOT skips ``desktop``-tagged tests
+under the mobile preset, so the mobile pass runs the ``mobile``-tagged files
+plus every preset-agnostic test against the small-screen layout.
 
 Fast local runs use the warm-server runner instead:
 ``addons/web/tooling/scripts/hoot --db hoot_bus_mail '@mail/discuss'`` (any
@@ -132,4 +134,44 @@ class MailSuite(web_test_js.HOOTCommon):
             uncovered,
             "Mail test files selected by no CI suite filter (they will never "
             "run):\n- " + "\n- ".join(uncovered),
+        )
+
+
+@odoo.tests.tagged("post_install", "-at_install", "mail_js")
+class MobileMailSuite(web_test_js.HOOTCommon):
+    """The ``mobile`` preset of the mail hoot suites — the counterpart to
+    ``web``'s ``MobileWebSuite``. HOOT skips ``desktop``-tagged tests under
+    the mobile preset, so this runs the ``mobile``-tagged files
+    (mobile.test.js, plus the mobile branches of translation,
+    search_messages_panel and the web call view) and every preset-agnostic
+    test against a 375x667 touch viewport — the mobile chat-window /
+    messaging-menu / discuss layout that the desktop preset never exercises.
+    ``-headless`` excludes the DB-free headless suites (they don't depend on
+    the viewport). The desktop MailSuite's coverage walk already guarantees
+    every file is selected by some prefix; this reuses the same prefixes.
+    """
+
+    browser_size = "375x667"
+    touch_enabled = True
+
+    @odoo.tests.no_retry
+    def test_discuss(self):
+        """@mail/discuss under the mobile preset (chat windows, calls, …)."""
+        self._run_hoot(
+            "@mail/discuss", preset="mobile", tag="-headless", timeout=900
+        )
+
+    @odoo.tests.no_retry
+    def test_rest(self):
+        """Every other mail suite under the mobile preset."""
+        self._run_hoot(
+            "@mail/discuss_app",
+            "@mail/core",
+            "@mail/web",
+            "@mail/chatter",
+            *THREAD_SUITES,
+            *MISC_SUITES,
+            preset="mobile",
+            tag="-headless",
+            timeout=900,
         )
