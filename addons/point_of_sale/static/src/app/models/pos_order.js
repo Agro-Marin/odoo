@@ -570,10 +570,30 @@ export class PosOrder extends PosOrderAccounting {
                         !(orderLine.price_type === "manual") &&
                         orderLine.discount === 0
                     ) {
-                        sum +=
-                            (orderLine.displayPriceUnit -
-                                orderLine.displayPriceUnitNoDiscount) *
-                            orderLine.getQuantity();
+                        // Pricelist (percentage-rule) discount: the taxed list
+                        // price minus the unit price actually charged.
+                        // Comparing displayPriceUnit with
+                        // displayPriceUnitNoDiscount here was provably zero —
+                        // those two only differ by the line's own discount,
+                        // which is 0 in this branch.
+                        const listPriceDetails = orderLine.product_tmpl_id.getTaxDetails(
+                            {
+                                overridedValues: {
+                                    price:
+                                        orderLine.product_id.lst_price +
+                                        (orderLine.price_extra || 0),
+                                    fiscalPosition: this.fiscal_position_id,
+                                },
+                            },
+                        );
+                        const taxedListPrice =
+                            this.config.iface_tax_included === "total"
+                                ? listPriceDetails.total_included
+                                : listPriceDetails.total_excluded;
+                        const diff = taxedListPrice - orderLine.displayPriceUnit;
+                        if (diff > 0) {
+                            sum += diff * orderLine.getQuantity();
+                        }
                     }
                 }
                 return sum;

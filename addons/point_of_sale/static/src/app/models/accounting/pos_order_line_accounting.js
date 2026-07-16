@@ -131,17 +131,24 @@ export class PosOrderlineAccounting extends Base {
     }
 
     get comboTotalPrice() {
+        // Line totals, tax-included — deliberately independent of the
+        // iface_tax_included display configuration: pos_loyalty uses this pair
+        // as "amount with tax"/"amount without tax" for rule thresholds and
+        // discount bases.
         const childLines = this.getAllLinesInCombo().filter(
             (line) => !line.combo_line_ids.length,
         );
-        return childLines.reduce((total, line) => total + line.displayPrice, 0);
+        return childLines.reduce((total, line) => total + line.priceIncl, 0);
     }
 
     get comboTotalPriceWithoutTax() {
+        // Line totals, tax-excluded. Summing displayPriceUnitExcl here
+        // undercounted every combo child with a quantity above 1 (it is a
+        // quantity-1 price).
         const childLines = this.getAllLinesInCombo().filter(
             (line) => !line.combo_line_ids.length,
         );
-        return childLines.reduce((total, line) => total + line.displayPriceUnitExcl, 0);
+        return childLines.reduce((total, line) => total + line.priceExcl, 0);
     }
 
     get taxGroupLabels() {
