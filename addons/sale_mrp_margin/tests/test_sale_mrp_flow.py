@@ -1,9 +1,9 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-from odoo.addons.sale_mrp.tests import test_sale_mrp_flow
 from odoo.fields import Command
-from odoo.tests import common, Form
+from odoo.tests import Form, common
+
+from odoo.addons.sale_mrp.tests import test_sale_mrp_flow
 
 
 @common.tagged('post_install', '-at_install')
@@ -117,8 +117,8 @@ class TestSaleMrpFlow(test_sale_mrp_flow.TestSaleMrpFlowCommon):
         self.assertEqual(so.line_ids.purchase_price, 600)
         for move in so.picking_ids.move_ids:
             move.quantity = move.product_uom_qty
-        self.assertRecordValues(so.line_ids, [{'purchase_price': 600, 'qty_delivered': 0.0}])
+        self.assertRecordValues(so.line_ids, [{'purchase_price': 600, 'qty_transferred': 0.0}])
         so.picking_ids.button_validate()
         self.assertEqual(so.picking_ids.state, 'done')
-        self.assertRecordValues(so.line_ids, [{'purchase_price': 600, 'qty_delivered': 3.0}])
+        self.assertRecordValues(so.line_ids, [{'purchase_price': 600, 'qty_transferred': 3.0}])
         self.assertEqual(so.line_ids.purchase_price, 600)

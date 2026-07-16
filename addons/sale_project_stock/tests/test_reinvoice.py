@@ -65,7 +65,7 @@ class TestReInvoice(TestStockCommon):
         new_sale_order_line1 = self.sale_order.line_ids.filtered(lambda sol: sol.product_id == self.reinvoicable_product_at_cost)
         self.assertTrue(new_sale_order_line1, 'A new sale line should have been created with the reinvoicable product at cost')
         self.assertEqual(
-            (new_sale_order_line1.price_unit, new_sale_order_line1.qty_delivered, new_sale_order_line1.product_uom_qty, new_sale_order_line1.qty_invoiced),
+            (new_sale_order_line1.price_unit, new_sale_order_line1.qty_transferred, new_sale_order_line1.product_uom_qty, new_sale_order_line1.qty_invoiced),
             (self.reinvoicable_product_at_cost.standard_price, 3, 3, 0),
             'Sale line is wrong after confirming the picking',
         )
@@ -74,7 +74,7 @@ class TestReInvoice(TestStockCommon):
         new_sale_order_line2 = self.sale_order.line_ids.filtered(lambda sol: sol.product_id == self.reinvoicable_product_sales_price)
         self.assertTrue(new_sale_order_line2, 'A new sale line should have been created with the reinvoicable product at sales price')
         self.assertEqual(
-            (new_sale_order_line2.price_unit, new_sale_order_line2.qty_delivered, new_sale_order_line2.product_uom_qty, new_sale_order_line2.qty_invoiced),
+            (new_sale_order_line2.price_unit, new_sale_order_line2.qty_transferred, new_sale_order_line2.product_uom_qty, new_sale_order_line2.qty_invoiced),
             (self.reinvoicable_product_sales_price.list_price, 5, 5, 0),
             'Sale line is wrong after confirming the picking',
         )

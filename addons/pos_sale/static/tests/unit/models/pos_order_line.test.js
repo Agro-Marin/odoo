@@ -108,7 +108,7 @@ describe("setQuantityFromSOL", () => {
 
         const saleOrderLine = {
             product_uom_qty: 8,
-            qty_delivered: 1,
+            qty_transferred: 1,
             qty_invoiced: 2,
         };
 

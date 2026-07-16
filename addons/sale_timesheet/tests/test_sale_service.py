@@ -1,8 +1,9 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-from odoo.addons.sale_timesheet.tests.common import TestCommonSaleTimesheet
 from odoo.exceptions import UserError, ValidationError
 from odoo.tests import tagged
+
+from odoo.addons.sale_timesheet.tests.common import TestCommonSaleTimesheet
 
 
 @tagged('-at_install', 'post_install')
@@ -50,7 +51,7 @@ class TestSaleService(TestCommonSaleTimesheet):
         self.assertEqual(self.sale_order.invoice_state, 'to invoice', 'Sale Service: there should be sale_ordermething to invoice after registering timesheets')
         self.sale_order._create_invoices()
 
-        self.assertTrue(sale_order_line.product_uom_qty == sale_order_line.qty_delivered == sale_order_line.qty_invoiced, 'Sale Service: line should be invoiced completely')
+        self.assertTrue(sale_order_line.product_uom_qty == sale_order_line.qty_transferred == sale_order_line.qty_invoiced, 'Sale Service: line should be invoiced completely')
         self.assertEqual(self.sale_order.invoice_state, 'invoiced', 'Sale Service: SO should be invoiced')
         self.assertEqual(self.sale_order.tasks_count, 1, "A task should have been created on SO confirmation.")
 
@@ -104,7 +105,7 @@ class TestSaleService(TestCommonSaleTimesheet):
             'unit_amount': 16,
             'employee_id': self.employee_manager.id,
         })
-        self.assertEqual(sale_order_line.qty_delivered, 2, 'Sale: uom conversion of timesheets is wrong')
+        self.assertEqual(sale_order_line.qty_transferred, 2, 'Sale: uom conversion of timesheets is wrong')
 
         self.env['account.analytic.line'].create({
             'name': 'Test Line',
@@ -176,11 +177,11 @@ class TestSaleService(TestCommonSaleTimesheet):
             'unit_amount': 4,
             'employee_id': self.employee_user.id,
         })
-        self.assertEqual(so_line_deliver_new_task_project.qty_delivered, timesheet1.unit_amount, 'Delivered quantity should be the same then its only related timesheet.')
+        self.assertEqual(so_line_deliver_new_task_project.qty_transferred, timesheet1.unit_amount, 'Delivered quantity should be the same then its only related timesheet.')
 
         # remove the only timesheet
         timesheet1.unlink()
-        self.assertEqual(so_line_deliver_new_task_project.qty_delivered, 0.0, 'Delivered quantity should be reset to zero, since there is no more timesheet.')
+        self.assertEqual(so_line_deliver_new_task_project.qty_transferred, 0.0, 'Delivered quantity should be reset to zero, since there is no more timesheet.')
 
         # log 2 new timesheets
         timesheet2 = self.env['account.analytic.line'].create({
@@ -197,11 +198,11 @@ class TestSaleService(TestCommonSaleTimesheet):
             'unit_amount': 2,
             'employee_id': self.employee_user.id,
         })
-        self.assertEqual(so_line_deliver_new_task_project.qty_delivered, timesheet2.unit_amount + timesheet3.unit_amount, 'Delivered quantity should be the sum of the 2 timesheets unit amounts.')
+        self.assertEqual(so_line_deliver_new_task_project.qty_transferred, timesheet2.unit_amount + timesheet3.unit_amount, 'Delivered quantity should be the sum of the 2 timesheets unit amounts.')
 
         # remove timesheet2
         timesheet2.unlink()
-        self.assertEqual(so_line_deliver_new_task_project.qty_delivered, timesheet3.unit_amount, 'Delivered quantity should be reset to the sum of remaining timesheets unit amounts.')
+        self.assertEqual(so_line_deliver_new_task_project.qty_transferred, timesheet3.unit_amount, 'Delivered quantity should be reset to the sum of remaining timesheets unit amounts.')
 
     def test_sale_create_task(self):
         """ Check that confirming SO create correctly a task, and reconfirming it does not create a second one. Also check changing
@@ -496,7 +497,7 @@ class TestSaleService(TestCommonSaleTimesheet):
         # 1) Check the remaining hours in the SOL containing a prepaid service product
         prepaid_service_sol = self.so.line_ids.filtered(lambda sol: sol.product_id.service_policy == 'ordered_prepaid')
         self.assertEqual(len(prepaid_service_sol), 1, "It should only have one SOL with prepaid service product in this SO.")
-        self.assertEqual(prepaid_service_sol.remaining_hours, prepaid_service_sol.product_uom_qty - prepaid_service_sol.qty_delivered, "The remaining hours of this SOL should be equal to the ordered quantity minus the delivered quantity.")
+        self.assertEqual(prepaid_service_sol.remaining_hours, prepaid_service_sol.product_uom_qty - prepaid_service_sol.qty_transferred, "The remaining hours of this SOL should be equal to the ordered quantity minus the delivered quantity.")
 
         # 2) Create task in project with pricing type is equal to "task rate" and has the customer in the SO
         # and check if the remaining hours is equal to the remaining hours in the SOL,

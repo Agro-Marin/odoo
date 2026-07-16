@@ -48,25 +48,25 @@ class TestSaleDropshippingFlows(TestMrpSubcontractingCommon):
             ],
         })
         sale_order.action_confirm()
-        self.assertEqual(sale_order.line_ids.qty_delivered, 0)
+        self.assertEqual(sale_order.line_ids.qty_transferred, 0)
 
         purchase_orders = self.env['purchase.order'].search([('partner_id', 'in', partners.ids)])
         purchase_orders.action_confirm()
-        self.assertEqual(sale_order.line_ids.qty_delivered, 0)
+        self.assertEqual(sale_order.line_ids.qty_transferred, 0)
 
         # Deliver the first one
         picking = sale_order.picking_ids.filtered(lambda p: p.partner_id == partners[0])
         picking.button_validate()
-        self.assertEqual(sale_order.line_ids.qty_delivered, 0)
+        self.assertEqual(sale_order.line_ids.qty_transferred, 0)
 
         # Deliver the third one
         picking = sale_order.picking_ids.filtered(lambda p: p.partner_id == partners[2])
         picking.button_validate()
-        self.assertEqual(sale_order.line_ids.qty_delivered, 0)
+        self.assertEqual(sale_order.line_ids.qty_transferred, 0)
 
         # Cancel the second one
         sale_order.picking_ids[1].action_cancel()
-        self.assertEqual(sale_order.line_ids.qty_delivered, 1)
+        self.assertEqual(sale_order.line_ids.qty_transferred, 1)
 
     def test_return_kit_and_delivered_qty(self):
         """
@@ -98,11 +98,11 @@ class TestSaleDropshippingFlows(TestMrpSubcontractingCommon):
         })
         sale_order.action_confirm()
         sale_order._get_purchase_orders().action_confirm()
-        self.assertEqual(sale_order.line_ids.qty_delivered, 0.0)
+        self.assertEqual(sale_order.line_ids.qty_transferred, 0.0)
 
         picking = sale_order.picking_ids
         picking.button_validate()
-        self.assertEqual(sale_order.line_ids.qty_delivered, 1.0)
+        self.assertEqual(sale_order.line_ids.qty_transferred, 1.0)
 
         for case in ['return', 'deliver again']:
             delivered_before_case = 1.0 if case == 'return' else 0.0
@@ -113,10 +113,10 @@ class TestSaleDropshippingFlows(TestMrpSubcontractingCommon):
             return_wizard = return_form.save()
             action = return_wizard.action_create_returns()
             picking = self.env['stock.picking'].browse(action['res_id'])
-            self.assertEqual(sale_order.line_ids.qty_delivered, delivered_before_case, "Incorrect delivered qty for case '%s'" % case)
+            self.assertEqual(sale_order.line_ids.qty_transferred, delivered_before_case, "Incorrect delivered qty for case '%s'" % case)
 
             picking.button_validate()
-            self.assertEqual(sale_order.line_ids.qty_delivered, delivered_after_case, "Incorrect delivered qty for case '%s'" % case)
+            self.assertEqual(sale_order.line_ids.qty_transferred, delivered_after_case, "Incorrect delivered qty for case '%s'" % case)
 
     def test_partial_return_kit_and_delivered_qty(self):
         """
@@ -156,13 +156,13 @@ class TestSaleDropshippingFlows(TestMrpSubcontractingCommon):
         })
         sale_order.action_confirm()
         sale_order._get_purchase_orders().action_confirm()
-        self.assertEqual(sale_order.line_ids.qty_delivered, 0.0, "Delivered components: 0/4")
+        self.assertEqual(sale_order.line_ids.qty_transferred, 0.0, "Delivered components: 0/4")
 
         picking01 = sale_order.picking_ids
         picking01.move_ids.quantity = 2
         picking01.move_ids.picked = True
         Form.from_action(self.env, picking01.button_validate()).save().process()
-        self.assertEqual(sale_order.line_ids.qty_delivered, 0.0, "Delivered components: 2/4")
+        self.assertEqual(sale_order.line_ids.qty_transferred, 0.0, "Delivered components: 2/4")
 
         # Create a return of picking01 (with both components)
         return_form = Form(self.env['stock.return.picking'].with_context(active_id=picking01.id, active_model='stock.picking'))
@@ -174,19 +174,19 @@ class TestSaleDropshippingFlows(TestMrpSubcontractingCommon):
         return01.move_ids.quantity = 2
         return01.move_ids.picked = True
         return01.button_validate()
-        self.assertEqual(sale_order.line_ids.qty_delivered, 0.0, "Delivered components: 0/4")
+        self.assertEqual(sale_order.line_ids.qty_transferred, 0.0, "Delivered components: 0/4")
 
         picking02 = picking01.backorder_ids
         picking02.move_ids.quantity = 1
         picking02.move_ids.picked = True
         Form.from_action(self.env, picking02.button_validate()).save().process()
-        self.assertEqual(sale_order.line_ids.qty_delivered, 0.0, "Delivered components: 1/4")
+        self.assertEqual(sale_order.line_ids.qty_transferred, 0.0, "Delivered components: 1/4")
 
         picking03 = picking02.backorder_ids
         picking03.move_ids.quantity = 1
         picking03.move_ids.picked = True
         picking03.button_validate()
-        self.assertEqual(sale_order.line_ids.qty_delivered, 0.0, "Delivered components: 2/4")
+        self.assertEqual(sale_order.line_ids.qty_transferred, 0.0, "Delivered components: 2/4")
 
         # Create a return of return01 (with 1 component)
         return_form = Form(self.env['stock.return.picking'].with_context(active_id=return01.id, active_model='stock.picking'))
@@ -198,7 +198,7 @@ class TestSaleDropshippingFlows(TestMrpSubcontractingCommon):
         picking04.move_ids.quantity = 1
         picking04.move_ids.picked = True
         picking04.button_validate()
-        self.assertEqual(sale_order.line_ids.qty_delivered, 0.0, "Delivered components: 3/4")
+        self.assertEqual(sale_order.line_ids.qty_transferred, 0.0, "Delivered components: 3/4")
 
         # Create a second return of return01 (with 1 component, the last one)
         return_form = Form(self.env['stock.return.picking'].with_context(active_id=return01.id, active_model='stock.picking'))
@@ -210,7 +210,7 @@ class TestSaleDropshippingFlows(TestMrpSubcontractingCommon):
         picking04.move_ids.quantity = 1
         picking04.move_ids.picked = True
         picking04.button_validate()
-        self.assertEqual(sale_order.line_ids.qty_delivered, 1, "Delivered components: 4/4")
+        self.assertEqual(sale_order.line_ids.qty_transferred, 1, "Delivered components: 4/4")
 
     def test_cancelled_picking_and_delivered_qty(self):
         """
@@ -241,10 +241,10 @@ class TestSaleDropshippingFlows(TestMrpSubcontractingCommon):
         })
         sale_order.action_confirm()
         self.env['purchase.order'].search([], order='id desc', limit=1).action_confirm()
-        self.assertEqual(sale_order.line_ids.qty_delivered, 0.0)
+        self.assertEqual(sale_order.line_ids.qty_transferred, 0.0)
 
         sale_order.picking_ids.action_cancel()
-        self.assertEqual(sale_order.line_ids.qty_delivered, 0.0)
+        self.assertEqual(sale_order.line_ids.qty_transferred, 0.0)
 
     def test_sale_kit_with_dropshipped_component(self):
         """
@@ -286,7 +286,7 @@ class TestSaleDropshippingFlows(TestMrpSubcontractingCommon):
         sale_order.picking_ids[0].button_validate()
         sale_order.picking_ids[1].button_validate()
 
-        self.assertEqual(sale_order.line_ids.qty_delivered, 1.0)
+        self.assertEqual(sale_order.line_ids.qty_transferred, 1.0)
 
     def test_kit_dropshipped_change_qty_SO(self):
         # Create BoM

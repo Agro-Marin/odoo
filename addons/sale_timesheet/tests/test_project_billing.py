@@ -1,9 +1,10 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
-from odoo.addons.sale_timesheet.tests.common import TestCommonSaleTimesheet
 from odoo.fields import Command
 from odoo.tests import Form, tagged
+
 from odoo.addons.mail.tests.common import mail_new_test_user
+from odoo.addons.sale_timesheet.tests.common import TestCommonSaleTimesheet
+
 
 @tagged('post_install', '-at_install')
 class TestProjectBilling(TestCommonSaleTimesheet):
@@ -342,7 +343,7 @@ class TestProjectBilling(TestCommonSaleTimesheet):
             'employee_id': self.employee_user.id,
         })
 
-        self.assertEqual(self.so1_line_deliver_no_task.qty_delivered, timesheet1.unit_amount)
+        self.assertEqual(self.so1_line_deliver_no_task.qty_transferred, timesheet1.unit_amount)
         invoice1 = self.sale_order_1._create_invoices()[0]
         invoice1.action_post()
 
@@ -356,7 +357,7 @@ class TestProjectBilling(TestCommonSaleTimesheet):
             'is_so_line_edited': True,
             'employee_id': self.employee_user.id,
         })
-        self.assertEqual(self.so1_line_deliver_no_task.qty_delivered, timesheet1.unit_amount + timesheet2.unit_amount)
+        self.assertEqual(self.so1_line_deliver_no_task.qty_transferred, timesheet1.unit_amount + timesheet2.unit_amount)
         invoice1.write({'state': 'cancel', 'payment_state': 'invoicing_legacy'})
         self.assertEqual(self.so1_line_deliver_no_task.qty_invoiced, timesheet1.unit_amount)
         invoice2 = self.sale_order_1._create_invoices()[0]

@@ -1,11 +1,13 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
+import uuid
+
 from odoo import fields
 from odoo.fields import Command
 from odoo.tests import Form, tagged
 from odoo.tools import format_date
+
 from odoo.addons.point_of_sale.tests.test_frontend import TestPointOfSaleHttpCommon
-import uuid
 
 
 @tagged('post_install', '-at_install')
@@ -67,7 +69,7 @@ class TestPoSSale(TestPointOfSaleHttpCommon):
         picking.move_ids.picked = True
         Form.from_action(self.env, picking.button_validate()).save().process()
 
-        self.assertEqual(sale_order.line_ids.qty_delivered, 1)
+        self.assertEqual(sale_order.line_ids.qty_transferred, 1)
 
         self.pos_user.write({
             'group_ids': [
@@ -81,7 +83,7 @@ class TestPoSSale(TestPointOfSaleHttpCommon):
         self.start_tour("/pos/ui/%d" % self.main_pos_config.id, 'PosSettleOrder', login="pos_user")
 
         #assert that sales order qty are correctly updated
-        self.assertEqual(sale_order.line_ids.qty_delivered, 3)
+        self.assertEqual(sale_order.line_ids.qty_transferred, 3)
         self.assertEqual(sale_order.picking_ids[0].move_ids.product_qty, 2100) # 7 left to deliver => 300 * 7 = 2100
         self.assertEqual(sale_order.picking_ids[0].move_ids.quantity, 0)
         self.assertEqual(sale_order.picking_ids[1].move_ids.product_qty, 300)
@@ -159,16 +161,16 @@ class TestPoSSale(TestPointOfSaleHttpCommon):
         })
         sale_order.action_confirm()
 
-        self.assertEqual(sale_order.line_ids[0].qty_delivered, 0)
-        self.assertEqual(sale_order.line_ids[1].qty_delivered, 0)
+        self.assertEqual(sale_order.line_ids[0].qty_transferred, 0)
+        self.assertEqual(sale_order.line_ids[1].qty_transferred, 0)
 
         self.main_pos_config.open_ui()
         self.main_pos_config.current_session_id.update_stock_at_closing = True
         self.start_pos_tour('PosSettleOrder2', login="accountman")
 
         sale_order = self.env['sale.order'].browse(sale_order.id)
-        self.assertEqual(sale_order.line_ids[0].qty_delivered, 1)
-        self.assertEqual(sale_order.line_ids[1].qty_delivered, 0)
+        self.assertEqual(sale_order.line_ids[0].qty_transferred, 1)
+        self.assertEqual(sale_order.line_ids[1].qty_transferred, 0)
         orderline_product_a = sale_order.line_ids.filtered(lambda l: l.product_id.id == product_a.id)
         orderline_product_b = sale_order.line_ids.filtered(lambda l: l.product_id.id == product_b.id)
         # nothing to deliver for product a because already handled in pos.
@@ -300,12 +302,12 @@ class TestPoSSale(TestPointOfSaleHttpCommon):
         })
         sale_order.action_confirm()
 
-        self.assertEqual(sale_order.line_ids[0].qty_delivered, 0)
+        self.assertEqual(sale_order.line_ids[0].qty_transferred, 0)
 
         self.main_pos_config.open_ui()
         self.start_pos_tour('PosSettleOrder3', login="accountman")
 
-        self.assertEqual(sale_order.line_ids[0].qty_delivered, 1)
+        self.assertEqual(sale_order.line_ids[0].qty_transferred, 1)
         self.assertEqual(sale_order.picking_ids.mapped('state'), ['cancel'])
 
     def test_pos_not_groupable_product(self):
@@ -859,7 +861,7 @@ class TestPoSSale(TestPointOfSaleHttpCommon):
         self.assertEqual(sale_order.line_ids[2].price_unit, 20)
 
         # Update delivered quantity of SO line
-        sale_order.line_ids[0].write({'qty_delivered': 1.0})
+        sale_order.line_ids[0].write({'qty_transferred': 1.0})
 
         # Let's do the invoice for the remaining amount
         self.env['sale.advance.payment.inv'].sudo().with_context({
@@ -1096,7 +1098,7 @@ class TestPoSSale(TestPointOfSaleHttpCommon):
                 'price_unit': product_b.lst_price,
             })],
         })
-        self.assertEqual(sale_order_single.line_ids[0].qty_delivered, 0)
+        self.assertEqual(sale_order_single.line_ids[0].qty_transferred, 0)
 
         self.main_pos_config.ship_later = True
         self.main_pos_config.with_user(self.pos_user).open_ui()
@@ -1107,18 +1109,18 @@ class TestPoSSale(TestPointOfSaleHttpCommon):
         self.assertEqual(len(sale_order_single.pos_order_line_ids.order_id.picking_ids), 1)
         self.assertEqual(sale_order_single.pos_order_line_ids.order_id.picking_ids.state, "assigned")
 
-        # The pos order is being shipped later so the qty_delivered should still be 0
-        self.assertEqual(sale_order_single.line_ids[0].qty_delivered, 0)
+        # The pos order is being shipped later so the qty_transferred should still be 0
+        self.assertEqual(sale_order_single.line_ids[0].qty_transferred, 0)
 
-        # We validate the delivery of the order, now the qty_delivered should be 1
+        # We validate the delivery of the order, now the qty_transferred should be 1
         pickings = sale_order_single.pos_order_line_ids.order_id.picking_ids
         pickings.move_ids.quantity = 1
         pickings.button_validate()
-        self.assertEqual(sale_order_single.line_ids[0].qty_delivered, 1)
+        self.assertEqual(sale_order_single.line_ids[0].qty_transferred, 1)
 
         # multi line order checks
-        self.assertEqual(sale_order_multi.line_ids[0].qty_delivered, 0)
-        self.assertEqual(sale_order_multi.line_ids[1].qty_delivered, 0)
+        self.assertEqual(sale_order_multi.line_ids[0].qty_transferred, 0)
+        self.assertEqual(sale_order_multi.line_ids[1].qty_transferred, 0)
 
         self.assertEqual(len(sale_order_multi.picking_ids), 1)
         self.assertEqual(sale_order_multi.picking_ids.state, "cancel")
@@ -1150,7 +1152,7 @@ class TestPoSSale(TestPointOfSaleHttpCommon):
         self.main_pos_config.open_ui()
         self.start_tour("/pos/ui/%d" % self.main_pos_config.id, 'PosSettleOrder5', login="accountman")
         self.assertEqual(sale_order.line_ids.qty_invoiced, 0)
-        self.assertEqual(sale_order.line_ids.qty_delivered, 0)
+        self.assertEqual(sale_order.line_ids.qty_transferred, 0)
 
     def test_settle_quotation_delivered_qty(self):
         """ Test if a quotation (unconfirmed sale order) is settled in the PoS, the delivered quantity is updated correctly """
@@ -1169,7 +1171,7 @@ class TestPoSSale(TestPointOfSaleHttpCommon):
         })
         self.main_pos_config.open_ui()
         self.start_pos_tour('PoSSettleQuotation', login="accountman")
-        self.assertEqual(order.line_ids.qty_delivered, 1)
+        self.assertEqual(order.line_ids.qty_transferred, 1)
 
     def test_edit_invoice_with_pos_order(self):
         self.main_pos_config.open_ui()
@@ -2065,7 +2067,7 @@ class TestPoSSale(TestPointOfSaleHttpCommon):
         data = self.env['pos.order'].sync_from_ui([pos_order_refund])
         pos_order_refund_id = data['pos.order'][1]['id']
         pos_order_refund_record = self.env['pos.order'].browse(pos_order_refund_id)
-        self.assertEqual(sale_order.line_ids.qty_delivered, 5)
+        self.assertEqual(sale_order.line_ids.qty_transferred, 5)
         for picking in pos_order_refund_record.picking_ids:
             picking.button_validate()
-        self.assertEqual(sale_order.line_ids.qty_delivered, 2)
+        self.assertEqual(sale_order.line_ids.qty_transferred, 2)

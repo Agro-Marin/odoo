@@ -60,7 +60,7 @@ class TestSaleInvoicing(TestSaleCouponCommon):
         self.assertEqual(len(invoiceable_lines), 0)
         inv.action_cancel()
 
-        order.line_ids[0].qty_delivered = 1
+        order.line_ids[0].qty_transferred = 1
         # Product is delivered, the two lines can be invoiced.
         self.assertEqual(order.invoice_state, 'to invoice')
         invoiceable_lines = order._get_order_lines_invoiceable()

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 from odoo.tests import tagged
@@ -39,7 +38,7 @@ class TestEditSoLineTimesheet(TestCommonSaleTimesheet):
         timesheet._compute_so_line()
         edited_timesheet = timesheet.copy()
         self.assertTrue(timesheet.so_line == edited_timesheet.so_line == self.task_rate_task.sale_line_id, "SOL in timesheet should be the same than the one in the task.")
-        self.assertEqual(timesheet.unit_amount + edited_timesheet.unit_amount, self.task_rate_task.sale_line_id.qty_delivered, "The quantity timesheeted should be increased the quantity delivered in the linked SOL.")
+        self.assertEqual(timesheet.unit_amount + edited_timesheet.unit_amount, self.task_rate_task.sale_line_id.qty_transferred, "The quantity timesheeted should be increased the quantity delivered in the linked SOL.")
 
         # 2) edit a SOL of a timesheet in this task
         # Remark, we simulate the action done in the task form view
@@ -47,12 +46,12 @@ class TestEditSoLineTimesheet(TestCommonSaleTimesheet):
             "is_so_line_edited": True,
             "so_line": self.so.line_ids[1].id,
         })
-        self.so.line_ids._compute_qty_delivered()
+        self.so.line_ids._compute_qty_transferred()
 
         # 3) check if the edited SOL has the one selected and is not the one in the task
         self.assertNotEqual(edited_timesheet.so_line, self.task_rate_task.sale_line_id, "SOL in timesheet should be different than the one in the task.")
         self.assertEqual(edited_timesheet.so_line, self.so.line_ids[1], "SOL in timesheet is the one selected when we manually edit in the timesheet")
-        self.assertEqual(self.task_rate_task.sale_line_id.qty_delivered, timesheet.unit_amount, "The quantity delivered should be the quantity defined in the first timesheet of the task since the so_line in the second timesheet has manually been changed.")
+        self.assertEqual(self.task_rate_task.sale_line_id.qty_transferred, timesheet.unit_amount, "The quantity delivered should be the quantity defined in the first timesheet of the task since the so_line in the second timesheet has manually been changed.")
 
         # 4) change the sol on the task
         self.task_rate_task.update({
@@ -60,7 +59,7 @@ class TestEditSoLineTimesheet(TestCommonSaleTimesheet):
         })
         timesheet._compute_so_line()
         edited_timesheet._compute_so_line()
-        self.so.line_ids._compute_qty_delivered()
+        self.so.line_ids._compute_qty_transferred()
 
         # 5) check if the timesheet in which the sol has manually edited, does not change but the another ones are the case.
         self.assertEqual(timesheet.so_line, self.task_rate_task.sale_line_id, "SOL in timesheet should be the same than the one in the task.")

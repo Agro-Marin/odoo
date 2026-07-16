@@ -1,9 +1,10 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 from odoo import Command
+from odoo.tests import tagged
+
 from odoo.addons.hr_expense.tests.common import TestExpenseCommon
 from odoo.addons.sale.tests.common import TestSaleCommon
-from odoo.tests import tagged
 
 
 @tagged('-at_install', 'post_install')
@@ -189,14 +190,14 @@ class TestReInvoice(TestExpenseCommon, TestSaleCommon):
 
         self.assertRecordValues(self.expense_sale_order.line_ids, [
             # [0] Line not created from a re-invoiced, should never be changed
-            {'qty_delivered': 0.0, 'product_uom_qty': 3.0, 'is_expense': False, 'expense_ids': []},
+            {'qty_transferred': 0.0, 'product_uom_qty': 3.0, 'is_expense': False, 'expense_ids': []},
             # [1-6] Expenses Lines: created with the correct quantities and linked to the expense
-            {'qty_delivered': 1.0, 'product_uom_qty': 1.0, 'is_expense': True,  'expense_ids': [self.sale_exp_order_sale_1.id]},
-            {'qty_delivered': 1.0, 'product_uom_qty': 1.0, 'is_expense': True,  'expense_ids': [self.sale_exp_order_sale_2.id]},
-            {'qty_delivered': 1.0, 'product_uom_qty': 1.0, 'is_expense': True,  'expense_ids': [self.sale_exp_deliv_sale_3.id]},
-            {'qty_delivered': 1.0, 'product_uom_qty': 1.0, 'is_expense': True,  'expense_ids': [self.sale_exp_deliv_sale_4.id]},
-            {'qty_delivered': 5.0, 'product_uom_qty': 5.0, 'is_expense': True,  'expense_ids': [self.sale_exp_deliv_cost_5.id]},
-            {'qty_delivered': 6.0, 'product_uom_qty': 6.0, 'is_expense': True,  'expense_ids': [self.sale_exp_order_cost_6.id]},
+            {'qty_transferred': 1.0, 'product_uom_qty': 1.0, 'is_expense': True,  'expense_ids': [self.sale_exp_order_sale_1.id]},
+            {'qty_transferred': 1.0, 'product_uom_qty': 1.0, 'is_expense': True,  'expense_ids': [self.sale_exp_order_sale_2.id]},
+            {'qty_transferred': 1.0, 'product_uom_qty': 1.0, 'is_expense': True,  'expense_ids': [self.sale_exp_deliv_sale_3.id]},
+            {'qty_transferred': 1.0, 'product_uom_qty': 1.0, 'is_expense': True,  'expense_ids': [self.sale_exp_deliv_sale_4.id]},
+            {'qty_transferred': 5.0, 'product_uom_qty': 5.0, 'is_expense': True,  'expense_ids': [self.sale_exp_deliv_cost_5.id]},
+            {'qty_transferred': 6.0, 'product_uom_qty': 6.0, 'is_expense': True,  'expense_ids': [self.sale_exp_order_cost_6.id]},
         ])
 
     def test_expenses_reinvoice_case_2_reset_expense_to_draft(self):
@@ -213,14 +214,14 @@ class TestReInvoice(TestExpenseCommon, TestSaleCommon):
 
         self.assertRecordValues(self.expense_sale_order.line_ids, [
             # [0] Line not created from a re-invoiced, should never be changed
-            {'qty_delivered': 0.0, 'product_uom_qty': 3.0, 'expense_ids': []},
+            {'qty_transferred': 0.0, 'product_uom_qty': 3.0, 'expense_ids': []},
             # [1-6] Expense Lines: quantities are reset to 0 and expenses are unlinked
-            {'qty_delivered': 0.0, 'product_uom_qty': 0.0, 'expense_ids': []},
-            {'qty_delivered': 0.0, 'product_uom_qty': 0.0, 'expense_ids': []},
-            {'qty_delivered': 0.0, 'product_uom_qty': 0.0, 'expense_ids': []},
-            {'qty_delivered': 0.0, 'product_uom_qty': 0.0, 'expense_ids': []},
-            {'qty_delivered': 0.0, 'product_uom_qty': 0.0, 'expense_ids': []},
-            {'qty_delivered': 0.0, 'product_uom_qty': 0.0, 'expense_ids': []},
+            {'qty_transferred': 0.0, 'product_uom_qty': 0.0, 'expense_ids': []},
+            {'qty_transferred': 0.0, 'product_uom_qty': 0.0, 'expense_ids': []},
+            {'qty_transferred': 0.0, 'product_uom_qty': 0.0, 'expense_ids': []},
+            {'qty_transferred': 0.0, 'product_uom_qty': 0.0, 'expense_ids': []},
+            {'qty_transferred': 0.0, 'product_uom_qty': 0.0, 'expense_ids': []},
+            {'qty_transferred': 0.0, 'product_uom_qty': 0.0, 'expense_ids': []},
         ])
 
     def test_expenses_reinvoice_case_3_recreate_move_after_reset(self):
@@ -242,21 +243,21 @@ class TestReInvoice(TestExpenseCommon, TestSaleCommon):
 
         self.assertRecordValues(self.expense_sale_order.line_ids, [
             # [0] Line not created from a re-invoiced, should never be changed
-            {'qty_delivered': 0.0, 'product_uom_qty': 3.0, 'expense_ids': []},
+            {'qty_transferred': 0.0, 'product_uom_qty': 3.0, 'expense_ids': []},
             # [1-6] CASE 2 Lines: no change
-            {'qty_delivered': 0.0, 'product_uom_qty': 0.0, 'expense_ids': []},
-            {'qty_delivered': 0.0, 'product_uom_qty': 0.0, 'expense_ids': []},
-            {'qty_delivered': 0.0, 'product_uom_qty': 0.0, 'expense_ids': []},
-            {'qty_delivered': 0.0, 'product_uom_qty': 0.0, 'expense_ids': []},
-            {'qty_delivered': 0.0, 'product_uom_qty': 0.0, 'expense_ids': []},
-            {'qty_delivered': 0.0, 'product_uom_qty': 0.0, 'expense_ids': []},
+            {'qty_transferred': 0.0, 'product_uom_qty': 0.0, 'expense_ids': []},
+            {'qty_transferred': 0.0, 'product_uom_qty': 0.0, 'expense_ids': []},
+            {'qty_transferred': 0.0, 'product_uom_qty': 0.0, 'expense_ids': []},
+            {'qty_transferred': 0.0, 'product_uom_qty': 0.0, 'expense_ids': []},
+            {'qty_transferred': 0.0, 'product_uom_qty': 0.0, 'expense_ids': []},
+            {'qty_transferred': 0.0, 'product_uom_qty': 0.0, 'expense_ids': []},
             # [7-12] CASE 3 Lines: created with the correct quantities and linked to the expense
-            {'qty_delivered': 1.0, 'product_uom_qty': 1.0, 'expense_ids': [self.sale_exp_order_sale_1.id]},
-            {'qty_delivered': 1.0, 'product_uom_qty': 1.0, 'expense_ids': [self.sale_exp_order_sale_2.id]},
-            {'qty_delivered': 1.0, 'product_uom_qty': 1.0, 'expense_ids': [self.sale_exp_deliv_sale_3.id]},
-            {'qty_delivered': 1.0, 'product_uom_qty': 1.0, 'expense_ids': [self.sale_exp_deliv_sale_4.id]},
-            {'qty_delivered': 5.0, 'product_uom_qty': 5.0, 'expense_ids': [self.sale_exp_deliv_cost_5.id]},
-            {'qty_delivered': 6.0, 'product_uom_qty': 6.0, 'expense_ids': [self.sale_exp_order_cost_6.id]},
+            {'qty_transferred': 1.0, 'product_uom_qty': 1.0, 'expense_ids': [self.sale_exp_order_sale_1.id]},
+            {'qty_transferred': 1.0, 'product_uom_qty': 1.0, 'expense_ids': [self.sale_exp_order_sale_2.id]},
+            {'qty_transferred': 1.0, 'product_uom_qty': 1.0, 'expense_ids': [self.sale_exp_deliv_sale_3.id]},
+            {'qty_transferred': 1.0, 'product_uom_qty': 1.0, 'expense_ids': [self.sale_exp_deliv_sale_4.id]},
+            {'qty_transferred': 5.0, 'product_uom_qty': 5.0, 'expense_ids': [self.sale_exp_deliv_cost_5.id]},
+            {'qty_transferred': 6.0, 'product_uom_qty': 6.0, 'expense_ids': [self.sale_exp_order_cost_6.id]},
         ])
 
     def test_expenses_reinvoice_case_4_reset_expense_move_to_draft(self):
@@ -271,14 +272,14 @@ class TestReInvoice(TestExpenseCommon, TestSaleCommon):
 
         self.assertRecordValues(self.expense_sale_order.line_ids, [
             # [0] Line not created from a re-invoiced, should never be changed
-            {'qty_delivered': 0.0, 'product_uom_qty': 3.0, 'expense_ids': []},
+            {'qty_transferred': 0.0, 'product_uom_qty': 3.0, 'expense_ids': []},
             # [1-6] EXPENSES Lines: quantities are reset to 0 and expenses are unlinked
-            {'qty_delivered': 0.0, 'product_uom_qty': 0.0, 'expense_ids': []},
-            {'qty_delivered': 0.0, 'product_uom_qty': 0.0, 'expense_ids': []},
-            {'qty_delivered': 0.0, 'product_uom_qty': 0.0, 'expense_ids': []},
-            {'qty_delivered': 0.0, 'product_uom_qty': 0.0, 'expense_ids': []},
-            {'qty_delivered': 0.0, 'product_uom_qty': 0.0, 'expense_ids': []},
-            {'qty_delivered': 0.0, 'product_uom_qty': 0.0, 'expense_ids': []},
+            {'qty_transferred': 0.0, 'product_uom_qty': 0.0, 'expense_ids': []},
+            {'qty_transferred': 0.0, 'product_uom_qty': 0.0, 'expense_ids': []},
+            {'qty_transferred': 0.0, 'product_uom_qty': 0.0, 'expense_ids': []},
+            {'qty_transferred': 0.0, 'product_uom_qty': 0.0, 'expense_ids': []},
+            {'qty_transferred': 0.0, 'product_uom_qty': 0.0, 'expense_ids': []},
+            {'qty_transferred': 0.0, 'product_uom_qty': 0.0, 'expense_ids': []},
         ])
 
     def test_expenses_reinvoice_case_5_repost_expense_move_after_reset_to_draft(self):
@@ -296,21 +297,21 @@ class TestReInvoice(TestExpenseCommon, TestSaleCommon):
 
         self.assertRecordValues(self.expense_sale_order.line_ids, [
             # [0] Line not created from a re-invoiced, should never be changed
-            {'qty_delivered': 0.0, 'product_uom_qty': 3.0, 'expense_ids': []},
+            {'qty_transferred': 0.0, 'product_uom_qty': 3.0, 'expense_ids': []},
             # [1-6] EXPENSE CASE 4 Lines: no change
-            {'qty_delivered': 0.0, 'product_uom_qty': 0.0, 'expense_ids': []},
-            {'qty_delivered': 0.0, 'product_uom_qty': 0.0, 'expense_ids': []},
-            {'qty_delivered': 0.0, 'product_uom_qty': 0.0, 'expense_ids': []},
-            {'qty_delivered': 0.0, 'product_uom_qty': 0.0, 'expense_ids': []},
-            {'qty_delivered': 0.0, 'product_uom_qty': 0.0, 'expense_ids': []},
-            {'qty_delivered': 0.0, 'product_uom_qty': 0.0, 'expense_ids': []},
+            {'qty_transferred': 0.0, 'product_uom_qty': 0.0, 'expense_ids': []},
+            {'qty_transferred': 0.0, 'product_uom_qty': 0.0, 'expense_ids': []},
+            {'qty_transferred': 0.0, 'product_uom_qty': 0.0, 'expense_ids': []},
+            {'qty_transferred': 0.0, 'product_uom_qty': 0.0, 'expense_ids': []},
+            {'qty_transferred': 0.0, 'product_uom_qty': 0.0, 'expense_ids': []},
+            {'qty_transferred': 0.0, 'product_uom_qty': 0.0, 'expense_ids': []},
             # [7-12] EXPENSE CASE 5 Lines: created with the correct quantities and linked to the expense
-            {'qty_delivered': 1.0, 'product_uom_qty': 1.0, 'expense_ids': [self.sale_exp_order_sale_1.id]},
-            {'qty_delivered': 1.0, 'product_uom_qty': 1.0, 'expense_ids': [self.sale_exp_order_sale_2.id]},
-            {'qty_delivered': 1.0, 'product_uom_qty': 1.0, 'expense_ids': [self.sale_exp_deliv_sale_3.id]},
-            {'qty_delivered': 1.0, 'product_uom_qty': 1.0, 'expense_ids': [self.sale_exp_deliv_sale_4.id]},
-            {'qty_delivered': 5.0, 'product_uom_qty': 5.0, 'expense_ids': [self.sale_exp_deliv_cost_5.id]},
-            {'qty_delivered': 6.0, 'product_uom_qty': 6.0, 'expense_ids': [self.sale_exp_order_cost_6.id]},
+            {'qty_transferred': 1.0, 'product_uom_qty': 1.0, 'expense_ids': [self.sale_exp_order_sale_1.id]},
+            {'qty_transferred': 1.0, 'product_uom_qty': 1.0, 'expense_ids': [self.sale_exp_order_sale_2.id]},
+            {'qty_transferred': 1.0, 'product_uom_qty': 1.0, 'expense_ids': [self.sale_exp_deliv_sale_3.id]},
+            {'qty_transferred': 1.0, 'product_uom_qty': 1.0, 'expense_ids': [self.sale_exp_deliv_sale_4.id]},
+            {'qty_transferred': 5.0, 'product_uom_qty': 5.0, 'expense_ids': [self.sale_exp_deliv_cost_5.id]},
+            {'qty_transferred': 6.0, 'product_uom_qty': 6.0, 'expense_ids': [self.sale_exp_order_cost_6.id]},
         ])
 
     def test_expenses_reinvoice_case_6_reverse_expense_move(self):
@@ -325,14 +326,14 @@ class TestReInvoice(TestExpenseCommon, TestSaleCommon):
 
         self.assertRecordValues(self.expense_sale_order.line_ids, [
             # [0] Line not created from a re-invoiced, should never be changed
-            {'qty_delivered': 0.0, 'product_uom_qty': 3.0, 'expense_ids': []},
+            {'qty_transferred': 0.0, 'product_uom_qty': 3.0, 'expense_ids': []},
             # [1-6] EXPENSE Lines: quantities are reset to 0 and expenses are unlinked
-            {'qty_delivered': 0.0, 'product_uom_qty': 0.0, 'expense_ids': []},
-            {'qty_delivered': 0.0, 'product_uom_qty': 0.0, 'expense_ids': []},
-            {'qty_delivered': 0.0, 'product_uom_qty': 0.0, 'expense_ids': []},
-            {'qty_delivered': 0.0, 'product_uom_qty': 0.0, 'expense_ids': []},
-            {'qty_delivered': 0.0, 'product_uom_qty': 0.0, 'expense_ids': []},
-            {'qty_delivered': 0.0, 'product_uom_qty': 0.0, 'expense_ids': []},
+            {'qty_transferred': 0.0, 'product_uom_qty': 0.0, 'expense_ids': []},
+            {'qty_transferred': 0.0, 'product_uom_qty': 0.0, 'expense_ids': []},
+            {'qty_transferred': 0.0, 'product_uom_qty': 0.0, 'expense_ids': []},
+            {'qty_transferred': 0.0, 'product_uom_qty': 0.0, 'expense_ids': []},
+            {'qty_transferred': 0.0, 'product_uom_qty': 0.0, 'expense_ids': []},
+            {'qty_transferred': 0.0, 'product_uom_qty': 0.0, 'expense_ids': []},
         ])
 
     def test_expenses_reinvoice_case_7_ensure_one2one_relationship(self):
@@ -368,42 +369,42 @@ class TestReInvoice(TestExpenseCommon, TestSaleCommon):
         # Check that all the expenses can be found on the sale order
         self.assertRecordValues(self.expense_sale_order.line_ids, [
             # [0] Line not created from a re-invoiced, should never be changed
-            {'qty_delivered': 0.0, 'product_uom_qty': 3.0, 'expense_ids': []},
+            {'qty_transferred': 0.0, 'product_uom_qty': 3.0, 'expense_ids': []},
             # [1-6] Original Lines: Created with the correct quantities
-            {'qty_delivered': 1.0, 'product_uom_qty': 1.0, 'expense_ids': [self.sale_exp_order_sale_1.id]},
-            {'qty_delivered': 1.0, 'product_uom_qty': 1.0, 'expense_ids': [self.sale_exp_order_sale_2.id]},
-            {'qty_delivered': 1.0, 'product_uom_qty': 1.0, 'expense_ids': [self.sale_exp_deliv_sale_3.id]},
-            {'qty_delivered': 1.0, 'product_uom_qty': 1.0, 'expense_ids': [self.sale_exp_deliv_sale_4.id]},
-            {'qty_delivered': 5.0, 'product_uom_qty': 5.0, 'expense_ids': [self.sale_exp_deliv_cost_5.id]},
-            {'qty_delivered': 6.0, 'product_uom_qty': 6.0, 'expense_ids': [self.sale_exp_order_cost_6.id]},
+            {'qty_transferred': 1.0, 'product_uom_qty': 1.0, 'expense_ids': [self.sale_exp_order_sale_1.id]},
+            {'qty_transferred': 1.0, 'product_uom_qty': 1.0, 'expense_ids': [self.sale_exp_order_sale_2.id]},
+            {'qty_transferred': 1.0, 'product_uom_qty': 1.0, 'expense_ids': [self.sale_exp_deliv_sale_3.id]},
+            {'qty_transferred': 1.0, 'product_uom_qty': 1.0, 'expense_ids': [self.sale_exp_deliv_sale_4.id]},
+            {'qty_transferred': 5.0, 'product_uom_qty': 5.0, 'expense_ids': [self.sale_exp_deliv_cost_5.id]},
+            {'qty_transferred': 6.0, 'product_uom_qty': 6.0, 'expense_ids': [self.sale_exp_order_cost_6.id]},
             # [7-12] Copy Lines: Created with the correct quantities
-            {'qty_delivered': 1.0, 'product_uom_qty': 1.0, 'expense_ids': [sale_exp_order_sale_1_copy.id]},
-            {'qty_delivered': 1.0, 'product_uom_qty': 1.0, 'expense_ids': [sale_exp_order_sale_2_copy.id]},
-            {'qty_delivered': 1.0, 'product_uom_qty': 1.0, 'expense_ids': [sale_exp_deliv_sale_3_copy.id]},
-            {'qty_delivered': 1.0, 'product_uom_qty': 1.0, 'expense_ids': [sale_exp_deliv_sale_4_copy.id]},
-            {'qty_delivered': 5.0, 'product_uom_qty': 5.0, 'expense_ids': [sale_exp_deliv_cost_5_copy.id]},
-            {'qty_delivered': 6.0, 'product_uom_qty': 6.0, 'expense_ids': [sale_exp_order_cost_6_copy.id]},
+            {'qty_transferred': 1.0, 'product_uom_qty': 1.0, 'expense_ids': [sale_exp_order_sale_1_copy.id]},
+            {'qty_transferred': 1.0, 'product_uom_qty': 1.0, 'expense_ids': [sale_exp_order_sale_2_copy.id]},
+            {'qty_transferred': 1.0, 'product_uom_qty': 1.0, 'expense_ids': [sale_exp_deliv_sale_3_copy.id]},
+            {'qty_transferred': 1.0, 'product_uom_qty': 1.0, 'expense_ids': [sale_exp_deliv_sale_4_copy.id]},
+            {'qty_transferred': 5.0, 'product_uom_qty': 5.0, 'expense_ids': [sale_exp_deliv_cost_5_copy.id]},
+            {'qty_transferred': 6.0, 'product_uom_qty': 6.0, 'expense_ids': [sale_exp_order_cost_6_copy.id]},
         ])
 
         # Reset the six expenses to draft and check that only them are unlinked
         sale_expense_original_all.account_move_id.action_draft()
         self.assertRecordValues(self.expense_sale_order.line_ids, [
             # [0] Line not created from a re-invoiced, should never be changed
-            {'qty_delivered': 0.0, 'product_uom_qty': 3.0, 'expense_ids': []},
+            {'qty_transferred': 0.0, 'product_uom_qty': 3.0, 'expense_ids': []},
             # [1-6] Original Lines: quantities are reset to 0 and expenses are unlinked
-            {'qty_delivered': 0.0, 'product_uom_qty': 0.0, 'expense_ids': []},
-            {'qty_delivered': 0.0, 'product_uom_qty': 0.0, 'expense_ids': []},
-            {'qty_delivered': 0.0, 'product_uom_qty': 0.0, 'expense_ids': []},
-            {'qty_delivered': 0.0, 'product_uom_qty': 0.0, 'expense_ids': []},
-            {'qty_delivered': 0.0, 'product_uom_qty': 0.0, 'expense_ids': []},
-            {'qty_delivered': 0.0, 'product_uom_qty': 0.0, 'expense_ids': []},
+            {'qty_transferred': 0.0, 'product_uom_qty': 0.0, 'expense_ids': []},
+            {'qty_transferred': 0.0, 'product_uom_qty': 0.0, 'expense_ids': []},
+            {'qty_transferred': 0.0, 'product_uom_qty': 0.0, 'expense_ids': []},
+            {'qty_transferred': 0.0, 'product_uom_qty': 0.0, 'expense_ids': []},
+            {'qty_transferred': 0.0, 'product_uom_qty': 0.0, 'expense_ids': []},
+            {'qty_transferred': 0.0, 'product_uom_qty': 0.0, 'expense_ids': []},
             # [7-12] Copy Lines: Not caught by the reset
-            {'qty_delivered': 1.0, 'product_uom_qty': 1.0, 'expense_ids': [sale_exp_order_sale_1_copy.id]},
-            {'qty_delivered': 1.0, 'product_uom_qty': 1.0, 'expense_ids': [sale_exp_order_sale_2_copy.id]},
-            {'qty_delivered': 1.0, 'product_uom_qty': 1.0, 'expense_ids': [sale_exp_deliv_sale_3_copy.id]},
-            {'qty_delivered': 1.0, 'product_uom_qty': 1.0, 'expense_ids': [sale_exp_deliv_sale_4_copy.id]},
-            {'qty_delivered': 5.0, 'product_uom_qty': 5.0, 'expense_ids': [sale_exp_deliv_cost_5_copy.id]},
-            {'qty_delivered': 6.0, 'product_uom_qty': 6.0, 'expense_ids': [sale_exp_order_cost_6_copy.id]},
+            {'qty_transferred': 1.0, 'product_uom_qty': 1.0, 'expense_ids': [sale_exp_order_sale_1_copy.id]},
+            {'qty_transferred': 1.0, 'product_uom_qty': 1.0, 'expense_ids': [sale_exp_order_sale_2_copy.id]},
+            {'qty_transferred': 1.0, 'product_uom_qty': 1.0, 'expense_ids': [sale_exp_deliv_sale_3_copy.id]},
+            {'qty_transferred': 1.0, 'product_uom_qty': 1.0, 'expense_ids': [sale_exp_deliv_sale_4_copy.id]},
+            {'qty_transferred': 5.0, 'product_uom_qty': 5.0, 'expense_ids': [sale_exp_deliv_cost_5_copy.id]},
+            {'qty_transferred': 6.0, 'product_uom_qty': 6.0, 'expense_ids': [sale_exp_order_cost_6_copy.id]},
         ])
 
     def test_expenses_reinvoice_analytic_distribution(self):
@@ -443,9 +444,9 @@ class TestReInvoice(TestExpenseCommon, TestSaleCommon):
 
         self.assertRecordValues(sale_order.line_ids, [
             # Original SO line:
-            {'qty_delivered': 0.0, 'product_uom_qty': 2.0, 'is_expense': False},
+            {'qty_transferred': 0.0, 'product_uom_qty': 2.0, 'is_expense': False},
             # Expense line:
-            {'qty_delivered': 2.0,'product_uom_qty': 2.0, 'is_expense': True},
+            {'qty_transferred': 2.0,'product_uom_qty': 2.0, 'is_expense': True},
         ])
 
     def test_expense_reinvoice_tax_multine_line(self):
@@ -527,13 +528,13 @@ class TestReInvoice(TestExpenseCommon, TestSaleCommon):
         self.assertRecordValues(sale_order.line_ids, [
             # Original SO line:
             {
-                'qty_delivered': 0.0,
+                'qty_transferred': 0.0,
                 'product_uom_qty': 1.0,
                 'is_expense': False,
             },
             # Expense lines:
             {
-                'qty_delivered': 1.0,
+                'qty_transferred': 1.0,
                 'product_uom_qty': 1.0,
                 'is_expense': True,
             },
