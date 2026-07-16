@@ -652,7 +652,7 @@ export class Thread extends Record {
         }
         const before = epoch === "older" ? this.oldestPersistentMessage?.id : undefined;
         const after = epoch === "newer" ? this.newestPersistentMessage?.id : undefined;
-        let fetched = [];
+        let fetched;
         try {
             fetched = await this.fetchMessages({ after, before });
         } catch {
@@ -724,7 +724,7 @@ export class Thread extends Record {
             return;
         }
         const after = this.isLoaded ? this.newestPersistentMessage?.id : undefined;
-        let fetched = [];
+        let fetched;
         try {
             fetched = await this.fetchMessages({ after });
         } catch {
@@ -767,14 +767,12 @@ export class Thread extends Record {
             // continuous ascending order invariant of `messages`.
             this.messages.sort((m1, m2) => m1.id - m2.id);
         }
-        Object.assign(this, {
-            loadOlder:
-                after === undefined && fetched.length === this.store.FETCH_LIMIT
-                    ? true
-                    : after === undefined && fetched.length !== this.store.FETCH_LIMIT
-                      ? false
-                      : this.loadOlder,
-        });
+        if (after === undefined) {
+            // Full (re)fetch: a full page means there may be older messages to
+            // load, a short page means we reached the start. An incremental
+            // fetch (after !== undefined) leaves loadOlder untouched.
+            this.loadOlder = fetched.length === this.store.FETCH_LIMIT;
+        }
     }
 
     getFetchParams() {
@@ -925,7 +923,7 @@ export class Thread extends Record {
         const newestPersistentMessage = this.newestPersistentOfAllMessage;
         if (!newestPersistentMessage && !this.isLoaded) {
             this.isLoadedDeferred
-                .then(() => new Promise(setTimeout))
+                .then(() => new Promise((resolve) => setTimeout(resolve)))
                 .then(() => this.markAsRead(options));
             return;
         }

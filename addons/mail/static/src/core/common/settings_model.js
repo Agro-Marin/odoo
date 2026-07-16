@@ -28,9 +28,12 @@ export class Settings extends Record {
                 this.voiceActivationThreshold.toString(),
             );
         }, 2000);
+        // getContext("2d") is null when 2D canvas is unavailable (some hardened
+        // or headless environments); guard so store bootstrap degrades instead
+        // of throwing during Settings record creation.
+        const canvasContext = document.createElement("canvas").getContext("2d");
         this.hasCanvasFilterSupport =
-            typeof document.createElement("canvas").getContext("2d").filter !==
-            "undefined";
+            Boolean(canvasContext) && typeof canvasContext.filter !== "undefined";
         this._loadLocalSettings();
     }
 
