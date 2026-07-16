@@ -14488,6 +14488,101 @@ test("selection can be enabled by pressing 'shift + space' key", async () => {
 });
 
 test.tags("desktop");
+test("range selection follows the clicked record's state at click time", async () => {
+    // Force toggleSelection to apply synchronously: the mutex-deferred
+    // implementation masks any order dependence inside the range loop. The
+    // loop must snapshot the clicked record's target state up front (as the
+    // list view twin does in list_selection.js) — re-reading record.selected
+    // after the loop toggled the clicked record would flip the state applied
+    // to the rest of the range.
+    patchWithCleanup(RelationalRecord.prototype, {
+        toggleSelection(selected) {
+            this._toggleSelection(selected);
+        },
+    });
+    await mountView({
+        type: "kanban",
+        resModel: "partner",
+        arch: `
+                <kanban>
+                    <templates>
+                        <t t-name="card">
+                            <field name="foo"/>
+                        </t>
+                    </templates>
+                </kanban>`,
+    });
+    // Anchor the range on the LAST record…
+    await press("ArrowDown");
+    await press("ArrowDown");
+    await press("ArrowDown");
+    await press("ArrowDown");
+    await press("Space");
+    await animationFrame();
+    expect(".o_record_selected").toHaveCount(1);
+    // …then shift+space the FIRST (unselected) record: the whole range —
+    // including the records after the clicked one in iteration order — must
+    // take the clicked record's click-time target state (selected).
+    await press("ArrowUp");
+    await press("ArrowUp");
+    await press("ArrowUp");
+    await keyDown("Shift");
+    await press("Space");
+    await keyUp("Shift");
+    await animationFrame();
+    expect(".o_record_selected").toHaveCount(4);
+});
+
+test("progress bars: fetch discarded on a group-set change is retried", async () => {
+    // A read_progress_bar result is discarded when the set of groups changed
+    // while the RPC was in flight (the counts describe a stale group set).
+    // Discarding alone left the bars stale until the next data event — a
+    // debounced retry must re-fetch against the new set.
+    let capturedState = null;
+    patchWithCleanup(KanbanController.prototype, {
+        setup() {
+            super.setup();
+            capturedState = this.progressBarState;
+        },
+    });
+    let hold = null;
+    onRpc("read_progress_bar", async () => {
+        expect.step("read_progress_bar");
+        if (hold) {
+            await hold;
+        }
+    });
+    await mountView({
+        type: "kanban",
+        resModel: "partner",
+        arch: `
+            <kanban>
+                <progressbar field="foo" colors='{"yop": "success", "gnap": "warning", "blip": "danger"}'/>
+                <templates>
+                    <t t-name="card">
+                        <field name="foo"/>
+                    </t>
+                </templates>
+            </kanban>`,
+        groupBy: ["product_id"],
+    });
+    expect.verifySteps(["read_progress_bar"]);
+
+    // Hold a refresh RPC and change the group set while it is in flight.
+    hold = new Deferred();
+    const refresh = capturedState._updateProgressBar();
+    await capturedState.model.root.createGroup("new column");
+    hold.resolve();
+    hold = null;
+    await refresh;
+    // The held fetch was discarded (stale group set)…
+    expect.verifySteps(["read_progress_bar"]);
+    // …and the debounced retry re-fetches once the debounce delay elapses.
+    await runAllTimers();
+    expect.verifySteps(["read_progress_bar"]);
+});
+
+test.tags("desktop");
 test("drag and drop records and quickly open a record", async () => {
     Partner._views.kanban = /* xml */ `
         <kanban>

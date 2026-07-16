@@ -130,7 +130,7 @@ describe("undo invalid-field restore", () => {
         record._invalidFields.add("foo");
         record.dirty = true;
 
-        const undo = record._applyChanges({ foo: "fixed" });
+        const undo = record._applyChanges({ foo: "fixed" }, {}, { undoable: true });
         // _applyChanges cleared the changed field's invalid flag...
         expect(record.isFieldInvalid("foo")).toBe(false);
 

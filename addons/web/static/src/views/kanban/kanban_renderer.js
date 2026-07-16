@@ -488,8 +488,14 @@ export class KanbanRenderer extends Component {
         );
         const start = Math.min(recordIndex, lastCheckedRecordIndex);
         const end = Math.max(recordIndex, lastCheckedRecordIndex);
+        // Snapshot the target state before the loop (same rationale as the
+        // list twin in list_selection.js): toggleSelection is async
+        // (mutex-scheduled), so once the loop toggles the clicked record,
+        // reading record.selected mid-loop would flip the target state for
+        // the rest of the range.
+        const selected = !record.selected;
         for (let i = start; i <= end; i++) {
-            records[i].toggleSelection(!record.selected);
+            records[i].toggleSelection(selected);
         }
     }
 

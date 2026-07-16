@@ -103,6 +103,7 @@ describe("RelationalRecord._applyChanges undo — x2many sub-list", () => {
         const undoChanges = record._applyChanges(
             {},
             { line_ids: [[LINK, 99, SERVER_ROWS[99]]] },
+            { undoable: true },
         );
 
         // The command is staged in place (mutation is synchronous).
@@ -137,6 +138,7 @@ describe("RelationalRecord._applyChanges undo — x2many sub-list", () => {
         const undoChanges = record._applyChanges(
             {},
             { line_ids: [[LINK, 99, SERVER_ROWS[99]]] },
+            { undoable: true },
         );
         // The onchange staged a real command into the save payload.
         expect(list._getCommands().length).toBe(1);

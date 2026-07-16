@@ -18,6 +18,14 @@ import { useDynamicPlaceholder } from "@web/fields/dynamic_placeholder_hook";
  */
 export class TextInputFieldBase extends Component {
     /**
+     * Dynamic-placeholder helper, set by setupDynamicPlaceholder() when the
+     * feature is enabled. Declared on the base class so subclasses don't
+     * shadow it (TS2612).
+     * @type {any}
+     */
+    dynamicPlaceholder;
+
+    /**
      * @abstract — override to return the native input/textarea element
      * @returns {HTMLInputElement | HTMLTextAreaElement | null | undefined}
      */

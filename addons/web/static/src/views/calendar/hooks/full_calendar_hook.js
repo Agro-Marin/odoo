@@ -11,7 +11,7 @@ import {
     useComponent,
     useRef,
 } from "@odoo/owl";
-import { DateTime, Settings } from "@web/core/l10n/luxon";
+import { DateTime, IANAZone, Settings } from "@web/core/l10n/luxon";
 /**
  * OWL hook that manages a FullCalendar instance lifecycle: loads the bundle,
  * creates/renders on mount, refreshes on patch, destroys on unmount.
@@ -35,15 +35,35 @@ import { FullCalendar, loadFullCalendar } from "@web/core/lib/fullcalendar";
  * day-boundary alignment / event-time formatting for non-zero offsets —
  * kept here as a warning against reintroducing them.
  *
+ * Zones are classified by Luxon zone TYPE, never by name shape: slash-less
+ * IANA zones with working DST (``CET``, ``EET``, ``GB``, ``NZ``, ``Israel``,
+ * ...) are just as IANA as ``Europe/Brussels`` and MUST pass through by
+ * name. An earlier ``name.includes("/")`` check dropped them into the
+ * fixed-offset path below, freezing ``zone.offset(0)`` (January 1970) for
+ * the whole year — a CET user in summer (CEST, +02:00) got a calendar
+ * aligned to ``Etc/GMT-1``: every event rendered an hour early and drags
+ * wrote back shifted times.
+ *
  * :return: a time-zone identifier accepted by FullCalendar v7
  * :rtype: string
  */
 export function getFullCalendarTimeZone() {
     const zone = Settings.defaultZone;
     const name = zone.name;
-    if (typeof name === "string" && (name === "UTC" || name.includes("/"))) {
+    // ``iana``-typed zones carry an IANA name by construction; the
+    // ``system`` zone's name is Intl's resolved identifier. Both pass
+    // through when Intl can actually resolve the name (``isValidZone``
+    // guards invalid IANAZone instances and exotic system names).
+    if (
+        typeof name === "string" &&
+        (zone.type === "iana" || zone.type === "system") &&
+        IANAZone.isValidZone(name)
+    ) {
         return name;
     }
+    // Fixed-offset zones (and anything unresolvable above) follow the
+    // POSIX ``Etc/GMT±N`` translation — this is the ``mockTimeZone(±N)``
+    // test path.
     // zone.offset(0): minutes from UTC (no DST). IANA's ``Etc/GMT±N`` only
     // covers integer-hour offsets in [-12, +14] (``Etc/zone.tab``); outside
     // that range (e.g. ``mockTimeZone(±40)`` in tests) fall back to

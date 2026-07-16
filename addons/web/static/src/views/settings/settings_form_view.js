@@ -50,7 +50,16 @@ class SettingRecord extends formView.Model.Record {
                         } else {
                             // Apply and then undo changes to force field components
                             // to re-render and restore previous values (e.g. RadioField).
-                            const undoChanges = this._applyChanges(changes);
+                            // ``undoable: true`` is required — ``_applyChanges``
+                            // returns a no-op undo otherwise (the snapshot is only
+                            // built on request; see record.js).
+                            const undoChanges = this._applyChanges(
+                                changes,
+                                {},
+                                {
+                                    undoable: true,
+                                },
+                            );
                             undoChanges();
                         }
                     }

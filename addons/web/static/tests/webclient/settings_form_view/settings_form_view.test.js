@@ -104,6 +104,28 @@ beforeEach(() => {
     });
 });
 
+test("header setting without explicit string falls back to the field label", async () => {
+    // SettingHeader inherits labelString from Setting: with no string on the
+    // <setting> or its field, the label falls back to the field's own string.
+    // Regression: a former override read the nonexistent props.name (the
+    // compiler passes fieldName), rendering header settings label-less.
+    await mountView({
+        type: "form",
+        resModel: "res.config.settings",
+        arch: /* xml */ `
+            <form string="Settings" class="oe_form_configuration o_base_settings" js_class="base_settings">
+                <app string="CRM" name="crm">
+                    <setting type="header">
+                        <field name="baz"/>
+                    </setting>
+                </app>
+            </form>
+        `,
+    });
+    expect(".app_settings_header label.o_form_label").toHaveCount(1);
+    expect(".app_settings_header label.o_form_label").toHaveText("Baz");
+});
+
 test.tags("desktop");
 test("change setting on nav bar click in base settings on desktop", async () => {
     await mountView({

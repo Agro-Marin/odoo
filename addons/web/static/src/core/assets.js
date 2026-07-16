@@ -744,6 +744,11 @@ export const assets = {
         const scriptEl = targetDoc.createElement("script");
         scriptEl.setAttribute("src", url);
         scriptEl.type = "text/javascript";
+        // Dynamically-inserted scripts default to async=true, i.e. they execute
+        // in COMPLETION order. Classic multi-file bundles rely on insertion
+        // order (e.g. web.ace_lib mode files calling `ace.define` must run
+        // after ace.js), so opt back into ordered execution.
+        scriptEl.async = false;
         const promise = new Promise((resolve, reject) =>
             onLoadAndError(
                 scriptEl,

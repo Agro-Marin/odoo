@@ -364,7 +364,7 @@ export class Registry extends EventBus {
 // Duplicate ``add("ui", …)`` calls from bundles inlining the same source now
 // hit one registry — see Registry.add's idempotent-duplicate handling above.
 /** @type {Registry<import("registries").GlobalRegistry>} */
-export const registry = /** @type {Record<string, any>} */ (
+export const registry = /** @type {any} */ (
     globalThis.__odooRegistry__ ??= new Registry()
 );
 

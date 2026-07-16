@@ -184,6 +184,14 @@ export class PropertiesField extends Component {
      * event handlers doesn't touch the record's stored objects (e.g. so
      * discarding the form view still restores the original props).
      *
+     * Properties staged for deletion (`definition_deleted`) are filtered
+     * out: this list is the *active* view used for rendering and index
+     * math. Because of that, any update built from it must go through
+     * `_updateRecordProperties` (never `record.update` directly), which
+     * re-appends the staged tombstones — the server only deletes a
+     * definition when the saved value still carries its
+     * `definition_deleted` entry.
+     *
      * @returns {array}
      */
     get propertiesList() {
@@ -234,8 +242,10 @@ export class PropertiesField extends Component {
             }
         });
 
-        if (groupedProperties.length === 1) {
+        if (groupedProperties.length === 1 && !groupedProperties[0].isFolded) {
             // only one group, split this group in the columns to take the entire width
+            // (unless it is folded: its properties are hidden, so keep them in the
+            // single folded group instead of leaking them into synthetic columns)
             const invisibleLabel = propertiesList[0]?.type !== "separator";
             groupedProperties[0].elements = [];
             groupedProperties[0].invisibleLabel = invisibleLabel;
@@ -375,7 +385,7 @@ export class PropertiesField extends Component {
         propertiesValues[propertyIndex] = prop;
         propertiesValues[propertyIndex].definition_changed = true;
 
-        await this.props.record.update({ [this.props.name]: propertiesValues });
+        await this._updateRecordProperties(propertiesValues);
         await this._unfoldPropertyGroup(targetIndex, propertiesValues);
 
         // move the popover once the DOM is updated
@@ -452,7 +462,7 @@ export class PropertiesField extends Component {
         }
         propertiesValues.splice(toIndex, 0, propertiesValues.splice(fromIndex, 1)[0]);
         propertiesValues[0].definition_changed = true;
-        this.props.record.update({ [this.props.name]: propertiesValues });
+        this._updateRecordProperties(propertiesValues);
     }
 
     /**
@@ -499,7 +509,7 @@ export class PropertiesField extends Component {
             ...propertiesValues.splice(fromIndex, groupSize),
         );
         propertiesValues[0].definition_changed = true;
-        this.props.record.update({ [this.props.name]: propertiesValues });
+        this._updateRecordProperties(propertiesValues);
     }
 
     /**
@@ -513,7 +523,7 @@ export class PropertiesField extends Component {
         const propertiesValues = this.propertiesList;
         propertiesValues.find((property) => property.name === propertyName).value =
             propertyValue;
-        this.props.record.update({ [this.props.name]: propertiesValues });
+        this._updateRecordProperties(propertiesValues);
     }
 
     /**
@@ -574,7 +584,7 @@ export class PropertiesField extends Component {
         );
 
         propertiesValues[propertyIndex] = propertyDefinition;
-        await this.props.record.update({ [this.props.name]: propertiesValues });
+        await this._updateRecordProperties(propertiesValues);
 
         if (newType === "separator" && oldType !== "separator") {
             // unfold automatically the new separator
@@ -631,9 +641,7 @@ export class PropertiesField extends Component {
                 propertiesDefinitions.find(
                     (property) => property.name === propertyName,
                 ).definition_deleted = true;
-                this.props.record.update({
-                    [this.props.name]: propertiesDefinitions,
-                });
+                this._updateRecordProperties(propertiesDefinitions);
             },
             cancel: () => {},
         };
@@ -687,9 +695,7 @@ export class PropertiesField extends Component {
             definition_changed: true,
         });
         this.initialValues[newName] = { name: newName, type: "char" };
-        await this.props.record.update({
-            [this.props.name]: propertiesDefinitions,
-        });
+        await this._updateRecordProperties(propertiesDefinitions);
         await this._unfoldPropertyGroup(count - 1, propertiesDefinitions);
         this.openPropertyDefinition = newName;
     }
@@ -746,6 +752,33 @@ export class PropertiesField extends Component {
      * -------------------------------------------------------- */
 
     /**
+     * Update the record with the given properties values, preserving the
+     * properties already staged for deletion.
+     *
+     * `propertiesList` (from which every outgoing list is derived) filters
+     * out `definition_deleted` entries, but the server only deletes a
+     * definition when the saved value carries its tombstone. So every
+     * update must re-append the previously staged tombstones until save,
+     * otherwise a later change (value edit, fold, move…) silently reverts
+     * a confirmed deletion.
+     *
+     * @param {array} propertiesValues
+     * @returns {Promise}
+     */
+    _updateRecordProperties(propertiesValues) {
+        const knownNames = new Set(propertiesValues.map((property) => property.name));
+        const deletedProperties = (this.props.record.data[this.props.name] || [])
+            .filter(
+                (definition) =>
+                    definition.definition_deleted && !knownNames.has(definition.name),
+            )
+            .map((definition) => ({ ...definition }));
+        return this.props.record.update({
+            [this.props.name]: [...propertiesValues, ...deletedProperties],
+        });
+    }
+
+    /**
      * Recompute `state.canChangeDefinition` / `state.isInEditMode` against
      * the given props. Single implementation for every edit-mode transition
      * (mount, cog-menu edit, definition record change, props update).
@@ -792,9 +825,7 @@ export class PropertiesField extends Component {
                     forceState ?? !(property.value ?? property.fold_by_default);
             }
         }
-        return this.props.record.update({
-            [this.props.name]: propertiesValues,
-        });
+        return this._updateRecordProperties(propertiesValues);
     }
 
     /**
@@ -958,7 +989,7 @@ export class PropertiesField extends Component {
         if (newProperty.default) {
             newProperty.value = newProperty.default;
         }
-        this.props.record.update({ [this.props.name]: propertiesValues });
+        this._updateRecordProperties(propertiesValues);
     }
 
     /**

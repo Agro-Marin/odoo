@@ -165,12 +165,11 @@ export class Macro {
     steps = [];
     /** @type {AbortController | undefined} */
     abortController;
-    /** @type {Function} */
-    onComplete = () => {};
-    /** @type {Function} */
-    onStep = () => {};
-    /** @type {Function} */
-    onError = () => {};
+    // `onComplete`/`onStep`/`onError` are deliberately NOT class fields: a
+    // field initializer would create an own no-op property on every instance,
+    // shadowing subclass prototype methods (e.g. knowledge's AbstractMacro
+    // defines `onError` on its prototype) and making the constructor defaults
+    // below dead code.
     /**
      * @param {{ name?: string, timeout?: number, steps?: MacroStep[], onComplete?: Function, onStep?: Function, onError?: Function }} descr
      */
@@ -184,14 +183,22 @@ export class Macro {
             );
         }
         Object.assign(this, descr);
+        // `??=` reads through the prototype chain: a handler from the
+        // descriptor (own property set by Object.assign above) or from a
+        // subclass prototype method wins over these defaults.
+        /** @type {Function} */
         this.onComplete ??= () => {};
+        /** @type {Function} */
         this.onStep ??= () => {};
+        /** @type {Function} */
         this.onError ??= (
-            /** @type {Error} */ error,
-            /** @type {MacroStep} */ step,
-            /** @type {number} */ index,
+            /** @type {{ error: Error, step: MacroStep, index: number }} */ {
+                error,
+                step,
+                index,
+            },
         ) => {
-            console.error(error.message, step, index);
+            console.error(error.message ?? error, step, index);
         };
     }
 

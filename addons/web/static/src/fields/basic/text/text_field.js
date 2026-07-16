@@ -39,8 +39,6 @@ export class TextField extends TextInputFieldBase {
     textareaRef;
     /** @type {import("@odoo/owl").Ref<HTMLElement>} */
     divRef;
-    /** @type {any} */
-    dynamicPlaceholder;
 
     /** @returns {HTMLTextAreaElement | null} */
     get inputEl() {

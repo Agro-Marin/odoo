@@ -467,7 +467,9 @@ export class Dropdown extends Component {
             ? focusOutside && active !== document.body
             : focusOutside &&
               (["INPUT", "TEXTAREA"].includes(active.nodeName) ||
-                  active.isContentEditable);
+                  // Non-HTML elements simply have no isContentEditable
+                  // (undefined -> falsy), so the cast is safe.
+                  /** @type {HTMLElement} */ (active).isContentEditable);
         if (!leaveFocus) {
             restoreEl.focus();
         }

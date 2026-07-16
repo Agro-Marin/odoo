@@ -26,9 +26,8 @@ const browserImpl = {
     AudioBufferSourceNode: window.AudioBufferSourceNode,
     AudioContext: window.AudioContext,
     AudioWorkletNode: window.AudioWorkletNode,
-    BeforeInstallPromptEvent: /** @type {any} */ (
-        window
-    ).BeforeInstallPromptEvent?.bind(window),
+    // NB: a constructor — see the note on ``PerformanceObserver`` below.
+    BeforeInstallPromptEvent: /** @type {any} */ (window).BeforeInstallPromptEvent,
     GainNode: window.GainNode,
     MediaStreamAudioSourceNode: window.MediaStreamAudioSourceNode,
     removeEventListener: window.removeEventListener.bind(window),
@@ -38,7 +37,10 @@ const browserImpl = {
     clearInterval: window.clearInterval.bind(window),
     performance: window.performance,
     crypto: window.crypto,
-    // NB: a constructor — must NOT be ``.bind()``-ed (that would break ``new``).
+    // NB: a constructor — must NOT be ``.bind()``-ed. A bound constructor
+    // still supports ``new`` and ``instanceof``, but binding hides statics
+    // and ``.prototype`` (e.g. ``PerformanceObserver.supportedEntryTypes``,
+    // ``X.prototype`` patching), and constructors don't need a ``this``.
     PerformanceObserver: window.PerformanceObserver,
     requestAnimationFrame: window.requestAnimationFrame.bind(window),
     cancelAnimationFrame: window.cancelAnimationFrame.bind(window),

@@ -733,7 +733,8 @@ function _applyBinaryOp(ast, recurse) {
             const rightNumeric =
                 typeof right === "number" || typeof right === "boolean";
             if (leftNumeric && rightNumeric) {
-                return left + right;
+                // Booleans intentionally coerce (Python: True + 1 == 2).
+                return /** @type {number} */ (left) + /** @type {number} */ (right);
             }
             throw new EvaluationError(
                 `unsupported operand type(s) for +: '${pyTypeName(left)}' and '${pyTypeName(right)}'`,
@@ -1239,7 +1240,7 @@ export function evaluate(ast, context = {}) {
             !allowedFns.has(val) &&
             !allowedFns.has(val[unboundFn])
         ) {
-            throw new Error("Invalid Function Call");
+            throw new EvaluationError("Invalid Function Call");
         }
         return val;
     }

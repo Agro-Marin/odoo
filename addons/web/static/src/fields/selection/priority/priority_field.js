@@ -23,6 +23,8 @@ export class PriorityField extends Component {
 
     /** @type {{ index: number }} */
     state;
+    /** @type {Array<[any, string]>} */
+    options;
 
     setup() {
         this.state = useState({

@@ -124,7 +124,10 @@ export function useBounceButton(containerRef, shouldBounce) {
                 return;
             }
             const handler = (ev) => {
-                const button = ui.activeElement?.querySelector("[data-bounce-button]");
+                // Cast: TS cannot synthesize a call signature for the
+                // ``Document | HTMLElement`` union's generic querySelector.
+                const activeElement = /** @type {ParentNode} */ (ui.activeElement);
+                const button = activeElement?.querySelector("[data-bounce-button]");
                 if (button && shouldBounce(ev.target)) {
                     button.classList.add("o_catch_attention");
                     browser.clearTimeout(timeout);

@@ -2191,18 +2191,13 @@ test("properties: separators layout", async () => {
         ],
     ]);
 
-    // fold the group
+    // fold the group: it is the only group, so nothing may be split into
+    // (and stay visible in) the second column
     await click(
         ".o_field_properties .o_property_group[property-name='property_gen_2']:first-child .o_field_property_group_label",
     );
     await animationFrame();
-    expect(getGroups()).toEqual([
-        [["PROPERTY 1", "property_gen_2"]],
-        [
-            ["", ""],
-            ["Property 4", "property_4"],
-        ],
-    ]);
+    expect(getGroups()).toEqual([[["PROPERTY 1", "property_gen_2"]]]);
     await click(
         ".o_field_properties .o_property_group[property-name='property_gen_2']:first-child .o_field_property_group_label",
     );
@@ -3189,4 +3184,112 @@ test("properties: monetary with multiple currency field", async () => {
     expect(`.o_property_field:nth-child(2) .o_property_field_value input`).toHaveValue(
         "0.00",
     );
+});
+
+/**
+ * A confirmed pending deletion must survive any later properties update
+ * before save: the saved value must still carry the `definition_deleted`
+ * tombstone, otherwise the server never deletes the definition.
+ */
+test("properties: pending deletion survives a later value edit", async () => {
+    onRpc("has_access", () => true);
+    onRpc("web_save", ({ args }) => {
+        expect.step("web_save");
+        const properties = args[1].properties;
+        const deleted = properties.find((property) => property.name === "property_1");
+        expect(deleted).not.toBe(undefined);
+        expect(deleted.definition_deleted).toBe(true);
+        expect(
+            properties.find((property) => property.name === "property_3").value,
+        ).toBe("edited after delete");
+    });
+
+    await mountView({
+        type: "form",
+        resModel: "partner",
+        resId: 1,
+        arch: /* xml */ `
+            <form>
+                <sheet>
+                    <group>
+                        <field name="company_id"/>
+                        <field name="properties" widget="properties"/>
+                    </group>
+                </sheet>
+            </form>`,
+        actionMenus: {},
+    });
+
+    await toggleActionMenu();
+    await toggleMenuItem("Edit Properties"); // Start the edition mode
+
+    // delete the first property (confirm the dialog)
+    await click(".o_property_field:first-child .o_field_property_open_popover");
+    await animationFrame();
+    await click(".o_field_property_definition_delete");
+    await animationFrame();
+    await click(".modal-content .btn-primary");
+    await animationFrame();
+    expect("[property-name=property_1]").toHaveCount(0);
+
+    // then edit another property's value before saving
+    await contains("[property-name=property_3] input").edit("edited after delete");
+
+    expect.verifySteps([]);
+    await clickSave();
+    expect.verifySteps(["web_save"]);
+});
+
+/**
+ * When the properties hold a single (separator) group and the form uses
+ * several columns, the group is normally split across the columns. If that
+ * lone group is folded, no property may leak into the extra columns.
+ */
+test.tags("desktop");
+test("properties: folded single group does not leak properties into columns", async () => {
+    onRpc("has_access", () => true);
+    ResCompany._records[0].definitions = [
+        {
+            name: "property_1",
+            string: "Separator 1",
+            type: "separator",
+        },
+        { name: "property_2", string: "Property 2", type: "char" },
+        { name: "property_3", string: "Property 3", type: "char" },
+    ];
+    Partner._records[3].properties = { property_1: true }; // separator folded
+
+    await mountView({
+        type: "form",
+        resModel: "partner",
+        resId: 4,
+        arch: /* xml */ `
+            <form>
+                <sheet>
+                    <group>
+                        <field name="company_id"/>
+                        <field name="properties" columns="2"/>
+                    </group>
+                </sheet>
+            </form>`,
+        actionMenus: {},
+    });
+
+    // the lone group is folded: no property may be visible in any column
+    expect(getGroups()).toEqual([[["SEPARATOR 1", "property_1"]]]);
+    expect(".o_property_field:not(.o_property_folded)").toHaveCount(0);
+
+    // unfolding restores the multi-column split
+    await click("div[property-name='property_1'] .o_field_property_group_label");
+    await animationFrame();
+    expect(getGroups()).toEqual([
+        [
+            ["SEPARATOR 1", "property_1"],
+            ["Property 2", "property_2"],
+        ],
+        [
+            ["", ""],
+            ["Property 3", "property_3"],
+        ],
+    ]);
 });

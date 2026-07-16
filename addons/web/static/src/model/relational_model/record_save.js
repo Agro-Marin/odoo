@@ -144,6 +144,17 @@ export async function save(record, { reload = true, onError, nextId } = {}) {
             await record.model.load({ resId: nextId });
             return true;
         }
+        // ``_changes`` may hold x2many lists whose commands all serialized to
+        // nothing (e.g. readonly-only child edits): clear them like the
+        // reload:false branch below does — otherwise the parent reports clean
+        // while the lists keep the staged commands, and the NEXT save
+        // re-serializes them.
+        for (const fieldName of Object.keys(record.activeFields)) {
+            const field = record.fields[fieldName];
+            if (isX2Many(field) && !field.relatedPropertyField) {
+                record._changes[fieldName]?._clearCommands();
+            }
+        }
         record._clearChanges();
         record.data = { ...record._values };
         // ``_changes`` may have held entries that serialize to nothing
@@ -192,6 +203,10 @@ export async function save(record, { reload = true, onError, nextId } = {}) {
         });
         const succeeded = navigator.sendBeacon(route, blob);
         if (succeeded) {
+            // A normal save may be parked at its onWillSaveRecord hook right
+            // now: tell it this change set is already persisted (see the
+            // ``beaconFiredWhileParked`` check below).
+            record._urgentBeaconFired = true;
             record._values = markRaw({ ...record._values, ...record._changes });
             // Mirror the reload:false branch: clear each x2many list's staged
             // CREATE/LINK/UPDATE commands now that the beacon persisted them.
@@ -230,23 +245,38 @@ export async function save(record, { reload = true, onError, nextId } = {}) {
     }
     /** @type {Record<string, any>[]} */
     let records;
-    // In-flight marker for urgentSave(): held from the FIRST await after the
-    // `changes` snapshot (the onWillSaveRecord hook — enterprise controllers
-    // park saves there for seconds behind dialogs/RPCs) until the change bag
-    // is cleared, so a tab close anywhere in that window skips the beacon
-    // instead of re-sending the same (non-idempotent) x2many commands: the
-    // beacon plus the parked webSave used to double-write duplicate child
-    // rows. Awaits BEFORE the snapshot need no marker — a beacon firing
-    // there clears `_changes`, so the snapshot comes out empty.
+    // The onWillSaveRecord hook can park the save for seconds (enterprise
+    // controllers await dialogs/RPCs in it). This window must stay OUTSIDE
+    // the ``_saveInFlight`` beacon-skip marker: a parked webSave cannot land
+    // after a real unload, so skipping the beacon there would silently lose
+    // the user's work. If the beacon fires while we are parked, it persists
+    // the same change set and raises ``_urgentBeaconFired`` — the resumed
+    // save then returns without re-sending the (non-idempotent) x2many
+    // commands.
+    const canProceed = await record.model.hooks.lifecycle.onWillSaveRecord(
+        record,
+        changes,
+    );
+    const beaconFiredWhileParked = record._urgentBeaconFired;
+    record._urgentBeaconFired = false;
+    if (canProceed === false) {
+        return false;
+    }
+    if (beaconFiredWhileParked) {
+        // The tab-close beacon already persisted this change set (and the
+        // page survived, e.g. the unload was canceled): the change bag and
+        // x2many commands are cleared — a webSave now would double-write.
+        return true;
+    }
+    // In-flight marker for urgentSave(): held from just before the webSave
+    // RPC until the change bag is cleared, so a tab close in that window
+    // skips the beacon instead of re-sending the same (non-idempotent)
+    // x2many commands: the beacon plus the in-flight webSave used to
+    // double-write duplicate child rows. Awaits BEFORE the ``changes``
+    // snapshot need no marker — a beacon firing there clears ``_changes``,
+    // so the snapshot comes out empty.
     record._saveInFlight = true;
     try {
-        const canProceed = await record.model.hooks.lifecycle.onWillSaveRecord(
-            record,
-            changes,
-        );
-        if (canProceed === false) {
-            return false;
-        }
         // keep x2many orderBy if we stay on the same record
         /** @type {Record<string, any>} */
         const orderBys = {};

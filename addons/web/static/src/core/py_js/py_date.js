@@ -95,6 +95,10 @@ function assertDateComponents(year, month, day) {
  * @param {any} [microsecond=0]
  */
 function assertTimeComponents(hour, minute, second, microsecond = 0) {
+    assertIntComponent("hour", hour);
+    assertIntComponent("minute", minute);
+    assertIntComponent("second", second);
+    assertIntComponent("microsecond", microsecond);
     if (hour < 0 || hour > 23) {
         throw new ValueError("hour must be in 0..23");
     }
@@ -797,6 +801,38 @@ export class PyRelativeDelta {
     /** @returns {PyRelativeDelta} */
     negate() {
         return new PyRelativeDelta(this, -1);
+    }
+
+    /**
+     * Truthiness matching dateutil's ``relativedelta.__bool__``: false only
+     * when every relative field is zero and every absolute field is unset
+     * (``bool(relativedelta())`` is ``False``). Without this the generic
+     * ``Object.keys(value).length`` fallback made every relativedelta truthy,
+     * so e.g. ``not relativedelta(days=n)`` was wrongly always-false at n=0.
+     *
+     * @returns {boolean}
+     */
+    isTrue() {
+        // Absolute keys are ``null`` when unset (see ``create()``); use loose
+        // ``!= null`` so both null and undefined count as "unset".
+        return Boolean(
+            this.years ||
+            this.months ||
+            this.days ||
+            this.hours ||
+            this.minutes ||
+            this.seconds ||
+            this.microseconds ||
+            this.leapDays ||
+            this.year != null ||
+            this.month != null ||
+            this.day != null ||
+            this.hour != null ||
+            this.minute != null ||
+            this.second != null ||
+            this.microsecond != null ||
+            this.weekday != null,
+        );
     }
 
     /**

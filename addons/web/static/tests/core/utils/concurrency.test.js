@@ -282,6 +282,33 @@ describe("KeepLast", () => {
         expect.verifySteps(["ok [2]"]);
     });
 
+    test("rejectSuperseded: a hung superseded task rejects at supersession time", async () => {
+        const keepLast = new KeepLast({ rejectSuperseded: true });
+        // def1 NEVER settles: the wrapper must still reject when superseded,
+        // otherwise its awaiters (e.g. doAction callers holding UI blocks)
+        // would hang forever.
+        const def1 = new Deferred();
+        const def2 = new Deferred();
+
+        keepLast.add(def1).then(
+            () => expect.step("should not resolve"),
+            (error) => {
+                expect(error).toBeInstanceOf(SupersededError);
+                expect.step("ko [1]: superseded");
+            },
+        );
+        keepLast.add(def2).then(() => expect.step("ok [2]"));
+
+        // No settlement of def1 — the rejection happens because of the
+        // supersession itself.
+        await tick();
+        expect.verifySteps(["ko [1]: superseded"]);
+
+        def2.resolve();
+        await tick();
+        expect.verifySteps(["ok [2]"]);
+    });
+
     test("rejectSuperseded: the latest task still resolves normally", async () => {
         const keepLast = new KeepLast({ rejectSuperseded: true });
         const def = new Deferred();

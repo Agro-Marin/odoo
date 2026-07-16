@@ -1289,3 +1289,35 @@ describe("CPython-alignment regressions", () => {
         expect(evaluateExpr("float('3.5')")).toBe(3.5);
     });
 });
+
+describe("builtin fidelity", () => {
+    test("bool/len/abs reject extra positional arguments (CPython arity)", () => {
+        expect(() => evaluateExpr("bool(1, 2)")).toThrow(
+            /bool expected at most 1 argument/,
+        );
+        expect(() => evaluateExpr("len([1], 2)")).toThrow(/len\(\) takes exactly one/);
+        expect(() => evaluateExpr("abs(1, 2)")).toThrow(/abs\(\) takes exactly one/);
+        // one positional still works.
+        expect(evaluateExpr("bool(1)")).toBe(true);
+        expect(evaluateExpr("len([1, 2])")).toBe(2);
+        expect(evaluateExpr("abs(-3)")).toBe(3);
+    });
+
+    test("bool(relativedelta()) matches dateutil __bool__", () => {
+        // An all-zero relativedelta is falsy (dateutil); a non-empty one truthy.
+        expect(evaluateExpr("bool(relativedelta())")).toBe(false);
+        expect(evaluateExpr("bool(relativedelta(days=0))")).toBe(false);
+        expect(evaluateExpr("bool(relativedelta(days=1))")).toBe(true);
+        expect(evaluateExpr("bool(relativedelta(year=2020))")).toBe(true);
+        expect(evaluateBooleanExpr("not relativedelta(days=0)")).toBe(true);
+    });
+
+    test("calling a non-whitelisted function raises an EvaluationError", () => {
+        // Must be an EvaluationError (not a bare Error) so Domain.toList can
+        // convert it into an InvalidDomainError recovery path. A function in
+        // context that is not on the builtin whitelist trips the guard.
+        expect(() => evaluateExpr("foo()", { foo: () => 1 })).toThrow(
+            /Invalid Function Call/,
+        );
+    });
+});

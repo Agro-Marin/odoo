@@ -13,7 +13,7 @@ import {
 import { hasTouch } from "@web/core/browser/feature_detection";
 import { makeDraggableHook } from "@web/core/utils/dnd/draggable_hook_builder_owl";
 import { useForwardRefToParent } from "@web/core/utils/hooks";
-import { throttleForAnimation } from "@web/core/utils/timing";
+import { useThrottleForAnimation } from "@web/core/utils/timing";
 import { useHotkey } from "@web/services/hotkeys/hotkey_hook";
 import { useActiveElement } from "@web/ui/block/ui_service";
 
@@ -147,7 +147,11 @@ export class Dialog extends Component {
                     },
                 }),
             );
-            const throttledResize = throttleForAnimation(this.onResize.bind(this));
+            // useThrottleForAnimation (vs the bare throttleForAnimation)
+            // cancels the pending animation frame on destroy, so a resize
+            // fired just before closing can't run the handler on a destroyed
+            // component.
+            const throttledResize = useThrottleForAnimation(this.onResize.bind(this));
             useExternalListener(window, "resize", throttledResize);
         }
         onWillDestroy(() => {

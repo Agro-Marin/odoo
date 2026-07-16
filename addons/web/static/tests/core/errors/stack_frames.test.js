@@ -135,6 +135,45 @@ test("maps frames through a linked sourcemap", async () => {
     ]);
 });
 
+test("maps frames through an inline data: sourcemap longer than 1KB", async () => {
+    // An inline base64 sourcemap puts the WHOLE map on the directive line,
+    // which is then far longer than any fixed-size tail window (the old
+    // implementation only scanned the last 1024 bytes and never found the
+    // directive's start).
+    const scriptUrl = "/web/assets/esm/def456/web.assets_web.esm.js";
+    // Pad the map so its base64 form exceeds 1024 characters.
+    const paddedMap = { ...FIXTURE_MAP, x_padding: "p".repeat(2000) };
+    const dataUri = `data:application/json;base64,${btoa(JSON.stringify(paddedMap))}`;
+    expect(dataUri.length).toBeGreaterThan(1024);
+    mockFetch(async (input) => {
+        if (String(input) === scriptUrl) {
+            return new Response(
+                `function o(){throw new Error("boom")}o();\n//# sourceMappingURL=${dataUri}`,
+            );
+        }
+        if (String(input).startsWith("data:application/json;base64,")) {
+            return new Response(atob(String(input).split(",")[1]));
+        }
+        throw new Error(`unexpected fetch: ${input}`);
+    });
+    const mapped = await mapFramesToSource([
+        {
+            functionName: "o",
+            fileName: scriptUrl,
+            lineNumber: 1,
+            columnNumber: 14,
+        },
+    ]);
+    expect(mapped).toEqual([
+        {
+            functionName: "o",
+            fileName: "src_a.js",
+            lineNumber: 2,
+            columnNumber: 5,
+        },
+    ]);
+});
+
 test("frames pass through unchanged when the script has no sourcemap", async () => {
     mockFetch(async () => new Response(`function o(){}o();`));
     const frame = {

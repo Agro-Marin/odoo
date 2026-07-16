@@ -384,10 +384,19 @@ export class SearchModel extends EventBus {
 
         const { context, domain, groupBy, orderBy } = config;
 
-        this.globalContext = toRaw({ ...context });
-        this.globalDomain = domain || [];
-        this.globalGroupBy = groupBy || [];
-        this.globalOrderBy = orderBy || [];
+        // Keys ABSENT from the config keep their current value: WithSearch only
+        // forwards the props that were provided (it strips undefined ones), so a
+        // partial-prop reload must not wipe the unspecified search keys. Gate on
+        // ``key in config`` — NOT ``??`` — so a key that IS provided but empty
+        // (e.g. ``{ groupBy: [] }`` to CLEAR the group-by, or an explicit
+        // ``undefined``) still resets, matching the historical ``|| []``
+        // semantics. Using ``??`` conflated "clear me" with "not provided" and
+        // left a cleared group-by/domain facet stuck.
+        this.globalContext =
+            "context" in config ? toRaw({ ...(context || {}) }) : this.globalContext;
+        this.globalDomain = "domain" in config ? domain || [] : this.globalDomain;
+        this.globalGroupBy = "groupBy" in config ? groupBy || [] : this.globalGroupBy;
+        this.globalOrderBy = "orderBy" in config ? orderBy || [] : this.globalOrderBy;
 
         // Called for its side effect: strips the search_default_* keys out of
         // this.globalContext (their values feed the initial section state).

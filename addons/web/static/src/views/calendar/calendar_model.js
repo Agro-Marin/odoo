@@ -301,7 +301,18 @@ export class CalendarModel extends Model {
         const rawRecord = this.buildRawRecord(record);
         const context = this.makeContextDefaults(rawRecord);
         await this.orm.create(this.meta.resModel, [rawRecord], { context });
+        this.invalidateUnusualDays();
         await this.load();
+    }
+
+    /**
+     * Flush the unusual-days cache so the next load refetches them. Called on
+     * every record CRUD: get_unusual_days often depends on the very records
+     * being written (e.g. hr_leave), and the cache otherwise lives for the
+     * whole model lifetime, keeping stale shading.
+     */
+    invalidateUnusualDays() {
+        this._unusualDaysCache.invalidate();
     }
 
     /**
@@ -319,6 +330,17 @@ export class CalendarModel extends Model {
 
         // we deliberately only use the values of the first filter section, to avoid combinatorial explosion
         const [section] = this.filterSections;
+        // "user" is the auto-added current-user filter: it carries a real
+        // value and is often the ONLY active one — excluding it made
+        // multi-create a silent no-op in the common case. "dynamic" filters
+        // are NOT assignment targets (they mirror the values found in the
+        // displayed records), so a dynamic-only section must not fan out —
+        // it falls back to one bare record per date below.
+        const assignableFilters = section
+            ? section.filters.filter((filter) =>
+                  ["record", "user"].includes(filter.type),
+              )
+            : [];
         for (const date of dates) {
             const initialRecordValue = {};
             if (this.showMultiCreateTimeRange) {
@@ -328,22 +350,18 @@ export class CalendarModel extends Model {
                 initialRecordValue.start = date;
             }
             const rawRecord = this.buildRawRecord(initialRecordValue);
-            if (!section) {
+            if (!assignableFilters.length) {
+                // No section, or a section without record/user filters (e.g.
+                // a dynamic-only section): create one bare record per date
+                // instead of silently creating nothing + warning.
                 records.push({
                     ...rawRecord,
                     ...values,
                 });
                 continue;
             }
-            for (const filter of section.filters) {
-                // "user" is the auto-added current-user filter: it carries a
-                // real value and is often the ONLY active one — excluding it
-                // made multi-create a silent no-op in the common case.
-                if (
-                    filter.active &&
-                    ["record", "user"].includes(filter.type) &&
-                    filter.value
-                ) {
+            for (const filter of assignableFilters) {
+                if (filter.active && filter.value) {
                     records.push({
                         ...rawRecord,
                         ...values,
@@ -366,6 +384,7 @@ export class CalendarModel extends Model {
             const createdRecords = await this.orm.create(this.meta.resModel, records, {
                 context: this.meta.context,
             });
+            this.invalidateUnusualDays();
             await this.load();
             return createdRecords;
         }
@@ -383,18 +402,29 @@ export class CalendarModel extends Model {
             section.filters = section.filters.filter((f) => f.recordId !== recordId);
         }
         if (info?.writeResModel) {
-            await this.orm.unlink(info.writeResModel, [recordId]);
-            await this.debouncedLoad();
+            try {
+                await this.orm.unlink(info.writeResModel, [recordId]);
+            } finally {
+                // Reload even on failure: the filter was removed optimistically
+                // and the epoch bump discarded any in-flight load, so without a
+                // reload the panel stays desynced from the server (mirrors
+                // updateRecord). The rejection still propagates for the
+                // standard error dialog; catch the reload so a reload failure
+                // can't mask the original unlink error.
+                await this.debouncedLoad().catch((error) => console.error(error));
+            }
         }
     }
     async unlinkRecord(recordId) {
         await this.orm.unlink(this.meta.resModel, [recordId]);
+        this.invalidateUnusualDays();
         await this.load();
     }
 
     async unlinkRecords(recordsId) {
         if (recordsId.length) {
             await this.orm.unlink(this.meta.resModel, recordsId);
+            this.invalidateUnusualDays();
             await this.load();
         }
     }
@@ -408,25 +438,39 @@ export class CalendarModel extends Model {
             filter.active = active;
         }
         const info = this.meta.filtersInfo[fieldName];
-        if (info && info.writeFieldName && info.writeResModel && info.filterFieldName) {
-            const userFilter = filters.find((f) => f.type === "user");
-            if (userFilter) {
-                userFilter.active = active;
+        try {
+            if (
+                info &&
+                info.writeFieldName &&
+                info.writeResModel &&
+                info.filterFieldName
+            ) {
+                const userFilter = filters.find((f) => f.type === "user");
+                if (userFilter) {
+                    userFilter.active = active;
+                }
+                const filterIds = filters
+                    .filter((f) => f.type === "record")
+                    .map((f) => f.recordId);
+                if (filterIds.length) {
+                    const data = {
+                        [info.filterFieldName]: active,
+                    };
+                    const context = this.meta.context;
+                    await this.orm.write(info.writeResModel, filterIds, data, {
+                        context,
+                    });
+                }
             }
-            const filterIds = filters
-                .filter((f) => f.type === "record")
-                .map((f) => f.recordId);
-            if (filterIds.length) {
-                const data = {
-                    [info.filterFieldName]: active,
-                };
-                const context = this.meta.context;
-                await this.orm.write(info.writeResModel, filterIds, data, {
-                    context,
-                });
-            }
+        } finally {
+            // Reload even on failure: the filters were flipped optimistically
+            // and the epoch bump discarded any in-flight load, so without a
+            // reload the UI stays desynced from the server (mirrors
+            // updateRecord). The rejection still propagates for the standard
+            // error dialog; catch the reload so a reload failure can't mask
+            // the original write error.
+            await this.debouncedLoad().catch((error) => console.error(error));
         }
-        await this.debouncedLoad();
     }
     async updateRecord(record, options = {}) {
         const rawRecord = this.buildRawRecord(record, options);
@@ -445,6 +489,7 @@ export class CalendarModel extends Model {
             // The rejection still propagates for the standard error dialog.
             // Catch the reload so a reload failure can't mask the original write
             // error (which is what the user needs to see).
+            this.invalidateUnusualDays();
             await this.load().catch((error) => console.error(error));
         }
     }

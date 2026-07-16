@@ -115,11 +115,16 @@ export function useVirtualGrid({ scrollableRef, initialScroll, onChange, bufferC
 
     /** @type {{ scroll: { left: number, top: number }, summedColumnsWidths?: number[], summedRowsHeights?: number[], columnsIndexes?: [number, number] | [], rowsIndexes?: [number, number] | [] }} */
     const current = { scroll: { left: 0, top: 0, ...initialScroll } };
+    // The visible span is the scrollable's own client box, not the window:
+    // for a small pane (e.g. a grid in a dialog or side panel) the window
+    // span can be several times larger, rendering up to ~4x the needed DOM.
+    // Fall back to the window dimensions when the element has no layout yet
+    // (or the ref is not mounted).
     const computeColumnsIndexes = () =>
         getIndexes({
             sizes: current.summedColumnsWidths,
             start: Math.abs(current.scroll.left),
-            span: window.innerWidth,
+            span: scrollableRef.el?.clientWidth || window.innerWidth,
             prevStartIndex: current.columnsIndexes?.[0],
             bufferCoef,
         });
@@ -127,7 +132,7 @@ export function useVirtualGrid({ scrollableRef, initialScroll, onChange, bufferC
         getIndexes({
             sizes: current.summedRowsHeights,
             start: current.scroll.top,
-            span: window.innerHeight,
+            span: scrollableRef.el?.clientHeight || window.innerHeight,
             prevStartIndex: current.rowsIndexes?.[0],
             bufferCoef,
         });

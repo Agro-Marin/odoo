@@ -7,18 +7,24 @@
 /** @import { StaticList } from "@web/model/relational_model/static_list" */
 
 /**
- * @typedef {Object} Column
- * @property {string} type
- * @property {string} name
- * @property {string} id
- * @property {string} [label]
- * @property {string} [widget]
- * @property {boolean} [hasLabel]
- * @property {string} [optional]
- * @property {string} [classNames]
- * @property {string} [column_invisible]
- * @property {Object} [attrs]
- * @property {Object} [relatedPropertyField]
+ * Canonical ``Column`` shape shared by the list renderer, its extracted
+ * modules (keyboard nav, styling, width computation) and these utilities.
+ * The index signature covers arch-parser extras subclasses read through.
+ *
+ * @typedef {{
+ *  type: string;
+ *  name: string;
+ *  id: string;
+ *  label?: string;
+ *  widget?: string;
+ *  hasLabel?: boolean;
+ *  optional?: string;
+ *  classNames?: string;
+ *  column_invisible?: string;
+ *  attrs?: Record<string, string>;
+ *  relatedPropertyField?: Record<string, unknown>;
+ *  [key: string]: unknown;
+ * }} Column
  */
 
 import { getPropertyFieldInfo } from "@web/fields/field";

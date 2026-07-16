@@ -45,7 +45,9 @@ export class RadioField extends SelectionLikeField {
             case "selection":
                 return this.props.record.fields[this.props.name].selection;
             case "many2one":
-                return this.specialData.data;
+                // specialData is set in the base setup() whenever type is
+                // "many2one", so it can't be undefined on this branch.
+                return /** @type {any} */ (this.specialData).data;
             default:
                 return [];
         }

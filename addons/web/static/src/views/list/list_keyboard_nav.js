@@ -64,6 +64,7 @@ function focusAtPosition(tableRef, { rowIndex, colIndex }) {
  * @param {() => object} options.getEnv
  * @param {() => import("./list_grid_state").ListGridState | undefined} [options.getGridState]
  * @param {() => object | null} [options.getEditedRecord]
+ * @param {(cell: HTMLTableCellElement, cellIsInGroupRow: boolean, direction: "up" | "down" | "left" | "right") => HTMLElement | null} [options.findFocusFutureCell]
  * @param {(group: object) => void} options.onToggleGroup
  * @param {(record: object) => void} options.onToggleRecordSelection
  * @param {(params?: object) => void} [options.onAdd]
@@ -98,26 +99,53 @@ export function useListKeyboardNavigation(tableRef, options) {
     } = options;
 
     /**
+     * Move already resolved by the calling handler, consumed by the hook's
+     * ``findFocusFutureCell`` facade when the renderer override chain reaches
+     * it, so a vertical arrow key does not compute ``findFocusMove`` twice.
+     *
+     * @type {{ cell: HTMLTableCellElement, direction: string, move: { el: HTMLElement } | { pending: true } | null } | null}
+     */
+    let latchedMove = null;
+
+    /**
      * Resolve the target cell for an arrow move, dispatching through the
      * renderer-supplied (overridable) ``findFocusFutureCell`` when present so
      * downstream renderer subclasses observe/redirect the move; falls back to
-     * the hook's internal facade otherwise.
+     * the hook's internal facade otherwise. When the caller already computed
+     * the move, pass it as ``move`` — the facade then consumes it instead of
+     * recomputing (the latch only applies to the same cell/direction, so an
+     * override calling ``super`` with different arguments still recomputes).
      *
      * @param {HTMLTableCellElement} cell
      * @param {boolean} cellIsInGroupRow
      * @param {"up" | "down" | "left" | "right"} direction
+     * @param {{ el: HTMLElement } | { pending: true } | null} [move]
      * @returns {HTMLElement | null}
      */
-    const dispatchFutureCell = (cell, cellIsInGroupRow, direction) =>
-        (findFocusFutureCell || self.findFocusFutureCell)(
-            cell,
-            cellIsInGroupRow,
-            direction,
-        );
+    const dispatchFutureCell = (cell, cellIsInGroupRow, direction, move) => {
+        latchedMove = move === undefined ? null : { cell, direction, move };
+        try {
+            return (findFocusFutureCell || self.findFocusFutureCell)(
+                cell,
+                cellIsInGroupRow,
+                direction,
+            );
+        } finally {
+            latchedMove = null;
+        }
+    };
 
     /** Index tracking for cross-row navigation between group and data rows. */
     let lastKnownIndex = 0;
-    /** Focus position to retry after virtualization scrolls the target into view. */
+    /**
+     * Focus position to retry after virtualization scrolls the target into
+     * view. Carries the grid indexes, the target record id (to re-resolve the
+     * row index at resolution time if rows shifted meanwhile) and, for plain
+     * arrow moves, the origin cell/direction so the resolution dispatches
+     * through the renderer's overridable ``findFocusFutureCell``.
+     *
+     * @type {{ rowIndex: number, colIndex: number, recordId?: string, origin?: { cell: HTMLTableCellElement, cellIsInGroupRow: boolean, direction: "up" | "down" | "left" | "right" } } | null}
+     */
     let pendingVirtFocus = null;
 
     const self = {
@@ -139,11 +167,67 @@ export function useListKeyboardNavigation(tableRef, options) {
             if (!pendingVirtFocus) {
                 return;
             }
-            const pos = pendingVirtFocus;
+            const pending = pendingVirtFocus;
             pendingVirtFocus = null;
-            const element = focusAtPosition(tableRef, pos);
-            if (element) {
-                self.focus(element);
+            let { rowIndex, colIndex } = pending;
+            // Rows may have shifted between the arrow press and this patch
+            // (insertion/removal while the scroll settled): re-resolve the row
+            // index from the captured record id so focus lands on the intended
+            // record, not whatever now sits at the latched index.
+            if (pending.recordId !== undefined) {
+                const flat = getGridState?.()?.findRowByRecordId(pending.recordId);
+                if (flat) {
+                    rowIndex = flat.globalIndex;
+                }
+            }
+            const element = focusAtPosition(tableRef, { rowIndex, colIndex });
+            if (!element) {
+                return;
+            }
+            // A plain arrow move dispatches the resolved cell through the
+            // renderer's overridable findFocusFutureCell (with the resolution
+            // latched, so no recompute) — subclasses that sync side state on
+            // arrow moves (documents preview, account_accountant attachment
+            // preview) observe virtualized-out moves like rendered ones.
+            const origin = pending.origin;
+            const toFocus =
+                origin && findFocusFutureCell
+                    ? dispatchFutureCell(
+                          origin.cell,
+                          origin.cellIsInGroupRow,
+                          origin.direction,
+                          { el: element },
+                      )
+                    : element;
+            if (toFocus) {
+                self.focus(toFocus);
+            }
+        },
+
+        /**
+         * Drop a latched pending virtualized focus. The renderer calls this on
+         * onPatched paths that must not resolve focus (active element owned by
+         * another UI part, e.g. a dialog): without it the latch survives and
+         * fires at a much later, unrelated patch with stale indexes — a focus
+         * steal.
+         */
+        clearPendingVirtFocus() {
+            pendingVirtFocus = null;
+        },
+
+        /**
+         * Attach the origin of a pending virtualized-out arrow move so its
+         * post-patch resolution dispatches through the renderer override
+         * chain (see ``resolvePendingVirtFocus``). No-op when nothing is
+         * pending.
+         *
+         * @param {HTMLTableCellElement} cell
+         * @param {boolean} cellIsInGroupRow
+         * @param {"up" | "down" | "left" | "right"} direction
+         */
+        setPendingVirtFocusOrigin(cell, cellIsInGroupRow, direction) {
+            if (pendingVirtFocus) {
+                pendingVirtFocus.origin = { cell, cellIsInGroupRow, direction };
             }
         },
 
@@ -210,11 +294,21 @@ export function useListKeyboardNavigation(tableRef, options) {
                         return { el: element };
                     }
                     // Row is virtualized out of DOM — scroll it into view
-                    // and schedule focus for the next patch.
+                    // and schedule focus for the next patch. Capture the
+                    // target record id so the resolution can re-resolve the
+                    // row index if rows shift before the patch fires.
                     const virt = getVirtualization?.();
                     if (virt?.isActive) {
                         virt.ensureRowVisible(next.rowIndex);
-                        pendingVirtFocus = next;
+                        const flat = gridState.flatRows[next.rowIndex];
+                        pendingVirtFocus = {
+                            rowIndex: next.rowIndex,
+                            colIndex: next.colIndex,
+                            recordId:
+                                flat?.type === "record" && flat.record
+                                    ? String(flat.record.id)
+                                    : undefined,
+                        };
                         return { pending: true };
                     }
                 }
@@ -329,6 +423,9 @@ export function useListKeyboardNavigation(tableRef, options) {
          * renderers (e.g. documents, account_accountant) override it expecting
          * an element or null. Cannot distinguish a boundary from a pending
          * virtualized focus — internal handlers use `findFocusMove` directly.
+         * When the calling handler already resolved the move (vertical arrows
+         * latch it through `dispatchFutureCell`), that resolution is consumed
+         * here instead of computing `findFocusMove` a second time.
          *
          * @param {HTMLTableCellElement} cell
          * @param {boolean} cellIsInGroupRow
@@ -336,7 +433,12 @@ export function useListKeyboardNavigation(tableRef, options) {
          * @returns {HTMLElement | null}
          */
         findFocusFutureCell(cell, cellIsInGroupRow, direction) {
-            const move = self.findFocusMove(cell, cellIsInGroupRow, direction);
+            const move =
+                latchedMove &&
+                latchedMove.cell === cell &&
+                latchedMove.direction === direction
+                    ? latchedMove.move
+                    : self.findFocusMove(cell, cellIsInGroupRow, direction);
             return move && "el" in move ? move.el : null;
         },
 
@@ -458,15 +560,19 @@ export function useListKeyboardNavigation(tableRef, options) {
                     const move = self.findFocusMove(cell, cellIsInGroupRow, "up");
                     if (move && "pending" in move) {
                         // The target row is virtualized out: focus lands on it
-                        // after the next patch. Consume the event so the
-                        // search bar does not transiently steal focus.
+                        // after the next patch (dispatched through the renderer
+                        // override then — see resolvePendingVirtFocus). Consume
+                        // the event so the search bar does not transiently
+                        // steal focus.
+                        self.setPendingVirtFocusOrigin(cell, cellIsInGroupRow, "up");
                         return true;
                     }
                     // When a renderer override is wired, resolve the concrete
                     // cell through it so subclasses observe the move; the
-                    // internal facade is idempotent for the same cell/direction.
+                    // already-computed move is latched so the chain's terminal
+                    // facade does not recompute it.
                     toFocus = findFocusFutureCell
-                        ? dispatchFutureCell(cell, cellIsInGroupRow, "up")
+                        ? dispatchFutureCell(cell, cellIsInGroupRow, "up", move)
                         : move && move.el;
                     if (!toFocus && getEnv().searchModel) {
                         getEnv().searchModel.trigger(SearchModelEvent.FOCUS_SEARCH);
@@ -477,14 +583,17 @@ export function useListKeyboardNavigation(tableRef, options) {
                 case "arrowdown": {
                     const move = self.findFocusMove(cell, cellIsInGroupRow, "down");
                     if (move && "pending" in move) {
-                        // Focus is scheduled for the next patch — consume the
+                        // Focus is scheduled for the next patch (dispatched
+                        // through the renderer override then) — consume the
                         // event to prevent the default browser scroll.
+                        self.setPendingVirtFocusOrigin(cell, cellIsInGroupRow, "down");
                         return true;
                     }
                     // Dispatch through the renderer override when wired (see
-                    // arrowup) so subclass findFocusFutureCell participates.
+                    // arrowup) so subclass findFocusFutureCell participates,
+                    // passing the already-computed move to avoid recompute.
                     toFocus = findFocusFutureCell
-                        ? dispatchFutureCell(cell, cellIsInGroupRow, "down")
+                        ? dispatchFutureCell(cell, cellIsInGroupRow, "down", move)
                         : move && move.el;
                     break;
                 }

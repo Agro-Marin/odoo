@@ -494,6 +494,8 @@ export class Field extends Component {
 
     /** @returns {string | false} JSON-serialized tooltip data, or false if tooltip is disabled */
     get tooltip() {
-        return this._tooltip;
+        // _tooltip is always set before render (onWillRender above), which is
+        // the only time the template reads this getter.
+        return /** @type {string | false} */ (this._tooltip);
     }
 }

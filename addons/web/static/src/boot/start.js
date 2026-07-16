@@ -120,12 +120,19 @@ export async function startWebClient(Webclient) {
     };
     /** @type {any} */ (odoo).isReady = false;
 
-    if (window.isSecureContext && session.browser_cache_secret) {
-        rpc.setCache(
-            new RPCCache("rpc", session.registry_hash, session.browser_cache_secret),
-        );
-        assetLog("boot", "RPC cache enabled (secure context + browser_cache_secret)");
-    }
+    // Only the DISK layer of the RPC cache needs SubtleCrypto (secure
+    // context) and the per-database secret; RAM caching needs neither.
+    // Construct the cache unconditionally and let it degrade to RAM-only
+    // when the disk prerequisites are absent (plain-HTTP intranet deploys),
+    // instead of silently disabling ALL rpc caching.
+    const diskSecret = (window.isSecureContext && session.browser_cache_secret) || null;
+    rpc.setCache(new RPCCache("rpc", session.registry_hash, diskSecret));
+    assetLog(
+        "boot",
+        diskSecret
+            ? "RPC cache enabled (RAM + encrypted disk)"
+            : "RPC cache enabled (RAM only: no secure context or browser_cache_secret)",
+    );
 
     await whenReady();
     assetLog("boot", "document ready — mounting WebClient");

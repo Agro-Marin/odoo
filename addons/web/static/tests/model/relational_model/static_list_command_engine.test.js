@@ -36,6 +36,7 @@ function makeList(overrides = {}) {
         _currentIds: [],
         _cache: {},
         _unknownRecordCommands: {},
+        _loadingStubIds: new Set(),
         offset: 0,
         limit: 80,
         _tmpIncreaseLimit: 0,
@@ -234,6 +235,30 @@ describe("applyCommands — UNLINK", () => {
         const unlinkCmds = list._commands.filter((c) => c[0] === UNLINK);
         expect(unlinkCmds.length).toBe(0);
     });
+
+    test("an UNLINK absorbed into a staged SET still drops membership", () => {
+        // Regression: absorbing an UNLINK into a staged SET (m2m replaceWith
+        // then forget on the same field) removed the id from the SET payload
+        // but `break`-ed before marking removedIds — so the row kept
+        // rendering and count drifted from the relation. The absorb only
+        // fixes the save payload; membership must still update.
+        const SET = 6;
+        const list = makeList();
+        list._commands = [[SET, false, [1, 2, 3]]];
+        addRecord(list, 1);
+        addRecord(list, 2);
+        addRecord(list, 3);
+        expect(list.count).toBe(3);
+
+        applyCommands(list, [[UNLINK, 2]]);
+
+        // Absorbed from the SET payload...
+        expect(list._commands[0]).toEqual([SET, false, [1, 3]]);
+        // ...AND removed from the visible list / membership / count.
+        expect(list._currentIds).toEqual([1, 3]);
+        expect(list.records.map((r) => r.resId)).toEqual([1, 3]);
+        expect(list.count).toBe(2);
+    });
 });
 
 // ---------------------------------------------------------------------------
@@ -300,6 +325,47 @@ describe("applyCommands — LINK", () => {
         // _currentIds (was just removed), so it adds it back.
         expect(list._currentIds).toInclude(15);
     });
+
+    test("a displayed LINK is inserted at its page position, not the tail", () => {
+        // Regression: LINK pushed the id to the END of _currentIds while
+        // rendering the row on the CURRENT page. On a multi-page x2many the
+        // row showed here now but belonged to the last page, so it jumped
+        // pages on the next load and evalContext currentIds order disagreed
+        // with the display. Membership must match the display position.
+        const list = makeList();
+        list.limit = 3; // room for one more on the current page
+        list.offset = 0;
+        // Membership spans two pages (90, 91 belong to later positions).
+        addRecord(list, 1);
+        addRecord(list, 2);
+        list._currentIds = [1, 2, 90, 91];
+        list.count = 4;
+
+        applyCommands(list, [[LINK, 9, { id: 9, display_name: "Rec 9" }]]);
+
+        // The row renders at the end of the current page (index offset +
+        // records.length - 1 = 2), so its id lands there in membership — NOT
+        // appended after the page-2 ids.
+        expect(list._currentIds).toEqual([1, 2, 9, 90, 91]);
+        expect(list.records.map((r) => r.resId)).toEqual([1, 2, 9]);
+    });
+
+    test("a LINK past the page limit appends to membership (not displayed)", () => {
+        const list = makeList();
+        list.limit = 2;
+        list.offset = 0;
+        addRecord(list, 1);
+        addRecord(list, 2);
+        list._currentIds = [1, 2];
+        list.count = 2;
+
+        // No display data → not shown this page (over limit, canAddOverLimit
+        // false) → tail push.
+        applyCommands(list, [[LINK, 9]]);
+
+        expect(list._currentIds).toEqual([1, 2, 9]);
+        expect(list.records.map((r) => r.resId)).toEqual([1, 2]);
+    });
 });
 
 // ---------------------------------------------------------------------------
@@ -353,6 +419,39 @@ describe("applyCommands — UPDATE", () => {
         // The visible scalar was applied to the record...
         expect(record.data.name).toBe("Updated");
         // ...and only the sub-x2many slice was stashed.
+        expect(list._unknownRecordCommands[20]).toEqual([
+            [UPDATE, 20, { lines: [[5, 0, 0]] }],
+        ]);
+    });
+
+    test("a later UPDATE to a LOADED record with a deferred slice applies live", () => {
+        // Regression: once a loaded record had an invisible-sub-x2many slice
+        // stashed in _unknownRecordCommands, EVERY later UPDATE for it was
+        // misrouted to the stash (the `id in _unknownRecordCommands` branch),
+        // leaving the visible row stale until save. The stash is only for
+        // still-LOADING stubs (tracked in _loadingStubIds); a loaded record's
+        // scalar updates must apply immediately.
+        const list = makeList();
+        const record = addRecord(list, 20);
+        list.fields = {
+            name: { type: "char" },
+            lines: { type: "one2many" },
+        };
+        record.activeFields = { name: {} }; // `lines` not active → slice deferred
+
+        // Onchange #1: stashes the invisible sub-x2many slice.
+        applyCommands(list, [[UPDATE, 20, { name: "First", lines: [[5, 0, 0]] }]]);
+        expect(record.data.name).toBe("First");
+        expect(list._unknownRecordCommands[20]).toEqual([
+            [UPDATE, 20, { lines: [[5, 0, 0]] }],
+        ]);
+        expect(list._loadingStubIds.has(20)).toBe(false);
+
+        // Onchange #2: a plain scalar UPDATE must reach the live record, not
+        // the stash.
+        applyCommands(list, [[UPDATE, 20, { name: "Second" }]]);
+        expect(record.data.name).toBe("Second");
+        // The deferred slice is untouched; the scalar was NOT stashed.
         expect(list._unknownRecordCommands[20]).toEqual([
             [UPDATE, 20, { lines: [[5, 0, 0]] }],
         ]);

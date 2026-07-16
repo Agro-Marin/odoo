@@ -9,12 +9,14 @@ import { Mutex } from "./concurrency.js";
 const VERSION_TABLE = "__DBVersion__";
 const VERSION_KEY = "__version__";
 /**
- * How long a blocked `deleteDatabase` may wait for the other connections to
- * close before this instance gives up and degrades to no-cache for the
- * session. Deletion runs inside the instance mutex, so waiting forever (e.g.
- * on a frozen/bfcached tab that never receives `versionchange`) would queue
- * every subsequent read/write behind it — worst case hanging the webclient
- * boot after a deploy that bumps the registry hash.
+ * How long a blocked `deleteDatabase` — or a blocked version-bump `open`
+ * (schema upgrade adding a missing object store, see ``_execute``) — may
+ * wait for the other connections to close before this instance gives up and
+ * degrades to no-cache for the session. Both run inside the instance mutex,
+ * so waiting forever (e.g. on a frozen/bfcached tab that never receives
+ * `versionchange`) would queue every subsequent read/write behind it —
+ * worst case hanging the webclient boot after a deploy that bumps the
+ * registry hash.
  */
 const BLOCKED_DELETE_TIMEOUT = 1000;
 
@@ -318,6 +320,24 @@ export class IndexedDB {
         }
         return new Promise((resolve, reject) => {
             let request;
+            // ``onblocked`` guard, mirroring ``_deleteDatabase``: a
+            // version-bump open (schema upgrade creating a missing table)
+            // stays blocked as long as another context holds a connection to
+            // the previous version — e.g. a frozen tab that never processes
+            // its ``versionchange`` event. This runs inside the instance
+            // mutex, so without the timeout every subsequent operation would
+            // queue behind the never-completing open, forever.
+            let settled = false;
+            /** @type {any} */
+            let blockedTimeoutId;
+            const settle = (/** @type {() => void} */ fn) => {
+                if (settled) {
+                    return;
+                }
+                settled = true;
+                browser.clearTimeout(blockedTimeoutId);
+                fn();
+            };
             try {
                 request = indexedDB.open(this.name, idbVersion);
             } catch (e) {
@@ -341,40 +361,66 @@ export class IndexedDB {
             };
             request.onsuccess = (event) => {
                 const db = /** @type {IDBOpenDBRequest} */ (event.target).result;
-                const dbTables = new Set(db.objectStoreNames);
-                const newTables = this._tables.difference(dbTables);
-                if (newTables.size !== 0) {
+                if (settled) {
+                    // The blocked-timeout already degraded this instance and
+                    // settled the promise; the open finally completed once
+                    // the blocking context went away. Close the late
+                    // connection immediately so it can't in turn block other
+                    // contexts' upgrades or deletes.
                     db.close();
-                    const version = db.version + 1;
-                    // Forward BOTH arms: a failing version-bump upgrade (e.g.
-                    // the ``onupgradeneeded`` transaction aborts) must reject
-                    // this promise, not leave it pending forever with an
-                    // unhandled rejection dangling off the inner ``_execute``.
-                    return this._execute(callback, version).then(resolve, reject);
+                    return;
                 }
-                // Cache the connection for subsequent operations. Drop (and
-                // close) it as soon as another context requests a version
-                // change — keeping it open would block that upgrade — or
-                // when the browser closes the connection itself.
-                this._db = db;
-                db.onversionchange = () => {
-                    db.close();
-                    if (this._db === db) {
-                        this._db = null;
+                settle(() => {
+                    const dbTables = new Set(db.objectStoreNames);
+                    const newTables = this._tables.difference(dbTables);
+                    if (newTables.size !== 0) {
+                        db.close();
+                        const version = db.version + 1;
+                        // Forward BOTH arms: a failing version-bump upgrade
+                        // (e.g. the ``onupgradeneeded`` transaction aborts)
+                        // must reject this promise, not leave it pending
+                        // forever with an unhandled rejection dangling off
+                        // the inner ``_execute``.
+                        this._execute(callback, version).then(resolve, reject);
+                        return;
                     }
-                };
-                db.onclose = () => {
-                    if (this._db === db) {
-                        this._db = null;
-                    }
-                };
-                this._runCallback(db, callback).then(resolve, reject);
+                    // Cache the connection for subsequent operations. Drop
+                    // (and close) it as soon as another context requests a
+                    // version change — keeping it open would block that
+                    // upgrade — or when the browser closes the connection
+                    // itself.
+                    this._db = db;
+                    db.onversionchange = () => {
+                        db.close();
+                        if (this._db === db) {
+                            this._db = null;
+                        }
+                    };
+                    db.onclose = () => {
+                        if (this._db === db) {
+                            this._db = null;
+                        }
+                    };
+                    this._runCallback(db, callback).then(resolve, reject);
+                });
             };
             request.onerror = (event) => {
-                console.error(
-                    `IndexedDB error: ${/** @type {IDBRequest} */ (event.target).error?.message}`,
-                );
-                Promise.resolve(callback()).then(resolve);
+                settle(() => {
+                    console.error(
+                        `IndexedDB error: ${/** @type {IDBRequest} */ (event.target).error?.message}`,
+                    );
+                    Promise.resolve(callback()).then(resolve);
+                });
+            };
+            request.onblocked = () => {
+                blockedTimeoutId = browser.setTimeout(() => {
+                    console.warn(
+                        `IndexedDB upgrade blocked: "${this.name}" is still open in another context ` +
+                            `(e.g. a frozen tab); proceeding without cache for this session.`,
+                    );
+                    this._degraded = true;
+                    settle(() => Promise.resolve(callback()).then(resolve, reject));
+                }, BLOCKED_DELETE_TIMEOUT);
             };
         });
     }
@@ -436,6 +482,10 @@ export class IndexedDB {
                     }),
             );
             transaction.onerror = () => reject(transaction.error);
+            // Without an ``onabort`` arm an aborted transaction (e.g. quota
+            // exceeded) settles neither handler and the promise stays
+            // pending forever, wedging the instance mutex.
+            transaction.onabort = () => reject(transaction.error);
             Promise.all(proms).then(resolve);
 
             // Force the changes to be committed to the database asap
@@ -455,6 +505,10 @@ export class IndexedDB {
             const r = objectStore.get(key);
             r.onsuccess = () => resolve(r.result);
             transaction.onerror = () => reject(transaction.error);
+            // See ``_invalidate``: an aborted transaction fires neither
+            // ``onsuccess`` nor ``onerror`` — reject instead of leaving the
+            // promise (and the instance mutex) pending forever.
+            transaction.onabort = () => reject(transaction.error);
         });
     }
 

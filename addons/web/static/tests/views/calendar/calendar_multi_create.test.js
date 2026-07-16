@@ -290,6 +290,53 @@ test("multi_create: render and basic creation (simple use case)", async () => {
 });
 
 test.tags("desktop");
+test("multi_create: dynamic-only filter section creates bare records", async () => {
+    // Regression: multiCreateRecords only fanned out over record/user filters
+    // of the first section; a dynamic-only section (filters="1", no
+    // write_model) produced NO record and a misleading "activate at least one
+    // record" warning. Dynamic filters mirror displayed values (they are not
+    // assignment targets), so it must fall back to one bare record per date.
+    onRpc("event", "create", ({ args: [records] }) => {
+        for (const record of records) {
+            expect.step(`${record.name}_${record.date_start}_${record.user_id}`);
+        }
+    });
+
+    await mountView({
+        type: "calendar",
+        resModel: "event",
+        arch: `<calendar date_start="date_start" scales="month" multi_create_view="multi_create_form" aggregate="id:count">
+            <field name="name"/>
+            <field name="date_start" invisible="1"/>
+            <field name="user_id" filters="1"/>
+        </calendar>`,
+    });
+
+    expect(".o_calendar_filter[data-name='user_id']").toHaveCount(1, {
+        message: "The dynamic filter section should be present",
+    });
+
+    const { drop, moveTo } = await contains(".fc-day[data-date='2019-03-04']").drag();
+    await moveTo(".fc-day[data-date='2019-03-05']");
+    await animationFrame();
+    await drop();
+    await animationFrame();
+
+    await multiCreateClickAddButton();
+    expect(".o_multi_create_popover").toHaveCount(1);
+    await click(".o_multi_create_popover .o_form_view [name='name'] input");
+    await edit("Time off");
+    await multiCreatePopoverClickAddButton();
+
+    // One bare record per date, no warning notification.
+    expect(".o_notification").toHaveCount(0);
+    expect.verifySteps([
+        "Time off_2019-03-04_undefined",
+        "Time off_2019-03-05_undefined",
+    ]);
+});
+
+test.tags("desktop");
 test("multi_create: render and basic functionalities (complex with filters use case)", async () => {
     onRpc("event", "create", ({ args: [records] }) => {
         for (const record of records) {

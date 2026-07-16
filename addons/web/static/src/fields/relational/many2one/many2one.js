@@ -78,7 +78,12 @@ export function computeM2OProps(fieldProps) {
         readonly: fieldProps.readonly,
         relation: fieldProps.record.fields[fieldProps.name].relation,
         searchThreshold: fieldProps.searchThreshold,
-        preventMemoization: fieldProps.preventMemoization,
+        // NB: `preventMemoization` is deliberately NOT piped here: it is a
+        // component-layer prop of Many2One/Many2XAutocomplete, not a field
+        // prop — Many2OneField.props doesn't declare it and extractM2OFieldProps
+        // never extracts it, so it can't come from the arch. Callers that need
+        // it (e.g. product's ProductNameAndDescriptionField) set it directly on
+        // the props they hand to the inner Many2One component.
         string:
             fieldProps.string || fieldProps.record.fields[fieldProps.name].string || "",
         update: (value, options = {}) =>

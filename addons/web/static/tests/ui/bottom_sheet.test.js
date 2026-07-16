@@ -7,6 +7,42 @@ import { mountWithCleanup, patchWithCleanup } from "@web/../tests/web_test_helpe
 import { browser } from "@web/core/browser/browser";
 import { BottomSheet } from "@web/ui/bottom_sheet/bottom_sheet";
 
+test("hardware Back closes only the topmost of stacked sheets", async () => {
+    // Sheets can stack (e.g. a touch submenu opens a second sheet over the
+    // first). Every open sheet's popstate listener fires on each pop: only
+    // the sheet whose OWN entry was popped may dismiss, otherwise one Back
+    // closes the whole stack and strands N-1 synthetic entries.
+    class Child extends Component {
+        static template = xml`<div class="sheet-child"/>`;
+        static props = ["*"];
+    }
+
+    // No-op close so components stay mounted while we inspect their state.
+    const sheet1 = await mountWithCleanup(BottomSheet, {
+        props: { component: Child, close: () => {} },
+    });
+    await animationFrame();
+    const sheet2 = await mountWithCleanup(BottomSheet, {
+        props: { component: Child, close: () => {} },
+    });
+    await animationFrame();
+    expect(sheet1._historyStatePushed).toBe(true);
+    expect(sheet2._historyStatePushed).toBe(true);
+
+    // First hardware Back: the browser pops the TOP entry (sheet2's).
+    browser.history.back();
+    expect(sheet2.state.isDismissing).toBe(true);
+    expect(sheet2._historyStatePushed).toBe(false);
+    // The lower sheet stays open and its entry stays consumable.
+    expect(sheet1.state.isDismissing).toBe(false);
+    expect(sheet1._historyStatePushed).toBe(true);
+
+    // Second hardware Back: pops sheet1's entry and closes sheet1.
+    browser.history.back();
+    expect(sheet1.state.isDismissing).toBe(true);
+    expect(sheet1._historyStatePushed).toBe(false);
+});
+
 test("hardware Back pressed while dismissing consumes the synthetic history entry", async () => {
     // Count real history.back() calls. onMounted pushes ONE synthetic entry; the
     // sheet must never pop more than the browser already popped for us.

@@ -401,6 +401,74 @@ describe("FormSaveCoordinator — requestUrgentSave", () => {
         expect(coordinator.status).toBe("clean");
     });
 
+    test("requestUrgentSave during an in-flight save defers settlement to that save", async () => {
+        // record.urgentSave() skips the beacon while a normal save's RPC is
+        // on the wire (``_saveInFlight``) and reports true. The coordinator
+        // must NOT claim the epoch and settle "ok" on that skip: if the
+        // unload is then canceled and the real save fails, its terminal
+        // would be epoch-dropped — status stuck "clean", lastError lost.
+        let rejectSave;
+        const savePromise = new Promise((_, reject) => (rejectSave = reject));
+        let urgentCalls = 0;
+        const lateFailure = new Error("late-failure");
+        const { coordinator } = makeContext({
+            save: () => savePromise,
+            urgentSave: async () => {
+                urgentCalls++;
+                return true; // the _saveInFlight skip path
+            },
+        });
+
+        const savePending = coordinator.requestSave({ errorMode: "silent" });
+        await Promise.resolve(); // let the save mock enter
+        expect(coordinator.status).toBe("saving");
+        const epochBefore = coordinator._saveEpoch;
+
+        const succeeded = await coordinator.requestUrgentSave();
+        expect(succeeded).toBe(true);
+        expect(urgentCalls).toBe(1);
+        expect(coordinator._saveEpoch).toBe(epochBefore); // epoch not claimed
+        expect(coordinator.status).toBe("saving"); // not prematurely settled "ok"
+
+        // The unload was canceled and the real save now fails: its terminal
+        // still owns the epoch and must surface.
+        rejectSave(lateFailure);
+        expect(await savePending).toBe(false); // silent mode swallows
+        expect(coordinator.status).toBe("error");
+        expect(coordinator.lastError).toBe(lateFailure);
+    });
+
+    test("a failing urgent save during an in-flight save fires the hook without touching status", async () => {
+        // Deferred-to-in-flight urgent saves keep the failure signal
+        // (beforeUnload needs it to preventDefault) but leave the status
+        // settlement to the in-flight save's own terminal.
+        let resolveSave;
+        const savePromise = new Promise((r) => (resolveSave = r));
+        let failedHookCalls = 0;
+        const { coordinator } = makeContext({
+            save: () => savePromise,
+            urgentSave: async () => false,
+            hooks: {
+                onUrgentSaveFailed: () => {
+                    failedHookCalls++;
+                },
+            },
+        });
+
+        const savePending = coordinator.requestSave();
+        await Promise.resolve();
+        expect(coordinator.status).toBe("saving");
+
+        const succeeded = await coordinator.requestUrgentSave();
+        expect(succeeded).toBe(false);
+        expect(failedHookCalls).toBe(1);
+        expect(coordinator.status).toBe("saving"); // in-flight save still owns settlement
+
+        resolveSave(true);
+        await savePending;
+        expect(coordinator.status).toBe("clean");
+    });
+
     test("invokes onUrgentSaveFailed hook when urgentSave returns false", async () => {
         let failedHookCalls = 0;
         const { coordinator } = makeContext({
@@ -617,6 +685,59 @@ describe("FormSaveCoordinator — concurrent saves", () => {
         await secondSave;
         expect(coordinator.status).toBe("clean");
         expect(coordinator.lastError).toBe(null); // never poisoned by stale failure
+    });
+
+    test("a superseded save's dialog-mode error does not open the error dialog", async () => {
+        // Scenario: save A's RPC fails AFTER save B has claimed the epoch
+        // (e.g. pager-save interleaved with a Save click). A's dialog-mode
+        // onError must not render a stale FormErrorDialog over B's state —
+        // B owns settlement; A resolves false silently.
+        let resolveSecond;
+        const secondPromise = new Promise((r) => (resolveSecond = r));
+        let triggerFirstFailure;
+        const firstFailure = new Promise((r) => (triggerFirstFailure = r));
+        let onSaveErrorCalls = 0;
+        let call = 0;
+        const staleError = Object.assign(new Error("stale-rpc-failure"), {
+            data: { message: "stale-rpc-failure" },
+        });
+        const { coordinator } = makeContext({
+            save: ({ onError } = {}) => {
+                if (++call === 1) {
+                    // Mirror record_save.js: the RPC failure routes through
+                    // the caller-provided onError; its return value becomes
+                    // save()'s return value.
+                    return firstFailure.then(() =>
+                        onError(staleError, {
+                            discard: () => {},
+                            retry: () => true,
+                        }),
+                    );
+                }
+                return secondPromise;
+            },
+            hooks: {
+                onSaveError: async () => {
+                    onSaveErrorCalls++;
+                    return true;
+                },
+            },
+        });
+
+        const firstSave = coordinator.requestSave(); // errorMode "dialog" (default)
+        const secondSave = coordinator.requestSave(); // claims the epoch
+
+        // First save's RPC fails only now — after being superseded.
+        triggerFirstFailure();
+        const firstResult = await firstSave;
+        expect(onSaveErrorCalls).toBe(0); // no stale dialog
+        expect(firstResult).toBe(false);
+        expect(coordinator.lastError).toBe(null); // not poisoned
+        expect(coordinator.status).toBe("saving"); // second save owns the state
+
+        resolveSecond(true);
+        await secondSave;
+        expect(coordinator.status).toBe("clean");
     });
 
     test("requestDiscard mid-save invalidates the in-flight save's terminal", async () => {

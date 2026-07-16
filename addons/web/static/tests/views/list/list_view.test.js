@@ -437,6 +437,87 @@ test(`arrow-key nav dispatches through a subclass findFocusFutureCell override`,
 });
 
 test.tags("desktop");
+test(`virtualized-out arrow move dispatches through a subclass findFocusFutureCell override`, async () => {
+    // Force virtualization (threshold: 100 rows in a single page).
+    for (let i = 0; i < 150; i++) {
+        Foo._records.push({ id: 1000 + i, foo: `virt ${i}`, int_field: i });
+    }
+    const directions = [];
+    const listView = registry.category("views").get("list");
+    class CustomListRenderer extends listView.Renderer {
+        findFocusFutureCell(cell, cellIsInGroupRow, direction) {
+            directions.push(direction);
+            return super.findFocusFutureCell(cell, cellIsInGroupRow, direction);
+        }
+    }
+    registry
+        .category("views")
+        .add(
+            "ffc_virtual_list",
+            { ...listView, Renderer: CustomListRenderer },
+            { force: true },
+        );
+
+    await mountView({
+        resModel: "foo",
+        type: "list",
+        arch: `<list js_class="ffc_virtual_list" limit="200"><field name="foo"/><field name="int_field"/></list>`,
+    });
+
+    // Virtualization is active: only a slice of the 154 records is rendered.
+    const rendered = queryAll(".o_data_row");
+    expect(rendered.length).toBeLessThan(150);
+
+    // Focus the last rendered row: ArrowDown targets a row that exists but
+    // is virtualized out of the DOM, so focus resolves after the next patch.
+    const lastRendered = rendered.at(-1);
+    const rowIndex = Number(lastRendered.dataset.rowIndex);
+    const cell = lastRendered.querySelector(".o_data_cell");
+    cell.focus({ preventScroll: true });
+    directions.length = 0;
+
+    await press("ArrowDown");
+    await waitFor(`.o_data_row[data-row-index='${rowIndex + 1}']`);
+    await animationFrame();
+
+    // The pending focus resolved on the next row AND was dispatched through
+    // the subclass override — before the fix, resolvePendingVirtFocus focused
+    // the cell directly, so overrides that sync side state on arrow moves
+    // (documents/account_accountant preview panels) desynced on any list
+    // above the virtualization threshold.
+    expect(directions.includes("down")).toBe(true);
+    expect(
+        queryFirst(`.o_data_row[data-row-index='${rowIndex + 1}'] .o_data_cell`),
+    ).toBeFocused();
+});
+
+test.tags("desktop");
+test(`edit a record with all optional columns hidden does not crash`, async () => {
+    await mountView({
+        resModel: "foo",
+        type: "list",
+        arch: `<list editable="top">
+            <field name="foo" optional="show"/>
+            <field name="int_field" optional="show"/>
+        </list>`,
+    });
+    expect(`.o_data_cell`).toHaveCount(8);
+
+    // Hide every (optional) column.
+    await contains(`table .o_optional_columns_dropdown .dropdown-toggle`).click();
+    await contains(`.o-dropdown--menu span.dropdown-item:eq(0) label`).click();
+    await contains(`.o-dropdown--menu span.dropdown-item:eq(1) label`).click();
+    expect(`.o_data_cell`).toHaveCount(0);
+
+    // With no visible column there is nothing to focus after entering edit
+    // mode: the post-patch focus logic must bail out instead of dereferencing
+    // this.columns[0] (TypeError in onPatched).
+    await contains(`.o_list_button_add`).click();
+    await animationFrame();
+    expect(`.o_data_row.o_selected_row`).toHaveCount(1);
+});
+
+test.tags("desktop");
 test(`expand range of checkbox with shift+arrow`, async () => {
     await mountView({
         resModel: "foo",

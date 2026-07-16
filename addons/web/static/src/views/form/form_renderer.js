@@ -146,6 +146,9 @@ export class FormRenderer extends Component {
                 // rescan the whole document for each field.
                 for (const el of document.querySelectorAll("[id]")) {
                     const id = el.getAttribute("id");
+                    if (id === null) {
+                        continue;
+                    }
                     if (
                         fieldNodeIds.has(id) &&
                         !(id in elementsByNodeIds) &&

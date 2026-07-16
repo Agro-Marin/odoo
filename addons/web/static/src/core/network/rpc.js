@@ -311,7 +311,7 @@ if (!_rpcState.busListenersAttached) {
             );
             if (objDetail.model) {
                 _rpcState.rpcCache?.invalidateByModel(
-                    objDetail.tables,
+                    /** @type {string[]} */ (objDetail.tables),
                     objDetail.model,
                 );
             } else {
@@ -602,7 +602,10 @@ rpc._rpc = function (url, params, settings) {
                 if (!rejectError) {
                     _rpcState.rpcCache?.abortPending(cacheTable, cacheKey);
                 }
-                innerAbort(rejectError);
+                // ``?.()`` is only for TS: innerAbort is non-null whenever this
+                // wrapper exists (it is only installed inside the guard above,
+                // and never reset), but closure assignments defeat narrowing.
+                innerAbort?.(rejectError);
             };
             return cacheProm;
         }
@@ -733,7 +736,7 @@ function _rpcOnce(url, params, settings) {
             let parsed;
             try {
                 parsed = await response.json();
-            } catch {
+            } catch (err) {
                 // ``abort()`` can land after the headers pass the guard above
                 // but while the body is still streaming: it cancels the body
                 // read, so ``response.json()`` rejects with an AbortError.
@@ -743,6 +746,20 @@ function _rpcOnce(url, params, settings) {
                 // InvalidResponseError (which would reject a silently-aborted
                 // promise and pop a false "Session Expired" dialog).
                 if (aborted) {
+                    return;
+                }
+                // ``settings.timeout`` can fire here too: the timeout signal
+                // passed to fetch also cancels an in-progress body read, so
+                // ``response.json()`` rejects with a TimeoutError DOMException.
+                // Classify it exactly like the outer fetch ``.catch`` below —
+                // falling through to the status-based fallback would turn a
+                // retryable timeout on a 200 response into a deterministic
+                // InvalidResponseError (false "Session Expired" dialog, and
+                // ``isRetryable`` would stop retrying it).
+                if (err?.name === "TimeoutError" || timeoutSignal?.aborted) {
+                    const error = new ConnectionTimeoutError(url, settings.timeout);
+                    rpcBus.trigger(RpcEvent.RESPONSE, { data, settings, error });
+                    settleReject(error);
                     return;
                 }
                 // Malformed JSON body (or missing content-type). On a 5xx,

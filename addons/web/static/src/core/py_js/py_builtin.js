@@ -292,6 +292,14 @@ export const BUILTINS = {
      * @returns {boolean}
      */
     bool(value) {
+        // The evaluator always appends a trailing kwargs object, so >1
+        // positional means arguments.length > 2. CPython: bool() takes at
+        // most 1 argument (mirrors the set() guard below).
+        if (arguments.length > 2) {
+            throw new EvaluationError(
+                `bool expected at most 1 argument, got ${arguments.length - 1}`,
+            );
+        }
         if (value === undefined || value === null) {
             return false;
         }
@@ -357,6 +365,11 @@ export const BUILTINS = {
 
     /** Return the length of a collection (array, string, Set, or object keys). */
     len(/** @type {any} */ value) {
+        if (arguments.length > 2) {
+            throw new EvaluationError(
+                `len() takes exactly one argument (${arguments.length - 1} given)`,
+            );
+        }
         if (typeof value === "string" || Array.isArray(value)) {
             return value.length;
         }
@@ -371,6 +384,11 @@ export const BUILTINS = {
 
     /** Return the absolute value of a number or timedelta. */
     abs(/** @type {any} */ value) {
+        if (arguments.length > 2) {
+            throw new EvaluationError(
+                `abs() takes exactly one argument (${arguments.length - 1} given)`,
+            );
+        }
         if (
             value instanceof Object &&
             typeof value.negate === "function" &&

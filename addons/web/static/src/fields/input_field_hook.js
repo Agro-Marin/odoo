@@ -221,7 +221,20 @@ export function useInputField(params) {
                     );
                 }
             } else {
+                // Parse-equal re-entry (e.g. " 10 " over a stored 10): resync
+                // the input's text to the formatted model value without any
+                // `record.update`. The keystrokes that led here emitted
+                // FIELD_IS_DIRTY:true via `onInput`, so re-emit the re-derived
+                // dirtiness (same expression as the changed branch's `finally`)
+                // or the form's save/discard indicator stays stuck on
+                // "unsaved". `lastSetValue` is refreshed first so the
+                // re-derivation compares against the resynced text.
                 inputRef.el.value = params.getValue();
+                lastSetValue = inputRef.el.value;
+                component.props.record.model.bus.trigger(
+                    ModelEvent.FIELD_IS_DIRTY,
+                    Boolean(inputRef.el && inputRef.el.value !== lastSetValue),
+                );
             }
         }
     }

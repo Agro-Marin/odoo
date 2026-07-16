@@ -28,6 +28,13 @@ import { useHotkey } from "@web/services/hotkeys/hotkey_hook";
  */
 const DISMISS_ANIMATION_FALLBACK_DELAY = 1000;
 
+/**
+ * Monotonic id source for the synthetic history entries pushed by open
+ * sheets, so each sheet can recognize whether a ``popstate`` popped ITS OWN
+ * entry (see the history-interception comment in ``setup``).
+ */
+let nextHistoryEntryId = 1;
+
 export class BottomSheet extends Component {
     static template = "web.BottomSheet";
 
@@ -104,13 +111,31 @@ export class BottomSheet extends Component {
         //  - Closed by any other means (escape, scroll, close()) → onWillUnmount
         //    pops our still-present entry via history.back(), so a later Back is
         //    not wasted on a no-op.
+        //
+        // Sheets can STACK (e.g. a touch submenu opens a second sheet over the
+        // first — see bottom_sheet_service/dropdown), and every open sheet's
+        // popstate listener fires for every pop. Each entry therefore carries a
+        // unique id: a sheet reacts only when its OWN entry was popped, i.e.
+        // when the now-current ``event.state`` is no longer its own. History
+        // entries are LIFO, so after a Back the current state is either a
+        // LOWER sheet's entry (its id ≠ ours ⇒ only the topmost sheet, whose
+        // entry was popped, dismisses) or our own (an entry pushed ABOVE us
+        // was popped ⇒ we stay). One hardware Back thus closes exactly one
+        // sheet, leaving the remaining sheets' entries consumable by further
+        // Back presses.
         this._historyStatePushed = false;
-        this.handlePopState = () => {
-            // Any popstate means the browser has ALREADY popped our synthetic
-            // entry, so mark it consumed unconditionally — even while dismissing.
-            // Otherwise a hardware Back pressed during the close animation would
-            // leave the flag set and onWillUnmount would call history.back()
-            // again, popping a REAL page entry and navigating the user away.
+        this._historyEntryId = nextHistoryEntryId++;
+        this.handlePopState = (/** @type {PopStateEvent} */ ev) => {
+            if (ev.state?.bottomSheetId === this._historyEntryId) {
+                // Our entry is still the current one: the popped entry was
+                // pushed above ours (a stacked sheet, a router entry, ...).
+                return;
+            }
+            // The browser has ALREADY popped our synthetic entry, so mark it
+            // consumed unconditionally — even while dismissing. Otherwise a
+            // hardware Back pressed during the close animation would leave the
+            // flag set and onWillUnmount would call history.back() again,
+            // popping a REAL page entry and navigating the user away.
             this._historyStatePushed = false;
             if (this.state.isPositionedReady && !this.state.isDismissing) {
                 this.slideOut();
@@ -120,15 +145,25 @@ export class BottomSheet extends Component {
         onWillUnmount(() => {
             if (this._historyStatePushed) {
                 this._historyStatePushed = false;
-                // Remove the synthetic entry we added on open. Triggers a
-                // popstate, but handlePopState no-ops (isDismissing is set by
-                // slideOut before unmount, and the flag is already cleared).
-                browser.history.back();
+                // Remove the synthetic entry we added on open — but only when
+                // it is still the CURRENT entry: if newer entries were pushed
+                // above ours (e.g. a stacked sheet, in an out-of-order close),
+                // history.back() would pop someone else's entry instead.
+                // Triggers a popstate, but handlePopState no-ops for every
+                // sheet (lower sheets see their own entry current again; this
+                // sheet's flag is already cleared and isDismissing is set by
+                // slideOut before unmount).
+                if (browser.history.state?.bottomSheetId === this._historyEntryId) {
+                    browser.history.back();
+                }
             }
         });
 
         onMounted(() => {
-            browser.history.pushState({ bottomSheet: true }, "");
+            browser.history.pushState(
+                { bottomSheet: true, bottomSheetId: this._historyEntryId },
+                "",
+            );
             this._historyStatePushed = true;
 
             const isReduced =

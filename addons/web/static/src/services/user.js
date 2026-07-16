@@ -259,7 +259,12 @@ export function _makeUser(session) {
         hasGroup(group) {
             return groupCache.read(group, this.context);
         },
-        checkAccessRight(model, operation, ids = [], { context } = {}) {
+        checkAccessRight(
+            model,
+            operation,
+            ids = [],
+            { context } = /** @type {{ context?: object }} */ ({}),
+        ) {
             if (context) {
                 // Explicit context (e.g. probing access under a company set the
                 // user has NOT switched to yet): bypass the company-dependent

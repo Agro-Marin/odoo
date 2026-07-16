@@ -4345,6 +4345,88 @@ test(`resize rejected by the server resyncs the event`, async () => {
     expect.verifyErrors(["Cannot reschedule"]);
 });
 
+test.tags("desktop");
+test(`filter toggle rejected by the server resyncs the filter panel`, async () => {
+    // Regression: updateFilters flips the filters optimistically and bumps the
+    // load epoch BEFORE awaiting the write; when the write rejected, no reload
+    // was scheduled, leaving the panel (and the discarded in-flight load)
+    // desynced from the server until a manual navigation.
+    expect.errors(1);
+
+    onRpc("filter.partner", "write", () => {
+        expect.step("write");
+        throw makeServerError({ message: "Cannot update filter" });
+    });
+    onRpc("event", "search_read", () => {
+        expect.step("search_read");
+    });
+
+    await mountView({
+        resModel: "event",
+        type: "calendar",
+        arch: `
+            <calendar date_start="start" date_stop="stop" all_day="is_all_day" mode="week">
+                <field name="attendee_ids" write_model="filter.partner" write_field="partner_id" filter_field="is_checked"/>
+            </calendar>
+        `,
+    });
+    expect.verifySteps(["search_read"]);
+    expect(
+        `.o_calendar_filter[data-name="attendee_ids"] .o_calendar_filter_item[data-value="2"] input:checked`,
+    ).toHaveCount(1);
+
+    await toggleFilter("attendee_ids", 2);
+    await animationFrame();
+
+    // The rejected write still schedules a reload: the optimistic unchecking
+    // is reverted to the server state (is_checked stayed true).
+    expect.verifySteps(["write", "search_read"]);
+    expect(MockServer.env["filter.partner"].read([2])[0].is_checked).toBe(true);
+    expect(
+        `.o_calendar_filter[data-name="attendee_ids"] .o_calendar_filter_item[data-value="2"] input:checked`,
+    ).toHaveCount(1);
+    expect.verifyErrors(["Cannot update filter"]);
+});
+
+test.tags("desktop");
+test(`filter removal rejected by the server resyncs the filter panel`, async () => {
+    // Same contract as the rejected toggle: unlinkFilter removes the filter
+    // optimistically, so a rejected unlink must still reload to restore it.
+    expect.errors(1);
+
+    onRpc("filter.partner", "unlink", () => {
+        expect.step("unlink");
+        throw makeServerError({ message: "Cannot remove filter" });
+    });
+
+    await mountView({
+        resModel: "event",
+        type: "calendar",
+        arch: `
+            <calendar date_start="start" date_stop="stop" all_day="is_all_day" mode="week">
+                <field name="attendee_ids" write_model="filter.partner" write_field="partner_id" filter_field="is_checked"/>
+            </calendar>
+        `,
+    });
+    expect(
+        `.o_calendar_filter[data-name="attendee_ids"] .o_calendar_filter_item[data-value="2"]`,
+    ).toHaveCount(1);
+
+    await removeFilter("attendee_ids", 2);
+    // The debounced reload is scheduled only once the unlink rejection lands,
+    // which may be after removeFilter's own advanceTime: flush it explicitly.
+    await runAllTimers();
+    await animationFrame();
+
+    // The rejected unlink still schedules a reload: the optimistically
+    // removed filter reappears since the server still has it.
+    expect.verifySteps(["unlink"]);
+    expect(
+        `.o_calendar_filter[data-name="attendee_ids"] .o_calendar_filter_item[data-value="2"]`,
+    ).toHaveCount(1);
+    expect.verifyErrors(["Cannot remove filter"]);
+});
+
 test(`updateRecord does not write the create_name_field mapped name`, async () => {
     class CustomEvent extends models.Model {
         _name = "custom.event";
@@ -6394,6 +6476,42 @@ test(`calendar view with show_unusual_days`, async () => {
         "get_unusual_days from 2016-11-26 23:00:00 to 2017-01-07 22:59:59",
         "get_unusual_days from 2016-12-17 23:00:00 to 2016-12-24 22:59:59",
     ]);
+});
+
+test.tags("desktop");
+test(`unusual days are refetched after a record update`, async () => {
+    // Regression: the unusual-days cache lived for the whole model lifetime,
+    // so shading computed from the very records being edited (e.g. hr_leave)
+    // stayed stale after a CRUD. Record CRUD must flush the cache.
+    let unusualDays = {
+        "2016-12-14": true,
+    };
+    onRpc("get_unusual_days", () => {
+        expect.step("get_unusual_days");
+        return unusualDays;
+    });
+    await mountView({
+        resModel: "event",
+        type: "calendar",
+        arch: `
+            <calendar date_start="start" date_stop="stop" mode="month" show_unusual_days="1">
+                <field name="name"/>
+            </calendar>
+        `,
+    });
+    expect.verifySteps(["get_unusual_days"]);
+    expect(".fc-daygrid-day.o_calendar_disabled").toHaveCount(1);
+
+    // The server-side unusual days change (e.g. a leave gets approved by the
+    // write): the reload after the record update must refetch them instead of
+    // serving the cached range.
+    unusualDays = {
+        "2016-12-14": true,
+        "2016-12-21": true,
+    };
+    await moveEventToDate(6, "2016-12-19");
+    expect.verifySteps(["get_unusual_days"]);
+    expect(".fc-daygrid-day.o_calendar_disabled").toHaveCount(2);
 });
 
 test.tags("desktop");

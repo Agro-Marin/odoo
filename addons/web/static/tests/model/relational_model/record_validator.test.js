@@ -964,10 +964,13 @@ describe("checkValidity — scoped removeInvalidOnly (modifier evaluation)", () 
 // ---------------------------------------------------------------------------
 
 /** Build a mock child record datapoint with a _checkValidity spy. */
+let nextVirtualId = 1;
 function makeChildRecord({ valid, dirty = true }) {
     let checkValidityCalls = 0;
     const child = {
         dirty,
+        resId: false,
+        _virtualId: `virtual_${nextVirtualId++}`,
         get isValid() {
             return valid;
         },
@@ -982,6 +985,22 @@ function makeChildRecord({ valid, dirty = true }) {
     return child;
 }
 
+/**
+ * Build a mock StaticList shape for ``isChildListValid``: the validator
+ * iterates ``_cache`` scoped to ``_currentIds`` membership (off-page dirty
+ * rows must be validated too), not ``records``.
+ */
+function makeChildList(children) {
+    const _cache = {};
+    const _currentIds = [];
+    for (const child of children) {
+        const id = child.resId || child._virtualId;
+        _cache[id] = child;
+        _currentIds.push(id);
+    }
+    return { records: children, count: children.length, _cache, _currentIds };
+}
+
 describe("checkValidity — scoped removeInvalidOnly (x2many children)", () => {
     test("(4c) committing a child row does not re-validate a valid dirty sibling", () => {
         // Valid sibling FIRST so it is visited before .every() short-circuits on
@@ -989,7 +1008,7 @@ describe("checkValidity — scoped removeInvalidOnly (x2many children)", () => {
         // not from short-circuit evaluation.
         const validSibling = makeChildRecord({ valid: true });
         const editedRow = makeChildRecord({ valid: false });
-        const list = { records: [validSibling, editedRow], count: 2 };
+        const list = makeChildList([validSibling, editedRow]);
         const rec = makeOrchestrationRecord({
             activeFields: { line_ids: {} },
             fields: { line_ids: { type: "one2many" } },
@@ -1010,7 +1029,7 @@ describe("checkValidity — scoped removeInvalidOnly (x2many children)", () => {
         // default mode has NO valid-row shortcut, so both are re-validated.
         const row1 = makeChildRecord({ valid: true });
         const row2 = makeChildRecord({ valid: true });
-        const list = { records: [row1, row2], count: 2 };
+        const list = makeChildList([row1, row2]);
         const rec = makeOrchestrationRecord({
             activeFields: { line_ids: {} },
             fields: { line_ids: { type: "one2many" } },
@@ -1025,7 +1044,7 @@ describe("checkValidity — scoped removeInvalidOnly (x2many children)", () => {
     test("removeInvalidOnly DOES apply the valid-row shortcut (contrast to default)", () => {
         const row1 = makeChildRecord({ valid: true });
         const row2 = makeChildRecord({ valid: true });
-        const list = { records: [row1, row2], count: 2 };
+        const list = makeChildList([row1, row2]);
         const rec = makeOrchestrationRecord({
             activeFields: { line_ids: {} },
             fields: { line_ids: { type: "one2many" } },
@@ -1043,7 +1062,7 @@ describe("checkValidity — scoped removeInvalidOnly (x2many children)", () => {
     test("silent mode re-validates every dirty child row (no valid-row shortcut)", () => {
         const row1 = makeChildRecord({ valid: true });
         const row2 = makeChildRecord({ valid: true });
-        const list = { records: [row1, row2], count: 2 };
+        const list = makeChildList([row1, row2]);
         const rec = makeOrchestrationRecord({
             activeFields: { line_ids: {} },
             fields: { line_ids: { type: "one2many" } },

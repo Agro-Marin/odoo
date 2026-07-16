@@ -258,6 +258,59 @@ test("macro timeout if element is not visible", async () => {
     expect.verifySteps(["TIMEOUT step failed to complete within 1000 ms."]);
 });
 
+test("macro without onError falls back to a console.error default", async () => {
+    // The handlers must not be class fields: an own no-op field would make
+    // this default (and any subclass prototype handler) dead code.
+    patchWithCleanup(console, {
+        error: (message, step, index) => expect.step(`${message} @${index}`),
+    });
+    new Macro({
+        name: "test",
+        timeout: 1000,
+        steps: [{ trigger: ".does-not-exist" }],
+    }).start();
+    await waitForMacro();
+    expect.verifySteps(["TIMEOUT step failed to complete within 1000 ms. @0"]);
+});
+
+test("subclass prototype onError receives { error, step, index }", async () => {
+    class SubMacro extends Macro {
+        onError({ error, step, index }) {
+            expect.step(`${error.message} @${index} trigger:${step.trigger}`);
+        }
+    }
+    new SubMacro({
+        name: "test",
+        timeout: 1000,
+        steps: [{ trigger: ".does-not-exist" }],
+    }).start();
+    await waitForMacro();
+    expect.verifySteps([
+        "TIMEOUT step failed to complete within 1000 ms. @0 trigger:.does-not-exist",
+    ]);
+});
+
+test("descriptor onError wins over the default and a subclass prototype onError", async () => {
+    patchWithCleanup(console, {
+        error: () => expect.step("console.error (default onError)"),
+    });
+    class SubMacro extends Macro {
+        onError() {
+            expect.step("prototype onError");
+        }
+    }
+    new SubMacro({
+        name: "test",
+        timeout: 1000,
+        steps: [{ trigger: ".does-not-exist" }],
+        onError: ({ error }) => expect.step(`descriptor onError: ${error.message}`),
+    }).start();
+    await waitForMacro();
+    expect.verifySteps([
+        "descriptor onError: TIMEOUT step failed to complete within 1000 ms.",
+    ]);
+});
+
 test("macro clears the step timeout timer once the step settles", async () => {
     // Every step used to leave its (up to 10s) timeout running after
     // winning the race — pure waste that made timing-sensitive tests flakier

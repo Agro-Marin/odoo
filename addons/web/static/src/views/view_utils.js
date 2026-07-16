@@ -63,8 +63,9 @@ export function computeViewClassName(viewType, rootNode, additionalClassList = [
  * `extractOptions` is stable per column for its whole lifetime but
  * `getFormattedValue` runs once per cell per render, so memoize to avoid
  * re-deriving (and re-JSON.parsing `digits`) every time. Still shallow-copied
- * per call below, so formatter self-mutation (e.g. `formatFloat` setting
- * `options.digits`) touches only the copy, never the cached original.
+ * per call below: the per-call `data`/`field` assignments must touch only the
+ * copy, never the cached original (formatters themselves no longer mutate
+ * their options argument).
  * @type {WeakMap<object, object>}
  */
 const formatOptionsByFieldInfo = new WeakMap();

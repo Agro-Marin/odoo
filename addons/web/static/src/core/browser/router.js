@@ -105,7 +105,7 @@ function sanitize(
 }
 
 function sanitizeSearch(/** @type {Record<string, any>} */ search) {
-    return sanitize(search);
+    return sanitize(search, undefined);
 }
 
 function sanitizeHash(/** @type {Record<string, any>} */ hash) {
@@ -426,7 +426,9 @@ function makeDebouncedPush(mode) {
                 // the history entry under the wrong (current) title: restore the
                 // title as it was at call time, push, then reset it.
                 const originalTitle = document.title;
-                document.title = pushArgs.title;
+                // Always a string here: pushOrReplaceState set it before
+                // scheduling doPush.
+                document.title = /** @type {string} */ (pushArgs.title);
                 browser.history.pushState({ nextState }, "", url);
                 document.title = originalTitle;
             } else {
@@ -446,8 +448,8 @@ function makeDebouncedPush(mode) {
      * @param {{ replace?: boolean, reload?: boolean, sync?: boolean }} [options]
      */
     return function pushOrReplaceState(state, options = {}) {
-        pushArgs.replace ||= options.replace;
-        pushArgs.reload ||= options.reload;
+        pushArgs.replace ||= /** @type {boolean} */ (options.replace);
+        pushArgs.reload ||= /** @type {boolean} */ (options.reload);
         // A "push" intent is stronger than "replace": once any batched call
         // asks for a new history entry, keep it — never downgrade to replace.
         if (mode === "push") {

@@ -63,6 +63,22 @@ test("fuzzyLevenshteinLookup", () => {
     expect(fuzzyLevenshteinLookup("aple", words, 100)).toEqual(["maple"]);
 });
 
+test("fuzzyLookup: very long consecutive matches keep a finite, ordered score", () => {
+    // The consecutive-run bonus doubles per matched character; uncapped it
+    // overflows to Infinity after ~1000 characters, making every long match
+    // compare as equal and degenerating the ranking.
+    const long = "a".repeat(5000);
+    const data = [
+        // Matches the pattern, but with a break in the middle: must rank
+        // BELOW the fully-consecutive candidate.
+        { name: `${"a".repeat(2500)}-${"a".repeat(2500)}` },
+        { name: long },
+    ];
+    const results = fuzzyLookup(long, data, (d) => d.name);
+    expect(results[0]).toEqual({ name: long });
+    expect(results.length).toBe(2);
+});
+
 test("fuzzyTest", () => {
     expect(fuzzyTest("a", "Abby White")).toBe(true);
     expect(fuzzyTest("ba", "Brandon Green")).toBe(true);

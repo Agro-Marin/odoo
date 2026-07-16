@@ -91,9 +91,16 @@ export function applyCommands(
                         list._unknownRecordCommands[command[1]] = [];
                     }
                     list._unknownRecordCommands[command[1]].push(command);
-                } else if (command[1] in list._unknownRecordCommands) {
-                    // Record is cached but still loading (see the page-fill load below);
-                    // keep stashing updates until it lands.
+                } else if (
+                    command[1] in list._unknownRecordCommands &&
+                    list._loadingStubIds.has(command[1])
+                ) {
+                    // Record is cached but still loading (a page-fill stub, see
+                    // the load below): keep stashing updates until it lands.
+                    // The stub check matters: a LOADED record can also own a
+                    // stash entry (deferred invisible-x2many slices, below) —
+                    // stashing its later UPDATEs wholesale would leave the
+                    // visible row stale until save.
                     list._unknownRecordCommands[command[1]].push(command);
                 } else {
                     const changes = {};
@@ -140,22 +147,25 @@ export function applyCommands(
             }
             case DELETE:
             case UNLINK: {
-                if (
+                const absorbedIntoSet =
                     command[0] === UNLINK &&
-                    absorbUnlinkIntoSet(list._commands, command[1])
-                ) {
-                    break;
-                }
-                const ownCommands = getOwnCommands(command[1]);
-                if (command[0] === DELETE) {
-                    if (shouldEmitDelete(ownCommands)) {
-                        addOwnCommand([DELETE, command[1], false]);
+                    absorbUnlinkIntoSet(list._commands, command[1]);
+                if (!absorbedIntoSet) {
+                    const ownCommands = getOwnCommands(command[1]);
+                    if (command[0] === DELETE) {
+                        if (shouldEmitDelete(ownCommands)) {
+                            addOwnCommand([DELETE, command[1], false]);
+                        }
+                    } else {
+                        if (shouldEmitUnlink(ownCommands)) {
+                            addOwnCommand([UNLINK, command[1], false]);
+                        }
                     }
-                } else {
-                    if (shouldEmitUnlink(ownCommands)) {
-                        addOwnCommand([UNLINK, command[1], false]);
-                    }
                 }
+                // An UNLINK absorbed into a staged SET only fixes the save
+                // payload; membership must still be updated below — otherwise
+                // the row keeps rendering, ``count`` drifts from the relation,
+                // and validity scans keep visiting the ghost row.
                 removedIds[command[1]] = true;
                 // Prune any stashed deferred commands for this id: a record on
                 // an unloaded page can accumulate UPDATE slices in
@@ -164,6 +174,7 @@ export function applyCommands(
                 // page-fill that re-loads the same resId would replay stale
                 // updates and resurrect values for a record the user deleted.
                 delete list._unknownRecordCommands[command[1]];
+                list._loadingStubIds.delete(command[1]);
                 break;
             }
             case LINK: {
@@ -179,11 +190,9 @@ export function applyCommands(
                 if (currentIdsSet.has(record.resId) && !removedIds[record.resId]) {
                     break;
                 }
-                if (
-                    !list.limit ||
-                    list.records.length < list.limit ||
-                    canAddOverLimit
-                ) {
+                const displayed =
+                    !list.limit || list.records.length < list.limit || canAddOverLimit;
+                if (displayed) {
                     if (!command[2]) {
                         recordsToLoad.push(record);
                     }
@@ -191,8 +200,20 @@ export function applyCommands(
                     if (list.records.length > list.limit) {
                         list._bumpLimit(list.records.length - list.limit);
                     }
+                    // Membership must match the display: the row renders at
+                    // the end of the CURRENT page, so insert its id there
+                    // (mirrors CREATE above). A tail push would show the row
+                    // here now but relocate it to the last page on the next
+                    // load, and eval-context ``currentIds`` order would
+                    // disagree with what the user sees.
+                    list._currentIds.splice(
+                        list.offset + list.records.length - 1,
+                        0,
+                        record.resId,
+                    );
+                } else {
+                    list._currentIds.push(record.resId);
                 }
-                list._currentIds.push(record.resId);
                 currentIdsSet.add(record.resId);
                 addOwnCommand([command[0], command[1], false]);
                 list.count++;
@@ -253,6 +274,7 @@ export function applyCommands(
                 { id },
                 { dontApplyCommands: true },
             );
+            list._loadingStubIds.add(id);
             recordsToLoad.push(record);
         }
         for (const id of nextRecordIds) {
@@ -273,9 +295,13 @@ export function applyCommands(
                         // (e.g. concurrently deleted): never fall back to
                         // index-based access, as that would merge ANOTHER
                         // record's values (id included) into this record.
+                        list._loadingStubIds.delete(record.resId);
                         continue;
                     }
                     record._applyValues(valuesById[record.resId]);
+                    // Loaded: later UPDATEs must now apply live (only x2many
+                    // slices may still be deferred, per the UPDATE case).
+                    list._loadingStubIds.delete(record.resId);
                     const commands = list._unknownRecordCommands[record.resId];
                     if (commands) {
                         delete list._unknownRecordCommands[record.resId];

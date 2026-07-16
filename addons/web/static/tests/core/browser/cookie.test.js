@@ -31,7 +31,44 @@ test("set writes a well-formed name=value cookie", () => {
     const writes = captureCookieWrites();
     cookie.set("a", "b");
     expect(writes.length).toBe(1);
-    expect(writes[0]).toMatch(/^a=b; path=\/; max-age=\d+$/);
+    expect(writes[0]).toMatch(/^a=b; path=\/; max-age=\d+; SameSite=Lax$/);
+});
+
+test("set escapes the characters that corrupt the cookie string", () => {
+    const writes = captureCookieWrites();
+    // `;` would truncate the value; `%` would corrupt the read-side
+    // decoding; control characters make the assignment a silent no-op.
+    cookie.set("k", "a;b%c\nd");
+    expect(writes[0]).toMatch(/^k=a%3Bb%25c%0Ad; /);
+    // ...and get() reverses the escaping: the value round-trips.
+    expect(cookie.get("k")).toBe("a;b%c\nd");
+});
+
+test("set leaves server-parsed raw values untouched", () => {
+    // Several cookies are a cross-layer protocol whose raw value the server
+    // parses as-is (e.g. the `website_cookies_bar` consent JSON, `cids`,
+    // `frontend_lang`): spaces, commas, quotes, brackets must NOT be
+    // percent-encoded.
+    const writes = captureCookieWrites();
+    const consent = '{"required": true, "optional": false, "ts": 123}';
+    cookie.set("website_cookies_bar", consent);
+    expect(writes[0].startsWith(`website_cookies_bar=${consent}; `)).toBe(true);
+    expect(cookie.get("website_cookies_bar")).toBe(consent);
+});
+
+test("get returns legacy raw values with a bare % untouched", () => {
+    // Cookies written before the escaping existed may contain a bare `%`
+    // that is not a valid escape sequence: get() must not throw.
+    let raw = "legacy=100%";
+    patchWithCleanup(cookie, {
+        get _cookieMonster() {
+            return raw;
+        },
+        set _cookieMonster(value) {
+            raw = value;
+        },
+    });
+    expect(cookie.get("legacy")).toBe("100%");
 });
 
 test("set(key, undefined) does not create an empty-named cookie", () => {

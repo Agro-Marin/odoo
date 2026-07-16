@@ -19,7 +19,11 @@ import { useNumpadDecimal } from "@web/fields/numpad_decimal_hook";
  *   - get formattedValue — returns the display value (format varies per type)
  */
 export class NumericInputFieldBase extends Component {
-    /** @type {{ hasFocus: boolean }} */
+    /**
+     * ``value`` is only used by MonetaryField (input-text mirror); it is
+     * declared here so the subclass doesn't shadow the field (TS2612).
+     * @type {{ hasFocus: boolean, value?: string }}
+     */
     state;
 
     setup() {

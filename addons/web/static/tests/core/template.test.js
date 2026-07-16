@@ -535,6 +535,46 @@ test("TemplateRegistry: unregister callback removes scoped entry", () => {
     expect("tr-unreg-1" in scoped.templates).toBe(false);
 });
 
+test("TemplateRegistry: primary unregister leaves other owners' extensions intact", () => {
+    // The registry is a globalThis-shared singleton in production: the
+    // unregister callback of a PRIMARY registration must only tear down the
+    // state it created, not the raw extension registrations that other owners
+    // added on the same template name (each has its own unregister callback).
+    const scoped = new TemplateRegistry();
+    const primary = `<t t-name="tr-shared"><div class="base"/></t>`;
+    const makeExt = (attr) =>
+        `<t t-inherit="tr-shared" t-inherit-mode="extension">` +
+        `<xpath expr="div" position="attributes">` +
+        `<attribute name="${attr}">1</attribute>` +
+        `</xpath></t>`;
+    const unregPrimary = scoped.registerTemplate("tr-shared", "/addon_a", primary);
+    const unregExtB = scoped.registerTemplateExtension(
+        "tr-shared",
+        "/addon_b",
+        makeExt("data-b"),
+    );
+    scoped.registerTemplateExtension("tr-shared", "/addon_c", makeExt("data-c"));
+    // Populate the parse/compile caches so the unregister has to evict them.
+    let div = scoped.getTemplate("tr-shared").querySelector("div");
+    expect(div.hasAttribute("data-b")).toBe(true);
+    expect(div.hasAttribute("data-c")).toBe(true);
+
+    // Owner A tears down its primary registration (e.g. per-test cleanup),
+    // then re-registers it: the other owners' extensions must still apply.
+    unregPrimary();
+    scoped.registerTemplate("tr-shared", "/addon_a", primary);
+    div = scoped.getTemplate("tr-shared").querySelector("div");
+    expect(div.hasAttribute("data-b")).toBe(true);
+    expect(div.hasAttribute("data-c")).toBe(true);
+
+    // And each extension's own unregister callback still works — scoped to
+    // its own registration only.
+    unregExtB();
+    div = scoped.getTemplate("tr-shared").querySelector("div");
+    expect(div.hasAttribute("data-b")).toBe(false);
+    expect(div.hasAttribute("data-c")).toBe(true);
+});
+
 test("TemplateRegistry: re-registering a key with different content throws", () => {
     const scoped = new TemplateRegistry();
     scoped.registerTemplate(

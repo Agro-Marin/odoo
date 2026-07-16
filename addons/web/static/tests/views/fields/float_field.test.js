@@ -220,10 +220,15 @@ test("use a formula", async () => {
         message: "The new value should be calculated properly.",
     });
 
+    // "=2^3" parses back to the just-saved 8: the commit is a no-op, and the
+    // save/discard indicator must clear again (nothing left to save), so
+    // there is no save button to click.
     await contains(".o_field_widget[name=float_field] input").edit("=2^3");
-    await clickSave();
     expect(".o_field_widget input").toHaveValue("8.000", {
         message: "The new value should be calculated properly.",
+    });
+    expect(".o_form_status_indicator_buttons").toHaveClass("invisible", {
+        message: "a parse-equal formula re-entry leaves nothing to save",
     });
 
     await contains(".o_field_widget[name=float_field] input").edit("=100/3");

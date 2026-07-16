@@ -44,6 +44,32 @@ test("formatFloat", () => {
     expect(formatFloat(200, { trailingZeros: false })).toBe("200");
 });
 
+test("formatFloat does not mutate a shared options object across fields", () => {
+    // Callers (e.g. view_utils' per-column cache) may reuse one options
+    // object for cells of different fields: the digits derived from the
+    // first field must not stick to the object and contaminate the next.
+    const options = {};
+
+    options.field = { digits: [16, 4] };
+    expect(formatFloat(1.23456, options)).toBe("1.2346");
+    options.field = { digits: [16, 1] };
+    expect(formatFloat(1.23456, options)).toBe("1.2");
+
+    expect(options.digits).toBe(undefined, {
+        message: "formatFloat must not write digits back into its options argument",
+    });
+    expect(options.minDigits).toBe(undefined, {
+        message: "formatFloat must not write minDigits back into its options argument",
+    });
+
+    // Same guarantee for the factor variant.
+    const factorOptions = { factor: 2, field: { digits: [16, 3] } };
+    expect(formatFloatFactor(1.5, factorOptions)).toBe("3.000");
+    factorOptions.field = { digits: [16, 1] };
+    expect(formatFloatFactor(1.5, factorOptions)).toBe("3.0");
+    expect(factorOptions.digits).toBe(undefined);
+});
+
 test("formatFloatFactor", () => {
     expect(formatFloatFactor(false)).toBe("");
     expect(formatFloatFactor(6000)).toBe("6,000.00");

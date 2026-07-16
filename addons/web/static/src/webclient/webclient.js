@@ -26,6 +26,79 @@ import { ActionContainer } from "./actions/action_container.js";
 import { NavBar } from "./navbar/navbar.js";
 
 /**
+ * Interval between proactive service-worker update checks.  Conservative:
+ * the check is a conditional request the browser answers from its HTTP
+ * cache / the server answers 304 to when the script is unchanged.
+ */
+const SERVICE_WORKER_UPDATE_INTERVAL = 6 * 60 * 60 * 1000; // 6 hours
+
+/**
+ * Wires the service-worker update lifecycle onto a registration.
+ *
+ * Without this, an updated worker sits in the ``waiting`` state until EVERY
+ * tab under the scope has closed — days for a long-lived backoffice SPA —
+ * so service-worker fixes never ship, and the activate-time purge of
+ * superseded asset bundles is deferred just as long (until browser quota
+ * eviction nukes the whole origin, IndexedDB RPC cache included).
+ *
+ * Two mechanisms:
+ *
+ * - When a new worker version reaches the ``installed`` state while another
+ *   version is active (i.e. an UPDATE, not the first install — first
+ *   installs keep the natural lifecycle), it is told to ``skipWaiting()``
+ *   and takes over immediately.  Mid-session activation is safe here: the
+ *   worker's fetch handlers are stateless (pure URL-pattern routing over
+ *   persistent caches), so swapping versions between two fetches cannot
+ *   corrupt in-flight state.
+ * - Proactive ``registration.update()`` checks: the browser only re-fetches
+ *   the worker script on navigation, which a long-lived SPA tab never
+ *   performs.  Poll on a conservative cadence, plus one check each time the
+ *   tab becomes visible again (both cheap and standard).
+ *
+ * Exported for unit tests (exercised with a mocked registration).
+ *
+ * @param {ServiceWorkerRegistration} registration
+ * @returns {void}
+ */
+export function watchServiceWorkerUpdates(registration) {
+    /** @param {ServiceWorker | null} worker */
+    const promoteWhenInstalled = (worker) => {
+        if (!worker) {
+            return;
+        }
+        const promote = () => {
+            // ``registration.active`` distinguishes an update from the very
+            // first install: on first install there is no active version to
+            // supersede and skipping the waiting state is pointless churn.
+            if (worker.state === "installed" && registration.active) {
+                worker.postMessage({ type: "SKIP_WAITING" });
+            }
+        };
+        worker.addEventListener("statechange", promote);
+        // The worker may already be past ``installing`` (e.g. it was found
+        // parked in ``registration.waiting`` on boot).
+        promote();
+    };
+    // An updated worker may already be waiting from a previous session.
+    promoteWhenInstalled(registration.waiting);
+    registration.addEventListener("updatefound", () =>
+        promoteWhenInstalled(registration.installing),
+    );
+    const checkForUpdate = () =>
+        registration.update().catch(() => {
+            // Offline or server unreachable — the next check will retry.
+        });
+    browser.setInterval(checkForUpdate, SERVICE_WORKER_UPDATE_INTERVAL);
+    // ``visibilitychange`` fires on ``document`` and bubbles to ``window``,
+    // which the ``browser`` facade's ``addEventListener`` is bound to.
+    browser.addEventListener("visibilitychange", () => {
+        if (document.visibilityState === "visible") {
+            checkForUpdate();
+        }
+    });
+}
+
+/**
  * Root OWL component of the Odoo web client.
  *
  * Bootstraps the action manager, navbar, and main components container.
@@ -231,6 +304,7 @@ export class WebClient extends Component {
                     "/web/service-worker.js",
                     { scope: "/odoo" },
                 );
+                watchServiceWorkerUpdates(registration);
                 if (registration.active && registration.active.state === "activated") {
                     this.serviceWorkerActivatedDeferred.resolve();
                 } else {

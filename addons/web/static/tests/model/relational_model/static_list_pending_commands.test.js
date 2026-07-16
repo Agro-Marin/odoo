@@ -52,6 +52,7 @@ function makeList({ loadRecords = async () => [] } = {}) {
         _commandsPromise: null,
         _savePoint: undefined,
         _unknownRecordCommands: {},
+        _loadingStubIds: new Set(),
         _currentIds: [],
         _tmpIncreaseLimit: 0,
         _extendedRecords: new Set(),

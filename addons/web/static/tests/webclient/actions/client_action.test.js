@@ -233,6 +233,26 @@ test("async client action (function) returning another action", async () => {
     expect(".o_kanban_view").toHaveCount(1);
 });
 
+test("cyclic function client action chains hit the recursion limit", async () => {
+    let callCount = 0;
+    actionRegistry.add("looping_client_action", () => {
+        callCount++;
+        // Returns itself as follow-up: without the depth guard this would
+        // recurse through doAction forever.
+        return { type: "ir.actions.client", tag: "looping_client_action" };
+    });
+    await mountWithCleanup(WebClient);
+    await expect(
+        getService("action").doAction({
+            type: "ir.actions.client",
+            tag: "looping_client_action",
+        }),
+    ).rejects.toThrow("Action recursion limit exceeded (max 20)");
+    // Invocation k runs the callback then checks depth k: the cap (> 20)
+    // trips on the 21st follow-up, so the callback ran exactly 21 times.
+    expect(callCount).toBe(21);
+});
+
 test("'CLEAR-UNCOMMITTED-CHANGES' is not triggered for function client actions", async () => {
     actionRegistry.add("my_action", () => {
         expect.step("my_action");

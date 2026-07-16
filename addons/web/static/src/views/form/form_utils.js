@@ -8,7 +8,7 @@
  * preserved via re-exports.
  */
 
-import { onMounted, onWillUnmount } from "@odoo/owl";
+import { onWillDestroy } from "@odoo/owl";
 import { makeContext } from "@web/core/context";
 import { registry } from "@web/core/registry";
 import { parseXML } from "@web/core/utils/dom/xml";
@@ -113,8 +113,17 @@ export async function loadSubViews(
  */
 export function useFormViewInDialog() {
     const formDialogStack = useService("form_dialog_stack");
-    onMounted(() => formDialogStack.push());
-    onWillUnmount(() => formDialogStack.pop());
+    // Push synchronously in setup, NOT in onMounted: the dialog form spends
+    // its whole willStart (loadViews / loadSubViews / initial record load)
+    // unmounted, and during that window the parent FormController's tab-hide
+    // auto-save (``beforeVisibilityChange``) would see an empty stack and
+    // silently web_save the parent — staged x2many rows included.
+    formDialogStack.push();
+    // Pop in onWillDestroy, NOT onWillUnmount: a component destroyed before
+    // it ever mounts (e.g. the dialog is closed while still loading) never
+    // unmounts, which would leak the counter and permanently disable the
+    // parent's auto-save. willDestroy runs in both cases.
+    onWillDestroy(() => formDialogStack.pop());
 }
 
 const sharedComponents = registry.category("shared_components");

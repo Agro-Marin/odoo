@@ -291,6 +291,59 @@ test("react to prop 'domain' changes", async () => {
     expect.verifySteps(["willUpdateProps"]);
 });
 
+test("reload with partial props preserves the unspecified search keys", async () => {
+    let searchModel = null;
+    class TestComponent extends Component {
+        static props = ["*"];
+        static template = xml`<div class="o_test_component">Test component content</div>`;
+        setup() {
+            searchModel = this.env.searchModel;
+        }
+    }
+
+    class Parent extends Component {
+        static props = ["*"];
+        static template = xml`
+            <WithSearch t-props="searchProps" t-slot-scope="search">
+                <TestComponent/>
+            </WithSearch>
+        `;
+        static components = { WithSearch, TestComponent };
+        setup() {
+            useSubEnv({ config: {} });
+            this.state = useState({
+                domain: [["type", "=", "carnivorous"]],
+                withOptionalKeys: true,
+            });
+        }
+        get searchProps() {
+            const props = { resModel: "animal", domain: this.state.domain };
+            if (this.state.withOptionalKeys) {
+                Object.assign(props, {
+                    context: { key: "val" },
+                    groupBy: ["name"],
+                    orderBy: [{ name: "name", asc: true }],
+                });
+            }
+            return props;
+        }
+    }
+
+    const parent = await mountWithCleanup(Parent);
+    expect(searchModel.globalContext.key).toBe("val");
+
+    // Update only the domain and drop the other (optional) search props: the
+    // reload must not wipe the search keys that were not specified.
+    parent.state.withOptionalKeys = false;
+    parent.state.domain = [["type", "=", "herbivorous"]];
+    await animationFrame();
+
+    expect(searchModel.globalDomain).toEqual([["type", "=", "herbivorous"]]);
+    expect(searchModel.globalContext.key).toBe("val");
+    expect(searchModel.globalGroupBy).toEqual(["name"]);
+    expect(searchModel.globalOrderBy).toEqual([{ name: "name", asc: true }]);
+});
+
 test("search defaults are removed from context at reload", async function () {
     const context = {
         search_default_x: true,

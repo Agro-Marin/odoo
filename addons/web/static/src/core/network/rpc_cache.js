@@ -368,11 +368,20 @@ export class RPCCache {
     /**
      * @param {string} name
      * @param {string | number} version
-     * @param {string} secret
+     * @param {string | null} [secret] AES-GCM key (hex) for the disk layer.
+     *   Only the DISK layer needs it (and SubtleCrypto, i.e. a secure
+     *   context): when either is missing the cache degrades to RAM-only —
+     *   ``type: "disk"`` reads transparently downgrade to ``"ram"`` —
+     *   instead of disabling ALL rpc caching (plain-HTTP intranet deploys).
      */
-    constructor(name, version, secret) {
-        this.crypto = new Crypto(secret);
-        this.indexedDB = new IndexedDB(name, version + CRYPTO_ALGO);
+    constructor(name, version, secret = null) {
+        this.diskEnabled = Boolean(secret && window.crypto?.subtle);
+        this.crypto = this.diskEnabled
+            ? new Crypto(/** @type {string} */ (secret))
+            : null;
+        this.indexedDB = this.diskEnabled
+            ? new IndexedDB(name, version + CRYPTO_ALGO)
+            : null;
         this.ramCache = new RamCache();
         /**
          * Subscribers are stored as ``{ callback, shape }`` pairs: joiners
@@ -395,7 +404,9 @@ export class RPCCache {
         /** @type {Record<string, number>} */
         this.diskGenerations = Object.create(null);
         this.globalDiskGeneration = 0;
-        this.checkSize(); // we want to control the disk space used by Odoo
+        if (this.diskEnabled) {
+            this.checkSize(); // we want to control the disk space used by Odoo
+        }
     }
 
     /**
@@ -457,7 +468,7 @@ export class RPCCache {
                 console.warn(
                     `Deleting indexedDB database as maximum storage size is reached`,
                 );
-                return this.indexedDB.deleteDatabase();
+                return this.indexedDB?.deleteDatabase();
             }
             return;
         }
@@ -492,6 +503,9 @@ export class RPCCache {
         } = {},
     ) {
         validateSettings({ type, update });
+        // Disk layer disabled (no secret / no SubtleCrypto): serve
+        // ``type: "disk"`` callers from RAM only instead of failing.
+        const useDisk = type === "disk" && this.diskEnabled;
 
         let ramValue = this.ramCache.read(table, key);
 
@@ -502,7 +516,14 @@ export class RPCCache {
         const shape = immutable ? deepFreeze : deepCopy;
 
         const requestKey = `${table}/${key}`;
-        const hasPendingRequest = requestKey in this.pendingRequests;
+        // ``&& ramValue``: LRU eviction can drop a still-pending entry's RAM
+        // promise while its ``pendingRequests`` slot survives (the fetch
+        // hasn't settled). Joining that slot would crash on
+        // ``ramValue.then`` — fall through to the miss path instead, which
+        // replaces the slot; the orphaned request's identity guards keep its
+        // late settlement from clobbering the new one.
+        const hasPendingRequest =
+            requestKey in this.pendingRequests && ramValue !== undefined;
         if (hasPendingRequest) {
             // never do the same call multiple times in parallel => return the same value for all
             // those calls, but store their callback to call them when/if the real value is obtained
@@ -544,7 +565,10 @@ export class RPCCache {
                         // stale result must not clobber that newer request.
                         delete this.pendingRequests[requestKey];
                         this.ramCache.write(table, key, Promise.resolve(result), model);
-                        if (type === "disk") {
+                        if (useDisk) {
+                            // Local aliases: ``useDisk`` implies the disk
+                            // layer was constructed (non-null).
+                            const { crypto, indexedDB } = this;
                             // Snapshot the generation NOW: the request just
                             // left ``pendingRequests``, so a concurrent
                             // invalidation can't flag it — comparing
@@ -552,7 +576,18 @@ export class RPCCache {
                             // IndexedDB (the clear is queued first, so an
                             // unguarded write would land after it).
                             const generation = this.diskGenerationOf(table);
-                            this.crypto
+                            // ``__version`` on ARRAY payloads (versioned
+                            // envelope + list return, e.g. web_read) is an
+                            // expando property that ``JSON.stringify``
+                            // (inside ``encrypt``) silently drops. Persist
+                            // it out-of-band, plaintext next to the
+                            // ciphertext (it is a content hash, not payload
+                            // data), and re-attach it after decrypt so
+                            // disk-warm ``update: "always"`` reads keep the
+                            // O(1) version compare instead of falling back
+                            // to a full deepEqual.
+                            const version = result?.[VERSION_FIELD];
+                            crypto
                                 .encrypt(result)
                                 .then((encryptedResult) => {
                                     if (
@@ -569,26 +604,29 @@ export class RPCCache {
                                     // filter without decrypting every entry —
                                     // model names aren't secret (they're
                                     // already in the URL).
-                                    const stored = model
-                                        ? { ...encryptedResult, model }
-                                        : encryptedResult;
-                                    this.indexedDB
-                                        .write(table, key, stored)
-                                        .catch((e) => {
-                                            if (e instanceof IDBQuotaExceededError) {
-                                                this.indexedDB.deleteDatabase();
-                                            } else {
-                                                // Disk persistence is best-effort:
-                                                // rethrowing here surfaced one
-                                                // unhandled-rejection error dialog
-                                                // per cached call when storage is
-                                                // denied.
-                                                console.warn(
-                                                    "RPC cache: disk write failed",
-                                                    e,
-                                                );
-                                            }
-                                        });
+                                    /** @type {Record<string, any>} */
+                                    const stored = { ...encryptedResult };
+                                    if (model) {
+                                        stored.model = model;
+                                    }
+                                    if (version !== undefined) {
+                                        stored.version = version;
+                                    }
+                                    indexedDB.write(table, key, stored).catch((e) => {
+                                        if (e instanceof IDBQuotaExceededError) {
+                                            indexedDB.deleteDatabase();
+                                        } else {
+                                            // Disk persistence is best-effort:
+                                            // rethrowing here surfaced one
+                                            // unhandled-rejection error dialog
+                                            // per cached call when storage is
+                                            // denied.
+                                            console.warn(
+                                                "RPC cache: disk write failed",
+                                                e,
+                                            );
+                                        }
+                                    });
                                 })
                                 .catch(() => {
                                     // Encryption can fail if SubtleCrypto is unavailable
@@ -657,19 +695,34 @@ export class RPCCache {
                         hasCacheValue = true;
                         fromCache.resolve();
                     });
-                } else if (type === "disk") {
-                    this.indexedDB
+                } else if (useDisk) {
+                    // Local aliases: ``useDisk`` implies non-null disk layer.
+                    const { crypto, indexedDB } = this;
+                    indexedDB
                         .read(table, key)
                         .then(
                             async (result) => {
                                 if (result) {
                                     let decrypted;
                                     try {
-                                        decrypted = await this.crypto.decrypt(result);
+                                        decrypted = await crypto.decrypt(result);
                                     } catch {
                                         // Do nothing ! The cryptoKey is probably different.
                                         // The data will be updated with the new cryptoKey.
                                         return;
+                                    }
+                                    // Re-attach the out-of-band ``__version``
+                                    // (see the persist side): a dict payload
+                                    // carries it inside the JSON already, but
+                                    // on an array payload it was an expando
+                                    // dropped by JSON.stringify.
+                                    if (
+                                        result.version !== undefined &&
+                                        decrypted &&
+                                        typeof decrypted === "object" &&
+                                        decrypted[VERSION_FIELD] === undefined
+                                    ) {
+                                        decrypted[VERSION_FIELD] = result.version;
                                     }
                                     resolve(decrypted);
                                     fromCacheValue = decrypted;
@@ -727,7 +780,7 @@ export class RPCCache {
         // but have not persisted yet (their pendingRequests entry is already
         // gone, so the `invalidated` flag below can't reach them).
         this.bumpDiskGeneration(tables);
-        this.indexedDB.invalidate(tables);
+        this.indexedDB?.invalidate(tables);
         this.ramCache.invalidate(tables);
         // flag the pending requests as invalidated s.t. we don't write their results in caches
         if (tables == null) {
@@ -771,7 +824,7 @@ export class RPCCache {
         // skipped too — costing a cache miss next reload, never stale data.
         this.bumpDiskGeneration(tables);
         this.ramCache.invalidateByModel(tables, model);
-        this.indexedDB.invalidateByModel(tables, model);
+        this.indexedDB?.invalidateByModel(tables, model);
         // Cancel in-flight requests whose key includes this model.
         // requestKey is "${table}/${JSON.stringify({url, params})}"; slice
         // past the first "/" to recover the JSON. The set is tiny in

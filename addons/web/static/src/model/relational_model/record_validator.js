@@ -287,6 +287,11 @@ export async function setInvalidField(record, fieldName) {
         // directly (no-op when the root isn't a DynamicList)
         !record.model.root._isRecordToDiscard?.(record)
     ) {
+        // Deliberately do NOT store the returned closer: the immediately
+        // following discard() calls record._closeInvalidFieldsNotification(),
+        // and this multi-edit "invalid value" toast must PERSIST past that
+        // discard so the user sees why their edit was rejected (pinned by
+        // list_view.test.js multi-edit invalid-value tests).
         displayInvalidFieldNotification(record);
         await record.discard();
         record.switchMode("readonly");

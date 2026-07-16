@@ -63,6 +63,7 @@
 import {
     Component,
     onRendered,
+    onWillDestroy,
     onWillRender,
     reactive,
     status,
@@ -98,10 +99,22 @@ export class ListRecordRow extends Component {
         /** @type {Map<string, {target: any, proxy: any}>} */
         this._dualCache = new Map();
         this._isRendering = false;
-        /** Render callback for shadow subscriptions of delegated renderer state. */
+        /**
+         * Render callback for shadow subscriptions of delegated renderer
+         * state. OWL only clears its OWN render callback's subscriptions on
+         * destroy (cleanupRenderAndReactives); custom ``reactive(target, cb)``
+         * callbacks stay registered until the observed key is next written.
+         * On a rarely-written key, a callback closing strongly over the row
+         * would retain the destroyed component (and its subtree) for as long
+         * as the renderer state lives — unbounded growth while scrolling a
+         * virtualized list. Closing over a WeakRef instead means a leaked
+         * subscription retains only this tiny closure.
+         */
+        const weakRow = new WeakRef(this);
         this._shadowRender = () => {
-            if (status(this) !== "destroyed") {
-                this.render();
+            const liveRow = weakRow.deref();
+            if (liveRow && status(liveRow) !== "destroyed") {
+                liveRow.render();
             }
         };
         /**
@@ -161,6 +174,14 @@ export class ListRecordRow extends Component {
         });
         onRendered(() => {
             this._isRendering = false;
+        });
+        onWillDestroy(() => {
+            // Drop cached wrappers/bound functions eagerly: they close over
+            // renderer-owned reactive proxies and _rendererCtx, so clearing
+            // them severs this row's outgoing references at destroy time
+            // (the incoming leg is covered by the WeakRef in _shadowRender).
+            this._dualCache.clear();
+            this._boundFns.clear();
         });
     }
 

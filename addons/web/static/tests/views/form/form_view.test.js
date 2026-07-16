@@ -4687,6 +4687,64 @@ test(`buttons with attr "special" in dialog close the dialog`, async () => {
 });
 
 test.tags("desktop");
+test(`buttons with attr "special=save" in dialog drive the save coordinator`, async () => {
+    // special="save" with an embedder-supplied ``props.saveRecord``
+    // (FormViewDialog) must still dispatch through the coordinator so its
+    // observable surface reflects the dialog's Save: status "saving" while
+    // the RPC is in flight, "clean" once it lands.
+    Product._views = {
+        form: `
+            <form>
+                <field name="name"/>
+                <footer>
+                    <button class="btn btn-primary" special="save"/>
+                </footer>
+            </form>
+        `,
+    };
+
+    const coordinators = [];
+    patchWithCleanup(FormController.prototype, {
+        setup() {
+            super.setup();
+            coordinators.push(this.saveCoordinator);
+        },
+    });
+
+    const def = new Deferred();
+    onRpc("get_formview_id", () => false);
+    onRpc("web_save", ({ model }) => {
+        expect.step(`${model}.web_save`);
+        if (model === "product") {
+            return def; // hold the dialog's save RPC in flight
+        }
+    });
+    await mountView({
+        resModel: "partner",
+        type: "form",
+        arch: `<form><field name="product_id"/></form>`,
+        resId: 2,
+    });
+    await contains(`[name="product_id"] input`).edit("ABC", { confirm: false });
+    await runAllTimers(); // skip debounce
+    await contains(`.o_m2o_dropdown_option_create_edit`).click();
+    expect(`.o_dialog`).toHaveCount(1);
+    const dialogCoordinator = coordinators.at(-1);
+    expect(dialogCoordinator.status).toBe("clean");
+
+    await contains(`.o_dialog button[special=save]`).click();
+    // The save RPC is in flight and the dialog's coordinator owns it.
+    expect.verifySteps(["product.web_save"]);
+    expect(dialogCoordinator.status).toBe("saving");
+
+    def.resolve();
+    await animationFrame();
+    expect(dialogCoordinator.status).toBe("clean");
+    expect(dialogCoordinator.lastError).toBe(null);
+    expect(`.o_dialog`).toHaveCount(0);
+});
+
+test.tags("desktop");
 test(`Add custom buttons to default buttons (replace="0")`, async () => {
     Product._views = {
         form: `
@@ -11293,6 +11351,38 @@ test(`onSave/onDiscard props`, async () => {
     await contains(`.o_field_widget input`).edit("to cancel");
     await contains(`.o_form_button_cancel`).click();
     expect.verifySteps(["discard"]);
+});
+
+test(`props.onSave is not called when leaving a clean form`, async () => {
+    // Regression: ``beforeLeave`` used ``requestSave({ checkDirty: true })``,
+    // whose clean short-circuit resolves ``true`` WITHOUT saving — and then
+    // fired ``props.onSave``. Embedders hang "record persisted" side effects
+    // on onSave (e.g. stock_barcode closes its line-edit pane), so a clean
+    // leave must not fire it.
+    let controller;
+    patchWithCleanup(FormController.prototype, {
+        setup() {
+            super.setup();
+            controller = this;
+        },
+    });
+    onRpc("partner", "web_save", () => expect.step("web_save"));
+    await mountView({
+        resModel: "partner",
+        type: "form",
+        arch: `<form><field name="foo"/></form>`,
+        resId: 1,
+        onSave: () => expect.step("onSave"),
+    });
+
+    // Clean leave: navigation proceeds, but nothing saved → no onSave.
+    expect(await controller.beforeLeave()).toBe(true);
+    expect.verifySteps([]);
+
+    // Dirty leave: the record is saved and onSave fires.
+    await contains(`.o_field_widget input`).edit("dirty now");
+    expect(await controller.beforeLeave()).toBe(true);
+    expect.verifySteps(["web_save", "onSave"]);
 });
 
 test.tags("desktop");

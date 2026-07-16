@@ -183,7 +183,14 @@ export const fieldService = {
             } else if (fieldDef.type === "properties") {
                 subResult = await _loadPath(
                     followRelationalProperties ? resModel : "*",
-                    await _loadPropertyDefinitions(resModel, fieldDefs, name),
+                    // resModel can't be null here: a "properties" fieldDef only
+                    // exists on a concrete model (the null/"*" case returned
+                    // above).
+                    await _loadPropertyDefinitions(
+                        /** @type {string} */ (resModel),
+                        fieldDefs,
+                        name,
+                    ),
                     remainingNames,
                 );
             }
@@ -240,8 +247,10 @@ export const fieldService = {
             if (isInvalid) {
                 return { resModel, fieldDef: null };
             }
-            const name = names.at(-1);
-            const modelInfo = modelsInfo.at(-1);
+            // Non-empty by construction (loadPath returned a valid result), so
+            // index instead of at(-1) to avoid the `undefined` in at()'s type.
+            const name = names[names.length - 1];
+            const modelInfo = modelsInfo[modelsInfo.length - 1];
             return {
                 resModel: modelInfo.resModel,
                 // A path ending in "*" (e.g. "user_id.*", legal per loadPath's
@@ -282,8 +291,10 @@ export const fieldService = {
                 displayNames: /** @type {string[]} */ ([]),
             };
             if (!isInvalid) {
-                const lastName = names.at(-1);
-                const lastFieldDef = modelsInfo.at(-1).fieldDefs[lastName];
+                // Non-empty by construction (loadPath returned a valid result).
+                const lastName = names[names.length - 1];
+                const lastFieldDef =
+                    modelsInfo[modelsInfo.length - 1].fieldDefs[lastName];
                 if (
                     !lastFieldDef ||
                     ["properties", "properties_definition"].includes(lastFieldDef.type)
