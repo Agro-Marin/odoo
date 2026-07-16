@@ -16,7 +16,6 @@ import {
     waitStoreFetch,
 } from "@mail/../tests/mail_test_helpers";
 import { mailDataHelpers } from "@mail/../tests/mock_server/mail_mock_server";
-
 import { describe, expect, test } from "@odoo/hoot";
 import { Deferred, mockUserAgent } from "@odoo/hoot-mock";
 import {
@@ -29,7 +28,6 @@ import {
     waitForSteps,
     withUser,
 } from "@web/../tests/web_test_helpers";
-
 import { browser } from "@web/core/browser/browser";
 import { deserializeDateTime } from "@web/core/l10n/dates";
 import { rpc } from "@web/core/network/rpc";
@@ -93,7 +91,7 @@ test("rendering with chat push notification default permissions", async () => {
     await contains(
         `.o-mail-NotificationItem img[data-src='${getOrigin()}/web/image/res.partner/${
             serverState.odoobotId
-        }/avatar_128?unique=${deserializeDateTime(odoobot.write_date).ts}']`
+        }/avatar_128?unique=${deserializeDateTime(odoobot.write_date).ts}']`,
     );
     await contains(".o-mail-NotificationItem", { text: "Turn on notifications" });
 });
@@ -105,8 +103,13 @@ test("can quickly dismiss 'Turn on notification' suggestion", async () => {
     await click(".o_menu_systray i[aria-label='Messages']");
     await contains(".o-mail-NotificationItem");
     await contains(".o-mail-NotificationItem", { text: "Turn on notifications" });
-    await click(".o-mail-NotificationItem:contains(Turn on notifications) [title='Dismiss']");
-    await contains(".o-mail-NotificationItem", { text: "Turn on notifications", count: 0 });
+    await click(
+        ".o-mail-NotificationItem:contains(Turn on notifications) [title='Dismiss']",
+    );
+    await contains(".o-mail-NotificationItem", {
+        text: "Turn on notifications",
+        count: 0,
+    });
     await contains(".o-mail-MessagingMenu-counter", { count: 0 });
 });
 
@@ -153,7 +156,9 @@ test("respond to notification prompt (granted)", async () => {
 test("no suggestion to enable chat push notifications in mobile app", async () => {
     patchBrowserNotification("default");
     // simulate Android Odoo App
-    mockUserAgent("Chrome/0.0.0 Android (OdooMobile; Linux; Android 13; Odoo TestSuite)");
+    mockUserAgent(
+        "Chrome/0.0.0 Android (OdooMobile; Linux; Android 13; Odoo TestSuite)",
+    );
     await start();
     await click(".o_menu_systray i[aria-label='Messages']");
     await contains(".o-mail-MessagingMenu-counter", { count: 0 });
@@ -198,7 +203,7 @@ test("rendering with PWA installation request", async () => {
     await contains(
         `.o-mail-NotificationItem img[data-src='${getOrigin()}/web/image/res.partner/${
             serverState.odoobotId
-        }/avatar_128?unique=${deserializeDateTime(odoobot.write_date).ts}']`
+        }/avatar_128?unique=${deserializeDateTime(odoobot.write_date).ts}']`,
     );
     await contains(".o-mail-NotificationItem-name", { text: "Install Odoo" });
     await contains(".o-mail-NotificationItem-text", {
@@ -389,12 +394,12 @@ test("grouped notifications by document model", async () => {
                     [false, "kanban"],
                     [false, "list"],
                     [false, "form"],
-                ])
+                ]),
             );
             expect(action.target).toBe("current");
             expect(action.res_model).toBe("res.partner");
             expect(JSON.stringify(action.domain)).toBe(
-                JSON.stringify([["message_has_error", "=", true]])
+                JSON.stringify([["message_has_error", "=", true]]),
             );
         },
     });
@@ -451,7 +456,9 @@ test("multiple grouped notifications by document model, sorted by the most recen
     await contains(":nth-child(1 of .o-mail-NotificationItem)", {
         text: "Email Failure: Companies",
     });
-    await contains(":nth-child(2 of .o-mail-NotificationItem)", { text: "Email Failure: Contact" });
+    await contains(":nth-child(2 of .o-mail-NotificationItem)", {
+        text: "Email Failure: Contact",
+    });
 });
 
 test("non-failure notifications are ignored", async () => {
@@ -477,20 +484,35 @@ test("mark unread channel as read", async () => {
     const partnerId = pyEnv["res.partner"].create({ name: "Demo" });
     const channelId = pyEnv["discuss.channel"].create({
         channel_member_ids: [
-            Command.create({ message_unread_counter: 1, partner_id: serverState.partnerId }),
+            Command.create({
+                message_unread_counter: 1,
+                partner_id: serverState.partnerId,
+            }),
             Command.create({ partner_id: partnerId }),
         ],
         name: "My Channel",
     });
     const [messagId_1] = pyEnv["mail.message"].create([
-        { author_id: partnerId, body: "not empty", model: "discuss.channel", res_id: channelId },
-        { author_id: partnerId, body: "not empty", model: "discuss.channel", res_id: channelId },
+        {
+            author_id: partnerId,
+            body: "not empty",
+            model: "discuss.channel",
+            res_id: channelId,
+        },
+        {
+            author_id: partnerId,
+            body: "not empty",
+            model: "discuss.channel",
+            res_id: channelId,
+        },
     ]);
     const [currentMemberId] = pyEnv["discuss.channel.member"].search([
         ["channel_id", "=", channelId],
         ["partner_id", "=", serverState.partnerId],
     ]);
-    pyEnv["discuss.channel.member"].write([currentMemberId], { seen_message_id: messagId_1 });
+    pyEnv["discuss.channel.member"].write([currentMemberId], {
+        seen_message_id: messagId_1,
+    });
     onRpcBefore("/discuss/channel/mark_as_read", (args) => asyncStep("mark_as_read"));
     await start();
     await click(".o_menu_systray i[aria-label='Messages']");
@@ -510,7 +532,10 @@ test("mark failure as read", async () => {
         name: "General",
         message_ids: [messageId],
         channel_member_ids: [
-            Command.create({ partner_id: serverState.partnerId, seen_message_id: messageId }),
+            Command.create({
+                partner_id: serverState.partnerId,
+                seen_message_id: messageId,
+            }),
         ],
     });
     pyEnv["mail.notification"].create({
@@ -522,7 +547,10 @@ test("mark failure as read", async () => {
     await click(".o_menu_systray i[aria-label='Messages']");
     await triggerEvents(".o-mail-NotificationItem", ["mouseenter"], {
         contains: [
-            [".o-mail-NotificationItem-name", { text: "Email Failure: Discussion Channel" }],
+            [
+                ".o-mail-NotificationItem-name",
+                { text: "Email Failure: Discussion Channel" },
+            ],
             [
                 ".o-mail-NotificationItem-text",
                 { text: "An error occurred when sending an email on “General”" },
@@ -530,7 +558,10 @@ test("mark failure as read", async () => {
         ],
     });
     await click("[title='Mark As Read']", {
-        parent: [".o-mail-NotificationItem", { text: "Email Failure: Discussion Channel" }],
+        parent: [
+            ".o-mail-NotificationItem",
+            { text: "Email Failure: Discussion Channel" },
+        ],
     });
     await contains(".o-mail-NotificationItem", {
         count: 0,
@@ -632,7 +663,7 @@ test("Counter is updated when receiving new message", async () => {
             context: {
                 partnerId,
             },
-        })
+        }),
     );
     await contains(".o-mail-MessagingMenu-counter", { text: "1" });
 });
@@ -646,9 +677,9 @@ test("basic rendering", async () => {
     });
     await start();
     await contains(".o_menu_systray .dropdown-toggle:has(i[aria-label='Messages'])");
-    expect('.o_menu_systray .dropdown-toggle:has(i[aria-label="Messages"]):first').not.toHaveClass(
-        "show"
-    );
+    expect(
+        '.o_menu_systray .dropdown-toggle:has(i[aria-label="Messages"]):first',
+    ).not.toHaveClass("show");
     await contains(".o_menu_systray i[aria-label='Messages']");
     await contains('.o_menu_systray i[aria-label="Messages"].fa-comments');
     await contains(".o-mail-MessagingMenu", { count: 0 });
@@ -661,12 +692,14 @@ test("basic rendering", async () => {
     await contains(".o-mail-MessagingMenu button:not(.fw-bold)", { text: "Chats" });
     await contains(".o-mail-MessagingMenu button:not(.fw-bold)", { text: "Channels" });
     await contains("button", { text: "New Message" });
-    await contains(".o-mail-MessagingMenu div.text-muted", { text: "No conversation yet..." });
+    await contains(".o-mail-MessagingMenu div.text-muted", {
+        text: "No conversation yet...",
+    });
     await click(".o_menu_systray .dropdown-toggle:has(i[aria-label='Messages'])");
     await contains(".o-dropdown--menu", { count: 0 });
-    expect('.o_menu_systray .dropdown-toggle:has(i[aria-label="Messages"]):first').not.toHaveClass(
-        "show"
-    );
+    expect(
+        '.o_menu_systray .dropdown-toggle:has(i[aria-label="Messages"]):first',
+    ).not.toHaveClass("show");
 });
 
 test("switch tab", async () => {
@@ -676,11 +709,15 @@ test("switch tab", async () => {
     await contains(".o-mail-MessagingMenu button:not(.fw-bold)", { text: "Chats" });
     await contains(".o-mail-MessagingMenu button:not(.fw-bold)", { text: "Channels" });
     await click(".o-mail-MessagingMenu button", { text: "Chats" });
-    await contains(".o-mail-MessagingMenu button:not(.fw-bold)", { text: "Notifications" });
+    await contains(".o-mail-MessagingMenu button:not(.fw-bold)", {
+        text: "Notifications",
+    });
     await contains(".o-mail-MessagingMenu button.fw-bold", { text: "Chats" });
     await contains(".o-mail-MessagingMenu button:not(.fw-bold)", { text: "Channels" });
     await click(".o-mail-MessagingMenu button", { text: "Channels" });
-    await contains(".o-mail-MessagingMenu button:not(.fw-bold)", { text: "Notifications" });
+    await contains(".o-mail-MessagingMenu button:not(.fw-bold)", {
+        text: "Notifications",
+    });
     await contains(".o-mail-MessagingMenu button:not(.fw-bold)", { text: "Chats" });
     await contains(".o-mail-MessagingMenu button.fw-bold", { text: "Channels" });
     await click(".o-mail-MessagingMenu button", { text: "Notifications" });
@@ -713,7 +750,10 @@ test("chat preview should not display correspondent name in body", async () => {
     // DM chat with demo, the conversation is named "Demo" and body is simply message content
     // not prefix like "Demo:"
     const pyEnv = await startServer();
-    const partnerId = pyEnv["res.partner"].create({ name: "Demo", email: "demo@odoo.com" });
+    const partnerId = pyEnv["res.partner"].create({
+        name: "Demo",
+        email: "demo@odoo.com",
+    });
     const userId = pyEnv["res.users"].create({ partner_id: partnerId });
     const channelId = pyEnv["discuss.channel"].create({
         channel_type: "chat",
@@ -732,7 +772,7 @@ test("chat preview should not display correspondent name in body", async () => {
             },
             thread_id: channelId,
             thread_model: "discuss.channel",
-        })
+        }),
     );
     await contains(".o-mail-NotificationItem");
     await contains(".o-mail-NotificationItem img");
@@ -928,10 +968,30 @@ test("Attachment-only message preview shows file type icon", async () => {
             text: "Voice Message",
             voice_ids: [Command.create({ display_name: "voicemessage" })],
         },
-        { mimetype: "video/mp4", name: "Video.mp4", icon: "fa-video", text: "Video.mp4" },
-        { mimetype: "application/pdf", name: "File.pdf", icon: "fa-file", text: "File.pdf" },
-        { mimetype: "image/jpeg", name: "Image.jpeg", icon: "fa-image", text: "Image.jpeg" },
-        { mimetype: "audio/mpeg", name: "Audio.mp3", icon: "fa-headphones", text: "Audio.mp3" },
+        {
+            mimetype: "video/mp4",
+            name: "Video.mp4",
+            icon: "fa-video",
+            text: "Video.mp4",
+        },
+        {
+            mimetype: "application/pdf",
+            name: "File.pdf",
+            icon: "fa-file",
+            text: "File.pdf",
+        },
+        {
+            mimetype: "image/jpeg",
+            name: "Image.jpeg",
+            icon: "fa-image",
+            text: "Image.jpeg",
+        },
+        {
+            mimetype: "audio/mpeg",
+            name: "Audio.mp3",
+            icon: "fa-headphones",
+            text: "Audio.mp3",
+        },
     ];
 
     pyEnv["mail.message"].create(
@@ -955,12 +1015,14 @@ test("Attachment-only message preview shows file type icon", async () => {
             date: `2024-01-0${5 - i} 12:00:00`,
             model: "discuss.channel",
             res_id: channelIds[i],
-        }))
+        })),
     );
     await start();
     await click(".o_menu_systray i[aria-label='Messages']");
     await contains(".o-mail-NotificationItem:eq(0) i.fa-microphone");
-    await contains(".o-mail-NotificationItem:eq(0)", { text: "Partner1: Voice Message" });
+    await contains(".o-mail-NotificationItem:eq(0)", {
+        text: "Partner1: Voice Message",
+    });
     await contains(".o-mail-NotificationItem:eq(1) i.fa-video");
     await contains(".o-mail-NotificationItem:eq(1)", { text: "Partner2: Video.mp4" });
     await contains(".o-mail-NotificationItem:eq(2) i.fa-file");
@@ -1045,7 +1107,10 @@ test("single preview for channel if it has unread and needaction messages", asyn
     const channelId = pyEnv["discuss.channel"].create({
         name: "Test",
         channel_member_ids: [
-            Command.create({ message_unread_counter: 2, partner_id: serverState.partnerId }),
+            Command.create({
+                message_unread_counter: 2,
+                partner_id: serverState.partnerId,
+            }),
         ],
     });
     const messageId = pyEnv["mail.message"].create({
@@ -1073,7 +1138,9 @@ test("single preview for channel if it has unread and needaction messages", asyn
     await contains(".o-mail-NotificationItem");
     await contains(".o-mail-NotificationItem-name", { text: "Test" });
     await contains(".o-mail-NotificationItem .badge", { text: "1" });
-    await contains(".o-mail-NotificationItem-text", { text: "Partner1: Message with needaction" });
+    await contains(".o-mail-NotificationItem-text", {
+        text: "Partner1: Message with needaction",
+    });
 });
 
 test("chat should show unread counter on receiving new messages", async () => {
@@ -1086,7 +1153,10 @@ test("chat should show unread counter on receiving new messages", async () => {
     const channelId = pyEnv["discuss.channel"].create({
         channel_type: "chat",
         channel_member_ids: [
-            Command.create({ message_unread_counter: 0, partner_id: serverState.partnerId }),
+            Command.create({
+                message_unread_counter: 0,
+                partner_id: serverState.partnerId,
+            }),
             Command.create({ partner_id: partnerId }),
         ],
     });
@@ -1103,7 +1173,7 @@ test("chat should show unread counter on receiving new messages", async () => {
             },
             thread_id: channelId,
             thread_model: "discuss.channel",
-        })
+        }),
     );
     await contains(".o-mail-NotificationItem .badge", { text: "1" });
 });
@@ -1153,7 +1223,9 @@ test("failure notifications are shown before channel preview", async () => {
         model: "discuss.channel",
         res_id: channelId,
     });
-    pyEnv["discuss.channel"].write([channelId], { message_ids: [messageId, failedMessageId] });
+    pyEnv["discuss.channel"].write([channelId], {
+        message_ids: [messageId, failedMessageId],
+    });
     pyEnv["mail.notification"].create({
         mail_message_id: failedMessageId,
         notification_status: "exception",
@@ -1200,10 +1272,12 @@ test("messaging menu should show new needaction messages from chatter", async ()
         message_id: messageId,
         store_data: new mailDataHelpers.Store(
             pyEnv["mail.message"].browse(messageId),
-            makeKwArgs({ for_current_user: true, add_followers: true })
+            makeKwArgs({ for_current_user: true, add_followers: true }),
         ).get_result(),
     });
-    await contains(".o-mail-NotificationItem-text", { text: "Frodo Baggins: @Mitchel Admin" });
+    await contains(".o-mail-NotificationItem-text", {
+        text: "Frodo Baggins: @Mitchel Admin",
+    });
 });
 
 test("can open messaging menu even if messaging is not initialized", async () => {
@@ -1293,7 +1367,9 @@ test("Can quick search when more than 20 items", async () => {
     await contains(".o-mail-NotificationItem", { count: 1 });
     await contains(".o-mail-NotificationItem", { text: "Mitchell Admin" });
     await insertText(".o-mail-MessagingMenu input", "no threads", { replace: true });
-    await contains(".o-mail-MessagingMenu div.text-muted", { text: "No thread found." });
+    await contains(".o-mail-MessagingMenu div.text-muted", {
+        text: "No thread found.",
+    });
     expect(".o-mail-MessagingMenu-list").toHaveText("No thread found."); // list should contain only this text
 });
 
@@ -1314,7 +1390,9 @@ test("keyboard navigation", async () => {
     triggerHotkey("ArrowUp");
     await contains(".o-mail-NotificationItem:eq(0).o-active", { name: "Channel-2" });
     triggerHotkey("ArrowUp");
-    await contains(".o-mail-NotificationItem:last.o-active", { name: "Mitchell Admin" });
+    await contains(".o-mail-NotificationItem:last.o-active", {
+        name: "Mitchell Admin",
+    });
     triggerHotkey("Enter");
     await contains(".o-mail-ChatWindow", { text: "Mitchell Admin" });
 });
@@ -1423,7 +1501,11 @@ test("user notification from inbox redirect to discuss inbox", async () => {
     });
     await start();
     await click(".o_menu_systray i[aria-label='Messages']");
-    await click(".o-mail-NotificationItem .o-mail-NotificationItem-text:text('You: Hello world!')");
+    await click(
+        ".o-mail-NotificationItem .o-mail-NotificationItem-text:text('You: Hello world!')",
+    );
     await contains(".o-mail-DiscussContent-threadName[title='Inbox']");
-    await contains(".o-mail-Message.o-highlighted .o-mail-Message-body:text('Hello world!')");
+    await contains(
+        ".o-mail-Message.o-highlighted .o-mail-Message-body:text('Hello world!')",
+    );
 });

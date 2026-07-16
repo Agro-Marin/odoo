@@ -1,5 +1,4 @@
 import { insertText as htmlInsertText } from "@html_editor/../tests/_helpers/user_actions";
-
 import {
     click,
     contains,
@@ -9,12 +8,16 @@ import {
     start,
     startServer,
 } from "@mail/../tests/mail_test_helpers";
-import { beforeEach, describe, test } from "@odoo/hoot";
-import { mockDate } from "@odoo/hoot-mock";
-import { Command, getService, patchWithCleanup, serverState } from "@web/../tests/web_test_helpers";
-
 import { Composer } from "@mail/core/common/composer";
+import { beforeEach, describe, test } from "@odoo/hoot";
 import { press } from "@odoo/hoot-dom";
+import { mockDate } from "@odoo/hoot-mock";
+import {
+    Command,
+    getService,
+    patchWithCleanup,
+    serverState,
+} from "@web/../tests/web_test_helpers";
 
 describe.current.tags("desktop");
 defineMailModels();
@@ -203,14 +206,20 @@ test("Sort partner suggestions by recent chats", async () => {
     await contains(".o-mail-Message-content", { text: "This is a test" });
     await click(".o-mail-DiscussSidebarChannel", { text: "General" });
     await contains(
-        ".o-mail-DiscussSidebarCategory-chat + .o-mail-DiscussSidebarChannel-container:text(User 2)"
+        ".o-mail-DiscussSidebarCategory-chat + .o-mail-DiscussSidebarChannel-container:text(User 2)",
     );
     await insertText(".o-mail-Composer-input[placeholder='Message #General…']", "@");
     await insertText(".o-mail-Composer-input", "User");
     await contains(".o-mail-Composer-suggestion strong", { count: 3 });
-    await contains(":nth-child(1 of .o-mail-Composer-suggestion) strong", { text: "User 2" });
-    await contains(":nth-child(2 of .o-mail-Composer-suggestion) strong", { text: "User 3" });
-    await contains(":nth-child(3 of .o-mail-Composer-suggestion) strong", { text: "User 1" });
+    await contains(":nth-child(1 of .o-mail-Composer-suggestion) strong", {
+        text: "User 2",
+    });
+    await contains(":nth-child(2 of .o-mail-Composer-suggestion) strong", {
+        text: "User 3",
+    });
+    await contains(":nth-child(3 of .o-mail-Composer-suggestion) strong", {
+        text: "User 1",
+    });
 });
 
 test("mention suggestion are shown after deleting a character", async () => {

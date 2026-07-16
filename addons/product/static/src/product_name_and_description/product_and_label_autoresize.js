@@ -11,8 +11,8 @@ import { useAutoresize } from "@web/core/utils/dom/autoresize";
  * @param {Ref} ref
  */
 export function useProductAndLabelAutoresize(ref, options = {}) {
-    useAutoresize(ref, { 
-        onMounted: productAndLabelResizeTextArea, 
+    useAutoresize(ref, {
+        onMounted: productAndLabelResizeTextArea,
         onResize: productAndLabelResizeTextArea,
         ...options,
     });
@@ -26,10 +26,13 @@ export function productAndLabelResizeTextArea(textarea, options = {}) {
             if (target.getAttribute("name") === options.targetParentName) {
                 break;
             }
-            const totalParentHeight = Array.from(target.children).reduce((total, child) => {
-                const childHeight = child.style.height || style.lineHeight;
-                return total + parseFloat(childHeight);
-            }, 0);
+            const totalParentHeight = Array.from(target.children).reduce(
+                (total, child) => {
+                    const childHeight = child.style.height || style.lineHeight;
+                    return total + parseFloat(childHeight);
+                },
+                0,
+            );
             target.style.height = `${totalParentHeight}px`;
             target = target.parentElement;
         }

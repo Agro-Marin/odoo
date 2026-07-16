@@ -1,17 +1,17 @@
 /* global posmodel */
 
+import * as Dialog from "@point_of_sale/../tests/generic_helpers/dialog_util";
+import * as NumberPopup from "@point_of_sale/../tests/generic_helpers/number_popup_util";
+import * as Numpad from "@point_of_sale/../tests/generic_helpers/numpad_util";
+import * as OfflineUtil from "@point_of_sale/../tests/generic_helpers/offline_util";
+import * as Order from "@point_of_sale/../tests/generic_helpers/order_widget_util";
+import { negateStep, run } from "@point_of_sale/../tests/generic_helpers/utils";
+import * as Chrome from "@point_of_sale/../tests/pos/tours/utils/chrome_util";
+import { inLeftSide } from "@point_of_sale/../tests/pos/tours/utils/common";
+import * as PaymentScreen from "@point_of_sale/../tests/pos/tours/utils/payment_screen_util";
 import * as ProductScreen from "@point_of_sale/../tests/pos/tours/utils/product_screen_util";
 import * as ReceiptScreen from "@point_of_sale/../tests/pos/tours/utils/receipt_screen_util";
-import * as PaymentScreen from "@point_of_sale/../tests/pos/tours/utils/payment_screen_util";
-import * as Chrome from "@point_of_sale/../tests/pos/tours/utils/chrome_util";
-import * as NumberPopup from "@point_of_sale/../tests/generic_helpers/number_popup_util";
-import * as Order from "@point_of_sale/../tests/generic_helpers/order_widget_util";
-import * as Dialog from "@point_of_sale/../tests/generic_helpers/dialog_util";
-import * as Numpad from "@point_of_sale/../tests/generic_helpers/numpad_util";
 import { registry } from "@web/core/registry";
-import { inLeftSide } from "@point_of_sale/../tests/pos/tours/utils/common";
-import * as OfflineUtil from "@point_of_sale/../tests/generic_helpers/offline_util";
-import { run, negateStep } from "@point_of_sale/../tests/generic_helpers/utils";
 
 registry.category("web_tour.tours").add("ReceiptScreenTour", {
     steps: () =>
@@ -45,7 +45,9 @@ registry.category("web_tour.tours").add("ReceiptScreenTour", {
             ProductScreen.addOrderline("Monitor Stand", "6", "1", "6.0"),
             ProductScreen.clickPayButton(),
             PaymentScreen.clickPaymentMethod("Cash"),
-            PaymentScreen.enterPaymentLineAmount("Cash", "70", true, { remaining: "2.0" }),
+            PaymentScreen.enterPaymentLineAmount("Cash", "70", true, {
+                remaining: "2.0",
+            }),
             PaymentScreen.clickNumpad("0"),
             PaymentScreen.fillPaymentLineAmountMobile("Cash", "700"),
             PaymentScreen.changeIs("628.0"),
@@ -224,7 +226,9 @@ registry.category("web_tour.tours").add("point_of_sale.test_printed_receipt_tour
                     }
 
                     if (rendered.includes("5.00 / Units")) {
-                        throw new Error("The price should not be included on a basic receipt");
+                        throw new Error(
+                            "The price should not be included on a basic receipt",
+                        );
                     }
                 };
                 await posmodel.printReceipt({ basic: true });

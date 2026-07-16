@@ -25,8 +25,8 @@ export class ProductLabelSectionAndNoteListRender extends SectionAndNoteListRend
             // Reading column.optional is stable here because we return a shallow copy
             // below instead of mutating the cached arch object across renders.
             if (
-                column["optional"] !== "conditional"
-                || !this.conditionalColumns.includes(column["name"])
+                column["optional"] !== "conditional" ||
+                !this.conditionalColumns.includes(column["name"])
             ) {
                 return column;
             }
@@ -37,14 +37,18 @@ export class ProductLabelSectionAndNoteListRender extends SectionAndNoteListRend
              * Vendor Bills -> Product should be hidden by default
              * Invoices -> conditionalColumns should be hidden by default if Sale module is not installed
              */
-            const isBill = ["in_invoice", "in_refund", "in_receipt"].includes(this.props.list.evalContext.parent.move_type);
-            const isInvoice = ["out_invoice", "out_refund", "out_receipt"].includes(this.props.list.evalContext.parent.move_type);
-            const isSaleInstalled = this.props.list.evalContext.parent.is_sale_installed;
+            const isBill = ["in_invoice", "in_refund", "in_receipt"].includes(
+                this.props.list.evalContext.parent.move_type,
+            );
+            const isInvoice = ["out_invoice", "out_refund", "out_receipt"].includes(
+                this.props.list.evalContext.parent.move_type,
+            );
+            const isSaleInstalled =
+                this.props.list.evalContext.parent.is_sale_installed;
             let optional = "show";
             if (isBill && column["name"] === "product_id") {
                 optional = "hide";
-            }
-            else if (isInvoice && !isSaleInstalled) {
+            } else if (isInvoice && !isSaleInstalled) {
                 optional = "hide";
             }
             return { ...column, optional };
@@ -58,16 +62,19 @@ export class ProductLabelSectionAndNoteListRender extends SectionAndNoteListRend
         }
         // The isCellReadonly method from the ListRenderer is used to determine the classes to apply to the cell.
         // We need this override to make sure some readonly classes are not applied to the cell if it is still editable.
-        let isReadonly = super.isCellReadonly(column, record);
+        const isReadonly = super.isCellReadonly(column, record);
         return (
-            isReadonly
-            && (["cancel", "posted"].includes(record.evalContext.parent.state)
-            || record.evalContext.parent.locked)
-        )
+            isReadonly &&
+            (["cancel", "posted"].includes(record.evalContext.parent.state) ||
+                record.evalContext.parent.locked)
+        );
     }
 }
 
-patch(ProductLabelSectionAndNoteListRender.prototype, ProductNameAndDescriptionListRendererMixin());
+patch(
+    ProductLabelSectionAndNoteListRender.prototype,
+    ProductNameAndDescriptionListRendererMixin(),
+);
 
 export class ProductLabelSectionAndNoteOne2Many extends SectionAndNoteFieldOne2Many {
     static components = {
@@ -83,4 +90,7 @@ export const productLabelSectionAndNoteOne2Many = {
 
 registry
     .category("fields")
-    .add("product_label_section_and_note_field_o2m", productLabelSectionAndNoteOne2Many);
+    .add(
+        "product_label_section_and_note_field_o2m",
+        productLabelSectionAndNoteOne2Many,
+    );

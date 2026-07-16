@@ -1,5 +1,4 @@
 import { mailDataHelpers } from "@mail/../tests/mock_server/mail_mock_server";
-
 import { getKwArgs, makeKwArgs, models } from "@web/../tests/web_test_helpers";
 
 export class MailFollowers extends models.ServerModel {
@@ -19,14 +18,14 @@ export class MailFollowers extends models.ServerModel {
 
         store._add_record_fields(
             this,
-            fields.filter((field) => field !== "subtype_ids")
+            fields.filter((field) => field !== "subtype_ids"),
         );
 
         for (const follower of this) {
             const data = {};
             if (fields.includes("subtype_ids")) {
                 data.subtype_ids = mailDataHelpers.Store.many(
-                    this.env["mail.message.subtype"].browse(follower.subtype_ids)
+                    this.env["mail.message.subtype"].browse(follower.subtype_ids),
                 );
             }
             if (Object.keys(data).length) {
@@ -44,8 +43,8 @@ export class MailFollowers extends models.ServerModel {
             mailDataHelpers.Store.attr("thread", (follower) =>
                 mailDataHelpers.Store.one(
                     this.env[follower.res_model].browse(follower.res_id),
-                    makeKwArgs({ as_thread: true, only_id: true })
-                )
+                    makeKwArgs({ as_thread: true, only_id: true }),
+                ),
             ),
         ];
     }

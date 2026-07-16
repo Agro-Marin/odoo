@@ -1,9 +1,9 @@
 /** @odoo-module native */
-import { luxon } from "@web/core/l10n/luxon";
 import { ActivityListPopover } from "@mail/core/web/activity_list_popover";
 import { Avatar } from "@mail/views/web/fields/avatar/avatar";
 import { Component, useRef } from "@odoo/owl";
 import { formatDate } from "@web/core/l10n/dates";
+import { luxon } from "@web/core/l10n/luxon";
 import { _t } from "@web/core/l10n/translation";
 import { formatList } from "@web/core/l10n/utils";
 import { usePopover } from "@web/ui/popover/popover_hook";

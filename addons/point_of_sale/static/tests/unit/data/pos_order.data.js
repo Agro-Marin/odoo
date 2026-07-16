@@ -1,4 +1,4 @@
-import { models, Command } from "@web/../tests/web_test_helpers";
+import { Command, models } from "@web/../tests/web_test_helpers";
 
 export class PosOrder extends models.ServerModel {
     _name = "pos.order";
@@ -56,7 +56,7 @@ export class PosOrder extends models.ServerModel {
                 // Search for owner records by UUID
                 const ownerRecords = this.env[modelName].search_read(
                     [["uuid", "in", Object.keys(mapping)]],
-                    ["id", "uuid"]
+                    ["id", "uuid"],
                 );
                 for (const [uuid, fields] of Object.entries(mapping)) {
                     for (const [name, uuids] of Object.entries(fields)) {
@@ -65,20 +65,30 @@ export class PosOrder extends models.ServerModel {
                             // Get all related records by uuids
                             const relatedRecords = this.env[field.relation].search_read(
                                 [["uuid", "in", uuids]],
-                                ["id", "uuid"]
+                                ["id", "uuid"],
                             );
-                            const ownerRecord = ownerRecords.find((r) => r.uuid === uuid);
+                            const ownerRecord = ownerRecords.find(
+                                (r) => r.uuid === uuid,
+                            );
                             if (ownerRecord) {
                                 this.env[modelName].write([ownerRecord.id], {
-                                    [name]: relatedRecords.map((r) => Command.link(r.id)),
+                                    [name]: relatedRecords.map((r) =>
+                                        Command.link(r.id),
+                                    ),
                                 });
                             }
                         } else {
                             // single record relation (many2one)
-                            const record = this.env[field.relation].search([["uuid", "=", uuids]]);
-                            const ownerRecord = ownerRecords.find((r) => r.uuid === uuid);
+                            const record = this.env[field.relation].search([
+                                ["uuid", "=", uuids],
+                            ]);
+                            const ownerRecord = ownerRecords.find(
+                                (r) => r.uuid === uuid,
+                            );
                             if (ownerRecord && record) {
-                                this.env[modelName].write([ownerRecord.id], { [name]: record[0] });
+                                this.env[modelName].write([ownerRecord.id], {
+                                    [name]: record[0],
+                                });
                             }
                         }
                     }
@@ -96,7 +106,11 @@ export class PosOrder extends models.ServerModel {
         const posOrderLine = [];
         const posPackOperationLot = [];
         const posCustomAttributeValue = [];
-        const readOrder = this.read(orderIds, this._load_pos_data_fields(config_id), false);
+        const readOrder = this.read(
+            orderIds,
+            this._load_pos_data_fields(config_id),
+            false,
+        );
 
         for (const order of readOrder) {
             posOrder.push(order);
@@ -104,26 +118,30 @@ export class PosOrder extends models.ServerModel {
             const lines = this.env["pos.order.line"].read(
                 order.lines,
                 this.env["pos.order.line"]._load_pos_data_fields(config_id),
-                false
+                false,
             );
             const payments = this.env["pos.payment"].read(
                 order.payment_ids,
                 this.env["pos.payment"]._load_pos_data_fields(config_id),
-                false
+                false,
             );
             const packLotLineIds = lines.flatMap((line) => line.pack_lot_ids);
             const packLotLines = this.env["pos.pack.operation.lot"].read(
                 packLotLineIds,
                 this.env["pos.pack.operation.lot"]._load_pos_data_fields(config_id),
-                false
+                false,
             );
             const customAttributeValueIds = lines.flatMap(
-                (line) => line.custom_attribute_value_ids
+                (line) => line.custom_attribute_value_ids,
             );
-            const customAttributeValues = this.env["product.attribute.custom.value"].read(
+            const customAttributeValues = this.env[
+                "product.attribute.custom.value"
+            ].read(
                 customAttributeValueIds,
-                this.env["product.attribute.custom.value"]._load_pos_data_fields(config_id),
-                false
+                this.env["product.attribute.custom.value"]._load_pos_data_fields(
+                    config_id,
+                ),
+                false,
             );
 
             posOrderLine.push(...lines);

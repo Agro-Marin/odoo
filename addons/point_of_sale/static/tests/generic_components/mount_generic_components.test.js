@@ -1,12 +1,12 @@
 import { expect, test } from "@odoo/hoot";
-import { mountWithCleanup } from "@web/../tests/web_test_helpers";
+import { waitFor } from "@odoo/hoot-dom";
 import { Component, useState, xml } from "@odoo/owl";
-import { OdooLogo } from "@point_of_sale/app/components/odoo_logo/odoo_logo";
 import { CenteredIcon } from "@point_of_sale/app/components/centered_icon/centered_icon";
 import { Input } from "@point_of_sale/app/components/inputs/input/input";
 import { NumericInput } from "@point_of_sale/app/components/inputs/numeric_input/numeric_input";
+import { OdooLogo } from "@point_of_sale/app/components/odoo_logo/odoo_logo";
+import { mountWithCleanup } from "@web/../tests/web_test_helpers";
 import { registry } from "@web/core/registry";
-import { waitFor } from "@odoo/hoot-dom";
 
 test("test that generic components can be mounted; the goal is to ensure that they don't have any unmet dependencies", async () => {
     class TestComponent extends Component {

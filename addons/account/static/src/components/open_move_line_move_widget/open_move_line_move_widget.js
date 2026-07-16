@@ -3,7 +3,10 @@ import { Component } from "@odoo/owl";
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
 import { computeM2OProps, Many2One } from "@web/fields/relational/many2one/many2one";
-import { buildM2OFieldDescription, Many2OneField } from "@web/fields/relational/many2one/many2one_field";
+import {
+    buildM2OFieldDescription,
+    Many2OneField,
+} from "@web/fields/relational/many2one/many2one_field";
 
 class LineOpenMoveWidget extends Component {
     static template = "account.LineOpenMoveWidget";

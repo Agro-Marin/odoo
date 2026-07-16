@@ -8,6 +8,7 @@ import { Transition } from "@web/components/transition";
 import { effect } from "@web/core/utils/reactive";
 import { batched } from "@web/core/utils/timing";
 import { useOwnDebugContext } from "@web/services/debug/debug_context";
+
 import useTours from "./hooks/use_tours.js";
 import { init as initDebugFormatters } from "./utils/debug-formatter.js";
 import { useIdleTimer } from "./utils/use_idle_timer.js";

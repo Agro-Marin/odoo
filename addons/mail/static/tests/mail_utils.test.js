@@ -1,5 +1,9 @@
 import { addLink, parseAndTransform } from "@mail/utils/common/format";
 import { useSequential } from "@mail/utils/common/hooks";
+import { describe, expect, test } from "@odoo/hoot";
+import { press } from "@odoo/hoot-dom";
+import { markup } from "@odoo/owl";
+
 import {
     contains,
     defineMailModels,
@@ -8,10 +12,6 @@ import {
     start,
     startServer,
 } from "./mail_test_helpers.js";
-
-import { describe, expect, test } from "@odoo/hoot";
-import { press } from "@odoo/hoot-dom";
-import { markup } from "@odoo/owl";
 
 describe.current.tags("desktop");
 defineMailModels();
@@ -139,14 +139,16 @@ test("addLink: linkify inside text node (2 occurrences)", () => {
     // stringified representation, we continue deeper assertion with query
     // selectors.
     const content = markup(
-        "<p>some text https://somelink.com and again https://somelink2.com ...</p>"
+        "<p>some text https://somelink.com and again https://somelink2.com ...</p>",
     );
     const linkified = parseAndTransform(content, addLink);
     const fragment = document.createDocumentFragment();
     const div = document.createElement("div");
     fragment.appendChild(div);
     div.innerHTML = linkified;
-    expect(div).toHaveText("some text https://somelink.com and again https://somelink2.com ...");
+    expect(div).toHaveText(
+        "some text https://somelink.com and again https://somelink2.com ...",
+    );
     expect(div.querySelectorAll(":scope a")).toHaveCount(2);
     expect(div.querySelectorAll(":scope a")[0]).toHaveText("https://somelink.com");
     expect(div.querySelectorAll(":scope a")[1]).toHaveText("https://somelink2.com");
@@ -221,7 +223,7 @@ test("url with number in subdomain", async () => {
     await insertText(".o-mail-Composer-input", messageBody);
     await press("Enter");
     await contains(
-        ".o-mail-Message a:contains(https://www.45017478-master-all.runbot134.odoo.com/odoo)"
+        ".o-mail-Message a:contains(https://www.45017478-master-all.runbot134.odoo.com/odoo)",
     );
 });
 
@@ -236,7 +238,13 @@ test("isSequential doesn't execute intermediate call.", async () => {
             return new Promise((r) => setTimeout(() => r(i), 1));
         });
     };
-    const result = await Promise.all([sequence(), sequence(), sequence(), sequence(), sequence()]);
+    const result = await Promise.all([
+        sequence(),
+        sequence(),
+        sequence(),
+        sequence(),
+        sequence(),
+    ]);
     expect(result).toEqual([1, undefined, undefined, undefined, 5]);
     expect.verifySteps(["1", "5"]);
 });

@@ -8,25 +8,29 @@ export async function generateReceiptsToPrint(order, orderChange) {
         order,
         orderChange,
         Array.from(posmodel.config.printerCategories),
-        false
+        false,
     );
     const receiptsData = await posmodel.generateReceiptsDataToPrint(
         orderData,
         changes,
-        orderChange
+        orderChange,
     );
     const groupedReceiptsData = await posmodel.prepareReceiptGroupedData(receiptsData);
     return groupedReceiptsData.map((data) =>
         renderToElement("point_of_sale.OrderChangeReceipt", {
             data: data,
-        })
+        }),
     );
 }
 
 // Return rendered order change receipts that will be printed when clicking "Order" button
 export async function generatePreparationReceipts() {
     const order = posmodel.getOrder();
-    const orderChange = posmodel.changesToOrder(order, posmodel.config.printerCategories, false);
+    const orderChange = posmodel.changesToOrder(
+        order,
+        posmodel.config.printerCategories,
+        false,
+    );
     return await generateReceiptsToPrint(order, orderChange);
 }
 
@@ -51,10 +55,10 @@ export function checkPreparationTicketData(
         invisibleInDom: [],
         lineOrder: [],
         fireCourse: false,
-    }
+    },
 ) {
     const check = async () => {
-        let tickets = [];
+        let tickets;
 
         if (opts.fireCourse) {
             tickets = await generateFireCourseReceipts();
@@ -84,15 +88,16 @@ export function checkPreparationTicketData(
             const attrs = domAttrs.map((c) => c.innerHTML).filter(Boolean);
             const values = data[idx];
 
+            // eslint-disable-next-line eqeqeq -- expected qty (number in test data) vs DOM innerHTML (string)
             if (values.qty != qty) {
                 throw new Error(
-                    `Ticket data mismatch for ${name}: expected ${values.qty}, got ${qty}`
+                    `Ticket data mismatch for ${name}: expected ${values.qty}, got ${qty}`,
                 );
             }
 
-            if (values.name != name) {
+            if (values.name !== name) {
                 throw new Error(
-                    `Ticket data mismatch for ${name}: expected ${values.name}, got ${name}, maybe lines ordering ?`
+                    `Ticket data mismatch for ${name}: expected ${values.name}, got ${name}, maybe lines ordering ?`,
                 );
             }
 
@@ -101,7 +106,7 @@ export function checkPreparationTicketData(
                     const found = attrs.find((a) => a.includes(attr));
                     if (!found) {
                         throw new Error(
-                            `Attribute ${attr} not found in printed receipt for ${name}`
+                            `Attribute ${attr} not found in printed receipt for ${name}`,
                         );
                     }
                 }

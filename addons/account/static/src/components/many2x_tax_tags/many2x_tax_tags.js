@@ -1,11 +1,11 @@
 /** @odoo-module native */
 import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
-import { Many2XAutocomplete } from "@web/fields/relational/many2x_autocomplete";
 import {
     Many2ManyTagsField,
     many2ManyTagsField,
 } from "@web/fields/relational/many2many_tags/many2many_tags_field";
+import { Many2XAutocomplete } from "@web/fields/relational/many2x_autocomplete";
 
 export class Many2XTaxTagsAutocomplete extends Many2XAutocomplete {
     // Always offer "Search More" for tax tags; the base gates the option on this
@@ -39,7 +39,7 @@ export class Many2ManyTaxTagsField extends Many2ManyTagsField {
 export const many2ManyTaxTagsField = {
     ...many2ManyTagsField,
     component: Many2ManyTaxTagsField,
-    additionalClasses: ['o_field_many2many_tags']
+    additionalClasses: ["o_field_many2many_tags"],
 };
 
 registry.category("fields").add("many2many_tax_tags", many2ManyTaxTagsField);

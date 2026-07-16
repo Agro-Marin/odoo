@@ -1,6 +1,6 @@
 /** @odoo-module native */
 import { Component, onWillStart } from "@odoo/owl";
-import { initLNA, getLNATargetAddressSpace } from "@point_of_sale/app/utils/init_lna";
+import { getLNATargetAddressSpace, initLNA } from "@point_of_sale/app/utils/init_lna";
 import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";

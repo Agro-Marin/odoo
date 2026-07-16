@@ -40,7 +40,8 @@ export class SelectProductAttribute extends BaseProductAttribute {
         this.props.setSelected(
             this.props.attribute
                 .values()
-                .find((value) => value.id === event.target.value),
+                // eslint-disable-next-line eqeqeq -- record id (number) vs select value (DOM string)
+                .find((value) => value.id == event.target.value),
         );
     }
 }

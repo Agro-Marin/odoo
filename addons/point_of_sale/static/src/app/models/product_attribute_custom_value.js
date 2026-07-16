@@ -1,5 +1,6 @@
 /** @odoo-module native */
 import { registry } from "@web/core/registry";
+
 import { Base } from "./related_models/index.js";
 export class ProductAttributeCustomValue extends Base {
     static pythonModel = "product.attribute.custom.value";

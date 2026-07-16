@@ -120,7 +120,7 @@ export class UseSuggestion {
     }
     detect() {
         let start = 0;
-        let end = 0;
+        let end;
         let text = "";
         if (this.comp.composerService.htmlEnabled) {
             const selection = this.comp.editor.shared.selection.getEditableSelection();

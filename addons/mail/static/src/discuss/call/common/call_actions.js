@@ -88,7 +88,8 @@ registerCallAction("deafen", {
         store.rtc.selfSession.is_deaf ? _t("Undeafen") : _t("Deafen"),
     isActive: ({ store }) => store.rtc.selfSession?.is_deaf,
     isTracked: true,
-    icon: ({ action }) => (action.isActive ? CALL_ICON_DEAFEN : "fa-solid fa-headphones"),
+    icon: ({ action }) =>
+        action.isActive ? CALL_ICON_DEAFEN : "fa-solid fa-headphones",
     hotkey: "shift+d",
     onSelected: ({ store }) => store.rtc.toggleDeafen(),
     sequence: 10,
@@ -190,7 +191,8 @@ registerCallAction("auto-focus", {
             ? _t("Disable speaker autofocus")
             : _t("Autofocus speaker"),
     isActive: ({ store }) => store.settings?.useCallAutoFocus,
-    icon: ({ action }) => (action.isActive ? "fa-regular fa-eye" : "fa-regular fa-eye-slash"),
+    icon: ({ action }) =>
+        action.isActive ? "fa-regular fa-eye" : "fa-regular fa-eye-slash",
     onSelected: ({ store }) =>
         (store.settings.useCallAutoFocus = !store.settings.useCallAutoFocus),
     sequence: 50,
@@ -218,7 +220,10 @@ registerCallAction("fullscreen", {
     name: ({ store }) =>
         store.rtc.state.isFullscreen ? _t("Exit Fullscreen") : _t("Fullscreen"),
     isActive: ({ store }) => store.rtc.state.isFullscreen,
-    icon: ({ action }) => (action.isActive ? "fa-solid fa-down-left-and-up-right-to-center" : "fa-solid fa-up-right-and-down-left-from-center"),
+    icon: ({ action }) =>
+        action.isActive
+            ? "fa-solid fa-down-left-and-up-right-to-center"
+            : "fa-solid fa-up-right-and-down-left-from-center",
     onSelected: ({ store, thread }) => {
         thread.promoteFullscreen = CALL_PROMOTE_FULLSCREEN.DISCARDED;
         if (store.rtc.state.isFullscreen) {

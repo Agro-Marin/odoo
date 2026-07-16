@@ -1,4 +1,3 @@
-import { luxon } from "@web/core/l10n/luxon";
 import {
     click,
     contains,
@@ -9,6 +8,10 @@ import {
     startServer,
 } from "@mail/../tests/mail_test_helpers";
 import { SCHEDULED_MESSAGE_TRUNCATE_THRESHOLD } from "@mail/chatter/web/scheduled_message";
+import { MailComposerAttachmentSelector } from "@mail/core/web/mail_composer_attachment_selector";
+import { beforeEach, describe, expect, test } from "@odoo/hoot";
+import { manuallyDispatchProgrammaticEvent, queryAll } from "@odoo/hoot-dom";
+import { advanceTime, Deferred, mockDate } from "@odoo/hoot-mock";
 import {
     getService,
     mockService,
@@ -16,13 +19,9 @@ import {
     patchWithCleanup,
 } from "@web/../tests/web_test_helpers";
 import { deserializeDateTime } from "@web/core/l10n/dates";
+import { luxon } from "@web/core/l10n/luxon";
 import { ConnectionLostError } from "@web/core/network/rpc";
 import { getOrigin } from "@web/core/utils/urls";
-import { MailComposerAttachmentSelector } from "@mail/core/web/mail_composer_attachment_selector";
-
-import { beforeEach, describe, expect, test } from "@odoo/hoot";
-import { advanceTime, mockDate, Deferred } from "@odoo/hoot-mock";
-import { manuallyDispatchProgrammaticEvent, queryAll } from "@odoo/hoot-dom";
 
 beforeEach(() => mockDate("2024-10-20 10:00:00"));
 describe.current.tags("desktop");
@@ -66,13 +65,13 @@ test("Scheduled messages basic layout", async () => {
     await contains(
         `.o-mail-Message-avatarContainer img.cursor-pointer[data-src='${getOrigin()}/web/image/res.partner/${partnerId}/avatar_128?unique=${
             deserializeDateTime(partner.write_date).ts
-        }']`
+        }']`,
     );
     await contains(
-        `.o-mail-Message-date[title='${deserializeDateTime(scheduled_date).toLocaleString(
-            luxon.DateTime.DATETIME_SHORT
-        )}']`,
-        { text: "in 3 hours" } // 3 hours because luxon toRelative rounds down
+        `.o-mail-Message-date[title='${deserializeDateTime(
+            scheduled_date,
+        ).toLocaleString(luxon.DateTime.DATETIME_SHORT)}']`,
+        { text: "in 3 hours" }, // 3 hours because luxon toRelative rounds down
     );
     await contains(".o-mail-Message-body em", { text: "Subject: Greetings" });
     await contains(".o-mail-Message-body p", { text: "Hello There" });
@@ -81,7 +80,9 @@ test("Scheduled messages basic layout", async () => {
     await contains(".o-mail-Scheduled-Message-buttons .fa-times");
     await click(".o-mail-ScheduledMessagesList > .cursor-pointer");
     await contains(".o-mail-Scheduled-Message", { count: 0 });
-    await contains(".o-mail-ScheduledMessagesList .fa-caret-right + span", { text: "1" });
+    await contains(".o-mail-ScheduledMessagesList .fa-caret-right + span", {
+        text: "1",
+    });
 });
 
 test("Scheduled messages are ordered by scheduled date", async () => {
@@ -489,7 +490,7 @@ test("widget mail_composer_attachment_selector: edit attachment of scheduled mes
     fileInputs.forEach((input) =>
         Object.defineProperty(input, "files", {
             value: [textFile],
-        })
+        }),
     );
     fileInputs.forEach((input) => {
         manuallyDispatchProgrammaticEvent(input, "change");

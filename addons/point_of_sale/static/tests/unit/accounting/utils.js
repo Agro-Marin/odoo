@@ -26,7 +26,7 @@ export const getFilledOrderForPriceCheck = async (store, data = {}) => {
             write_date: date,
             create_date: date,
         },
-        order
+        order,
     );
     await store.addLineToOrder(
         {
@@ -35,13 +35,18 @@ export const getFilledOrderForPriceCheck = async (store, data = {}) => {
             write_date: date,
             create_date: date,
         },
-        order
+        order,
     );
     store.addPendingOrder([order.id]);
     return order;
 };
 
-export const prepareRoundingVals = (store, roundingAmount, roundingMethod, onlyCash = true) => {
+export const prepareRoundingVals = (
+    store,
+    roundingAmount,
+    roundingMethod,
+    onlyCash = true,
+) => {
     const config = store.config;
     const product1 = store.models["product.template"].get(15);
     const product2 = store.models["product.template"].get(16);

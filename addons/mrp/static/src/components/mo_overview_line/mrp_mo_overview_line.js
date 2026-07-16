@@ -1,11 +1,12 @@
 /** @odoo-module native */
-import { _t } from "@web/core/l10n/translation";
 import { Component } from "@odoo/owl";
+import { _t } from "@web/core/l10n/translation";
 import { useService } from "@web/core/utils/hooks";
 import { formatFloat, formatFloatTime, formatMonetary } from "@web/fields/formatters";
-import { getStateDecorator } from "./mo_overview_colors.js";
-import { getColorClass, getForecastAction } from "../mrp_overview_utils.js";
+
 import { SHOW_OPTIONS } from "../mo_overview_display_filter/mrp_mo_overview_display_filter.js";
+import { getColorClass, getForecastAction } from "../mrp_overview_utils.js";
+import { getStateDecorator } from "./mo_overview_colors.js";
 
 export class MoOverviewLine extends Component {
     static props = {
@@ -64,9 +65,11 @@ export class MoOverviewLine extends Component {
         this.actionService = useService("action");
         this.ormService = useService("orm");
         this.getColorClass = getColorClass;
-        this.formatFloat = (val) => formatFloat(val, { digits: [false, this.data.uom_precision || undefined] });
+        this.formatFloat = (val) =>
+            formatFloat(val, { digits: [false, this.data.uom_precision || undefined] });
         this.formatFloatTime = formatFloatTime;
-        this.formatMonetary = (val) => formatMonetary(val, { currencyId: this.data.currency_id });
+        this.formatMonetary = (val) =>
+            formatMonetary(val, { currencyId: this.data.currency_id });
     }
 
     //---- Handlers ----
@@ -101,7 +104,10 @@ export class MoOverviewLine extends Component {
 
     async openReplenish() {
         return this.actionService.doAction("stock.action_product_replenish", {
-            additionalContext: { default_product_id: this.data.product_id, default_quantity: this.data.replenish_quantity || this.data.quantity },
+            additionalContext: {
+                default_product_id: this.data.product_id,
+                default_quantity: this.data.replenish_quantity || this.data.quantity,
+            },
             onClose: (closeInfo) => {
                 if (closeInfo?.done) {
                     // Trigger the reload only if a replenishment was done.
@@ -131,7 +137,7 @@ export class MoOverviewLine extends Component {
     //---- Helpers ----
 
     hasQuantity(keyName) {
-        return this.data.hasOwnProperty(keyName) && this.data[keyName] !== false;
+        return Object.hasOwn(this.data, keyName) && this.data[keyName] !== false;
     }
 
     //---- Getters ----

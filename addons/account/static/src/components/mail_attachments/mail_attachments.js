@@ -1,14 +1,14 @@
 /** @odoo-module native */
+import { Component, onWillUnmount } from "@odoo/owl";
+import { FileInput } from "@web/components/file_input/file_input";
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
-import { FileInput } from "@web/components/file_input/file_input";
-import { Component, onWillUnmount } from "@odoo/owl";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 
 export class MailAttachments extends Component {
     static template = "account.mail_attachments";
     static components = { FileInput };
-    static props = {...standardFieldProps};
+    static props = { ...standardFieldProps };
 
     setup() {
         this.orm = useService("orm");
@@ -24,7 +24,8 @@ export class MailAttachments extends Component {
 
     get renderedAttachments() {
         const attachments = JSON.parse(JSON.stringify(this.attachments));
-        const attachmentsNotSupported = this.props.record.data.attachments_not_supported || {};
+        const attachmentsNotSupported =
+            this.props.record.data.attachments_not_supported || {};
         for (const attachment of attachments) {
             if (attachment.id && attachment.id in attachmentsNotSupported) {
                 attachment.tooltip = attachmentsNotSupported[attachment.id];
@@ -36,7 +37,7 @@ export class MailAttachments extends Component {
     onFileRemove(deleteId) {
         const newValue = [];
 
-        for (let item of this.attachments) {
+        for (const item of this.attachments) {
             if (item.id === deleteId) {
                 if (item.placeholder || item.protect_from_deletion) {
                     const copyItem = Object.assign({ skip: true }, item);
@@ -63,7 +64,10 @@ export class MailAttachments extends Component {
         }
 
         if (this.attachmentIdsToUnlink.size) {
-            await this.orm.unlink("ir.attachment", Array.from(this.attachmentIdsToUnlink));
+            await this.orm.unlink(
+                "ir.attachment",
+                Array.from(this.attachmentIdsToUnlink),
+            );
         }
     }
 }

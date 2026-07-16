@@ -1,9 +1,10 @@
 /** @odoo-module native */
+import { Component } from "@odoo/owl";
 import { _t } from "@web/core/l10n/translation";
 import { useService } from "@web/core/utils/hooks";
 import { formatFloat, formatFloatTime, formatMonetary } from "@web/fields/formatters";
+
 import { getForecastAction } from "../mrp_overview_utils.js";
-import { Component } from "@odoo/owl";
 
 export class BomOverviewLine extends Component {
     static template = "mrp.BomOverviewLine";
@@ -32,13 +33,14 @@ export class BomOverviewLine extends Component {
         this.ormService = useService("orm");
         this.formatFloat = formatFloat;
         this.formatFloatTime = formatFloatTime;
-        this.formatMonetary = (val) => formatMonetary(val, { currencyId: this.data.currency_id });
+        this.formatMonetary = (val) =>
+            formatMonetary(val, { currencyId: this.data.currency_id });
     }
 
     //---- Handlers ----
 
     async goToRoute(routeType) {
-        if (routeType == "manufacture") {
+        if (routeType === "manufacture") {
             return this.goToAction(this.data.bom_id, "mrp.bom");
         }
     }
@@ -77,17 +79,29 @@ export class BomOverviewLine extends Component {
             name: _t("Attachments"),
             type: "ir.actions.act_window",
             res_model: "product.document",
-            domain: ['&', ["attached_on_mrp", "=", "bom"], '|',
-                '&',["res_model", "=", "product.product"],["res_id", "in", [this.data.product_id]],
-                '&',["res_model", "=", "product.template"],["res_id", "in", [this.data.product_template_id]]],
-            views: [[false, "kanban"], [false, "list"], [false, "form"]],
+            domain: [
+                "&",
+                ["attached_on_mrp", "=", "bom"],
+                "|",
+                "&",
+                ["res_model", "=", "product.product"],
+                ["res_id", "in", [this.data.product_id]],
+                "&",
+                ["res_model", "=", "product.template"],
+                ["res_id", "in", [this.data.product_template_id]],
+            ],
+            views: [
+                [false, "kanban"],
+                [false, "list"],
+                [false, "form"],
+            ],
             view_mode: "kanban,list,form",
             target: "current",
-            context:{
-                'bom_id': true,
-                'default_res_id': this.data.product_id,
-                'default_res_model': "product.product"
-            }
+            context: {
+                bom_id: true,
+                default_res_id: this.data.product_id,
+                default_res_model: "product.product",
+            },
         });
     }
 
@@ -114,11 +128,15 @@ export class BomOverviewLine extends Component {
     }
 
     get hasQuantity() {
-        return this.data.is_storable && this.data.hasOwnProperty('quantity_available') && this.data.quantity_available !== false;
+        return (
+            this.data.is_storable &&
+            Object.hasOwn(this.data, "quantity_available") &&
+            this.data.quantity_available !== false
+        );
     }
 
     get hasLeadTime() {
-        return this.data.hasOwnProperty('lead_time') && this.data.lead_time !== false;
+        return Object.hasOwn(this.data, "lead_time") && this.data.lead_time !== false;
     }
 
     get hasFoldButton() {
@@ -130,7 +148,7 @@ export class BomOverviewLine extends Component {
     }
 
     get forecastMode() {
-        return this.props.showOptions.mode == "forecast";
+        return this.props.showOptions.mode === "forecast";
     }
 
     get showUom() {
@@ -143,8 +161,11 @@ export class BomOverviewLine extends Component {
 
     get availabilityColorClass() {
         // For first line, another rule applies : green if doable now, red otherwise.
-        if (this.data.hasOwnProperty('components_available')) {
-            if (this.data.components_available && this.data.availability_state != 'unavailable') {
+        if (Object.hasOwn(this.data, "components_available")) {
+            if (
+                this.data.components_available &&
+                this.data.availability_state !== "unavailable"
+            ) {
                 return "text-success";
             } else {
                 return "text-danger";
@@ -167,7 +188,8 @@ export class BomOverviewLine extends Component {
     }
 
     get statusBackgroundClass() {
-        if(this.data.index == "0") {
+        // eslint-disable-next-line eqeqeq -- root line index is int 0 from the server while child indexes are strings; loose compare matches both
+        if (this.data.index == "0") {
             return "text-bg-info";
         }
         return "text-bg-danger";

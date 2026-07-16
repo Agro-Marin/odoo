@@ -1,10 +1,11 @@
 import { expect, test } from "@odoo/hoot";
-import { setupPosEnv, dialogActions } from "../utils.js";
-import { definePosModels } from "../data/generate_model_definitions.js";
-import { mountWithCleanup } from "@web/../tests/web_test_helpers";
 import { click } from "@odoo/hoot-dom";
 import { InternalNoteButton } from "@point_of_sale/app/screens/product_screen/control_buttons/orderline_note_button/orderline_note_button";
 import { OrderSummary } from "@point_of_sale/app/screens/product_screen/order_summary/order_summary";
+import { mountWithCleanup } from "@web/../tests/web_test_helpers";
+
+import { definePosModels } from "../data/generate_model_definitions.js";
+import { dialogActions, setupPosEnv } from "../utils.js";
 
 definePosModels();
 
@@ -38,7 +39,8 @@ test("orderline_note_button.js", async () => {
     order.updateLastOrderChange();
     orderSummary._setValue(9);
 
-    const noteAction = async () => await comp.setChanges(line, '[{"2":"Test","colorIndex":0}]');
+    const noteAction = async () =>
+        await comp.setChanges(line, '[{"2":"Test","colorIndex":0}]');
     await dialogActions(noteAction, productComboSteps);
     // Check quantity
     expect(order.lines[0].qty).toBe(4);

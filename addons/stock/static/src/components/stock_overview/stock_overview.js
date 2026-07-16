@@ -1,20 +1,19 @@
 /** @odoo-module native */
 import { registry } from "@web/core/registry";
-import { kanbanView } from "@web/views/kanban/kanban_view";
-import { KanbanRenderer } from "@web/views/kanban/kanban_renderer";
-
-import { DynamicRecordList } from "@web/model/relational_model/dynamic_record_list";
 import { DynamicGroupList } from "@web/model/relational_model/dynamic_group_list";
+import { DynamicRecordList } from "@web/model/relational_model/dynamic_record_list";
+import { KanbanRenderer } from "@web/views/kanban/kanban_renderer";
+import { kanbanView } from "@web/views/kanban/kanban_view";
 
 export class StockKanbanRenderer extends KanbanRenderer {
     // If all Inventory Overview graphs are empty, we use random sample data
     getGroupsOrRecords() {
         const { list } = this.props;
-        let records = [];
+        const records = [];
         if (list instanceof DynamicRecordList) {
             records.push(...list.records);
         } else if (list instanceof DynamicGroupList) {
-            list.groups.forEach(g => {
+            list.groups.forEach((g) => {
                 records.push(...g.list.records);
             });
         }

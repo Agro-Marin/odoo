@@ -1,3 +1,4 @@
+import { defineMailModels } from "@mail/../tests/mail_test_helpers";
 import { describe, expect, test } from "@odoo/hoot";
 import { setInputFiles } from "@odoo/hoot-dom";
 import {
@@ -9,7 +10,6 @@ import {
     mountView,
     onRpc,
 } from "@web/../tests/web_test_helpers";
-import { defineMailModels } from "@mail/../tests/mail_test_helpers";
 
 class Partner extends models.Model {
     name = fields.Char();

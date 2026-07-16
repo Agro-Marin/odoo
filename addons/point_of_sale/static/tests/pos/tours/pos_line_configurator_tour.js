@@ -1,11 +1,11 @@
-import * as ProductScreen from "@point_of_sale/../tests/pos/tours/utils/product_screen_util";
-import * as combo from "@point_of_sale/../tests/pos/tours/utils/combo_popup_util";
 import * as Dialog from "@point_of_sale/../tests/generic_helpers/dialog_util";
 import { refresh } from "@point_of_sale/../tests/generic_helpers/utils";
-import { inLeftSide } from "@point_of_sale/../tests/pos/tours/utils/common";
 import * as Chrome from "@point_of_sale/../tests/pos/tours/utils/chrome_util";
-import { registry } from "@web/core/registry";
+import * as combo from "@point_of_sale/../tests/pos/tours/utils/combo_popup_util";
+import { inLeftSide } from "@point_of_sale/../tests/pos/tours/utils/common";
 import * as ProductConfigurator from "@point_of_sale/../tests/pos/tours/utils/product_configurator_util";
+import * as ProductScreen from "@point_of_sale/../tests/pos/tours/utils/product_screen_util";
+import { registry } from "@web/core/registry";
 
 const setupProductConfigurator = [
     ProductConfigurator.pickColor("Blue"),
@@ -26,13 +26,15 @@ const checkProductConfigurator = [
 ].flat();
 
 const checkConfiguredLine = (isCombo = false) => {
-    const method = isCombo ? ProductScreen.orderComboLineHas : ProductScreen.orderLineHas;
+    const method = isCombo
+        ? ProductScreen.orderComboLineHas
+        : ProductScreen.orderLineHas;
     return [
         method(
             "Configurable Chair",
             "1.0",
             "",
-            "Blue, Wood, Fabrics: Other: Azerty, Cushion, Headrest"
+            "Blue, Wood, Fabrics: Other: Azerty, Cushion, Headrest",
         ),
     ].flat();
 };

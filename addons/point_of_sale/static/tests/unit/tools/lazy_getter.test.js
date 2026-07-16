@@ -2,16 +2,15 @@ import { afterEach, expect, test } from "@odoo/hoot";
 import { animationFrame } from "@odoo/hoot-dom";
 import { Component, onWillRender, reactive, useState, xml } from "@odoo/owl";
 import {
-    mountWithCleanup,
-    allowTranslations,
-    patchWithCleanup,
-} from "@web/../tests/web_test_helpers";
-
-import {
-    WithLazyGetterTrap,
     clearGettersCache,
     createLazyGetter,
+    WithLazyGetterTrap,
 } from "@point_of_sale/lazy_getter";
+import {
+    allowTranslations,
+    mountWithCleanup,
+    patchWithCleanup,
+} from "@web/../tests/web_test_helpers";
 import { zip } from "@web/core/utils/collections/arrays";
 
 /**
@@ -34,9 +33,10 @@ function verifyUnorderedSteps(expectedSteps, stepOrders = []) {
     for (const stepOrder of stepOrders) {
         expect(
             zip(stepOrder.slice(0, -1), stepOrder.slice(1)).reduce(
-                (acc, [a, b]) => acc && unorderedSteps.indexOf(a) < unorderedSteps.indexOf(b),
-                true
-            )
+                (acc, [a, b]) =>
+                    acc && unorderedSteps.indexOf(a) < unorderedSteps.indexOf(b),
+                true,
+            ),
         ).toBe(true);
     }
     unorderedSteps = [];
@@ -265,7 +265,10 @@ test("only dependent getters are called and in correct order", () => {
     const store = reactive(new AppStore());
 
     expect(store.y).toBe(0);
-    verifyUnorderedSteps(["ab", "bc", "cd", "abc", "x", "y"], [["ab", "abc", "x", "y"]]);
+    verifyUnorderedSteps(
+        ["ab", "bc", "cd", "abc", "x", "y"],
+        [["ab", "abc", "x", "y"]],
+    );
 
     store.a = 1;
 
@@ -280,7 +283,7 @@ test("only dependent getters are called and in correct order", () => {
         [
             ["ab", "abc", "x", "y"],
             ["bc", "x", "y"],
-        ]
+        ],
     );
 
     store.c = 1;
@@ -292,7 +295,7 @@ test("only dependent getters are called and in correct order", () => {
             ["abc", "x", "y"],
             ["bc", "x", "y"],
             ["cd", "y"],
-        ]
+        ],
     );
 
     store.d = 1;

@@ -1,15 +1,14 @@
 /** @odoo-module native */
-import { registry } from "@web/core/registry";
-import { createElement, append } from "@web/core/utils/dom/xml";
 import { Notebook } from "@web/components/notebook/notebook";
-import { formView } from "@web/views/form/form_view";
-import { FormCompiler } from "@web/views/form/form_compiler";
-import { FormRenderer } from "@web/views/form/form_renderer";
-import { FormController } from '@web/views/form/form_controller';
+import { _t } from "@web/core/l10n/translation";
+import { registry } from "@web/core/registry";
+import { append, createElement } from "@web/core/utils/dom/xml";
 import { useService } from "@web/core/utils/hooks";
 import { deleteConfirmationMessage } from "@web/ui/dialog/confirmation_dialog";
-import {_t} from "@web/core/l10n/translation";
-
+import { FormCompiler } from "@web/views/form/form_compiler";
+import { FormController } from "@web/views/form/form_controller";
+import { FormRenderer } from "@web/views/form/form_renderer";
+import { formView } from "@web/views/form/form_view";
 
 export class AccountMoveFormController extends FormController {
     setup() {
@@ -26,15 +25,22 @@ export class AccountMoveFormController extends FormController {
     }
 
     async loadExtraPrintItems() {
-        const items = await this.orm.call("account.move", "get_extra_print_items", [this.model.root.resId]);
+        const items = await this.orm.call("account.move", "get_extra_print_items", [
+            this.model.root.resId,
+        ]);
         return items.filter((item) => item.key !== "download_all");
     }
 
-
     async deleteRecord() {
         const deleteConfirmationDialogProps = this.deleteConfirmationDialogProps;
-        deleteConfirmationDialogProps.body = await this.account_move_service.getDeletionDialogBody(deleteConfirmationMessage, this.model.root.resId);
-        this.deleteRecordsWithConfirmation(deleteConfirmationDialogProps, [this.model.root]);
+        deleteConfirmationDialogProps.body =
+            await this.account_move_service.getDeletionDialogBody(
+                deleteConfirmationMessage,
+                this.model.root.resId,
+            );
+        this.deleteRecordsWithConfirmation(deleteConfirmationDialogProps, [
+            this.model.root,
+        ]);
     }
 }
 
@@ -60,8 +66,8 @@ export class AccountMoveFormRenderer extends FormRenderer {
     };
 
     async saveBeforeTabChange() {
-        if (this.props.record.isInEdition && await this.props.record.isDirty()) {
-            const contentEl = document.querySelector('.o_content');
+        if (this.props.record.isInEdition && (await this.props.record.isDirty())) {
+            const contentEl = document.querySelector(".o_content");
             const scrollPos = contentEl.scrollTop;
             await this.props.record.save();
             if (scrollPos) {
@@ -78,7 +84,10 @@ export class AccountMoveFormCompiler extends FormCompiler {
         for (const attr of originalNoteBook.attributes) {
             noteBook.setAttribute(attr.name, attr.value);
         }
-        noteBook.setAttribute("onBeforeTabSwitch", "() => __comp__.saveBeforeTabChange()");
+        noteBook.setAttribute(
+            "onBeforeTabSwitch",
+            "() => __comp__.saveBeforeTabChange()",
+        );
         const slots = originalNoteBook.childNodes;
         append(noteBook, [...slots]);
         return noteBook;

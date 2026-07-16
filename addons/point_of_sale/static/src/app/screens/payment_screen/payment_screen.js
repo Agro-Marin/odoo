@@ -329,7 +329,7 @@ export class PaymentScreen extends Component {
             line.can_be_reversed = false;
         });
 
-        let isPaymentSuccessful = false;
+        let isPaymentSuccessful;
         if (line.payment_method_id.payment_method_type === "qr_code") {
             const resp = await this.pos.showQR(line);
             isPaymentSuccessful = line.handlePaymentResponse(resp);

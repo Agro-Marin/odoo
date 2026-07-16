@@ -1,12 +1,12 @@
 /** @odoo-module native */
-import { registry } from "@web/core/registry";
-import { ListRenderer } from "@web/views/list/list_renderer";
-import { X2ManyField, x2ManyField } from "@web/fields/relational/x2many/x2many_field";
-import { ProductNameAndDescriptionListRendererMixin } from "@product/product_name_and_description/product_name_and_description";
-import { user } from "@web/services/user";
-import { patch } from "@web/core/utils/patch";
 import { onWillStart } from "@odoo/owl";
+import { ProductNameAndDescriptionListRendererMixin } from "@product/product_name_and_description/product_name_and_description";
 import { useMovePackageDialog } from "@stock/views/select_packages_dialog";
+import { registry } from "@web/core/registry";
+import { patch } from "@web/core/utils/patch";
+import { X2ManyField, x2ManyField } from "@web/fields/relational/x2many/x2many_field";
+import { user } from "@web/services/user";
+import { ListRenderer } from "@web/views/list/list_renderer";
 
 export class MovesListRenderer extends ListRenderer {
     static rowsTemplate = "stock.AddPackageListRendererRows";

@@ -1,6 +1,6 @@
+import { dragenterFiles } from "@web/../tests/utils";
 import { browser } from "@web/core/browser/browser";
 import { registry } from "@web/core/registry";
-import { dragenterFiles } from "@web/../tests/utils";
 
 const CLICK_ON_CHAT_STEP = "click-on-chat-action";
 
@@ -47,7 +47,9 @@ function getMeetingViewTourSteps({ inWelcomePage = false } = {}) {
         {
             trigger: ".o-mail-Meeting [title='Chat']:not(:has(.badge))",
             async run({ waitFor }) {
-                const files = [new File(["hi there"], "file2.txt", { type: "text/plain" })];
+                const files = [
+                    new File(["hi there"], "file2.txt", { type: "text/plain" }),
+                ];
                 await dragenterFiles(".o-mail-Meeting .o-mail-ActionPanel", files);
                 // Ensure other dropzones such as discuss or chat window dropzones are not active in meeting view.
                 await waitFor(".o-Dropzone", { only: true });
@@ -78,7 +80,9 @@ registry
             browser.localStorage.setItem("discuss_call_preview_join_mute", "true");
             browser.localStorage.setItem("discuss_call_preview_join_video", "false");
             const steps = getMeetingViewTourSteps();
-            const clickOnChatIndex = steps.find((step) => step.content === CLICK_ON_CHAT_STEP);
+            const clickOnChatIndex = steps.find(
+                (step) => step.content === CLICK_ON_CHAT_STEP,
+            );
             steps.splice(
                 clickOnChatIndex,
                 0,
@@ -86,7 +90,10 @@ registry
                     trigger: ".o-mail-Composer.o-focused .o-mail-Composer-input",
                     run: "edit Hello everyone!",
                 },
-                { trigger: ".o-mail-Composer button[title='Send']:enabled", run: "click" }
+                {
+                    trigger: ".o-mail-Composer button[title='Send']:enabled",
+                    run: "click",
+                },
             );
             return steps;
         },

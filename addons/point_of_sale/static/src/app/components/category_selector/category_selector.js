@@ -89,6 +89,8 @@ export class CategorySelector extends Component {
     }
 
     showCategoryImg(category) {
-        return this.pos.config.show_category_images && category.imgSrc && !this.ui.isSmall;
+        return (
+            this.pos.config.show_category_images && category.imgSrc && !this.ui.isSmall
+        );
     }
 }

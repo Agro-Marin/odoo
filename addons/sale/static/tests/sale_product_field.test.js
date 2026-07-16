@@ -12,6 +12,7 @@ import {
     onRpc,
     serverState,
 } from "@web/../tests/web_test_helpers";
+
 import { saleModels } from "./sale_test_helpers.js";
 
 class SaleOrderLine extends saleModels.SaleOrderLine {
@@ -97,7 +98,9 @@ test("Hide product name if its not translated", async () => {
         resId: soId,
     });
 
-    expect(".o_field_product_label_section_and_note_cell .o_input").toHaveText("A description");
+    expect(".o_field_product_label_section_and_note_cell .o_input").toHaveText(
+        "A description",
+    );
 });
 
 test("If translated product name already in the SOL name, should not hide the translated product name", async () => {
@@ -121,7 +124,7 @@ test("If translated product name already in the SOL name, should not hide the tr
     });
 
     expect(".o_field_product_label_section_and_note_cell .o_input").toHaveText(
-        [translatedProductName, "A description"].join("\n")
+        [translatedProductName, "A description"].join("\n"),
     );
 });
 
@@ -147,10 +150,14 @@ test("Editing the description shouldn't show the translated product name", async
         resId: soId,
     });
     await contains(".o_field_product_label_section_and_note_cell").click();
-    await contains(".o_field_product_label_section_and_note_cell textarea").edit("A description");
+    await contains(".o_field_product_label_section_and_note_cell textarea").edit(
+        "A description",
+    );
     await clickSave();
 
-    expect(".o_field_product_label_section_and_note_cell .o_input").toHaveText("A description");
+    expect(".o_field_product_label_section_and_note_cell .o_input").toHaveText(
+        "A description",
+    );
     expect(sol.name).toBe([translatedProductName, "A description"].join("\n"));
 });
 

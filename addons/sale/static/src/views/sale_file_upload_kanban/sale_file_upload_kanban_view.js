@@ -1,8 +1,9 @@
 /** @odoo-module native */
-import { registry } from '@web/core/registry';
-import { fileUploadKanbanView } from '@account/views/file_upload_kanban/file_upload_kanban_view';
-import { SaleFileUploadKanbanController } from './sale_file_upload_kanban_controller.js';
-import { SaleFileUploadKanbanRenderer } from './sale_file_upload_kanban_renderer.js';
+import { fileUploadKanbanView } from "@account/views/file_upload_kanban/file_upload_kanban_view";
+import { registry } from "@web/core/registry";
+
+import { SaleFileUploadKanbanController } from "./sale_file_upload_kanban_controller.js";
+import { SaleFileUploadKanbanRenderer } from "./sale_file_upload_kanban_renderer.js";
 
 export const saleFileUploadKanbanView = {
     ...fileUploadKanbanView,
@@ -10,4 +11,4 @@ export const saleFileUploadKanbanView = {
     Renderer: SaleFileUploadKanbanRenderer,
 };
 
-registry.category('views').add('sale_file_upload_kanban', saleFileUploadKanbanView);
+registry.category("views").add("sale_file_upload_kanban", saleFileUploadKanbanView);

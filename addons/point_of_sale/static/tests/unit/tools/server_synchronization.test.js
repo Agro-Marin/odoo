@@ -1,6 +1,7 @@
 import { expect, test } from "@odoo/hoot";
-import { getFilledOrder, setupPosEnv } from "../utils.js";
+
 import { definePosModels } from "../data/generate_model_definitions.js";
+import { getFilledOrder, setupPosEnv } from "../utils.js";
 
 definePosModels();
 
@@ -18,7 +19,7 @@ test("Related models must keep local records", async () => {
             product_tmpl_id: product,
             qty: 1,
         },
-        order
+        order,
     );
     expect(order.lines.every((l) => l.isSynced === true)).toBe(false);
 

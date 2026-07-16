@@ -1,8 +1,8 @@
 /** @odoo-module native */
-import { luxon } from "@web/core/l10n/luxon";
 import { Component, useState } from "@odoo/owl";
 import { DateTimeInput } from "@web/components/datetime/datetime_input";
 import { today } from "@web/core/l10n/dates";
+import { luxon } from "@web/core/l10n/luxon";
 import { Dialog } from "@web/ui/dialog/dialog";
 export class ScheduledDateDialog extends Component {
     static template = "mail.ScheduledDateDialog";

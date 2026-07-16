@@ -2,6 +2,7 @@
 import { accountTaxHelpers } from "@account/helpers/account_tax";
 import { _t } from "@web/core/l10n/translation";
 import { formatCurrency } from "@web/services/currency";
+
 import { Base } from "../related_models/index.js";
 
 export class PosOrderlineAccounting extends Base {
@@ -130,23 +131,31 @@ export class PosOrderlineAccounting extends Base {
     }
 
     get comboTotalPrice() {
-        const childLines = this.getAllLinesInCombo().filter((line) => !line.combo_line_ids.length);
+        const childLines = this.getAllLinesInCombo().filter(
+            (line) => !line.combo_line_ids.length,
+        );
         return childLines.reduce((total, line) => total + line.displayPrice, 0);
     }
 
     get comboTotalPriceWithoutTax() {
-        const childLines = this.getAllLinesInCombo().filter((line) => !line.combo_line_ids.length);
+        const childLines = this.getAllLinesInCombo().filter(
+            (line) => !line.combo_line_ids.length,
+        );
         return childLines.reduce((total, line) => total + line.displayPriceUnitExcl, 0);
     }
 
     get taxGroupLabels() {
         let taxes_id = this.tax_ids;
         if (this.order_id.fiscal_position_id) {
-            taxes_id = this.order_id.fiscal_position_id.getTaxesAfterFiscalPosition(this.tax_ids);
+            taxes_id = this.order_id.fiscal_position_id.getTaxesAfterFiscalPosition(
+                this.tax_ids,
+            );
         }
         return [
             ...new Set(
-                taxes_id?.map((tax) => tax.tax_group_id.pos_receipt_label).filter((label) => label)
+                taxes_id
+                    ?.map((tax) => tax.tax_group_id.pos_receipt_label)
+                    .filter((label) => label),
             ),
         ].join(" ");
     }

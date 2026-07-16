@@ -1,5 +1,4 @@
 import {
-    SIZES,
     click,
     contains,
     defineMailModels,
@@ -7,6 +6,7 @@ import {
     openFormView,
     patchUiSize,
     scroll,
+    SIZES,
     start,
     startServer,
 } from "@mail/../tests/mail_test_helpers";
@@ -30,13 +30,11 @@ test.skip("Form view not scrolled when switching record", async () => {
             display_name: "Partner 2",
         },
     ]);
-    const messages = [...Array(60).keys()].map((id) => {
-        return {
-            body: "not empty",
-            model: "res.partner",
-            res_id: id < 29 ? partnerId_1 : partnerId_2,
-        };
-    });
+    const messages = [...Array(60).keys()].map((id) => ({
+        body: "not empty",
+        model: "res.partner",
+        res_id: id < 29 ? partnerId_1 : partnerId_2,
+    }));
     pyEnv["mail.message"].create(messages);
     patchUiSize({ size: SIZES.LG });
     await start();
@@ -264,5 +262,7 @@ test("read more/less should appear only once for the signature", async () => {
     await insertText(".o-mail-Composer-input", "Example Body");
     await click("[name='open-full-composer']");
     await contains(".o-mail-Message-body", { text: "Example Body", count: 1 });
-    expect(".o-mail-Message .o-signature-container button.o-mail-ellipsis").toHaveCount(1);
+    expect(".o-mail-Message .o-signature-container button.o-mail-ellipsis").toHaveCount(
+        1,
+    );
 });

@@ -1,7 +1,7 @@
 /** @odoo-module native */
-import { SelectCreateDialog } from "@web/views/view_dialogs/select_create_dialog";
 import { _t } from "@web/core/l10n/translation";
 import { useOwnedDialogs, useService } from "@web/core/utils/hooks";
+import { SelectCreateDialog } from "@web/views/view_dialogs/select_create_dialog";
 
 /**
  * Open the "Select Packages to Move" dialog and, on confirmation, add the chosen
@@ -18,7 +18,13 @@ import { useOwnedDialogs, useService } from "@web/core/utils/hooks";
  * @param {number} p.pickingId picking the packages are added to
  * @param {number} [p.locationId] restrict the selectable packages to this location
  */
-export function openSelectPackagesDialog({ addDialog, orm, actionService, pickingId, locationId }) {
+export function openSelectPackagesDialog({
+    addDialog,
+    orm,
+    actionService,
+    pickingId,
+    locationId,
+}) {
     const domain = [];
     if (locationId) {
         domain.push(["location_id", "child_of", locationId]);
@@ -63,5 +69,11 @@ export function useMovePackageDialog() {
     const orm = useService("orm");
     const actionService = useService("action");
     return (pickingId, locationId) =>
-        openSelectPackagesDialog({ addDialog, orm, actionService, pickingId, locationId });
+        openSelectPackagesDialog({
+            addDialog,
+            orm,
+            actionService,
+            pickingId,
+            locationId,
+        });
 }

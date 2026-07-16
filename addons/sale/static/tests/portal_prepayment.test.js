@@ -1,7 +1,11 @@
-import { describe, expect, test } from "@odoo/hoot";
-import { setupInteractionWhiteList, startInteractions } from "@web/../tests/public/helpers";
 // Import for its registration side effect so the interaction exists in the registry.
 import "@sale/interactions/portal_prepayment";
+
+import { describe, expect, test } from "@odoo/hoot";
+import {
+    setupInteractionWhiteList,
+    startInteractions,
+} from "@web/../tests/public/helpers";
 
 setupInteractionWhiteList("sale.portal_prepayment");
 describe.current.tags("interaction_dev");
@@ -25,8 +29,12 @@ test("defaults to down payment, resolving buttons within the sidebar", async () 
     // The buttons are resolved via `this.el` (not `document`); a scoping regression
     // would leave them unfound and the active/d-none classes unapplied.
     await startInteractions(template);
-    expect(`button[name="o_sale_portal_amount_prepayment_button"]`).toHaveClass("active");
-    expect(`button[name="o_sale_portal_amount_total_button"]`).not.toHaveClass("active");
+    expect(`button[name="o_sale_portal_amount_prepayment_button"]`).toHaveClass(
+        "active",
+    );
+    expect(`button[name="o_sale_portal_amount_total_button"]`).not.toHaveClass(
+        "active",
+    );
     expect("#o_sale_portal_use_amount_prepayment").not.toHaveClass("d-none");
     expect("#o_sale_portal_use_amount_total").toHaveClass("d-none");
 });

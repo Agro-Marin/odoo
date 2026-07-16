@@ -1,9 +1,10 @@
-import { test, animationFrame } from "@odoo/hoot";
-import { mountWithCleanup } from "@web/../tests/web_test_helpers";
-import { setupPosEnv, getFilledOrder, expectFormattedPrice } from "../utils.js";
-import { definePosModels } from "../data/generate_model_definitions.js";
+import { animationFrame, test } from "@odoo/hoot";
 import { queryOne } from "@odoo/hoot-dom";
 import { PaymentScreen } from "@point_of_sale/app/screens/payment_screen/payment_screen";
+import { mountWithCleanup } from "@web/../tests/web_test_helpers";
+
+import { definePosModels } from "../data/generate_model_definitions.js";
+import { expectFormattedPrice, getFilledOrder, setupPosEnv } from "../utils.js";
 
 definePosModels();
 

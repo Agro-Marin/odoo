@@ -31,7 +31,7 @@ test("posting new message should only render relevant part", async () => {
                 body: `not_empty_${i}`,
                 model: "discuss.channel",
                 res_id: channelId,
-            })
+            }),
         );
     }
     messageIds.pop(); // remove last as it might need re-render (it was the newest message before)
@@ -43,7 +43,7 @@ test("posting new message should only render relevant part", async () => {
                 if (posting) {
                     if (messageIds.includes(this.message.id)) {
                         throw new Error(
-                            "Should not re-render old messages again on posting a new message"
+                            "Should not re-render old messages again on posting a new message",
                         );
                     }
                 }
@@ -76,7 +76,11 @@ test("replying to message should only render relevant part", async () => {
     const pyEnv = await startServer();
     const channelId = pyEnv["discuss.channel"].create({ name: "general" });
     const messageIds = range(0, 10).map((i) =>
-        pyEnv["mail.message"].create({ body: `${i}`, model: "discuss.channel", res_id: channelId })
+        pyEnv["mail.message"].create({
+            body: `${i}`,
+            model: "discuss.channel",
+            res_id: channelId,
+        }),
     );
     messageIds.pop(); // remove last as this is the one to be replied to
     let replying = false;
@@ -87,7 +91,7 @@ test("replying to message should only render relevant part", async () => {
                 if (replying) {
                     if (messageIds.includes(this.message.id)) {
                         throw new Error(
-                            "Should not re-render other messages on replying to a message"
+                            "Should not re-render other messages on replying to a message",
                         );
                     }
                 }

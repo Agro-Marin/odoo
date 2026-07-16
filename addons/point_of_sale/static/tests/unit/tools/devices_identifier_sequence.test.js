@@ -1,6 +1,7 @@
-import { test, expect } from "@odoo/hoot";
-import { getFilledOrder, setupPosEnv } from "../utils.js";
+import { expect, test } from "@odoo/hoot";
+
 import { definePosModels } from "../data/generate_model_definitions.js";
+import { getFilledOrder, setupPosEnv } from "../utils.js";
 
 definePosModels();
 
@@ -20,7 +21,9 @@ test("Check GAP", async () => {
     };
 
     const deleteOrdersAndCheck = async () => {
-        const numbers = orderStack.map((order) => parseInt(order.pos_reference.split("-")[2]));
+        const numbers = orderStack.map((order) =>
+            parseInt(order.pos_reference.split("-")[2]),
+        );
         await store.deleteOrders(orderStack);
         orderStack = [];
         expect(device.data.unsynced_number_stack).not.toBeEmpty();

@@ -1,5 +1,4 @@
 /** @odoo-module native */
-/* eslint-env serviceworker */
 
 /* global idbKeyval */
 importScripts("/mail/static/lib/idb-keyval/idb-keyval.js");
@@ -418,7 +417,10 @@ async function resubscribePushDevice(event) {
                     ...subscription.toJSON(),
                     previousEndpoint: event.oldSubscription.endpoint,
                     ...(applicationServerKey
-                        ? { vapid_public_key: arrayBufferToBase64Url(applicationServerKey) }
+                        ? {
+                              vapid_public_key:
+                                  arrayBufferToBase64Url(applicationServerKey),
+                          }
                         : {}),
                 },
                 context: {},

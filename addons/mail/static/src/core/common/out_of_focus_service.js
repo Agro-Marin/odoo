@@ -1,6 +1,5 @@
 /** @odoo-module native */
 import { htmlToTextContentInline } from "@mail/utils/common/format";
-
 import { browser } from "@web/core/browser/browser";
 import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";

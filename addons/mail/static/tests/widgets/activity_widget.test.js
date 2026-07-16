@@ -1,4 +1,3 @@
-import { luxon } from "@web/core/l10n/luxon";
 import {
     click,
     contains,
@@ -19,6 +18,7 @@ import {
     waitForSteps,
 } from "@web/../tests/web_test_helpers";
 import { serializeDate } from "@web/core/l10n/dates";
+import { luxon } from "@web/core/l10n/luxon";
 
 defineMailModels();
 describe.current.tags("desktop");
@@ -69,7 +69,9 @@ test("list activity widget with activities", async () => {
         activity_ids: [activityId_1, activityId_2],
         activity_state: "today",
     });
-    pyEnv["res.users"].write([serverState.userId], { activity_ids: [activityId_1, activityId_2] });
+    pyEnv["res.users"].write([serverState.userId], {
+        activity_ids: [activityId_1, activityId_2],
+    });
     pyEnv["res.users"].create({
         partner_id: pyEnv["res.partner"].create({
             activity_ids: [activityId_2],
@@ -119,7 +121,10 @@ test("list activity widget with exception", async () => {
 
 test("list activity widget: open dropdown", async () => {
     const pyEnv = await startServer();
-    const [activityTypeId_1, activityTypeId_2] = pyEnv["mail.activity.type"].create([{}, {}]);
+    const [activityTypeId_1, activityTypeId_2] = pyEnv["mail.activity.type"].create([
+        {},
+        {},
+    ]);
     const [activityId_1, activityId_2] = pyEnv["mail.activity"].create([
         {
             summary: "Call with Al",
@@ -173,7 +178,7 @@ test("list activity widget: open dropdown", async () => {
     await click(".o-mail-ActivityButton");
     await waitForSteps(["activity_format"]);
     await click(
-        ":nth-child(1 of .o-mail-ActivityListPopoverItem) .o-mail-ActivityListPopoverItem-markAsDone"
+        ":nth-child(1 of .o-mail-ActivityListPopoverItem) .o-mail-ActivityListPopoverItem-markAsDone",
     );
     await click(".o-mail-ActivityMarkAsDone button[aria-label='Done']");
     await waitForSteps(["action_feedback"]);
@@ -183,7 +188,7 @@ test("list activity widget: open dropdown", async () => {
 test("list activity widget: batch selection from list", async (assert) => {
     function selectContaining(domElement, selector, containing) {
         return Array.from(domElement.querySelectorAll(selector)).filter((sel) =>
-            sel.textContent.includes(containing)
+            sel.textContent.includes(containing),
         );
     }
     const pyEnv = await startServer();
@@ -253,9 +258,11 @@ test("list activity widget: batch selection from list", async (assert) => {
     // But when clicking on the clock of one of the non-selected row, it applies to only that row
     wizardOpened = new Deferred();
     await click(".o-mail-ActivityButton", { target: alexanderRow });
-    await contains(".o-mail-ActivityListPopover button", { text: "Schedule an activity" });
+    await contains(".o-mail-ActivityListPopover button", {
+        text: "Schedule an activity",
+    });
     await contains(
-        ".o-mail-ActivityListPopover button:not(:contains('Schedule an activity on selected records'))"
+        ".o-mail-ActivityListPopover button:not(:contains('Schedule an activity on selected records'))",
     );
     await click(".o-mail-ActivityListPopover button");
     await wizardOpened;
@@ -280,12 +287,19 @@ test("list activity widget: batch selection from list", async (assert) => {
         active_id: matildeId,
         active_model: "res.partner",
     });
-    await waitForSteps(["do_action_activity", "do_action_activity", "do_action_activity"]);
+    await waitForSteps([
+        "do_action_activity",
+        "do_action_activity",
+        "do_action_activity",
+    ]);
 });
 
 test("list activity exception widget with activity", async () => {
     const pyEnv = await startServer();
-    const [activityTypeId_1, activityTypeId_2] = pyEnv["mail.activity.type"].create([{}, {}]);
+    const [activityTypeId_1, activityTypeId_2] = pyEnv["mail.activity.type"].create([
+        {},
+        {},
+    ]);
     const [activityId_1, activityId_2] = pyEnv["mail.activity"].create([
         {
             display_name: "An activity",
@@ -307,7 +321,9 @@ test("list activity exception widget with activity", async () => {
         },
     ]);
 
-    pyEnv["res.partner"].write([serverState.partnerId], { activity_ids: [activityId_1] });
+    pyEnv["res.partner"].write([serverState.partnerId], {
+        activity_ids: [activityId_1],
+    });
     pyEnv["res.users"].create({
         message_attachment_count: 3,
         display_name: "second partner",

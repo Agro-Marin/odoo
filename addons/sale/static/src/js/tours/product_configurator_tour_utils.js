@@ -17,7 +17,7 @@ function optionalProductSelector(productName) {
 
 function optionalProductImageSrc(queryOne, productName) {
     return queryOne(
-        `${optionalProductSelector(productName)} td.o_sale_product_configurator_img>img`
+        `${optionalProductSelector(productName)} td.o_sale_product_configurator_img>img`,
     ).getAttribute("src");
 }
 
@@ -29,7 +29,7 @@ function addOptionalProduct(productName) {
             td.o_sale_product_configurator_price
             button:contains("Add")
         `,
-        run: 'click',
+        run: "click",
     };
 }
 
@@ -41,7 +41,7 @@ function removeOptionalProduct(productName) {
             td.o_sale_product_configurator_qty
             a:contains("Remove")
         `,
-        run: 'click',
+        run: "click",
     };
 }
 
@@ -53,7 +53,7 @@ function decreaseProductQuantity(productName) {
             td.o_sale_product_configurator_qty
             button:has(i.oi-minus)
         `,
-        run: 'click',
+        run: "click",
     };
 }
 
@@ -65,7 +65,7 @@ function increaseProductQuantity(productName) {
             td.o_sale_product_configurator_qty
             button:has(i.oi-plus)
         `,
-        run: 'click',
+        run: "click",
     };
 }
 
@@ -104,33 +104,38 @@ function assertProductQuantity(productName, quantity) {
     };
 }
 
-function selectAttribute(productName, attributeName, attributeValue, attributeType='radio') {
+function selectAttribute(
+    productName,
+    attributeName,
+    attributeValue,
+    attributeType = "radio",
+) {
     const ptalSelector = `
         ${productSelector(productName)}
         td>div[name="ptal"]:has(label:contains("${attributeName}"))
     `;
     const content = `Select ${attributeValue} for ${productName} ${attributeName}`;
     switch (attributeType) {
-        case 'color':
+        case "color":
             return {
                 content: content,
                 trigger: `${ptalSelector} label[title="${attributeValue}"]`,
-                run: 'click',
+                run: "click",
             };
-        case 'multi':
+        case "multi":
             return {
                 content: content,
                 trigger: `${ptalSelector}:has(label:text(${attributeValue})) input[type="checkbox"]`,
                 run: "click",
             };
-        case 'pills':
-        case 'radio':
+        case "pills":
+        case "radio":
             return {
                 content: content,
                 trigger: `${ptalSelector} span:contains("${attributeValue}")`,
-                run: 'click',
+                run: "click",
             };
-        case 'select':
+        case "select":
             return {
                 content: content,
                 trigger: `${ptalSelector} select`,
@@ -154,7 +159,11 @@ function setCustomAttribute(productName, attributeName, customValue) {
 }
 
 function selectAndSetCustomAttribute(
-    productName, attributeName, attributeValue, customValue, attributeType='radio'
+    productName,
+    attributeName,
+    attributeValue,
+    customValue,
+    attributeType = "radio",
 ) {
     return [
         selectAttribute(productName, attributeName, attributeValue, attributeType),
@@ -225,19 +234,21 @@ function assertProductNameContains(productName) {
 function assertFooterButtonsDisabled() {
     return {
         content: "Assert that the footer buttons are disabled",
-        trigger: '.o_sale_product_configurator_dialog footer.modal-footer button:disabled',
+        trigger:
+            ".o_sale_product_configurator_dialog footer.modal-footer button:disabled",
     };
 }
 
 function saveConfigurator() {
     return [
         {
-            trigger: '.o_sale_product_configurator_dialog button:contains(Confirm)',
-            run: 'click',
-        }, {
+            trigger: ".o_sale_product_configurator_dialog button:contains(Confirm)",
+            run: "click",
+        },
+        {
             content: "Wait until the modal is closed",
-            trigger: 'body:not(:has(.o_sale_product_configurator_dialog))',
-        }
+            trigger: "body:not(:has(.o_sale_product_configurator_dialog))",
+        },
     ];
 }
 

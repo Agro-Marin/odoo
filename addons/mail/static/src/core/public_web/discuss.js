@@ -12,8 +12,8 @@ import {
     useRef,
     useSubEnv,
 } from "@odoo/owl";
-import { useService } from "@web/core/utils/hooks";
 import { getActiveHotkey } from "@web/core/browser/hotkeys";
+import { useService } from "@web/core/utils/hooks";
 export class Discuss extends Component {
     static components = {
         DiscussContent,

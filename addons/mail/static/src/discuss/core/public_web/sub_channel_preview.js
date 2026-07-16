@@ -1,7 +1,7 @@
 /** @odoo-module native */
-import { luxon } from "@web/core/l10n/luxon";
 import { isToday } from "@mail/utils/common/dates";
 import { Component } from "@odoo/owl";
+import { luxon } from "@web/core/l10n/luxon";
 
 const { DateTime } = luxon;
 

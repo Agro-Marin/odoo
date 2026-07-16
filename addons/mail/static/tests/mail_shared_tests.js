@@ -1,4 +1,10 @@
-import { click, contains, openDiscuss, start, startServer } from "@mail/../tests/mail_test_helpers";
+import {
+    click,
+    contains,
+    openDiscuss,
+    start,
+    startServer,
+} from "@mail/../tests/mail_test_helpers";
 import { expect, mockTouch, mockUserAgent, queryFirst } from "@odoo/hoot";
 
 export async function mailCanAddMessageReactionMobile() {
@@ -28,9 +34,12 @@ export async function mailCanAddMessageReactionMobile() {
     await click(".o-dropdown-item:contains('Add a Reaction')");
     await contains(".o-overlay-item:has(.modal .o-EmojiPicker)");
     const emojiPickerZIndex = parseInt(
-        getComputedStyle(queryFirst(".o-overlay-item:has(.modal .o-EmojiPicker)")).zIndex
+        getComputedStyle(queryFirst(".o-overlay-item:has(.modal .o-EmojiPicker)"))
+            .zIndex,
     );
-    const chatWindowZIndex = parseInt(getComputedStyle(queryFirst(".o-mail-ChatWindow")).zIndex);
+    const chatWindowZIndex = parseInt(
+        getComputedStyle(queryFirst(".o-mail-ChatWindow")).zIndex,
+    );
     expect(chatWindowZIndex).toBeLessThan(emojiPickerZIndex, {
         message: "emoji picker modal should be above chat window",
     });

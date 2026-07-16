@@ -1,7 +1,7 @@
-import { registry } from "@web/core/registry";
-import { createRelatedModels } from "@point_of_sale/app/models/related_models";
 import { DataServiceOptions } from "@point_of_sale/app/models/data_service_options";
+import { createRelatedModels } from "@point_of_sale/app/models/related_models";
 import { MockServer } from "@web/../tests/web_test_helpers";
+import { registry } from "@web/core/registry";
 
 export const getModelDefinitions = () => {
     const session = MockServer.current._models["pos.session"];
@@ -47,7 +47,11 @@ export const getRelatedModelsInstance = (useModelClass = true) => {
         }
     }
 
-    const models = createRelatedModels(relations, useModelClass ? modelClasses : {}, options);
+    const models = createRelatedModels(
+        relations,
+        useModelClass ? modelClasses : {},
+        options,
+    );
     generatedModels = models.models;
     generatedModelsKey = cacheKey;
     return models.models;

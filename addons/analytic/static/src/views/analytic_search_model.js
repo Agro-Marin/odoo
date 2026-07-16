@@ -11,10 +11,14 @@ export class AnalyticSearchModel extends SearchModel {
             (f) => f.fieldName.match(PLAN_REGEX)[1],
         );
         searchItems = searchItems.filter(
-            (f) => !f.fieldName?.match(PLAN_REGEX) || mapped.has(f.fieldName)
+            (f) => !f.fieldName?.match(PLAN_REGEX) || mapped.has(f.fieldName),
         );
         searchItems.forEach((f) => {
-            if (f.fieldName && mapped.has(f.fieldName) && mapped.get(f.fieldName).length > 1) {
+            if (
+                f.fieldName &&
+                mapped.has(f.fieldName) &&
+                mapped.get(f.fieldName).length > 1
+            ) {
                 f.options = mapped.get(f.fieldName);
             }
         });
@@ -22,7 +26,7 @@ export class AnalyticSearchModel extends SearchModel {
     }
 
     toggleDateGroupBy(searchItemId, intervalId) {
-        if (typeof(intervalId) === "number") {
+        if (typeof intervalId === "number") {
             this.toggleSearchItem(intervalId);
         } else {
             super.toggleDateGroupBy(searchItemId, intervalId);

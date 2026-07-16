@@ -59,7 +59,10 @@ test("areSaleOrderLinesLinked matches new lines by virtual_id", () => {
 });
 
 test("areSaleOrderLinesLinked is falsy for an unlinked line (no throw)", () => {
-    const linking = { data: { linked_line_id: false, linked_virtual_id: false }, isNew: false };
+    const linking = {
+        data: { linked_line_id: false, linked_virtual_id: false },
+        isNew: false,
+    };
     const linked = { data: { virtual_id: false }, isNew: false, resId: 99 };
     expect(!!areSaleOrderLinesLinked(linking, linked)).toBe(false);
 });

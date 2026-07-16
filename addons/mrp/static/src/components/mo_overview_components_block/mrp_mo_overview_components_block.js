@@ -1,10 +1,11 @@
 /** @odoo-module native */
 import { Component, onWillUpdateProps, useState } from "@odoo/owl";
 import { useBus } from "@web/core/utils/hooks";
-import { MoOverviewLine } from "../mo_overview_line/mrp_mo_overview_line.js";
-import { MoOverviewOperationsBlock } from "../mo_overview_operations_block/mrp_mo_overview_operations_block.js";
+
 import { MoOverviewByproductsBlock } from "../mo_overview_byproducts_block/mrp_mo_overview_byproducts_block.js";
 import { SHOW_OPTIONS } from "../mo_overview_display_filter/mrp_mo_overview_display_filter.js";
+import { MoOverviewLine } from "../mo_overview_line/mrp_mo_overview_line.js";
+import { MoOverviewOperationsBlock } from "../mo_overview_operations_block/mrp_mo_overview_operations_block.js";
 import { FOLD_ALL, FOLD_CHANGED } from "../overview_fold.js";
 
 export class MoOverviewComponentsBlock extends Component {
@@ -48,12 +49,17 @@ export class MoOverviewComponentsBlock extends Component {
         });
 
         if (this.props.unfoldAll) {
-            this.env.overviewBus.trigger(FOLD_CHANGED, { ids: Object.keys(this.state.fold), folded: false });
+            this.env.overviewBus.trigger(FOLD_CHANGED, {
+                ids: Object.keys(this.state.fold),
+                folded: false,
+            });
         }
 
-        useBus(this.env.overviewBus, FOLD_ALL, ({ detail }) => this.setFoldAll(detail.folded));
+        useBus(this.env.overviewBus, FOLD_ALL, ({ detail }) =>
+            this.setFoldAll(detail.folded),
+        );
 
-        onWillUpdateProps(newProps => {
+        onWillUpdateProps((newProps) => {
             // Update the fold indexes so it matches the newly added lines.
             this.state.fold = { ...this.getIndexStates(newProps), ...this.state.fold };
         });
@@ -66,18 +72,23 @@ export class MoOverviewComponentsBlock extends Component {
         const newState = !this.state.fold[foldIndex];
         if (newState) {
             // If a line is folded, its children lines must be folded as well
-            Object.keys(this.state.fold).filter(key => key.startsWith(foldIndex)).forEach(index => {
-                this.state.fold[index] = newState;
-            });
+            Object.keys(this.state.fold)
+                .filter((key) => key.startsWith(foldIndex))
+                .forEach((index) => {
+                    this.state.fold[index] = newState;
+                });
         }
         this.state.fold[foldIndex] = newState;
-        this.env.overviewBus.trigger(FOLD_CHANGED, { ids: [foldIndex], folded: newState });
+        this.env.overviewBus.trigger(FOLD_CHANGED, {
+            ids: [foldIndex],
+            folded: newState,
+        });
     }
 
     setFoldAll(folded) {
         this.state.unfoldAll = !folded;
         const ids = Object.keys(this.state.fold);
-        ids.forEach(index => this.state.fold[index] = folded);
+        ids.forEach((index) => (this.state.fold[index] = folded));
         this.env.overviewBus.trigger(FOLD_CHANGED, { ids, folded });
     }
 
@@ -85,9 +96,9 @@ export class MoOverviewComponentsBlock extends Component {
 
     getIndexStates(props) {
         const indexStates = {};
-        (props?.components ?? []).forEach(component => {
+        (props?.components ?? []).forEach((component) => {
             indexStates[component?.summary.index] = !props.unfoldAll;
-            (component?.replenishments ?? []).forEach(replenishment => {
+            (component?.replenishments ?? []).forEach((replenishment) => {
                 indexStates[replenishment?.summary.index] = !props.unfoldAll;
             });
         });
@@ -99,14 +110,23 @@ export class MoOverviewComponentsBlock extends Component {
     }
 
     hasReplenishmentsBlock(component) {
-        return this.hasReplenishments(component) && !this.state.fold[component?.summary.index];
+        return (
+            this.hasReplenishments(component) &&
+            !this.state.fold[component?.summary.index]
+        );
     }
 
     hasComponents(replenishment) {
-        return replenishment?.components?.length > 0 || replenishment?.operations?.details?.length > 0;
+        return (
+            replenishment?.components?.length > 0 ||
+            replenishment?.operations?.details?.length > 0
+        );
     }
 
     hasComponentsBlock(replenishment) {
-        return this.hasComponents(replenishment) && !this.state.fold[replenishment?.summary.index];
+        return (
+            this.hasComponents(replenishment) &&
+            !this.state.fold[replenishment?.summary.index]
+        );
     }
 }

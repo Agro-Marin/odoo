@@ -1,4 +1,3 @@
-import { LONG_PRESS_DELAY } from "@mail/utils/common/hooks";
 import {
     click,
     contains,
@@ -8,6 +7,7 @@ import {
     start,
     startServer,
 } from "@mail/../tests/mail_test_helpers";
+import { LONG_PRESS_DELAY } from "@mail/utils/common/hooks";
 import { expect, test } from "@odoo/hoot";
 import { pointerDown } from "@odoo/hoot-dom";
 import { advanceTime, mockTouch, mockUserAgent } from "@odoo/hoot-mock";
@@ -27,7 +27,11 @@ test("Toggle display of original/translated version of chatter message", async (
     });
     onRpcBefore("/mail/message/translate", () => {
         asyncStep("Request");
-        return { body: "To bad weather, good face.", lang_name: "Spanish", error: null };
+        return {
+            body: "To bad weather, good face.",
+            lang_name: "Spanish",
+            error: null,
+        };
     });
     await start();
     await openFormView("res.partner", partnerId);
@@ -90,7 +94,9 @@ test.tags("desktop");
 test("Do not show translate action if message body is empty", async () => {
     const pyEnv = await startServer();
     const partnerId = pyEnv["res.partner"].create({});
-    const subtypeId = pyEnv["mail.message.subtype"].create({ description: "Task created" });
+    const subtypeId = pyEnv["mail.message.subtype"].create({
+        description: "Task created",
+    });
     const attachmentId = pyEnv["ir.attachment"].create({
         mimetype: "text/plain",
         name: "Blah.txt",

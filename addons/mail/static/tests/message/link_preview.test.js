@@ -10,9 +10,13 @@ import {
     startServer,
 } from "@mail/../tests/mail_test_helpers";
 import { describe, expect, test } from "@odoo/hoot";
-import { asyncStep, waitForSteps, Command, serverState } from "@web/../tests/web_test_helpers";
 import { press } from "@odoo/hoot-dom";
-
+import {
+    asyncStep,
+    Command,
+    serverState,
+    waitForSteps,
+} from "@web/../tests/web_test_helpers";
 import { rpc } from "@web/core/network/rpc";
 
 describe.current.tags("desktop");
@@ -26,7 +30,8 @@ test("auto layout with link preview list", async () => {
         og_mimetype: "image/gif",
         og_title: "Yay Minions GIF - Yay Minions Happiness - Discover & Share GIFs",
         og_type: "video.other",
-        source_url: "https://tenor.com/view/yay-minions-happiness-happy-excited-gif-15324023",
+        source_url:
+            "https://tenor.com/view/yay-minions-happiness-happy-excited-gif-15324023",
     });
     const channelId = pyEnv["discuss.channel"].create({ name: "wololo" });
     pyEnv["mail.message"].create({
@@ -49,7 +54,8 @@ test("auto layout with link preview as gif", async () => {
         og_mimetype: "image/gif",
         og_title: "Yay Minions GIF - Yay Minions Happiness - Discover & Share GIFs",
         og_type: "video.other",
-        source_url: "https://tenor.com/view/yay-minions-happiness-happy-excited-gif-15324023",
+        source_url:
+            "https://tenor.com/view/yay-minions-happiness-happy-excited-gif-15324023",
     });
     const channelId = pyEnv["discuss.channel"].create({ name: "wololo" });
     pyEnv["mail.message"].create({
@@ -165,7 +171,8 @@ test("Remove link preview Gif", async () => {
         og_mimetype: "image/gif",
         og_title: "Yay Minions GIF - Yay Minions Happiness - Discover & Share GIFs",
         og_type: "video.other",
-        source_url: "https://tenor.com/view/yay-minions-happiness-happy-excited-gif-15324023",
+        source_url:
+            "https://tenor.com/view/yay-minions-happiness-happy-excited-gif-15324023",
     });
     const channelId = pyEnv["discuss.channel"].create({ name: "wololo" });
     pyEnv["mail.message"].create({
@@ -277,7 +284,9 @@ test("No crash on receiving link preview of non-known message", async () => {
     await start();
     await openDiscuss();
     rpc("/mail/link_preview", { message_id: messageId });
-    rpc("/mail/link_preview/hide", { message_link_preview_ids: [messageLinkPreviewId] });
+    rpc("/mail/link_preview/hide", {
+        message_link_preview_ids: [messageLinkPreviewId],
+    });
     expect(true).toBe(true, { message: "no assertions" });
 });
 
@@ -393,7 +402,10 @@ test("link preview request is only made when message contains URL", async () => 
     onRpcBefore("/mail/link_preview", () => asyncStep("/mail/link_preview"));
     await start();
     await openDiscuss(channelId);
-    await insertText(".o-mail-Composer-input", "Hello, this message does not contain any link");
+    await insertText(
+        ".o-mail-Composer-input",
+        "Hello, this message does not contain any link",
+    );
     await press("Enter");
     await contains(".o-mail-Message", {
         text: "Hello, this message does not contain any link",
@@ -416,7 +428,8 @@ test("youtube and gdrive videos URL are embed", async () => {
         {
             og_title: "vokoscreenNG-2024-08-22_13-56-37.mkv",
             og_type: "article",
-            source_url: "https://drive.google.com/file/d/195a8fSNxwmkfs9sDS7OCB2nX03iFr21P/view",
+            source_url:
+                "https://drive.google.com/file/d/195a8fSNxwmkfs9sDS7OCB2nX03iFr21P/view",
         },
         {
             og_title: "Cinematic",
@@ -430,14 +443,18 @@ test("youtube and gdrive videos URL are embed", async () => {
             message_type: "comment",
             model: "discuss.channel",
             res_id: channelId,
-            message_link_preview_ids: [Command.create({ link_preview_id: linkPreviewId_1 })],
+            message_link_preview_ids: [
+                Command.create({ link_preview_id: linkPreviewId_1 }),
+            ],
         },
         {
             body: "YT video preview",
             message_type: "comment",
             model: "discuss.channel",
             res_id: channelId,
-            message_link_preview_ids: [Command.create({ link_preview_id: linkPreviewId_2 })],
+            message_link_preview_ids: [
+                Command.create({ link_preview_id: linkPreviewId_2 }),
+            ],
         },
     ]);
     await start();
@@ -445,12 +462,15 @@ test("youtube and gdrive videos URL are embed", async () => {
     await click(".o-mail-LinkPreviewVideo[data-provider=google-drive] .fa-play");
     await contains(
         "iframe[data-src='https://drive.google.com/file/d/195a8fSNxwmkfs9sDS7OCB2nX03iFr21P/preview']",
-        { parent: [".o-mail-LinkPreviewVideo[data-provider=google-drive]"] }
+        { parent: [".o-mail-LinkPreviewVideo[data-provider=google-drive]"] },
     );
     await click(".o-mail-LinkPreviewVideo[data-provider=youtube] .fa-play");
-    await contains("iframe[data-src='https://www.youtube.com/embed/9bZkp7q19f0?autoplay=1']", {
-        parent: [".o-mail-LinkPreviewVideo[data-provider=youtube]"],
-    });
+    await contains(
+        "iframe[data-src='https://www.youtube.com/embed/9bZkp7q19f0?autoplay=1']",
+        {
+            parent: [".o-mail-LinkPreviewVideo[data-provider=youtube]"],
+        },
+    );
 });
 
 test("Internal user can't delete others preview", async () => {
@@ -489,7 +509,9 @@ test("Internal user can't delete others preview", async () => {
             model: "discuss.channel",
             res_id: channelId,
             author_id: serverState.partnerId,
-            message_link_preview_ids: [Command.create({ link_preview_id: linkPreviewId_1 })],
+            message_link_preview_ids: [
+                Command.create({ link_preview_id: linkPreviewId_1 }),
+            ],
         },
         {
             body: "msg-2",
@@ -497,18 +519,20 @@ test("Internal user can't delete others preview", async () => {
             model: "discuss.channel",
             res_id: channelId,
             author_id: partnerId,
-            message_link_preview_ids: [Command.create({ link_preview_id: linkPreviewId_2 })],
+            message_link_preview_ids: [
+                Command.create({ link_preview_id: linkPreviewId_2 }),
+            ],
         },
     ]);
     await start({ authenticateAs: pyEnv["res.users"].read(userId)[0] });
     await openDiscuss(channelId);
     await hover(".o-mail-Message:contains('msg-2') .o-mail-LinkPreviewCard");
     await contains(
-        ".o-mail-Message:contains('msg-2') .o-mail-LinkPreviewCard button[aria-label='Remove']"
+        ".o-mail-Message:contains('msg-2') .o-mail-LinkPreviewCard button[aria-label='Remove']",
     );
     await hover(".o-mail-Message:contains('msg-1') .o-mail-LinkPreviewCard");
     await contains(
         ".o-mail-Message:contains('msg-1') .o-mail-LinkPreviewCard button[aria-label='Remove']",
-        { count: 0 }
+        { count: 0 },
     );
 });

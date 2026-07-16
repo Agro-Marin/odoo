@@ -1,11 +1,11 @@
 /** @odoo-module native */
-import { Many2XAutocomplete } from "@web/fields/relational/many2x_autocomplete";
+import { RPCError } from "@web/core/network/rpc";
+import { registry } from "@web/core/registry";
 import {
     Many2ManyTagsField,
     many2ManyTagsField,
 } from "@web/fields/relational/many2many_tags/many2many_tags_field";
-import { registry } from "@web/core/registry";
-import { RPCError } from "@web/core/network/rpc";
+import { Many2XAutocomplete } from "@web/fields/relational/many2x_autocomplete";
 
 export class Many2XBarcodeTagsAutocomplete extends Many2XAutocomplete {
     onQuickCreateError(error, request) {
@@ -34,7 +34,7 @@ export class Many2ManyBarcodeTagsField extends Many2ManyTagsField {
 export const many2ManyBarcodeTagsField = {
     ...many2ManyTagsField,
     component: Many2ManyBarcodeTagsField,
-    additionalClasses: ['o_field_many2many_tags'],
-}
+    additionalClasses: ["o_field_many2many_tags"],
+};
 
 registry.category("fields").add("many2many_barcode_tags", many2ManyBarcodeTagsField);

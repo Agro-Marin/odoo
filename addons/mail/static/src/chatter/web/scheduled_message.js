@@ -1,9 +1,9 @@
 /** @odoo-module native */
-import { luxon } from "@web/core/l10n/luxon";
 import { AttachmentList } from "@mail/core/common/attachment_list";
 import { RelativeTime } from "@mail/core/common/relative_time";
 import { AvatarCardPopover } from "@mail/discuss/web/avatar_card/avatar_card_popover";
 import { Component, useState } from "@odoo/owl";
+import { luxon } from "@web/core/l10n/luxon";
 import { _t } from "@web/core/l10n/translation";
 import { useService } from "@web/core/utils/hooks";
 import { ConfirmationDialog } from "@web/ui/dialog/confirmation_dialog";

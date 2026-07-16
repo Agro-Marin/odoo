@@ -1,5 +1,6 @@
 /** @odoo-module native */
 import { registry } from "@web/core/registry";
+
 import { Base } from "./related_models/index.js";
 export class PosCategory extends Base {
     static pythonModel = "pos.category";

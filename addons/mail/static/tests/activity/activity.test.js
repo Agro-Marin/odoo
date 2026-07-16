@@ -1,5 +1,3 @@
-import { describe, expect, test } from "@odoo/hoot";
-
 import {
     click,
     contains,
@@ -13,7 +11,7 @@ import {
 } from "@mail/../tests/mail_test_helpers";
 import { mailDataHelpers } from "@mail/../tests/mock_server/mail_mock_server";
 import { MailActivity } from "@mail/../tests/mock_server/mock_models/mail_activity";
-
+import { describe, expect, test } from "@odoo/hoot";
 import { advanceTime, mockDate } from "@odoo/hoot-mock";
 import {
     asyncStep,
@@ -34,7 +32,9 @@ defineMailModels();
 test("activity upload document is available", async () => {
     const pyEnv = await startServer();
     const partnerId = pyEnv["res.partner"].create({});
-    const activityType = pyEnv["mail.activity.type"].find((r) => r.name === "Upload Document");
+    const activityType = pyEnv["mail.activity.type"].find(
+        (r) => r.name === "Upload Document",
+    );
     pyEnv["mail.activity"].create({
         activity_category: "upload_file",
         activity_type_id: activityType.id,
@@ -52,7 +52,9 @@ test("activity upload document is available", async () => {
 test("activity can upload a document", async () => {
     const pyEnv = await startServer();
     const fakeId = pyEnv["res.partner"].create({});
-    const activityType = pyEnv["mail.activity.type"].find((r) => r.name === "Upload Document");
+    const activityType = pyEnv["mail.activity.type"].find(
+        (r) => r.name === "Upload Document",
+    );
     pyEnv["mail.activity"].create({
         activity_category: "upload_file",
         activity_type_id: activityType.id,
@@ -257,9 +259,13 @@ test("activity details toggle", async () => {
 test("activity with mail template layout", async () => {
     const pyEnv = await startServer();
     const partnerId = pyEnv["res.partner"].create({});
-    const mailTemplateId = pyEnv["mail.template"].create({ name: "Dummy mail template" });
+    const mailTemplateId = pyEnv["mail.template"].create({
+        name: "Dummy mail template",
+    });
     const activityType = pyEnv["mail.activity.type"].find((r) => r.name === "Email");
-    pyEnv["mail.activity.type"].write(activityType.id, { mail_template_ids: [mailTemplateId] });
+    pyEnv["mail.activity.type"].write(activityType.id, {
+        mail_template_ids: [mailTemplateId],
+    });
     pyEnv["mail.activity"].create({
         activity_type_id: activityType.id,
         res_id: partnerId,
@@ -270,7 +276,9 @@ test("activity with mail template layout", async () => {
     await contains(".o-mail-Activity");
     await contains(".o-mail-Activity-sidebar");
     await contains(".o-mail-Activity-mailTemplates");
-    await contains(".o-mail-ActivityMailTemplate-name", { text: "Dummy mail template" });
+    await contains(".o-mail-ActivityMailTemplate-name", {
+        text: "Dummy mail template",
+    });
     await contains(".o-mail-ActivityMailTemplate-preview");
     await contains(".o-mail-ActivityMailTemplate-send");
 });
@@ -278,9 +286,13 @@ test("activity with mail template layout", async () => {
 test("activity with mail template: preview mail", async () => {
     const pyEnv = await startServer();
     const partnerId = pyEnv["res.partner"].create({});
-    const mailTemplateId = pyEnv["mail.template"].create({ name: "Dummy mail template" });
+    const mailTemplateId = pyEnv["mail.template"].create({
+        name: "Dummy mail template",
+    });
     const activityType = pyEnv["mail.activity.type"].find((r) => r.name === "Email");
-    pyEnv["mail.activity.type"].write(activityType.id, { mail_template_ids: [mailTemplateId] });
+    pyEnv["mail.activity.type"].write(activityType.id, {
+        mail_template_ids: [mailTemplateId],
+    });
     pyEnv["mail.activity"].create({
         activity_type_id: activityType.id,
         res_id: partnerId,
@@ -311,9 +323,13 @@ test("activity with mail template: preview mail", async () => {
 test("activity with mail template: send mail", async () => {
     const pyEnv = await startServer();
     const partnerId = pyEnv["res.partner"].create({});
-    const mailTemplateId = pyEnv["mail.template"].create({ name: "Dummy mail template" });
+    const mailTemplateId = pyEnv["mail.template"].create({
+        name: "Dummy mail template",
+    });
     const activityType = pyEnv["mail.activity.type"].find((r) => r.name === "Email");
-    pyEnv["mail.activity.type"].write(activityType.id, { mail_template_ids: [mailTemplateId] });
+    pyEnv["mail.activity.type"].write(activityType.id, {
+        mail_template_ids: [mailTemplateId],
+    });
     pyEnv["mail.activity"].create({
         activity_type_id: activityType.id,
         res_id: partnerId,
@@ -338,7 +354,9 @@ test("activity with mail template: send mail", async () => {
 test("activity click on mark as done", async () => {
     const pyEnv = await startServer();
     const partnerId = pyEnv["res.partner"].create({});
-    const activityTypeId = pyEnv["mail.activity.type"].search([["name", "=", "Email"]])[0];
+    const activityTypeId = pyEnv["mail.activity.type"].search([
+        ["name", "=", "Email"],
+    ])[0];
     pyEnv["mail.activity"].create({
         activity_category: "default",
         activity_type_id: activityTypeId,
@@ -359,7 +377,9 @@ test.tags("focus required");
 test("activity mark as done popover should focus feedback input on open", async () => {
     const pyEnv = await startServer();
     const partnerId = pyEnv["res.partner"].create({});
-    const activityTypeId = pyEnv["mail.activity.type"].search([["name", "=", "Email"]])[0];
+    const activityTypeId = pyEnv["mail.activity.type"].search([
+        ["name", "=", "Email"],
+    ])[0];
     pyEnv["mail.activity"].create({
         activity_category: "default",
         activity_type_id: activityTypeId,
@@ -371,14 +391,20 @@ test("activity mark as done popover should focus feedback input on open", async 
     await openFormView("res.partner", partnerId);
     await contains(".o-mail-Activity");
     await click(".btn", { text: "Mark Done" });
-    await contains(".o-mail-ActivityMarkAsDone textarea[placeholder='Write Feedback']:focus");
+    await contains(
+        ".o-mail-ActivityMarkAsDone textarea[placeholder='Write Feedback']:focus",
+    );
 });
 
 test("activity click on edit", async () => {
     const pyEnv = await startServer();
     const partnerId = pyEnv["res.partner"].create({});
-    const mailTemplateId = pyEnv["mail.template"].create({ name: "Dummy mail template" });
-    const activityTypeId = pyEnv["mail.activity.type"].search([["name", "=", "Email"]])[0];
+    const mailTemplateId = pyEnv["mail.template"].create({
+        name: "Dummy mail template",
+    });
+    const activityTypeId = pyEnv["mail.activity.type"].search([
+        ["name", "=", "Email"],
+    ])[0];
     const activityId = pyEnv["mail.activity"].create({
         activity_type_id: activityTypeId,
         can_write: true,
@@ -406,8 +432,12 @@ test("activity click on edit", async () => {
 test("activity click on edit should pass correct context", async () => {
     const pyEnv = await startServer();
     const partnerId = pyEnv["res.partner"].create({});
-    const mailTemplateId = pyEnv["mail.template"].create({ name: "Dummy mail template" });
-    const [activityTypeId] = pyEnv["mail.activity.type"].search([["name", "=", "Email"]]);
+    const mailTemplateId = pyEnv["mail.template"].create({
+        name: "Dummy mail template",
+    });
+    const [activityTypeId] = pyEnv["mail.activity.type"].search([
+        ["name", "=", "Email"],
+    ]);
     const activityId = pyEnv["mail.activity"].create({
         activity_type_id: activityTypeId,
         can_write: true,
@@ -438,7 +468,9 @@ test("activity click on edit should pass correct context", async () => {
 test("activity click on cancel", async () => {
     const pyEnv = await startServer();
     const partnerId = pyEnv["res.partner"].create({});
-    const activityTypeId = pyEnv["mail.activity.type"].search([["name", "=", "Email"]])[0];
+    const activityTypeId = pyEnv["mail.activity.type"].search([
+        ["name", "=", "Email"],
+    ])[0];
     const activityId = pyEnv["mail.activity"].create({
         activity_type_id: activityTypeId,
         can_write: true,
@@ -460,7 +492,9 @@ test("activity click on cancel", async () => {
 test("activity mark done popover close on ESCAPE", async () => {
     const pyEnv = await startServer();
     const partnerId = pyEnv["res.partner"].create({});
-    const activityTypeId = pyEnv["mail.activity.type"].search([["name", "=", "Email"]])[0];
+    const activityTypeId = pyEnv["mail.activity.type"].search([
+        ["name", "=", "Email"],
+    ])[0];
     pyEnv["mail.activity"].create({
         activity_category: "default",
         activity_type_id: activityTypeId,
@@ -479,7 +513,9 @@ test("activity mark done popover close on ESCAPE", async () => {
 test("activity mark done popover click on discard", async () => {
     const pyEnv = await startServer();
     const partnerId = pyEnv["res.partner"].create({});
-    const activityTypeId = pyEnv["mail.activity.type"].search([["name", "=", "Email"]])[0];
+    const activityTypeId = pyEnv["mail.activity.type"].search([
+        ["name", "=", "Email"],
+    ])[0];
     pyEnv["mail.activity"].create({
         activity_category: "default",
         activity_type_id: activityTypeId,
@@ -573,13 +609,15 @@ test("Activity avatar should have a unique timestamp", async () => {
         res_model: "res.partner",
     });
     await start();
-    const partner = pyEnv["res.partner"].search_read([["id", "=", serverState.partnerId]])[0];
+    const partner = pyEnv["res.partner"].search_read([
+        ["id", "=", serverState.partnerId],
+    ])[0];
     await openFormView("res.partner", partnerId);
     await contains(".o-mail-Activity");
     await contains(
         `.o-mail-Activity-sidebar img[data-src="${getOrigin()}/web/image/res.partner/${
             serverState.partnerId
-        }/avatar_128?unique=${deserializeDateTime(partner.write_date).ts}`
+        }/avatar_128?unique=${deserializeDateTime(partner.write_date).ts}`,
     );
 });
 
@@ -617,7 +655,10 @@ test("activity with a user mention", async () => {
 test("activity with a channel mention", async () => {
     const pyEnv = await startServer();
     const partnerId = pyEnv["res.partner"].create({ name: "Partner" });
-    const channelId = pyEnv["discuss.channel"].create({ name: "Channel", channel_type: "channel" });
+    const channelId = pyEnv["discuss.channel"].create({
+        name: "Channel",
+        channel_type: "channel",
+    });
     pyEnv["mail.activity"].create({
         note: `<p><a class="o_channel_redirect" href="#" data-oe-model="discuss.channel" data-oe-id="${channelId}">#Channel</a></p>`,
         res_id: partnerId,
@@ -679,7 +720,9 @@ test("activity updates are shared between tabs", async () => {
     await contains(".o-mail-Activity", { count: 2 });
     await contains(".o-mail-Activity-info:has(:text(“Send an email to Marc”))");
     await click(".o-mail-Activity-edit:eq(0)");
-    await insertText("[name='summary'] input", "Send an email to Jane", { replace: true });
+    await insertText("[name='summary'] input", "Send an email to Jane", {
+        replace: true,
+    });
     await click("button:text(Save)");
     // Every insert triggers a broadcast, what matter is that the last value is correctly sent.
     await expect.waitForSteps([
@@ -712,7 +755,7 @@ test("activity updates are shared between tabs", async () => {
             payload: new mailDataHelpers.Store()
                 .add(
                     pyEnv["res.partner"].browse(serverState.partnerId),
-                    makeKwArgs({ as_thread: true, request_list: ["activities"] })
+                    makeKwArgs({ as_thread: true, request_list: ["activities"] }),
                 )
                 .get_result(),
         },
@@ -721,7 +764,9 @@ test("activity updates are shared between tabs", async () => {
     store.activityBroadcastChannel.onmessage({
         data: { type: "DELETE", payload: { id: newActivityId } },
     });
-    await contains(".o-mail-Activity-info:has(:text(“Send another email”))", { count: 0 });
+    await contains(".o-mail-Activity-info:has(:text(“Send another email”))", {
+        count: 0,
+    });
     onRpc("/mail/thread/messages", () => expect.step("/mail/thread/messages"));
     store.activityBroadcastChannel.onmessage({
         data: {

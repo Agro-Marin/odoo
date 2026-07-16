@@ -31,7 +31,11 @@ export const reloadAnalyticPlanService = {
             }
             const { data, error } = ev.detail;
             const { model, method } = data.params;
-            if (!error && model === "account.analytic.plan" && UPDATE_METHODS.includes(method)) {
+            if (
+                !error &&
+                model === "account.analytic.plan" &&
+                UPDATE_METHODS.includes(method)
+            ) {
                 if (!browser.localStorage.getItem("running_tour")) {
                     action.doAction("reload_context");
                 }

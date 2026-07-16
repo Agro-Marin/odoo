@@ -1,8 +1,8 @@
 /* global posmodel */
-import { luxon } from "@web/core/l10n/luxon";
 import * as Dialog from "@point_of_sale/../tests/generic_helpers/dialog_util";
-import { negate } from "@point_of_sale/../tests/generic_helpers/utils";
 import * as Numpad from "@point_of_sale/../tests/generic_helpers/numpad_util";
+import { negate } from "@point_of_sale/../tests/generic_helpers/utils";
+import { luxon } from "@web/core/l10n/luxon";
 const { DateTime } = luxon;
 
 export function confirmPopup() {
@@ -92,7 +92,8 @@ export function doCashMove(amount, reason) {
         })),
         {
             isActive: ["mobile"],
-            trigger: ".o-overlay-item:nth-child(2) .modal-footer button:contains('Confirm')",
+            trigger:
+                ".o-overlay-item:nth-child(2) .modal-footer button:contains('Confirm')",
             run: "click",
         },
         Dialog.confirm(),
@@ -159,7 +160,7 @@ function _hasFloatingOrder(name, yes) {
         {
             isActive: ["desktop"],
             trigger: negateIfNecessary(
-                `.pos-topheader .floating-order-container:contains('${name}')`
+                `.pos-topheader .floating-order-container:contains('${name}')`,
             ),
         },
         {
@@ -170,7 +171,7 @@ function _hasFloatingOrder(name, yes) {
         {
             isActive: ["mobile"],
             trigger: negateIfNecessary(
-                `.modal-header:contains(Choose an order) ~ .modal-body .floating-order-container:contains('${name}')`
+                `.modal-header:contains(Choose an order) ~ .modal-body .floating-order-container:contains('${name}')`,
             ),
         },
         {
@@ -240,12 +241,16 @@ export function waitRequest() {
             async run({ waitFor }) {
                 let isLoading = false;
                 try {
-                    isLoading = await waitFor("body:has(.fa-circle-o-notch)", { timeout: 2000 });
+                    isLoading = await waitFor("body:has(.fa-circle-o-notch)", {
+                        timeout: 2000,
+                    });
                 } catch {
                     /* fa-circle-o-notch will certainly never appears :'( */
                 }
                 if (isLoading) {
-                    await waitFor("body:not(:has(.fa-circle-o-notch))", { timeout: 10000 });
+                    await waitFor("body:not(:has(.fa-circle-o-notch))", {
+                        timeout: 10000,
+                    });
                 }
             },
         },
@@ -260,7 +265,7 @@ export function storedOrderCount(expectedCount) {
             const actualCount = posmodel.data.models["pos.order"].length;
             if (actualCount !== expectedCount) {
                 throw new Error(
-                    `Expected stored order count to be ${expectedCount}, but got ${actualCount}`
+                    `Expected stored order count to be ${expectedCount}, but got ${actualCount}`,
                 );
             }
         },
@@ -293,14 +298,16 @@ export function CustomerDisplayHasThisDeviceButton() {
     return {
         isActive: ["desktop"],
         content: "Check that the customer display popup has a 'This device' button",
-        trigger: ".o_dialog .modal-body .container .btn-primary:contains('This device')",
+        trigger:
+            ".o_dialog .modal-body .container .btn-primary:contains('This device')",
     };
 }
 export function CustomerDisplayHasQRButton() {
     return {
         isActive: ["desktop"],
         content: "Check that the customer display popup has a 'Display QR' button",
-        trigger: ".o_dialog .modal-body .container .btn-secondary:contains('Display QR')",
+        trigger:
+            ".o_dialog .modal-body .container .btn-secondary:contains('Display QR')",
     };
 }
 export function ClickCustomerDisplayThisDeviceButton() {

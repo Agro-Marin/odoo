@@ -4,12 +4,17 @@ import {
     openView,
     registerArchs,
     start,
-    startServer
+    startServer,
 } from "@mail/../tests/mail_test_helpers";
 import { defineMrpModels } from "@mrp/../tests/mrp_test_helpers";
 import { describe, test } from "@odoo/hoot";
 import { inputFiles } from "@web/../tests/utils";
-import { asyncStep, getService, patchWithCleanup, waitForSteps } from "@web/../tests/web_test_helpers";
+import {
+    asyncStep,
+    getService,
+    patchWithCleanup,
+    waitForSteps,
+} from "@web/../tests/web_test_helpers";
 import { fileUploadService } from "@web/services/file_upload_service";
 
 describe.current.tags("desktop");
@@ -36,7 +41,9 @@ test("MRP documents kanban basic rendering", async () => {
     await start();
     await openView({ res_model: "product.document", views: [[false, "kanban"]] });
     await contains("button[name='product_upload_document']");
-    await contains(".o_kanban_renderer .o_kanban_record:not(.o_kanban_ghost)", { count: 3 });
+    await contains(".o_kanban_renderer .o_kanban_record:not(.o_kanban_ghost)", {
+        count: 3,
+    });
     // check control panel buttons
     await contains(".o_control_panel_main_buttons .btn-primary", { text: "Upload" });
 });
@@ -60,7 +67,9 @@ test("mrp: upload multiple files", async () => {
     await start();
     await openView({ res_model: "product.document", views: [[false, "kanban"]] });
 
-    getService("file_upload").bus.addEventListener("FILE_UPLOAD_ADDED", () => asyncStep("xhrSend"));
+    getService("file_upload").bus.addEventListener("FILE_UPLOAD_ADDED", () =>
+        asyncStep("xhrSend"),
+    );
     await inputFiles(".o_control_panel_main_buttons .o_input_file", [text1]);
     await waitForSteps(["xhrSend"]);
     await inputFiles(".o_control_panel_main_buttons .o_input_file", [text2, text3]);

@@ -16,11 +16,46 @@ describe.current.tags("desktop");
 // server-side in real life; here they are static so the search mock is
 // deterministic. Two independent chains: Units (root "1") and grams (root "10").
 const UOM_ROWS = {
-    1: { id: 1, display_name: "Units", relative_factor: 1, factor: 1, relative_uom_id: false, parent_path: "1/" },
-    2: { id: 2, display_name: "Dozen", relative_factor: 12, factor: 12, relative_uom_id: [1, "Units"], parent_path: "1/2/" },
-    3: { id: 3, display_name: "Pack of 6", relative_factor: 6, factor: 6, relative_uom_id: [1, "Units"], parent_path: "1/3/" },
-    10: { id: 10, display_name: "g", relative_factor: 1, factor: 1, relative_uom_id: false, parent_path: "10/" },
-    11: { id: 11, display_name: "kg", relative_factor: 1000, factor: 1000, relative_uom_id: [10, "g"], parent_path: "10/11/" },
+    1: {
+        id: 1,
+        display_name: "Units",
+        relative_factor: 1,
+        factor: 1,
+        relative_uom_id: false,
+        parent_path: "1/",
+    },
+    2: {
+        id: 2,
+        display_name: "Dozen",
+        relative_factor: 12,
+        factor: 12,
+        relative_uom_id: [1, "Units"],
+        parent_path: "1/2/",
+    },
+    3: {
+        id: 3,
+        display_name: "Pack of 6",
+        relative_factor: 6,
+        factor: 6,
+        relative_uom_id: [1, "Units"],
+        parent_path: "1/3/",
+    },
+    10: {
+        id: 10,
+        display_name: "g",
+        relative_factor: 1,
+        factor: 1,
+        relative_uom_id: false,
+        parent_path: "10/",
+    },
+    11: {
+        id: 11,
+        display_name: "kg",
+        relative_factor: 1000,
+        factor: 1000,
+        relative_uom_id: [10, "g"],
+        parent_path: "10/11/",
+    },
 };
 const COMMON_ROOT_IDS = [1, 2, 3]; // share root "1/"
 const OTHER_IDS = [10, 11];
@@ -47,7 +82,9 @@ class UomUom extends models.Model {
         relative_factor: r.relative_factor,
         rounding: 0.01,
         parent_path: r.parent_path,
-        relative_uom_id: Array.isArray(r.relative_uom_id) ? r.relative_uom_id[0] : false,
+        relative_uom_id: Array.isArray(r.relative_uom_id)
+            ? r.relative_uom_id[0]
+            : false,
     }));
 }
 
@@ -131,7 +168,10 @@ test("many2one_uom: conversions shown relative to the product's unit", async () 
     ]);
     // Conversions only on convertible, non-reference units. qty is 7:
     // Dozen -> 7*12, Pack of 6 -> 7*6, both expressed in their parent (Units).
-    expect(queryAllTexts(".dropdown-menu li .text-muted")).toEqual(["84 Units", "42 Units"]);
+    expect(queryAllTexts(".dropdown-menu li .text-muted")).toEqual([
+        "84 Units",
+        "42 Units",
+    ]);
 
     // referenceUnit set -> exactly the common-root query and its negation.
     expect(searchDomains).toHaveLength(2);
@@ -147,7 +187,10 @@ test("many2one_uom: root unit converts into the product's reference unit", async
 
     await clickFieldDropdown("uom_id");
 
-    expect(queryAllTexts(".dropdown-menu li .text-muted")).toEqual(["0.58 Dozen", "42 Units"]);
+    expect(queryAllTexts(".dropdown-menu li .text-muted")).toEqual([
+        "0.58 Dozen",
+        "42 Units",
+    ]);
 });
 
 test("many2one_uom: no product falls back to a plain autocomplete", async () => {
@@ -181,5 +224,8 @@ test("many2many_uom_tags: reference-relative conversions in the tag autocomplete
 
     // Same reference-relative annotations as the many2one variant, proving the
     // product/qty getters are wired through the inherited tags template.
-    expect(queryAllTexts(".dropdown-menu li .text-muted")).toEqual(["84 Units", "42 Units"]);
+    expect(queryAllTexts(".dropdown-menu li .text-muted")).toEqual([
+        "84 Units",
+        "42 Units",
+    ]);
 });

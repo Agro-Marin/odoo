@@ -8,11 +8,10 @@ import {
     startServer,
     waitStoreFetch,
 } from "@mail/../tests/mail_test_helpers";
-import { describe, test } from "@odoo/hoot";
-import { Deferred, advanceTime } from "@odoo/hoot-mock";
-import { asyncStep, waitForSteps } from "@web/../tests/web_test_helpers";
-
 import { DELAY_FOR_SPINNER } from "@mail/chatter/web/web_chatter";
+import { describe, test } from "@odoo/hoot";
+import { advanceTime, Deferred } from "@odoo/hoot-mock";
+import { asyncStep, waitForSteps } from "@web/../tests/web_test_helpers";
 
 describe.current.tags("desktop");
 defineMailModels();
@@ -69,7 +68,9 @@ test("log note toggling", async () => {
     await contains(".o-mail-Composer", { count: 0 });
     await click("button", { text: "Log note" });
     await contains("button.active", { text: "Log note" });
-    await contains(".o-mail-Composer .o-mail-Composer-input[placeholder='Log an internal note…']");
+    await contains(
+        ".o-mail-Composer .o-mail-Composer-input[placeholder='Log an internal note…']",
+    );
     await click("button", { text: "Log note" });
     await contains("button:not(.active)", { text: "Log note" });
     await contains(".o-mail-Composer", { count: 0 });
@@ -84,7 +85,9 @@ test("send message toggling", async () => {
     await contains(".o-mail-Composer", { count: 0 });
     await click("button", { text: "Send message" });
     await contains("button.active", { text: "Send message" });
-    await contains(".o-mail-Composer-input[placeholder='Send a message to followers…']");
+    await contains(
+        ".o-mail-Composer-input[placeholder='Send a message to followers…']",
+    );
     await click("button", { text: "Send message" });
     await contains("button:not(.active)", { text: "Send message" });
     await contains(".o-mail-Composer", { count: 0 });
@@ -101,7 +104,9 @@ test("log note/send message switching", async () => {
     await click("button", { text: "Send message" });
     await contains("button.active", { text: "Send message" });
     await contains("button:not(.active)", { text: "Log note" });
-    await contains(".o-mail-Composer-input[placeholder='Send a message to followers…']");
+    await contains(
+        ".o-mail-Composer-input[placeholder='Send a message to followers…']",
+    );
     await click("button", { text: "Log note" });
     await contains("button:not(.active)", { text: "Send message" });
     await contains("button.active", { text: "Log note" });

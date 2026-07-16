@@ -1,6 +1,12 @@
 import { defineMailModels } from "@mail/../tests/mail_test_helpers";
 import { expect, test } from "@odoo/hoot";
-import { contains, defineModels, fields, models, mountView } from "@web/../tests/web_test_helpers";
+import {
+    contains,
+    defineModels,
+    fields,
+    models,
+    mountView,
+} from "@web/../tests/web_test_helpers";
 
 class Quant extends models.Model {
     quantity = fields.Float();

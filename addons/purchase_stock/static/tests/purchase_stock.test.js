@@ -1,7 +1,13 @@
 import { defineMailModels } from "@mail/../tests/mail_test_helpers";
 import { describe, destroy, expect, test } from "@odoo/hoot";
 import { mockDate } from "@odoo/hoot-mock";
-import { contains, defineModels, fields, models, mountView } from "@web/../tests/web_test_helpers";
+import {
+    contains,
+    defineModels,
+    fields,
+    models,
+    mountView,
+} from "@web/../tests/web_test_helpers";
 
 class PurchaseOrderSuggest extends models.Model {
     _name = "purchase.order.suggest";
@@ -41,10 +47,18 @@ describe("time_period_selection field", () => {
             resModel: "purchase.order.suggest",
         });
         await contains(".o_field_widget[name='based_on'] input").click();
-        expect(".o_select_menu_menu .o_select_menu_item:nth-last-child(4)").toHaveText("November 2024");
-        expect(".o_select_menu_menu .o_select_menu_item:nth-last-child(3)").toHaveText("December 2024");
-        expect(".o_select_menu_menu .o_select_menu_item:nth-last-child(2)").toHaveText("January 2025");
-        expect(".o_select_menu_menu .o_select_menu_item:last-child").toHaveText("Nov 2024-Jan 2025");
+        expect(".o_select_menu_menu .o_select_menu_item:nth-last-child(4)").toHaveText(
+            "November 2024",
+        );
+        expect(".o_select_menu_menu .o_select_menu_item:nth-last-child(3)").toHaveText(
+            "December 2024",
+        );
+        expect(".o_select_menu_menu .o_select_menu_item:nth-last-child(2)").toHaveText(
+            "January 2025",
+        );
+        expect(".o_select_menu_menu .o_select_menu_item:last-child").toHaveText(
+            "Nov 2024-Jan 2025",
+        );
         destroy(view);
         // Check for a different date.
         mockDate("2020-03-20 07:00:00");
@@ -53,9 +67,17 @@ describe("time_period_selection field", () => {
             resModel: "purchase.order.suggest",
         });
         await contains(".o_field_widget[name='based_on'] input").click();
-        expect(".o_select_menu_menu .o_select_menu_item:nth-last-child(4)").toHaveText("March 2019");
-        expect(".o_select_menu_menu .o_select_menu_item:nth-last-child(3)").toHaveText("April 2019");
-        expect(".o_select_menu_menu .o_select_menu_item:nth-last-child(2)").toHaveText("May 2019");
-        expect(".o_select_menu_menu .o_select_menu_item:last-child").toHaveText("Mar-May 2019");
+        expect(".o_select_menu_menu .o_select_menu_item:nth-last-child(4)").toHaveText(
+            "March 2019",
+        );
+        expect(".o_select_menu_menu .o_select_menu_item:nth-last-child(3)").toHaveText(
+            "April 2019",
+        );
+        expect(".o_select_menu_menu .o_select_menu_item:nth-last-child(2)").toHaveText(
+            "May 2019",
+        );
+        expect(".o_select_menu_menu .o_select_menu_item:last-child").toHaveText(
+            "Mar-May 2019",
+        );
     });
 });

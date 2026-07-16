@@ -1,17 +1,17 @@
 /* global posmodel */
 
-import { registry } from "@web/core/registry";
-import * as ProductScreen from "@point_of_sale/../tests/pos/tours/utils/product_screen_util";
-import * as Numpad from "@point_of_sale/../tests/generic_helpers/numpad_util";
-import * as Order from "@point_of_sale/../tests/generic_helpers/order_widget_util";
 import * as Dialog from "@point_of_sale/../tests/generic_helpers/dialog_util";
-import * as Pricelist from "@point_of_sale/../tests/pos/tours/utils/pricelist_util";
-import * as Chrome from "@point_of_sale/../tests/pos/tours/utils/chrome_util";
+import * as Numpad from "@point_of_sale/../tests/generic_helpers/numpad_util";
 import * as OfflineUtil from "@point_of_sale/../tests/generic_helpers/offline_util";
-import * as ProductConfigurator from "@point_of_sale/../tests/pos/tours/utils/product_configurator_util";
-import * as PaymentScreen from "@point_of_sale/../tests/pos/tours/utils/payment_screen_util";
-import * as ReceiptScreen from "@point_of_sale/../tests/pos/tours/utils/receipt_screen_util";
+import * as Order from "@point_of_sale/../tests/generic_helpers/order_widget_util";
 import { refresh, scan_barcode } from "@point_of_sale/../tests/generic_helpers/utils";
+import * as Chrome from "@point_of_sale/../tests/pos/tours/utils/chrome_util";
+import * as PaymentScreen from "@point_of_sale/../tests/pos/tours/utils/payment_screen_util";
+import * as Pricelist from "@point_of_sale/../tests/pos/tours/utils/pricelist_util";
+import * as ProductConfigurator from "@point_of_sale/../tests/pos/tours/utils/product_configurator_util";
+import * as ProductScreen from "@point_of_sale/../tests/pos/tours/utils/product_screen_util";
+import * as ReceiptScreen from "@point_of_sale/../tests/pos/tours/utils/receipt_screen_util";
+import { registry } from "@web/core/registry";
 
 registry.category("web_tour.tours").add("pos_pricelist", {
     steps: () =>
@@ -42,7 +42,11 @@ registry.category("web_tour.tours").add("pos_pricelist", {
             Numpad.click("Price"),
             Numpad.isActive("Price"),
             Numpad.click("5"),
-            ...Order.hasLine({ productName: "Small Shelf", price: "5.0", withClass: ".selected" }),
+            ...Order.hasLine({
+                productName: "Small Shelf",
+                price: "5.0",
+                withClass: ".selected",
+            }),
             Numpad.click("Qty"),
             Numpad.isActive("Qty"),
             { ...ProductScreen.back(), isActive: ["mobile"] },
@@ -129,7 +133,7 @@ const test_pricelists_in_pos_steps = [
         trigger: "body",
         run: () => {
             const productTemplate = posmodel.models["product.template"].find(
-                (p) => p.name === "Cherry"
+                (p) => p.name === "Cherry",
             );
 
             posmodel.addLineToCurrentOrder({

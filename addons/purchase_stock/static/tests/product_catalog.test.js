@@ -1,7 +1,13 @@
-import { expect, test, runAllTimers } from "@odoo/hoot";
-import { click } from "@odoo/hoot-dom";
-import { defineModels, fields, models, mountView, onRpc } from "@web/../tests/web_test_helpers";
 import { defineMailModels } from "@mail/../tests/mail_test_helpers";
+import { expect, runAllTimers, test } from "@odoo/hoot";
+import { click } from "@odoo/hoot-dom";
+import {
+    defineModels,
+    fields,
+    models,
+    mountView,
+    onRpc,
+} from "@web/../tests/web_test_helpers";
 
 class ProductProduct extends models.Model {
     _name = "product.product";
@@ -111,36 +117,48 @@ test("Adding products from purchase catalog with suggestion feature ON.", async 
     // ---- 1: Test adding product without suggested qty
     await click(".o_kanban_record:nth-of-type(1) button:has(i.fa-shopping-cart)");
     await runAllTimers(); // for skipping the debounce delay
-    expect(".o_kanban_record:nth-of-type(1) .o_product_catalog_quantity .o_input").toHaveValue(1);
+    expect(
+        ".o_kanban_record:nth-of-type(1) .o_product_catalog_quantity .o_input",
+    ).toHaveValue(1);
 
     // ---- 2: Test adding product with suggested qty
     expect(
-        ".o_kanban_record:nth-of-type(2) div[name='kanban_purchase_suggest'] span:visible:contains('10')"
+        ".o_kanban_record:nth-of-type(2) div[name='kanban_purchase_suggest'] span:visible:contains('10')",
     ).toHaveCount(1, { message: "Suggested qty div should be visible on card #2" });
     await click(".o_kanban_record:nth-of-type(2) button:has(i.fa-shopping-cart)");
     await runAllTimers(); // for skipping the debounce delay
-    expect(".o_kanban_record:nth-of-type(2) .o_product_catalog_quantity .o_input").toHaveValue(10);
     expect(
-        ".o_kanban_record:nth-of-type(2) div[name='kanban_purchase_suggest'] span:visible:contains('10')"
-    ).toHaveCount(0, { message: "Div should be invisible now that suggested_qty == qty" });
+        ".o_kanban_record:nth-of-type(2) .o_product_catalog_quantity .o_input",
+    ).toHaveValue(10);
+    expect(
+        ".o_kanban_record:nth-of-type(2) div[name='kanban_purchase_suggest'] span:visible:contains('10')",
+    ).toHaveCount(0, {
+        message: "Div should be invisible now that suggested_qty == qty",
+    });
 
     // ---- 3: Test adding one more of product with suggested qty
     await click(".o_kanban_record:nth-of-type(2)");
     await runAllTimers(); // for skipping the debounce delay
-    expect(".o_kanban_record:nth-of-type(2) .o_product_catalog_quantity .o_input").toHaveValue(11);
     expect(
-        ".o_kanban_record:nth-of-type(2) div[name='kanban_purchase_suggest'] span:visible:contains('10')"
+        ".o_kanban_record:nth-of-type(2) .o_product_catalog_quantity .o_input",
+    ).toHaveValue(11);
+    expect(
+        ".o_kanban_record:nth-of-type(2) div[name='kanban_purchase_suggest'] span:visible:contains('10')",
     ).toHaveCount(1, { message: "Suggested qty div should be visible again" });
 
     // ---- 4: Test adding product with suggested qty < min_qty
     await click(".o_kanban_record:nth-of-type(3)");
     await runAllTimers(); // for skipping the debounce delay
-    expect(".o_kanban_record:nth-of-type(3) .o_product_catalog_quantity .o_input").toHaveValue(5); // Should use min_qty not suggested_qty
+    expect(
+        ".o_kanban_record:nth-of-type(3) .o_product_catalog_quantity .o_input",
+    ).toHaveValue(5); // Should use min_qty not suggested_qty
 
     // ---- 5: Test adding product with min_qty = 0
     await click(".o_kanban_record:nth-of-type(4)");
     await runAllTimers(); // for skipping the debounce delay
-    expect(".o_kanban_record:nth-of-type(4) .o_product_catalog_quantity .o_input").toHaveValue(1); // Should add 1 not 0
+    expect(
+        ".o_kanban_record:nth-of-type(4) .o_product_catalog_quantity .o_input",
+    ).toHaveValue(1); // Should add 1 not 0
 
     expect.verifySteps([
         "product_id=1 quantity=1",

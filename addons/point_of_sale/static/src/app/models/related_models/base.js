@@ -1,7 +1,7 @@
 /** @odoo-module native */
-import { luxon } from "@web/core/l10n/luxon";
 import { toRaw } from "@odoo/owl";
 import { WithLazyGetterTrap } from "@point_of_sale/lazy_getter";
+import { luxon } from "@web/core/l10n/luxon";
 
 import { clone, deepImmutable, RAW_SYMBOL } from "./utils.js";
 const { DateTime } = luxon;

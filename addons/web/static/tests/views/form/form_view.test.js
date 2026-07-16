@@ -1958,7 +1958,7 @@ test.tags("desktop");
 test(`readonly stat buttons stays disabled on desktop`, async () => {
     mockService("action", {
         async doActionButton(params) {
-            if (params.name == "action_to_perform") {
+            if (params.name === "action_to_perform") {
                 expect.step("action_to_perform");
                 expect(`button.oe_stat_button[disabled]`).toHaveCount(2, {
                     message:
@@ -2004,7 +2004,7 @@ test.tags("mobile");
 test(`readonly stat buttons stays disabled on mobile`, async () => {
     mockService("action", {
         async doActionButton(params) {
-            if (params.name == "action_to_perform") {
+            if (params.name === "action_to_perform") {
                 expect.step("action_to_perform");
             }
         },

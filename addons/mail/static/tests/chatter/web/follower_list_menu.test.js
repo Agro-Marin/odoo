@@ -9,7 +9,12 @@ import {
 } from "@mail/../tests/mail_test_helpers";
 import { describe, expect, test } from "@odoo/hoot";
 import { tick } from "@odoo/hoot-dom";
-import { asyncStep, mockService, serverState, waitForSteps } from "@web/../tests/web_test_helpers";
+import {
+    asyncStep,
+    mockService,
+    serverState,
+    waitForSteps,
+} from "@web/../tests/web_test_helpers";
 
 describe.current.tags("desktop");
 defineMailModels();
@@ -114,7 +119,10 @@ test("click on remove follower", async () => {
 test("Load 100 followers at once", async () => {
     const pyEnv = await startServer();
     const partnerIds = pyEnv["res.partner"].create(
-        [...Array(210).keys()].map((i) => ({ display_name: `Partner${i}`, name: `Partner${i}` }))
+        [...Array(210).keys()].map((i) => ({
+            display_name: `Partner${i}`,
+            name: `Partner${i}`,
+        })),
     );
     pyEnv["mail.followers"].create(
         [...Array(210).keys()].map((i) => ({
@@ -122,7 +130,7 @@ test("Load 100 followers at once", async () => {
             partner_id: i === 0 ? serverState.partnerId : partnerIds[i],
             res_id: partnerIds[0],
             res_model: "res.partner",
-        }))
+        })),
     );
     await start();
     await openFormView("res.partner", partnerIds[0]);
@@ -145,7 +153,7 @@ test("Load 100 recipients at once", async () => {
             display_name: `Partner${i}`,
             name: `Partner${i}`,
             email: `partner${i}@example.com`,
-        }))
+        })),
     );
     pyEnv["mail.followers"].create(
         [...Array(210).keys()].map((i) => ({
@@ -153,7 +161,7 @@ test("Load 100 recipients at once", async () => {
             partner_id: i === 0 ? serverState.partnerId : partnerIds[i],
             res_id: partnerIds[0],
             res_model: "res.partner",
-        }))
+        })),
     );
     await start();
     await openFormView("res.partner", partnerIds[0]);

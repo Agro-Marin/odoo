@@ -1,12 +1,12 @@
 /** @odoo-module native */
 import { ActionList } from "@mail/core/common/action_list";
-import { handleValidChannelMention } from "@mail/core/common/message_post";
 import { AttachmentList } from "@mail/core/common/attachment_list";
 import { Composer } from "@mail/core/common/composer";
 import { ImStatus } from "@mail/core/common/im_status";
 import { MessageInReply } from "@mail/core/common/message_in_reply";
 import { MessageLinkPreviewList } from "@mail/core/common/message_link_preview_list";
 import { MessageNotificationPopover } from "@mail/core/common/message_notification_popover";
+import { handleValidChannelMention } from "@mail/core/common/message_post";
 import { MessageReactionMenu } from "@mail/core/common/message_reaction_menu";
 import { MessageReactions } from "@mail/core/common/message_reactions";
 import { RelativeTime } from "@mail/core/common/relative_time";

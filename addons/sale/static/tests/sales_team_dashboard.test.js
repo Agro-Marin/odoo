@@ -33,7 +33,7 @@ test("edit progressbar target", async () => {
                     type: "ir.actions.act_window",
                     method: "get_formview_action",
                 },
-                { message: "should trigger do_action with the correct args" }
+                { message: "should trigger do_action with the correct args" },
             );
             expect.step("doAction");
             return true;
@@ -63,7 +63,7 @@ test("edit progressbar target", async () => {
     });
 
     expect(
-        ".o_field_sales_team_progressbar:contains(Click to define an invoicing target)"
+        ".o_field_sales_team_progressbar:contains(Click to define an invoicing target)",
     ).toHaveCount(1);
     expect(".o_progressbar input").toHaveCount(0);
 

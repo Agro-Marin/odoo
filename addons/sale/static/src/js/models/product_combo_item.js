@@ -1,5 +1,5 @@
 /** @odoo-module native */
-import { ProductProduct } from './product_product.js';
+import { ProductProduct } from "./product_product.js";
 
 export class ProductComboItem {
     /**
@@ -10,7 +10,14 @@ export class ProductComboItem {
      * @param {boolean} is_configurable
      * @param {ProductProduct|object} product
      */
-    constructor({id, extra_price, is_preselected, is_selected, is_configurable, product}) {
+    constructor({
+        id,
+        extra_price,
+        is_preselected,
+        is_selected,
+        is_configurable,
+        product,
+    }) {
         this.id = id;
         this.extra_price = extra_price;
         this.is_preselected = is_preselected;

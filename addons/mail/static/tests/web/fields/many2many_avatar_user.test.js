@@ -38,13 +38,23 @@ test("many2many_avatar_user in kanban view", async () => {
             </kanban>
         `,
     });
-    expect(".o_kanban_record .o_field_many2many_avatar_user .o_m2m_avatar_empty").toHaveText("+2");
+    expect(
+        ".o_kanban_record .o_field_many2many_avatar_user .o_m2m_avatar_empty",
+    ).toHaveText("+2");
     await click(".o_kanban_record .o_field_many2many_avatar_user .o_quick_assign");
     await contains(".o_popover > .o_field_tags > .o_tag", { count: 4 });
-    await contains(".o_popover > .o_field_tags > :nth-child(1 of .o_tag)", { text: "Tapu" });
-    await contains(".o_popover > .o_field_tags > :nth-child(2 of .o_tag)", { text: "Luigi" });
-    await contains(".o_popover > .o_field_tags > :nth-child(3 of .o_tag)", { text: "Yoshi" });
-    await contains(".o_popover > .o_field_tags > :nth-child(4 of .o_tag)", { text: "Mario" });
+    await contains(".o_popover > .o_field_tags > :nth-child(1 of .o_tag)", {
+        text: "Tapu",
+    });
+    await contains(".o_popover > .o_field_tags > :nth-child(2 of .o_tag)", {
+        text: "Luigi",
+    });
+    await contains(".o_popover > .o_field_tags > :nth-child(3 of .o_tag)", {
+        text: "Yoshi",
+    });
+    await contains(".o_popover > .o_field_tags > :nth-child(4 of .o_tag)", {
+        text: "Mario",
+    });
 });
 
 test('many2one_avatar_user widget edited by the smart action "Assign to..."', async () => {
@@ -81,7 +91,9 @@ test('many2many_avatar_user widget edited by the smart action "Assign to..."', a
         { partner_id: pyEnv["res.partner"].create({ name: "Yoshi" }) },
         { partner_id: pyEnv["res.partner"].create({ name: "Luigi" }) },
     ]);
-    const m2xAvatarUserId1 = pyEnv["m2x.avatar.user"].create({ user_ids: [userId_1, userId_2] });
+    const m2xAvatarUserId1 = pyEnv["m2x.avatar.user"].create({
+        user_ids: [userId_1, userId_2],
+    });
     await start();
     await openFormView("m2x.avatar.user", m2xAvatarUserId1, {
         arch: "<form><field name='user_ids' widget='many2many_avatar_user'/></form>",
@@ -160,12 +172,18 @@ test('many2one_avatar_user widget edited by the smart action "Assign to me" in l
     await openListView("m2x.avatar.user", {
         arch: "<list multi_edit='1'><field name='user_id' widget='many2one_avatar_user'/></list>",
     });
-    await contains(":nth-child(1 of .o_data_row) .o_field_many2one_avatar_user .o_many2one", {
-        text: "Luigi",
-    });
-    await contains(":nth-child(2 of .o_data_row) .o_field_many2one_avatar_user .o_many2one", {
-        text: "Mario",
-    });
+    await contains(
+        ":nth-child(1 of .o_data_row) .o_field_many2one_avatar_user .o_many2one",
+        {
+            text: "Luigi",
+        },
+    );
+    await contains(
+        ":nth-child(2 of .o_data_row) .o_field_many2one_avatar_user .o_many2one",
+        {
+            text: "Mario",
+        },
+    );
     // Select all
     await click(".o_list_table > thead .o_list_controller input");
     await triggerHotkey("control+k");
@@ -176,12 +194,18 @@ test('many2one_avatar_user widget edited by the smart action "Assign to me" in l
     await contains(".o_dialog");
     // Cancel
     await click(".o_dialog .modal-footer button:nth-child(2)");
-    await contains(":nth-child(1 of .o_data_row) .o_field_many2one_avatar_user .o_many2one", {
-        text: "Luigi",
-    });
-    await contains(":nth-child(2 of .o_data_row) .o_field_many2one_avatar_user .o_many2one", {
-        text: "Mario",
-    });
+    await contains(
+        ":nth-child(1 of .o_data_row) .o_field_many2one_avatar_user .o_many2one",
+        {
+            text: "Luigi",
+        },
+    );
+    await contains(
+        ":nth-child(2 of .o_data_row) .o_field_many2one_avatar_user .o_many2one",
+        {
+            text: "Mario",
+        },
+    );
     // Assign me
     await triggerHotkey("alt+shift+i");
     // Multi-edit confirmation dialog
@@ -189,12 +213,18 @@ test('many2one_avatar_user widget edited by the smart action "Assign to me" in l
     // Confirm
     await click(".o_dialog .modal-footer button:nth-child(1)");
     await contains(".o_dialog", { count: 0 });
-    await contains(":nth-child(1 of .o_data_row) .o_field_many2one_avatar_user .o_many2one", {
-        text: "Mitchell Admin",
-    });
-    await contains(":nth-child(2 of .o_data_row) .o_field_many2one_avatar_user .o_many2one", {
-        text: "Mitchell Admin",
-    });
+    await contains(
+        ":nth-child(1 of .o_data_row) .o_field_many2one_avatar_user .o_many2one",
+        {
+            text: "Mitchell Admin",
+        },
+    );
+    await contains(
+        ":nth-child(2 of .o_data_row) .o_field_many2one_avatar_user .o_many2one",
+        {
+            text: "Mitchell Admin",
+        },
+    );
     // Unassign me
     await triggerHotkey("alt+shift+u");
     // Multi-edit confirmation dialog
@@ -227,7 +257,9 @@ test('many2many_avatar_user widget edited by the smart action "Assign to me"', a
     await contains(".o_tag_badge_text", { count: 3 });
     await contains(":nth-child(1 of .o_tag) .o_tag_badge_text", { text: "Mario" });
     await contains(":nth-child(2 of .o_tag) .o_tag_badge_text", { text: "Yoshi" });
-    await contains(":nth-child(3 of .o_tag) .o_tag_badge_text", { text: "Mitchell Admin" });
+    await contains(":nth-child(3 of .o_tag) .o_tag_badge_text", {
+        text: "Mitchell Admin",
+    });
     // Unassign me
     triggerHotkey("control+k");
     await contains(".o_command", { text: "Unassign from meALT + SHIFT + I" });
@@ -249,7 +281,9 @@ test("avatar_user widget displays the appropriate user image in list view", asyn
         arch: "<list><field name='user_id' widget='many2one_avatar_user'/></list>",
     });
 
-    await contains(`.o_m2o_avatar > img[data-src="/web/image/res.users/${userId}/avatar_128"]`);
+    await contains(
+        `.o_m2o_avatar > img[data-src="/web/image/res.users/${userId}/avatar_128"]`,
+    );
 });
 
 test("avatar_user widget displays the appropriate user image in kanban view", async () => {
@@ -272,7 +306,9 @@ test("avatar_user widget displays the appropriate user image in kanban view", as
     // NOTE: upstream calls start() a second time here; that mounts a second
     // WebClient which re-renders the same kanban action (restored from the
     // router state) and makes the expected avatar count race-dependent.
-    await contains(`.o_m2o_avatar > img[data-src="/web/image/res.users/${userId}/avatar_128"]`);
+    await contains(
+        `.o_m2o_avatar > img[data-src="/web/image/res.users/${userId}/avatar_128"]`,
+    );
 });
 
 test("avatar card preview", async () => {
@@ -287,7 +323,7 @@ test("avatar card preview", async () => {
                 };
             },
         },
-        { force: true }
+        { force: true },
     );
     const pyEnv = await startServer();
     const userId = pyEnv["res.users"].create({
@@ -335,7 +371,7 @@ test("avatar card preview (partner_id field)", async () => {
                 };
             },
         },
-        { force: true }
+        { force: true },
     );
     const pyEnv = await startServer();
     const userId = pyEnv["res.users"].create({
@@ -383,7 +419,7 @@ test("avatar_user widget displays the appropriate user image in form view", asyn
         arch: "<form><field name='user_ids' widget='many2many_avatar_user'/></form>",
     });
     await contains(
-        `.o_field_many2many_avatar_user.o_field_widget .o_avatar img[data-src="${getOrigin()}/web/image/res.users/${userId}/avatar_128"]`
+        `.o_field_many2many_avatar_user.o_field_widget .o_avatar img[data-src="${getOrigin()}/web/image/res.users/${userId}/avatar_128"]`,
     );
 });
 

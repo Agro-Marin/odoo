@@ -48,7 +48,9 @@ export function patchBrowserLocation() {
     }
     Object.defineProperty(browserModule.browser, "location", {
         get: () => mockLocation,
-        set: (value) => (mockLocation.href = value),
+        set: (value) => {
+            mockLocation.href = value;
+        },
         configurable: true,
     });
     Object.defineProperty(browserModule.browser, "history", {

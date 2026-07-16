@@ -1,3 +1,19 @@
+import {
+    click,
+    contains,
+    defineMailModels,
+    insertText,
+    isInViewportOf,
+    onRpcBefore,
+    openDiscuss,
+    openFormView,
+    patchUiSize,
+    scroll,
+    SIZES,
+    start,
+    startServer,
+} from "@mail/../tests/mail_test_helpers";
+import { PRESENT_VIEWPORT_THRESHOLD, Thread } from "@mail/core/common/thread";
 import { describe, expect, test } from "@odoo/hoot";
 import {
     advanceTime,
@@ -13,23 +29,6 @@ import {
     serverState,
     waitForSteps,
 } from "@web/../tests/web_test_helpers";
-
-import {
-    SIZES,
-    click,
-    contains,
-    defineMailModels,
-    insertText,
-    isInViewportOf,
-    onRpcBefore,
-    openDiscuss,
-    openFormView,
-    patchUiSize,
-    scroll,
-    start,
-    startServer,
-} from "@mail/../tests/mail_test_helpers";
-import { PRESENT_VIEWPORT_THRESHOLD, Thread } from "@mail/core/common/thread";
 
 describe.current.tags("desktop");
 defineMailModels();
@@ -50,8 +49,9 @@ test("Basic jump to present when scrolling to outdated messages", async () => {
     await contains(".o-mail-Message", { count: 20 });
     await contains(".o-mail-Thread");
     expect(document.querySelector(".o-mail-Thread").scrollHeight).toBeGreaterThan(
-        PRESENT_VIEWPORT_THRESHOLD * document.querySelector(".o-mail-Thread").clientHeight,
-        { message: "should have enough scroll height to trigger jump to present" }
+        PRESENT_VIEWPORT_THRESHOLD *
+            document.querySelector(".o-mail-Thread").clientHeight,
+        { message: "should have enough scroll height to trigger jump to present" },
     );
     await click("[title='Jump to Present']");
     await contains("[title='Jump to Present']", { count: 0 });
@@ -132,8 +132,9 @@ test("Basic jump to present when scrolling to outdated messages (DESC, chatter a
     await contains(".o-mail-Message", { count: 20 });
     await contains(".o-mail-Thread");
     expect(document.querySelector(".o-mail-Chatter").scrollHeight).toBeGreaterThan(
-        PRESENT_VIEWPORT_THRESHOLD * document.querySelector(".o-mail-Chatter").clientHeight,
-        { message: "should have enough scroll height to trigger jump to present" }
+        PRESENT_VIEWPORT_THRESHOLD *
+            document.querySelector(".o-mail-Chatter").clientHeight,
+        { message: "should have enough scroll height to trigger jump to present" },
     );
     await contains(".o-mail-Chatter", { scroll: 0 });
     await scroll(".o-mail-Chatter", "bottom");
@@ -161,7 +162,7 @@ test("Basic jump to present when scrolling to outdated messages (DESC, chatter n
     await contains(".o_content");
     expect(document.querySelector(".o_content").scrollHeight).toBeGreaterThan(
         PRESENT_VIEWPORT_THRESHOLD * document.querySelector(".o_content").clientHeight,
-        { message: "should have enough scroll height to trigger jump to present" }
+        { message: "should have enough scroll height to trigger jump to present" },
     );
     await contains(".o_content", { scroll: 0 });
     await scroll(".o_content", "bottom");
@@ -352,7 +353,10 @@ test("when triggering jump to present, keeps showing old messages until recent o
     await waitForSteps(["/discuss/channel/messages"]);
     await contains(".o-mail-Thread .o-mail-Message", { text: "first-message" });
     slowMessageFetchDeferred.resolve();
-    await contains(".o-mail-Thread .o-mail-Message", { text: "first-message", count: 0 });
+    await contains(".o-mail-Thread .o-mail-Message", {
+        text: "first-message",
+        count: 0,
+    });
     await contains(".o-mail-Thread", { scroll: "bottom" });
 });
 
@@ -365,7 +369,7 @@ test("focus composer after jump to present", async () => {
             message_type: "comment",
             model: "discuss.channel",
             res_id: channelId,
-        }))
+        })),
     );
     await start();
     await openDiscuss(channelId);

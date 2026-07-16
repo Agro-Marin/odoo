@@ -1,13 +1,16 @@
-import { luxon } from "@web/core/l10n/luxon";
+import * as Dialog from "@point_of_sale/../tests/generic_helpers/dialog_util";
 import * as Numpad from "@point_of_sale/../tests/generic_helpers/numpad_util";
 import * as Order from "@point_of_sale/../tests/generic_helpers/order_widget_util";
-import { back as utilsBack, inLeftSide } from "@point_of_sale/../tests/pos/tours/utils/common";
-import * as PartnerList from "@point_of_sale/../tests/pos/tours/utils/partner_list_util";
 import * as TextInputPopup from "@point_of_sale/../tests/generic_helpers/text_input_popup_util";
-import * as Dialog from "@point_of_sale/../tests/generic_helpers/dialog_util";
 import * as Chrome from "@point_of_sale/../tests/pos/tours/utils/chrome_util";
-import { LONG_PRESS_DURATION } from "@point_of_sale/utils";
+import {
+    back as utilsBack,
+    inLeftSide,
+} from "@point_of_sale/../tests/pos/tours/utils/common";
+import * as PartnerList from "@point_of_sale/../tests/pos/tours/utils/partner_list_util";
 import * as PaymentScreen from "@point_of_sale/../tests/pos/tours/utils/payment_screen_util";
+import { LONG_PRESS_DURATION } from "@point_of_sale/utils";
+import { luxon } from "@web/core/l10n/luxon";
 
 export function firstProductIsFavorite(name) {
     return [
@@ -76,7 +79,7 @@ export function checkFloatingOrderCount(expectedCount) {
                 const btns = document.querySelectorAll(".list-container-items .btn");
                 if (btns.length !== expectedCount) {
                     throw new Error(
-                        `Expected ${expectedCount} floating order buttons, found ${btns.length}`
+                        `Expected ${expectedCount} floating order buttons, found ${btns.length}`,
                     );
                 }
             },
@@ -118,7 +121,7 @@ export function clickDisplayedProduct(
     name,
     isCheckNeed = false,
     nextQuantity = null,
-    nextPrice = null
+    nextPrice = null,
 ) {
     const step = [
         {
@@ -328,7 +331,11 @@ export function clickInternalNoteButton(buttonLabel) {
  * // Select a price list named "Discount Rate" after verifying that "Discount Rate" is selected
  * clickPriceList("Discount Rate", true);
  */
-export function clickPriceList(name, isCheckNeedSelectedBeforeClick = false, nameToCheck = null) {
+export function clickPriceList(
+    name,
+    isCheckNeedSelectedBeforeClick = false,
+    nameToCheck = null,
+) {
     const step = [
         ...clickControlButtonMore(),
         {
@@ -403,7 +410,7 @@ export function clickFiscalPosition(name, checkIsNeeded = false) {
                 content: "cancel dialog",
                 trigger: ".modal .modal-header button[aria-label='Close']",
                 run: "click",
-            }
+            },
         );
     }
 
@@ -495,12 +502,13 @@ export function enterLotNumber(number, tracking = "serial", click = false) {
             run: "edit " + number,
         },
         {
-            trigger: ".o-autocomplete--dropdown-item a:contains('Create Lot/Serial number...')",
+            trigger:
+                ".o-autocomplete--dropdown-item a:contains('Create Lot/Serial number...')",
         },
         {
             trigger: ".o-autocomplete input",
             run: "press Enter",
-        }
+        },
     );
     if (tracking === "serial") {
         steps.push(...serialCheckStep(number));
@@ -532,7 +540,7 @@ export function enterExistingLotNumber(number, tracking = "serial") {
         {
             trigger: ".o-autocomplete input",
             run: "press Enter",
-        }
+        },
     );
     if (tracking === "serial") {
         steps.push(...serialCheckStep(number));
@@ -556,7 +564,8 @@ export function enterLotNumbers(numbers) {
                 run: "edit " + lot,
             },
             {
-                trigger: ".o-autocomplete--dropdown-item a:contains('Create Lot/Serial number...')",
+                trigger:
+                    ".o-autocomplete--dropdown-item a:contains('Create Lot/Serial number...')",
             },
             {
                 trigger: ".o-autocomplete input",
@@ -568,7 +577,7 @@ export function enterLotNumbers(numbers) {
             },
             {
                 trigger: ".o-autocomplete input:value()",
-            }
+            },
         );
     }
     steps.push(Dialog.confirm());
@@ -599,7 +608,7 @@ export function enterExistingLotNumbers(numbers) {
             },
             {
                 trigger: ".o-autocomplete input:value()",
-            }
+            },
         );
     }
     steps.push(Dialog.confirm());
@@ -622,7 +631,7 @@ export function selectedOrderlineHas(productName, quantity, price, attributeLine
             quantity,
             price,
             attributeLine,
-        })
+        }),
     );
 }
 export function selectedOrderlineHasDirect(productName, quantity, price) {
@@ -633,7 +642,12 @@ export function selectedOrderlineHasDirect(productName, quantity, price) {
         price,
     });
 }
-export function orderComboLineHas(productName, quantity, priceUnit, attributeLine = "") {
+export function orderComboLineHas(
+    productName,
+    quantity,
+    priceUnit,
+    attributeLine = "",
+) {
     return Order.hasLine({
         productName,
         quantity,
@@ -755,7 +769,7 @@ export function addOrderline(productName, quantity = 1, unitPrice, expectedTotal
                 numpadWrite(unitPrice),
                 Numpad.click("Qty"),
                 Numpad.isActive("Qty"),
-            ].flat()
+            ].flat(),
         );
     }
     if (quantity.toString() !== "1") {
@@ -786,10 +800,12 @@ export function checkOrderlinesNumber(number) {
             trigger: `.order-container .orderline`,
             run: () => {
                 const orderline_amount = document.querySelectorAll(
-                    ".order-container .orderline"
+                    ".order-container .orderline",
                 ).length;
                 if (orderline_amount !== number) {
-                    throw new Error(`Expected ${number} orderlines, got ${orderline_amount}`);
+                    throw new Error(
+                        `Expected ${number} orderlines, got ${orderline_amount}`,
+                    );
                 }
             },
         },
@@ -819,7 +835,8 @@ export function finishOrder() {
         {
             isActive: ["mobile"],
             content: "Click Next Order",
-            trigger: ".receipt-screen .btn-switchpane.validation-button.highlight[name='done']",
+            trigger:
+                ".receipt-screen .btn-switchpane.validation-button.highlight[name='done']",
             run: "click",
         },
         {
@@ -842,7 +859,9 @@ export function checkRoundingAmountIsNotThere() {
             trigger: ".order-summary",
             run: function () {
                 if (document.querySelector(".rounding")) {
-                    throw new Error("A rounding amount has been found in order display.");
+                    throw new Error(
+                        "A rounding amount has been found in order display.",
+                    );
                 }
             },
         },
@@ -991,7 +1010,9 @@ export function longPressProduct(productName) {
                 const mouseDown = new MouseEvent("mousedown", { bubbles: true });
                 const mouseUp = new MouseEvent("mouseup", { bubbles: true });
                 el.anchor.dispatchEvent(mouseDown);
-                await new Promise((resolve) => setTimeout(resolve, LONG_PRESS_DURATION + 50));
+                await new Promise((resolve) =>
+                    setTimeout(resolve, LONG_PRESS_DURATION + 50),
+                );
                 el.anchor.dispatchEvent(mouseUp);
             },
         },
@@ -1031,7 +1052,9 @@ export function longPressOrderline(productName, delay = 500) {
             run: async ({ queryFirst }) => {
                 const el = queryFirst`.order-container .orderline:has(.product-name:contains("${productName}"))`;
                 if (!el) {
-                    throw new Error(`Orderline with product '${productName}' not found`);
+                    throw new Error(
+                        `Orderline with product '${productName}' not found`,
+                    );
                 }
                 el.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true }));
                 await new Promise((resolve) => setTimeout(resolve, delay));

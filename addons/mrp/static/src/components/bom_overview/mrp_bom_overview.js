@@ -1,10 +1,11 @@
 /** @odoo-module native */
+import { Component, EventBus, onWillStart, useState, useSubEnv } from "@odoo/owl";
 import { registry } from "@web/core/registry";
-import { useService, useBus } from "@web/core/utils/hooks";
+import { useBus, useService } from "@web/core/utils/hooks";
+import { standardActionServiceProps } from "@web/webclient/actions/action_service";
+
 import { BomOverviewControlPanel } from "../bom_overview_control_panel/mrp_bom_overview_control_panel.js";
 import { BomOverviewTable } from "../bom_overview_table/mrp_bom_overview_table.js";
-import { Component, EventBus, onWillStart, useSubEnv, useState } from "@odoo/owl";
-import { standardActionServiceProps } from "@web/webclient/actions/action_service";
 import { FOLD_ALL, useUnfoldedIds } from "../overview_fold.js";
 
 export class BomOverviewComponent extends Component {
@@ -26,7 +27,7 @@ export class BomOverviewComponent extends Component {
 
         this.state = useState({
             showOptions: {
-                mode: this.props.action.context.mode || 'overview',
+                mode: this.props.action.context.mode || "overview",
                 uom: false,
                 attachments: false,
             },
@@ -49,7 +50,7 @@ export class BomOverviewComponent extends Component {
         useBus(
             this.env.overviewBus,
             FOLD_ALL,
-            ({ detail }) => (this.state.allFolded = detail.folded)
+            ({ detail }) => (this.state.allFolded = detail.folded),
         );
 
         onWillStart(async () => {
@@ -64,7 +65,7 @@ export class BomOverviewComponent extends Component {
         const variantId = this.props.action.context.active_product_id;
         const resModel = this.props.action.context.active_model;
         this.state.currentVariantId = false;
-        if (resModel === 'product.product' && variantId !== undefined) {
+        if (resModel === "product.product" && variantId !== undefined) {
             this.state.currentVariantId = variantId;
         }
 
@@ -87,7 +88,7 @@ export class BomOverviewComponent extends Component {
             this.state.bomQuantity,
             this.state.currentVariantId,
         ];
-        const context = { ...this.context};
+        const context = { ...this.context };
         if (this.state.currentWarehouse) {
             context.warehouse_id = this.state.currentWarehouse.id;
         }
@@ -95,7 +96,7 @@ export class BomOverviewComponent extends Component {
             "report.mrp.report_bom_structure",
             "get_html",
             args,
-            { context }
+            { context },
         );
         this.state.bomData = bomData["lines"];
         this.state.showOptions.attachments = bomData["has_attachments"];
@@ -118,22 +119,24 @@ export class BomOverviewComponent extends Component {
     }
 
     async onChangeBomQuantity(newQuantity) {
-        if (this.state.bomQuantity != newQuantity) {
+        if (this.state.bomQuantity !== newQuantity) {
             this.state.bomQuantity = newQuantity;
             await this.getBomData();
         }
     }
 
     async onChangeVariant(variantId) {
-        if (this.state.currentVariantId != variantId) {
+        if (this.state.currentVariantId !== variantId) {
             this.state.currentVariantId = variantId;
             await this.getBomData();
         }
     }
 
     async onChangeWarehouse(warehouseId) {
-        if (this.state.currentWarehouse.id != warehouseId) {
-            this.state.currentWarehouse = this.warehouses.find(wh => wh.id == warehouseId);
+        if (this.state.currentWarehouse.id !== warehouseId) {
+            this.state.currentWarehouse = this.warehouses.find(
+                (wh) => wh.id === warehouseId,
+            );
             await this.getBomData();
         }
     }

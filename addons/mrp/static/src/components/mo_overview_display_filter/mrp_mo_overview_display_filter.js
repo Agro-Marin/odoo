@@ -1,5 +1,6 @@
 /** @odoo-module native */
 import { _t } from "@web/core/l10n/translation";
+
 import { BomOverviewDisplayFilter } from "../bom_overview_display_filter/mrp_bom_overview_display_filter.js";
 
 export const SHOW_OPTIONS = {
@@ -21,7 +22,7 @@ export class MoOverviewDisplayFilter extends BomOverviewDisplayFilter {
         showOptions: SHOW_OPTIONS,
         changeDisplay: Function,
         limited: { type: Boolean, optional: true },
-        isProductionDraft: { type: Boolean, optional: true},
+        isProductionDraft: { type: Boolean, optional: true },
     };
     static defaultProps = {
         limited: false,

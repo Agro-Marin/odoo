@@ -1,5 +1,5 @@
-import { registry } from "@web/core/registry";
 import { patchWithCleanup } from "@web/../tests/helpers/utils";
+import { registry } from "@web/core/registry";
 
 // Resolve the live product-module instance from the loader registry, and only
 // inside steps() (i.e. when the tour actually runs on a discuss-capable page).
@@ -9,7 +9,8 @@ import { patchWithCleanup } from "@web/../tests/helpers/utils";
 // would bind a second, unshared module instance anyway (test files load via
 // the import map only, not registerNativeModules).
 const getChannelMember = () =>
-    odoo.loader.modules.get("@mail/discuss/core/common/channel_member_model").ChannelMember;
+    odoo.loader.modules.get("@mail/discuss/core/common/channel_member_model")
+        .ChannelMember;
 
 registry.category("web_tour.tours").add("discuss_call_invitation.js", {
     steps: () => {
@@ -39,27 +40,32 @@ registry.category("web_tour.tours").add("discuss_call_invitation.js", {
                 trigger: ".o-discuss-CallInvitation button[title='Reject']",
             },
             {
-                trigger: ".o-discuss-CallInvitation button[title='Show camera preview']",
+                trigger:
+                    ".o-discuss-CallInvitation button[title='Show camera preview']",
                 run: "click",
             },
             {
                 trigger: ".o-discuss-CallInvitation-cameraPreview",
             },
             {
-                trigger: ".o-discuss-CallInvitation-cameraPreview button[title='Turn camera on']",
+                trigger:
+                    ".o-discuss-CallInvitation-cameraPreview button[title='Turn camera on']",
             },
             {
-                trigger: ".o-discuss-CallInvitation-cameraPreview button[title='Unmute']",
+                trigger:
+                    ".o-discuss-CallInvitation-cameraPreview button[title='Unmute']",
             },
             {
-                trigger: ".o-discuss-CallInvitation-cameraPreview button[title='Video Settings']",
+                trigger:
+                    ".o-discuss-CallInvitation-cameraPreview button[title='Video Settings']",
                 run: "click",
             },
             {
                 trigger: "label:contains('Blur background')",
             },
             {
-                trigger: ".o-discuss-CallInvitation button[title='Hide camera preview']",
+                trigger:
+                    ".o-discuss-CallInvitation button[title='Hide camera preview']",
                 run: "click",
             },
             {

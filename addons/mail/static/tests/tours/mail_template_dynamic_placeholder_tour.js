@@ -1,6 +1,6 @@
 import { registry } from "@web/core/registry";
-import { stepUtils } from "@web_tour/tour_utils";
 import { delay } from "@web/core/utils/concurrency";
+import { stepUtils } from "@web_tour/tour_utils";
 
 registry.category("web_tour.tours").add("mail_template_dynamic_placeholder_tour", {
     url: "/odoo",
@@ -44,8 +44,8 @@ registry.category("web_tour.tours").add("mail_template_dynamic_placeholder_tour"
             run: async function () {
                 const contact = Array.from(
                     document.querySelectorAll(
-                        'div[name="model_id"] .ui-autocomplete .dropdown-item'
-                    )
+                        'div[name="model_id"] .ui-autocomplete .dropdown-item',
+                    ),
                 ).find((el) => el.textContent === "Contact");
                 await contact.click();
             },
@@ -76,7 +76,8 @@ registry.category("web_tour.tours").add("mail_template_dynamic_placeholder_tour"
         },
         {
             content: "Click on the first entry of the dynamic placeholder",
-            trigger: 'div.o_model_field_selector_popover button:contains("Company Name")',
+            trigger:
+                'div.o_model_field_selector_popover button:contains("Company Name")',
             run: "click",
         },
         {
@@ -103,7 +104,7 @@ registry.category("web_tour.tours").add("mail_template_dynamic_placeholder_tour"
                 const correctValue = "yes_model_id {{object.company_name|||defValue}}";
                 if (subjectValue !== correctValue) {
                     console.error(
-                        `Email template should have "${correctValue}" in subject input (actual: ${subjectValue})`
+                        `Email template should have "${correctValue}" in subject input (actual: ${subjectValue})`,
                     );
                 }
             },
@@ -117,7 +118,7 @@ registry.category("web_tour.tours").add("mail_template_dynamic_placeholder_tour"
                     new InputEvent("input", {
                         inputType: "insertText",
                         data: "/",
-                    })
+                    }),
                 );
             },
         },
@@ -138,7 +139,8 @@ registry.category("web_tour.tours").add("mail_template_dynamic_placeholder_tour"
         },
         {
             content: "Click on the first entry of the dynamic placeholder",
-            trigger: 'div.o_model_field_selector_popover button:contains("Company Name")',
+            trigger:
+                'div.o_model_field_selector_popover button:contains("Company Name")',
             run: "click",
         },
         {
@@ -175,7 +177,7 @@ registry.category("web_tour.tours").add("mail_template_dynamic_placeholder_tour"
                     new InputEvent("input", {
                         inputType: "insertText",
                         data: "/",
-                    })
+                    }),
                 );
             },
         },
@@ -208,7 +210,8 @@ registry.category("web_tour.tours").add("mail_template_dynamic_placeholder_tour"
         },
         {
             content: "Click on the insert button",
-            trigger: "div.o_model_field_selector_popover button:first-child:contains('Insert)",
+            trigger:
+                "div.o_model_field_selector_popover button:first-child:contains('Insert)",
             run: "click",
         },
         {

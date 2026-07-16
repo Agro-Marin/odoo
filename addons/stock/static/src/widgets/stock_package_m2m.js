@@ -1,11 +1,10 @@
 /** @odoo-module native */
+import { _t } from "@web/core/l10n/translation";
+import { registry } from "@web/core/registry";
 import {
     Many2ManyTagsField,
     many2ManyTagsField,
 } from "@web/fields/relational/many2many_tags/many2many_tags_field";
-import { registry } from "@web/core/registry";
-import { _t } from "@web/core/l10n/translation";
-
 
 export class Many2ManyPackageTagsField extends Many2ManyTagsField {
     // Getter, not a setup() snapshot: has_lines_without_result_package is a
@@ -47,10 +46,8 @@ export class Many2ManyPackageTagsField extends Many2ManyTagsField {
 export const many2ManyPackageTagsField = {
     ...many2ManyTagsField,
     component: Many2ManyPackageTagsField,
-    additionalClasses: ['o_field_many2many_tags'],
-    relatedFields: () => [
-        { name: "name", type: "char" },
-    ],
-}
+    additionalClasses: ["o_field_many2many_tags"],
+    relatedFields: () => [{ name: "name", type: "char" }],
+};
 
 registry.category("fields").add("package_m2m", many2ManyPackageTagsField);

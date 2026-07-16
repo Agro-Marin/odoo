@@ -1,9 +1,10 @@
-import { luxon } from "@web/core/l10n/luxon";
-import { expect, test, describe } from "@odoo/hoot";
+import { describe, expect, test } from "@odoo/hoot";
 import { uuidv4 } from "@point_of_sale/utils";
-import { getRelatedModelsInstance } from "../data/get_model_definitions.js";
 import { makeMockServer } from "@web/../tests/web_test_helpers";
+import { luxon } from "@web/core/l10n/luxon";
+
 import { definePosModels } from "../data/generate_model_definitions.js";
+import { getRelatedModelsInstance } from "../data/get_model_definitions.js";
 
 const { DateTime } = luxon;
 
@@ -86,7 +87,10 @@ describe("Dirty record", () => {
         expect(line.isDirty()).toBe(false);
 
         // Assign a product to the line
-        const sampleProduct = models["product.product"].create({ name: "demo_product", id: 111 });
+        const sampleProduct = models["product.product"].create({
+            name: "demo_product",
+            id: 111,
+        });
         line.product_id = sampleProduct;
         expect(line.isDirty()).toBe(true);
         expect(order.isDirty()).toBe(true);
@@ -123,7 +127,11 @@ describe("Dirty record", () => {
             expect(order.isDirty()).toBe(false);
         }
         const att1 = models["product.template.attribute.value"].create({ id: 99 });
-        const line = models["pos.order.line"].create({ id: 100, order_id: order, qty: 1 });
+        const line = models["pos.order.line"].create({
+            id: 100,
+            order_id: order,
+            qty: 1,
+        });
         line.update({ attribute_value_ids: [["link", att1]] });
         expect(line.isDirty()).toBe(true);
         expect(order.isDirty()).toBe(true);

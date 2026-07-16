@@ -2,6 +2,7 @@
 import { getImageDataUrl } from "@point_of_sale/utils";
 import { registry } from "@web/core/registry";
 import { imageUrl } from "@web/core/utils/urls";
+
 import { logPosMessage } from "../utils/pretty_console_log.js";
 import { PosOrderAccounting } from "./accounting/pos_order_accounting.js";
 import { PosOrderlineAccounting } from "./accounting/pos_order_line_accounting.js";

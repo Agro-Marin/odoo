@@ -51,7 +51,10 @@ class Invoice extends models.Model {
     _records = [
         {
             id: 1,
-            invoice_line_ids: Array.from({ length: InvoiceLine._records.length }, (_, i) => i + 1),
+            invoice_line_ids: Array.from(
+                { length: InvoiceLine._records.length },
+                (_, i) => i + 1,
+            ),
         },
     ];
 
@@ -367,7 +370,15 @@ test("can delete sections", async () => {
     ]);
     await contains(".o_list_section_options:eq(1) button").click();
     await contains(".o-dropdown-item:contains(Delete)").click();
-    expect(queryAllTexts(".o_data_row")).toEqual(["r1", "r2", "A", "A1", "A2", "C", "C1"]);
+    expect(queryAllTexts(".o_data_row")).toEqual([
+        "r1",
+        "r2",
+        "A",
+        "A1",
+        "A2",
+        "C",
+        "C1",
+    ]);
 });
 
 test("can delete subsections", async () => {
@@ -772,12 +783,15 @@ test("can resequence sections", async () => {
             </form>
         `,
     });
-    await contains(".o_data_row:eq(11) .o_row_handle", { visible: false }).dragAndDrop(".o_data_row:eq(0)");
+    await contains(".o_data_row:eq(11) .o_row_handle", { visible: false }).dragAndDrop(
+        ".o_data_row:eq(0)",
+    );
     expect(queryAllTexts(".o_data_row")).toEqual(
         ["C", "r1", "r2", "A", "A1", "A2", "B", "B1", "B2", "Ba", "Ba1", "Ba2", "C1"],
         {
-            message: "With C on top, B becomes the top section for all records starting from B1",
-        }
+            message:
+                "With C on top, B becomes the top section for all records starting from B1",
+        },
     );
     await contains(".o_list_section_options:eq(2) button").click();
     await contains(".o-dropdown-item:contains(Delete)").click();
@@ -1092,7 +1106,7 @@ test("sections duplicate with many2many", async () => {
             "C",
             "C1 \n 13",
         ],
-        { message: "m2m values are not shown inside (sub-)section rows" }
+        { message: "m2m values are not shown inside (sub-)section rows" },
     );
     await contains(".o_list_section_options:eq(1) button").click();
     await contains(".o-dropdown-item:contains(Duplicate)").click();
@@ -1118,7 +1132,7 @@ test("sections duplicate with many2many", async () => {
             "C",
             "C1 \n 19",
         ],
-        { message: "m2m values are copied as well" }
+        { message: "m2m values are copied as well" },
     );
     await contains(".o_list_section_options:eq(2) button").click();
     await contains(".o-dropdown-item:contains(Duplicate)").click();
@@ -1147,7 +1161,7 @@ test("sections duplicate with many2many", async () => {
             "C",
             "C1 \n 22",
         ],
-        { message: "m2m values are copied as well" }
+        { message: "m2m values are copied as well" },
     );
 });
 
@@ -1266,28 +1280,80 @@ test("swap sections and subsections", async () => {
 });
 
 test("check collapse_ fields' muting logic for widget", async () => {
-    InvoiceLine._fields.aggregated_field = fields.Float({ default: 3.00 });
+    InvoiceLine._fields.aggregated_field = fields.Float({ default: 3.0 });
     InvoiceLine._records = [
-        { id: 1, name: "sec1", display_type: "line_section", sequence: 1, m2m: [3], collapse_composition: true },
+        {
+            id: 1,
+            name: "sec1",
+            display_type: "line_section",
+            sequence: 1,
+            m2m: [3],
+            collapse_composition: true,
+        },
         { id: 2, name: "sec1-r1", display_type: false, sequence: 2, m2m: [2, 3] },
-        { id: 3, name: "sec1-sub1", display_type: "line_subsection", sequence: 3, m2m: [1] },
+        {
+            id: 3,
+            name: "sec1-sub1",
+            display_type: "line_subsection",
+            sequence: 3,
+            m2m: [1],
+        },
         { id: 4, name: "sec1-sub1-r1", display_type: false, sequence: 4, m2m: [3] },
-        { id: 5, name: "sec1-sub2", display_type: "line_subsection", sequence: 5, m2m: [1] },
+        {
+            id: 5,
+            name: "sec1-sub2",
+            display_type: "line_subsection",
+            sequence: 5,
+            m2m: [1],
+        },
         { id: 6, name: "sec1-sub2-r1", display_type: false, sequence: 6, m2m: [] },
-        { id: 7, name: "sec2", display_type: "line_section", sequence: 7, m2m: [1], collapse_prices: true },
+        {
+            id: 7,
+            name: "sec2",
+            display_type: "line_section",
+            sequence: 7,
+            m2m: [1],
+            collapse_prices: true,
+        },
         { id: 8, name: "sec2-r1", display_type: false, sequence: 8, m2m: [2, 3] },
         { id: 9, name: "sec2-r2", display_type: false, sequence: 9, m2m: [3] },
-        { id: 10, name: "sec2-sub1", display_type: "line_subsection", sequence: 10, m2m: [1] },
+        {
+            id: 10,
+            name: "sec2-sub1",
+            display_type: "line_subsection",
+            sequence: 10,
+            m2m: [1],
+        },
         { id: 11, name: "sec2-sub1-r1", display_type: false, sequence: 11, m2m: [3] },
-        { id: 12, name: "sec2-sub2", display_type: "line_subsection", sequence: 12, m2m: [1] },
+        {
+            id: 12,
+            name: "sec2-sub2",
+            display_type: "line_subsection",
+            sequence: 12,
+            m2m: [1],
+        },
         { id: 13, name: "sec2-sub2-r1", display_type: false, sequence: 13, m2m: [] },
         { id: 14, name: "sec3", display_type: "line_section", sequence: 14, m2m: [1] },
         { id: 15, name: "sec3-r1", display_type: false, sequence: 15, m2m: [2, 3] },
-        { id: 16, name: "sec3-sub1", display_type: "line_subsection", sequence: 16, m2m: [1], collapse_prices: true },
+        {
+            id: 16,
+            name: "sec3-sub1",
+            display_type: "line_subsection",
+            sequence: 16,
+            m2m: [1],
+            collapse_prices: true,
+        },
         { id: 17, name: "sec3-sub1-r1", display_type: false, sequence: 17, m2m: [3] },
-        { id: 18, name: "sec3-sub2", display_type: "line_subsection", sequence: 18, m2m: [1], collapse_composition: true },
+        {
+            id: 18,
+            name: "sec3-sub2",
+            display_type: "line_subsection",
+            sequence: 18,
+            m2m: [1],
+            collapse_composition: true,
+        },
         { id: 19, name: "sec3-sub2-r1", display_type: false, sequence: 19, m2m: [] },
-    ]
+    ];
 
     await mountView({
         type: "form",
@@ -1321,69 +1387,87 @@ test("check collapse_ fields' muting logic for widget", async () => {
 
     expect(queryAllTexts(".o_data_row .o_list_char")).toEqual([
         "sec1",
-            "sec1-r1",
-            "sec1-sub1",
-                "sec1-sub1-r1",
-            "sec1-sub2",
-                "sec1-sub2-r1",
+        "sec1-r1",
+        "sec1-sub1",
+        "sec1-sub1-r1",
+        "sec1-sub2",
+        "sec1-sub2-r1",
         "sec2",
-            "sec2-r1",
-            "sec2-r2",
-            "sec2-sub1",
-                "sec2-sub1-r1",
-            "sec2-sub2",
-                "sec2-sub2-r1",
+        "sec2-r1",
+        "sec2-r2",
+        "sec2-sub1",
+        "sec2-sub1-r1",
+        "sec2-sub2",
+        "sec2-sub2-r1",
         "sec3",
-            "sec3-r1",
-            "sec3-sub1",
-                "sec3-sub1-r1",
-            "sec3-sub2",
-                "sec3-sub2-r1",
+        "sec3-r1",
+        "sec3-sub1",
+        "sec3-sub1-r1",
+        "sec3-sub2",
+        "sec3-sub2-r1",
     ]);
 
     await contains(".o_list_section_options:first button").click();
     expect(".o-dropdown-item:contains(Show Composition)").toHaveCount(1, {
-        message: "Sections should always show hide composition button"
+        message: "Sections should always show hide composition button",
     });
     expect(".o-dropdown-item:contains(Hide Prices)").toHaveCount(1, {
-        message: "Sections should always show hide prices button"
+        message: "Sections should always show hide prices button",
     });
 
-    await contains(".o_data_row:contains(sec1-sub1) .o_list_section_options button").click();
+    await contains(
+        ".o_data_row:contains(sec1-sub1) .o_list_section_options button",
+    ).click();
     expect(".o-dropdown-item:contains(Hide Composition)").toHaveClass("disabled", {
-        message: "Subsection under hidden section should have disabled hide composition button"
+        message:
+            "Subsection under hidden section should have disabled hide composition button",
     });
     expect(".o-dropdown-item:contains(Hide Prices)").toHaveClass("disabled", {
-        message: "Subsection under hidden section should have disabled Hide Prices button"
+        message:
+            "Subsection under hidden section should have disabled Hide Prices button",
     });
 
     expect(".o_data_row:contains(sec1-r1)").toHaveClass("text-muted", {
-        message: "Line under hidden section should be muted"
+        message: "Line under hidden section should be muted",
     });
     expect(".o_data_row:contains(sec1-sub1)").toHaveClass("text-muted", {
-        message: "Subsection under hidden section should be muted"
+        message: "Subsection under hidden section should be muted",
     });
     expect(".o_data_row:contains(sec1-sub1-r1)").toHaveClass("text-muted", {
-        message: "Line under subsection(which is under hidden section) should be muted"
+        message: "Line under subsection(which is under hidden section) should be muted",
     });
 
-    expect(".o_data_row:contains(sec2-r1) > td[name='aggregated_field']").toHaveClass("text-muted", {
-        message: "Aggregated field column of Line under hidden prices section should be muted"
-    });
-    expect(".o_data_row:contains(sec2-sub1) > td[name='aggregated_field']").toHaveClass("text-muted", {
-        message: "Aggregated field column of Subsection under hidden prices section should be muted"
-    });
-    expect(".o_data_row:contains(sec2-sub1-r1) > td[name='aggregated_field']").toHaveClass("text-muted", {
-        message: "Aggregated field column of Line under subsection(which is under hidden prices section) should be muted"
+    expect(".o_data_row:contains(sec2-r1) > td[name='aggregated_field']").toHaveClass(
+        "text-muted",
+        {
+            message:
+                "Aggregated field column of Line under hidden prices section should be muted",
+        },
+    );
+    expect(".o_data_row:contains(sec2-sub1) > td[name='aggregated_field']").toHaveClass(
+        "text-muted",
+        {
+            message:
+                "Aggregated field column of Subsection under hidden prices section should be muted",
+        },
+    );
+    expect(
+        ".o_data_row:contains(sec2-sub1-r1) > td[name='aggregated_field']",
+    ).toHaveClass("text-muted", {
+        message:
+            "Aggregated field column of Line under subsection(which is under hidden prices section) should be muted",
     });
 
-    expect(".o_data_row:contains(sec3-sub1-r1) > td[name='aggregated_field']").toHaveClass("text-muted", {
-        message: "Aggregated field column of Line under hidden prices subsection should be muted"
+    expect(
+        ".o_data_row:contains(sec3-sub1-r1) > td[name='aggregated_field']",
+    ).toHaveClass("text-muted", {
+        message:
+            "Aggregated field column of Line under hidden prices subsection should be muted",
     });
     expect(".o_data_row:contains(sec3-sub2-r1)").toHaveClass("text-muted", {
-        message: "Line under hidden subsection should be muted"
+        message: "Line under hidden subsection should be muted",
     });
-})
+});
 
 test("check collapse_ fields' duplicating logic", async () => {
     [2, 5, 8].forEach((i) => {
@@ -1397,8 +1481,10 @@ test("check collapse_ fields' duplicating logic", async () => {
         const [, { invoice_line_ids }] = args;
 
         // Filter section/subsection records created via (0, 0, values)
-        const createdSectionRecords = invoice_line_ids.filter(([cmd, , values]) =>
-            cmd === 0 && ['line_section', 'line_subsection'].includes(values.display_type)
+        const createdSectionRecords = invoice_line_ids.filter(
+            ([cmd, , values]) =>
+                cmd === 0 &&
+                ["line_section", "line_subsection"].includes(values.display_type),
         );
 
         for (const [, , values] of createdSectionRecords) {
@@ -1422,52 +1508,56 @@ test("check collapse_ fields' duplicating logic", async () => {
         "r1",
         "r2",
         "A",
-            "A1",
-            "A2",
+        "A1",
+        "A2",
         "B",
-            "B1",
-            "B2",
-            "Ba",
-                "Ba1",
-                "Ba2",
+        "B1",
+        "B2",
+        "Ba",
+        "Ba1",
+        "Ba2",
         "C",
-            "C1",
+        "C1",
     ]);
 
-    await contains(".o_data_row:contains(A):first .o_list_section_options button").click();
+    await contains(
+        ".o_data_row:contains(A):first .o_list_section_options button",
+    ).click();
     await contains(".o-dropdown-item:contains(Duplicate)").click();
 
-    await contains(".o_data_row:contains(B):first .o_list_section_options button").click();
+    await contains(
+        ".o_data_row:contains(B):first .o_list_section_options button",
+    ).click();
     await contains(".o-dropdown-item:contains(Duplicate)").click();
 
     expect(queryAllTexts(".o_data_row")).toEqual([
         "r1",
         "r2",
         "A",
-            "A1",
-            "A2",
+        "A1",
+        "A2",
         "A",
-            "A1",
-            "A2",
+        "A1",
+        "A2",
         "B",
-            "B1",
-            "B2",
-            "Ba",
-                "Ba1",
-                "Ba2",
+        "B1",
+        "B2",
+        "Ba",
+        "Ba1",
+        "Ba2",
         "B",
-            "B1",
-            "B2",
-            "Ba",
-                "Ba1",
-                "Ba2",
+        "B1",
+        "B2",
+        "Ba",
+        "Ba1",
+        "Ba2",
         "C",
-            "C1",
+        "C1",
     ]);
 
     await clickSave();
     expect.verifySteps(["web_save"]);
-})
+});
 
 test("check subsections' collapse_ fields' drag and drop logic", async () => {
     InvoiceLine._records[2].collapse_composition = true;
@@ -1496,20 +1586,22 @@ test("check subsections' collapse_ fields' drag and drop logic", async () => {
         "r1",
         "r2",
         "A",
-            "A1",
-            "A2",
+        "A1",
+        "A2",
         "B",
-            "B1",
-            "B2",
-            "Ba",
-                "Ba1",
-                "Ba2",
+        "B1",
+        "B2",
+        "Ba",
+        "Ba1",
+        "Ba2",
         "C",
-            "C1",
+        "C1",
     ]);
 
-    await contains(".o_data_row:contains(Ba):first .o_row_handle").dragAndDrop(".o_data_row:contains(A1):first");
+    await contains(".o_data_row:contains(Ba):first .o_row_handle").dragAndDrop(
+        ".o_data_row:contains(A1):first",
+    );
 
     await clickSave();
     expect.verifySteps(["web_save"]);
-})
+});

@@ -1,9 +1,13 @@
 import { addBusMessageHandler, busModels } from "@bus/../tests/bus_test_helpers";
+import { CHAT_HUB_KEY } from "@mail/core/common/chat_hub_model";
+import { UPDATE_EVENT } from "@mail/discuss/call/common/peer_to_peer";
+import { Network, Rtc } from "@mail/discuss/call/common/rtc_service";
+import { closeStream, mailGlobal } from "@mail/utils/common/misc";
 import { after, before, expect, getFixture, registerDebugInfo, test } from "@odoo/hoot";
 import { hover as hootHover, queryFirst, resize } from "@odoo/hoot-dom";
 import { Deferred, microTick } from "@odoo/hoot-mock";
+import { Component, onMounted, onPatched, onWillDestroy, status } from "@odoo/owl";
 import {
-    MockServer,
     asyncStep,
     authenticate,
     defineModels,
@@ -12,6 +16,7 @@ import {
     getService,
     makeMockEnv,
     makeMockServer,
+    MockServer,
     mountWithCleanup,
     onRpc,
     parseViewProps,
@@ -21,23 +26,18 @@ import {
     waitForSteps,
     webModels,
 } from "@web/../tests/web_test_helpers";
-
-import { CHAT_HUB_KEY } from "@mail/core/common/chat_hub_model";
-import { click, contains } from "./mail_test_helpers_contains.js";
-
-import { closeStream, mailGlobal } from "@mail/utils/common/misc";
-import { Component, onMounted, onPatched, onWillDestroy, status } from "@odoo/owl";
-import { browser } from "@web/core/browser/browser";
 import { loadEmoji } from "@web/components/emoji_picker/emoji_picker";
+import { browser } from "@web/core/browser/browser";
 import { registry } from "@web/core/registry";
-import { MEDIAS_BREAKPOINTS, utils as uiUtils } from "@web/ui/block/ui_service";
 import { useServiceProtectMethodHandling } from "@web/core/utils/hooks";
 import { session } from "@web/session";
+import { MEDIAS_BREAKPOINTS, utils as uiUtils } from "@web/ui/block/ui_service";
 import { WebClient } from "@web/webclient/webclient";
 
+import { click, contains } from "./mail_test_helpers_contains.js";
 import {
-    DISCUSS_ACTION_ID,
     authenticateGuest,
+    DISCUSS_ACTION_ID,
     mailDataHelpers,
     registerMailMockRoutes,
 } from "./mock_server/mail_mock_server.js";
@@ -76,12 +76,9 @@ import { ResRole } from "./mock_server/mock_models/res_role.js";
 import { ResUsers } from "./mock_server/mock_models/res_users.js";
 import { ResUsersSettings } from "./mock_server/mock_models/res_users_settings.js";
 import { ResUsersSettingsVolumes } from "./mock_server/mock_models/res_users_settings_volumes.js";
-import { Network, Rtc } from "@mail/discuss/call/common/rtc_service";
-import { UPDATE_EVENT } from "@mail/discuss/call/common/peer_to_peer";
-
-export { SIZES } from "@web/ui/block/ui_service";
 
 export * from "./mail_test_helpers_contains.js";
+export { SIZES } from "@web/ui/block/ui_service";
 
 before(prepareRegistriesWithCleanup);
 export const registryNamesToCloneWithCleanup = [];
@@ -173,7 +170,9 @@ export function onRpcBefore(route, callback) {
         const handler = registry.category("mail.mock_rpc").get(route);
         patchWithCleanup(handler, { before: callback });
     } else {
-        const onRpcBeforeGlobal = registry.category("mail.on_rpc_before_global").get(true);
+        const onRpcBeforeGlobal = registry
+            .category("mail.on_rpc_before_global")
+            .get(true);
         patchWithCleanup(onRpcBeforeGlobal, { cb: route });
     }
 }
@@ -239,7 +238,14 @@ export async function openListView(resModel, params) {
     });
 }
 
-export async function openView({ context, res_model, res_id, views, domain, ...params }) {
+export async function openView({
+    context,
+    res_model,
+    res_id,
+    views,
+    domain,
+    ...params
+}) {
     const [[viewId, type]] = views;
     const action = {
         context,
@@ -253,7 +259,8 @@ export async function openView({ context, res_model, res_id, views, domain, ...p
         type,
         resModel: res_model,
         resId: res_id,
-        arch: params?.arch || archs[viewId || res_model + `,false,` + type] || undefined,
+        arch:
+            params?.arch || archs[viewId || res_model + `,false,` + type] || undefined,
         viewId: params?.arch || viewId,
         ...params,
     });
@@ -347,7 +354,9 @@ export async function start(options) {
         if (pyEnv.cookie.get("dgid")) {
             // already authenticated as guest
         } else {
-            const adminUser = pyEnv["res.users"].search_read([["id", "=", serverState.userId]])[0];
+            const adminUser = pyEnv["res.users"].search_read([
+                ["id", "=", serverState.userId],
+            ])[0];
             authenticate(adminUser.login, adminUser.password);
         }
     }
@@ -437,7 +446,9 @@ function getSizeFromWidth(width) {
  */
 export async function patchUiSize({ height, size, width }) {
     if ((!size && !width) || (size && width)) {
-        throw new Error("Either size or width must be given to the patchUiSize function");
+        throw new Error(
+            "Either size or width must be given to the patchUiSize function",
+        );
     }
     size = size === undefined ? getSizeFromWidth(width) : size;
     width = width || getWidthFromSize(size);
@@ -603,7 +614,10 @@ export async function makeMockRtcNetwork({ env, channelId }) {
  * @param {"default" | "denied" | "granted"} permission
  * @param {"default" | "denied" | "granted"} requestPermissionResult
  */
-export function patchBrowserNotification(permission = "default", requestPermissionResult) {
+export function patchBrowserNotification(
+    permission = "default",
+    requestPermissionResult,
+) {
     if (!browser.Notification || !browser.navigator.permissions) {
         return;
     }
@@ -662,7 +676,7 @@ function prepareRegistry(registry, { keepContent = false } = {}) {
 export function prepareRegistriesWithCleanup() {
     // Clone registries
     registryNamesToCloneWithCleanup.forEach((registryName) =>
-        cloneRegistryWithCleanup(registry.category(registryName))
+        cloneRegistryWithCleanup(registry.category(registryName)),
     );
 }
 
@@ -783,7 +797,9 @@ export function setupChatHub({ opened = [], folded = [] } = {}) {
 }
 
 export function assertChatHub({ opened = [], folded = [] }) {
-    expect(browser.localStorage.getItem(CHAT_HUB_KEY)).toEqual(toChatHubData(opened, folded));
+    expect(browser.localStorage.getItem(CHAT_HUB_KEY)).toEqual(
+        toChatHubData(opened, folded),
+    );
 }
 
 export const STORE_FETCH_ROUTES = ["/mail/action", "/mail/data"];
@@ -800,7 +816,10 @@ export const STORE_FETCH_ROUTES = ["/mail/action", "/mail/data"];
  * @param {string[]} [options.logParams=[]] names of the store fetch params for which both the name
  *  and the specific params should be logged in asyncStep. By default only the name is logged.
  */
-export function listenStoreFetch(nameOrNames = [], { logParams = [], onRpc: onRpcOverride } = {}) {
+export function listenStoreFetch(
+    nameOrNames = [],
+    { logParams = [], onRpc: onRpcOverride } = {},
+) {
     async function registerStep(request, name, params) {
         const res = await onRpcOverride?.(request);
         if (logParams.includes(name)) {
@@ -811,13 +830,16 @@ export function listenStoreFetch(nameOrNames = [], { logParams = [], onRpc: onRp
         return res;
     }
     async function registerSteps(request, fetchParams) {
-        const namesToRegister = typeof nameOrNames === "string" ? [nameOrNames] : nameOrNames;
+        const namesToRegister =
+            typeof nameOrNames === "string" ? [nameOrNames] : nameOrNames;
         let res;
         for (const fetchParam of fetchParams) {
             const name = typeof fetchParam === "string" ? fetchParam : fetchParam[0];
             const params = typeof fetchParam === "string" ? undefined : fetchParam[1];
             if (namesToRegister.length > 0) {
-                if (namesToRegister.some((namesToRegister) => namesToRegister === name)) {
+                if (
+                    namesToRegister.some((namesToRegister) => namesToRegister === name)
+                ) {
                     res = await registerStep(request, name, params);
                 }
             } else {
@@ -855,7 +877,7 @@ export function listenStoreFetch(nameOrNames = [], { logParams = [], onRpc: onRp
  */
 export async function waitStoreFetch(
     nameOrNames = [],
-    { ignoreOrder = false, stepsAfter = [], stepsBefore = [] } = {}
+    { ignoreOrder = false, stepsAfter = [], stepsBefore = [] } = {},
 ) {
     await waitForSteps(
         [
@@ -866,13 +888,13 @@ export async function waitStoreFetch(
                         return `store fetch: ${nameOrNameAndParams}`;
                     }
                     return `store fetch: ${nameOrNameAndParams[0]} - ${JSON.stringify(
-                        nameOrNameAndParams[1]
+                        nameOrNameAndParams[1],
                     )}`;
-                }
+                },
             ),
             ...stepsAfter,
         ],
-        { ignoreOrder }
+        { ignoreOrder },
     );
     /**
      * Extra tick necessary to ensure the RPC is fully processed before resolving.
@@ -884,7 +906,12 @@ export async function waitStoreFetch(
 }
 
 export function userContext() {
-    return { lang: "en", tz: "taht", uid: serverState.userId, allowed_company_ids: [1] };
+    return {
+        lang: "en",
+        tz: "taht",
+        uid: serverState.userId,
+        allowed_company_ids: [1],
+    };
 }
 
 /**
@@ -1019,11 +1046,13 @@ export function mockPermissionsPrompt() {
  */
 export async function assertChatBubbleAndWindowImStatus(conversationName, count) {
     await contains(`.o-mail-ChatBubble[name=${conversationName}]`);
-    expect(`.o-mail-ChatBubble[name=${conversationName}] .o-mail-ImStatus`).toHaveCount(count);
+    expect(`.o-mail-ChatBubble[name=${conversationName}] .o-mail-ImStatus`).toHaveCount(
+        count,
+    );
     await click(`.o-mail-ChatBubble[name=${conversationName}]`);
     await contains(`.o-mail-ChatWindow-header:has(:text(${conversationName}))`);
     expect(
-        `.o-mail-ChatWindow-header:has(:text(${conversationName})) .o-mail-ImStatus`
+        `.o-mail-ChatWindow-header:has(:text(${conversationName})) .o-mail-ImStatus`,
     ).toHaveCount(count);
     await click(`.o-mail-ChatWindow-header:has(:text(${conversationName}))`);
 }

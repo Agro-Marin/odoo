@@ -29,7 +29,7 @@ export class ComboConfiguratorPopup extends Component {
         }, {});
 
         this.state = useState({
-            combo: { ...this.props.line?.selectedComboIds } || {},
+            combo: { ...this.props.line?.selectedComboIds },
             configuration:
                 this.props.line?.getAllLinesInCombo().reduce((acc, line) => {
                     if (!line.combo_item_id) {

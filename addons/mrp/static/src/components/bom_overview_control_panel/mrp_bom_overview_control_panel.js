@@ -1,12 +1,13 @@
 /** @odoo-module native */
-import { ControlPanel } from "@web/search/control_panel/control_panel";
-import { BomOverviewDisplayFilter } from "../bom_overview_display_filter/mrp_bom_overview_display_filter.js";
+import { Component, onMounted, useRef } from "@odoo/owl";
 import { Dropdown } from "@web/components/dropdown/dropdown";
 import { DropdownItem } from "@web/components/dropdown/dropdown_item";
 import { _t } from "@web/core/l10n/translation";
-import { Many2XAutocomplete } from "@web/fields/relational/many2x_autocomplete";
-import { Component, onMounted, useRef } from "@odoo/owl";
 import { useService } from "@web/core/utils/hooks";
+import { Many2XAutocomplete } from "@web/fields/relational/many2x_autocomplete";
+import { ControlPanel } from "@web/search/control_panel/control_panel";
+
+import { BomOverviewDisplayFilter } from "../bom_overview_display_filter/mrp_bom_overview_display_filter.js";
 import { FOLD_ALL } from "../overview_fold.js";
 
 export class BomOverviewControlPanel extends Component {
@@ -44,7 +45,7 @@ export class BomOverviewControlPanel extends Component {
     setup() {
         this.action = useService("action");
         this.controlPanelDisplay = {};
-        if(this.props.showOptions.mode == "forecast") {
+        if (this.props.showOptions.mode === "forecast") {
             this.quantity = useRef("quantity");
             onMounted(() => {
                 this.quantity.el.focus();
@@ -55,7 +56,9 @@ export class BomOverviewControlPanel extends Component {
     //---- Handlers ----
 
     updateQuantity(ev) {
-        const newVal = isNaN(ev.target.value) ? 1 : parseFloat(parseFloat(ev.target.value).toFixed(this.precision));
+        const newVal = isNaN(ev.target.value)
+            ? 1
+            : parseFloat(parseFloat(ev.target.value).toFixed(this.precision));
         this.props.changeBomQuantity(newVal);
     }
 
@@ -72,7 +75,7 @@ export class BomOverviewControlPanel extends Component {
 
     getDomain() {
         const keys = Object.keys(this.props.variants);
-        return [['id', 'in', keys]];
+        return [["id", "in", keys]];
     }
 
     async manufactureFromBoM() {
@@ -84,7 +87,8 @@ export class BomOverviewControlPanel extends Component {
             target: "current",
             context: {
                 default_bom_id: this.props.data.bom_id,
-                bom_overview_picking_type_id: this.props.currentWarehouse.manu_type_id[0],
+                bom_overview_picking_type_id:
+                    this.props.currentWarehouse.manu_type_id[0],
                 bom_overview_product_qty: this.props.bomQuantity,
             },
         };
@@ -100,11 +104,11 @@ export class BomOverviewControlPanel extends Component {
     }
 
     get warehousesItems() {
-        return this.props.warehouses.map(wh => ({
+        return this.props.warehouses.map((wh) => ({
             id: wh.id,
             label: wh.name,
             class: { selected: wh.name === this.props.currentWarehouse?.name },
-            onSelected: () => this.props.changeWarehouse(wh.id)
+            onSelected: () => this.props.changeWarehouse(wh.id),
         }));
     }
 }

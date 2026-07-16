@@ -1,4 +1,7 @@
-import { addSectionFromProductCatalog, showProductColumn } from "@account/js/tours/tour_utils";
+import {
+    addSectionFromProductCatalog,
+    showProductColumn,
+} from "@account/js/tours/tour_utils";
 import { registry } from "@web/core/registry";
 
 registry.category("web_tour.tours").add("test_use_product_catalog_on_invoice", {
@@ -25,11 +28,14 @@ registry.category("web_tour.tours").add("test_use_product_catalog_on_invoice", {
         ...showProductColumn(),
         {
             content: "Ensure product is added",
-            trigger: ".o_field_product_label_section_and_note_cell:contains(Test Product)",
+            trigger:
+                ".o_field_product_label_section_and_note_cell:contains(Test Product)",
         },
     ],
 });
 
-registry.category("web_tour.tours").add('test_add_section_from_product_catalog_on_invoice', {
-    steps: () => addSectionFromProductCatalog()
-});
+registry
+    .category("web_tour.tours")
+    .add("test_add_section_from_product_catalog_on_invoice", {
+        steps: () => addSectionFromProductCatalog(),
+    });

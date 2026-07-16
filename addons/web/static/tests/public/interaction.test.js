@@ -1720,7 +1720,7 @@ describe("t-att-style", () => {
                 this.var = "red";
             }
             toggle() {
-                this.var = this.var == "red" ? "blue" : "red";
+                this.var = this.var === "red" ? "blue" : "red";
             }
         }
         await startInteraction(Test, TemplateBase);
@@ -1761,8 +1761,8 @@ describe("t-att-style", () => {
                 this.c = "red";
             }
             toggle() {
-                this.b = this.b == "red" ? "blue" : "red";
-                this.c = this.c == "red" ? "blue" : "red";
+                this.b = this.b === "red" ? "blue" : "red";
+                this.c = this.c === "red" ? "blue" : "red";
             }
         }
         await startInteraction(Test, TemplateBase);

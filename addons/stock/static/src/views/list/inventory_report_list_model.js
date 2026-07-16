@@ -39,12 +39,14 @@ export class InventoryReportListModel extends RelationalModel {
         if (justCreated && serverValues.create_date !== serverValues.write_date) {
             this.env.services.notification.add(
                 _t(
-                    "You tried to create a record that already exists. The existing record was modified instead."
+                    "You tried to create a record that already exists. The existing record was modified instead.",
                 ),
-                { title: _t("This record already exists") }
+                { title: _t("This record already exists") },
             );
             const duplicateRecords = this.root.records.filter(
-                (record) => record.resId === reloadedRecord.resId && record.id !== reloadedRecord.id
+                (record) =>
+                    record.resId === reloadedRecord.resId &&
+                    record.id !== reloadedRecord.id,
             );
             // Drop the added row when it is really an update of an existing record:
             //  - if a duplicate is already loaded (ungrouped, or same group), remove

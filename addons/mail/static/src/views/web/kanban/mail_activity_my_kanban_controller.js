@@ -10,7 +10,7 @@ export class MailActivityMyKanbanController extends KanbanController {
     async createRecord() {
         return this.store
             .scheduleActivity(
-                this.props.resModel != "mail.activity" ? this.props.resModel : false,
+                this.props.resModel !== "mail.activity" ? this.props.resModel : false,
                 false,
             )
             .then(async () => {

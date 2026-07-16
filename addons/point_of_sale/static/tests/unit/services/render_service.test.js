@@ -1,8 +1,9 @@
 import { expect, getFixture, test } from "@odoo/hoot";
 import { mockFetch } from "@odoo/hoot-mock";
 import { Component, xml } from "@odoo/owl";
-import { allowTranslations, mountWithCleanup } from "@web/../tests/web_test_helpers";
 import { htmlToCanvas } from "@point_of_sale/app/services/render_service";
+import { allowTranslations, mountWithCleanup } from "@web/../tests/web_test_helpers";
+
 import { definePosModels } from "../data/generate_model_definitions.js";
 
 definePosModels();
@@ -18,9 +19,12 @@ test("test the render service", async () => {
 
     allowTranslations(); // this is needed because we are not loading the localization service
     const comp = await mountWithCleanup("none");
-    const renderedComp = await comp.env.services.renderer.toHtml(ComponentToBeRendered, {
-        name: "Mario",
-    });
+    const renderedComp = await comp.env.services.renderer.toHtml(
+        ComponentToBeRendered,
+        {
+            name: "Mario",
+        },
+    );
     expect(renderedComp).toHaveOuterHTML("<div> It's me, Mario! </div>");
 });
 
@@ -32,7 +36,9 @@ test("htmlToCanvas", async () => {
     node.classList.add("render-container");
     target.appendChild(node);
 
-    const asciiChars = Array.from({ length: 256 }, (_, i) => String.fromCharCode(i)).join("");
+    const asciiChars = Array.from({ length: 256 }, (_, i) =>
+        String.fromCharCode(i),
+    ).join("");
     node.textContent = asciiChars;
 
     let canvas = null;

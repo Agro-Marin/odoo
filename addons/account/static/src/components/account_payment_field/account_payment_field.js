@@ -1,14 +1,13 @@
 /** @odoo-module native */
+import { Component } from "@odoo/owl";
+import { deserializeDate, formatDate } from "@web/core/l10n/dates";
+import { localization } from "@web/core/l10n/localization";
 import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
-import { usePopover } from "@web/ui/popover/popover_hook";
 import { useService } from "@web/core/utils/hooks";
-import { localization } from "@web/core/l10n/localization";
-import { formatDate, deserializeDate } from "@web/core/l10n/dates";
-
 import { formatMonetary } from "@web/fields/formatters";
 import { standardFieldProps } from "@web/fields/standard_field_props";
-import { Component } from "@odoo/owl";
+import { usePopover } from "@web/ui/popover/popover_hook";
 
 class AccountPaymentPopOver extends Component {
     static props = { "*": { optional: true } };
@@ -37,9 +36,13 @@ export class AccountPaymentField extends Component {
         // data in place on every render. (The former `index` field was never read.)
         const lines = info.content.map((line) => ({
             ...line,
-            amount_formatted: formatMonetary(line.amount, { currencyId: line.currency_id }),
+            amount_formatted: formatMonetary(line.amount, {
+                currencyId: line.currency_id,
+            }),
             // line.date is a string; parse and format it to the user's date format.
-            ...(line.date ? { formattedDate: formatDate(deserializeDate(line.date)) } : {}),
+            ...(line.date
+                ? { formattedDate: formatDate(deserializeDate(line.date)) }
+                : {}),
         }));
         return {
             lines,
@@ -59,18 +62,33 @@ export class AccountPaymentField extends Component {
     }
 
     async assignOutstandingCredit(moveId, id) {
-        await this.orm.call(this.props.record.resModel, 'js_assign_outstanding_line', [moveId, id], {});
+        await this.orm.call(
+            this.props.record.resModel,
+            "js_assign_outstanding_line",
+            [moveId, id],
+            {},
+        );
         await this.props.record.model.root.load();
     }
 
     async removeMoveReconcile(moveId, partialId) {
         this.popover.close();
-        await this.orm.call(this.props.record.resModel, 'js_remove_outstanding_partial', [moveId, partialId], {});
+        await this.orm.call(
+            this.props.record.resModel,
+            "js_remove_outstanding_partial",
+            [moveId, partialId],
+            {},
+        );
         await this.props.record.model.root.load();
     }
 
     async openMove(moveId) {
-        const action = await this.orm.call(this.props.record.resModel, 'action_view_business_doc', [moveId], {});
+        const action = await this.orm.call(
+            this.props.record.resModel,
+            "action_view_business_doc",
+            [moveId],
+            {},
+        );
         this.action.doAction(action);
     }
 }

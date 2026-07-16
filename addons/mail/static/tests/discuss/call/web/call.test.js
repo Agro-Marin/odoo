@@ -12,7 +12,14 @@ import {
 } from "@mail/../tests/mail_test_helpers";
 import { pttExtensionServiceInternal } from "@mail/discuss/call/common/ptt_extension_service";
 import { PTT_RELEASE_DURATION } from "@mail/discuss/call/common/rtc_service";
-import { advanceTime, freezeTime, keyDown, mockTouch, mockUserAgent, test } from "@odoo/hoot";
+import {
+    advanceTime,
+    freezeTime,
+    keyDown,
+    mockTouch,
+    mockUserAgent,
+    test,
+} from "@odoo/hoot";
 import { patchWithCleanup, serverState } from "@web/../tests/web_test_helpers";
 import { browser } from "@web/core/browser/browser";
 
@@ -42,7 +49,10 @@ test("no auto-call on joining group chat", async () => {
         { name: "Mario" },
         { name: "Luigi" },
     ]);
-    pyEnv["res.users"].create([{ partner_id: partnerId_1 }, { partner_id: partnerId_2 }]);
+    pyEnv["res.users"].create([
+        { partner_id: partnerId_1 },
+        { partner_id: partnerId_2 },
+    ]);
     await start();
     await openDiscuss();
     await click("input[placeholder='Search conversations']");

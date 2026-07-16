@@ -1,7 +1,7 @@
 /** @odoo-module native */
-import { luxon } from "@web/core/l10n/luxon";
 import { ActivityCompiler } from "@mail/views/web/activity/activity_compiler";
 import { Component } from "@odoo/owl";
+import { luxon } from "@web/core/l10n/luxon";
 import { evaluateBooleanExpr } from "@web/core/py_js/py";
 import { isHtmlEmpty } from "@web/core/utils/dom/html";
 import { Field } from "@web/fields/field";

@@ -23,7 +23,8 @@ export function uploadFileFromData(notification) {
     return async (dataTransfer) => {
         function uploadFiles(dataTransfer) {
             const invalidFiles = [...dataTransfer.items].filter(
-                (item) => item.kind !== "file" || !supportedFileTypes.includes(item.type)
+                (item) =>
+                    item.kind !== "file" || !supportedFileTypes.includes(item.type),
             );
             if (invalidFiles.length !== 0) {
                 // don't upload any files if one of them is non supported file type
@@ -33,7 +34,9 @@ export function uploadFileFromData(notification) {
                 );
                 return;
             }
-            const uploadInput = document.querySelector('.document_file_uploader.o_input_file');
+            const uploadInput = document.querySelector(
+                ".document_file_uploader.o_input_file",
+            );
             if (!uploadInput) {
                 // The uploader input is not in the DOM (e.g. upload button hidden).
                 warn("No file uploader available to receive the pasted files.");

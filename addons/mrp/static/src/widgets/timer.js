@@ -1,11 +1,17 @@
 /** @odoo-module native */
+import {
+    Component,
+    onWillDestroy,
+    onWillStart,
+    onWillUpdateProps,
+    useState,
+} from "@odoo/owl";
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
-import { parseFloatTime } from "@web/fields/parsers";
-import { useInputField } from "@web/fields/input_field_hook";
 import { useRecordObserver } from "@web/fields/hooks/record_observer";
+import { useInputField } from "@web/fields/input_field_hook";
+import { parseFloatTime } from "@web/fields/parsers";
 import { standardFieldProps } from "@web/fields/standard_field_props";
-import { Component, useState, onWillUpdateProps, onWillStart, onWillDestroy } from "@odoo/owl";
 
 function formatMinutes(value) {
     if (value === false) {
@@ -118,20 +124,24 @@ class MrpTimerField extends Component {
         });
 
         useRecordObserver(async (record) => {
-            if (!this.props.record.model.useSampleModel && record.data.state === "progress") {
-                this.duration = await this.orm.call(
-                    "mrp.workorder",
-                    "get_duration",
-                    [this.props.record.resId]
-                );
+            if (
+                !this.props.record.model.useSampleModel &&
+                record.data.state === "progress"
+            ) {
+                this.duration = await this.orm.call("mrp.workorder", "get_duration", [
+                    this.props.record.resId,
+                ]);
             } else {
                 this.duration = record.data[this.props.name];
             }
-        })
+        });
     }
 
     get durationFormatted() {
-        if (this.props.record.data[this.props.name] !== this.duration && this.props.record.dirty) {
+        if (
+            this.props.record.data[this.props.name] !== this.duration &&
+            this.props.record.dirty
+        ) {
             this.duration = this.props.record.data[this.props.name];
         }
         return formatMinutes(this.duration);

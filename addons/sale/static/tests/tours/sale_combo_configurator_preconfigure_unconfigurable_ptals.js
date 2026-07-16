@@ -1,15 +1,15 @@
-import { registry } from '@web/core/registry';
-import { stepUtils } from '@web_tour/tour_utils';
-import comboConfiguratorTourUtils from '@sale/js/tours/combo_configurator_tour_utils';
-import productConfiguratorTourUtils from '@sale/js/tours/product_configurator_tour_utils';
-import tourUtils from '@sale/js/tours/tour_utils';
+import comboConfiguratorTourUtils from "@sale/js/tours/combo_configurator_tour_utils";
+import productConfiguratorTourUtils from "@sale/js/tours/product_configurator_tour_utils";
+import tourUtils from "@sale/js/tours/tour_utils";
+import { registry } from "@web/core/registry";
+import { stepUtils } from "@web_tour/tour_utils";
 
 registry
-    .category('web_tour.tours')
-    .add('sale_combo_configurator_preconfigure_unconfigurable_ptals', {
-        url: '/odoo',
+    .category("web_tour.tours")
+    .add("sale_combo_configurator_preconfigure_unconfigurable_ptals", {
+        url: "/odoo",
         steps: () => [
-            ...stepUtils.goToAppSteps('sale.sale_menu_root', "Open the sales app"),
+            ...stepUtils.goToAppSteps("sale.sale_menu_root", "Open the sales app"),
             ...tourUtils.createNewSalesOrder(),
             ...tourUtils.selectCustomer("Test Partner"),
             ...tourUtils.addProduct("Combo product"),
@@ -23,7 +23,10 @@ registry
             },
             comboConfiguratorTourUtils.selectComboItem("Test product"),
             productConfiguratorTourUtils.selectAttribute(
-                "Test product", "Attribute B", "B", 'multi'
+                "Test product",
+                "Attribute B",
+                "B",
+                "multi",
             ),
             ...productConfiguratorTourUtils.saveConfigurator(),
             {

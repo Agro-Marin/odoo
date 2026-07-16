@@ -1,7 +1,8 @@
 import { expect, test } from "@odoo/hoot";
 import OrderPaymentValidation from "@point_of_sale/app/utils/order_payment_validation";
-import { getFilledOrder, setupPosEnv } from "../utils.js";
+
 import { definePosModels } from "../data/generate_model_definitions.js";
+import { getFilledOrder, setupPosEnv } from "../utils.js";
 
 definePosModels();
 

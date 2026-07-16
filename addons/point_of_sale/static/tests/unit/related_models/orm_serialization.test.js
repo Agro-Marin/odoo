@@ -1,7 +1,8 @@
 import { expect, test } from "@odoo/hoot";
-import { getRelatedModelsInstance } from "../data/get_model_definitions.js";
 import { makeMockServer } from "@web/../tests/web_test_helpers";
+
 import { definePosModels } from "../data/generate_model_definitions.js";
+import { getRelatedModelsInstance } from "../data/get_model_definitions.js";
 
 definePosModels();
 
@@ -121,7 +122,10 @@ test("serialization of dynamic model without uuid", async () => {
     });
     const line1UUID = line1.uuid;
 
-    models["pos.pack.operation.lot"].create({ pos_order_line_id: line1, lot_name: "lot1" });
+    models["pos.pack.operation.lot"].create({
+        pos_order_line_id: line1,
+        lot_name: "lot1",
+    });
     {
         const keepCommandResult = models.serializeForORM(order, { keepCommands: true });
         const result = models.serializeForORM(order);
@@ -160,7 +164,10 @@ test("serialization of dynamic model without uuid", async () => {
     order = models["pos.order"].getBy("uuid", orderUUID);
     line1 = models["pos.order.line"].getBy("uuid", line1UUID);
 
-    models["pos.pack.operation.lot"].create({ pos_order_line_id: line1, lot_name: "lot2" });
+    models["pos.pack.operation.lot"].create({
+        pos_order_line_id: line1,
+        lot_name: "lot2",
+    });
     {
         const keepCommandResult = models.serializeForORM(order, { keepCommands: true });
         const result = models.serializeForORM(order);
@@ -223,12 +230,12 @@ test("nested lines relationship", async () => {
     await makeMockServer();
     const models = getRelatedModelsInstance(false);
     let order = models["pos.order"].create({});
-    let parentLine = models["pos.order.line"].create({ order_id: order });
+    const parentLine = models["pos.order.line"].create({ order_id: order });
     let line1 = models["pos.order.line"].create({
         order_id: order,
         combo_parent_id: parentLine,
     });
-    let line2 = models["pos.order.line"].create({
+    const line2 = models["pos.order.line"].create({
         order_id: order,
         combo_parent_id: parentLine,
     });
@@ -247,12 +254,12 @@ test("nested lines relationship", async () => {
 
         const { relations_uuid_mapping } = result;
         expect(Object.keys(relations_uuid_mapping["pos.order.line"]).length).toBe(2);
-        expect(relations_uuid_mapping["pos.order.line"][line1.uuid]["combo_parent_id"]).toBe(
-            parentLine.uuid
-        );
-        expect(relations_uuid_mapping["pos.order.line"][line2.uuid]["combo_parent_id"]).toBe(
-            parentLine.uuid
-        );
+        expect(
+            relations_uuid_mapping["pos.order.line"][line1.uuid]["combo_parent_id"],
+        ).toBe(parentLine.uuid);
+        expect(
+            relations_uuid_mapping["pos.order.line"][line2.uuid]["combo_parent_id"],
+        ).toBe(parentLine.uuid);
     }
 
     models.connectNewData({
@@ -284,8 +291,6 @@ test("nested lines relationship", async () => {
     // Update line: the uuid mapping must be present
     order = models["pos.order"].getBy("uuid", order.uuid);
     line1 = models["pos.order.line"].getBy("uuid", line1.uuid);
-    line2 = models["pos.order.line"].getBy("uuid", line2.uuid);
-    parentLine = models["pos.order.line"].getBy("uuid", parentLine.uuid);
 
     line1.qty = 99;
     {
@@ -304,10 +309,10 @@ test("recursive relationship with group of lines", async () => {
     await makeMockServer();
     const models = getRelatedModelsInstance(false);
     let order = models["pos.order"].create({});
-    let line1 = models["pos.order.line"].create({
+    const line1 = models["pos.order.line"].create({
         order_id: order,
     });
-    let line2 = models["pos.order.line"].create({
+    const line2 = models["pos.order.line"].create({
         order_id: order,
         combo_parent_id: line1,
     });
@@ -333,12 +338,12 @@ test("recursive relationship with group of lines", async () => {
 
         const { relations_uuid_mapping } = result;
         expect(Object.keys(relations_uuid_mapping["pos.order.line"]).length).toBe(3);
-        expect(relations_uuid_mapping["pos.order.line"][line2.uuid]["combo_parent_id"]).toBe(
-            line1.uuid
-        );
-        expect(relations_uuid_mapping["pos.order.line"][line3.uuid]["combo_parent_id"]).toBe(
-            line1.uuid
-        );
+        expect(
+            relations_uuid_mapping["pos.order.line"][line2.uuid]["combo_parent_id"],
+        ).toBe(line1.uuid);
+        expect(
+            relations_uuid_mapping["pos.order.line"][line3.uuid]["combo_parent_id"],
+        ).toBe(line1.uuid);
     }
 
     models.connectNewData({
@@ -370,8 +375,6 @@ test("recursive relationship with group of lines", async () => {
     });
 
     order = models["pos.order"].getBy("uuid", order.uuid);
-    line1 = models["pos.order.line"].getBy("uuid", line1.uuid);
-    line2 = models["pos.order.line"].getBy("uuid", line2.uuid);
     line3 = models["pos.order.line"].getBy("uuid", line3.uuid);
 
     {

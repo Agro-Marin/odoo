@@ -332,6 +332,7 @@ describe("formatFloat", () => {
         expect(formatFloat(3.123, options)).toBe("3.123");
         expect(formatFloat(3.1239, options)).toBe("3.1239");
         expect(formatFloat(3.1231239, options)).toBe("3.123124");
+        // eslint-disable-next-line no-loss-of-precision -- high-precision literal is deliberate test input
         expect(formatFloat(1234567890.123456789, options)).toBe("1,234,567,890.12346");
 
         options = { minDigits: 3, digits: [15, 4] };

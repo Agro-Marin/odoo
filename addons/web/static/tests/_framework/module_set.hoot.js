@@ -14,15 +14,6 @@ const { fetch: realFetch } = globals;
 // Internal
 
 /**
- * @param {Record<any, any>} object
- */
-function clearObject(object) {
-    for (const key in object) {
-        delete object[key];
-    }
-}
-
-/**
  * Reduce the size of the given field and freeze it.
  *
  * @param {Record<string, unknown>} field

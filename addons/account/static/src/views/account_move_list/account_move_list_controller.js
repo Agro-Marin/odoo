@@ -1,10 +1,10 @@
 /** @odoo-module native */
 import { _t } from "@web/core/l10n/translation";
-import { AccountUploadListController } from "../account_upload_list/account_upload_list_controller.js";
-import { showAccountUploadButton } from "../account_file_uploader_mixin.js";
+import { useService } from "@web/core/utils/hooks";
 import { deleteConfirmationMessage } from "@web/ui/dialog/confirmation_dialog";
 
-import { useService } from "@web/core/utils/hooks";
+import { showAccountUploadButton } from "../account_file_uploader_mixin.js";
+import { AccountUploadListController } from "../account_upload_list/account_upload_list_controller.js";
 
 export class AccountMoveListController extends AccountUploadListController {
     setup() {
@@ -37,9 +37,8 @@ export class AccountMoveListController extends AccountUploadListController {
         if (this.model.root.isDomainSelected || this.model.root.selection.length > 1) {
             body = _t("Are you sure you want to delete these records?");
         }
-        deleteConfirmationDialogProps.body = await this.account_move_service.getDeletionDialogBody(body, selectedResIds);
-        this.deleteRecordsWithConfirmation(
-            deleteConfirmationDialogProps
-        );
+        deleteConfirmationDialogProps.body =
+            await this.account_move_service.getDeletionDialogBody(body, selectedResIds);
+        this.deleteRecordsWithConfirmation(deleteConfirmationDialogProps);
     }
 }

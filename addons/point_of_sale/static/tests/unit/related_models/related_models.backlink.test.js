@@ -1,7 +1,8 @@
 import { describe, expect, test } from "@odoo/hoot";
-import { getRelatedModelsInstance } from "../data/get_model_definitions.js";
 import { makeMockServer } from "@web/../tests/web_test_helpers";
+
 import { definePosModels } from "../data/generate_model_definitions.js";
+import { getRelatedModelsInstance } from "../data/get_model_definitions.js";
 
 definePosModels();
 
@@ -11,9 +12,13 @@ describe("models with backlinks", () => {
             await makeMockServer();
             const models = getRelatedModelsInstance(false);
             const category = models["pos.category"].create({});
-            const product = models["product.template"].create({ pos_categ_ids: [category] });
+            const product = models["product.template"].create({
+                pos_categ_ids: [category],
+            });
             expect(product.pos_categ_ids).toInclude(category);
-            expect(category.backLink("product.template.pos_categ_ids")).toInclude(product);
+            expect(category.backLink("product.template.pos_categ_ids")).toInclude(
+                product,
+            );
         });
         test("read operation 1", async () => {
             await makeMockServer();
@@ -315,8 +320,12 @@ describe("models with backlinks", () => {
             const c1 = models["pos.category"].create({});
             const c2 = models["pos.category"].create({});
             const c3 = models["pos.category"].create({});
-            const t1 = models["product.template"].create({ pos_categ_ids: [["link", c1, c2, c3]] });
-            const t2 = models["product.template"].create({ pos_categ_ids: [["link", c1, c2]] });
+            const t1 = models["product.template"].create({
+                pos_categ_ids: [["link", c1, c2, c3]],
+            });
+            const t2 = models["product.template"].create({
+                pos_categ_ids: [["link", c1, c2]],
+            });
 
             const readT1 = models["product.template"].read(t1.id);
             expect(readT1).toEqual(t1);
@@ -397,7 +406,10 @@ describe("models with backlinks", () => {
                 await makeMockServer();
                 const models = getRelatedModelsInstance(false);
                 const l1 = models["pos.order.line"].create({ id: 1 });
-                const l2 = models["pos.order.line"].create({ id: 2, combo_parent_id: l1 });
+                const l2 = models["pos.order.line"].create({
+                    id: 2,
+                    combo_parent_id: l1,
+                });
                 expect(l1.combo_line_ids).toInclude(l2);
                 expect(l2.combo_parent_id).toBe(l1);
             });
@@ -408,7 +420,9 @@ describe("models with backlinks", () => {
                 const l1 = models["pos.order.line"].create({});
                 const l2 = models["pos.order.line"].create({});
                 const l3 = models["pos.order.line"].create({});
-                const l4 = models["pos.order.line"].create({ combo_line_ids: [l1, l2, l3] });
+                const l4 = models["pos.order.line"].create({
+                    combo_line_ids: [l1, l2, l3],
+                });
 
                 const readL1 = models["pos.order.line"].read(l1.id);
                 expect(readL1).toEqual(l1);
@@ -416,7 +430,9 @@ describe("models with backlinks", () => {
                 const readL4 = models["pos.order.line"].read(l4.id);
                 expect(readL4).toEqual(l4);
 
-                expect([l1, l2, l3].every((n) => readL4.combo_line_ids.includes(n))).toBe(true);
+                expect(
+                    [l1, l2, l3].every((n) => readL4.combo_line_ids.includes(n)),
+                ).toBe(true);
 
                 const readMany = models["pos.order.line"].readMany([l2.id, l3.id]);
                 expect(readMany[0]).toBe(l2);
@@ -462,7 +478,9 @@ describe("models with backlinks", () => {
                 const l1 = models["pos.order.line"].create({});
                 const l2 = models["pos.order.line"].create({});
                 const l3 = models["pos.order.line"].create({});
-                const l4 = models["pos.order.line"].create({ combo_line_ids: [l1, l2, l3] });
+                const l4 = models["pos.order.line"].create({
+                    combo_line_ids: [l1, l2, l3],
+                });
 
                 expect(l4.combo_line_ids).toHaveLength(3);
 
@@ -496,9 +514,13 @@ describe("models without backlinks", () => {
             await makeMockServer();
             const models = getRelatedModelsInstance(false);
             const category = models["pos.category"].create({ id: 1 });
-            const product = models["product.template"].create({ pos_categ_ids: [category] });
+            const product = models["product.template"].create({
+                pos_categ_ids: [category],
+            });
             expect(product.pos_categ_ids).toEqual([category]);
-            expect(category.backLink("<-product.template.pos_categ_ids")).toEqual([product]);
+            expect(category.backLink("<-product.template.pos_categ_ids")).toEqual([
+                product,
+            ]);
         });
 
         test("read operation 5", async () => {
@@ -580,7 +602,9 @@ describe("models without backlinks", () => {
             const p2 = models["product.template"].create({
                 pos_categ_ids: [["link", c1, c2]],
             });
-            const p3 = models["product.template"].create({ pos_categ_ids: [["link", c1]] });
+            const p3 = models["product.template"].create({
+                pos_categ_ids: [["link", c1]],
+            });
 
             const readT1 = models["product.template"].read(p1.id);
             expect(readT1).toEqual(p1);
@@ -628,15 +652,23 @@ describe("models without backlinks", () => {
             const models = getRelatedModelsInstance(false);
             const tag1 = models["pos.category"].create({});
             const tag2 = models["pos.category"].create({});
-            const product = models["product.template"].create({ pos_categ_ids: [tag1, tag2] });
+            const product = models["product.template"].create({
+                pos_categ_ids: [tag1, tag2],
+            });
             models["product.template"].update(product, { pos_categ_ids: [["clear"]] });
             const updatedProduct = models["product.template"].read(product.id);
             expect(updatedProduct.pos_categ_ids).toHaveLength(0);
 
-            models["product.template"].update(product, { pos_categ_ids: [["link", tag1, tag2]] });
-            expect([tag1, tag2].every((t) => product.pos_categ_ids.includes(t))).toBe(true);
+            models["product.template"].update(product, {
+                pos_categ_ids: [["link", tag1, tag2]],
+            });
+            expect([tag1, tag2].every((t) => product.pos_categ_ids.includes(t))).toBe(
+                true,
+            );
             models["product.template"].update(product, { pos_categ_ids: [["clear"]] });
-            expect(tag1.backLink("<-product.template.pos_categ_ids")).not.toInclude(product);
+            expect(tag1.backLink("<-product.template.pos_categ_ids")).not.toInclude(
+                product,
+            );
         });
 
         test("delete operation", async () => {

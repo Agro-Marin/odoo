@@ -45,7 +45,12 @@ export function collectAssignable(lines) {
  * promise (resolves to the server's action_assign result).
  */
 export function assignMoves(orm, moveIds, quantities, inIds) {
-    return orm.call(RECEPTION_MODEL, "action_assign", [false, moveIds, quantities, inIds]);
+    return orm.call(RECEPTION_MODEL, "action_assign", [
+        false,
+        moveIds,
+        quantities,
+        inIds,
+    ]);
 }
 
 /**

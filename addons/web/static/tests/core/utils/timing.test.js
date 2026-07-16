@@ -95,7 +95,7 @@ describe("batched", () => {
 
     test("calling batched function from within the callback is not treated as part of the original batch", async () => {
         let n = 0;
-        const fn = batched(() => ++n == 1 && fn());
+        const fn = batched(() => ++n === 1 && fn());
         expect(n).toBe(0);
 
         fn();
@@ -113,7 +113,7 @@ describe("batched", () => {
 
     test("calling batched function from within the callback is not treated as part of the original batch (synchronize at animationFrame)", async () => {
         let n = 0;
-        const fn = batched(() => ++n == 1 && fn(), animationFrame);
+        const fn = batched(() => ++n === 1 && fn(), animationFrame);
         expect(n).toBe(0);
 
         fn();

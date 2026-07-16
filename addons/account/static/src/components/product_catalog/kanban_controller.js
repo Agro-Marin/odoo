@@ -1,11 +1,13 @@
 /** @odoo-module native */
 import { ProductCatalogKanbanController } from "@product/product_catalog/kanban_controller";
-import { patch } from "@web/core/utils/patch";
 import { _t } from "@web/core/l10n/translation";
+import { patch } from "@web/core/utils/patch";
 
 patch(ProductCatalogKanbanController.prototype, {
     get stateFields() {
-        return this.orderResModel === "account.move" ? ["state", "move_type"] : super.stateFields;
+        return this.orderResModel === "account.move"
+            ? ["state", "move_type"]
+            : super.stateFields;
     },
 
     _defineButtonContent() {

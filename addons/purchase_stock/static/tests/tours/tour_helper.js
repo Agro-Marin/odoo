@@ -26,7 +26,8 @@ export const catalogSuggestion = {
         if (basedOn) {
             steps.push(
                 {
-                    trigger: ".o_TimePeriodSelectionField .o_select_menu .dropdown-toggle:visible",
+                    trigger:
+                        ".o_TimePeriodSelectionField .o_select_menu .dropdown-toggle:visible",
                     run: "click",
                 },
                 {
@@ -35,7 +36,7 @@ export const catalogSuggestion = {
                 {
                     trigger: `.o_select_menu_menu .o_select_menu_item:contains('${basedOn}'):visible`,
                     run: "click",
-                }
+                },
             );
         }
         return steps;
@@ -66,7 +67,11 @@ export const catalogSuggestion = {
                 trigger: "input.o_PurchaseSuggestInput:eq(1)",
                 run() {
                     const percent = parseInt(this.anchor.value, 10);
-                    assert(percent, factor, `Expected percent factor ${factor}, got ${percent}`);
+                    assert(
+                        percent,
+                        factor,
+                        `Expected percent factor ${factor}, got ${percent}`,
+                    );
                 },
             });
         }
@@ -76,7 +81,11 @@ export const catalogSuggestion = {
                 trigger: ".o_TimePeriodSelectionField",
                 run() {
                     const drop = this.anchor.querySelector(".o_select_menu_toggler");
-                    assert(drop.value, basedOn, `Expected based on ${basedOn}, got ${drop.value}`);
+                    assert(
+                        drop.value,
+                        basedOn,
+                        `Expected based on ${basedOn}, got ${drop.value}`,
+                    );
                 },
             });
         }
@@ -146,7 +155,9 @@ export const catalogSuggestion = {
         const trigger = '.o_facet_value:contains("Suggested")';
         const run = async (actions) => {
             const filters = [...document.querySelectorAll(".o_searchview_facet")];
-            const suggestedFilter = filters.find((el) => el.textContent.includes("Suggested"));
+            const suggestedFilter = filters.find((el) =>
+                el.textContent.includes("Suggested"),
+            );
             await actions.click(suggestedFilter.querySelector(".o_facet_remove"));
         };
         return [{ content, trigger, run }];

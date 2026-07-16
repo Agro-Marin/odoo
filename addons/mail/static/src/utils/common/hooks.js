@@ -595,7 +595,9 @@ export function useDiscussSystray(dropdownState) {
                 if (isOpen) {
                     document.body.classList.add("o-mail-discuss-systray-menu-open");
                     return () => {
-                        document.body.classList.remove("o-mail-discuss-systray-menu-open");
+                        document.body.classList.remove(
+                            "o-mail-discuss-systray-menu-open",
+                        );
                     };
                 }
             },

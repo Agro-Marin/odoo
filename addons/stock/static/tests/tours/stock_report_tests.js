@@ -1,25 +1,25 @@
 import { registry } from "@web/core/registry";
 
 registry.category("web_tour.tours").add("test_stock_route_diagram_report", {
-        steps: () => [
+    steps: () => [
         {
             trigger: ".o_breadcrumb",
         },
-    {
-        trigger: '.o_kanban_record',
-        run: "click",
-    },
-    {
-        trigger: '.nav-item > a:contains("Inventory")',
-        run: "click",
-    },
-    {
-        trigger: '.btn[id="stock.view_diagram_button"]',
-        run: "click",
-    },
-    {
-        trigger: ':iframe .o_report_stock_rule',
-    },
+        {
+            trigger: ".o_kanban_record",
+            run: "click",
+        },
+        {
+            trigger: '.nav-item > a:contains("Inventory")',
+            run: "click",
+        },
+        {
+            trigger: '.btn[id="stock.view_diagram_button"]',
+            run: "click",
+        },
+        {
+            trigger: ":iframe .o_report_stock_rule",
+        },
     ],
 });
 
@@ -76,12 +76,16 @@ registry.category("web_tour.tours").add("test_context_from_warehouse_filter", {
         {
             trigger: ".o_form_view",
             run: () => {
-                if (!document.querySelector("button[name=action_product_tmpl_forecast_report]")) {
+                if (
+                    !document.querySelector(
+                        "button[name=action_product_tmpl_forecast_report]",
+                    )
+                ) {
                     const panelButtons = document.querySelectorAll(
-                        ".o_control_panel_actions button"
+                        ".o_control_panel_actions button",
                     );
                     const moreButton = Array.from(panelButtons).find(
-                        (button) => button.textContent.trim() == "More"
+                        (button) => button.textContent.trim() === "More",
                     );
                     moreButton.click();
                 }

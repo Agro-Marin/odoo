@@ -1,15 +1,15 @@
 import {
     click,
     contains,
-    start,
-    startServer,
-    openDiscuss,
+    defineMailModels,
     mockGetMedia,
     onlineTest,
-    defineMailModels,
+    openDiscuss,
+    start,
+    startServer,
 } from "@mail/../tests/mail_test_helpers";
-import { onRpc } from "@web/../tests/web_test_helpers";
 import { PeerToPeer, UPDATE_EVENT } from "@mail/discuss/call/common/peer_to_peer";
+import { onRpc } from "@web/../tests/web_test_helpers";
 
 defineMailModels();
 
@@ -67,10 +67,11 @@ onlineTest("Can join a call in p2p", async (assert) => {
         }),
         channel_id: channelId,
     });
-    const { localUserConnected, remoteUserConnected } = await mockPeerToPeerCallEnvironment({
-        channelId,
-        remoteSessionId,
-    });
+    const { localUserConnected, remoteUserConnected } =
+        await mockPeerToPeerCallEnvironment({
+            channelId,
+            remoteSessionId,
+        });
 
     await openDiscuss(channelId);
     await click("[title='Join Call']");

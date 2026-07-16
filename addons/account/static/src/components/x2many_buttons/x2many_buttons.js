@@ -1,9 +1,9 @@
 /** @odoo-module native */
+import { Component } from "@odoo/owl";
 import { _t } from "@web/core/l10n/translation";
-import { standardFieldProps } from "@web/fields/standard_field_props";
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
-import { Component } from "@odoo/owl";
+import { standardFieldProps } from "@web/fields/standard_field_props";
 
 class X2ManyButtons extends Component {
     static template = "account.X2ManyButtons";
@@ -21,9 +21,10 @@ class X2ManyButtons extends Component {
     async openTreeAndDiscard() {
         const ids = this.currentField.currentIds;
         await this.props.record.discard();
-        const context = this.currentField.resModel === "account.move"
-            ? { list_view_ref: "account.view_duplicated_moves_tree_js" }
-            : {};
+        const context =
+            this.currentField.resModel === "account.move"
+                ? { list_view_ref: "account.view_duplicated_moves_tree_js" }
+                : {};
         this.action.doAction({
             name: this.props.treeLabel,
             type: "ir.actions.act_window",
@@ -38,7 +39,12 @@ class X2ManyButtons extends Component {
     }
 
     async openFormAndDiscard(id) {
-        const action = await this.orm.call(this.currentField.resModel, "action_view_business_doc", [id], {});
+        const action = await this.orm.call(
+            this.currentField.resModel,
+            "action_view_business_doc",
+            [id],
+            {},
+        );
         await this.props.record.discard();
         this.action.doAction(action);
     }

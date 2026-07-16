@@ -1,8 +1,8 @@
 /** @odoo-module native */
 import { onExternalClick } from "@mail/utils/common/hooks";
 import { Component } from "@odoo/owl";
-import { useAutofocus, useService } from "@web/core/utils/hooks";
 import { getActiveHotkey } from "@web/core/browser/hotkeys";
+import { useAutofocus, useService } from "@web/core/utils/hooks";
 export class MessagingMenuQuickSearch extends Component {
     static components = {};
     static props = ["onClose"];

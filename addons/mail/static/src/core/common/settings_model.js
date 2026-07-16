@@ -1,7 +1,7 @@
 /** @odoo-module native */
-import { luxon } from "@web/core/l10n/luxon";
 import { hasHardwareAcceleration } from "@mail/utils/common/misc";
 import { browser } from "@web/core/browser/browser";
+import { luxon } from "@web/core/l10n/luxon";
 import { _t } from "@web/core/l10n/translation";
 import { rpc } from "@web/core/network/rpc";
 import { debounce } from "@web/core/utils/timing";

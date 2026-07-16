@@ -49,10 +49,16 @@ test("basic layout", async () => {
     await click(".o_menu_systray i[aria-label='Messages']");
     await contains(".o-mail-NotificationItem", {
         contains: [
-            [".o-mail-NotificationItem-name", { text: "Email Failure: Discussion Channel" }],
+            [
+                ".o-mail-NotificationItem-name",
+                { text: "Email Failure: Discussion Channel" },
+            ],
             [".o-mail-NotificationItem-counter", { text: "2" }],
             [".o-mail-NotificationItem-date", { text: "Jan 1" }],
-            [".o-mail-NotificationItem-text", { text: "An error occurred when sending an email" }],
+            [
+                ".o-mail-NotificationItem-text",
+                { text: "An error occurred when sending an email" },
+            ],
         ],
     });
 });
@@ -76,7 +82,10 @@ test("mark as read", async () => {
         text: "Email Failure: Discussion Channel",
     });
     await click(".o-mail-NotificationItem-markAsRead", {
-        parent: [".o-mail-NotificationItem", { text: "Email Failure: Discussion Channel" }],
+        parent: [
+            ".o-mail-NotificationItem",
+            { text: "Email Failure: Discussion Channel" },
+        ],
     });
     await contains(".o-mail-NotificationItem", {
         count: 0,
@@ -122,12 +131,12 @@ test("open non-channel failure", async () => {
                     [false, "kanban"],
                     [false, "list"],
                     [false, "form"],
-                ])
+                ]),
             );
             expect(action.target).toBe("current");
             expect(action.res_model).toBe("res.partner");
             expect(JSON.stringify(action.domain)).toBe(
-                JSON.stringify([["message_has_error", "=", true]])
+                JSON.stringify([["message_has_error", "=", true]]),
             );
         },
     });
@@ -270,15 +279,22 @@ test("marked as read thread notifications are ordered by last message date", asy
     await start();
     await click(".o_menu_systray i[aria-label='Messages']");
     await contains(".o-mail-NotificationItem", { count: 2 });
-    await contains(":nth-child(1 of .o-mail-NotificationItem)", { text: "Channel 2020" });
-    await contains(":nth-child(2 of .o-mail-NotificationItem)", { text: "Channel 2019" });
+    await contains(":nth-child(1 of .o-mail-NotificationItem)", {
+        text: "Channel 2020",
+    });
+    await contains(":nth-child(2 of .o-mail-NotificationItem)", {
+        text: "Channel 2019",
+    });
 });
 
 test("thread notifications are re-ordered on receiving a new message", async () => {
     mockDate("2023-01-03 12:00:00"); // so that it's after last interest (mock server is in 2019 by default!)
     const pyEnv = await startServer();
     const bobUserId = pyEnv["res.users"].create({ name: "Bob" });
-    const bobPartnerId = pyEnv["res.partner"].create({ name: "Bob", user_id: bobUserId.id });
+    const bobPartnerId = pyEnv["res.partner"].create({
+        name: "Bob",
+        user_id: bobUserId.id,
+    });
     const [channelId_1, channelId_2] = pyEnv["discuss.channel"].create([
         {
             name: "Channel 2019",
@@ -316,10 +332,14 @@ test("thread notifications are re-ordered on receiving a new message", async () 
             },
             thread_id: channelId_1,
             thread_model: "discuss.channel",
-        })
+        }),
     );
-    await contains(":nth-child(1 of .o-mail-NotificationItem)", { text: "Channel 2019" });
-    await contains(":nth-child(2 of .o-mail-NotificationItem)", { text: "Channel 2020" });
+    await contains(":nth-child(1 of .o-mail-NotificationItem)", {
+        text: "Channel 2019",
+    });
+    await contains(":nth-child(2 of .o-mail-NotificationItem)", {
+        text: "Channel 2020",
+    });
     await contains(".o-mail-NotificationItem", { count: 2 });
 });
 

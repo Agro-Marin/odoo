@@ -19,7 +19,6 @@ import {
     waitForSteps,
     withUser,
 } from "@web/../tests/web_test_helpers";
-
 import { rpc } from "@web/core/network/rpc";
 
 describe.current.tags("desktop");
@@ -196,7 +195,9 @@ test("show subject of message in Inbox", async () => {
     ]);
     await start();
     await openDiscuss("mail.box_inbox");
-    await contains(".o-mail-Message", { text: "Subject: Salutations, voyageurnot empty" });
+    await contains(".o-mail-Message", {
+        text: "Subject: Salutations, voyageurnot empty",
+    });
     // Empty body: display subject only
     await contains(".o-mail-Message:has(:text('Subject: Hello, wanderer'))");
 });
@@ -217,12 +218,16 @@ test("show subject of message in history", async () => {
     });
     await start();
     await openDiscuss("mail.box_history");
-    await contains(".o-mail-Message", { text: "Subject: Salutations, voyageurnot empty" });
+    await contains(".o-mail-Message", {
+        text: "Subject: Salutations, voyageurnot empty",
+    });
 });
 
 test("subject should not be shown when subject is the same as the thread name", async () => {
     const pyEnv = await startServer();
-    const channelId = pyEnv["discuss.channel"].create({ name: "Salutations, voyageur" });
+    const channelId = pyEnv["discuss.channel"].create({
+        name: "Salutations, voyageur",
+    });
     const messageId = pyEnv["mail.message"].create({
         body: "not empty",
         model: "discuss.channel",
@@ -247,7 +252,9 @@ test("subject should not be shown when subject is the same as the thread name", 
 
 test("subject should not be shown when subject is the same as the thread name and both have the same prefix", async () => {
     const pyEnv = await startServer();
-    const channelId = pyEnv["discuss.channel"].create({ name: "Re: Salutations, voyageur" });
+    const channelId = pyEnv["discuss.channel"].create({
+        name: "Re: Salutations, voyageur",
+    });
     const messageId = pyEnv["mail.message"].create({
         body: "not empty",
         model: "discuss.channel",
@@ -272,7 +279,9 @@ test("subject should not be shown when subject is the same as the thread name an
 
 test('subject should not be shown when subject differs from thread name only by the "Re:" prefix', async () => {
     const pyEnv = await startServer();
-    const channelId = pyEnv["discuss.channel"].create({ name: "Salutations, voyageur" });
+    const channelId = pyEnv["discuss.channel"].create({
+        name: "Salutations, voyageur",
+    });
     const messageId = pyEnv["mail.message"].create({
         body: "not empty",
         model: "discuss.channel",
@@ -297,7 +306,9 @@ test('subject should not be shown when subject differs from thread name only by 
 
 test('subject should not be shown when subject differs from thread name only by the "Fw:" and "Re:" prefix', async () => {
     const pyEnv = await startServer();
-    const channelId = pyEnv["discuss.channel"].create({ name: "Salutations, voyageur" });
+    const channelId = pyEnv["discuss.channel"].create({
+        name: "Salutations, voyageur",
+    });
     const messageId = pyEnv["mail.message"].create({
         body: "not empty",
         model: "discuss.channel",
@@ -322,7 +333,9 @@ test('subject should not be shown when subject differs from thread name only by 
 
 test("subject should be shown when the thread name has an extra prefix compared to subject", async () => {
     const pyEnv = await startServer();
-    const channelId = pyEnv["discuss.channel"].create({ name: "Re: Salutations, voyageur" });
+    const channelId = pyEnv["discuss.channel"].create({
+        name: "Re: Salutations, voyageur",
+    });
     const messageId = pyEnv["mail.message"].create({
         body: "not empty",
         model: "discuss.channel",
@@ -347,7 +360,9 @@ test("subject should be shown when the thread name has an extra prefix compared 
 
 test('subject should not be shown when subject differs from thread name only by the "fw:" prefix and both contain another common prefix', async () => {
     const pyEnv = await startServer();
-    const channelId = pyEnv["discuss.channel"].create({ name: "Re: Salutations, voyageur" });
+    const channelId = pyEnv["discuss.channel"].create({
+        name: "Re: Salutations, voyageur",
+    });
     const messageId = pyEnv["mail.message"].create({
         body: "not empty",
         model: "discuss.channel",
@@ -372,7 +387,9 @@ test('subject should not be shown when subject differs from thread name only by 
 
 test('subject should not be shown when subject differs from thread name only by the "Re: Re:" prefix', async () => {
     const pyEnv = await startServer();
-    const channelId = pyEnv["discuss.channel"].create({ name: "Salutations, voyageur" });
+    const channelId = pyEnv["discuss.channel"].create({
+        name: "Salutations, voyageur",
+    });
     const messageId = pyEnv["mail.message"].create({
         body: "not empty",
         model: "discuss.channel",
@@ -435,7 +452,9 @@ test("inbox: mark all messages as read", async () => {
         ],
     });
     await contains(".o-mail-DiscussContent .o-mail-Message", { count: 2 });
-    await click(".o-mail-DiscussContent-header button:enabled", { text: "Mark all read" });
+    await click(".o-mail-DiscussContent-header button:enabled", {
+        text: "Mark all read",
+    });
     await contains("button", { text: "Inbox", contains: [".badge", { count: 0 }] });
     await contains(".o-mail-DiscussSidebarChannel", {
         contains: [
@@ -458,7 +477,7 @@ test("inbox: mark as read should not display jump to present", async () => {
                 model: "discuss.channel",
                 needaction: true,
                 res_id: channelId,
-            }))
+            })),
     );
     pyEnv["mail.notification"].create(
         Array(30)
@@ -467,7 +486,7 @@ test("inbox: mark as read should not display jump to present", async () => {
                 mail_message_id: msgIds[i],
                 notification_type: "inbox",
                 res_partner_id: serverState.partnerId,
-            }))
+            })),
     );
     await start();
     await openDiscuss("mail.box_inbox");
@@ -476,7 +495,9 @@ test("inbox: mark as read should not display jump to present", async () => {
     await contains(".o-mail-Message", { count: 30 });
     await scroll(".o-mail-Thread", 0);
     await contains("[title='Jump to Present']");
-    await click(".o-mail-DiscussContent-header button:enabled", { text: "Mark all read" });
+    await click(".o-mail-DiscussContent-header button:enabled", {
+        text: "Mark all read",
+    });
     await contains("[title='Jump to Present']", { count: 0 });
 });
 
@@ -707,7 +728,7 @@ test("Counter should be incremented by 1 when receiving a message with a mention
             },
             thread_id: channelId,
             thread_model: "discuss.channel",
-        })
+        }),
     );
     await contains("button", { text: "Inbox", contains: [".badge", { text: "2" }] });
 });

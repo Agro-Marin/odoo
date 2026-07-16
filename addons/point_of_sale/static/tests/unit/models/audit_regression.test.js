@@ -1,8 +1,9 @@
-import { test, expect, describe } from "@odoo/hoot";
-import { setupPosEnv, getFilledOrder } from "../utils.js";
-import { definePosModels } from "../data/generate_model_definitions.js";
+import { describe, expect, test } from "@odoo/hoot";
 import { PosOrderLineRefund } from "@point_of_sale/app/models/pos_order_line_refund";
 import { computeComboItems } from "@point_of_sale/app/models/utils/compute_combo_items";
+
+import { definePosModels } from "../data/generate_model_definitions.js";
+import { getFilledOrder, setupPosEnv } from "../utils.js";
 
 definePosModels();
 

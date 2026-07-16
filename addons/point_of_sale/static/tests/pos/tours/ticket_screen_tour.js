@@ -1,17 +1,17 @@
-import { luxon } from "@web/core/l10n/luxon";
-import * as ProductScreen from "@point_of_sale/../tests/pos/tours/utils/product_screen_util";
+import * as Dialog from "@point_of_sale/../tests/generic_helpers/dialog_util";
 import * as Numpad from "@point_of_sale/../tests/generic_helpers/numpad_util";
-import * as ReceiptScreen from "@point_of_sale/../tests/pos/tours/utils/receipt_screen_util";
-import * as PaymentScreen from "@point_of_sale/../tests/pos/tours/utils/payment_screen_util";
-import * as PartnerList from "@point_of_sale/../tests/pos/tours/utils/partner_list_util";
-import * as TicketScreen from "@point_of_sale/../tests/pos/tours/utils/ticket_screen_util";
+import * as OfflineUtil from "@point_of_sale/../tests/generic_helpers/offline_util";
 import * as Order from "@point_of_sale/../tests/generic_helpers/order_widget_util";
 import * as Chrome from "@point_of_sale/../tests/pos/tours/utils/chrome_util";
-import * as Dialog from "@point_of_sale/../tests/generic_helpers/dialog_util";
 import { inLeftSide } from "@point_of_sale/../tests/pos/tours/utils/common";
-import { registry } from "@web/core/registry";
-import * as OfflineUtil from "@point_of_sale/../tests/generic_helpers/offline_util";
+import * as PartnerList from "@point_of_sale/../tests/pos/tours/utils/partner_list_util";
+import * as PaymentScreen from "@point_of_sale/../tests/pos/tours/utils/payment_screen_util";
 import * as ProductConfiguratorPopup from "@point_of_sale/../tests/pos/tours/utils/product_configurator_util";
+import * as ProductScreen from "@point_of_sale/../tests/pos/tours/utils/product_screen_util";
+import * as ReceiptScreen from "@point_of_sale/../tests/pos/tours/utils/receipt_screen_util";
+import * as TicketScreen from "@point_of_sale/../tests/pos/tours/utils/ticket_screen_util";
+import { luxon } from "@web/core/l10n/luxon";
+import { registry } from "@web/core/registry";
 
 registry.category("web_tour.tours").add("TicketScreenTour", {
     steps: () =>
@@ -125,7 +125,9 @@ registry.category("web_tour.tours").add("TicketScreenTour", {
             ProductScreen.orderIsEmpty(),
             ...ProductScreen.clickRefund(),
             TicketScreen.selectOrder("003"),
-            inLeftSide(Order.hasLine({ productName: "Desk Pad", withClass: ".selected" })),
+            inLeftSide(
+                Order.hasLine({ productName: "Desk Pad", withClass: ".selected" }),
+            ),
             ProductScreen.clickNumpad("1"),
             TicketScreen.toRefundTextContains("To Refund: 1"),
             TicketScreen.confirmRefund(),
@@ -373,7 +375,7 @@ registry.category("web_tour.tours").add("LotTour", {
                         productName: "Product A",
                         quantity: 2.0,
                     }),
-                ].flat()
+                ].flat(),
             ),
             ProductScreen.clickPartnerButton(),
             ProductScreen.clickCustomer("Partner Test 1"),
@@ -406,7 +408,11 @@ registry.category("web_tour.tours").add("LotTour", {
             ...ProductScreen.clickRefund(),
             TicketScreen.selectOrder("002"),
             inLeftSide(
-                [Numpad.click("1"), ProductScreen.clickLine("Product B"), Numpad.click("1")].flat()
+                [
+                    Numpad.click("1"),
+                    ProductScreen.clickLine("Product B"),
+                    Numpad.click("1"),
+                ].flat(),
             ),
             TicketScreen.confirmRefund(),
             PaymentScreen.isShown(),
@@ -437,7 +443,10 @@ registry.category("web_tour.tours").add("OrderTimeTour", {
                 const orderDateTime = luxon.DateTime.fromSQL(orderDateUTC, {
                     zone: "UTC",
                 }).toLocal();
-                if (orderDateTime.toFormat("HH:mm") !== displayedTimeElement.textContent.trim()) {
+                if (
+                    orderDateTime.toFormat("HH:mm") !==
+                    displayedTimeElement.textContent.trim()
+                ) {
                     throw new Error("Order time does not match local timezone");
                 }
             },
@@ -476,7 +485,9 @@ registry
                 ReceiptScreen.clickNextOrder(),
                 ...ProductScreen.clickRefund(),
                 TicketScreen.selectOrder("001"),
-                inLeftSide(Order.hasLine({ productName: "Desk Pad", withClass: ".selected" })),
+                inLeftSide(
+                    Order.hasLine({ productName: "Desk Pad", withClass: ".selected" }),
+                ),
                 ProductScreen.clickNumpad("1"),
                 TicketScreen.toRefundTextContains("To Refund: 1"),
                 TicketScreen.confirmRefund(),
@@ -496,7 +507,10 @@ registry.category("web_tour.tours").add("test_paid_order_with_archived_product_l
             TicketScreen.nthRowContains(1, "0002"),
             TicketScreen.selectOrder("0002"),
             inLeftSide([
-                ...Order.hasLine({ productName: "Archived Product", withClass: ".selected" }),
+                ...Order.hasLine({
+                    productName: "Archived Product",
+                    withClass: ".selected",
+                }),
             ]),
         ].flat(),
 });

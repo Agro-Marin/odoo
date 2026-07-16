@@ -1,6 +1,7 @@
-import { test, expect } from "@odoo/hoot";
-import { expectFormattedPrice, setupPosEnv } from "../utils.js";
+import { expect, test } from "@odoo/hoot";
+
 import { definePosModels } from "../data/generate_model_definitions.js";
+import { expectFormattedPrice, setupPosEnv } from "../utils.js";
 import { getFilledOrderForPriceCheck } from "./utils.js";
 
 definePosModels();

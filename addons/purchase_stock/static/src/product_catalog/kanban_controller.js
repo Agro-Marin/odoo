@@ -1,6 +1,6 @@
 /** @odoo-module native */
+import { useEnv, useSubEnv } from "@odoo/owl";
 import { ProductCatalogKanbanController } from "@product/product_catalog/kanban_controller";
-import { useSubEnv, useEnv } from "@odoo/owl";
 import { useDebounced } from "@web/core/utils/timing";
 
 export class PurchaseSuggestCatalogKanbanController extends ProductCatalogKanbanController {
@@ -41,7 +41,7 @@ export class PurchaseSuggestCatalogKanbanController extends ProductCatalogKanban
             "purchase.order",
             "action_purchase_order_suggest",
             [this.props.context.product_catalog_order_id],
-            { context: searchModel.globalContext }
+            { context: searchModel.globalContext },
         );
         searchModel.toggleFilters(["suggested", "products_in_purchase_order"], true);
         searchModel.trigger("section-line-count-change", {
@@ -54,11 +54,11 @@ export class PurchaseSuggestCatalogKanbanController extends ProductCatalogKanban
         this.suggest.suggestToggle.isOn = !this.suggest.suggestToggle.isOn;
         localStorage.setItem(
             "purchase_stock.suggest_toggle_state",
-            JSON.stringify({ isOn: this.suggest.suggestToggle.isOn })
+            JSON.stringify({ isOn: this.suggest.suggestToggle.isOn }),
         );
         this.env.searchModel.toggleFilters(
             ["suggested", "products_in_purchase_order"],
-            this.suggest.suggestToggle.isOn
+            this.suggest.suggestToggle.isOn,
         );
     }
 }

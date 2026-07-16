@@ -1,5 +1,4 @@
 import { insertText as htmlInsertText } from "@html_editor/../tests/_helpers/user_actions";
-
 import {
     click,
     contains,
@@ -12,7 +11,9 @@ import {
     start,
     startServer,
 } from "@mail/../tests/mail_test_helpers";
-import { beforeEach, expect, describe, test } from "@odoo/hoot";
+import { Composer } from "@mail/core/common/composer";
+import { beforeEach, describe, expect, test } from "@odoo/hoot";
+import { animationFrame, press } from "@odoo/hoot-dom";
 import { Deferred, tick } from "@odoo/hoot-mock";
 import {
     asyncStep,
@@ -23,11 +24,7 @@ import {
     serverState,
     withUser,
 } from "@web/../tests/web_test_helpers";
-
 import { rpc } from "@web/core/network/rpc";
-
-import { Composer } from "@mail/core/common/composer";
-import { animationFrame, press } from "@odoo/hoot-dom";
 
 describe.current.tags("desktop");
 defineMailModels();
@@ -399,7 +396,9 @@ test("select @ mention insert mention text in composer", async () => {
     await focus(".o-mail-Composer-html.odoo-editor-editable");
     await htmlInsertText(editor, "@");
     await click(".o-mail-Composer-suggestion strong", { text: "TestPartner" });
-    await contains(".o-mail-Composer-html.odoo-editor-editable", { text: "@TestPartner" });
+    await contains(".o-mail-Composer-html.odoo-editor-editable", {
+        text: "@TestPartner",
+    });
 });
 
 test("[text composer] select @ mention closes suggestions", async () => {
@@ -547,16 +546,21 @@ test("[text composer] mention a channel thread", async () => {
     await contains(".o-mail-Composer-input", { value: "" });
     await insertText(".o-mail-Composer-input", "#");
     await contains(".o-mail-Composer-suggestion", { count: 2 });
-    await contains(".o-mail-Composer-suggestion:eq(0):has(i.fa-hashtag)", { text: "General" });
+    await contains(".o-mail-Composer-suggestion:eq(0):has(i.fa-hashtag)", {
+        text: "General",
+    });
     await contains(".o-mail-Composer-suggestion:eq(1):has(i.fa-regular.fa-comments)", {
         text: "GeneralThreadOne",
     });
     await click(".o-mail-Composer-suggestion:eq(1)");
     await contains(".o-mail-Composer-input", { value: "#General > ThreadOne " });
     await press("Enter");
-    await contains(".o-mail-Message a.o_channel_redirect:has(i.fa-regular.fa-comments)", {
-        text: "General > ThreadOne",
-    });
+    await contains(
+        ".o-mail-Message a.o_channel_redirect:has(i.fa-regular.fa-comments)",
+        {
+            text: "General > ThreadOne",
+        },
+    );
     await click("a.o_channel_redirect", { text: "General > ThreadOne" });
     await contains(".o-mail-DiscussSidebar-item.o-active", { text: "ThreadOne" });
 });
@@ -588,14 +592,16 @@ test("mention a channel thread", async () => {
     await contains(".o-mail-Composer-html.odoo-editor-editable", { text: "" });
     await htmlInsertText(editor, "#");
     await contains(".o-mail-Composer-suggestion", { count: 2 });
-    await contains(".o-mail-Composer-suggestion:eq(0):has(i.fa-hashtag)", { text: "General" });
+    await contains(".o-mail-Composer-suggestion:eq(0):has(i.fa-hashtag)", {
+        text: "General",
+    });
     await contains(".o-mail-Composer-suggestion:eq(1):has(i.fa-regular.fa-comments)", {
         text: "GeneralThreadOne",
     });
     await click(".o-mail-Composer-suggestion:eq(0)");
     await contains(
         ".o-mail-Composer-html.odoo-editor-editable a.o_channel_redirect:has(i.fa-hashtag)",
-        { text: "General" }
+        { text: "General" },
     );
     await press("Enter");
     await contains(".o-mail-Message a.o_channel_redirect", {
@@ -605,19 +611,24 @@ test("mention a channel thread", async () => {
     await focus(".o-mail-Composer-html.odoo-editor-editable");
     await htmlInsertText(editor, "#");
     await contains(".o-mail-Composer-suggestion", { count: 2 });
-    await contains(".o-mail-Composer-suggestion:eq(0):has(i.fa-hashtag)", { text: "General" });
+    await contains(".o-mail-Composer-suggestion:eq(0):has(i.fa-hashtag)", {
+        text: "General",
+    });
     await contains(".o-mail-Composer-suggestion:eq(1):has(i.fa-regular.fa-comments)", {
         text: "GeneralThreadOne",
     });
     await click(".o-mail-Composer-suggestion:eq(1)");
     await contains(
         ".o-mail-Composer-html.odoo-editor-editable a.o_channel_redirect:has(i.fa-regular.fa-comments)",
-        { text: "General > ThreadOne" }
+        { text: "General > ThreadOne" },
     );
     await press("Enter");
-    await contains(".o-mail-Message a.o_channel_redirect:has(i.fa-regular.fa-comments)", {
-        text: "General > ThreadOne",
-    });
+    await contains(
+        ".o-mail-Message a.o_channel_redirect:has(i.fa-regular.fa-comments)",
+        {
+            text: "General > ThreadOne",
+        },
+    );
     await click("a.o_channel_redirect", { text: "General > ThreadOne" });
     await contains(".o-mail-DiscussSidebar-item.o-active", { text: "ThreadOne" });
 });
@@ -829,10 +840,18 @@ test("[text composer] Internal user should be displayed first", async () => {
     await openFormView("res.partner", serverState.partnerId);
     await click("button", { text: "Send message" });
     await insertText(".o-mail-Composer-input", "@Person ");
-    await contains(":nth-child(1 of .o-mail-Composer-suggestion) strong", { text: "Person D" });
-    await contains(":nth-child(2 of .o-mail-Composer-suggestion) strong", { text: "Person B" });
-    await contains(":nth-child(3 of .o-mail-Composer-suggestion) strong", { text: "Person C" });
-    await contains(":nth-child(4 of .o-mail-Composer-suggestion) strong", { text: "Person A" });
+    await contains(":nth-child(1 of .o-mail-Composer-suggestion) strong", {
+        text: "Person D",
+    });
+    await contains(":nth-child(2 of .o-mail-Composer-suggestion) strong", {
+        text: "Person B",
+    });
+    await contains(":nth-child(3 of .o-mail-Composer-suggestion) strong", {
+        text: "Person C",
+    });
+    await contains(":nth-child(4 of .o-mail-Composer-suggestion) strong", {
+        text: "Person A",
+    });
 });
 
 test.tags("html composer");
@@ -871,10 +890,18 @@ test("Internal user should be displayed first", async () => {
     };
     await focus(".o-mail-Composer-html.odoo-editor-editable");
     await htmlInsertText(editor, "@Person ");
-    await contains(":nth-child(1 of .o-mail-Composer-suggestion) strong", { text: "Person D" });
-    await contains(":nth-child(2 of .o-mail-Composer-suggestion) strong", { text: "Person B" });
-    await contains(":nth-child(3 of .o-mail-Composer-suggestion) strong", { text: "Person C" });
-    await contains(":nth-child(4 of .o-mail-Composer-suggestion) strong", { text: "Person A" });
+    await contains(":nth-child(1 of .o-mail-Composer-suggestion) strong", {
+        text: "Person D",
+    });
+    await contains(":nth-child(2 of .o-mail-Composer-suggestion) strong", {
+        text: "Person B",
+    });
+    await contains(":nth-child(3 of .o-mail-Composer-suggestion) strong", {
+        text: "Person C",
+    });
+    await contains(":nth-child(4 of .o-mail-Composer-suggestion) strong", {
+        text: "Person A",
+    });
 });
 
 test("[text composer] Current user that is a follower should be considered as such", async () => {
@@ -1132,7 +1159,9 @@ test("Mention with @-role", async () => {
     await contains(".o-mail-Composer-html.odoo-editor-editable", { text: "" });
     await htmlInsertText(editor, "@discuss");
     await click(".o-mail-Composer-suggestion");
-    await contains(".o-mail-Composer-html.odoo-editor-editable", { text: "@rd-Discuss" });
+    await contains(".o-mail-Composer-html.odoo-editor-editable", {
+        text: "@rd-Discuss",
+    });
     await press("Enter");
     await contains(".o-mail-Message a.o-discuss-mention", {
         text: "@rd-Discuss",
@@ -1228,7 +1257,9 @@ test("Mention with @-role send correct role id", async () => {
     await contains(".o-mail-Composer-html.odoo-editor-editable", { text: "" });
     await htmlInsertText(editor, "@discuss");
     await click(".o-mail-Composer-suggestion");
-    await contains(".o-mail-Composer-html.odoo-editor-editable", { text: "@rd-Discuss" });
+    await contains(".o-mail-Composer-html.odoo-editor-editable", {
+        text: "@rd-Discuss",
+    });
     await press("Enter");
     await contains(".o-mail-Message a.o-discuss-mention", { text: "@rd-Discuss" });
     await expect.waitForSteps(["message_post"]);

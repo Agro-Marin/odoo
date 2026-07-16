@@ -1,6 +1,7 @@
 /** @odoo-module native */
 import { luxon } from "@web/core/l10n/luxon";
 import { registry } from "@web/core/registry";
+
 import { Base } from "./related_models/index.js";
 const { DateTime } = luxon;
 

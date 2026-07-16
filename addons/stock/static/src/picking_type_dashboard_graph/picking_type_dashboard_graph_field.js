@@ -1,8 +1,8 @@
 /** @odoo-module native */
 import { cookie } from "@web/core/browser/cookie";
 import { getColor, getCustomColor } from "@web/core/colors/colors";
-import { useService } from "@web/core/utils/hooks";
 import { registry } from "@web/core/registry";
+import { useService } from "@web/core/utils/hooks";
 import { JournalDashboardGraphField } from "@web/fields/specialized/journal_dashboard_graph/journal_dashboard_graph_field";
 
 export class PickingTypeDashboardGraphField extends JournalDashboardGraphField {
@@ -29,7 +29,9 @@ export class PickingTypeDashboardGraphField extends JournalDashboardGraphField {
             } else if (pt.type === "future") {
                 backgroundColor.push(colorFuture);
             } else {
-                backgroundColor.push(getCustomColor(cookie.get("color_scheme"), "#ebebeb", "#3C3E4B"));
+                backgroundColor.push(
+                    getCustomColor(cookie.get("color_scheme"), "#ebebeb", "#3C3E4B"),
+                );
             }
         });
         return {
@@ -78,7 +80,7 @@ export class PickingTypeDashboardGraphField extends JournalDashboardGraphField {
                     // Add a filter for the given date category
                     additionalContext["search_default_".concat(dateCategory)] = true;
                     this.actionService.doAction("stock.click_dashboard_graph", {
-                        additionalContext: additionalContext
+                        additionalContext: additionalContext,
                     });
                 },
                 plugins: {
@@ -119,4 +121,6 @@ export const pickingTypeDashboardGraphField = {
     }),
 };
 
-registry.category("fields").add("picking_type_dashboard_graph", pickingTypeDashboardGraphField);
+registry
+    .category("fields")
+    .add("picking_type_dashboard_graph", pickingTypeDashboardGraphField);

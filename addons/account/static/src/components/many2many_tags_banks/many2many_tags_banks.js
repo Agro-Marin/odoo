@@ -1,13 +1,13 @@
 /** @odoo-module native */
-import {
-    many2ManyTagsFieldColorEditable,
-    Many2ManyTagsFieldColorEditable,
-} from "@web/fields/relational/many2many_tags/many2many_tags_field";
-import { useService } from "@web/core/utils/hooks";
-import { registry } from "@web/core/registry";
+import { onMounted } from "@odoo/owl";
 import { TagsList } from "@web/components/tags_list/tags_list";
 import { _t } from "@web/core/l10n/translation";
-import { onMounted } from "@odoo/owl";
+import { registry } from "@web/core/registry";
+import { useService } from "@web/core/utils/hooks";
+import {
+    Many2ManyTagsFieldColorEditable,
+    many2ManyTagsFieldColorEditable,
+} from "@web/fields/relational/many2many_tags/many2many_tags_field";
 
 export class FieldMany2ManyTagsBanksTagsList extends TagsList {
     static template = "FieldMany2ManyTagsBanksTagsList";
@@ -70,12 +70,10 @@ export const fieldMany2ManyTagsBanks = {
         ...(many2ManyTagsFieldColorEditable.additionalClasses || []),
         "o_field_many2many_tags",
     ],
-    relatedFields: ({ options }) => {
-        return [
-            ...many2ManyTagsFieldColorEditable.relatedFields({ options }),
-            { name: options.allow_out_payment_field, type: "boolean", readonly: false },
-        ];
-    },
+    relatedFields: ({ options }) => [
+        ...many2ManyTagsFieldColorEditable.relatedFields({ options }),
+        { name: options.allow_out_payment_field, type: "boolean", readonly: false },
+    ],
 };
 
 registry.category("fields").add("many2many_tags_banks", fieldMany2ManyTagsBanks);

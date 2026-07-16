@@ -1,7 +1,6 @@
 /** @odoo-module native */
 import { Component, useState } from "@odoo/owl";
 
-
 export class StockValuationReportLine extends Component {
     static template = "stock_account.StockValuationReport.InventoryValuationLine";
     static props = {
@@ -25,8 +24,10 @@ export class StockValuationReportLine extends Component {
 
     // Getters -----------------------------------------------------------------
     get accounts() {
-        if (! this.hasSublines) { return []; }
-        return this.props.sublines.map(line => parseInt(line.account_id));
+        if (!this.hasSublines) {
+            return [];
+        }
+        return this.props.sublines.map((line) => parseInt(line.account_id));
     }
 
     get credit() {

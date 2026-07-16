@@ -40,10 +40,10 @@ export function getGridHtml(matrix) {
                             (col, iCol) =>
                                 `<div class="${
                                     col ? "col-" + col : "col"
-                                }">(${iRow}, ${iCol})</div>`
+                                }">(${iRow}, ${iCol})</div>`,
                         )
                         .join("") +
-                    `</div>`
+                    `</div>`,
             )
             .join("") +
         `</div>`
@@ -89,12 +89,14 @@ export function getTableHtml(matrix, containerWidth) {
                         .map((col, iCol) =>
                             getTdHtml(
                                 col[0],
-                                typeof col[2] === "string" ? col[2] : `(${iRow}, ${iCol})`,
-                                containerWidth
-                            )
+                                typeof col[2] === "string"
+                                    ? col[2]
+                                    : `(${iRow}, ${iCol})`,
+                                containerWidth,
+                            ),
                         )
                         .join("") +
-                    `</tr>`
+                    `</tr>`,
             )
             .join("") +
         `</table>`
@@ -143,7 +145,7 @@ export function getRegularTableHtml(nRows, nCols, colspan, width, containerWidth
                 .map(() => [
                     Array.isArray(colspan) ? colspan[iRow] : colspan,
                     Array.isArray(width) ? width[iRow] : width,
-                ])
+                ]),
         );
     return getTableHtml(matrix, containerWidth);
 }

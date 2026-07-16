@@ -103,6 +103,7 @@ const applyWhenMounted = async ({ el, container, callback }) => {
 const sanitizeNodeText = (element) => {
     if (element.nodeType === Node.TEXT_NODE) {
         element.textContent = element.textContent.replace(
+            // eslint-disable-next-line no-control-regex -- deliberately strip control chars before rendering
             /[\x00-\x08\x0B\x0C\x0E-\x1F]/g,
             "",
         );

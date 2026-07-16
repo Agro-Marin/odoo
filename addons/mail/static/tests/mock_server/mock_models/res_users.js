@@ -1,6 +1,13 @@
-import { DISCUSS_ACTION_ID, mailDataHelpers } from "@mail/../tests/mock_server/mail_mock_server";
-
-import { fields, makeKwArgs, serverState, webModels } from "@web/../tests/web_test_helpers";
+import {
+    DISCUSS_ACTION_ID,
+    mailDataHelpers,
+} from "@mail/../tests/mock_server/mail_mock_server";
+import {
+    fields,
+    makeKwArgs,
+    serverState,
+    webModels,
+} from "@web/../tests/web_test_helpers";
 import { serializeDate, today } from "@web/core/l10n/dates";
 
 export class ResUsers extends webModels.ResUsers {
@@ -32,13 +39,20 @@ export class ResUsers extends webModels.ResUsers {
             hasGifPickerFeature: true,
             hasLinkPreviewFeature: true,
             hasMessageTranslationFeature: true,
-            mt_comment: MailMessageSubtype._filter([["subtype_xmlid", "=", "mail.mt_comment"]])[0]
-                .id,
-            mt_note: MailMessageSubtype._filter([["subtype_xmlid", "=", "mail.mt_note"]])[0].id,
-            odoobot: mailDataHelpers.Store.one(ResPartner.browse(serverState.odoobotId)),
+            mt_comment: MailMessageSubtype._filter([
+                ["subtype_xmlid", "=", "mail.mt_comment"],
+            ])[0].id,
+            mt_note: MailMessageSubtype._filter([
+                ["subtype_xmlid", "=", "mail.mt_note"],
+            ])[0].id,
+            odoobot: mailDataHelpers.Store.one(
+                ResPartner.browse(serverState.odoobotId),
+            ),
         });
         if (!this._is_public(this.env.uid)) {
-            const userSettings = ResUsersSettings._find_or_create_for_user(this.env.uid);
+            const userSettings = ResUsersSettings._find_or_create_for_user(
+                this.env.uid,
+            );
             store.add({
                 self_partner: mailDataHelpers.Store.one(
                     ResPartner.browse(this.env.user.partner_id),
@@ -48,14 +62,16 @@ export class ResUsers extends webModels.ResUsers {
                             "avatar_128",
                             "im_status",
                             "is_admin",
-                            mailDataHelpers.Store.one("main_user_id", ["notification_type"]),
+                            mailDataHelpers.Store.one("main_user_id", [
+                                "notification_type",
+                            ]),
                             mailDataHelpers.Store.one("main_user_id", ["signature"]),
                             "name",
                             "notification_type",
                             "signature",
                             "user",
                         ],
-                    })
+                    }),
                 ),
                 settings: ResUsersSettings.res_users_settings_format(userSettings.id),
             });
@@ -63,7 +79,7 @@ export class ResUsers extends webModels.ResUsers {
             store.add({
                 self_guest: mailDataHelpers.Store.one(
                     MailGuest.browse(this.env.cookie.get("dgid")),
-                    makeKwArgs({ fields: ["avatar_128", "name"] })
+                    makeKwArgs({ fields: ["avatar_128", "name"] }),
                 ),
             });
         }
@@ -141,14 +157,16 @@ export class ResUsers extends webModels.ResUsers {
                 model: "mail.box",
             },
             starred: {
-                counter: MailMessage._filter([["starred_partner_ids", "in", user.partner_id]])
-                    .length,
+                counter: MailMessage._filter([
+                    ["starred_partner_ids", "in", user.partner_id],
+                ]).length,
                 counter_bus_id: bus_last_id,
                 id: "starred",
                 model: "mail.box",
             },
-            initChannelsUnreadCounter: members.filter((member) => member.message_unread_counter)
-                .length,
+            initChannelsUnreadCounter: members.filter(
+                (member) => member.message_unread_counter,
+            ).length,
         });
     }
 
@@ -203,7 +221,7 @@ export class ResUsers extends webModels.ResUsers {
             "share",
             mailDataHelpers.Store.one(
                 "partner_id",
-                this.env["res.partner"]._get_store_avatar_card_fields()
+                this.env["res.partner"]._get_store_avatar_card_fields(),
             ),
         ];
     }

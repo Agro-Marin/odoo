@@ -1,6 +1,6 @@
 import { getKwArgs, models } from "@web/../tests/web_test_helpers";
-import { patch } from "@web/core/utils/patch";
 import { capitalize } from "@web/core/utils/format/strings";
+import { patch } from "@web/core/utils/patch";
 
 patch(models.ServerModel.prototype, {
     /**
@@ -11,7 +11,8 @@ patch(models.ServerModel.prototype, {
         /** @type {import("mock_models").MailThread} */
         const MailThread = this.env["mail.thread"];
 
-        const initialTrackedFieldValuesByRecordId = MailThread._track_prepare.call(this);
+        const initialTrackedFieldValuesByRecordId =
+            MailThread._track_prepare.call(this);
         const result = super.write(...arguments);
         if (initialTrackedFieldValuesByRecordId) {
             MailThread._track_finalize.call(this, initialTrackedFieldValuesByRecordId);
@@ -40,7 +41,7 @@ export class MailTrackingValue extends models.ServerModel {
             "new_value",
             "col_name",
             "col_info",
-            "record"
+            "record",
         );
         initial_value = kwargs.initial_value;
         new_value = kwargs.new_value;
@@ -53,7 +54,7 @@ export class MailTrackingValue extends models.ServerModel {
 
         let isTracked = true;
         const irField = IrModelFields.find(
-            (field) => field.model === record._name && field.name === col_name
+            (field) => field.model === record._name && field.name === col_name,
         );
         if (!irField) {
             return;
@@ -93,14 +94,20 @@ export class MailTrackingValue extends models.ServerModel {
                 break;
             case "many2one":
                 initial_value = initial_value
-                    ? this.env[col_info.relation].search_read([["id", "=", initial_value]])[0]
+                    ? this.env[col_info.relation].search_read([
+                          ["id", "=", initial_value],
+                      ])[0]
                     : initial_value;
                 new_value = new_value
-                    ? this.env[col_info.relation].search_read([["id", "=", new_value]])[0]
+                    ? this.env[col_info.relation].search_read([
+                          ["id", "=", new_value],
+                      ])[0]
                     : new_value;
                 values["old_value_integer"] = initial_value ? initial_value.id : 0;
                 values["new_value_integer"] = new_value ? new_value.id : 0;
-                values["old_value_char"] = initial_value ? initial_value.display_name : "";
+                values["old_value_char"] = initial_value
+                    ? initial_value.display_name
+                    : "";
                 values["new_value_char"] = new_value ? new_value.display_name : "";
                 break;
             default:
@@ -118,14 +125,17 @@ export class MailTrackingValue extends models.ServerModel {
         const IrModelFields = this.env["ir.model.fields"];
 
         return trackingValues.map((tracking) => {
-            const irField = IrModelFields.find((field) => field.id === tracking.field_id);
+            const irField = IrModelFields.find(
+                (field) => field.id === tracking.field_id,
+            );
             return {
                 id: tracking.id,
                 fieldInfo: {
                     changedField: capitalize(irField.ttype),
                     currencyId: tracking.currency_id,
                     fieldType: irField.ttype,
-                    floatPrecision: this.env[irField.model]._fields[irField.name].digits,
+                    floatPrecision:
+                        this.env[irField.model]._fields[irField.name].digits,
                 },
                 newValue: this._format_display_value(tracking, "new"),
                 oldValue: this._format_display_value(tracking, "old"),

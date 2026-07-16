@@ -1,7 +1,7 @@
 /** @odoo-module native */
+import { Component } from "@odoo/owl";
 import { Dropdown } from "@web/components/dropdown/dropdown";
 import { DropdownItem } from "@web/components/dropdown/dropdown_item";
-import { Component } from "@odoo/owl";
 
 export class BomOverviewDisplayFilter extends Component {
     static template = "mrp.BomOverviewDisplayFilter";
@@ -23,7 +23,7 @@ export class BomOverviewDisplayFilter extends Component {
     //---- Getters ----
 
     get displayableOptions() {
-        return Object.keys(this.displayOptions).map(optionKey => ({
+        return Object.keys(this.displayOptions).map((optionKey) => ({
             id: optionKey,
             label: this.displayOptions[optionKey],
             onSelected: () => this.props.changeDisplay(optionKey),

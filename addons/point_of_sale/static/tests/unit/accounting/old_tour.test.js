@@ -4,9 +4,10 @@
  * converted to Hoot tests without any additional checks.
  */
 
-import { test, expect } from "@odoo/hoot";
-import { setupPosEnv } from "../utils.js";
+import { expect, test } from "@odoo/hoot";
+
 import { definePosModels } from "../data/generate_model_definitions.js";
+import { setupPosEnv } from "../utils.js";
 import { prepareRoundingVals } from "./utils.js";
 
 definePosModels();

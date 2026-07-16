@@ -33,7 +33,7 @@ export class ProductInfoBanner extends Component {
         });
 
         const debouncedFetchStocks = debounce(async (product, productTemplate) => {
-            let result = {};
+            let result;
             if (!this.props.info) {
                 await this.fetchStock.call(productTemplate, product);
                 if (this.fetchStock.status === "error") {

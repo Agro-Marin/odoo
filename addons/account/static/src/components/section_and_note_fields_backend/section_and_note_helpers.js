@@ -18,14 +18,18 @@ export const DISPLAY_TYPES = {
 
 /** @returns {boolean} whether the record is a (top) section or a subsection. */
 export function isSectionType(record) {
-    return [DISPLAY_TYPES.SECTION, DISPLAY_TYPES.SUBSECTION].includes(record.data.display_type);
+    return [DISPLAY_TYPES.SECTION, DISPLAY_TYPES.SUBSECTION].includes(
+        record.data.display_type,
+    );
 }
 
 /** @returns {boolean} whether the record is a section, subsection or note. */
 export function isSectionOrNoteType(record) {
-    return [DISPLAY_TYPES.SECTION, DISPLAY_TYPES.SUBSECTION, DISPLAY_TYPES.NOTE].includes(
-        record.data.display_type
-    );
+    return [
+        DISPLAY_TYPES.SECTION,
+        DISPLAY_TYPES.SUBSECTION,
+        DISPLAY_TYPES.NOTE,
+    ].includes(record.data.display_type);
 }
 
 /** @returns {boolean} whether the record is a top-level section. */
@@ -69,7 +73,10 @@ export function getRecordsUntilSection(list, record, asc, subSection) {
         }
     } else {
         index--;
-        while (index >= 0 && !stopAtTypes.includes(list.records[index].data.display_type)) {
+        while (
+            index >= 0 &&
+            !stopAtTypes.includes(list.records[index].data.display_type)
+        ) {
             sectionRecords.unshift(list.records[index]);
             index--;
         }

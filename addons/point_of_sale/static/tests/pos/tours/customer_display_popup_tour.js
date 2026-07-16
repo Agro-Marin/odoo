@@ -1,5 +1,5 @@
-import * as Chrome from "@point_of_sale/../tests/pos/tours/utils/chrome_util";
 import * as Dialog from "@point_of_sale/../tests/generic_helpers/dialog_util";
+import * as Chrome from "@point_of_sale/../tests/pos/tours/utils/chrome_util";
 import { registry } from "@web/core/registry";
 
 registry.category("web_tour.tours").add("customer_display_shows_qr_popup", {
@@ -23,7 +23,7 @@ registry.category("web_tour.tours").add("customer_display_shows_qr_popup", {
                     const url = el.anchor.href;
                     if (!url || url.includes("undefined")) {
                         throw new Error(
-                            `Invalid customer display URL (contains undefined): ${url}`
+                            `Invalid customer display URL (contains undefined): ${url}`,
                         );
                     }
                     try {
@@ -36,7 +36,8 @@ registry.category("web_tour.tours").add("customer_display_shows_qr_popup", {
             {
                 isActive: ["mobile"],
                 content: "Check that the Qr popup has close button",
-                trigger: ".o-overlay-item .modal .modal-body button.button.btn-secondary",
+                trigger:
+                    ".o-overlay-item .modal .modal-body button.button.btn-secondary",
             },
         ].flat(),
 });

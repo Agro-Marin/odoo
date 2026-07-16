@@ -77,7 +77,9 @@ export class PosSession extends models.ServerModel {
     }
 
     processPosReadData(model, records, opts) {
-        return (model._load_pos_data_read && model._load_pos_data_read(records)) || records;
+        return (
+            (model._load_pos_data_read && model._load_pos_data_read(records)) || records
+        );
     }
 
     load_data_params(opts = {}) {
@@ -115,7 +117,8 @@ export class PosSession extends models.ServerModel {
                     related: Boolean(field.related),
                     type: field.type,
                     relation: field.relation,
-                    inverse_name: field.inverse_fname_by_model_name?.[field.relation] || false,
+                    inverse_name:
+                        field.inverse_fname_by_model_name?.[field.relation] || false,
                 };
             }
 
@@ -135,7 +138,14 @@ export class PosSession extends models.ServerModel {
         for (const modelName of modelToLoad) {
             const model = MockServer.env[modelName];
             const posFields = this.getModelFieldsToLoad(model, opts);
-            const records = model.search_read([], posFields, false, false, false, false);
+            const records = model.search_read(
+                [],
+                posFields,
+                false,
+                false,
+                false,
+                false,
+            );
             response[modelName] = this.processPosReadData(model, records, opts);
         }
 

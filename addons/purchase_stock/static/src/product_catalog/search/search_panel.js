@@ -1,10 +1,11 @@
 /** @odoo-module native */
+import { AccountProductCatalogSearchPanel } from "@account/components/product_catalog/search/search_panel";
 import { useEnv } from "@odoo/owl";
 import { _t } from "@web/core/l10n/translation";
-import { AccountProductCatalogSearchPanel } from "@account/components/product_catalog/search/search_panel";
-import { TimePeriodSelectionField } from "./time_period_selection_fields.js";
-import { formatMonetary } from "@web/fields/formatters";
 import { clamp } from "@web/core/utils/format/numbers";
+import { formatMonetary } from "@web/fields/formatters";
+
+import { TimePeriodSelectionField } from "./time_period_selection_fields.js";
 
 export class PurchaseSuggestCatalogSearchPanel extends AccountProductCatalogSearchPanel {
     static template = "purchase_stock.ProductCatalogSearchPanel";
@@ -33,7 +34,7 @@ export class PurchaseSuggestCatalogSearchPanel extends AccountProductCatalogSear
             "Get recommendations of products to purchase at %(vendorName)s based on stock on hand, incoming quantities, " +
                 "and expected sales volumes.\n\n Set a reference period to estimate sales, and use the percentage " +
                 "to take into account seasonality and the increase/decrease of business.",
-            { vendorName: this.suggest.vendorName }
+            { vendorName: this.suggest.vendorName },
         );
     }
     onDaysInput(ev) {

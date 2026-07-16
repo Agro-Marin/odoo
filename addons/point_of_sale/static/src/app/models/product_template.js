@@ -2,6 +2,7 @@
 import { markup } from "@odoo/owl";
 import { normalize } from "@web/core/l10n/utils";
 import { registry } from "@web/core/registry";
+
 import { ProductTemplateAccounting } from "./accounting/product_template_accounting.js";
 /**
  * ProductProduct, shadow of product.product in python.

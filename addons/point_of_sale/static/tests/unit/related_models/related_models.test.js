@@ -1,11 +1,15 @@
-import { luxon } from "@web/core/l10n/luxon";
-import { expect, test, describe } from "@odoo/hoot";
-import { createRelatedModels, Base } from "@point_of_sale/app/models/related_models";
-import { serializeDateTime } from "@web/core/l10n/dates";
+import { describe, expect, test } from "@odoo/hoot";
+import { Base, createRelatedModels } from "@point_of_sale/app/models/related_models";
 import { SERIALIZED_UI_STATE_PROP } from "@point_of_sale/app/models/related_models/utils";
-import { getModelDefinitions, getRelatedModelsInstance } from "../data/get_model_definitions.js";
 import { makeMockServer } from "@web/../tests/web_test_helpers";
+import { serializeDateTime } from "@web/core/l10n/dates";
+import { luxon } from "@web/core/l10n/luxon";
+
 import { definePosModels } from "../data/generate_model_definitions.js";
+import {
+    getModelDefinitions,
+    getRelatedModelsInstance,
+} from "../data/get_model_definitions.js";
 
 const { DateTime } = luxon;
 
@@ -129,7 +133,11 @@ describe("Related Model", () => {
             id: 11,
         });
 
-        const order = models["pos.order"].create({ id: 99, lines: [11], name: "Hello" });
+        const order = models["pos.order"].create({
+            id: 99,
+            lines: [11],
+            name: "Hello",
+        });
         const line = order.lines[0];
         expect(line.id).toBe(11);
         expect(order.name).toBe("Hello");
@@ -157,12 +165,18 @@ describe("Related Model", () => {
         const order = models["pos.order"].create({});
 
         // Add line top order
-        models["pos.order.line"].create({ order_id: order, full_product_name: "Line 1" });
+        models["pos.order.line"].create({
+            order_id: order,
+            full_product_name: "Line 1",
+        });
         expect(order.lines.length).toBe(1);
         expect(order.lines[0].full_product_name).toBe("Line 1");
 
         // Use order id to link the line
-        models["pos.order.line"].create({ order_id: order.id, full_product_name: "Line 2" });
+        models["pos.order.line"].create({
+            order_id: order.id,
+            full_product_name: "Line 2",
+        });
         expect(order.lines.length).toBe(2);
         expect(order.lines[1].full_product_name).toBe("Line 2");
 
@@ -248,7 +262,10 @@ describe("Related Model", () => {
         await makeMockServer();
         const models = getRelatedModelsInstance(false);
         const order = models["pos.order"].create({});
-        const line = models["pos.order.line"].create({ order_id: order, name: "Line 1" });
+        const line = models["pos.order.line"].create({
+            order_id: order,
+            name: "Line 1",
+        });
         expect(order.lines.length).toBe(1);
 
         expect(models["pos.order.line"].get(line.id)).not.toBeEmpty();
@@ -314,7 +331,9 @@ describe("Related Model", () => {
         {
             // Manage attribute_ids using the update method
             const o1 = models["pos.order"].create({});
-            const line = models["pos.order.line"].create({ full_product_name: "Line 1" });
+            const line = models["pos.order.line"].create({
+                full_product_name: "Line 1",
+            });
             line.update({ order_id: o1 });
             expect(line.order_id).toBe(o1);
 
@@ -337,8 +356,14 @@ describe("Related Model", () => {
     test("x2many allow setter", async () => {
         await makeMockServer();
         const models = getRelatedModelsInstance(false);
-        const line1 = models["pos.order.line"].create({ id: 11, full_product_name: "Line 1" });
-        const line2 = models["pos.order.line"].create({ id: 12, full_product_name: "Line 2" });
+        const line1 = models["pos.order.line"].create({
+            id: 11,
+            full_product_name: "Line 1",
+        });
+        const line2 = models["pos.order.line"].create({
+            id: 12,
+            full_product_name: "Line 2",
+        });
 
         {
             //Link command
@@ -365,7 +390,11 @@ describe("Related Model", () => {
         {
             // MIX
             const order = models["pos.order"].create({});
-            order.lines = [line1, ["link", line2.id], ["create", { full_product_name: "Line 3" }]];
+            order.lines = [
+                line1,
+                ["link", line2.id],
+                ["create", { full_product_name: "Line 3" }],
+            ];
             expect(order.lines.length).toBe(3);
             expect(order.lines[0]).toBe(line1);
             expect(order.lines[1]).toBe(line2);
@@ -416,7 +445,7 @@ describe("Related Model", () => {
                     },
                 ],
             },
-            []
+            [],
         );
 
         const order = models["pos.order"].get(1);
@@ -428,7 +457,12 @@ describe("Related Model", () => {
         expect(line2.order_id).toBe(order);
         models.loadConnectedData({
             "pos.order": [
-                { id: 1, total: 10, lines: [12], uuid: "42eb4cc3-2ec8-4a0b-9bca-0a2d8a98178c" },
+                {
+                    id: 1,
+                    total: 10,
+                    lines: [12],
+                    uuid: "42eb4cc3-2ec8-4a0b-9bca-0a2d8a98178c",
+                },
             ],
             "pos.order.line": [
                 {
@@ -662,8 +696,14 @@ describe("Related Model", () => {
         await makeMockServer();
         const models = getRelatedModelsInstance(false);
         const order = models["pos.order"].create({ total: 30 });
-        const line1 = models["pos.order.line"].create({ order_id: order, name: "Line 1" });
-        const line2 = models["pos.order.line"].create({ order_id: order, name: "Line 2" });
+        const line1 = models["pos.order.line"].create({
+            order_id: order,
+            name: "Line 1",
+        });
+        const line2 = models["pos.order.line"].create({
+            order_id: order,
+            name: "Line 2",
+        });
 
         expect(models["pos.order"].get(order.id)).toBe(order);
         expect(models["pos.order"].getBy("uuid", order.uuid)).toBe(order);
@@ -683,7 +723,10 @@ describe("Related Model", () => {
         const orderDate = DateTime.now().set({ second: 0, millisecond: 0 });
 
         {
-            const order = models["pos.order"].create({ total: 30, date_order: orderDate });
+            const order = models["pos.order"].create({
+                total: 30,
+                date_order: orderDate,
+            });
             // Stored as server date
             expect(order.raw.date_order).toBe(serializeDateTime(orderDate));
             expect(order.date_order.toMillis()).toBe(orderDate.toMillis());
@@ -822,7 +865,9 @@ describe("Related Model", () => {
             expect(lines[0]).toBe(line1);
 
             // New Line
-            const line3 = models["pos.order.line"].create({ attribute_value_ids: [91] });
+            const line3 = models["pos.order.line"].create({
+                attribute_value_ids: [91],
+            });
             lines = att1.backLink("<-pos.order.line.attribute_value_ids");
             expect(lines.length).toBe(2);
             expect(lines[1]).toBe(line3);
@@ -1040,7 +1085,7 @@ describe("Related Model", () => {
                         },
                     ],
                 },
-                []
+                [],
             );
 
             const order = models["pos.order"].get(1);
@@ -1127,7 +1172,7 @@ describe("Related Model", () => {
                 databaseTable: {
                     "pos.order.dummy": { key: "uuid" },
                 },
-            }
+            },
         );
 
         // Create
@@ -1146,7 +1191,7 @@ describe("Related Model", () => {
                     },
                 ],
             },
-            []
+            [],
         );
         expect(calls).toEqual(["setup"]);
 
@@ -1163,7 +1208,7 @@ describe("Related Model", () => {
                     },
                 ],
             },
-            []
+            [],
         );
         expect(calls).toEqual(["setup", "restoreState"]);
         expect(order1.uiState).toEqual({ test: true });
@@ -1179,7 +1224,7 @@ describe("Related Model", () => {
                     },
                 ],
             },
-            []
+            [],
         );
         expect(calls).toEqual(["setup", "initState"]);
     });

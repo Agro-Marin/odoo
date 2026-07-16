@@ -1,5 +1,4 @@
 import { mailDataHelpers } from "@mail/../tests/mock_server/mail_mock_server";
-
 import { getKwArgs, makeKwArgs, models } from "@web/../tests/web_test_helpers";
 
 export class MailCannedResponse extends models.ServerModel {
@@ -55,7 +54,7 @@ export class MailCannedResponse extends models.ServerModel {
                 "mail.record/insert",
                 new mailDataHelpers.Store(
                     this.browse(cannedResponse.id),
-                    makeKwArgs({ delete: _delete })
+                    makeKwArgs({ delete: _delete }),
                 ).get_result(),
             ]);
         }

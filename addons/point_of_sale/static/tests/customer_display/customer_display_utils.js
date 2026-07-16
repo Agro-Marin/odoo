@@ -3,7 +3,7 @@ import { run } from "@point_of_sale/../tests/generic_helpers/utils";
 export function postMessage(message, description = "") {
     return run(() => {
         window.customerDisplayChannel.postMessage(
-            typeof message === "string" ? JSON.parse(message) : message
+            typeof message === "string" ? JSON.parse(message) : message,
         );
     }, `send message to customer display: ${description},  with value: ${message}`);
 }
@@ -19,7 +19,9 @@ export function addProduct(product, description = "") {
     return {
         trigger: "div:contains('Welcome.')",
         run: async () => {
-            window.customerDisplayChannel = new BroadcastChannel("UPDATE_CUSTOMER_DISPLAY");
+            window.customerDisplayChannel = new BroadcastChannel(
+                "UPDATE_CUSTOMER_DISPLAY",
+            );
             postMessage(product, description).run();
         },
     };

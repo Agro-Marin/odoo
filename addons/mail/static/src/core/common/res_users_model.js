@@ -1,7 +1,7 @@
 /** @odoo-module native */
+import { fields, Record } from "@mail/core/common/record";
 import { markup } from "@odoo/owl";
 import { createElementWithContent } from "@web/core/utils/dom/html";
-import { fields, Record } from "@mail/core/common/record";
 
 export class ResUsers extends Record {
     static _name = "res.users";

@@ -1,14 +1,13 @@
 /** @odoo-module native */
-import { _t } from "@web/core/l10n/translation";
-import { registry } from '@web/core/registry';
-import { useService } from "@web/core/utils/hooks";
-
 import { CheckBox } from "@web/components/checkbox/checkbox";
-import { ConfirmationDialog } from "@web/ui/dialog/confirmation_dialog";
+import { _t } from "@web/core/l10n/translation";
+import { registry } from "@web/core/registry";
+import { useService } from "@web/core/utils/hooks";
 import {
     BooleanToggleField,
     booleanToggleField,
 } from "@web/fields/basic/boolean_toggle/boolean_toggle_field";
+import { ConfirmationDialog } from "@web/ui/dialog/confirmation_dialog";
 
 export class ConfirmCheckBox extends CheckBox {
     onClick(ev) {
@@ -27,7 +26,7 @@ export class BooleanToggleConfirm extends BooleanToggleField {
 
     setup() {
         super.setup();
-        this.dialogService = useService('dialog');
+        this.dialogService = useService("dialog");
     }
 
     onChange(value) {
@@ -38,13 +37,13 @@ export class BooleanToggleConfirm extends BooleanToggleField {
 
         if (record.lot_valuated && !value) {
             this.dialogService.add(ConfirmationDialog, {
-                body: _t("This operation might lead in a loss of data. Valuation will be identical for all lots/SN. Do you want to proceed ? "),
+                body: _t(
+                    "This operation might lead in a loss of data. Valuation will be identical for all lots/SN. Do you want to proceed ? ",
+                ),
                 confirm: updateAndSave,
                 cancel: () => {},
             });
-
-        }
-        else {
+        } else {
             updateAndSave();
         }
     }

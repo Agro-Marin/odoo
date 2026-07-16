@@ -3,7 +3,6 @@ import {
     mailCanCopyTextToClipboardMobile,
 } from "@mail/../tests/mail_shared_tests";
 import {
-    SIZES,
     assertChatHub,
     click,
     contains,
@@ -15,6 +14,7 @@ import {
     openListView,
     patchUiSize,
     setupChatHub,
+    SIZES,
     start,
     startServer,
     waitStoreFetch,
@@ -23,9 +23,8 @@ import { LONG_PRESS_DELAY } from "@mail/utils/common/hooks";
 import { describe, test } from "@odoo/hoot";
 import { advanceTime, pointerDown, press } from "@odoo/hoot-dom";
 import { Deferred, mockTouch, mockUserAgent } from "@odoo/hoot-mock";
-
-import { browser } from "@web/core/browser/browser";
 import { asyncStep, serverState, waitForSteps } from "@web/../tests/web_test_helpers";
+import { browser } from "@web/core/browser/browser";
 
 describe.current.tags("mobile");
 defineMailModels();
@@ -63,7 +62,9 @@ test("show loading on initial opening", async () => {
     await waitForSteps(["before channels_as_member"]);
     def.resolve();
     await waitStoreFetch("channels_as_member");
-    await contains(".o-mail-MessagingMenu .fa-solid.fa-circle-notch.fa-spin", { count: 0 });
+    await contains(".o-mail-MessagingMenu .fa-solid.fa-circle-notch.fa-spin", {
+        count: 0,
+    });
     await contains(".o-mail-NotificationItem", { text: "General" });
 });
 
@@ -119,7 +120,9 @@ test("Can edit message comment in chatter (mobile)", async () => {
     await pointerDown(".o-mail-Message", { contains: "original message" });
     await advanceTime(LONG_PRESS_DELAY);
     await click("button", { text: "Edit" });
-    await insertText(".o-mail-Message .o-mail-Composer-input", "edited message", { replace: true });
+    await insertText(".o-mail-Message .o-mail-Composer-input", "edited message", {
+        replace: true,
+    });
     await click("button[title='Save editing']");
     await contains(".o-mail-Message", { text: "edited message (edited)" });
 });
@@ -143,7 +146,10 @@ test("click on an odoo link should fold the chat window (mobile)", async () => {
     patchUiSize({ size: SIZES.SM });
     await start();
     await openDiscuss(channelId);
-    await insertText(".o-mail-Composer-input", `http://${browser.location.host}/odoo.com`);
+    await insertText(
+        ".o-mail-Composer-input",
+        `http://${browser.location.host}/odoo.com`,
+    );
     await click(".o-mail-Composer button[title='Send']");
     await contains(".o-mail-ChatWindow");
     await click(`a[href="http://${browser.location.host}/odoo.com"]`);

@@ -1,4 +1,3 @@
-import { beforeEach, describe, expect, test } from "@odoo/hoot";
 import {
     click,
     contains,
@@ -8,6 +7,8 @@ import {
     start,
     startServer,
 } from "@mail/../tests/mail_test_helpers";
+import { beforeEach, describe, expect, test } from "@odoo/hoot";
+import { queryAll } from "@odoo/hoot-dom";
 import {
     asyncStep,
     clickFieldDropdown,
@@ -15,7 +16,7 @@ import {
     onRpc,
     waitForSteps,
 } from "@web/../tests/web_test_helpers";
-import { queryAll } from "@odoo/hoot-dom";
+
 import { ResPartner } from "../../mock_server/mock_models/res_partner.js";
 
 defineMailModels();
@@ -57,22 +58,32 @@ test("fieldmany2many tags email (edition)", async () => {
         `,
     });
     await waitForSteps([]);
-    await contains('.o_field_many2many_tags_email[name="partner_ids"] .badge.o_tag_color_0');
+    await contains(
+        '.o_field_many2many_tags_email[name="partner_ids"] .badge.o_tag_color_0',
+    );
     await clickFieldDropdown("partner_ids");
     await clickFieldDropdownItem("partner_ids", "gold, Invoice");
-    const tags = queryAll('.o_field_many2many_tags_email[name="partner_ids"] .badge.o_tag_color_0');
+    const tags = queryAll(
+        '.o_field_many2many_tags_email[name="partner_ids"] .badge.o_tag_color_0',
+    );
     expect(tags[1].innerText).toBe("gold, Invoice");
     await contains(".o-mail-RecipientsInputTagsListPopover");
     // set the email
-    await insertText(".o-mail-RecipientsInputTagsListPopover input", "coucou@petite.perruche");
+    await insertText(
+        ".o-mail-RecipientsInputTagsListPopover input",
+        "coucou@petite.perruche",
+    );
     await click(".o-mail-RecipientsInputTagsListPopover .btn-primary");
-    await contains('.o_field_many2many_tags_email[name="partner_ids"] .badge.o_tag_color_0', {
-        count: 2,
-    });
+    await contains(
+        '.o_field_many2many_tags_email[name="partner_ids"] .badge.o_tag_color_0',
+        {
+            count: 2,
+        },
+    );
     expect(tags[0].innerText).toBe("gold");
     expect(tags[0].querySelector(".o_badge_text")).toHaveAttribute(
         "title",
-        "coucou@petite.perruche"
+        "coucou@petite.perruche",
     );
     // should have read Partner_2 2 times: when opening the dropdown and when saving the new email.
     await waitForSteps([`web_read [${partnerId_2}]`, `web_save [${partnerId_2}]`]);
@@ -99,7 +110,10 @@ test("fieldmany2many tags email popup close without filling", async () => {
     await clickFieldDropdownItem("partner_ids", "Deficient Denise");
     await contains(".o-mail-RecipientsInputTagsListPopover");
     // set the email
-    await insertText(".o-mail-RecipientsInputTagsListPopover input", "coucou@petite.perruche");
+    await insertText(
+        ".o-mail-RecipientsInputTagsListPopover input",
+        "coucou@petite.perruche",
+    );
     // Close the modal dialog without saving (should remove partner from invalid records)
     await click(".o-mail-RecipientsInputTagsListPopover .btn-secondary");
     // Selecting a partner with a valid email shouldn't open the modal dialog for the previous partner

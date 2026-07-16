@@ -1,5 +1,4 @@
 import {
-    SIZES,
     click,
     contains,
     defineMailModels,
@@ -9,10 +8,13 @@ import {
     openFormView,
     patchUiSize,
     scroll,
+    SIZES,
     start,
     startServer,
 } from "@mail/../tests/mail_test_helpers";
+import { GifPicker } from "@mail/discuss/gif_picker/common/gif_picker";
 import { describe, expect, test } from "@odoo/hoot";
+import { animationFrame, queryFirst } from "@odoo/hoot-dom";
 import {
     asyncStep,
     getService,
@@ -21,9 +23,6 @@ import {
     preloadBundle,
     waitForSteps,
 } from "@web/../tests/web_test_helpers";
-
-import { GifPicker } from "@mail/discuss/gif_picker/common/gif_picker";
-import { animationFrame, queryFirst } from "@odoo/hoot-dom";
 
 describe.current.tags("desktop");
 defineMailModels();
@@ -38,7 +37,9 @@ const gifFactory = (count = 1, options = {}) => {
             title: "",
             media_formats: {
                 tinygif: {
-                    url: options.url || "https://media.tenor.com/np49Y1vrJO8AAAAM/crying-cry.gif",
+                    url:
+                        options.url ||
+                        "https://media.tenor.com/np49Y1vrJO8AAAAM/crying-cry.gif",
                     duration: 0,
                     preview: "",
                     dims: [220, 190],
@@ -203,9 +204,12 @@ test("Can have GIF categories with same name", async () => {
     await start();
     await openDiscuss(channelId);
     await click("button[title='Add GIFs']");
-    await contains("img[data-src='https://media.tenor.com/BiseY2UXovAAAAAM/duplicate.gif']", {
-        count: 2,
-    });
+    await contains(
+        "img[data-src='https://media.tenor.com/BiseY2UXovAAAAAM/duplicate.gif']",
+        {
+            count: 2,
+        },
+    );
 });
 
 test("Reopen GIF category list when going back", async () => {
@@ -233,7 +237,9 @@ test("Add GIF to favorite", async () => {
     await click(":nth-child(1 of div) > .o-discuss-Gif .fa-star-o");
     await contains(".o-discuss-Gif .fa-star");
     await click("i[aria-label='back']");
-    await click(".o-discuss-GifPicker div[aria-label='list-item']", { text: "Favorites" });
+    await click(".o-discuss-GifPicker div[aria-label='list-item']", {
+        text: "Favorites",
+    });
     await contains(".o-discuss-Gif");
 });
 
@@ -290,7 +296,9 @@ test("Scrolling at the bottom should trigger the search to load more gif, even a
     await click("button[title='Add GIFs']");
     // gif picker quires extra delay before click (to give time to load initial state)
     await contains(".o-discuss-GifPicker");
-    await click(".o-discuss-GifPicker div[aria-label='list-item']", { text: "Favorites" });
+    await click(".o-discuss-GifPicker div[aria-label='list-item']", {
+        text: "Favorites",
+    });
     await click("i[aria-label='back']");
     await click("img[data-src='https://media.tenor.com/6uIlQAHIkNoAAAAM/cry.gif']");
     await contains(".o-discuss-Gif", { count: 4 });
@@ -307,7 +315,9 @@ test("Pause GIF when thread is not focused", async () => {
     await openDiscuss(channelId);
     await click("button[title='Add GIFs']");
     await click("img[data-src='https://media.tenor.com/6uIlQAHIkNoAAAAM/cry.gif']");
-    await click("img[data-src='https://media.tenor.com/np49Y1vrJO8AAAAM/crying-cry.gif']:eq(0)");
+    await click(
+        "img[data-src='https://media.tenor.com/np49Y1vrJO8AAAAM/crying-cry.gif']:eq(0)",
+    );
     await contains(".o-mail-LinkPreviewImage");
     queryFirst(".o-mail-Thread").blur();
     await contains(".o-mail-LinkPreviewImage img[data-paused]");
@@ -324,7 +334,9 @@ test("Show help when no favorite GIF", async () => {
     await click("button[title='Add GIFs']");
     // gif picker quires extra delay before click (to give time to load initial state)
     await contains(".o-discuss-GifPicker");
-    await click(".o-discuss-GifPicker div[aria-label='list-item']", { text: "Favorites" });
+    await click(".o-discuss-GifPicker div[aria-label='list-item']", {
+        text: "Favorites",
+    });
     await contains("span", { text: "So uhh... maybe go favorite some GIFs?" });
 });
 
@@ -337,7 +349,9 @@ test("Clicking GIF preview does not raise an error", async () => {
     await openDiscuss(channelId);
     await click("button[title='Add GIFs']");
     await click("img[data-src='https://media.tenor.com/6uIlQAHIkNoAAAAM/cry.gif']");
-    await click("img[data-src='https://media.tenor.com/np49Y1vrJO8AAAAM/crying-cry.gif']:eq(0)");
+    await click(
+        "img[data-src='https://media.tenor.com/np49Y1vrJO8AAAAM/crying-cry.gif']:eq(0)",
+    );
     await click(".o-mail-LinkPreviewImage img");
     await contains(".o-mail-Message");
 });

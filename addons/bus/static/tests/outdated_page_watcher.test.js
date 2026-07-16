@@ -1,12 +1,12 @@
-import { lastNotificationIdKey } from "@bus/services/bus_service";
 import { OutdatedPageWatcherService } from "@bus/outdated_page_watcher_service";
+import { lastNotificationIdKey } from "@bus/services/bus_service";
 import {
     CONNECTION_STATE,
     WEBSOCKET_CLOSE_CODES,
 } from "@bus/workers/websocket_worker_constants";
-import { EventBus } from "@odoo/owl";
 import { after, describe, expect, test } from "@odoo/hoot";
 import { on, runAllTimers, waitFor } from "@odoo/hoot-dom";
+import { EventBus } from "@odoo/owl";
 import {
     asyncStep,
     contains,

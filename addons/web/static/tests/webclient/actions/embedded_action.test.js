@@ -135,7 +135,7 @@ class ResUsersSettings extends WebResUsersSettings {
         const ResUsersSettingsEmbeddedAction =
             this.env["res.users.settings.embedded.action"];
 
-        let [embeddedSettings] = ResUsersSettingsEmbeddedAction.search_read([
+        const [embeddedSettings] = ResUsersSettingsEmbeddedAction.search_read([
             ["user_setting_id", "=", id],
             ["action_id", "=", action_id],
             ["res_id", "=", res_id],
@@ -154,7 +154,7 @@ class ResUsersSettings extends WebResUsersSettings {
             }
         }
         if (!embeddedSettings) {
-            embeddedSettings = ResUsersSettingsEmbeddedAction.create({
+            ResUsersSettingsEmbeddedAction.create({
                 action_id,
                 res_id,
                 ...vals,
@@ -527,7 +527,6 @@ test("a view coming from a embedded with python_method can be saved in the embed
             expect(values).not.toInclude("action_id");
             return [4, values.name]; // Fake new embedded action id
         } else if (method === "create_filter") {
-            values = args[0][0];
             expect(args[0].domain).toBe(`[["name", "=", "Applejack"]]`);
             expect(args[0].embedded_action_id).toBe(4);
             expect(args[0].user_ids).toEqual([]);

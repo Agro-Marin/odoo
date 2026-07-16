@@ -1,10 +1,8 @@
 import { defineMailModels, start } from "@mail/../tests/mail_test_helpers";
-
 import { describe, expect, test } from "@odoo/hoot";
 import { markup } from "@odoo/owl";
-
-import { deserializeDateTime, serializeDateTime } from "@web/core/l10n/dates";
 import { getService, serverState } from "@web/../tests/web_test_helpers";
+import { deserializeDateTime, serializeDateTime } from "@web/core/l10n/dates";
 
 describe.current.tags("desktop");
 defineMailModels();

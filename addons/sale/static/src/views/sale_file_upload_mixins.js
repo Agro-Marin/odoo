@@ -1,5 +1,6 @@
 /** @odoo-module native */
 import { _t } from "@web/core/l10n/translation";
+
 import { SaleActionHelper } from "../js/sale_action_helper/sale_action_helper.js";
 
 /**

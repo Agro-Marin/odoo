@@ -30,7 +30,7 @@ export class Base extends models.ServerModel {
             arguments,
             "trackedFieldNamesToField",
             "initialTrackedFieldValues",
-            "record"
+            "record",
         );
         trackedFieldNamesToField = kwargs.trackedFieldNamesToField;
         initialTrackedFieldValues = kwargs.initialTrackedFieldValues;
@@ -53,7 +53,7 @@ export class Base extends models.ServerModel {
                     newValue,
                     fname,
                     trackedFieldNamesToField[fname],
-                    this
+                    this,
                 );
                 if (tracking) {
                     trackingValueIds.push(tracking);

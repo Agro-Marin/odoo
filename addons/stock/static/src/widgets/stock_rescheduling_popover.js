@@ -1,20 +1,20 @@
 /** @odoo-module native */
-import { useService } from "@web/core/utils/hooks";
-import { registry } from "@web/core/registry";
 import {
     PopoverComponent,
     PopoverWidgetField,
     popoverWidgetField,
 } from "@stock/widgets/popover_widget";
+import { registry } from "@web/core/registry";
+import { useService } from "@web/core/utils/hooks";
 
 export class StockReschedulingPopoverComponent extends PopoverComponent {
-    setup(){
+    setup() {
         this.action = useService("action");
     }
 
-    openElement(ev){
+    openElement(ev) {
         this.action.doAction({
-            res_model: ev.currentTarget.getAttribute('element-model'),
+            res_model: ev.currentTarget.getAttribute("element-model"),
             res_id: parseInt(ev.currentTarget.getAttribute("element-id"), 10),
             views: [[false, "form"]],
             type: "ir.actions.act_window",
@@ -25,21 +25,23 @@ export class StockReschedulingPopoverComponent extends PopoverComponent {
 
 export class StockReschedulingPopover extends PopoverWidgetField {
     static components = {
-        Popover: StockReschedulingPopoverComponent
+        Popover: StockReschedulingPopoverComponent,
     };
-    setup(){
+    setup() {
         super.setup();
-        this.color = this.jsonValue.color || 'text-danger';
+        this.color = this.jsonValue.color || "text-danger";
         // Set the full FA7 class (family + name); the parent's bare-name
         // normalization only runs on the default, not on this override, so a
         // bare "fa-triangle-exclamation" here would render with no glyph.
         this.icon = this.jsonValue.icon
-            ? (this.jsonValue.icon.includes(' ') ? this.jsonValue.icon : `fa-solid ${this.jsonValue.icon}`)
-            : 'fa-solid fa-triangle-exclamation';
+            ? this.jsonValue.icon.includes(" ")
+                ? this.jsonValue.icon
+                : `fa-solid ${this.jsonValue.icon}`
+            : "fa-solid fa-triangle-exclamation";
     }
 
-    showPopup(ev){
-        if (!this.jsonValue.late_elements){
+    showPopup(ev) {
+        if (!this.jsonValue.late_elements) {
             return;
         }
         super.showPopup(ev);

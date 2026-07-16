@@ -2,9 +2,10 @@
 import { Component, useState } from "@odoo/owl";
 import { useBus } from "@web/core/utils/hooks";
 import { formatFloat, formatFloatTime, formatMonetary } from "@web/fields/formatters";
+
+import { SHOW_OPTIONS } from "../mo_overview_display_filter/mrp_mo_overview_display_filter.js";
 import { MoOverviewLine } from "../mo_overview_line/mrp_mo_overview_line.js";
 import { getColorClass } from "../mrp_overview_utils.js";
-import { SHOW_OPTIONS } from "../mo_overview_display_filter/mrp_mo_overview_display_filter.js";
 import { FOLD_ALL, FOLD_CHANGED } from "../overview_fold.js";
 
 export class MoOverviewOperationsBlock extends Component {
@@ -46,17 +47,25 @@ export class MoOverviewOperationsBlock extends Component {
             isFolded: this.level > 0 && !this.props.unfoldAll,
         });
         if (this.props.unfoldAll) {
-            this.env.overviewBus.trigger(FOLD_CHANGED, { ids: [this.index], folded: false });
+            this.env.overviewBus.trigger(FOLD_CHANGED, {
+                ids: [this.index],
+                folded: false,
+            });
         }
 
-        useBus(this.env.overviewBus, FOLD_ALL, ({ detail }) => this.setFolded(detail.folded));
+        useBus(this.env.overviewBus, FOLD_ALL, ({ detail }) =>
+            this.setFolded(detail.folded),
+        );
     }
 
     //---- Handlers ----
 
     toggleFolded() {
         this.state.isFolded = !this.state.isFolded;
-        this.env.overviewBus.trigger(FOLD_CHANGED, { ids: [this.index], folded: this.state.isFolded });
+        this.env.overviewBus.trigger(FOLD_CHANGED, {
+            ids: [this.index],
+            folded: this.state.isFolded,
+        });
     }
 
     setFolded(folded) {
@@ -86,8 +95,10 @@ export class MoOverviewOperationsBlock extends Component {
 
     get totalQuantity() {
         // Float for Hours when displaying done productions, FloatTime for Minutes otherwise.
-        return this.props.summary?.done ?
-            formatFloat(this.props.summary.quantity, { digits: [false, this.props.operations[0].uom_precision || undefined] }) :
-            formatFloatTime(this.props.summary.quantity)
+        return this.props.summary?.done
+            ? formatFloat(this.props.summary.quantity, {
+                  digits: [false, this.props.operations[0].uom_precision || undefined],
+              })
+            : formatFloatTime(this.props.summary.quantity);
     }
 }

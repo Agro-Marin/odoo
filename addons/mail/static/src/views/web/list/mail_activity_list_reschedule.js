@@ -1,8 +1,8 @@
 /** @odoo-module native */
-import { luxon } from "@web/core/l10n/luxon";
 import { Component } from "@odoo/owl";
 import { Dropdown } from "@web/components/dropdown/dropdown";
 import { DropdownItem } from "@web/components/dropdown/dropdown_item";
+import { luxon } from "@web/core/l10n/luxon";
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
 import { standardWidgetProps } from "@web/views/widgets/standard_widget_props";

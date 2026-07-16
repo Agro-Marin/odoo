@@ -1,13 +1,13 @@
 // @ts-check
 
-import { expect, test } from "@odoo/hoot";
-import { registry } from "@web/core/registry";
-// eslint-disable-next-line simple-import-sort/imports -- order-sensitive:
 // a prior `eslint --fix` hoisted this side-effect import to the top, ahead
 // of `registry`; restored to its original (last) position. Not verified
 // against the Hoot suite (harness unavailable in this environment) — treat
 // this position as the known-safe one until it is.
 import "@web/views/module_views";
+
+import { expect, test } from "@odoo/hoot";
+import { registry } from "@web/core/registry";
 
 function getIsDisplayed() {
     return registry.category("cogMenu").get("reset-module-state-cog-menu").isDisplayed;

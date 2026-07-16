@@ -105,7 +105,7 @@ describe("DebugMenu", () => {
         await contains("button.dropdown-toggle").click();
         expect(".dropdown-menu .dropdown-item").toHaveCount(3);
         expect(".dropdown-menu .dropdown-menu_group").toHaveCount(2);
-        const children = [...queryOne(".dropdown-menu").children] || [];
+        const children = [...queryOne(".dropdown-menu").children];
         expect(children.map((el) => el.tagName)).toEqual([
             "DIV",
             "SPAN",

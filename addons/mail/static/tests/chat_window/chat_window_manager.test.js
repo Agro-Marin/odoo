@@ -18,7 +18,11 @@ defineMailModels();
 
 test("chat window does not fetch messages if hidden", async () => {
     const pyEnv = await startServer();
-    const [channeId1, channelId2, channelId3] = pyEnv["discuss.channel"].create([{}, {}, {}]);
+    const [channeId1, channelId2, channelId3] = pyEnv["discuss.channel"].create([
+        {},
+        {},
+        {},
+    ]);
     pyEnv["mail.message"].create([
         {
             body: "Orange",
@@ -54,7 +58,11 @@ test("chat window does not fetch messages if hidden", async () => {
 
 test("click on hidden chat window should fetch its messages", async () => {
     const pyEnv = await startServer();
-    const [channeId1, channelId2, channelId3] = pyEnv["discuss.channel"].create([{}, {}, {}]);
+    const [channeId1, channelId2, channelId3] = pyEnv["discuss.channel"].create([
+        {},
+        {},
+        {},
+    ]);
     pyEnv["mail.message"].create([
         {
             body: "Orange",
@@ -102,7 +110,7 @@ test("downgrade 19.1 to 19.0 should ignore chat hub local storage data", async (
         JSON.stringify({
             opened: [{ id: channelId }],
             folded: [{ id: 1000 }],
-        })
+        }),
     );
     await start();
     const store = getService("mail.store");
@@ -115,11 +123,17 @@ test("downgrade 19.1 to 19.0 should ignore chat hub local storage data", async (
     await click(".o-mail-NotificationItem");
     await contains(".o-mail-ChatWindow");
     expect(browser.localStorage.getItem(CHAT_HUB_KEY)).toBe(
-        JSON.stringify({ opened: [{ id: channelId, model: "discuss.channel" }], folded: [] })
+        JSON.stringify({
+            opened: [{ id: channelId, model: "discuss.channel" }],
+            folded: [],
+        }),
     );
     await click(".o-mail-ChatWindow-header [title='Fold']");
     await contains(".o-mail-ChatBubble");
     expect(browser.localStorage.getItem(CHAT_HUB_KEY)).toBe(
-        JSON.stringify({ opened: [], folded: [{ id: channelId, model: "discuss.channel" }] })
+        JSON.stringify({
+            opened: [],
+            folded: [{ id: channelId, model: "discuss.channel" }],
+        }),
     );
 });

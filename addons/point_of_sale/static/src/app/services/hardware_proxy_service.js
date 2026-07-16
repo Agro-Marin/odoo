@@ -6,6 +6,7 @@ import { browser } from "@web/core/browser/browser";
 import { rpc } from "@web/core/network/rpc";
 import { registry } from "@web/core/registry";
 import { effect } from "@web/core/utils/reactive";
+
 import { logPosMessage } from "../utils/pretty_console_log.js";
 /**
  * This object interfaces with the local proxy to communicate to the various hardware devices

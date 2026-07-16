@@ -1,6 +1,6 @@
 /** @odoo-module native */
-import { KanbanRenderer } from "@web/views/kanban/kanban_renderer";
 import { useService } from "@web/core/utils/hooks";
+import { KanbanRenderer } from "@web/views/kanban/kanban_renderer";
 
 import { ProductCatalogKanbanRecord } from "./kanban_record.js";
 
@@ -32,7 +32,7 @@ export class ProductCatalogKanbanRenderer extends KanbanRenderer {
             },
             {
                 onClose: () => this.props.list.model.load(),
-            }
+            },
         );
     }
 }
