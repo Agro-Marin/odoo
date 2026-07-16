@@ -26,7 +26,7 @@ function makeController() {
         sendCamera: false,
         sendScreen: false,
     };
-    const session = { isMute: false, isTalking: false };
+    const session = { isMute: false, is_muted: false, isTalking: false };
     const settings = {
         audioConstraints: true,
         cameraConstraints: true,
@@ -55,6 +55,7 @@ function makeController() {
             setMute: async (isMute) => {
                 steps.setMute.push(isMute);
                 session.isMute = isMute;
+                session.is_muted = isMute;
             },
             onMediaUnavailable: (media) => steps.unavailable.push(media),
             toggleVideo: async (type, options) => steps.toggles.push([type, options]),
@@ -87,6 +88,27 @@ test("resetMicAudioTrack acquires the mic and applies the session mute state", a
     session.isMute = true;
     controller.applyMicState();
     expect(state.micAudioTrack.enabled).toBe(false);
+});
+
+test("device switch while muted restores the mute state (unmute: false)", async () => {
+    mockGetMedia();
+    const { controller, state, session, steps } = makeController();
+    await controller.resetMicAudioTrack({ force: true });
+    // the user mutes, then switches microphone in the call settings
+    session.isMute = true;
+    session.is_muted = true;
+    steps.setMute.length = 0;
+    await controller.resetMicAudioTrack({ force: true, unmute: false });
+    expect(state.micAudioTrack).not.toBe(undefined);
+    // preemptive mute while acquiring, then the previous state is restored:
+    // switching input device while muted must not silently open the mic
+    expect(steps.setMute).toEqual([true, true]);
+    expect(session.is_muted).toBe(true);
+    // an explicit unmute-driven reset still unmutes
+    steps.setMute.length = 0;
+    await controller.resetMicAudioTrack({ force: true });
+    expect(steps.setMute).toEqual([true, false]);
+    expect(session.is_muted).toBe(false);
 });
 
 test("mic + screen audio are mixed, and the mix is torn down with the screen audio", async () => {

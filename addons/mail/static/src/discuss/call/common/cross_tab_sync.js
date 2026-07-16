@@ -188,7 +188,14 @@ export class CrossTabSync {
                 this.hooks.onRemoteUpdate(changes);
                 return;
             case CROSS_TAB_HOST_MESSAGE.CLOSE: {
-                if (this.state.remoteSessionId !== hostedSessionId) {
+                // a host owns its call: it must never obey a CLOSE. Without
+                // this guard, a remote tab broadcasting CLOSE (its
+                // remoteSessionId is the host's session id) tears down the
+                // host's live call with no server leave.
+                if (
+                    this.hooks.isHost() ||
+                    this.state.remoteSessionId !== hostedSessionId
+                ) {
                     return;
                 }
                 this.hooks.onHostClosed();
@@ -202,6 +209,13 @@ export class CrossTabSync {
                 return;
             }
             case CROSS_TAB_HOST_MESSAGE.PING: {
+                // only a remote mirroring THIS host is kept alive by its
+                // pings: a host tab or an idle one must never arm the "host
+                // is gone" watchdog on another call's heartbeat (its firing
+                // clear()s the tab's own live call)
+                if (!this.isRemote || this.state.remoteSessionId !== hostedSessionId) {
+                    return;
+                }
                 this._refreshTimeout();
                 return;
             }

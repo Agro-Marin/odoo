@@ -289,7 +289,16 @@ export class LocalMediaController {
         });
     }
 
-    async resetMicAudioTrack({ force = false }) {
+    /**
+     * @param {Object} [options]
+     * @param {boolean} [options.force] re-acquire a microphone track
+     * @param {boolean} [options.unmute] whether a successful re-acquisition
+     *  unmutes the user (an explicit unmute) or restores the mute state from
+     *  before the reset (e.g. an input device change while muted must not
+     *  silently open the microphone)
+     */
+    async resetMicAudioTrack({ force = false, unmute = true }) {
+        const wasMuted = Boolean(this.hooks.getLocalSession()?.is_muted);
         this.state.micAudioTrack?.stop();
         this.state.micAudioTrack = undefined;
         if (
@@ -319,7 +328,7 @@ export class LocalMediaController {
                 });
                 micAudioTrack = audioStream.getAudioTracks()[0];
                 if (this.hooks.getLocalSession()) {
-                    await this.hooks.setMute(false);
+                    await this.hooks.setMute(unmute ? false : wasMuted);
                 }
             } catch {
                 this.hooks.onMediaUnavailable({ microphone: true });

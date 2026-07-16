@@ -404,7 +404,9 @@ export class Rtc extends Record {
         );
         onChange(this.store.settings, "audioInputDeviceId", async () => {
             if (this.localSession) {
-                await this.resetMicAudioTrack({ force: true });
+                // restore the mute state: switching microphone while muted
+                // must not silently unmute the user
+                await this.resetMicAudioTrack({ force: true, unmute: false });
             }
         });
         onChange(this.store.settings, "audioOutputDeviceId", async () => {
@@ -629,7 +631,11 @@ export class Rtc extends Record {
      * Notifies the server and does the cleanup of the current call.
      */
     async leaveCall(channel = this.state.channel) {
-        this.store.fullscreenChannel = null;
+        if (channel.eq(this.state.channel)) {
+            // leaving another channel's call (e.g. rejecting an invitation)
+            // must not exit the fullscreen of the ongoing call
+            this.store.fullscreenChannel = null;
+        }
         this.state.hasPendingRequest = true;
         try {
             await this.rpcLeaveCall(channel);
@@ -648,12 +654,15 @@ export class Rtc extends Record {
      * @param {import("models").Thread} [channel]
      */
     endCall(channel = this.state.channel) {
-        this._endHost();
         if (channel.self_member_id) {
             channel.self_member_id.rtc_inviting_session_id = undefined;
         }
         channel.activeRtcSession = undefined;
         if (channel.eq(this.state.channel)) {
+            // only when ending the active call: broadcasting CLOSE for an
+            // unrelated channel (invitation reject) would tear down the
+            // call this tab hosts or mirrors in another channel
+            this._endHost();
             this.state.logs.end = new Date().toISOString();
             this.dumpLogs();
             this.pttExtService.unsubscribe();
@@ -1705,9 +1714,10 @@ export class Rtc extends Record {
     /**
      * @param {Object} param0
      * @param {boolean} [param0.force=false]
+     * @param {boolean} [param0.unmute=true] see LocalMediaController
      */
-    async resetMicAudioTrack({ force = false }) {
-        return this.media.resetMicAudioTrack({ force });
+    async resetMicAudioTrack({ force = false, unmute = true }) {
+        return this.media.resetMicAudioTrack({ force, unmute });
     }
 
     /**

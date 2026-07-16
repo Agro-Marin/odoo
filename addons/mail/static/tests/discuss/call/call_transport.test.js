@@ -242,6 +242,25 @@ test("SFU closed by the server: 'full' leaves the call, otherwise downgrade", as
     expect(harness2.state.fallbackMode).toBe(true);
 });
 
+test("p2p events during the SFU bundle load are not dropped", async () => {
+    const sfu = new MockSfuClient();
+    const load = new Deferred();
+    const { transport, p2p, steps } = makeTransport({ loadSfuClient: () => load });
+    transport.serverInfo = SERVER_INFO;
+    const run = transport.initConnection({ sessionId: 1, channelId: 5 });
+    await Promise.resolve(); // initConnection is awaiting the SFU bundle
+    // a p2p-fallback participant reacts to our session insert immediately and
+    // completes its handshake while the bundle is still loading: its events
+    // must reach the transport listeners (nothing ever replays them)
+    p2p.dispatchEvent(new CustomEvent("update", { detail: { name: "track" } }));
+    expect(steps.networkUpdates).toEqual([{ name: "track" }]);
+    load.resolve({ sfuClient: sfu, SFU_CLIENT_STATE: MOCK_SFU_CLIENT_STATE });
+    await run;
+    // once loaded, the SFU client is fed the same listeners
+    sfu.dispatchEvent(new CustomEvent("update", { detail: { name: "broadcast" } }));
+    expect(steps.networkUpdates).toEqual([{ name: "track" }, { name: "broadcast" }]);
+});
+
 test("dispose aborts in-flight connection attempts", async () => {
     const sfuA = new MockSfuClient();
     const load = new Deferred();
