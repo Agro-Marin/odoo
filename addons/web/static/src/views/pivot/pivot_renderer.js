@@ -56,6 +56,7 @@ export class PivotRenderer extends Component {
     setup() {
         useRenderCounter("pivot.PivotRenderer");
         this.actionService = useService("action");
+        this.notification = useService("notification");
         // Subscribe directly to model.notify(): the model prop is stable,
         // so this renderer only updated through the legacy deep-render
         // listener before (PivotModel now opts out of it via
@@ -376,11 +377,16 @@ export class PivotRenderer extends Component {
      */
     onDownloadButtonClicked() {
         if (this.model.getTableWidth() > 16384) {
-            throw new Error(
+            // Surface a user-facing notification rather than throwing from a
+            // click handler, which would trip the generic crash dialog and
+            // abort the handler abnormally.
+            this.notification.add(
                 _t(
                     "For Excel compatibility, data cannot be exported if there are more than 16384 columns.\n\nTip: try to flip axis, filter further or reduce the number of measures.",
                 ),
+                { type: "danger", sticky: true },
             );
+            return;
         }
         const table = this.model.exportData();
         download({
