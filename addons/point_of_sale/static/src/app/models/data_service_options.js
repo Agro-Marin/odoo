@@ -46,7 +46,9 @@ export class DataServiceOptions {
             "pos.order": ["uuid"],
             "pos.order.line": ["uuid"],
             "pos.payment": ["uuid"],
-            "product.template": ["pos_categ_ids", "write_date"],
+            // NB: no "write_date" index — it had zero consumers and a
+            // same-second bulk import guarantees collisions on it.
+            "product.template": ["pos_categ_ids"],
             "product.product": ["pos_categ_ids", "barcode"],
             "account.fiscal.position": ["tax_ids"],
             "loyalty.program": ["trigger_product_ids"],

@@ -1,5 +1,5 @@
 /** @odoo-module native */
-import { reactive } from "@odoo/owl";
+import { reactive, toRaw } from "@odoo/owl";
 
 import { Base } from "./base.js";
 import { RAW_SYMBOL } from "./utils.js";
@@ -54,7 +54,10 @@ export class RecordStore {
         this._updateIndex(record, (map, key, record, isArray = false) => {
             if (isArray) {
                 map.get(key)?.delete(record.id);
-            } else {
+            } else if (toRaw(map.get(key)) === toRaw(record)) {
+                // Single-value indexes (e.g. barcode) are not guaranteed
+                // unique: only delete the entry if this record owns it, or
+                // removing a hidden duplicate would evict the visible one.
                 map.delete(key);
             }
         });
