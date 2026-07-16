@@ -1,6 +1,6 @@
 {
     "name": "Base Credential Manager",
-    "version": "19.0.1.0.2",
+    "version": "19.0.1.0.3",
     "category": "Technical",
     "sequence": 5,
     "summary": "Foundation module for secure credential management across all external integrations",
