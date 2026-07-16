@@ -4,7 +4,6 @@
 importScripts("/mail/static/lib/idb-keyval/idb-keyval.js");
 
 const MESSAGE_TYPE = {
-    UNEXPECTED_CALL_TERMINATION: "UNEXPECTED_CALL_TERMINATION", // deprecated
     POST_RTC_LOGS: "POST_RTC_LOGS",
 };
 const PUSH_NOTIFICATION_TYPE = {
@@ -239,7 +238,10 @@ self.addEventListener("notificationclick", (event) => {
                     joinCall: event.action === PUSH_NOTIFICATION_ACTION.ACCEPT,
                 }),
             );
-        } else {
+        } else if (model) {
+            // model can be absent (payload evolution, third-party push types
+            // reusing options.data): dereferencing it would throw inside the
+            // handler and swallow the click entirely
             const modelPath = model.includes(".") ? model : `m-${model}`;
             event.waitUntil(clients.openWindow(`/odoo/${modelPath}/${res_id}`));
         }
@@ -327,11 +329,22 @@ self.addEventListener("message", ({ data }) => {
 // push events would otherwise read the same value and lose increments.
 let unreadUpdatePromise = Promise.resolve();
 function incrementUnread() {
+    // best-effort: an IndexedDB failure (private browsing, quota, blocked
+    // upgrade) must neither reject into the caller — handlePushEvent awaits
+    // this before showing the notification — nor poison this chain: chaining
+    // .then() off a rejected promise never runs, so one failure would freeze
+    // the badge for the rest of the worker's lifetime, with one unhandled
+    // rejection per push on top.
     unreadUpdatePromise = unreadUpdatePromise.then(async () => {
-        const oldCounter = (await get("unread", unread_store)) ?? 0;
-        const newCounter = oldCounter + 1;
-        await set("unread", newCounter, unread_store);
-        navigator.setAppBadge?.(newCounter);
+        try {
+            const oldCounter = (await get("unread", unread_store)) ?? 0;
+            const newCounter = oldCounter + 1;
+            await set("unread", newCounter, unread_store);
+            navigator.setAppBadge?.(newCounter);
+        } catch {
+            // the web client overwrites the badge with the authoritative
+            // inbox counter whenever a tab is running and synced
+        }
     });
     return unreadUpdatePromise;
 }
@@ -433,10 +446,6 @@ async function resubscribePushDevice(event) {
 }
 self.addEventListener("message", async ({ data, source }) => {
     switch (data.name) {
-        case MESSAGE_TYPE.UNEXPECTED_CALL_TERMINATION:
-            // deprecated
-            openDiscussChannel(data.channelId, { joinCall: true, source });
-            break;
         case MESSAGE_TYPE.POST_RTC_LOGS: {
             const { logs, download } = data;
             try {
