@@ -2396,12 +2396,18 @@ function _getMatchedCSSRules(node, cssRules) {
         delete processedStyle["text-decoration-thickness"];
     }
 
-    // flexboxes are not supported in Windows Outlook
+    // Outlook doesn't support flexbox: drop flex-* properties and flex values.
+    // Match the parsed property/value instead of a naive substring test, so an
+    // unrelated token like `content:"flexible"` is not dropped.
     for (const styleName in processedStyle) {
-        if (
-            styleName.includes("flex") ||
-            `${processedStyle[styleName]}`.includes("flex")
-        ) {
+        const value = `${processedStyle[styleName]}`;
+        const isFlex =
+            styleName === "flex" ||
+            styleName.startsWith("flex-") ||
+            value === "flex" ||
+            value === "inline-flex" ||
+            value.startsWith("flex-");
+        if (isFlex) {
             delete processedStyle[styleName];
         }
     }
