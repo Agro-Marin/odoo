@@ -46,6 +46,12 @@ export class NumberPopup extends Component {
     }
 
     confirm() {
+        // The confirm button is disabled when invalid, but the Enter hotkey also
+        // routes here — gate it so both share one validity check and an invalid
+        // buffer can't be submitted via the keyboard.
+        if (!this.props.isValid(this.state.buffer)) {
+            return;
+        }
         this.props.getPayload(this.state.buffer);
         this.props.close();
     }

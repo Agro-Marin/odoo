@@ -17,6 +17,26 @@ const deepSerialization = (
             stack,
         });
 
+    // The mutations that mark records clean (_dirty = false) and consume the
+    // unlink/delete commands must not happen until the payload has actually
+    // reached the server. Route them through scheduleClear: by default they run
+    // inline (unchanged behaviour), but a caller can pass opts.deferClear with an
+    // opts.clearActions array to collect them and apply them only once the RPC
+    // succeeds. Otherwise a sync that throws (e.g. ConnectionLostError) would
+    // clear the dirty flags and drop the commands for a payload the backend never
+    // received, permanently losing those edits on the retry. keepCommands keeps
+    // serialization fully pure (never clears) for local clones.
+    const scheduleClear = (fn) => {
+        if (opts.keepCommands) {
+            return;
+        }
+        if (opts.deferClear) {
+            opts.clearActions.push(fn);
+        } else {
+            fn();
+        }
+    };
+
     // We only care about the fields present in python model
     for (const [fieldName, field] of Object.entries(fields)) {
         if (field.local || field.related || field.compute || field.dummy) {
@@ -55,10 +75,9 @@ const deepSerialization = (
 
                     if (childRecord.isSynced && childRecord._dirty) {
                         toUpdate.push(childRecord);
-
-                        if (!opts.keepCommands) {
+                        scheduleClear(() => {
                             childRecord._dirty = false;
-                        }
+                        });
                     } else if (!childRecord.isSynced) {
                         toCreate.push(childRecord);
                     }
@@ -120,20 +139,21 @@ const deepSerialization = (
                 processRecords(modelCommands.delete.get(fieldName) || [], 2);
 
                 for (const commands of [modelCommands.unlink, modelCommands.delete]) {
+                    if (opts.keepCommands) {
+                        continue;
+                    }
                     const commandList = commands.get(fieldName) || [];
                     const remainingCommands = commandList.filter(
                         ({ parentId }) => parentId !== record.id,
                     );
 
-                    if (opts.keepCommands) {
-                        continue;
-                    }
-
-                    if (remainingCommands.length) {
-                        commands.set(fieldName, remainingCommands);
-                    } else {
-                        commands.delete(fieldName);
-                    }
+                    scheduleClear(() => {
+                        if (remainingCommands.length) {
+                            commands.set(fieldName, remainingCommands);
+                        } else {
+                            commands.delete(fieldName);
+                        }
+                    });
                 }
             }
             continue;
@@ -185,9 +205,9 @@ const deepSerialization = (
         res[key] = getValue();
     }
 
-    if (!opts.keepCommands) {
+    scheduleClear(() => {
         record._dirty = false;
-    }
+    });
 
     // Cleanup: remove empty entries from uuidMapping.
     for (const key in uuidMapping) {

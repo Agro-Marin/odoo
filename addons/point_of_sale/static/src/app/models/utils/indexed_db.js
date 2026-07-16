@@ -211,13 +211,13 @@ export default class IndexedDB {
         return results;
     }
 
-    getNewTransaction(dbStore) {
+    getNewTransaction(dbStore, mode = "readwrite") {
         try {
             if (!this.db) {
                 return false;
             }
 
-            const transaction = this.db.transaction(dbStore, "readwrite");
+            const transaction = this.db.transaction(dbStore, mode);
             this.activeTransactions.add(transaction);
             return transaction;
         } catch (e) {

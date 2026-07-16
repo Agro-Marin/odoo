@@ -137,13 +137,28 @@ export class BarcodeReader {
     }
 
     async waitForBarcode() {
-        const barcode = await this.hardwareProxy.message("scanner").catch(() => {});
-        if (!this.remoteScanning) {
-            this.remoteActive = 0;
-            return;
+        while (this.remoteScanning) {
+            let barcode;
+            try {
+                barcode = await this.hardwareProxy.message("scanner");
+            } catch {
+                // The proxy rejects synchronously while disconnected. Back off
+                // instead of re-arming immediately, otherwise this recursion
+                // becomes an unbounded busy loop pinning the event loop, then
+                // re-check remoteScanning before retrying.
+                await new Promise((resolve) => setTimeout(resolve, 1000));
+                continue;
+            }
+            if (!this.remoteScanning) {
+                break;
+            }
+            if (barcode) {
+                // Await so overlapping scans can't interleave the next poll; a
+                // scan error must not tear down the listen loop.
+                await this.scan(barcode).catch(() => {});
+            }
         }
-        this.scan(barcode);
-        this.waitForBarcode();
+        this.remoteActive = 0;
     }
 
     // the barcode scanner will stop listening on the hw_proxy/scanner remote interface

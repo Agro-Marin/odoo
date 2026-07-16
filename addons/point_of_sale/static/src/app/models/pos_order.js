@@ -638,7 +638,9 @@ export class PosOrder extends PosOrderAccounting {
     //see setScreenData
     getScreenData() {
         const screen = this.uiState?.screen_data["value"];
-        // If no screen data is saved
+        // Only fall back to a default screen when none was explicitly saved via
+        // setScreenData (previously this payment-line default ran unconditionally,
+        // discarding any saved screen for an unpaid order that had payment lines):
         //   no payment line -> product screen
         //   with payment line -> payment screen
         if (!screen) {
@@ -647,9 +649,6 @@ export class PosOrder extends PosOrderAccounting {
             } else if (!this.finalized) {
                 return { name: "ProductScreen" };
             }
-        }
-        if (!this.finalized && this.payment_ids.length > 0) {
-            return { name: "PaymentScreen" };
         }
 
         return screen || { name: "" };

@@ -1599,8 +1599,30 @@ export class PosStore extends WithLazyGetterTrap {
             await this.preSyncAllOrders([order]);
             this.syncingOrders.add(order.uuid);
 
+            // A lost connection means the sync_from_ui payload never reached the
+            // server, so the order's dirty flags and unlink/delete commands must
+            // survive for the offline retry to re-send the full change set
+            // (sync_from_ui is excluded from the generic retry queue). Any other
+            // outcome — success, or a server-side rejection such as a UserError —
+            // consumes them: persisted on success, and on a hard error dropped so a
+            // request that keeps failing is not re-submitted on every debounced
+            // sync. deferClear collects those mutations so they apply at the right
+            // moment.
+            const clearActions = [];
+            let committed = false;
+            const commitClear = () => {
+                if (committed) {
+                    return;
+                }
+                committed = true;
+                clearActions.forEach((fn) => fn());
+            };
+
             try {
-                const serialized = order.serializeForORM();
+                const serialized = order.serializeForORM({
+                    deferClear: true,
+                    clearActions,
+                });
                 const data = await this.data.call(
                     "pos.order",
                     "sync_from_ui",
@@ -1609,6 +1631,7 @@ export class PosStore extends WithLazyGetterTrap {
                         context,
                     },
                 );
+                commitClear();
                 const missingRecords = await this.data.missingRecursive(data);
                 const newData = this.models.loadConnectedData(missingRecords);
 
@@ -1639,6 +1662,13 @@ export class PosStore extends WithLazyGetterTrap {
                 syncedOrders.push(...newData["pos.order"]);
                 newSession = newSession || data["pos.session"].length > 0;
             } catch (error) {
+                if (!(error instanceof ConnectionLostError)) {
+                    // Server rejected (or a non-connection failure): consume the
+                    // pending edits as before so a failing request is not retried
+                    // on every sync. A connection loss keeps them for the retry.
+                    commitClear();
+                }
+
                 if (options.throw) {
                     throw error;
                 }
