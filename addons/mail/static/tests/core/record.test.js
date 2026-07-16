@@ -1,6 +1,6 @@
 import { defineMailModels, start as start2 } from "@mail/../tests/mail_test_helpers";
 import { makeStore, Record, Store } from "@mail/core/common/record";
-import { AND, fields } from "@mail/model/misc";
+import { AND, fields, OR } from "@mail/model/misc";
 import { afterEach, beforeEach, describe, expect, test } from "@odoo/hoot";
 import { markup, reactive, toRaw } from "@odoo/owl";
 import { asyncStep, mockService, waitForSteps } from "@web/../tests/web_test_helpers";
@@ -1515,6 +1515,11 @@ test("nullish values in relation writes are no-ops, not phantom records", async 
     // phantom (use delete()/splice() to remove)
     expect(() => (thread.messages[0] = undefined)).toThrow("use delete()");
     expect(thread.messages.map((m) => m.id)).toEqual([1, 2]);
+    // push/unshift of a nullish entry are no-ops (consistent with add)
+    thread.messages.push(null);
+    thread.messages.unshift(undefined);
+    expect(thread.messages.map((m) => m.id)).toEqual([1, 2]);
+    expect(Object.keys(store.Message.records)).toHaveLength(2);
 });
 
 test("assigning duplicate entries keeps a single occurrence", async () => {
@@ -1875,4 +1880,66 @@ test("record.delete() while used in a computed+sorted field should properly dele
     ]);
     store.Message.get(3).delete();
     expect(toRaw(thread)._raw.messages.data).toEqual(["Message,1", "Message,2"]);
+});
+
+test("RecordUses reference-counts membership and empties on removal", async () => {
+    (class Thread extends Record {
+        static id = "name";
+        name;
+        messages = fields.Many("Message");
+    }).register(localRegistry);
+    (class Message extends Record {
+        static id = "id";
+        id;
+    }).register(localRegistry);
+    const store = await start();
+    const thread = store.Thread.insert("General");
+    const message = store.Message.insert(1);
+    const uses = toRaw(message)._raw._.uses;
+    // assign() does not dedupe within a payload path, but add() does: one
+    // membership => one use entry with count 1
+    thread.messages.add(message);
+    expect(uses.data.get(toRaw(thread)._raw).get("messages")).toBe(1);
+    // the same record in a SECOND relation of the same owner counts separately
+    (class Thread2 extends Record {
+        static id = "name";
+        name;
+        pinned = fields.Many("Message");
+    }).register(localRegistry);
+    // second relation on the same thread: add message to a distinct field
+    thread.messages.add(message); // already a member: no double count
+    expect(uses.data.get(toRaw(thread)._raw).get("messages")).toBe(1);
+    // removing the membership drops the field entry, and with no fields left
+    // the owner entry is removed entirely
+    thread.messages.delete(message);
+    expect(uses.data.has(toRaw(thread)._raw)).toBe(false);
+});
+
+test("OR-id records are distinct per which part is provided", async () => {
+    (class Thread extends Record {
+        static id = "name";
+        name;
+    }).register(localRegistry);
+    (class Message extends Record {
+        static id = "id";
+        id;
+    }).register(localRegistry);
+    (class Composer extends Record {
+        // OR is positional concatenation, not "match either": a composer
+        // keyed by {thread} and one keyed by {message} are different records
+        static id = OR("thread", "message");
+        thread = fields.One("Thread");
+        message = fields.One("Message");
+    }).register(localRegistry);
+    const store = await start();
+    const thread = store.Thread.insert("General");
+    const message = store.Message.insert(1);
+    const threadComposer = store.Composer.insert({ thread });
+    const messageComposer = store.Composer.insert({ message });
+    expect(threadComposer.eq(messageComposer)).toBe(false);
+    // get() by the same part finds the same record
+    expect(store.Composer.get({ thread }).eq(threadComposer)).toBe(true);
+    expect(store.Composer.get({ message }).eq(messageComposer)).toBe(true);
+    // a composer inserted under {thread} is not found by {message}
+    expect(store.Composer.get({ message: store.Message.insert(2) })).toBe(undefined);
 });
