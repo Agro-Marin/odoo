@@ -86,20 +86,25 @@ export class BlockUI extends Component {
 
     /** @param {{ detail?: { delay?: number, message?: string } }} ev */
     block(ev) {
-        const showBlockedUI = () =>
-            (this.state.blockState = this.BLOCK_STATES.VISIBLY_BLOCKED);
+        const showBlockedUI = () => {
+            this.state.blockState = this.BLOCK_STATES.VISIBLY_BLOCKED;
+            if (!ev.detail?.message) {
+                // Start the message rotation only once the overlay is actually
+                // visible — otherwise the "Still loading…" steps advance during
+                // the invisible pre-``delay`` window and the overlay appears
+                // already several messages in.
+                this.replaceMessage(0);
+            }
+        };
+        if (ev.detail?.message) {
+            this.state.line1 = ev.detail.message;
+        }
         const delay = ev.detail?.delay;
         if (delay) {
             this.state.blockState = this.BLOCK_STATES.BLOCKED;
             this.showBlockedUITimer = browser.setTimeout(showBlockedUI, delay);
         } else {
             showBlockedUI();
-        }
-
-        if (ev.detail?.message) {
-            this.state.line1 = ev.detail.message;
-        } else {
-            this.replaceMessage(0);
         }
     }
 

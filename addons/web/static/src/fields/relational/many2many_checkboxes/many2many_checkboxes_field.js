@@ -98,7 +98,17 @@ export class Many2ManyCheckboxesField extends Component {
      * @returns {boolean}
      */
     isSelected(item) {
-        return this.currentIds.has(item[0]);
+        // Reflect PENDING toggles (queued in idsToAdd/idsToRemove behind the
+        // 500ms debounce), not just the committed relation. Otherwise a
+        // re-render triggered by an unrelated field's onchange within the
+        // debounce window repaints the box back to its committed state, so the
+        // checkbox visibly reverts even though the change is still queued to
+        // save.
+        const id = item[0];
+        if (this.idsToRemove.has(id)) {
+            return false;
+        }
+        return this.currentIds.has(id) || this.idsToAdd.has(id);
     }
 
     /** @returns {Promise|undefined} Flushes pending add/remove changes to the relation */

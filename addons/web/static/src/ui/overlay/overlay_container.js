@@ -44,7 +44,11 @@ class OverlayItem extends Component {
         OVERLAY_ITEMS.push(this);
         onWillDestroy(() => {
             const index = OVERLAY_ITEMS.indexOf(this);
-            OVERLAY_ITEMS.splice(index, 1);
+            // Guard against a re-entrant/duplicated teardown: ``splice(-1, 1)``
+            // would remove the LAST (unrelated, live) overlay from the stack.
+            if (index >= 0) {
+                OVERLAY_ITEMS.splice(index, 1);
+            }
         });
 
         if (this.props.env) {

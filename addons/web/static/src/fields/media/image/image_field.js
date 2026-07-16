@@ -86,7 +86,12 @@ export class ImageField extends Component {
             const nextValue = record.data[this.props.name];
             if (record.resId !== resId) {
                 this.uniqueId = record.data.write_date;
+                // Bust the memoized URL too: with reload:false the short-circuit
+                // in getUrl() would otherwise keep serving the previous
+                // record's/value's image after a remove or replace.
+                this.lastURL = undefined;
             } else if (valueChanged(value, nextValue)) {
+                this.lastURL = undefined;
                 // A many2one image URL targets the RELATED record, so neither
                 // a dotted-related change nor an m2o dialog edit (which only
                 // refreshes display_name) moves this record's write_date —
@@ -150,11 +155,14 @@ export class ImageField extends Component {
     }
 
     getUrl(imageFieldName) {
-        if (!this.props.reload && this.lastURL) {
-            return this.lastURL;
-        }
+        // Check emptiness/validity BEFORE the memoized-URL short-circuit so a
+        // removed or invalid value falls back to the placeholder even when a
+        // stale ``lastURL`` is still cached (reload:false path).
         if (!this.props.record.data[this.props.name] || !this.state.isValid) {
             return placeholder;
+        }
+        if (!this.props.reload && this.lastURL) {
+            return this.lastURL;
         }
         if (this.fieldType === "many2one") {
             this.lastURL = imageUrl(

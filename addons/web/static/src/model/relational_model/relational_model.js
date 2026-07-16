@@ -684,11 +684,17 @@ export class RelationalModel extends Model {
             throw e;
         }
         if (response.warning) {
+            // Fire-and-forget, but guard the rejection: a throwing
+            // ``onWillDisplayOnchangeWarning`` hook (enterprise controllers wire
+            // it) would otherwise surface as an unhandled rejection → a global
+            // error dialog detached from the onchange that caused it.
             Promise.resolve(
                 this.hooks.lifecycle.onWillDisplayOnchangeWarning(response.warning),
-            ).then(() => {
-                this.hooks.ui.onDisplayOnchangeWarning(response.warning);
-            });
+            )
+                .then(() => {
+                    this.hooks.ui.onDisplayOnchangeWarning(response.warning);
+                })
+                .catch((error) => console.error(error));
         }
         return response.value;
     }

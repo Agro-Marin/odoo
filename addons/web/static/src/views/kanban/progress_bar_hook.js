@@ -856,7 +856,12 @@ export function useProgressBar(progressAttributes, model, aggregateFields, activ
             // otherwise a render taken mid-way (only one of the two RPCs
             // resolved) leaves stale counts. Skipped on first load so the
             // view paints asap while the progress bar loads async.
-            return prom.then(() => progressBarState._refreshBars());
+            // Symmetric with the first-load branch below: a transient
+            // ``read_progress_bar`` failure must degrade gracefully, not reject
+            // the whole model-load flow (and surface as an unhandled rejection).
+            return prom
+                .then(() => progressBarState._refreshBars())
+                .catch((error) => console.error(error));
         }
         // First load (non-blocking): once the bars are known, drop restored
         // active bar selections that turn out to be empty — getGroupInfo no

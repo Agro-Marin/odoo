@@ -93,6 +93,37 @@ test("parseTime (various entries)", async () => {
 });
 
 describe.current.tags("headless");
+test("parseTime (3-digit '24x' resolves to 2:4x, not end-of-day)", async () => {
+    // Regression: the "[24, x]" split passed the ``h <= 24`` gate before its
+    // minutes were validated, so "240" was consumed as hour 24 (→ 0:00) and
+    // "241".."249" were rejected outright. The intended "[2, 4x]" reading must
+    // win instead. Bare "24" (no minutes) stays ISO end-of-day (→ 0:00).
+    const testSet = [
+        ["240", "2:40:00"],
+        ["241", "2:41:00"],
+        ["245", "2:45:00"],
+        ["249", "2:49:00"],
+        ["250", "2:50:00"],
+        // Unchanged neighbours / end-of-day semantics
+        ["24", "0:00:00"],
+        ["230", "23:00:00"],
+        ["210", "21:00:00"],
+        ["350", "3:50:00"],
+        ["2430", null],
+    ];
+
+    for (const [input, expected] of testSet) {
+        let result = parseTime(input, true);
+        if (result) {
+            result = result.toString(true);
+        }
+        expect(result).toBe(expected, {
+            message: `"${input}" should parse to "${expected}" and got "${result}"`,
+        });
+    }
+});
+
+describe.current.tags("headless");
 test("parseTime (no seconds)", async () => {
     const testSet = [
         ["8:15", "8:15"],

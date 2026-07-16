@@ -199,6 +199,10 @@ export class KanbanRenderer extends Component {
                 );
                 let groupIdToFocus = this.lastOpenedGroupId;
                 if (
+                    // When the opened group is gone (findIndex === -1),
+                    // ``groups[0]`` must NOT be treated as "the next group" —
+                    // that would scroll to the wrong (first) column.
+                    lastOpenedGroupIndex >= 0 &&
                     lastOpenedGroupIndex < groups.length - 1 &&
                     groups[lastOpenedGroupIndex + 1].group.isFolded
                 ) {

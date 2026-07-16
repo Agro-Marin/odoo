@@ -57,6 +57,14 @@ export class BadgeSelectionField extends SelectionLikeField {
     onChange(value) {
         switch (this.type) {
             case "many2one":
+                if (value === this.value) {
+                    // Re-clicking the already-active badge is a no-op — avoid a
+                    // redundant record.update that re-triggers onchange/dirty.
+                    // (The template/onKeydown only ever pass an option id, so
+                    // the ``value === false`` case below is dead but kept as a
+                    // defensive fallback.)
+                    return;
+                }
                 if (value === false) {
                     this.props.record.update({ [this.props.name]: false });
                 } else {

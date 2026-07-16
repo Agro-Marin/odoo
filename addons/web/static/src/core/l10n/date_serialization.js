@@ -19,9 +19,15 @@ const dateTimeCache = new WeakMap();
  * Results are cached per DateTime instance.
  *
  * @param {any} value - Luxon DateTime
- * @returns {string}
+ * @returns {string|false} the serialized date, or `false` for falsy input
  */
 export function serializeDate(value) {
+    // Guard falsy input like the sibling deserialize/format helpers: a WeakMap
+    // key must be an object, so ``dateCache.set(false, …)`` would throw
+    // "Invalid value used as weak map key".
+    if (!value) {
+        return false;
+    }
     if (!dateCache.has(value)) {
         dateCache.set(
             value,
@@ -36,9 +42,13 @@ export function serializeDate(value) {
  * The value is converted to UTC before formatting. Results are cached.
  *
  * @param {any} value - Luxon DateTime
- * @returns {string}
+ * @returns {string|false} the serialized datetime, or `false` for falsy input
  */
 export function serializeDateTime(value) {
+    // See serializeDate: falsy input can't be a WeakMap key.
+    if (!value) {
+        return false;
+    }
     if (!dateTimeCache.has(value)) {
         dateTimeCache.set(
             value,

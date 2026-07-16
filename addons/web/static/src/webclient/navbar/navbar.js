@@ -222,15 +222,25 @@ export class NavBar extends Component {
                         // Hide from normal menu
                         s.classList.add("d-none");
                         // Show inside "more" menu
-                        const sectionId =
-                            s.dataset.section ||
-                            s
-                                .querySelector("[data-section]")
-                                .getAttribute("data-section");
+                        // Guard the lookup: an enterprise/website sub-menu
+                        // patch may render a direct child carrying no
+                        // ``data-section`` on itself or any descendant, and
+                        // ``find`` may miss after a menus swap — never deref a
+                        // null query result nor push ``undefined`` into the
+                        // "More" menu.
+                        const sectionNode = s.dataset.section
+                            ? s
+                            : s.querySelector("[data-section]");
+                        const sectionId = sectionNode?.getAttribute("data-section");
+                        if (!sectionId) {
+                            continue;
+                        }
                         const currentAppSection = this.currentAppSections.find(
                             (appSection) => appSection.id.toString() === sectionId,
                         );
-                        this.currentAppSectionsExtra.push(currentAppSection);
+                        if (currentAppSection) {
+                            this.currentAppSectionsExtra.push(currentAppSection);
+                        }
                     }
                     break;
                 }

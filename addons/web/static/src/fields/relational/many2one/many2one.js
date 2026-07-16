@@ -280,7 +280,14 @@ export class Many2One extends Component {
 
     /** @returns {boolean} Whether to show the external link button */
     get hasLinkButton() {
-        return this.props.canOpen && !!this.props.value && !this.state.isFloating;
+        // Require a persisted numeric id: a quick-created value is
+        // ``{ id: false, display_name }``, for which ``linkHref`` would build
+        // ``/odoo/<relation>/false`` — a link to a nonexistent record.
+        return (
+            this.props.canOpen &&
+            typeof this.props.value?.id === "number" &&
+            !this.state.isFloating
+        );
     }
 
     /** @returns {HTMLInputElement|null} */

@@ -36,7 +36,10 @@ export class AnimatedNumber extends Component {
             position: "right",
         });
         onWillUpdateProps((nextProps) => {
-            const { value: from } = this.props;
+            // Animate from what is currently ON SCREEN (state.value), not from
+            // the previous target prop — otherwise a prop change mid-animation
+            // snaps the display back to the old target before animating onward.
+            const from = this.state.value;
             const { value: to, duration } = nextProps;
             if (
                 !(/** @type {any} */ (this.constructor).enableAnimations) ||

@@ -346,7 +346,7 @@ export class ColorPicker extends Component {
         }
 
         const targetedElement =
-            this.props.state.getTargetedElements?.()[0] || document.documentElement;
+            this.props.state.getTargetedElements?.()?.[0] || document.documentElement;
         const selectedColor = this.props.state.selectedColor.toUpperCase();
         const htmlStyle =
             targetedElement.ownerDocument.defaultView.getComputedStyle(targetedElement);
