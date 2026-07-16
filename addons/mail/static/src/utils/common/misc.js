@@ -189,23 +189,43 @@ export function parseVersion(v) {
  * @param {string} url
  */
 export function convertToEmbedURL(url) {
-    const ytRegex =
-        /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|live\/|watch\?v=|&v=)([^#&?]*).*/;
-    const ytMatch = url.match(ytRegex);
-    if (ytMatch?.length === 3) {
-        const youtubeURL = new URL(`/embed/${ytMatch[2]}`, "https://www.youtube.com");
-        youtubeURL.searchParams.set("autoplay", "1");
-        return { url: youtubeURL.toString(), provider: "youtube" };
+    // anchor on the hostname: the previous pattern matched ANY url whose
+    // path merely contained /v/, /embed/, ?v=…, so a link like
+    // https://example.com/v/dQw4w9WgXcQ rendered an autoplaying YouTube
+    // embed for a non-YouTube link (content spoofing in link previews)
+    let parsed;
+    try {
+        parsed = new URL(url);
+    } catch {
+        return { url: null, provider: null };
     }
-    const gdriveRegex =
-        /(?:drive\.google\.com\/(?:file\/d\/|open\?id=|uc\?id=))([^/?&]+)/;
-    const gdriveMatch = url.match(gdriveRegex);
-    if (gdriveMatch?.length === 2) {
-        const gdriveURL = new URL(
-            `/file/d/${gdriveMatch[1]}/preview`,
-            "https://drive.google.com",
-        );
-        return { url: gdriveURL.toString(), provider: "google-drive" };
+    const host = parsed.hostname.replace(/^(www|m|music)\./, "");
+    if (["youtube.com", "youtube-nocookie.com", "youtu.be"].includes(host)) {
+        let videoId;
+        if (host === "youtu.be") {
+            videoId = parsed.pathname.split("/")[1];
+        } else if (parsed.searchParams.get("v")) {
+            videoId = parsed.searchParams.get("v");
+        } else {
+            videoId = parsed.pathname.match(
+                /^\/(?:embed|live|v|shorts)\/([^/?#&]+)/,
+            )?.[1];
+        }
+        if (videoId) {
+            const youtubeURL = new URL(`/embed/${videoId}`, "https://www.youtube.com");
+            youtubeURL.searchParams.set("autoplay", "1");
+            return { url: youtubeURL.toString(), provider: "youtube" };
+        }
+    }
+    if (host === "drive.google.com") {
+        const gdriveMatch = url.match(/(?:file\/d\/|open\?id=|uc\?id=)([^/?&]+)/);
+        if (gdriveMatch) {
+            const gdriveURL = new URL(
+                `/file/d/${gdriveMatch[1]}/preview`,
+                "https://drive.google.com",
+            );
+            return { url: gdriveURL.toString(), provider: "google-drive" };
+        }
     }
     return { url: null, provider: null };
 }

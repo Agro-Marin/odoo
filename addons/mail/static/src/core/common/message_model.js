@@ -39,6 +39,35 @@ const { DateTime } = luxon;
  */
 const fallbackDatetimes = new WeakMap();
 
+/**
+ * Parsed-body cache: several computes (edited, extra body attachments,
+ * hasLink, notification detection, onlyEmojis) each need the body as a DOM
+ * and all (re)run on every body change — one parse per body serves them all
+ * (previously up to 7 full HTML parses per message per change, ~400 on a
+ * 60-message channel load). Keyed by the body markup instance: a new markup
+ * is created whenever the body changes, so entries die with their body.
+ *
+ * The fragment is shared — consumers must NOT mutate it (mutating call
+ * sites like edit() keep their own fresh parses).
+ *
+ * @type {WeakMap<object, DocumentFragment>}
+ */
+const parsedBodies = new WeakMap();
+/** @param {string|ReturnType<markup>} body */
+function parseBody(body) {
+    if (!body || typeof body === "string") {
+        // strings cannot key a WeakMap; html fields normally store markup
+        // instances and empty bodies are cheap to parse
+        return createDocumentFragmentFromContent(body || "");
+    }
+    let fragment = parsedBodies.get(body);
+    if (!fragment) {
+        fragment = createDocumentFragmentFromContent(body);
+        parsedBodies.set(body, fragment);
+    }
+    return fragment;
+}
+
 export class Message extends Record {
     static _name = "mail.message";
     static id = "id";
@@ -50,7 +79,7 @@ export class Message extends Record {
             this.store.lastKnownMessageId = this.id;
         }
         if (this.isNotification && !this.notificationType) {
-            const htmlBody = createDocumentFragmentFromContent(this.body);
+            const htmlBody = parseBody(this.body);
             this.notificationType =
                 htmlBody.querySelector(".o_mail_notification")?.dataset.oeType;
         }
@@ -94,16 +123,14 @@ export class Message extends Record {
             return Boolean(
                 // ".o-mail-Message-edited" is the class added by the mail.thread in _message_update_content
                 // when the message is edited
-                createDocumentFragmentFromContent(this.body).querySelector(
-                    ".o-mail-Message-edited",
-                ),
+                parseBody(this.body).querySelector(".o-mail-Message-edited"),
             );
         },
     });
     /** attachments not already clearly visible in the body, unlike inlined images */
     extra_body_attachment_ids = fields.Many("ir.attachment", {
         compute() {
-            const parsedBody = createDocumentFragmentFromContent(this.body);
+            const parsedBody = parseBody(this.body);
             const inlinedImageAttachmentIds = [
                 ...parsedBody.querySelectorAll("img[data-attachment-id]"),
             ].map((img) => parseInt(img.dataset.attachmentId));
@@ -118,16 +145,15 @@ export class Message extends Record {
             if (this.isBodyEmpty) {
                 return false;
             }
-            const div = createElementWithContent("div", this.body);
-            return Boolean(div.querySelector("a:not([data-oe-model])"));
+            return Boolean(
+                parseBody(this.body).querySelector("a:not([data-oe-model])"),
+            );
         },
     });
     hasMailNotificationSummary = fields.Attr(false, {
         compute() {
             return Boolean(
-                createDocumentFragmentFromContent(this.body).querySelector(
-                    '[summary="o_mail_notification"]',
-                ),
+                parseBody(this.body).querySelector('[summary="o_mail_notification"]'),
             );
         },
     });
@@ -187,10 +213,9 @@ export class Message extends Record {
     scheduledDatetime = fields.Datetime();
     onlyEmojis = fields.Attr(false, {
         compute() {
-            const bodyWithoutTags = createElementWithContent(
-                "div",
-                this.body,
-            ).textContent;
+            // .body.textContent: parseBody returns a Document (DOMParser),
+            // whose own textContent is null
+            const bodyWithoutTags = parseBody(this.body).body?.textContent ?? "";
             const withoutEmojis = bodyWithoutTags.replace(EMOJI_REGEX, "");
             return (
                 bodyWithoutTags.length > 0 &&
@@ -654,7 +679,7 @@ export class Message extends Record {
 
     /** @param {import("models").Thread} thread the thread where the message is being viewed when starting edition */
     async enterEditMode(thread) {
-        const doc = createDocumentFragmentFromContent(this.body);
+        const doc = parseBody(this.body);
         // "discuss.channel" literals: `data-oe-model` is part of the mention
         // markup protocol embedded in message bodies (server-rendered HTML),
         // not a Thread-record conditional.

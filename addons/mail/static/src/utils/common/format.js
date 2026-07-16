@@ -178,7 +178,11 @@ export function addLink(node, transformChildren) {
     if (node.nodeType === 3) {
         // text node
         const linkified = linkify(node.textContent);
-        if (linkified.toString() !== node.textContent) {
+        // compare escaped-to-escaped: linkified is html-escaped markup, so
+        // matching it against the RAW text flagged every node containing
+        // &, <, >, quotes… as "changed" and rebuilt its DOM on every message
+        // prettify even with zero URLs in it
+        if (linkified.toString() !== htmlEscape(node.textContent).toString()) {
             const div = createElementWithContent("div", linkified);
             for (const childNode of [...div.childNodes]) {
                 node.parentNode.insertBefore(childNode, node);

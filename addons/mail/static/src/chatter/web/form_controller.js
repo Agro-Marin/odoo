@@ -33,6 +33,10 @@ patch(FormController.prototype, {
         if (isSameThread) {
             // not first load
             const { resModel, resId } = this.model.root;
+            // the bus event refreshes the messages immediately; leaving the
+            // flag raised made the Thread component fetch them a SECOND time
+            // on the following render — two identical RPCs per form save
+            this.env.chatter.fetchMessages = false;
             this.env.bus.trigger("MAIL:RELOAD-THREAD", { model: resModel, id: resId });
         }
     },
