@@ -233,6 +233,12 @@ class CompanySelector {
         let rootCompany = undefined;
         for (const companyId of this.selectedCompaniesIds) {
             let company = getActiveCompany(companyId);
+            if (!company) {
+                // A selected id that is not in the active-companies map (edge
+                // case after a company change): skip rather than deref
+                // ``company.parent_id`` on null.
+                continue;
+            }
 
             // Find the root active parent of the company
             while (getActiveCompany(company.parent_id)) {

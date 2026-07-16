@@ -208,10 +208,16 @@ export const pwaService = {
          */
         async function getManifest() {
             if (!_manifest) {
-                const manifest = await get(
-                    document.querySelector("link[rel=manifest]")?.getAttribute("href"),
-                    "text",
-                );
+                const href = document
+                    .querySelector("link[rel=manifest]")
+                    ?.getAttribute("href");
+                if (!href) {
+                    // No manifest link on the page: don't fetch ``undefined``
+                    // (which would GET the current page and throw in JSON.parse)
+                    // and don't cache the failure — retry if a link appears.
+                    return {};
+                }
+                const manifest = await get(href, "text");
                 _manifest = JSON.parse(manifest);
             }
             return _manifest;
