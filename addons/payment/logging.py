@@ -23,7 +23,8 @@ class SensitiveDataFilter(logging.Filter):
         for key in self._sensitive_keys:
             # 1st group: "<key>" or '<key>'
             # 2nd group: The quote char for the value
-            pattern = re.compile(rf'([\'"]{key}[\'"])\s*:\s*([\'"])([^\'"]+)\2')
+            # `re.escape` the key so keys containing regex metacharacters can't break the pattern.
+            pattern = re.compile(rf'([\'"]{re.escape(key)}[\'"])\s*:\s*([\'"])([^\'"]+)\2')
             self._patterns.append(pattern)
 
     def filter(self, record):
@@ -33,6 +34,11 @@ class SensitiveDataFilter(logging.Filter):
         :return: True
         :rtype: bool
         """
+        if not self._sensitive_keys:
+            # Nothing to mask; skip the recursive walk of every record's args entirely. This is the
+            # common case: `SENSITIVE_KEYS` is empty unless a provider module populates it.
+            return True
+
         if len(self._patterns) != len(self._sensitive_keys):  # If keys changed.
             self._compile_patterns()  # Recompile the patterns.
 
