@@ -3919,8 +3919,7 @@ class AccountMoveLine(models.Model):
         # Note we are using Command.link and not Command.set because Command.set is triggering an unlink that is
         # slowing down the assignation of the co-fields. Indeed, unlink is forcing a flush.
         full_reconcile_values_list = []
-        full_reconcile_full_batch_index = []
-        for full_batch_index, full_batch in enumerate(full_batches):
+        for full_batch in full_batches:
             amls = full_batch["amls"]
             involved_partials = amls.matched_debit_ids + amls.matched_credit_ids
             if full_batch["is_fully_reconciled"]:
@@ -3932,37 +3931,8 @@ class AccountMoveLine(models.Model):
                         "reconciled_line_ids": [Command.link(aml.id) for aml in amls],
                     }
                 )
-                full_reconcile_full_batch_index.append(full_batch_index)
 
         self.env["account.full.reconcile"].create(full_reconcile_values_list)
-
-        # === Cash basis rounding autoreconciliation ===
-        # In case a cash basis rounding difference line got created for the transition account, we reconcile it with the corresponding lines
-        # on the cash basis moves (so that it reaches full reconciliation and creates an exchange difference entry for this account as well)
-        for full_batch in full_batches:
-            if not full_batch.get("caba_lines_to_reconcile"):
-                continue
-
-            caba_lines_to_reconcile = full_batch["caba_lines_to_reconcile"]
-            exchange_move = full_batch["exchange_move"]
-            for (
-                _dummy,
-                account,
-                repartition_line,
-            ), amls_to_reconcile in caba_lines_to_reconcile.items():
-                if not account.reconcile:
-                    continue
-
-                exchange_line = exchange_move.line_ids.filtered(
-                    lambda l, account=account, repartition_line=repartition_line: (
-                        l.account_id == account
-                        and l.tax_repartition_line_id == repartition_line
-                    )
-                )
-
-                (exchange_line + amls_to_reconcile).filtered(
-                    lambda l: not l.reconciled
-                ).reconcile()
 
         all_amls._reconcile_post_hook(pre_hook_data)
 
