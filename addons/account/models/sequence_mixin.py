@@ -226,6 +226,20 @@ class SequenceMixin(models.AbstractModel):
             # Read the `seq` group directly by name — no need to rewrite the regex
             # to make `seq` the only capturing group.
             matching = matcher.match(sequence)
+            if matching is None:
+                # `_sequence_fixed_regex` may come from a journal's
+                # `sequence_override_regex`; a regex that doesn't match the
+                # existing name (or lacks a `seq` group) would otherwise blow up
+                # with an opaque AttributeError on every read of the split fields.
+                raise ValidationError(
+                    self.env._(
+                        "The sequence regex %(regex)s does not match the current "
+                        "sequence %(sequence)s. Check the journal's advanced "
+                        "settings.",
+                        regex=pattern,
+                        sequence=sequence or "''",
+                    )
+                )
             record.sequence_prefix = sequence[: matching.start("seq")]
             record.sequence_number = int(matching.group("seq") or 0)
 

@@ -1083,6 +1083,7 @@ class AccountPayment(models.Model):
             "state",
             "amount",
             "payment_type",
+            "currency_id",
         )
         self.flush_model(used_fields)
 
@@ -1127,6 +1128,7 @@ class AccountPayment(models.Model):
                                                            AND payment.date = duplicate_payment.date
                                                            AND payment.payment_type = duplicate_payment.payment_type
                                                            AND payment.amount = duplicate_payment.amount
+                                                           AND payment.currency_id = duplicate_payment.currency_id
                                                            AND duplicate_payment.state IN %(matching_states)s
                  WHERE payment.id = ANY(%(payments)s)
               GROUP BY payment.id

@@ -1118,3 +1118,17 @@ class TestAccountPaymentTerms(AccountTestInvoicingCommon):
         """The XML data record 'Immediate Payment' is correctly flagged."""
         immediate = self.env.ref("account.account_payment_term_immediate")
         self.assertTrue(immediate.is_immediate)
+
+    def test_days_next_month_unicode_numeric_raises_validation(self):
+        """A Unicode-numeric that `int()` rejects (e.g. the superscript '²') must
+        surface as a clean ValidationError, not an uncaught ValueError. The guard
+        uses `isdecimal()` (what `int()` accepts), not `isnumeric()`."""
+        term = self.env["account.payment.term"].create({"name": "unicode days"})
+        for bad_value in ("²", "½", "Ⅻ"):
+            with self.assertRaises(ValidationError):
+                term.line_ids[0].write(
+                    {
+                        "delay_type": "days_end_of_month_on_the",
+                        "days_next_month": bad_value,
+                    }
+                )

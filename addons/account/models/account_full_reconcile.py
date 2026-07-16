@@ -42,7 +42,7 @@ class AccountFullReconcile(models.Model):
         """,
             [
                 (full.id, line_ids)
-                for full, line_ids in zip(fulls, move_line_ids, strict=False)
+                for full, line_ids in zip(fulls, move_line_ids, strict=True)
             ],
             page_size=1000,
         )
@@ -60,7 +60,7 @@ class AccountFullReconcile(models.Model):
         """,
             [
                 (full.id, line_ids)
-                for full, line_ids in zip(fulls, partial_ids, strict=False)
+                for full, line_ids in zip(fulls, partial_ids, strict=True)
             ],
             page_size=1000,
         )

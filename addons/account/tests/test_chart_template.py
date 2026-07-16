@@ -4,7 +4,7 @@ from unittest.mock import patch
 from markupsafe import Markup
 
 from odoo import Command
-from odoo.exceptions import UserError
+from odoo.exceptions import RedirectWarning
 from odoo.tests import tagged
 
 from odoo.addons.account.models.chart_template import (
@@ -1369,7 +1369,9 @@ class TestChartTemplate(AccountTestInvoicingCommon):
                 ),
             ],
         }
-        with self.assertRaisesRegex(UserError, "update your localization"):
+        # `mapping_getter` raises RedirectWarning (which is NOT a UserError
+        # subclass), so the matcher must name RedirectWarning or it never catches.
+        with self.assertRaisesRegex(RedirectWarning, "update your localization"):
             self.env["account.chart.template"]._deref_account_tags(
                 "test", {"tax1": tax_to_load}
             )

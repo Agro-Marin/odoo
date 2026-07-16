@@ -471,13 +471,15 @@ class AccountTax(models.Model):
         ]
 
         for (document_type, sequence), old_value, new_value in modified_lines:
-            # Intersect keys: a snapshot stored by an older version (or format)
-            # may not carry exactly the same keys, and blindly indexing the other
-            # dict would raise a KeyError while merely saving the tax.
+            # Iterate `old_value` (not the `keys() & keys()` set, whose order is
+            # hash-arbitrary) so the changed fields are always logged in their
+            # canonical order. `key in new_value` keeps the guard against a
+            # snapshot stored by an older version/format that lacks a key —
+            # blindly indexing the other dict would raise a KeyError on save.
             diff_keys = [
                 key
-                for key in old_value.keys() & new_value.keys()
-                if old_value[key] != new_value[key]
+                for key in old_value
+                if key in new_value and old_value[key] != new_value[key]
             ]
             if diff_keys:
                 body = Markup(

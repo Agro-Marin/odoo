@@ -38,8 +38,15 @@ class StructuredReferenceTest(TransactionCase):
         self.assertTrue(is_valid_structured_reference_be("***020/3430/57642*** "))
         # Accept references in unstructured format
         self.assertTrue(is_valid_structured_reference_be(" 020343057642"))
-        # Validates edge case where result of % 97 = 0
+        # Validates edge case where result of % 97 = 0 (check number is 97)
         self.assertTrue(is_valid_structured_reference_be("020343053497"))
+        # ...and the check number is 97, never 00: applying `% 97` to the check
+        # field too (the previous behaviour) wrongly accepted "00" here.
+        self.assertFalse(is_valid_structured_reference_be("020343053400"))
+        # A tampered check that is >= 97 must be rejected even though it shares
+        # the same residue mod 97 (98 % 97 == 1 == base % 97 for this base).
+        self.assertTrue(is_valid_structured_reference_be("020343053501"))
+        self.assertFalse(is_valid_structured_reference_be("020343053598"))
 
         # Does not validate invalid structured format
         self.assertFalse(is_valid_structured_reference_be("***02/03430/57642***"))

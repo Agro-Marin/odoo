@@ -49,7 +49,13 @@ def is_valid_structured_reference_be(reference):
     """
     ref = sanitize_structured_reference(reference)
     be_ref = re.fullmatch(r"(\d{10})(\d{2})", ref)
-    return be_ref and int(be_ref.group(1)) % 97 == int(be_ref.group(2)) % 97
+    if not be_ref:
+        return False
+    # The check number is `base % 97`, with 0 represented as 97 (never 00).
+    # Applying `% 97` to the check field too (the previous code) wrongly
+    # accepted tampered checks like 00/98/99 whenever `base % 97` was 1/2.
+    check = int(be_ref.group(1)) % 97 or 97
+    return check == int(be_ref.group(2))
 
 
 def is_valid_structured_reference_dk(reference):
