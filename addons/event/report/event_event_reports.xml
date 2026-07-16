@@ -3,7 +3,6 @@
 
     <record id="paperformat_event_badge" model="report.paperformat">
         <field name="name">Custom Paperformat for the Event Badge report</field>
-        <field name="disable_shrinking" eval="True"/>
         <field name="format">A4</field>
         <field name="page_height">0</field>
         <field name="page_width">0</field>
@@ -12,12 +11,10 @@
         <field name="margin_bottom">0</field>
         <field name="margin_left">0</field>
         <field name="margin_right">0</field>
-        <field name="dpi">96</field>
     </record>
 
     <record id="paperformat_event_full_page_ticket" model="report.paperformat">
         <field name="name">Custom Paperformat for the Event Full Page Ticket report</field>
-        <field name="disable_shrinking" eval="True"/>
         <field name="format">A4</field>
         <field name="page_height">0</field>
         <field name="page_width">0</field>
@@ -26,7 +23,6 @@
         <field name="margin_bottom">8</field>
         <field name="margin_left">0</field>
         <field name="margin_right">0</field>
-        <field name="dpi">96</field>
     </record>
 
     <!-- The "Full Page Ticket", as opposed to the (a6) badge that only contains the bare minimum
@@ -90,7 +86,7 @@
         <field name="report_name">event.event_registration_report_template_responsive_html_ticket</field>
         <field name="report_file">event.event_registration_report_template_responsive_html_ticket</field>
     </record>
-    
+
     <record id="action_report_event_event_attendee_list" model="ir.actions.report">
         <field name="name">Attendee List</field>
         <field name="model">event.event</field>
