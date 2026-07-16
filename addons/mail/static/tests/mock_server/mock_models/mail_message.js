@@ -211,7 +211,10 @@ export class MailMessage extends models.ServerModel {
             "message_type",
             "model",
             "message_link_preview_ids",
-            "notification_ids",
+            // notification_ids: python appends it only for internal targets
+            // (mail_message.py _to_store field list) — a guest-facing test
+            // otherwise sees fields a real guest never gets
+            ...(this._store_target_is_internal() ? ["notification_ids"] : []),
             mailDataHelpers.Store.one("parent_id", makeKwArgs({ format_reply: false })),
             mailDataHelpers.Store.many("partner_ids", makeKwArgs({ fields: ["name"] })),
             "pinned_at",
@@ -233,6 +236,18 @@ export class MailMessage extends models.ServerModel {
         ];
     }
 
+    /**
+     * Mirror of python's `target.is_internal(self.env)` for the default
+     * store target: an authenticated non-share user (guests authenticate
+     * through the public user).
+     */
+    _store_target_is_internal() {
+        const user = this.env.user;
+        return Boolean(
+            user && !user.share && !this.env["res.users"]._is_public(this.env.uid),
+        );
+    }
+
     _author_to_store(store) {
         /** @type {import("mock_models").MailGuest} */
         const MailGuest = this.env["mail.guest"];
@@ -241,12 +256,17 @@ export class MailMessage extends models.ServerModel {
         /** @type {import("mock_models").ResPartner} */
         const ResPartner = this.env["res.partner"];
 
+        const isInternal = this._store_target_is_internal();
         for (const message of this) {
             const data = {
                 author_id: false,
                 author_guest_id: false,
-                email_from: message.email_from,
             };
+            if (isInternal || (!message.author_id && !message.author_guest_id)) {
+                // python: Store.Attr("email_from", predicate=internal target
+                // or authorless) — never sent to guests/portal otherwise
+                data.email_from = message.email_from;
+            }
             if (message.author_guest_id) {
                 data.author_guest_id = mailDataHelpers.Store.one(
                     MailGuest.browse(message.author_guest_id),
