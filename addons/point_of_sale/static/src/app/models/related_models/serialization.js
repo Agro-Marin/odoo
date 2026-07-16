@@ -76,8 +76,14 @@ const deepSerialization = (
 
                     if (childRecord.isSynced && childRecord._dirty) {
                         toUpdate.push(childRecord);
+                        // Epoch guard: only mark clean if the record was not
+                        // edited again between serialization and the commit
+                        // (i.e. while the sync RPC was in flight).
+                        const epoch = childRecord._dirtyEpoch;
                         scheduleClear(() => {
-                            childRecord._dirty = false;
+                            if (childRecord._dirtyEpoch === epoch) {
+                                childRecord._dirty = false;
+                            }
                         });
                     } else if (!childRecord.isSynced) {
                         toCreate.push(childRecord);
@@ -143,14 +149,23 @@ const deepSerialization = (
                     if (opts.keepCommands) {
                         continue;
                     }
+                    // Capture the exact entries consumed by THIS serialization;
+                    // the commit removes only those from the live list.
+                    // Overwriting with the serialize-time remainder would
+                    // destroy commands added while the RPC was in flight (a
+                    // line deleted mid-sync would never be unlinked
+                    // server-side and would resurrect on the next fetch).
                     const commandList = commands.get(fieldName) || [];
-                    const remainingCommands = commandList.filter(
-                        ({ parentId }) => parentId !== record.id,
+                    const consumed = new Set(
+                        commandList.filter(({ parentId }) => parentId === record.id),
                     );
 
                     scheduleClear(() => {
-                        if (remainingCommands.length) {
-                            commands.set(fieldName, remainingCommands);
+                        const remaining = (commands.get(fieldName) || []).filter(
+                            (cmd) => !consumed.has(cmd),
+                        );
+                        if (remaining.length) {
+                            commands.set(fieldName, remaining);
                         } else {
                             commands.delete(fieldName);
                         }
@@ -206,8 +221,11 @@ const deepSerialization = (
         res[key] = getValue();
     }
 
+    const recordEpoch = record._dirtyEpoch;
     scheduleClear(() => {
-        record._dirty = false;
+        if (record._dirtyEpoch === recordEpoch) {
+            record._dirty = false;
+        }
     });
 
     // Cleanup: remove empty entries from uuidMapping.

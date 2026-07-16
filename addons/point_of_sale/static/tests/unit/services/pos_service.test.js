@@ -164,6 +164,40 @@ describe("pos_store.js", () => {
             expect(order.lines[1].id).toBeOfType("string");
         });
 
+        test("pushOrdersWithClosingPopup fails when offline", async () => {
+            // syncAllOrders RESOLVES with a ConnectionLostError when offline;
+            // the closing flow must still treat that as a failed push, or the
+            // session-close warning never shows in the most common failure
+            // mode and the session closes with unsynced orders.
+            const store = await setupPosEnv();
+            await getFilledOrder(store);
+            store.data.network.offline = true;
+            const dialogs = [];
+            store.dialog = {
+                add: (component, props) => {
+                    dialogs.push(props?.title);
+                    props?.confirm?.();
+                    return () => {};
+                },
+            };
+            expect(await store.pushOrdersWithClosingPopup()).toBe(false);
+            expect(dialogs).toHaveLength(1);
+        });
+
+        test("cancelled server orders are not re-cancelled on the next sync", async () => {
+            const store = await setupPosEnv();
+            const order = await getFilledOrder(store);
+            await store.syncAllOrders({ orders: [order], throw: true });
+            expect(order.isSynced).toBe(true);
+
+            store.removeOrder(order);
+            expect(store.getOrderIdsToDelete()).toHaveLength(1);
+            await store.syncAllOrders();
+            // The successful action_pos_order_cancel must consume the pending
+            // delete id — it used to be re-sent on every sync forever.
+            expect(store.getOrderIdsToDelete()).toHaveLength(0);
+        });
+
         test("insync order should not be re-synced", async () => {
             const store = await setupPosEnv();
             const order = await getFilledOrder(store);

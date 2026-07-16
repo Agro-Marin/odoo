@@ -678,6 +678,10 @@ export function createRelatedModels(modelDefs, modelClasses = {}, opts = {}) {
         }
         serializeForIndexedDB(record) {
             const serialized = { ...record.raw };
+            // Persist the dirty marker so unsynced edits survive a reload
+            // (setup() restores it; serializeForORM never sends it — it only
+            // iterates declared python fields).
+            serialized.__dirty = !!record._dirty;
             const state = record.serializeState();
             if (state) {
                 serialized[SERIALIZED_UI_STATE_PROP] = JSON.stringify(state);
