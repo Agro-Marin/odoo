@@ -41,6 +41,13 @@ whenReady(() => {
                 event.returnValue = confirmationMessage;
                 return confirmationMessage;
             }
+            if (app.env.services.pos_data.localUnsyncedPaidOrderUuids.size > 0) {
+                const confirmationMessage = _t(
+                    "Some paid orders have not been saved yet. Closing or reloading now may cause data loss.",
+                );
+                event.returnValue = confirmationMessage;
+                return confirmationMessage;
+            }
         });
         const classList = document.body.classList;
         if (localization.direction === "rtl") {

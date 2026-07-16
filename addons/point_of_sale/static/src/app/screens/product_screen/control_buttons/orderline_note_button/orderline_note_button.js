@@ -22,6 +22,11 @@ export class NoteButton extends Component {
         const selectedOrderline = this.pos.getOrder().getSelectedOrderline();
         const selectedNote = this.currentNote || "";
         const payload = await this.openTextInput(selectedNote);
+        if (payload === undefined) {
+            // Dialog dismissed: leave the existing note untouched (an
+            // undefined payload used to be written over it).
+            return { confirmed: false, inputNote: undefined };
+        }
         if (selectedOrderline) {
             this.setChanges(selectedOrderline, payload);
         } else {
@@ -133,6 +138,15 @@ export class InternalNoteButton extends NoteButton {
         const payload = await this.openTextInput(
             selectedNote.map((n) => n.text).join("\n"),
         );
+        if (payload === undefined) {
+            // Dialog dismissed: keep the existing notes (a dismissal used to
+            // erase them all by writing "[]").
+            return {
+                confirmed: false,
+                inputNote: undefined,
+                oldNote: JSON.stringify(selectedNote),
+            };
+        }
         const coloredNotes = payload ? this.reframeNotes(payload) : "[]";
         if (selectedOrderline) {
             this.setChanges(selectedOrderline, coloredNotes);

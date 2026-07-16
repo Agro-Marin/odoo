@@ -56,20 +56,23 @@ export class PrinterService extends SignalStore {
             );
             return;
         }
+        // isPrinting must be released even when the render step throws — it
+        // used to be set before toHtml with the finally only covering
+        // printHtml, so a failed render left every print button disabled.
         this.state.isPrinting = true;
-        const el = await this.renderer.toHtml(component, props);
         try {
-            await waitImages(el);
-        } catch (e) {
-            logPosMessage(
-                "PrinterService",
-                "print",
-                "Images could not be loaded correctly",
-                false,
-                [e],
-            );
-        }
-        try {
+            const el = await this.renderer.toHtml(component, props);
+            try {
+                await waitImages(el);
+            } catch (e) {
+                logPosMessage(
+                    "PrinterService",
+                    "print",
+                    "Images could not be loaded correctly",
+                    false,
+                    [e],
+                );
+            }
             return await this.printHtml(el, options);
         } finally {
             this.state.isPrinting = false;

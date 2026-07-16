@@ -3,6 +3,15 @@ import { Component, onMounted, reactive, useRef, xml } from "@odoo/owl";
 import { toCanvas } from "@point_of_sale/app/utils/html-to-image";
 import { waitImages } from "@point_of_sale/utils";
 import { registry } from "@web/core/registry";
+import { Mutex } from "@web/core/utils/concurrency";
+
+// Serializes every render that goes through the shared render container /
+// component slot. Without it, two concurrent renders (e.g. a preparation
+// ticket and the customer receipt after validation) clobber each other's
+// resolver — the first caller's promise never settles and the print pipeline
+// wedges with `isPrinting` stuck — and applyWhenMounted removes the other
+// job's element from the container mid-capture (blank receipt).
+const renderMutex = new Mutex();
 class ComponentRenderer extends Component {
     static props = ["comp", "onMounted"];
     static template = xml`
@@ -55,13 +64,33 @@ export const renderService = {
                 },
             },
         });
-        const toHtml = async (component, props) => {
-            Object.assign(toBeRenderedComponentData, { component, props });
-            // we wait for the RenderContainer component to actually
-            // render our component
-            await new Promise((r) => (resolver = r));
-            return elem;
-        };
+        const toHtml = (component, props) =>
+            renderMutex.exec(async () => {
+                Object.assign(toBeRenderedComponentData, { component, props });
+                // We wait for the RenderContainer component to actually render
+                // our component. If it never does (a throwing receipt
+                // component leaves onRendered unreached), time out and reject
+                // instead of hanging the print pipeline forever.
+                let timer;
+                try {
+                    await new Promise((resolve, reject) => {
+                        resolver = resolve;
+                        timer = setTimeout(
+                            () =>
+                                reject(
+                                    new Error(
+                                        `Component '${component?.name}' could not be rendered to HTML`,
+                                    ),
+                                ),
+                            10000,
+                        );
+                    });
+                } finally {
+                    clearTimeout(timer);
+                    toBeRenderedComponentData.component = null;
+                }
+                return elem;
+            });
         const toCanvas = async (component, props, options) =>
             htmlToCanvas(await toHtml(component, props), options);
         const toJpeg = async (component, props, options) => {
@@ -122,18 +151,23 @@ export const htmlToCanvas = async (el, options) => {
         el.classList.add(...options.addClass.split(" "));
     }
     sanitizeNodeText(el);
-    return await applyWhenMounted({
-        el,
-        container: document.querySelector(".render-container"),
-        callback: async (el) => {
-            await waitImages(el); // Ensure all images in the cloned element are fully loaded to be rendered correctly
-            return toCanvas(el, {
-                backgroundColor: "#ffffff",
-                height: Math.ceil(el.clientHeight),
-                width: Math.ceil(el.clientWidth),
-                pixelRatio: 1,
-                includeQueryParams: true,
-            });
-        },
-    });
+    // Serialized on the same mutex as toHtml: applyWhenMounted removes every
+    // same-class element from the shared container, so a concurrent capture
+    // would lose its DOM node mid-toCanvas.
+    return await renderMutex.exec(() =>
+        applyWhenMounted({
+            el,
+            container: document.querySelector(".render-container"),
+            callback: async (el) => {
+                await waitImages(el); // Ensure all images in the cloned element are fully loaded to be rendered correctly
+                return toCanvas(el, {
+                    backgroundColor: "#ffffff",
+                    height: Math.ceil(el.clientHeight),
+                    width: Math.ceil(el.clientWidth),
+                    pixelRatio: 1,
+                    includeQueryParams: true,
+                });
+            },
+        }),
+    );
 };

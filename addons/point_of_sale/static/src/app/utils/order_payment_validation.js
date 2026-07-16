@@ -155,6 +155,9 @@ export default class OrderPaymentValidation {
 
         this.pos.addPendingOrder([this.order.id]);
         this.order.state = "paid";
+        // Guard the just-paid order against tab close/reload until it is
+        // durable in IndexedDB or acknowledged by the server.
+        this.pos.data.localUnsyncedPaidOrderUuids.add(this.order.uuid);
 
         try {
             // 1. Save order to server.
@@ -241,6 +244,10 @@ export default class OrderPaymentValidation {
 
     handleValidationError(error) {
         if (error instanceof ConnectionLostError) {
+            // Bypass the 300ms IndexedDB debounce and persist the paid order
+            // NOW: a reload inside the debounce window would lose an order
+            // that only exists in memory.
+            this.pos.data.synchronizeLocalDataInIndexedDB();
             // Offline: the order is validated locally, so still show its receipt
             // (returning normally lets the ReceiptScreen navigation proceed;
             // rejecting here would skip it) and surface the limited-functionality

@@ -129,15 +129,27 @@ export function useTrackedAsync(asyncFn, options = {}) {
 
     const { keepLast = false } = options;
 
+    // KeepLast only guards the promise returned to the caller — baseMethod
+    // mutates the reactive state when it settles regardless, so a slow stale
+    // call would overwrite the newer call's result. The call token makes the
+    // state writes themselves last-caller-only.
+    let lastCallId = 0;
     const baseMethod = async (...args) => {
+        const callId = ++lastCallId;
         state.status = "loading";
         state.result = null;
         state.lastArgs = args;
         try {
             const result = await asyncFn(...args);
+            if (callId !== lastCallId) {
+                return;
+            }
             state.status = "success";
             state.result = result;
         } catch (error) {
+            if (callId !== lastCallId) {
+                return;
+            }
             state.status = "error";
             state.result = error;
         }
