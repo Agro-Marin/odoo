@@ -101,19 +101,37 @@ export class Group extends DataPoint {
         return this.model.mutex.exec(() => this._deleteRecords(records));
     }
 
-    async toggle() {
+    toggle() {
+        // Serialize on the model mutex like every sibling verb: ``_toggle``
+        // reads ``isFolded``, awaits a load, then patches the flipped flag —
+        // read and patch straddle an await, so an un-serialized double-click on
+        // the header could read a stale ``isFolded`` mid-load and end folded
+        // opposite to the last click (plus a duplicate load).
+        return this.model.mutex.exec(() => this._toggle());
+    }
+
+    // -------------------------------------------------------------------------
+    // Protected
+    // -------------------------------------------------------------------------
+
+    async _toggle() {
         if (this.config.isFolded) {
-            await this.list.load();
+            // Call the PROTECTED ``_load`` (not public ``list.load()``, which
+            // re-takes ``model.mutex`` and would deadlock inside this
+            // mutex.exec) with the same defaults ``load()`` derives from an
+            // empty params bag.
+            await this.list._load(
+                this.list.offset,
+                this.list.limit,
+                this.list.orderBy,
+                this.list.domain,
+            );
         }
         this._useGroupCountForList();
         this.model._patchConfig(this.config, {
             isFolded: !this.config.isFolded,
         });
     }
-
-    // -------------------------------------------------------------------------
-    // Protected
-    // -------------------------------------------------------------------------
 
     _addRecord(record, index) {
         // Dedupe by resId: a stale source-list reload racing this add (two rapid

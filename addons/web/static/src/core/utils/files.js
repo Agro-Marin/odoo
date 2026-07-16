@@ -60,7 +60,11 @@ export function useFileUploader() {
                 return null;
             }
         }
-        const fileData = await http.post(route, params, "text");
+        // ``rejectHtml``: an expired session redirects the POST to the login
+        // page (HTTP 200, HTML body). Without this, that HTML would be handed
+        // back as file content and JSON.parse'd into a confusing error instead
+        // of surfacing the SessionExpiredDialog the json path already triggers.
+        const fileData = await http.post(route, params, "text", { rejectHtml: true });
         const parsedFileData = JSON.parse(fileData);
         if (parsedFileData.error) {
             throw new Error(parsedFileData.error);

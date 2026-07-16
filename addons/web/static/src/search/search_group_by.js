@@ -13,13 +13,20 @@ import { rankInterval } from "./utils/dates.js";
  * @returns {Object[]}
  */
 export function getQueryGroups(query, searchItems) {
+    // Map keyed by groupId (and, per group, by searchItemId) instead of the
+    // former O(q²) `Array.find` scans: getQueryGroups is on the hot _getGroups
+    // spine. `preGroups`/`activeItems` arrays are kept alongside the maps to
+    // preserve query (insertion) order, which downstream group/facet order
+    // relies on.
+    const preGroupMap = new Map();
     const preGroups = [];
     for (const queryElem of query) {
         const { searchItemId } = queryElem;
         const { groupId } = searchItems[searchItemId];
-        let preGroup = preGroups.find((group) => group.id === groupId);
+        let preGroup = preGroupMap.get(groupId);
         if (!preGroup) {
             preGroup = { id: groupId, queryElements: [] };
+            preGroupMap.set(groupId, preGroup);
             preGroups.push(preGroup);
         }
         preGroup.queryElements.push(queryElem);
@@ -27,35 +34,33 @@ export function getQueryGroups(query, searchItems) {
     const groups = [];
     for (const preGroup of preGroups) {
         const { queryElements, id } = preGroup;
+        const activeItemMap = new Map();
         const activeItems = [];
+        const ensureActiveItem = (searchItemId, init) => {
+            let activeItem = activeItemMap.get(searchItemId);
+            if (!activeItem) {
+                activeItem = { searchItemId, ...init };
+                activeItemMap.set(searchItemId, activeItem);
+                activeItems.push(activeItem);
+            }
+            return activeItem;
+        };
         for (const queryElem of queryElements) {
             const { searchItemId } = queryElem;
-            let activeItem = activeItems.find(
-                ({ searchItemId: id }) => id === searchItemId,
-            );
             if ("generatorId" in queryElem) {
-                if (!activeItem) {
-                    activeItem = { searchItemId, generatorIds: [] };
-                    activeItems.push(activeItem);
-                }
-                activeItem.generatorIds.push(queryElem.generatorId);
+                ensureActiveItem(searchItemId, { generatorIds: [] }).generatorIds.push(
+                    queryElem.generatorId,
+                );
             } else if ("intervalId" in queryElem) {
-                if (!activeItem) {
-                    activeItem = { searchItemId, intervalIds: [] };
-                    activeItems.push(activeItem);
-                }
-                activeItem.intervalIds.push(queryElem.intervalId);
+                ensureActiveItem(searchItemId, { intervalIds: [] }).intervalIds.push(
+                    queryElem.intervalId,
+                );
             } else if ("autocompleteValue" in queryElem) {
-                if (!activeItem) {
-                    activeItem = { searchItemId, autocompleteValues: [] };
-                    activeItems.push(activeItem);
-                }
-                activeItem.autocompleteValues.push(queryElem.autocompleteValue);
+                ensureActiveItem(searchItemId, {
+                    autocompleteValues: [],
+                }).autocompleteValues.push(queryElem.autocompleteValue);
             } else {
-                if (!activeItem) {
-                    activeItem = { searchItemId };
-                    activeItems.push(activeItem);
-                }
+                ensureActiveItem(searchItemId, {});
             }
         }
         for (const activeItem of activeItems) {
@@ -123,12 +128,13 @@ export function computeGroupBy({
             }
         }
     }
-    const groupBy = groupBys.length
+    // All three sources (query group-bys, globalGroupBy, defaultGroupBy) are
+    // string[]; the former `typeof groupBy === "string"` normalization was dead.
+    return groupBys.length
         ? groupBys
         : globalGroupBy.length
           ? globalGroupBy.slice()
           : (fallbackOnDefault && defaultGroupBy?.slice()) || [];
-    return typeof groupBy === "string" ? [groupBy] : groupBy;
 }
 
 /**

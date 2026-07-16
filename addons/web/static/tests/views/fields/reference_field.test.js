@@ -591,6 +591,42 @@ test("default_get a reference field in a x2m", async () => {
     });
 });
 
+test("ReferenceField on char field: editing writes the 'model,id' string", async () => {
+    // Regression: a char-backed reference must persist the wire-format
+    // "model,id" STRING, not the {resModel, resId, displayName} object used for
+    // real reference fields. Writing the object crashed the record observer
+    // (_fetchReferenceCharData does recordData.split(",")) and sent the wrong
+    // shape to the server. This test drives the editable path the readonly
+    // char-reference tests never exercised.
+    expect.assertions(2);
+    Partner._records[0].reference_char = "product,37";
+    onRpc("web_save", ({ args }) => {
+        expect(args[1].reference_char).toBe("product,41");
+    });
+    await mountView({
+        type: "form",
+        resModel: "partner",
+        resId: 1,
+        arch: /* xml */ `
+            <form>
+                <field name="reference_char" widget="reference"/>
+            </form>
+        `,
+    });
+
+    // model select is already "product"; change the referenced record via the
+    // autocomplete input, which routes through updateM2O (the fixed write path).
+    queryFirst(".o_field_widget[name=reference_char] input").tabIndex = 0;
+    await click(".o_field_widget[name=reference_char] input");
+    await edit("xpad");
+    await runAllTimers();
+    await click(".ui-autocomplete .ui-menu-item");
+    await animationFrame();
+    expect(".o_field_widget[name=reference_char] input").toHaveValue("xpad");
+
+    await clickSave();
+});
+
 test("ReferenceField on char field, reset by onchange", async () => {
     Partner._records[0].foo = "product,37";
     Partner._onChanges.int_field = (obj) => (obj.foo = "product," + obj.int_field);

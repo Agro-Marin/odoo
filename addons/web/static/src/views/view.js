@@ -241,6 +241,12 @@ export class View extends Component {
 
         this.viewService = useService("view");
         this.withSearchProps = null;
+        // Monotonic load epoch: onWillUpdateProps re-invokes loadView on
+        // arch/type/resModel change, and its loadViews RPC is async. A slow
+        // older call must not resolve after a newer one and clobber
+        // this.Controller / componentProps / withSearchProps with stale data
+        // (M7). Each loadView captures its epoch and bails if superseded.
+        this.loadViewId = 0;
 
         useSubEnv({
             keepLast: new KeepLast(),
@@ -265,6 +271,7 @@ export class View extends Component {
      * @param {ViewProps} props
      */
     async loadView(props) {
+        const loadId = ++this.loadViewId;
         const type = props.type;
         // A View always runs inside an action, so env.config is present;
         // alias it (same object reference, so mutations below still apply).
@@ -333,6 +340,13 @@ export class View extends Component {
                 { context, resModel, views },
                 options,
             );
+            // The only await in loadView: a newer loadView (props changed again)
+            // may have started while this RPC was in flight. Bail before writing
+            // any stale Controller/props — everything below runs synchronously
+            // to completion, so a single epoch check here is sufficient (M7).
+            if (loadId !== this.loadViewId) {
+                return;
+            }
             // Note: if props.views differs from views, cached descriptions won't be reused.
             viewDescription = result.views[type];
             searchViewDescription = /** @type {any} */ (result.views).search;

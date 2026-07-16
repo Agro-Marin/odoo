@@ -79,11 +79,20 @@ export function execute(op, source, target) {
         searchPanelInfo,
         sections,
         orderByCount,
+        defaultGroupByRemoved,
     } = source;
 
     target.nextGroupId = nextGroupId;
     target.nextGroupNumber = nextGroupNumber;
     target.nextId = nextId;
+
+    // Boolean marker set by deactivateGroup(SPECIAL). We serialize the REMOVAL,
+    // not the defaultGroupBy value: on import load() re-applies
+    // config.defaultGroupBy first, and only the marker tells it the user
+    // dismissed that default-group-by facet (honored in load()). Serializing the
+    // value instead would let JSON's undefined-dropping wipe a legit
+    // config.defaultGroupBy on every ordinary breadcrumb restore.
+    target.defaultGroupByRemoved = defaultGroupByRemoved;
 
     // Deep-copy so the exported/imported state does not alias the live model:
     // the sole caller (SearchModel.exportState) stringifies the result

@@ -27,27 +27,51 @@ const log = makeAssetLog("js");
  * }} BundleFileNames
  */
 
-export const globalBundleCache = new Map();
-export const assetCacheByDocument = new WeakMap();
-// Per-document cache of cross-document ESM bundle loads, keyed by the specifier
-// signature. Dedups repeated ``loadESMBundle`` calls into the SAME foreign
-// document so import-map keys aren't re-injected and the module graph isn't
-// re-imported; a rejected load is evicted so a later call may retry.
-// Main-document loads are excluded — deduped upstream via ``getBundle``/
-// ``injectedImportMapKeys``, which mutate global state this cache doesn't model.
-export const crossDocESMBundleCache = new WeakMap();
-// Specifiers already resolvable by the page's *existing* import maps — injected
-// by this module or rendered server-side into the initial HTML. Chromium merges
-// multi-importmap rules by appending, but a later rule for an already-defined
-// spec is dropped with "An import map rule for specifier '<spec>' was removed,
-// as it conflicted with an existing rule" — so treat every spec already present
-// as off-limits for lazy ``loadBundle`` re-declaration.
-const injectedImportMapKeys = new Set();
+// ── Cross-bundle singleton state ─────────────────────────────────────────
+//
+// esbuild inlines this core module into EVERY asset bundle, so plain
+// module-level state would give each bundle its own private copy of the
+// caches below. That fragments the dedup guarantees these caches exist for:
+// a second ``loadBundle`` from a satellite bundle would re-inject (and
+// re-EXECUTE) classic scripts, re-declare import-map rules Chromium then
+// warns about, and mint colliding cross-document event names. Anchor one
+// shared instance on ``globalThis`` (same ``??=`` idiom as ``rpc.js``'s
+// ``__odoo_rpc_state__``, ``registry.js``'s ``__odooRegistry__``,
+// ``templates.js``'s ``__odooTemplates__``, ``translation.js`` and
+// ``functions.js``); the FIRST bundle to run wins and stays authoritative.
+const __odoo_assets_state__ = /** @type {any} */ (
+    globalThis.__odoo_assets_state__ ??= {
+        globalBundleCache: new Map(),
+        assetCacheByDocument: new WeakMap(),
+        // Per-document cache of cross-document ESM bundle loads, keyed by the
+        // specifier signature. Dedups repeated ``loadESMBundle`` calls into the
+        // SAME foreign document so import-map keys aren't re-injected and the
+        // module graph isn't re-imported; a rejected load is evicted so a later
+        // call may retry. Main-document loads are excluded — deduped upstream via
+        // ``getBundle``/``injectedImportMapKeys``, which mutate global state this
+        // cache doesn't model.
+        crossDocESMBundleCache: new WeakMap(),
+        // Specifiers already resolvable by the page's *existing* import maps —
+        // injected by this module or rendered server-side into the initial HTML.
+        // Chromium merges multi-importmap rules by appending, but a later rule for
+        // an already-defined spec is dropped with "An import map rule for
+        // specifier '<spec>' was removed, as it conflicted with an existing rule"
+        // — so treat every spec already present as off-limits for lazy
+        // ``loadBundle`` re-declaration.
+        injectedImportMapKeys: new Set(),
+        // Monotonic token for cross-document ``loadESMBundle`` done/error event
+        // names. Deterministic (vs ``Math.random``), collision-proof across
+        // concurrent calls, and predictable for tests. Shared across bundles so
+        // two copies can't mint the same ``__odoo_esm_bundle_loaded_1`` name and
+        // cross-resolve each other's promises.
+        crossDocLoadSeq: 0,
+    }
+);
 
-// Monotonic token for cross-document ``loadESMBundle`` done/error event names.
-// Deterministic (vs ``Math.random``), collision-proof across concurrent calls,
-// and predictable for tests.
-let crossDocLoadSeq = 0;
+export const globalBundleCache = __odoo_assets_state__.globalBundleCache;
+export const assetCacheByDocument = __odoo_assets_state__.assetCacheByDocument;
+export const crossDocESMBundleCache = __odoo_assets_state__.crossDocESMBundleCache;
+const injectedImportMapKeys = __odoo_assets_state__.injectedImportMapKeys;
 
 /**
  * Pre-seed ``injectedImportMapKeys`` from the document's existing
@@ -576,7 +600,7 @@ export const assets = {
             mapEl.textContent = JSON.stringify({ imports: extraMap });
             (targetDoc.head || targetDoc.documentElement).appendChild(mapEl);
         }
-        const token = ++crossDocLoadSeq;
+        const token = ++__odoo_assets_state__.crossDocLoadSeq;
         const doneEvent = `__odoo_esm_bundle_loaded_${token}`;
         const errorEvent = `__odoo_esm_bundle_error_${token}`;
         const scriptText = `

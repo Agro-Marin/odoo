@@ -55,18 +55,11 @@ export class Time {
         this.minute = minute;
         /**@type {number} */
         this.second = second;
-
-        /**
-         * @private
-         * @type {boolean}
-         */
-        this._is24HourFormat = is24HourFormat();
-
-        /**
-         * @private
-         * @type {boolean}
-         */
-        this._isMeridiemFormat = isMeridiemFormat();
+        // The locale format flags are deliberately NOT stamped here: they are
+        // resolved lazily in ``toString`` instead. Stamping at construction
+        // froze them (stale after a language switch) and made constructing a
+        // Time before localization boot throw — neither is wanted, since a
+        // Time is a plain value that may outlive/precede those events.
     }
 
     /**
@@ -118,12 +111,20 @@ export class Time {
      * @returns {string}
      */
     toString(showSeconds = false) {
-        const hourFormat = this._is24HourFormat ? "H" : "h";
+        // Resolve the locale format flags now (not at construction) so a Time
+        // formatted after a language switch honours the current format.
+        const hourFormat = is24HourFormat() ? "H" : "h";
         const secondFormat = showSeconds ? ":ss" : "";
-        const meridiemFormat = this._isMeridiemFormat ? "a" : "";
-        return this.toDateTime()
-            .toFormat(`${hourFormat}:mm${secondFormat}${meridiemFormat}`)
-            .toLowerCase();
+        const dateTime = this.toDateTime();
+        let result = dateTime.toFormat(`${hourFormat}:mm${secondFormat}`);
+        if (isMeridiemFormat()) {
+            // Lowercase ONLY the meridiem (locale renders "AM"/"PM"). The rest
+            // of the string is digits and separators, so the previous
+            // whole-string toLowerCase was a blunt instrument that would also
+            // have folded any locale letters elsewhere.
+            result += dateTime.toFormat("a").toLowerCase();
+        }
+        return result;
     }
 
     toDateTime() {

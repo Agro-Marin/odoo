@@ -39,7 +39,9 @@ export class KanbanHeader extends Component {
     };
     static props = {
         activeActions: { type: Object },
-        canQuickCreate: { type: Boolean },
+        // Optional: x2many kanban embeds don't pass it (and the renderer forwards
+        // props.canQuickCreate = undefined). Defaulted to false below (M5).
+        canQuickCreate: { type: Boolean, optional: true },
         deleteGroup: { type: Function },
         dialogClose: { type: Array },
         group: { type: Object },
@@ -48,6 +50,9 @@ export class KanbanHeader extends Component {
         scrollTop: { type: Function },
         tooltipInfo: { type: Object },
         progressBarState: { type: true, optional: true },
+    };
+    static defaultProps = {
+        canQuickCreate: false,
     };
 
     setup() {

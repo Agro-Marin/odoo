@@ -67,13 +67,19 @@ export function irFilterToFavorite(irFilter) {
     const orderBy = sort.map((order) => {
         let fieldName;
         let asc;
-        const sqlNotation = order.split(" ");
+        // Tolerate extra/irregular whitespace and case: a `sort` written
+        // server-side or by another client as "name ASC" / "name  DESC" must
+        // parse correctly. Direction is descending only on an explicit "desc"
+        // (case-insensitive); anything else (incl. "asc", "ASC", or omitted) is
+        // ascending.
+        const trimmed = order.trim();
+        const sqlNotation = trimmed.split(/\s+/);
         if (sqlNotation.length > 1) {
             fieldName = sqlNotation[0];
-            asc = sqlNotation[1] === "asc";
+            asc = sqlNotation[1].toLowerCase() !== "desc";
         } else {
-            fieldName = order[0] === "-" ? order.slice(1) : order;
-            asc = order[0] !== "-";
+            fieldName = trimmed[0] === "-" ? trimmed.slice(1) : trimmed;
+            asc = trimmed[0] !== "-";
         }
         return { asc, name: fieldName };
     });
@@ -209,7 +215,12 @@ export function buildIrFilterDescription({
             orderBy.map((o) => `${o.name}${o.asc === false ? " desc" : ""}`),
         ),
         user_ids: userIds,
-        context: { group_by: groupBys, ...context },
+        // group_by LAST so the computed group-by list wins: a residual
+        // `group_by` key left inside the composed search context (e.g. from a
+        // raw `<filter context="{'group_by': ...}">` whose field was
+        // group-restricted and kept as raw context by the arch parser) must not
+        // clobber it.
+        context: { ...context, group_by: groupBys },
     };
 
     return { preFavorite, irFilter };

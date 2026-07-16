@@ -272,17 +272,7 @@ export class GraphModel extends Model {
             // overwriting their values. Pie mode keeps a single dataset.
             const datasetKey =
                 mode === "pie" ? datasetLabel : (dataPt.datasetId ?? datasetLabel);
-            if (!(datasetKey in datasetsTmp)) {
-                if (
-                    !forceUseAllDataPoints &&
-                    Object.keys(datasetsTmp).length >= DATA_LIMIT
-                ) {
-                    exceeds = true;
-                    continue;
-                }
-                datasetsTmp[datasetKey] = { label: datasetLabel }; // add the entry but don't initialize it entirely
-            }
-            dataPtMapping.set(dataPt, datasetsTmp[datasetKey]);
+            const isNewDataset = !(datasetKey in datasetsTmp);
 
             const x = dataPt.labels.slice(0, mode === "pie" ? undefined : 1);
             const trueLabel = x.length ? x.join(SEP) : _t("Total");
@@ -293,7 +283,27 @@ export class GraphModel extends Model {
                 mode === "pie"
                     ? (dataPt.identifier ?? JSON.stringify(x))
                     : (dataPt.xIdentifier ?? JSON.stringify(x));
-            if (labelMap[key] === undefined) {
+            const isNewLabel = labelMap[key] === undefined;
+
+            // Cap on BOTH axes. A single groupBy yields one dataset, so a chart
+            // with tens of thousands of x-axis groups would sail past the
+            // dataset cap and render every point with no sampling and no
+            // "Load everything anyway" banner; capping labels the same way the
+            // dataset branch caps datasets restores the sample (M11).
+            if (
+                !forceUseAllDataPoints &&
+                ((isNewDataset && Object.keys(datasetsTmp).length >= DATA_LIMIT) ||
+                    (isNewLabel && labels.length >= DATA_LIMIT))
+            ) {
+                exceeds = true;
+                continue;
+            }
+            if (isNewDataset) {
+                datasetsTmp[datasetKey] = { label: datasetLabel }; // add the entry but don't initialize it entirely
+            }
+            dataPtMapping.set(dataPt, datasetsTmp[datasetKey]);
+
+            if (isNewLabel) {
                 labelMap[key] = labels.length;
                 const label = x.length ? x.join(SEP) : _t("Total");
                 labels.push(label);
@@ -547,7 +557,12 @@ export class GraphModel extends Model {
                 // value must stay in the same currency space as the series
                 // it seeds, otherwise the cumulated baseline is wrong.
                 if (monetaryAggregates) {
-                    const currencies = group[monetaryAggregates[0]] || [];
+                    // array_agg_distinct keeps NULLs (a record with an unset
+                    // currency): filter them so a lone NULL cannot fabricate a
+                    // "second currency" and flip the chart to multi-currency (H2).
+                    const currencies = (group[monetaryAggregates[0]] || []).filter(
+                        (currencyId) => currencyId != null,
+                    );
                     cumulatedStartConverted[key] = group[monetaryAggregates[1]];
                     if (currencies.length > 1) {
                         value = cumulatedStartConverted[key];
@@ -635,15 +650,26 @@ export class GraphModel extends Model {
             if (monetaryAggregates) {
                 // Mirror the start-groups loop's `|| []` guard: a group with no
                 // rows for the currency aggregate yields null, and currencies[0]
-                // / currencies.length would then throw.
-                const currencies = group[monetaryAggregates[0]] || [];
+                // / currencies.length would then throw. Also filter NULLs kept by
+                // array_agg_distinct so an unset-currency record does not fabricate
+                // a second currency (H2).
+                const currencies = (group[monetaryAggregates[0]] || []).filter(
+                    (currencyId) => currencyId != null,
+                );
                 dataPoint.currencyId = currencies[0];
                 dataPoint.convertedValue = group[monetaryAggregates[1]];
                 if (currencies.length > 1) {
                     dataPoint.currencyId = defaultCurrency;
                     dataPoint.value = dataPoint.convertedValue;
                 }
-                graphCurrencies.add(dataPoint.currencyId);
+                // Only register a genuine currency. fill_temporal inserts
+                // zero-count filler groups (__count === 0) whose currency array
+                // is empty; adding their `undefined` currencyId would push
+                // graphCurrencies.size past 1 and silently convert genuinely
+                // single-currency data into company currency (H2).
+                if (currencies.length && __count !== 0) {
+                    graphCurrencies.add(dataPoint.currencyId);
+                }
             }
             dataPoints.push(dataPoint);
         }

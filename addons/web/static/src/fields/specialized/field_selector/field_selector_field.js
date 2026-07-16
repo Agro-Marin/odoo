@@ -20,6 +20,7 @@ export class FieldSelectorField extends Component {
         onlySearchable: { type: Boolean, optional: true },
         allowProperties: { type: Boolean, optional: true },
         followRelations: { type: Boolean, optional: true },
+        required: { type: Boolean, optional: true },
     };
 
     filter(fieldDef) {
@@ -97,6 +98,9 @@ export const fieldSelectorField = {
             followRelations: options.follow_relations ?? true,
             onlySearchable: exprToBoolean(options.only_searchable),
             resModel: options.model,
+            // Without this, `selectorProps.allowEmpty` (= !required) was always
+            // true, so a required="1" field-path could be cleared.
+            required: dynamicInfo.required,
         };
     },
 };

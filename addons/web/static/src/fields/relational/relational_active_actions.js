@@ -47,7 +47,7 @@ export function useActiveActions({
     crudOptions = {},
     getEvalParams = () => ({}),
 }) {
-    const compute = ({ evalContext = {}, readonly = true }) => {
+    const compute = ({ evalContext = {}, readonly = true, edit }) => {
         const result = /** @type {RelationalActiveActions} */ ({
             type: /** @type {any} */ (fieldType),
             onDelete: null,
@@ -56,7 +56,11 @@ export function useActiveActions({
 
         result.create = !readonly && evalAction("create");
         result.createEdit = !readonly && result.create && crudOptions.createEdit; // always a boolean
-        /** @type {any} */ (result).edit = crudOptions.edit; // always a boolean
+        // `edit` is now sourced per-props from getEvalParams (like readonly) so a
+        // record whose edition state changes after mount re-derives it, instead
+        // of keeping the setup-time snapshot. Fall back to crudOptions.edit for
+        // callers that still pass it there (e.g. enterprise/stock_move).
+        /** @type {any} */ (result).edit = edit ?? crudOptions.edit; // always a boolean
         result.delete = !readonly && evalAction("delete");
         result.write = (isMany2Many || !readonly) && evalAction("write");
 

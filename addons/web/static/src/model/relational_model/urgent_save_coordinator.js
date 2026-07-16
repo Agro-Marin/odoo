@@ -68,6 +68,14 @@ export class UrgentSaveCoordinator extends SignalStore {
         /** @type {UrgentSaveStatus} */
         this.status = "idle";
         this._bus = bus;
+        /**
+         * Promises of re-entrant ``run()`` calls (a second ``urgentSave()`` on
+         * the SAME model while urgent mode is already active). The OUTERMOST
+         * entry awaits these in its ``finally`` before lowering the flag, so
+         * urgent mode covers their whole lifetime.
+         * @type {Promise<unknown>[]}
+         */
+        this._reentrantProms = [];
     }
 
     /** @returns {boolean} true while a tab-close urgent save is in progress */
@@ -109,9 +117,21 @@ export class UrgentSaveCoordinator extends SignalStore {
             // this call so its beacon never fires (lost edits) and failing the
             // whole ``Promise.all`` during unload. Only the outermost entry
             // owns the try/finally that resets the flag.
-            return fn();
+            //
+            // Track this promise so the outermost entry's ``finally`` awaits it
+            // before transitioning to ``idle``: if this re-entrant save has
+            // awaits (inDialog, or the new-record webSave path with a hook) and
+            // the outer ``fn`` resolves first, the flag would drop mid-flight
+            // and remaining ``isActive`` checks would flip to non-urgent (e.g.
+            // an onchange RPC could then fire during unload).
+            const prom = fn();
+            this._reentrantProms.push(prom);
+            return prom;
         }
         this._transition("begin");
+        // Fresh collector for this urgent-mode window (only one outermost entry
+        // is ever active at a time — the status guard above serializes them).
+        this._reentrantProms = [];
         // Await consumer flushes BEFORE ``fn`` runs: a field whose onchange is
         // still in flight re-commits its value on this event, but async (mutex-
         // bypassed ``update`` -> ``_update``); without awaiting it, the save would
@@ -126,6 +146,14 @@ export class UrgentSaveCoordinator extends SignalStore {
             await Promise.allSettled(proms);
             return await fn();
         } finally {
+            // Best-effort: keep urgent mode active until every re-entrant save
+            // kicked off under this entry has settled, so none of them observe
+            // ``isActive === false`` mid-flight. A rejecting re-entrant save
+            // must not abort the transition (its own caller already owns the
+            // rejection), hence ``allSettled``.
+            const reentrant = this._reentrantProms;
+            this._reentrantProms = [];
+            await Promise.allSettled(reentrant);
             this._transition("end");
         }
     }

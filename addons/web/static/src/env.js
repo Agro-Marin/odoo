@@ -53,6 +53,28 @@ export function makeEnv() {
         get isSmall() {
             throw new Error("UI service not initialized!");
         },
+        /**
+         * Service-teardown contract. Disposes the singleton-registry UPDATE
+         * listener this env installed, then calls each started service's
+         * optional ``destroy()`` so services holding process-global resources
+         * (rpcBus listeners, timers, body event listeners) release them.
+         *
+         * Production creates one page-lived env and never destroys it (no-op
+         * there); test infra and embedded/sub-app envs call this on cleanup to
+         * stop leaked listeners from firing against a dead env — the root cause
+         * behind the ``slow_rpc`` / ``result_set_cache_invalidator`` rpcBus
+         * leaks and the previously-unreachable ``tooltip`` disposer.
+         */
+        destroy() {
+            this.disposeServiceRegistryListener?.();
+            for (const [name, service] of Object.entries(this.services)) {
+                try {
+                    /** @type {any} */ (service)?.destroy?.();
+                } catch (error) {
+                    console.error(`[env] service "${name}" destroy() failed:`, error);
+                }
+            }
+        },
     });
 }
 
@@ -102,7 +124,11 @@ serviceRegistry.addEventListener("UPDATE", (ev) => {
     });
 });
 
-let startServicesPromise = null;
+// Startup-pass serialization is stored PER-ENV (``env._startServicesPromise``),
+// not in a module global: independent envs (test suites, embedded sub-apps)
+// must not serialize behind one another, and a rejection in one env's pass must
+// not cross-contaminate another env's. Within a single env, concurrent
+// ``_startServices`` passes still serialize via that env's own slot.
 
 /**
  * Dedup state for the cascade-skip warning below: without it, a single
@@ -224,16 +250,16 @@ export async function ensureServicesStarted(env) {
  * @param {Map<string, any>} toStart
  */
 async function _startServices(env, toStart) {
-    if (startServicesPromise) {
-        // Serialize behind the in-flight pass, but run this independent pass
-        // regardless of that pass's outcome. A rejecting service.start() in
-        // the earlier pass (propagated through the `start().finally(...)`
-        // below, which does not catch) must not cancel this caller's pass nor
-        // surface as this caller's unrelated rejection. `.catch(() => {})`
-        // swallows only the *previous* pass's result — the original caller of
-        // that pass still sees its own rejection via its own `await`, and this
-        // pass's own errors still propagate normally.
-        return startServicesPromise
+    if (env._startServicesPromise) {
+        // Serialize behind the in-flight pass FOR THIS ENV, but run this
+        // independent pass regardless of that pass's outcome. A rejecting
+        // service.start() in the earlier pass (propagated through the
+        // `start().finally(...)` below, which does not catch) must not cancel
+        // this caller's pass nor surface as this caller's unrelated rejection.
+        // `.catch(() => {})` swallows only the *previous* pass's result — the
+        // original caller of that pass still sees its own rejection via its own
+        // `await`, and this pass's own errors still propagate normally.
+        return env._startServicesPromise
             .catch(() => {})
             .then(() => _startServices(env, toStart));
     }
@@ -300,19 +326,49 @@ async function _startServices(env, toStart) {
                 services[dep],
             ]);
             const dependencies = Object.fromEntries(entries);
-            const value = service.start(env, dependencies);
+            let value;
+            try {
+                value = service.start(env, dependencies);
+            } catch (error) {
+                // A single throwing service.start() must NOT abort the whole
+                // boot wave. Left unguarded it rejects Promise.all(proms) →
+                // rejects startServicesPromise → fails mountComponent → the
+                // boot-failure overlay blanks the ENTIRE app (100+ services, one
+                // broken third-party service takes down everything). Log with the
+                // service name and skip it: the service was already removed from
+                // ``toStart`` and untracked above and its result is never stored,
+                // so the post-wave cascade-skip sees it as absent from both
+                // ``services`` and ``toStart`` and drops its dependents — they
+                // then fail at their own use site, the same contract as an
+                // unreachable dependency.
+                console.error(`[env] service "${name}" failed to start (sync):`, error);
+                continue;
+            }
             if ("async" in service) {
                 SERVICES_METADATA[name] = service.async;
             }
             waveStarted.push(name);
             proms.push(
-                Promise.resolve(value).then((val) => {
-                    // Use ?? (not ||): a service resolving to a falsy-but-valid
-                    // value (0, "", false) must be preserved; only null/undefined
-                    // collapse to null.
-                    services[name] = val ?? null;
-                    resolver.propagate(name);
-                }),
+                Promise.resolve(value).then(
+                    (val) => {
+                        // Use ?? (not ||): a service resolving to a falsy-but-valid
+                        // value (0, "", false) must be preserved; only null/undefined
+                        // collapse to null.
+                        services[name] = val ?? null;
+                        resolver.propagate(name);
+                    },
+                    (error) => {
+                        // Same rationale as the sync catch above: a rejected
+                        // service promise must not reject the wave. Skip it (no
+                        // propagate, so dependents stay pending and cascade-skip
+                        // after the wave); the app degrades at the use site
+                        // instead of failing globally.
+                        console.error(
+                            `[env] service "${name}" failed to start (async):`,
+                            error,
+                        );
+                    },
+                ),
             );
         }
         if (waveStarted.length) {
@@ -326,10 +382,10 @@ async function _startServices(env, toStart) {
             return start();
         }
     }
-    startServicesPromise = start().finally(() => {
-        startServicesPromise = null;
+    env._startServicesPromise = start().finally(() => {
+        env._startServicesPromise = null;
     });
-    await startServicesPromise;
+    await env._startServicesPromise;
     if (toStart.size) {
         const missingDeps = new Set();
         for (const service of toStart.values()) {

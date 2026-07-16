@@ -315,6 +315,13 @@ export async function reloadSections(searchModel) {
     // try/finally: an exception in the awaited window (e.g. a tree builder
     // throwing on a malformed result) must not leave the model permanently
     // muted — every later _notify() would early-return forever.
+    //
+    // The hardcoded `= false` in the finally (rather than a save/restore or a
+    // depth counter) is safe because SearchModel._reloadSections funnels every
+    // invocation through a single Mutex: two reloadSections calls can no longer
+    // overlap, so this finally never unmutes a still-pending sibling reload.
+    // (A depth counter would be the alternative, but the fork's unit tests pin
+    // blockNotification as a boolean via a stub model — see A1 note.)
     searchModel.blockNotification = true;
     try {
         const searchDomain = /** @type {DomainListRepr} */ (

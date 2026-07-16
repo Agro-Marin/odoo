@@ -29,13 +29,25 @@ export function runClickTestItem({ env }) {
     };
 }
 
-// localStorage.getItem returns null for missing keys (JSON.parse(null) is fine),
-// but test patches (HOOT patchWithCleanup) can return undefined, which makes
-// JSON.parse throw. Guard explicitly so module load stays safe either way.
+// localStorage.getItem returns null for missing keys, but the stored value can
+// also be malformed (a garbage string, or a test patch returning undefined),
+// which makes JSON.parse throw at module-evaluation time and would blank the
+// whole bundle. Guard with try/catch (same pattern as menu_service / user.js).
 const rawClickbotState = browser.localStorage.getItem("running.clickbot");
-const currentState = rawClickbotState ? JSON.parse(rawClickbotState) : null;
+let currentState = null;
+if (rawClickbotState) {
+    try {
+        currentState = JSON.parse(rawClickbotState);
+    } catch {
+        currentState = null;
+    }
+}
 if (currentState) {
-    startClickEverywhere(currentState.xmlId, currentState.light, currentState);
+    // Fire-and-forget: `.catch` so a failed bundle load (loadBundle rejecting)
+    // surfaces as a log rather than an unhandled rejection at module load.
+    startClickEverywhere(currentState.xmlId, currentState.light, currentState).catch(
+        (error) => console.error("[clickbot] failed to auto-start:", error),
+    );
 }
 
 export default {

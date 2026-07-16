@@ -14,7 +14,7 @@ import { SearchModelEvent } from "@web/core/events";
 import { getFieldCodec } from "@web/core/field_codec";
 import { serializeDate, serializeDateTime } from "@web/core/l10n/dates";
 import { _t } from "@web/core/l10n/translation";
-import { KeepLast } from "@web/core/utils/concurrency";
+import { KeepLast, SupersededError } from "@web/core/utils/concurrency";
 import { useAutofocus, useBus, useChildRef, useService } from "@web/core/utils/hooks";
 import { fuzzyTest } from "@web/core/utils/search";
 import { SearchBarMenu } from "@web/search/search_bar_menu/search_bar_menu";
@@ -111,7 +111,15 @@ export class SearchBar extends Component {
 
         this.orm = useService("orm");
 
-        this.keepLast = new KeepLast();
+        // rejectSuperseded: an outdated expansion's wrapper rejects with a
+        // SupersededError (swallowed in computeState) instead of hanging
+        // forever, so no superseded async frame leaks.
+        this.keepLast = new KeepLast({ rejectSuperseded: true });
+        // In-flight sub-item fetches keyed by (searchItemId, query, limit): lets
+        // an overlapping computeState reuse a pending name_search instead of
+        // firing a duplicate RPC when the previous call's subItems write was
+        // dropped by supersession.
+        this._pendingSubItems = new Map();
 
         this.inputRef =
             this.env.config.disableSearchBarAutofocus || !this.props.autofocus
@@ -161,7 +169,12 @@ export class SearchBar extends Component {
             if (searchItem.type === "field" && searchItem.fieldType === "properties") {
                 tasks.push({
                     id,
-                    prom: this.getSearchItemsProperties(searchItem),
+                    // Degrade to an empty expansion on a transient
+                    // property-definition fetch failure rather than letting the
+                    // rejection escape computeState (callers don't catch it).
+                    prom: Promise.resolve(
+                        this.getSearchItemsProperties(searchItem),
+                    ).catch(() => []),
                 });
             } else if (!subItems[id]) {
                 if (!this.state.subItemsLimits[id]) {
@@ -169,15 +182,27 @@ export class SearchBar extends Component {
                 }
                 tasks.push({
                     id,
-                    prom: this.computeSubItems(searchItem, query),
+                    prom: this._getSubItems(searchItem, query),
                 });
             }
         }
 
-        const prom = this.keepLast.add(Promise.all(tasks.map((task) => task.prom)));
-
+        // Only supersede in-flight expansions when there is actually new work:
+        // an empty Promise.all([]) would still bump keepLast and pointlessly
+        // discard a pending fetch.
         if (tasks.length) {
-            const taskResults = await prom;
+            let taskResults;
+            try {
+                taskResults = await this.keepLast.add(
+                    Promise.all(tasks.map((task) => task.prom)),
+                );
+            } catch (error) {
+                if (error instanceof SupersededError) {
+                    // A newer computeState superseded this one — drop silently.
+                    return;
+                }
+                throw error;
+            }
             tasks.forEach((task, index) => {
                 subItems[task.id] = taskResults[index];
             });
@@ -343,6 +368,32 @@ export class SearchBar extends Component {
     }
 
     /**
+     * Dedup wrapper around {@link computeSubItems}: reuse a still-pending fetch
+     * for the same (searchItemId, query, limit) instead of firing a duplicate
+     * name_search. Without this, expanding item B while item A's fetch is in
+     * flight refetches A — the superseded call's `subItems[A]` write never
+     * lands, so the next computeState sees `!subItems[A]` and refetches.
+     *
+     * @param {Object} searchItem
+     * @param {string} query
+     * @returns {Promise<Object[]>}
+     */
+    _getSubItems(searchItem, query) {
+        const key = `${searchItem.id}|${query}|${this.state.subItemsLimits[searchItem.id]}`;
+        let prom = this._pendingSubItems.get(key);
+        if (!prom) {
+            prom = this.computeSubItems(searchItem, query);
+            this._pendingSubItems.set(key, prom);
+            prom.finally(() => {
+                if (this._pendingSubItems.get(key) === prom) {
+                    this._pendingSubItems.delete(key);
+                }
+            });
+        }
+        return prom;
+    }
+
+    /**
      * @param {Object} searchItem
      * @param {string} query
      * @returns {Promise<Object[]>}
@@ -370,15 +421,30 @@ export class SearchBar extends Component {
                     : field.relation;
 
             const limitToFetch = this.state.subItemsLimits[searchItem.id] + 1;
-            options = await this.orm.call(relation, "name_search", [], {
-                domain: domain,
-                context: {
-                    ...this.env.searchModel.globalContext,
-                    ...field.context,
-                },
-                limit: limitToFetch,
-                name: query.trim(),
-            });
+            try {
+                options = await this.orm.call(relation, "name_search", [], {
+                    domain: domain,
+                    context: {
+                        ...this.env.searchModel.globalContext,
+                        ...field.context,
+                    },
+                    limit: limitToFetch,
+                    name: query.trim(),
+                });
+            } catch {
+                // A transient autocomplete fetch failure must not escape
+                // computeState (whose callers neither await nor catch it) and
+                // crash the whole client. Degrade to an inline failure sub-item.
+                return [
+                    {
+                        id: nextItemId++,
+                        isChild: true,
+                        searchItemId: searchItem.id,
+                        label: _t("(loading failed)"),
+                        unselectable: true,
+                    },
+                ];
+            }
 
             if (options.length === limitToFetch) {
                 options.pop();

@@ -750,12 +750,14 @@ export class PyRelativeDelta {
         // Final pass: target the wanted day of the week (if necessary)
         if (delta.weekday !== null) {
             const wantedDow = delta.weekday + 1; // python: Monday is 0 ; JS: Monday is 1;
-            const _date = new Date(
-                returnDate.year,
-                returnDate.month - 1,
-                returnDate.day,
-            );
-            const days = (7 - _date.getDay() + wantedDow) % 7;
+            // Day-of-week from the proleptic Gregorian ordinal instead of
+            // ``new Date(year, …).getDay()``, which maps years 0–99 to
+            // 1900–1999 and returns the wrong weekday for them. ``ymd2ord % 7``
+            // reproduces JS's getDay() convention (Sunday=0 … Saturday=6)
+            // exactly (0001-01-01 is a Monday, ordinal 1).
+            const jsDow =
+                ymd2ord(returnDate.year, returnDate.month, returnDate.day) % 7;
+            const days = (7 - jsDow + wantedDow) % 7;
             return returnDate.add(new PyTimeDelta(days, 0, 0));
         }
         return returnDate;

@@ -153,7 +153,10 @@ export class ExportDataDialog extends Component {
         useSortable({
             ref: this.draggableRef,
             elements: ".o_export_field",
-            enable: !this.state.isSmall,
+            // Thunk, not a bare boolean: the dnd builder calls ctx.enable()
+            // per drag, so a static boolean captured at setup would never
+            // reflect a later isSmall change (M10).
+            enable: () => !this.state.isSmall,
             cursor: "grabbing",
             onDrop: async ({ element, previous, next }) => {
                 const indexes = [element, previous, next].map(

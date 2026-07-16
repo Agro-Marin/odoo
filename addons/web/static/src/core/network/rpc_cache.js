@@ -3,7 +3,8 @@
 
 /** @module @web/core/network/rpc_cache - Encrypted RAM/IndexedDB cache for RPC responses */
 
-import { ConnectionLostError } from "@web/core/network/rpc";
+import { RpcEvent } from "@web/core/events";
+import { ConnectionLostError, rpcBus } from "@web/core/network/rpc";
 import { deepCopy, deepEqual } from "@web/core/utils/collections/objects";
 import { Deferred } from "@web/core/utils/concurrency";
 import { IDBQuotaExceededError, IndexedDB } from "@web/core/utils/indexed_db";
@@ -671,6 +672,19 @@ export class RPCCache {
                         // surface via "unhandledrejection" so the global
                         // error service can notify the user.
                         if (error instanceof ConnectionLostError) {
+                            // Route the failure through rpcBus as an explicit,
+                            // subscribable channel (embeddings/tests without a
+                            // global "unhandledrejection" listener can observe
+                            // it here instead of as an "Uncaught (in promise)").
+                            rpcBus.trigger(RpcEvent.BACKGROUND_REFRESH_FAILED, {
+                                error,
+                            });
+                            // Kept alongside the event: the web client's error
+                            // service only listens on "unhandledrejection", so
+                            // the floating rejection is still what surfaces the
+                            // connection-lost UX. Removing it entirely would
+                            // require an error-service subscriber to the event
+                            // above, which lives outside this module.
                             Promise.reject(error);
                         } else {
                             console.warn("RPC cache: background refresh failed", error);

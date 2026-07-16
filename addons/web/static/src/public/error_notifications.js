@@ -29,13 +29,25 @@ const sessionExpired = {
     ],
 };
 
+/**
+ * Forbidden (403) is an ACCESS DENIAL, not a session expiry: reusing the
+ * session-expired config reloaded the page, which either loops or masks the
+ * real permission problem. Give it a distinct, non-reloading message.
+ * @type {{ title: string, message: string, type: string, sticky: boolean }}
+ */
+const forbidden = {
+    title: _t("Access Denied"),
+    message: _t("You do not have permission to perform this operation."),
+    type: "warning",
+    sticky: true,
+};
+
 registry
     .category("error_notifications")
     .add("odoo.http.SessionExpiredException", sessionExpired)
-    .add("werkzeug.exceptions.Forbidden", sessionExpired)
-    .add("504", {
-        title: _t("Request timeout"),
-        message: _t(
-            "The operation was interrupted. This usually means that the current operation is taking too much time.",
-        ),
-    });
+    .add("werkzeug.exceptions.Forbidden", forbidden);
+// No "504" notification entry: it shadowed the dedicated Error504Dialog
+// (error_dialogs.js) — the error service checks this notification registry
+// before the dialog registry — while being near-unreachable itself (a 504
+// gateway timeout surfaces as a ConnectionLostError via http_service/rpc, not
+// as an RPCError named "504"). The dialog is the single chosen 504 surface.

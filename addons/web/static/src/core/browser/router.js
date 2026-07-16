@@ -360,7 +360,10 @@ browser.addEventListener("popstate", (ev) => {
  */
 browser.addEventListener("pageshow", (ev) => {
     if (ev.persisted) {
-        browser.clearTimeout(pushTimeout);
+        // Drop the pending debounced push AND its aggregated args: a bfcache
+        // restore must not merge a stale aggregate (leaked pushArgs) into the
+        // next push. clearing pushTimeout alone left pushArgs behind.
+        router.cancelPushes();
         routerBus.trigger(RouterEvent.ROUTE_CHANGE);
     }
 });
@@ -390,18 +393,34 @@ browser.addEventListener("click", (ev) => {
         } catch {
             return;
         }
+        // The app's active path prefix is "/odoo" normally, but "/scoped_app"
+        // when running as an installed PWA (see startUrl()/isScopedApp()).
+        // Hard-coding "/odoo" left every internal-link click in scoped-app mode
+        // falling through to a full page load — on mobile that escapes to an
+        // in-app browser, the very thing this handler exists to prevent.
+        const prefix = `/${startUrl()}`;
+        const onAppPath =
+            browser.location.pathname === prefix ||
+            browser.location.pathname.startsWith(`${prefix}/`);
+        const targetIsApp =
+            ["/web", prefix].includes(url.pathname) ||
+            url.pathname.startsWith(`${prefix}/`);
         if (
             browser.location.host === url.host &&
-            (browser.location.pathname === "/odoo" ||
-                browser.location.pathname.startsWith("/odoo/")) &&
-            (["/web", "/odoo"].includes(url.pathname) ||
-                url.pathname.startsWith("/odoo/")) &&
+            onAppPath &&
+            targetIsApp &&
             a.target !== "_blank" &&
             !a.hasAttribute("download")
         ) {
             ev.preventDefault();
+            // Cancel any debounced push scheduled just before this click (e.g. a
+            // controller's updateActionState): otherwise doPush fires first and
+            // computeNextState merges the old controller's aggregated keys onto
+            // the new module state, corrupting the link navigation before
+            // loadState runs. popstate already does exactly this.
+            router.cancelPushes();
             state = router.urlToState(url);
-            if (url.pathname.startsWith("/odoo") && url.hash) {
+            if (url.pathname.startsWith(prefix) && url.hash) {
                 browser.history.pushState({ nextState: state }, "", url.href);
             }
             browser.setTimeout(() => routerBus.trigger(RouterEvent.ROUTE_CHANGE), 0);

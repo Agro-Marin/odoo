@@ -71,6 +71,18 @@ export class KeepLast {
         this._rejectPending = null;
     }
     /**
+     * Monotonic generation of this KeepLast: incremented on every {@link add}.
+     * Consumers that need to detect "a newer task entered the KeepLast since I
+     * snapshotted" (e.g. the action manager's navigation-supersession guard
+     * around awaits performed OUTSIDE the KeepLast) read this instead of
+     * reaching into the private ``_id`` slot.
+     *
+     * @returns {number}
+     */
+    get generation() {
+        return this._id;
+    }
+    /**
      * Register a new task. If a task was already pending it is superseded:
      * its wrapper promise will never resolve or reject — unless
      * ``rejectSuperseded`` was set, in which case it rejects immediately

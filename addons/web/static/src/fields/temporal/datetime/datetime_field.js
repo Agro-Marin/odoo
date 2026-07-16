@@ -3,7 +3,14 @@
 
 /** @module @web/fields/temporal/datetime/datetime_field - Date and datetime field widget with inline editing and picker integration */
 
-import { Component, onWillRender, useEffect, useRef, useState } from "@odoo/owl";
+import {
+    Component,
+    onWillRender,
+    onWillUnmount,
+    useEffect,
+    useRef,
+    useState,
+} from "@odoo/owl";
 import { useDateTimePicker } from "@web/components/datetime/datetime_picker_hook";
 import { ModelEvent } from "@web/core/events";
 import {
@@ -276,6 +283,17 @@ export class DateTimeField extends Component {
             const isDirty = !areDatesEqual(this.getRecordValue(), this.state.value);
             if (isDirty !== this.lastIsDirty) {
                 this.triggerIsDirty(isDirty);
+            }
+        });
+
+        // A dirty picker unmounted by a notebook-tab switch would otherwise
+        // leave FIELD_IS_DIRTY (a last-writer-wins bus event) asserting unsaved
+        // changes with no field left to clear it. Emit a final false, but only
+        // when we last asserted dirty so a clean field doesn't clobber the
+        // indicator set by a dirty sibling.
+        onWillUnmount(() => {
+            if (this.lastIsDirty) {
+                this.triggerIsDirty(false);
             }
         });
 

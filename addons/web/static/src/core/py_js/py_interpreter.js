@@ -563,7 +563,12 @@ function pyStringFormat(fmt, value) {
     const values = Array.isArray(value) ? value.slice() : [value];
     let i = 0;
     return fmt.replace(
-        /%(?:\((\w+)\))?([-+ #0]*)(\d+)?(?:\.(\d+))?([sriduxXofeEgG%])/g,
+        // The conversion char is captured broadly (any ASCII letter, plus the
+        // ``%`` literal) so unsupported conversions (``%c``, ``%a``, …) still
+        // MATCH — and thus consume their argument and reach the ``default``
+        // arm below, which raises like CPython — instead of being left verbatim
+        // in the output while silently desyncing subsequent positional args.
+        /%(?:\((\w+)\))?([-+ #0]*)(\d+)?(?:\.(\d+))?([a-zA-Z%])/g,
         (m, mapKey, flags, width, prec, conv) => {
             if (conv === "%") {
                 return "%";
@@ -589,10 +594,14 @@ function pyStringFormat(fmt, value) {
             }
             let str;
             const isNumericConv = "diufeEgGxXo".includes(conv);
-            if (isNumericConv && typeof arg !== "number" && Number.isNaN(Number(arg))) {
-                // CPython raises TypeError rather than emitting the literal
-                // "NaN" when a numeric conversion gets a non-number
-                // (``'%d' % 'x'`` was producing "NaN").
+            if (isNumericConv && typeof arg !== "number" && typeof arg !== "boolean") {
+                // CPython raises TypeError when a numeric conversion gets a
+                // non-number. A POSITIVE type check is required: the previous
+                // ``Number.isNaN(Number(arg))`` guard let ``null``, ``[]``,
+                // ``""`` and ``false`` through (they all coerce to 0), so
+                // ``'%d' % None`` and an unset field (``false``) silently
+                // rendered "0" instead of raising. Booleans are accepted
+                // because Python bools ARE ints (``'%d' % True`` → "1").
                 throw new EvaluationError(
                     `%${conv} format: a number is required, not '${pyTypeName(arg)}'`,
                 );
@@ -641,7 +650,14 @@ function pyStringFormat(fmt, value) {
                     str = Math.trunc(Number(arg)).toString(8);
                     break;
                 default:
-                    str = pyStr(arg);
+                    // Any letter that reached here is a conversion CPython
+                    // supports but py_js does not (``%c``, ``%a``, …). Raise
+                    // like CPython rather than emit garbage / a stray literal.
+                    throw new EvaluationError(
+                        `unsupported format character '${conv}' (0x${conv
+                            .charCodeAt(0)
+                            .toString(16)})`,
+                    );
             }
             // Alternate form (#): radix prefix for integer conversions
             // ('%#x' % 255 → "0xff"). Sign goes before the prefix (below).

@@ -23,18 +23,18 @@
                             dialogClose="dialogClose"
                             group="group"
                             list="props.list"
-                            quickCreateState="props.quickCreateState"
+                            quickCreateState="quickCreateState"
                             scrollTop="props.scrollTop"
                             tooltipInfo="props.archInfo.tooltipInfo"
                             progressBarState="props.progressBarState"
                         />
                         <t t-if="!group.isFolded">
-                            <t t-if="group.id === props.quickCreateState.groupId">
+                            <t t-if="group.id === quickCreateState.groupId">
                                 <KanbanRecordQuickCreate
                                     group="group"
                                     onCancel="force => this.cancelQuickCreate(force)"
                                     onValidate="(record, mode) => this.validateQuickCreate(record, mode, group)"
-                                    quickCreateView="props.quickCreateState.view"
+                                    quickCreateView="quickCreateState.view"
                                 />
                             </t>
                             <t t-foreach="group.list.records" t-as="record" t-key="record.id">

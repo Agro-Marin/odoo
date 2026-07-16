@@ -3,6 +3,17 @@
 
 /** @module @web/legacy/js/core/class - Legacy class inheritance system based on John Resig's simple JavaScript inheritance */
 
+// DELETION-TRACKING NOTE (legacy retrocompat):
+// This module's ONLY consumer is `legacy/js/public/public_widget.js`; the two
+// form a single removable unit. `public_widget` (publicWidget) still has ~14
+// consumers across odoo/enterprise (0 in agromarin) — mostly website/portal
+// interactions predating the colibri `public/interaction*` framework. When
+// those are migrated to interactions, `public_widget.js` and this file should
+// be deleted together, not separately: nothing else in the codebase uses this
+// `Class`/`extend()`/`include()` machinery. Folding `class.js` into
+// `public_widget.js` now is not worth it (202 lines of inheritance plumbing
+// with no behavior change), so this note tracks the coupling instead.
+
 /**
  * Improved John Resig's inheritance, based on:
  *

@@ -41,8 +41,16 @@ export function enrichSearchItem(searchItem, query, referenceMoment, intervalOpt
     const enrichedSearchItem = Object.assign({ isActive }, searchItem);
     switch (searchItem.type) {
         case "dateFilter":
+            // `optionsParams` may be absent — toggleDateFilter deliberately
+            // tolerates such items (explicit generatorId, unit tests) via its
+            // knownOptions guard. getPeriodOptions destructures optionsParams and
+            // would throw, crashing getSearchItems() (hence the whole
+            // SearchBarMenu render) on an item the mutation path accepts. Fall
+            // back to no options.
             enrichedSearchItem.options = enrichOptions(
-                getPeriodOptions(referenceMoment, searchItem.optionsParams),
+                searchItem.optionsParams
+                    ? getPeriodOptions(referenceMoment, searchItem.optionsParams)
+                    : [],
                 queryElements.map((queryElem) => queryElem.generatorId),
             );
             break;

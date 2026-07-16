@@ -100,6 +100,17 @@ export function constructDateDomain(referenceMoment, searchItem, selectedOptionI
         ...(selectedOptions.quarter || []),
         ...(selectedOptions.month || []),
     ];
+    // A quarter/month with no year yields no ranges below → an empty (match-all)
+    // domain under an innocuous facet. toggleDateFilter now auto-selects a year
+    // to avoid this, but unvalidated generatorIds (arch/context strings) can
+    // still reach here; warn loudly like toggleDateFilter does.
+    if (!yearOptions.length && otherOptions.length) {
+        console.warn(
+            `[search] date filter "${
+                searchItem.description || searchItem.fieldName
+            }": period options selected without a year; the resulting domain matches all records.`,
+        );
+    }
     sortPeriodOptions(yearOptions);
     sortPeriodOptions(otherOptions);
     const ranges = [];

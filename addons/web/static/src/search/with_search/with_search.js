@@ -9,6 +9,7 @@ import { DomainSelectorDialog } from "@web/components/domain_selector_dialog/dom
 import { CallbackRecorder, useSetupAction } from "@web/core/action_hook";
 import { SEARCH_KEYS } from "@web/core/constants";
 import { SearchModelEvent } from "@web/core/events";
+import { KeepLast } from "@web/core/utils/concurrency";
 import { useBus, useService } from "@web/core/utils/hooks";
 import { SearchModel } from "@web/search/search_model";
 
@@ -101,14 +102,26 @@ export class WithSearch extends Component {
             await this.searchModel.load(config);
         });
 
+        // Supersede overlapping prop-driven reloads: rapid successive updates
+        // (controller state churn) otherwise pile up awaits on interleaving
+        // reloads. Section fetches are additionally serialized by the model's
+        // internal mutex (see SearchModel._reloadSections); this KeepLast keeps
+        // only the latest reload's continuation live so the last-started reload
+        // cleanly wins.
+        const reloadKeepLast = new KeepLast();
+
         onWillUpdateProps(async (nextProps) => {
             const config = {};
+            // NOTE: only SEARCH_KEYS (context/domain/groupBy/orderBy) are
+            // forwarded on update — changes to `display` and the other
+            // construction-time props are intentionally ignored after the
+            // initial load().
             for (const key of SEARCH_KEYS) {
                 if (nextProps[key] !== undefined) {
                     config[key] = nextProps[key];
                 }
             }
-            await this.searchModel.reload(config);
+            await reloadKeepLast.add(this.searchModel.reload(config));
         });
     }
 }

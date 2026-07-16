@@ -14,6 +14,34 @@ import { standardFieldProps } from "@web/fields/standard_field_props";
 
 export const MAX_FILENAME_SIZE_BYTES = 0xff; // filenames do not exceed 255 bytes on Linux/Windows/MacOS
 
+const textEncoder = new TextEncoder();
+
+/**
+ * Truncates a string to at most `maxBytes` UTF-8 bytes without splitting a
+ * multi-byte character. `String.prototype.slice` counts UTF-16 code units, so a
+ * name of multibyte characters could exceed the byte cap.
+ *
+ * @param {string} str
+ * @param {number} maxBytes
+ * @returns {string}
+ */
+function truncateToByteLength(str, maxBytes) {
+    if (textEncoder.encode(str).length <= maxBytes) {
+        return str;
+    }
+    let bytes = 0;
+    let end = 0;
+    for (const char of str) {
+        const charBytes = textEncoder.encode(char).length;
+        if (bytes + charBytes > maxBytes) {
+            break;
+        }
+        bytes += charBytes;
+        end += char.length;
+    }
+    return str.slice(0, end);
+}
+
 export class BinaryField extends Component {
     static template = "web.BinaryField";
     static components = {
@@ -38,7 +66,7 @@ export class BinaryField extends Component {
     get fileName() {
         const fileName = this.props.record.data[this.props.fileNameField];
         if (fileName) {
-            return fileName.slice(0, MAX_FILENAME_SIZE_BYTES);
+            return truncateToByteLength(fileName, MAX_FILENAME_SIZE_BYTES);
         }
         // Fallback: the base64 content stands in for the name; slice at the
         // base64 length whose decoded size fits the filename limit.

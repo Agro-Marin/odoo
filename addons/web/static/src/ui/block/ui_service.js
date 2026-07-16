@@ -110,7 +110,7 @@ export function useActiveElement(refName) {
                         el.contains(document.activeElement) ||
                         document.activeElement === document.body
                     ) {
-                        if (oldActiveElement.isConnected) {
+                        if (oldActiveElement?.isConnected) {
                             /** @type {HTMLElement} */ (oldActiveElement).focus();
                         } else {
                             const [firstTabableEl] = getFirstAndLastTabableElements(

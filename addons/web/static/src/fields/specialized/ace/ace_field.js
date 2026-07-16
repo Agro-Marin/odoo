@@ -27,13 +27,19 @@ export class AceField extends Component {
 
     setup() {
         this.state = useState({});
-        useRecordObserver((record) => {
-            /** @type {any} */ (this.state).initialValue = formatText(
-                record.data[this.props.name],
-            );
-        });
-
         this.isDirty = false;
+        useRecordObserver((record) => {
+            // Guard the rewrite with the widget's dirty state, mirroring
+            // useInputField's isDirty protection: an onchange from another field
+            // must not re-render the editor to the server value while the user
+            // is mid-edit (edits are only committed on blur / urgent-save via
+            // editedValue). A clean editor still tracks the incoming value.
+            if (this.editedValue === undefined || !this.isDirty) {
+                /** @type {any} */ (this.state).initialValue = formatText(
+                    record.data[this.props.name],
+                );
+            }
+        });
 
         const { model } = this.props.record;
         useBus(

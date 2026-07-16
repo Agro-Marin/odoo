@@ -17,20 +17,27 @@ import { registry } from "@web/core/registry";
  * can branch on it) for non-ok statuses instead of falling through to an
  * opaque body-parse failure on HTML error pages.
  *
- * A 2xx response with an HTML content-type is classified too (when the
- * caller asked for JSON): ``fetch`` follows redirects, so a session-expired
- * request lands on the HTML login page with a 200. Pre-classification,
- * ``response.json()`` died on it with a raw ``SyntaxError``
- * (ClientErrorDialog); ``InvalidResponseError`` matches rpc.js's handling of
- * the same response, so the connection-lost handler routes it to the
- * session-expired flow instead.
+ * A 2xx response with an HTML content-type is classified too, in two cases:
+ * ``fetch`` follows redirects, so a session-expired request lands on the HTML
+ * login page with a 200.
+ * - ``readMethod === "json"``: ``response.json()`` would otherwise die on the
+ *   login page with a raw ``SyntaxError`` (ClientErrorDialog).
+ * - ``rejectHtml`` opt-in: for non-JSON callers that must NOT swallow the login
+ *   page as legitimate content — file downloads (``core/utils/files.js`` reads
+ *   ``"text"``) and the PWA manifest fetch would otherwise hand the login-page
+ *   HTML back as the file/manifest body with no re-auth prompt. It is opt-in so
+ *   the deliberate "an explicit non-json readMethod still reads HTML bodies"
+ *   contract (see ``http_service.test.js``) is preserved for other callers.
+ * ``InvalidResponseError`` matches rpc.js's handling of the same response, so
+ * the connection-lost handler routes it to the session-expired flow instead.
  *
  * @param {Response} response
  * @param {string} [readMethod] the body-read method the caller will use
+ * @param {{ rejectHtml?: boolean }} [options]
  */
-function checkResponseStatus(response, readMethod) {
+function checkResponseStatus(response, readMethod, { rejectHtml = false } = {}) {
     if (response.ok) {
-        if (readMethod === "json") {
+        if (readMethod === "json" || rejectHtml) {
             const contentType = response.headers.get("content-type") || "";
             if (/text\/html/i.test(contentType)) {
                 throw new InvalidResponseError(response.url, response.status);
@@ -56,11 +63,14 @@ function checkResponseStatus(response, readMethod) {
 /**
  * @param {string} route
  * @param {string} [readMethod="json"]
+ * @param {{ rejectHtml?: boolean }} [options] ``rejectHtml``: throw
+ *   ``InvalidResponseError`` (→ session-expired flow) on a 2xx HTML body, for
+ *   non-JSON callers that must not accept the login page as content.
  * @returns {Promise<any>}
  */
-export async function get(route, readMethod = "json") {
+export async function get(route, readMethod = "json", options = {}) {
     const response = await browser.fetch(route, { method: "GET" });
-    checkResponseStatus(response, readMethod);
+    checkResponseStatus(response, readMethod, options);
     return /** @type {any} */ (response)[readMethod]();
 }
 
@@ -68,9 +78,12 @@ export async function get(route, readMethod = "json") {
  * @param {string} route
  * @param {Record<string, any> | FormData} [params={}]
  * @param {string} [readMethod="json"]
+ * @param {{ rejectHtml?: boolean }} [options] ``rejectHtml``: throw
+ *   ``InvalidResponseError`` (→ session-expired flow) on a 2xx HTML body, for
+ *   non-JSON callers that must not accept the login page as content.
  * @returns {Promise<any>}
  */
-export async function post(route, params = {}, readMethod = "json") {
+export async function post(route, params = {}, readMethod = "json", options = {}) {
     let formData = params;
     if (!(formData instanceof FormData)) {
         formData = new FormData();
@@ -90,7 +103,7 @@ export async function post(route, params = {}, readMethod = "json") {
         body: /** @type {any} */ (formData),
         method: "POST",
     });
-    checkResponseStatus(response, readMethod);
+    checkResponseStatus(response, readMethod, options);
     return /** @type {any} */ (response)[readMethod]();
 }
 

@@ -12,8 +12,14 @@ export class SelectionBox extends Component {
     static props = {
         root: { type: Object },
     };
-    setup() {
-        this.root = this.props.root;
+    /**
+     * @returns {Object} the live root datapoint. Read through a getter (not
+     * cached in setup): RelationalModel replaces model.root on every load
+     * (relational_model.js), so a cached reference could act on a dead
+     * datapoint after a reload (M3).
+     */
+    get root() {
+        return this.props.root;
     }
     /** @returns {number} count of currently selected records */
     get nbSelected() {

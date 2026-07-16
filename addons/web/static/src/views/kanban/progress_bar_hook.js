@@ -120,89 +120,109 @@ class ProgressBarState {
                 isReady: false,
             };
         }
+        // Read from the cache. The reactive bookkeeping (mutating
+        // _aggregateValues / activeBars) lives in _seedGroupInfo, invoked from
+        // the data-update paths (_refreshBars, updateCounts, ...). Residual
+        // (M4): a group first touched by a render taken between a prune and
+        // the next data-update is still seeded lazily here so bars don't flash
+        // empty — the mutation then happens on that render. Making this a
+        // strictly pure read would require every group to be seeded on every
+        // data-update path first; deferred to avoid mid-reload empty-bar flashes.
         if (!this._groupsInfo[group.id]) {
-            const aggValues = _findGroup(
-                this._aggregateValues,
-                group.groupByField,
-                group.serverValue,
-            );
-            const index = this._aggregateValues.indexOf(aggValues);
-            if (index > -1) {
-                this._aggregateValues.splice(index, 1);
-            }
-            this._aggregateValues.push({
-                ...group.aggregates,
-                [group.groupByField.name]: group.serverValue,
-            });
-            const groupValue = this._getGroupValue(group);
-            const pbCount = this._pbCounts[groupValue];
-            const { fieldName, colors } = this.progressAttributes;
-            const { selection: fieldSelection } = this.model.root.fields[fieldName];
-            const selection = fieldSelection && Object.fromEntries(fieldSelection);
-            const bars = Object.entries(colors).map(([value, color]) => {
-                let string;
-                if (selection) {
-                    string = selection[value];
-                } else {
-                    string = String(value);
-                }
-                return {
-                    count: (pbCount && pbCount[value]) || 0,
-                    value,
-                    string,
-                    color,
-                };
-            });
-            bars.push({
-                // Clamp to >= 0: a stale _pbCounts vs. a fresher (smaller)
-                // group.count — e.g. mid slow read_progress_bar after a
-                // filter toggle — can make the naive remainder negative.
-                count: Math.max(
-                    0,
-                    group.count - bars.map((r) => r.count).reduce((a, b) => a + b, 0),
-                ),
-                value: /** @type {any} */ (FALSE),
-                string: _t("Other"),
-                color: "200",
-            });
-
-            // Update activeBars count and aggregates. Deselecting an emptied
-            // active bar is NOT done here: getGroupInfo runs on render paths,
-            // so the applyFilter RPC lives in _deselectEmptyActiveBars
-            // (data-update paths) instead.
-            if (this.activeBars[group.serverValue]) {
-                this.activeBars[group.serverValue].count = bars.find(
-                    (x) => x.value === this.activeBars[group.serverValue].value,
-                ).count;
-
-                if (this._aggregateFields.length) {
-                    // No need to recompute: formatted_read_group already ran
-                    // with the correct (filtered) domain.
-                    this.activeBars[group.serverValue].aggregates = _findGroup(
-                        this._aggregateValues,
-                        group.groupByField,
-                        group.serverValue,
-                    );
-                }
-            }
-
-            const self = this;
-            const progressBar = {
-                get activeBar() {
-                    return self.activeBars[group.serverValue]?.value || null;
-                },
-                bars,
-                // Width denominator: sum of bar counts, not live group.count
-                // — equal in steady state, but keeps widths coherent while
-                // records reload before read_progress_bar resolves (else a
-                // stale count over a smaller denominator overflows maxWidth).
-                total: bars.reduce((sum, bar) => sum + bar.count, 0),
-                isReady: true,
-            };
-
-            this._groupsInfo[group.id] = progressBar;
+            this._seedGroupInfo(group);
         }
         return this._groupsInfo[group.id];
+    }
+
+    /**
+     * Build a group's progress-bar info and cache it in ``_groupsInfo``,
+     * performing the reactive bookkeeping that must accompany it: refresh the
+     * group's entry in ``_aggregateValues`` and, for an active bar, sync its
+     * ``count``/``aggregates``. This is the single home of those mutations, so
+     * they can be driven from data-update paths rather than from a render.
+     *
+     * Deselecting an emptied active bar is NOT done here: that issues an
+     * applyFilter RPC and lives in ``_deselectEmptyActiveBars`` (data-update
+     * paths) so it never fires from the render-triggered lazy seed.
+     * @param {Group} group - The kanban group datapoint.
+     */
+    _seedGroupInfo(group) {
+        const aggValues = _findGroup(
+            this._aggregateValues,
+            group.groupByField,
+            group.serverValue,
+        );
+        const index = this._aggregateValues.indexOf(aggValues);
+        if (index > -1) {
+            this._aggregateValues.splice(index, 1);
+        }
+        this._aggregateValues.push({
+            ...group.aggregates,
+            [group.groupByField.name]: group.serverValue,
+        });
+        const groupValue = this._getGroupValue(group);
+        const pbCount = this._pbCounts[groupValue];
+        const { fieldName, colors } = this.progressAttributes;
+        const { selection: fieldSelection } = this.model.root.fields[fieldName];
+        const selection = fieldSelection && Object.fromEntries(fieldSelection);
+        const bars = Object.entries(colors).map(([value, color]) => {
+            let string;
+            if (selection) {
+                string = selection[value];
+            } else {
+                string = String(value);
+            }
+            return {
+                count: (pbCount && pbCount[value]) || 0,
+                value,
+                string,
+                color,
+            };
+        });
+        bars.push({
+            // Clamp to >= 0: a stale _pbCounts vs. a fresher (smaller)
+            // group.count — e.g. mid slow read_progress_bar after a
+            // filter toggle — can make the naive remainder negative.
+            count: Math.max(
+                0,
+                group.count - bars.map((r) => r.count).reduce((a, b) => a + b, 0),
+            ),
+            value: /** @type {any} */ (FALSE),
+            string: _t("Other"),
+            color: "200",
+        });
+
+        if (this.activeBars[group.serverValue]) {
+            this.activeBars[group.serverValue].count = bars.find(
+                (x) => x.value === this.activeBars[group.serverValue].value,
+            ).count;
+
+            if (this._aggregateFields.length) {
+                // No need to recompute: formatted_read_group already ran
+                // with the correct (filtered) domain.
+                this.activeBars[group.serverValue].aggregates = _findGroup(
+                    this._aggregateValues,
+                    group.groupByField,
+                    group.serverValue,
+                );
+            }
+        }
+
+        const self = this;
+        const progressBar = {
+            get activeBar() {
+                return self.activeBars[group.serverValue]?.value || null;
+            },
+            bars,
+            // Width denominator: sum of bar counts, not live group.count
+            // — equal in steady state, but keeps widths coherent while
+            // records reload before read_progress_bar resolves (else a
+            // stale count over a smaller denominator overflows maxWidth).
+            total: bars.reduce((sum, bar) => sum + bar.count, 0),
+            isReady: true,
+        };
+
+        this._groupsInfo[group.id] = progressBar;
     }
 
     /**
@@ -870,7 +890,10 @@ export function useProgressBar(progressAttributes, model, aggregateFields, activ
     const onWillLoadRoot = model.hooks.lifecycle.onWillLoadRoot;
     let prom;
     model.hooks.lifecycle.onWillLoadRoot = (config) => {
-        onWillLoadRoot();
+        // Forward `config`: a kanban subclass may layer its own
+        // onWillLoadRoot(config), which would otherwise receive undefined
+        // whenever a <progressbar> is present (M6).
+        onWillLoadRoot(config);
         prom = progressBarState.loadProgressBar({
             context: config.context,
             domain: config.domain,

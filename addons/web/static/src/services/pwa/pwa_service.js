@@ -217,7 +217,11 @@ export const pwaService = {
                     // and don't cache the failure — retry if a link appears.
                     return {};
                 }
-                const manifest = await get(href, "text");
+                // rejectHtml: an expired session redirects the fetch to the
+                // login page (200 + HTML); without this it would be handed back
+                // as the manifest body and die in JSON.parse. Route it to the
+                // session-expired flow instead.
+                const manifest = await get(href, "text", { rejectHtml: true });
                 _manifest = JSON.parse(manifest);
             }
             return _manifest;

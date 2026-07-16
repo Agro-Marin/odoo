@@ -61,7 +61,25 @@ export class SearchBarMenu extends Component {
         this.facet_icons = FACET_ICONS;
         // Filter
         this.actionService = useService("action");
-        // GroupBy
+        // Favorite
+        this.state = useState({ sharedFavoritesExpanded: false });
+        useBus(
+            this.env.searchModel,
+            SearchModelEvent.UPDATE,
+            /** @type {any} */ (this.render),
+        );
+    }
+
+    // GroupBy
+    /**
+     * Groupable fields, sorted by label. A live getter rather than a setup-time
+     * snapshot: `fillSearchViewItemsProperty` (properties flow) mutates
+     * `searchViewFields` at runtime, so a snapshot could go stale — matching the
+     * live-view convention `SearchBar.searchItemsFields` documents. Recomputing
+     * a sortBy over ~50 fields per menu render is negligible.
+     * @returns {Object[]}
+     */
+    get fields() {
         const fields = [];
         for (const [fieldName, field] of Object.entries(
             this.env.searchModel.searchViewFields,
@@ -70,14 +88,7 @@ export class SearchBarMenu extends Component {
                 fields.push(Object.assign({ name: fieldName }, field));
             }
         }
-        this.fields = sortBy(fields, "string");
-        // Favorite
-        this.state = useState({ sharedFavoritesExpanded: false });
-        useBus(
-            this.env.searchModel,
-            SearchModelEvent.UPDATE,
-            /** @type {any} */ (this.render),
-        );
+        return sortBy(fields, "string");
     }
 
     // Filter Panel

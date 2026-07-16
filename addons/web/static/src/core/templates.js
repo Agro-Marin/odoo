@@ -340,7 +340,11 @@ export class TemplateRegistry {
             this.blockId++;
         }
         if (!this.templateExtensions[inheritFrom]) {
-            this.templateExtensions[inheritFrom] = [];
+            // A plain object (integer-keyed map by blockId), matching the
+            // `Record<number, …>` JSDoc above — not an Array. It is only ever
+            // read via `Object.keys(...)` and `[blockId]` index access, never
+            // iterated as a dense list, so an Array was a misleading container.
+            this.templateExtensions[inheritFrom] = {};
         }
         if (!this.templateExtensions[inheritFrom][this.blockId]) {
             this.templateExtensions[inheritFrom][this.blockId] = [];

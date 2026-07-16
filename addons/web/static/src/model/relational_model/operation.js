@@ -14,19 +14,25 @@ export class Operation {
     }
 
     /**
-     * @param {number} value
+     * @param {number | string | boolean | null | undefined} value
      * @returns {number}
      */
     compute(value) {
+        // Multi-edit operations ("+5", "-5", …) can be applied against a field
+        // whose current value is ``false``/``undefined`` (never set) or a
+        // non-numeric string. Coerce to a number first so the result stays
+        // arithmetic instead of leaking ``NaN`` or a string concatenation into
+        // ``_changes`` and the save payload.
+        const current = Number(value) || 0;
         switch (this.operator) {
             case "+":
-                return value + this.operand;
+                return current + this.operand;
             case "-":
-                return value - this.operand;
+                return current - this.operand;
             case "*":
-                return value * this.operand;
+                return current * this.operand;
             case "/":
-                return value / this.operand;
+                return current / this.operand;
             default:
                 throw new Error(`Unsupported operator: ${this.operator}`);
         }

@@ -9,6 +9,10 @@ import { session } from "@web/session";
 
 const ENDPOINT = "/web/observability/cwv";
 
+// Per-document counter, mixed into the non-secure-context pageview-id fallback
+// so ids stay distinct even for tabs opened in the same millisecond.
+let _pageviewCounter = 0;
+
 /**
  * Service that captures Core Web Vitals via PerformanceObserver and beacons
  * them to the server when the page is hidden or unloaded.  Reuses the
@@ -53,9 +57,15 @@ export const webVitalsService = {
         // after the first tab-switch), and keying by pageview id lets later,
         // more-complete beacons replace the earlier partial one instead of
         // accumulating duplicate rows.
+        // ``crypto.randomUUID`` is secure-context-only, and this fork's
+        // deployments include plain-HTTP intranet setups. The old fallback
+        // (``performance.now()`` resets per document, UA length is constant)
+        // collided trivially across tabs opened together, and the controller
+        // UPSERTs on ``pageview_id`` — one tab's beacon then overwrites
+        // another's row. Use a real random value plus a per-document counter.
         const pageviewId =
             browser.crypto?.randomUUID?.() ??
-            `${browser.performance.now()}-${browser.navigator.userAgent.length}`;
+            `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}-${++_pageviewCounter}`;
 
         // Pin the URL to the path captured at service start (the initial
         // document path). The observers run for the whole document lifetime and

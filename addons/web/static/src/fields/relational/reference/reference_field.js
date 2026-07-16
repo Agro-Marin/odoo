@@ -149,6 +149,18 @@ export class ReferenceField extends Component {
     updateM2O(value) {
         const resModel =
             /** @type {any} */ (this.state).currentRelation || this.getRelation();
+        if (this._isCharField(this.props)) {
+            // A char-backed reference stores the wire format "model,id" string
+            // (or false when cleared), NOT the {resModel, resId, displayName}
+            // object used for real reference fields. Writing the object here
+            // would make the char serializer forward it verbatim to the server
+            // AND make the record observer's _fetchReferenceCharData crash on
+            // recordData.split(",") (object has no split).
+            this.props.record.update({
+                [this.props.name]: value ? `${resModel},${value.id}` : false,
+            });
+            return;
+        }
         this.props.record.update({
             [this.props.name]: value && {
                 resModel,

@@ -3,7 +3,7 @@
 
 /** @module @web/fields/media/signature/signature_field - Signature pad field for capturing and storing handwritten signatures */
 
-import { Component, useState } from "@odoo/owl";
+import { Component, onWillRender, useState } from "@odoo/owl";
 import { SignatureDialog } from "@web/components/signature/signature_dialog";
 import { _t } from "@web/core/l10n/translation";
 import { isBinarySize } from "@web/core/utils/format/binary";
@@ -41,6 +41,23 @@ export class SignatureField extends Component {
         this.notification = useService("notification");
         this.state = useState({
             isValid: true,
+        });
+        // Reset the validity latch when the record or the underlying value
+        // changes. onLoadFailed() latches isValid=false and getUrl short-circuits
+        // to the placeholder on !isValid; without this reset, paging to another
+        // record (which reuses this component instance) or uploadSignature()
+        // replacing the value would keep rendering the placeholder for a
+        // perfectly valid, freshly drawn signature until a full remount.
+        let resId = this.props.record.resId;
+        let value = this.value;
+        onWillRender(() => {
+            const { record } = this.props;
+            const nextValue = record.data[this.props.name];
+            if (record.resId !== resId || value !== nextValue) {
+                this.state.isValid = true;
+            }
+            resId = record.resId;
+            value = nextValue;
         });
     }
 
