@@ -722,11 +722,22 @@ class Website(Home):
             - 'parts' (dict): presence of fields across all results
             - 'fuzzy_search': search term used instead of requested search
         """
-        order = self._get_search_order(order)
         options = options or {}
-        results_count, search_results, fuzzy_term = request.website._search_with_fuzzy(
-            search_type, term, limit, order, options
-        )
+        try:
+            results_count, search_results, fuzzy_term = (
+                request.website._search_with_fuzzy(
+                    search_type, term, limit, self._get_search_order(order), options
+                )
+            )
+        except ValueError:
+            # ``order`` is client-supplied: an unknown field raises ValueError in
+            # the ORM (no SQL injection, but a public 500). Retry with the
+            # default order rather than propagating the error.
+            results_count, search_results, fuzzy_term = (
+                request.website._search_with_fuzzy(
+                    search_type, term, limit, self._get_search_order(None), options
+                )
+            )
         if not results_count:
             return {
                 "results": [],
@@ -1062,6 +1073,11 @@ class Website(Home):
 
     @http.route("/website/save_xml", type="jsonrpc", auth="user", website=True)
     def save_xml(self, view_id, arch):
+        # Writes arbitrary view arch (a stored-template surface); gate on the
+        # editor group like the other builder-facing routes rather than relying
+        # solely on the ir.ui.view ACL.
+        if not request.env.user.has_group("website.group_website_restricted_editor"):
+            raise werkzeug.exceptions.Forbidden
         request.env["ir.ui.view"].browse(view_id).with_context(
             lang=request.website.default_lang_id.code,
             delay_translations=True,

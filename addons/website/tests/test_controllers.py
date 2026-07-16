@@ -258,6 +258,25 @@ class TestControllers(tests.HttpCase):
         self.assertEqual(res.status_code, 200)
         self.assertEqual(res.json()["result"], True)
 
+    def test_09_autocomplete_invalid_order_no_error(self):
+        """A public caller supplying an unknown ``order`` field must not raise
+        (the ORM would ValueError); the route falls back to the default order."""
+        base_url = self.env["ir.config_parameter"].sudo().get_param("web.base.url")
+        res = self.url_open(
+            base_url + "/website/snippet/autocomplete",
+            json={
+                "params": {
+                    "search_type": "pages",
+                    "term": "a",
+                    "order": "nonexistent_field desc",
+                    "options": {"displayDescription": True},
+                }
+            },
+        )
+        self.assertEqual(res.status_code, 200)
+        self.assertNotIn("error", res.json())
+        self.assertIn("result", res.json())
+
     def test_07_get_alt_images(self):
         test_view = self.env["ir.ui.view"].create(
             {

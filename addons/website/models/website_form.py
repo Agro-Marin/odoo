@@ -2,7 +2,7 @@
 
 from ast import literal_eval
 
-from lxml import etree
+from lxml import etree, html
 
 from odoo import SUPERUSER_ID, _, api, fields, models
 from odoo.exceptions import AccessError, ValidationError
@@ -226,7 +226,19 @@ class IrModelFields(models.Model):
                     self.env[model_name].with_context(active_test=False).search(domain)
                 )
                 for record in records:
-                    arch_parsed = etree.fromstring(record[field_name])
+                    content = record[field_name]
+                    if not content:
+                        continue
+                    # Parse with the HTML parser, not ``etree.fromstring``: these
+                    # are HTML fields (blog bodies, snippet html, ...), commonly
+                    # non-well-formed XML — multiple roots, void tags, ``&``. The
+                    # XML parser raised ``XMLSyntaxError`` out of this ondelete
+                    # hook, making an unrelated field deletion fail. Unparseable
+                    # content can't reference the field, so skip it.
+                    try:
+                        arch_parsed = html.fromstring(content)
+                    except etree.ParserError, etree.XMLSyntaxError, ValueError:
+                        continue
                     xpath_selector = f'//form[@data-model_name="{field.model}"]//*[@name="{field.name}"]'
                     if arch_parsed.xpath(xpath_selector):
                         raise ValidationError(
