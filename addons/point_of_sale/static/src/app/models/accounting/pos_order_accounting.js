@@ -9,8 +9,8 @@ const CONSOLE_COLOR = "#4EFF4D";
 export class PosOrderAccounting extends Base {
     static accountingFields = new Set(["pricelist_id", "fiscal_position_id"]);
 
-    setup() {
-        super.setup();
+    setup(vals) {
+        super.setup(vals);
 
         this._prices = {};
         this.triggerRecomputeAllPrices();

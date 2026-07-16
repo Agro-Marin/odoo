@@ -32,7 +32,6 @@ export class PosData extends SignalStore {
         this.bus = bus_service;
         this.relations = [];
         this.custom = {};
-        this.syncInProgress = false;
         this.mutex = markRaw(new Mutex());
         this.records = {};
         this.opts = new DataServiceOptions();
@@ -47,6 +46,9 @@ export class PosData extends SignalStore {
             offline: false,
             loading: true,
             unsyncData: [],
+            // Queued offline operations the server definitively rejected on
+            // replay: kept out of the retry loop but preserved for diagnosis.
+            deadSyncData: [],
         };
 
         if (!navigator.onLine) {
@@ -817,23 +819,34 @@ export class PosData extends SignalStore {
     }
 
     async syncData() {
-        this.syncInProgress = true;
-
         await this.mutex.exec(async () => {
             while (this.network.unsyncData.length > 0) {
                 const data = this.network.unsyncData[0];
-                const result = await this.execute({ ...data.args[0], uuid: data.uuid });
-
-                if (result) {
+                try {
+                    await this.execute({ ...data.args[0], uuid: data.uuid });
                     this.network.unsyncData.shift();
-                } else {
-                    this.network.unsyncData[0].try += 1;
-                    break;
+                } catch (error) {
+                    if (error instanceof ConnectionLostError) {
+                        // Still offline: keep the entry and stop draining; the
+                        // next connectivity check retries it.
+                        throw error;
+                    }
+                    // Hard server rejection: this entry would fail on every
+                    // reconnect forever and block everything queued behind it.
+                    // Dead-letter it (kept for the debug widget / log export)
+                    // and keep draining.
+                    this.network.unsyncData.shift();
+                    this.network.deadSyncData.push({ ...data, error });
+                    logPosMessage(
+                        "DataService",
+                        "syncData",
+                        "A queued offline operation was rejected by the server and will not be retried",
+                        CONSOLE_COLOR,
+                        [error, data],
+                    );
                 }
             }
         });
-
-        this.syncInProgress = false;
     }
 
     async loadServerOrders(domain) {

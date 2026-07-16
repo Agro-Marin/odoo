@@ -646,6 +646,13 @@ export class PosStore extends WithLazyGetterTrap {
                 await actionPosOrderCancelCall([
                     ...new Set(serverIds.filter((id) => typeof id === "number")),
                 ]);
+                // A successfully cancelled id must leave pendingOrder.delete,
+                // otherwise every subsequent sync re-sends the cancel for the
+                // rest of the session (and a later server-side rejection of a
+                // stale id would block syncing entirely).
+                for (const id of serverIds) {
+                    this.pendingOrder.delete.delete(id);
+                }
             }
         } finally {
             // Remove orders locally at the end to avoid reactivity during the async process
@@ -711,13 +718,17 @@ export class PosStore extends WithLazyGetterTrap {
     }
 
     async afterProcessServerData() {
-        // Adding the not synced paid orders to the pending orders
-        const paidUnsyncedOrderIds = this.models["pos.order"]
-            .filter((order) => order.isUnsyncedPaid)
+        // Re-queue restored orders for sync: unsynced paid orders, and orders
+        // whose persisted dirty marker (__dirty, restored from IndexedDB)
+        // shows local edits that never reached the server — the pendingOrder
+        // sets are in-memory only, so without this a reload silently orphaned
+        // those edits.
+        const pendingOrderIds = this.models["pos.order"]
+            .filter((order) => order.isUnsyncedPaid || (order.isDirty() && !order.finalized))
             .map((order) => order.id);
 
-        if (paidUnsyncedOrderIds.length > 0) {
-            this.addPendingOrder(paidUnsyncedOrderIds);
+        if (pendingOrderIds.length > 0) {
+            this.addPendingOrder(pendingOrderIds);
         }
 
         const openOrders = this.data.models["pos.order"].filter(
@@ -1499,9 +1510,31 @@ export class PosStore extends WithLazyGetterTrap {
                 (order.isDirty() || options.force),
         );
 
-        // Delete orders first
+        // Delete orders first. The cancel phase must never block the order
+        // sync below: a connection drop keeps the ids for the retry, any other
+        // rejection is final (re-sending the same ids would fail on every
+        // debounced sync forever), so those ids are dropped and logged.
         if (orderIdsToDelete.length > 0) {
-            await this.deleteOrders([], orderIdsToDelete);
+            try {
+                await this.deleteOrders([], orderIdsToDelete);
+            } catch (error) {
+                if (error instanceof ConnectionLostError) {
+                    if (options.throw) {
+                        throw error;
+                    }
+                    return error;
+                }
+                for (const id of orderIdsToDelete) {
+                    this.pendingOrder.delete.delete(id);
+                }
+                logPosMessage(
+                    "Store",
+                    "syncAllOrders",
+                    "Server rejected the cancellation of deleted orders; dropping the pending cancel ids",
+                    CONSOLE_COLOR,
+                    [error],
+                );
+            }
         }
 
         // Allow us to force the sync of the orders In the case of
@@ -1804,7 +1837,13 @@ export class PosStore extends WithLazyGetterTrap {
     // If there is an error show a popup
     async pushOrdersWithClosingPopup(opts = {}) {
         try {
-            await this.syncAllOrders(opts);
+            const result = await this.syncAllOrders(opts);
+            if (result instanceof ConnectionLostError) {
+                // When offline and opts.throw is unset, syncAllOrders RESOLVES
+                // with the error instead of rejecting — nothing was pushed, so
+                // it is still a failure for the closing flow.
+                throw result;
+            }
             return true;
         } catch (error) {
             logPosMessage(

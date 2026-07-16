@@ -185,4 +185,67 @@ describe("Dirty record", () => {
         order.date_order = null;
         expect(order.isDirty()).toBe(false);
     });
+
+    test("edits made during a deferred sync survive the commit", async () => {
+        await makeMockServer();
+        const models = getRelatedModelsInstance(false);
+        const order = models["pos.order"].create({ id: 12 });
+        order.amount_total = 10;
+        expect(order.isDirty()).toBe(true);
+
+        // Serialize the way syncAllOrders does (deferClear), edit the record
+        // while the "RPC" is in flight, then commit the clear actions: the
+        // mid-flight edit must keep the record dirty for the next sync.
+        const clearActions = [];
+        models.serializeForORM(order, { deferClear: true, clearActions });
+        order.amount_total = 20;
+        clearActions.forEach((fn) => fn());
+        expect(order.isDirty()).toBe(true);
+
+        // Without a mid-flight edit, the commit marks the record clean.
+        const clearActions2 = [];
+        models.serializeForORM(order, {
+            deferClear: true,
+            clearActions: clearActions2,
+        });
+        clearActions2.forEach((fn) => fn());
+        expect(order.isDirty()).toBe(false);
+    });
+
+    test("delete commands added during a deferred sync survive the commit", async () => {
+        await makeMockServer();
+        const models = getRelatedModelsInstance(false);
+        const order = models["pos.order"].create({ id: 12 });
+        const line1 = models["pos.order.line"].create({ id: 101, order_id: order });
+        const line2 = models["pos.order.line"].create({ id: 102, order_id: order });
+        expect(line1.isSynced).toBe(true);
+
+        line1.delete({ backend: true });
+        const clearActions = [];
+        const serialized = models.serializeForORM(order, {
+            deferClear: true,
+            clearActions,
+        });
+        expect(serialized.lines).toInclude([2, 101]);
+
+        // The user deletes another line while the sync RPC is in flight.
+        line2.delete({ backend: true });
+        clearActions.forEach((fn) => fn());
+
+        // The commit must only consume the command it serialized: the second
+        // deletion still has to reach the server on the next sync.
+        const again = models.serializeForORM(order, {});
+        expect(again.lines).toInclude([2, 102]);
+        expect(again.lines).not.toInclude([2, 101]);
+    });
+});
+
+test("restored __dirty marker marks the record dirty (isolated)", async () => {
+    await makeMockServer();
+    const models = getRelatedModelsInstance(false);
+    const sampleUUID = uuidv4();
+    models.loadConnectedData({
+        "pos.order": [{ id: 13, uuid: sampleUUID, __dirty: true }],
+    });
+    expect(models["pos.order"].getBy("uuid", sampleUUID).isDirty()).toBe(true);
 });

@@ -36,8 +36,11 @@ export class Base extends WithLazyGetterTrap {
      * This method is called when the instance is created or updated
      * @param {*} _vals
      */
-    setup(_vals) {
-        this._dirty = !this.isSynced;
+    setup(vals) {
+        // __dirty is the persisted dirty marker written by
+        // serializeForIndexedDB: without it, offline edits to a synced record
+        // come back "clean" after a reload and are never synced.
+        this._dirty = vals?.__dirty ?? !this.isSynced;
     }
 
     /**
@@ -102,13 +105,33 @@ export class Base extends WithLazyGetterTrap {
     }
 
     _markDirty() {
-        if (this.models._loadingData || this._dirty) {
+        if (this.models._loadingData) {
             return;
         }
 
-        this._dirty = true;
-        this.model.getParentFields().forEach((field) => {
-            this[field.name]?._markDirty?.();
-        });
+        // The epoch is bumped on EVERY dirtying write, even when the record is
+        // already dirty: a deferred serialization clear (serializeForORM with
+        // deferClear) only marks a record clean when its epoch is unchanged
+        // since serialize time, so edits made while a sync RPC is in flight
+        // survive the commit instead of being silently consumed. The bump is
+        // propagated to parents for the same reason (the visited set guards
+        // against relation cycles).
+        const visited = new Set();
+        const walk = (rec) => {
+            const raw = toRaw(rec);
+            if (visited.has(raw)) {
+                return;
+            }
+            visited.add(raw);
+            rec._dirtyEpoch = (rec._dirtyEpoch ?? 0) + 1;
+            rec._dirty = true;
+            rec.model.getParentFields().forEach((field) => {
+                const parent = rec[field.name];
+                if (parent?._markDirty) {
+                    walk(parent);
+                }
+            });
+        };
+        walk(this);
     }
 }
