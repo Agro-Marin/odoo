@@ -3,7 +3,24 @@ from odoo.exceptions import UserError
 from odoo.fields import Domain
 from odoo.tools import Query
 
-COMPANY_OFFSET = 10000
+# A code-mapping record has no table of its own; its virtual id packs the pair
+# (account_id, company_id) as ``account_id * COMPANY_OFFSET + company_id``.  For
+# the pair to round-trip, ``company_id`` must stay strictly below the offset --
+# otherwise it overflows into the account_id part and silently decodes to the
+# wrong account *and* the wrong company.  10**6 comfortably clears any realistic
+# ``res.company`` id (the previous 10**4 could be exceeded by a long-lived DB
+# whose company sequence has climbed past 10k through creations + deletions).
+COMPANY_OFFSET = 10**6
+
+
+def _pack_mapping_id(account_id, company_id):
+    """Encode an (account, company) pair into a virtual code-mapping id."""
+    if not 0 <= company_id < COMPANY_OFFSET:
+        raise ValueError(
+            f"Company id {company_id} does not fit the code-mapping id encoding "
+            f"(must be < {COMPANY_OFFSET})."
+        )
+    return account_id * COMPANY_OFFSET + company_id
 
 
 class AccountCodeMapping(models.Model):
@@ -57,11 +74,11 @@ class AccountCodeMapping(models.Model):
 
         mappings = self.browse(
             [
-                vals["account_id"] * COMPANY_OFFSET + vals["company_id"]
+                _pack_mapping_id(vals["account_id"], vals["company_id"])
                 for vals in vals_list
             ]
         )
-        for mapping, vals in zip(mappings, vals_list):
+        for mapping, vals in zip(mappings, vals_list, strict=True):
             mapping.code = vals["code"]
         return mappings
 
@@ -89,7 +106,7 @@ class AccountCodeMapping(models.Model):
         return (
             self.browse(
                 [
-                    account_id * COMPANY_OFFSET + company.id
+                    _pack_mapping_id(account_id, company.id)
                     for account_id in account_ids
                     for company in self.env.user.with_context(
                         active_test=True
