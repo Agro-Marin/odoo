@@ -132,9 +132,19 @@ export class WebChatter extends Chatter {
                                 return;
                             }
                         }
+                        // after a just-performed save, state.thread still
+                        // points at the transient (id-less) thread until the
+                        // parent re-renders: uploading against it would send
+                        // thread_id=false and the files would silently vanish
+                        const thread = this.state.thread.id
+                            ? this.state.thread
+                            : this.store.Thread.insert({
+                                  model: this.props.threadModel,
+                                  id: this.props.record.resId,
+                              });
                         Promise.all(
                             files.map((file) =>
-                                this.attachmentUploader.uploadFile(file),
+                                this.attachmentUploader.uploadFile(file, { thread }),
                             ),
                         ).then(() => {
                             if (this.props.hasParentReloadOnAttachmentsChanged) {
@@ -219,6 +229,7 @@ export class WebChatter extends Chatter {
         ) {
             return;
         }
+        const thread = this.state.thread;
         const recipients = await this.keepLastSuggestedRecipientsUpdate.add(
             rpc("/mail/thread/recipients/get_suggested_recipients", {
                 thread_model: this.props.threadModel,
@@ -227,7 +238,10 @@ export class WebChatter extends Chatter {
                 main_email: email,
             }),
         );
-        if (status(this) === "destroyed" || !this.state.thread) {
+        // KeepLast only supersedes when a newer call happens: on a record
+        // switch nothing does, so an in-flight response for the previous
+        // record must not land on the new record's thread
+        if (status(this) === "destroyed" || !this.state.thread?.eq(thread)) {
             return;
         }
         this.state.thread.suggestedRecipients = recipients.map((result) => ({
@@ -328,6 +342,9 @@ export class WebChatter extends Chatter {
         this.attachmentUploader.thread = this.state.thread;
         if (threadId === false) {
             this.state.composerType = false;
+            // close the search too: leaving it open would keep rendering the
+            // previous record's search results on the new record's chatter
+            this.closeSearch();
         } else {
             this.onThreadCreated?.(this.state.thread);
             this.onThreadCreated = null;
@@ -466,7 +483,13 @@ export class WebChatter extends Chatter {
     }
 
     async reloadParentView() {
-        await this.props.saveRecord?.();
+        const saved = await this.props.saveRecord?.();
+        if (saved === false) {
+            // client-side validation failure: FormController.save() resolves
+            // false instead of throwing. Loading the record anyway would run
+            // _clearChanges() and silently discard the user's pending edits.
+            return;
+        }
         if (this.props.record) {
             await this.props.record.load();
         }
@@ -485,7 +508,12 @@ export class WebChatter extends Chatter {
             schedule(this.state.thread);
         } else {
             this.onThreadCreated = schedule;
-            this.props.saveRecord?.();
+            const saved = await this.props.saveRecord?.();
+            if (!saved) {
+                // failed/refused save: disarm, or the callback would fire on
+                // the next unrelated successful save or record switch
+                this.onThreadCreated = null;
+            }
         }
     }
 
@@ -501,7 +529,7 @@ export class WebChatter extends Chatter {
         browser.localStorage.setItem("chatter_aside_collapsed", this.state.isCollapsed);
     }
 
-    toggleComposer(mode = false, { force = false } = {}) {
+    async toggleComposer(mode = false, { force = false } = {}) {
         this.closeSearch();
         const toggle = async () => {
             if (!force && this.state.composerType === mode) {
@@ -517,7 +545,12 @@ export class WebChatter extends Chatter {
             toggle();
         } else {
             this.onThreadCreated = toggle;
-            this.props.saveRecord?.();
+            const saved = await this.props.saveRecord?.();
+            if (!saved) {
+                // failed/refused save: disarm, or the composer would pop on
+                // the next unrelated successful save or record switch
+                this.onThreadCreated = null;
+            }
         }
     }
 

@@ -828,3 +828,85 @@ test("form view mounts WebChatter; base Chatter statics stay portal-clean", asyn
     expect(setupClasses.size).toBe(1);
     expect(setupClasses.has(WebChatter)).toBe(true);
 });
+
+test("failed implicit save from a chatter action keeps the user's dirty edits", async () => {
+    const pyEnv = await startServer();
+    const partnerId = pyEnv["res.partner"].create({ name: "John Doe" });
+    onRpc("res.partner", "web_read", () => asyncStep("web_read"));
+    await start();
+    await openFormView("res.partner", partnerId, {
+        arch: `
+            <form>
+                <sheet>
+                    <field name="name" required="1"/>
+                </sheet>
+                <chatter/>
+            </form>`,
+    });
+    await waitForSteps(["web_read"]);
+    // make the record dirty AND invalid: required field emptied
+    await insertText(".o_field_widget[name='name'] input", "", { replace: true });
+    // any follower change implicitly saves then reloads the parent view;
+    // here the save fails client-side validation
+    await click("[title='Show Followers']");
+    await click(".o-dropdown-item", { text: "Follow" });
+    await contains(".o_notification", { text: "Missing required fields" });
+    // the record must NOT be reloaded (web_read would clear the pending
+    // changes): the user's edits survive the failed save
+    await waitForSteps([]);
+    await contains(".o_field_widget[name='name'] input", { value: "" });
+});
+
+test("files dropped on an unsaved record are attached to the saved record", async () => {
+    const pyEnv = await startServer();
+    await start();
+    await openFormView("res.partner", undefined, {
+        arch: `
+            <form>
+                <sheet>
+                    <field name="name"/>
+                </sheet>
+                <chatter/>
+            </form>`,
+    });
+    await insertText(".o_field_widget[name='name'] input", "John Doe");
+    const files = [new File(["hello"], "text.txt", { type: "text/plain" })];
+    await dragenterFiles(".o-mail-Chatter", files);
+    await contains(".o-Dropzone");
+    // the drop saves the record, then the upload must target the saved
+    // thread — not the transient (id-less) one, where it would be lost
+    await dropFiles(".o-Dropzone", files);
+    await contains(".o-mail-AttachmentContainer:not(.o-isUploading)");
+    await contains(".o-mail-AttachmentContainer", { text: "text.txt" });
+    // the attachment must be linked to the saved record server-side (an
+    // upload against the transient thread would send thread_id=false)
+    const [attachment] = pyEnv["ir.attachment"].search_read([
+        ["name", "=", "text.txt"],
+    ]);
+    const [partnerId] = pyEnv["res.partner"].search([["name", "=", "John Doe"]]);
+    expect(attachment.res_model).toBe("res.partner");
+    expect(attachment.res_id).toBe(partnerId);
+});
+
+test("composer does not pop up from an earlier failed save", async () => {
+    await start();
+    await openFormView("res.partner", undefined, {
+        arch: `
+            <form>
+                <sheet>
+                    <field name="name" required="1"/>
+                </sheet>
+                <chatter/>
+            </form>`,
+    });
+    // "Send message" on an unsaved record implicitly saves first; the save
+    // fails client-side validation (required field empty)
+    await click("button", { text: "Send message" });
+    await contains(".o_notification", { text: "Missing required fields" });
+    await contains(".o-mail-Composer", { count: 0 });
+    // fixing the record and saving manually must not pop the stale composer
+    await insertText(".o_field_widget[name='name'] input", "John Doe");
+    await click(".o_form_button_save");
+    await contains("button[aria-label='Attach files']:enabled");
+    await contains(".o-mail-Composer", { count: 0 });
+});
