@@ -361,12 +361,18 @@ test("false, null and undefined are accepted values", async () => {
     const comp = await mountWithCleanup(Parent);
     expect(".o_time_picker_input").toHaveValue("");
 
+    // A parent-state change re-renders TimePicker through onWillUpdateProps; the
+    // resulting DOM patch is committed one frame after runAllTimers() settles the
+    // pending timers, so an explicit animationFrame() is needed before asserting
+    // on the input value (unlike event-driven changes, which patch in-frame).
     comp.state.value = false;
     await runAllTimers();
+    await animationFrame();
     expect(".o_time_picker_input").toHaveValue("");
 
     comp.state.value = undefined;
     await runAllTimers();
+    await animationFrame();
     expect(".o_time_picker_input").toHaveValue("0:00");
 });
 
@@ -430,9 +436,11 @@ test("changing the props value updates the input", async () => {
     const comp = await mountWithCleanup(Parent);
     expect(".o_time_picker_input").toHaveValue("");
 
-    // Set value from props
+    // Set value from props (prop-driven re-render patches one frame after
+    // runAllTimers(); see the note in the "false, null and undefined" test).
     comp.state.value = "12:00";
     await runAllTimers();
+    await animationFrame();
     expect(".o_time_picker_input").toHaveValue("12:00");
     expect.verifySteps([]);
 
@@ -447,6 +455,7 @@ test("changing the props value updates the input", async () => {
     // Set falsy value from props
     comp.state.value = false;
     await runAllTimers();
+    await animationFrame();
     expect(".o_time_picker_input").toHaveValue("");
     expect.verifySteps([]);
 });

@@ -14417,7 +14417,12 @@ test("pending long-touch timer is cleared when the card is destroyed", async () 
     });
     // Start a long press on the only visible card (schedules the timer) without
     // releasing it, then destroy that card by paging to the next record.
-    await manuallyDispatchProgrammaticEvent(queryOne(".o_kanban_record"), "touchstart");
+    // Exclude the layout-only ghost cards (.o_kanban_ghost) so we target the
+    // single real record that the limit=1 kept on the first page.
+    await manuallyDispatchProgrammaticEvent(
+        queryOne(".o_kanban_record:not(.o_kanban_ghost)"),
+        "touchstart",
+    );
     await pagerNext();
     await runAllTimers();
     // The orphaned timer must not have fired: no toggleSelection, no selection.

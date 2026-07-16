@@ -389,7 +389,7 @@ test("open twice should not display previous results", async () => {
     expect(".o-autocomplete--dropdown-item").toHaveCount(1);
     expect(".o-autocomplete--dropdown-item .fa-spin").toHaveCount(1); // loading
     def.resolve();
-    await runAllTimers();
+    await animationFrame();
     expect(".o-autocomplete--dropdown-item").toHaveCount(2);
     expect(".fa-spin").toHaveCount(0);
 

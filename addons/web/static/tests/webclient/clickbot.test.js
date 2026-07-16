@@ -1,6 +1,7 @@
 // @ts-check
 
 import { beforeEach, describe, expect, test } from "@odoo/hoot";
+import { waitFor } from "@odoo/hoot-dom";
 import {
     animationFrame,
     Deferred,
@@ -359,7 +360,11 @@ test("clickbot clickeverywhere test (with dropdown menu)", async () => {
         __WOWL_DEBUG__: { root: webClient },
     });
     await runAllTimers();
-    await animationFrame();
+    // The webclient auto-loads the default app (App2) on mount, which sets the
+    // current menu and asynchronously re-renders the navbar (via the
+    // MENUS_APP_CHANGED bus event). That chain isn't deterministically flushed
+    // by a fixed animationFrame(), so wait for the section to actually render.
+    await waitFor(".o_menu_sections .dropdown-toggle");
     expect(".o_menu_sections .dropdown-toggle").toHaveText("a dropdown");
     window.clickEverywhere();
     await clickEverywhereDef;

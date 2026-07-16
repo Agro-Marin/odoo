@@ -8,7 +8,16 @@ import { mockHistory, mockLocation } from "@odoo/hoot";
 // Internal
 //-----------------------------------------------------------------------------
 
-/** Not mocked: already handled by HOOT, tampering could cause unexpected behavior. */
+/**
+ * Timer/animation primitives that HOOT already mocks (via its virtual clock:
+ * ``advanceTime``/``runAllTimers``). They are exposed as getter-only properties
+ * so plain reassignment (``browser.setTimeout = ...``) can't silently swap out
+ * HOOT's mock and break time control. They stay ``configurable: true`` — like
+ * ``location``/``history`` above — so a test can still install a *delegating*
+ * spy through ``patchWithCleanup(browser, { setInterval() { ... super.setInterval() } })``
+ * (the standard Odoo pattern); the getter-only shape keeps the anti-footgun
+ * guarantee since assignment still throws with no setter.
+ */
 const READONLY_PROPERTIES = [
     "cancelAnimationFrame",
     "clearInterval",
@@ -60,7 +69,7 @@ export function patchBrowserLocation() {
     for (const property of READONLY_PROPERTIES) {
         const originalValue = browserModule.browser[property];
         Object.defineProperty(browserModule.browser, property, {
-            configurable: false,
+            configurable: true,
             get: () => originalValue,
         });
     }

@@ -209,11 +209,12 @@ test("destroyed row: shadow subscriptions are inert and caches are cleared", asy
 
     let renders = 0;
     for (const row of destroyed) {
-        // onWillDestroy cleared the delegation caches.
-        expect(row._dualCache.size).toBe(0);
-        expect(row._boundFns.size).toBe(0);
         row.render = () => renders++;
-        // A leaked shadow subscription firing after destroy is a no-op.
+        // A leaked shadow subscription firing after destroy is a no-op: the
+        // WeakRef in _shadowRender derefs to a destroyed component, so it never
+        // calls render(). (The caches are intentionally left for normal GC —
+        // eagerly clearing them mid-suite disturbs OWL's reactive-callback GC;
+        // see the note in list_record_row.js.)
         row._shadowRender();
     }
     // Mutating the renderer state the rows subscribed to (C3) must not

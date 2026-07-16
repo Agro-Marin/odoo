@@ -100,7 +100,12 @@ test("remove element with opened tooltip", async () => {
     compState.visible = false;
     await animationFrame();
     expect("button").toHaveCount(0);
-    await runAllTimers();
+    // The popover closes reactively once its target leaves the DOM (the
+    // popover's own MutationObserver, see popover.js ``onTargetMutate``), which
+    // also tears down the tooltip service's cleanup interval. That teardown
+    // empties the mock timer queue, so ``runAllTimers()`` no longer flushes a
+    // render frame here — await the overlay's removal render explicitly.
+    await animationFrame();
     expect(".o_popover").toHaveCount(0);
 });
 

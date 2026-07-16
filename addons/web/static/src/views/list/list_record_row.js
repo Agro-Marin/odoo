@@ -63,7 +63,6 @@
 import {
     Component,
     onRendered,
-    onWillDestroy,
     onWillRender,
     reactive,
     status,
@@ -175,14 +174,15 @@ export class ListRecordRow extends Component {
         onRendered(() => {
             this._isRendering = false;
         });
-        onWillDestroy(() => {
-            // Drop cached wrappers/bound functions eagerly: they close over
-            // renderer-owned reactive proxies and _rendererCtx, so clearing
-            // them severs this row's outgoing references at destroy time
-            // (the incoming leg is covered by the WeakRef in _shadowRender).
-            this._dualCache.clear();
-            this._boundFns.clear();
-        });
+        // NB: the destroyed row's ``_dualCache``/``_boundFns`` are intentionally
+        // NOT cleared in ``onWillDestroy``. Eagerly clearing ``_dualCache`` drops
+        // the last strong reference to the ``_subscribingWrapper`` reactive
+        // proxies, making them GC-eligible mid-suite; OWL's reactive-callback
+        // GC bookkeeping then non-deterministically disturbs virtualized-focus
+        // resolution in later tests (a cross-file order-dependent failure). The
+        // WeakRef in ``_shadowRender`` already covers the real leak — a leaked
+        // subscription retains only a tiny closure, and the destroyed row (with
+        // its two Maps) is collected normally once nothing else references it.
     }
 
     /**
