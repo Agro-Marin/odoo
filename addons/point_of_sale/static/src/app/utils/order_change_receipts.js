@@ -1,11 +1,12 @@
 /** @odoo-module native */
 import { luxon } from "@web/core/l10n/luxon";
 import { _t } from "@web/core/l10n/translation";
-import { logPosMessage } from "./pretty_console_log.js";
+
 // CONSOLE_COLOR lives on pos_store; importing it here mirrors the existing
 // call-time circular imports (pos_config, data_service, indexed_db, …) — the
 // binding is only read inside function bodies, so the cycle resolves fine.
 import { CONSOLE_COLOR } from "../services/pos_store.js";
+import { logPosMessage } from "./pretty_console_log.js";
 
 const { DateTime } = luxon;
 
@@ -64,11 +65,17 @@ export function getOrderData(pos, order, reprint) {
     };
 }
 
-export function generateOrderChange(pos, order, orderChange, categories, reprint = false) {
+export function generateOrderChange(
+    pos,
+    order,
+    orderChange,
+    categories,
+    reprint = false,
+) {
     const isPartOfCombo = (line) =>
         line.isCombo ||
         line.combo_parent_uuid ||
-        pos.models["product.product"].get(line.product_id).type == "combo";
+        pos.models["product.product"].get(line.product_id).type === "combo";
     const comboChanges = orderChange.new.filter(isPartOfCombo);
     const normalChanges = orderChange.new.filter((line) => !isPartOfCombo(line));
     normalChanges.sort((a, b) => {
@@ -95,7 +102,12 @@ export function generateOrderChange(pos, order, orderChange, categories, reprint
     return { orderData, changes };
 }
 
-export async function generateReceiptsDataToPrint(pos, orderData, changes, orderChange) {
+export async function generateReceiptsDataToPrint(
+    pos,
+    orderData,
+    changes,
+    orderChange,
+) {
     const receiptsData = [];
     if (changes.new.length) {
         const orderDataNew = { ...orderData };

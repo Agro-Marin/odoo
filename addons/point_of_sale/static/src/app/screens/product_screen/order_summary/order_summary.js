@@ -160,7 +160,7 @@ export class OrderSummary extends Component {
         const order = this.pos.getOrder();
         const selectedLine = order.getSelectedOrderline();
         // Handling negation of value on first input
-        if (buffer === "-0" && key == "-") {
+        if (buffer === "-0" && key === "-") {
             if (
                 this.pos.numpadMode === "quantity" &&
                 !selectedLine.refunded_orderline_id
@@ -236,7 +236,7 @@ export class OrderSummary extends Component {
         }
         const val = buffer === null ? "remove" : buffer;
         this._setValue(val);
-        if (val == "remove") {
+        if (val === "remove") {
             this.numberBuffer.reset();
             this.pos.numpadMode = "quantity";
         }
@@ -341,10 +341,10 @@ export class OrderSummary extends Component {
         }
         const newLine = this.getNewLine();
         const decreasedQuantity = current_saved_quantity - newQuantity;
-        if (decreasedQuantity != 0) {
+        if (decreasedQuantity !== 0) {
             newLine.setQuantity(-decreasedQuantity + newLine.getQuantity(), true);
         }
-        if (newLine !== selectedLine && selectedLine.uiState.savedQuantity != 0) {
+        if (newLine !== selectedLine && selectedLine.uiState.savedQuantity !== 0) {
             selectedLine.setQuantity(
                 selectedLine.uiState.savedQuantity,
                 Boolean(selectedLine.combo_line_ids?.length),
@@ -359,7 +359,7 @@ export class OrderSummary extends Component {
         }
         const sign = selectedLine.getQuantity() > 0 ? 1 : -1;
         let newLine = selectedLine;
-        if (selectedLine.uiState.savedQuantity != 0) {
+        if (selectedLine.uiState.savedQuantity !== 0) {
             for (const line of selectedLine.order_id.lines) {
                 if (
                     line.product_id.id === selectedLine.product_id.id &&

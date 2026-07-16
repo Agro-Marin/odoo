@@ -1,5 +1,6 @@
 /** @odoo-module native */
 import { Domain } from "@web/core/domain";
+
 import { logPosMessage } from "./pretty_console_log.js";
 const CONSOLE_COLOR = "#b56be3";
 /**
@@ -69,8 +70,8 @@ export default class DevicesSynchronisation {
     async collect(data) {
         const { static_records, session_id, device_identifier } = data;
         const isSameDevice =
-            odoo.pos_session_id != session_id ||
-            device_identifier == this.pos.device.identifier;
+            odoo.pos_session_id !== session_id ||
+            device_identifier === this.pos.device.identifier;
 
         logPosMessage(
             "Synchronisation",

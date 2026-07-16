@@ -70,7 +70,7 @@ export class PosKanbanRenderer extends KanbanRenderer {
 
     async clickLoadScenario(item) {
         await this.loadScenario.call(item);
-        if (this.loadScenario.status == "error") {
+        if (this.loadScenario.status === "error") {
             throw this.loadScenario.result;
         }
     }

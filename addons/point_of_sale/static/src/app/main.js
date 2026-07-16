@@ -35,7 +35,7 @@ whenReady(() => {
         });
         window.addEventListener("beforeunload", function (event) {
             if (app.env.services.pos_data.network.offline) {
-                var confirmationMessage = _t(
+                const confirmationMessage = _t(
                     "You are currently offline. Reloading the page may cause you to lose unsaved data.",
                 );
                 event.returnValue = confirmationMessage;

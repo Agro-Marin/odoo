@@ -90,7 +90,7 @@ export class SelectLotPopup extends Component {
         ];
     }
     onSelect(lot) {
-        if (this.state.values.some((item) => item.text == lot.currentInput)) {
+        if (this.state.values.some((item) => item.text === lot.currentInput)) {
             return this.notification.add(
                 _t("The Lot/Serial number is already added."),
                 {

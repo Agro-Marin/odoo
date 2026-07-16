@@ -58,7 +58,7 @@ export class Orderline extends Component {
             selected: this.line.isSelected() && this.props.mode === "display",
             ...this.line.getDisplayClasses(),
             ...(this.props.class || []),
-            "border-start": this.props.mode != "receipt" && this.line.combo_parent_id,
+            "border-start": this.props.mode !== "receipt" && this.line.combo_parent_id,
             "orderline-combo fst-italic ms-4": this.line.combo_parent_id,
             "position-relative d-flex align-items-center lh-sm cursor-pointer": true, // Keep all classes here
         };

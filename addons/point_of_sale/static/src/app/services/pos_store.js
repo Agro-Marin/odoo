@@ -1,7 +1,6 @@
 /** @odoo-module native */
 /* global waitForWebfonts */
 
-import { luxon } from "@web/core/l10n/luxon";
 import { markRaw, reactive } from "@odoo/owl";
 import { CashMovePopup } from "@point_of_sale/app/components/popups/cash_move_popup/cash_move_popup";
 import { ClosePosPopup } from "@point_of_sale/app/components/popups/closing_popup/closing_popup";
@@ -29,8 +28,10 @@ import {
     random5Chars,
     uuidv4,
 } from "@point_of_sale/utils";
+import { Domain } from "@web/core/domain";
 import { formatDate } from "@web/core/l10n/dates";
 import { localization } from "@web/core/l10n/localization";
+import { luxon } from "@web/core/l10n/luxon";
 import { _t } from "@web/core/l10n/translation";
 import { ConnectionLostError } from "@web/core/network/rpc";
 import { registry } from "@web/core/registry";
@@ -41,6 +42,7 @@ import { debounce } from "@web/core/utils/timing";
 import { user } from "@web/services/user";
 import { AlertDialog } from "@web/ui/dialog/confirmation_dialog";
 import { FormViewDialog } from "@web/views/view_dialogs/form_view_dialog";
+
 import { SelectionPopup } from "../components/popups/selection_popup/selection_popup.js";
 import { computeComboItems } from "../models/utils/compute_combo_items.js";
 import { changesToOrder, getOrderChanges } from "../models/utils/order_change.js";
@@ -50,10 +52,6 @@ import {
 } from "../models/utils/product_attributes.js";
 import { PartnerList } from "../screens/partner_list/partner_list.js";
 import { ScaleScreen } from "../screens/scale_screen/scale_screen.js";
-import { DebugWidget } from "../utils/debug/debug_widget.js";
-import DevicesSynchronisation from "../utils/devices_synchronisation.js";
-import { initLNA } from "../utils/init_lna.js";
-import { Domain } from "@web/core/domain";
 import {
     cashierHasPriceControlRights,
     getCashier,
@@ -64,6 +62,9 @@ import {
     setCashier,
     storeConnectedCashier,
 } from "../utils/cashier.js";
+import { DebugWidget } from "../utils/debug/debug_widget.js";
+import DevicesSynchronisation from "../utils/devices_synchronisation.js";
+import { initLNA } from "../utils/init_lna.js";
 import {
     filterChangeByCategories,
     generateOrderChange,
@@ -92,6 +93,7 @@ import {
     switchPane,
     switchPaneTicketScreen,
 } from "../utils/pos_navigation.js";
+import { logPosMessage } from "../utils/pretty_console_log.js";
 import {
     areAllProductsSpecial,
     computeProductsToDisplay,
@@ -100,7 +102,6 @@ import {
     getProductsBySearchWord,
     orderProductBySequenceAndFav,
 } from "../utils/product_catalog.js";
-import { logPosMessage } from "../utils/pretty_console_log.js";
 
 const { DateTime } = luxon;
 export const CONSOLE_COLOR = "#F5B427";
@@ -1952,7 +1953,7 @@ export class PosStore extends WithLazyGetterTrap {
             order.last_order_preparation_change?.metadata?.serverDate,
         ).toUTC();
 
-        if (lastServerDate.isValid && lastServerDate.ts != lastLocalDate.ts) {
+        if (lastServerDate.isValid && lastServerDate.ts !== lastLocalDate.ts) {
             this.dialog.add(AlertDialog, {
                 title: _t("Order Outdated"),
                 body: _t(
@@ -2139,7 +2140,10 @@ export class PosStore extends WithLazyGetterTrap {
                     // this should reject so that it can be captured when we wait for pos.ready
                     // in the chrome component.
                     // then, if it got really rejected, we can show the error.
-                    if (statusText == "error" && window.location.protocol == "https:") {
+                    if (
+                        statusText === "error" &&
+                        window.location.protocol === "https:"
+                    ) {
                         // FIXME POSREF this looks like it's dead code.
                         reject({
                             title: _t("HTTPS connection to IoT Box failed"),
@@ -2278,7 +2282,7 @@ export class PosStore extends WithLazyGetterTrap {
     async openPresetTiming(order = this.getOrder()) {
         const data = await makeAwaitable(this.dialog, PresetSlotsPopup);
         if (data) {
-            if (order.preset_id.id != data.presetId) {
+            if (order.preset_id.id !== data.presetId) {
                 await this.selectPreset(this.models["pos.preset"].get(data.presetId));
             }
 
@@ -2499,7 +2503,7 @@ export class PosStore extends WithLazyGetterTrap {
         // Check if the input lot/serial name is already used in another order
         const isLotNameUsed = (itemValue) => {
             const totalQty =
-                existingLots.find((lt) => lt.name == itemValue)?.product_qty || 0;
+                existingLots.find((lt) => lt.name === itemValue)?.product_qty || 0;
             const usedQty = usedLotsQty[itemValue]
                 ? usedLotsQty[itemValue].total -
                   usedLotsQty[itemValue].currentOrderCount
@@ -2556,7 +2560,7 @@ export class PosStore extends WithLazyGetterTrap {
         }
     }
     shouldShowOpeningControl() {
-        return this.session.state == "opening_control";
+        return this.session.state === "opening_control";
     }
 
     /**
@@ -2576,7 +2580,7 @@ export class PosStore extends WithLazyGetterTrap {
                     const msg = JSON.parse(event.newValue);
                     if (
                         msg.message === "close_tabs" &&
-                        msg.session == this.session.id
+                        msg.session === this.session.id
                     ) {
                         logPosMessage(
                             "Store",
@@ -2597,14 +2601,14 @@ export class PosStore extends WithLazyGetterTrap {
     }
     async onClickBackButton() {
         if (this.router.state.current === "TicketScreen") {
-            if (this.ticket_screen_mobile_pane == "left") {
+            if (this.ticket_screen_mobile_pane === "left") {
                 const next = this.defaultPage;
                 this.navigate(next.page, next.params);
             } else {
                 this.ticket_screen_mobile_pane = "left";
             }
         } else if (
-            this.mobile_pane == "left" ||
+            this.mobile_pane === "left" ||
             ["PaymentScreen", "ActionScreen"].includes(this.router.state.current)
         ) {
             if (this.router.state.current === "ProductScreen") {

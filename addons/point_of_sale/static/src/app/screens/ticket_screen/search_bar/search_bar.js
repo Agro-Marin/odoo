@@ -44,7 +44,7 @@ export class SearchBar extends Component {
         this.state = useState({
             searchInput: this.props.config.defaultSearchDetails.searchTerm || "",
             selectedSearchFieldId:
-                defaultSearchFieldId == -1 ? 0 : defaultSearchFieldId,
+                defaultSearchFieldId === -1 ? 0 : defaultSearchFieldId,
             showSearchFields: false,
             showFilterOptions: false,
             selectedFilter:
@@ -77,7 +77,7 @@ export class SearchBar extends Component {
     onSearchInputKeyup(event) {
         if (["ArrowUp", "ArrowDown"].includes(event.key)) {
             this.state.selectedSearchFieldId = this._fieldIdToSelect(event.key);
-        } else if (event.key === "Enter" || this.state.searchInput == "") {
+        } else if (event.key === "Enter" || this.state.searchInput === "") {
             this._onClickSearchField(
                 this.searchFieldsList[this.state.selectedSearchFieldId],
             );

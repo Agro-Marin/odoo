@@ -1,6 +1,7 @@
 /** @odoo-module native */
 import { accountTaxHelpers } from "@account/helpers/account_tax";
 import { formatCurrency } from "@web/services/currency";
+
 import { logPosMessage } from "../../utils/pretty_console_log.js";
 import { Base } from "../related_models/index.js";
 const CONSOLE_COLOR = "#4EFF4D";
@@ -81,7 +82,7 @@ export class PosOrderAccounting extends Base {
             this.orderIsRounded &&
             this.config.rounding_method.asymmetricRound(
                 isNegative ? -remaining : remaining,
-            ) == 0
+            ) === 0
                 ? 0
                 : Math.abs(remaining);
         return isNegative ? this.currency.round(-amount) : this.currency.round(amount);
@@ -123,7 +124,7 @@ export class PosOrderAccounting extends Base {
             this.orderIsRounded &&
             this.config.rounding_method.asymmetricRound(
                 total < 0 ? -remaining : remaining,
-            ) == 0
+            ) === 0
                 ? Math.abs(remaining)
                 : 0;
         return isNegative ? this.currency.round(amount) : this.currency.round(-amount);

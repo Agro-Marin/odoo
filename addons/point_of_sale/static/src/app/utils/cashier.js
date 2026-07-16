@@ -15,9 +15,7 @@ export function getCashierUserId(pos) {
 }
 
 export function cashierHasPriceControlRights(pos) {
-    return (
-        !pos.config.restrict_price_control || pos.getCashier()._role == "manager"
-    );
+    return !pos.config.restrict_price_control || pos.getCashier()._role === "manager";
 }
 
 export function setCashier(pos, user) {

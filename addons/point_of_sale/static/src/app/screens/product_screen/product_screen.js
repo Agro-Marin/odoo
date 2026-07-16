@@ -1,12 +1,5 @@
 /** @odoo-module native */
-import { luxon } from "@web/core/l10n/luxon";
-import {
-    Component,
-    onMounted,
-    onWillUnmount,
-    useEffect,
-    useState,
-} from "@odoo/owl";
+import { Component, onMounted, onWillUnmount, useEffect, useState } from "@odoo/owl";
 import { CategorySelector } from "@point_of_sale/app/components/category_selector/category_selector";
 import { Input } from "@point_of_sale/app/components/inputs/input/input";
 import {
@@ -31,6 +24,7 @@ import {
 } from "@point_of_sale/app/screens/product_screen/control_buttons/control_buttons";
 import { OrderSummary } from "@point_of_sale/app/screens/product_screen/order_summary/order_summary";
 import { BarcodeVideoScanner } from "@web/components/barcode/barcode_video_scanner";
+import { luxon } from "@web/core/l10n/luxon";
 import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
@@ -308,7 +302,7 @@ export class ProductScreen extends Component {
         this.barcodeReader.showNotFoundNotification(code);
     }
     _barcodeDiscountAction(code) {
-        var last_orderline = this.currentOrder.getLastOrderline();
+        const last_orderline = this.currentOrder.getLastOrderline();
         if (last_orderline) {
             this.pos.setDiscountFromUI(last_orderline, code.value);
         }
@@ -342,7 +336,7 @@ export class ProductScreen extends Component {
             qty &&
             product.uom_id &&
             qty.rule?.associated_uom_id &&
-            product.uom_id.id == qty.rule.associated_uom_id[0]
+            product.uom_id.id === qty.rule.associated_uom_id[0]
         ) {
             vals.qty = qty.value;
         }

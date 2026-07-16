@@ -12,7 +12,7 @@ export function uuidv4() {
     // mainly for jest and other browsers that do not have the crypto functionality
     return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, function (c) {
         const r = (Math.random() * 16) | 0,
-            v = c == "x" ? r : (r & 0x3) | 0x8;
+            v = c === "x" ? r : (r & 0x3) | 0x8;
         return v.toString(16);
     });
 }
@@ -42,7 +42,7 @@ export function constructAttributeString(line) {
             if (value.is_custom) {
                 const customValue = line.custom_attribute_value_ids.find(
                     (cus) =>
-                        cus.custom_product_template_attribute_value_id?.id ==
+                        cus.custom_product_template_attribute_value_id?.id ===
                         parseInt(value.id),
                 );
                 if (customValue) {
@@ -78,7 +78,7 @@ export function constructFullProductName(line) {
  */
 export function random5Chars() {
     let code = "";
-    while (code.length != 5) {
+    while (code.length !== 5) {
         code = Math.random().toString(36).slice(2, 7);
     }
     return code;

@@ -3,6 +3,7 @@ import { accountTaxHelpers } from "@account/helpers/account_tax";
 import { _t } from "@web/core/l10n/translation";
 import { roundPrecision } from "@web/core/utils/format/numbers";
 import { formatCurrency } from "@web/services/currency";
+
 import { Base } from "../related_models/index.js";
 
 export class ProductTemplateAccounting extends Base {
@@ -91,7 +92,7 @@ export class ProductTemplateAccounting extends Base {
         if (original_line && original_line.isLotTracked() && product) {
             related_lines.push(
                 ...original_line.order_id.lines.filter(
-                    (line) => line.product_id.id == product.id,
+                    (line) => line.product_id.id === product.id,
                 ),
             );
             quantity = related_lines.reduce((sum, line) => sum + line.getQuantity(), 0);
@@ -140,7 +141,7 @@ export class ProductTemplateAccounting extends Base {
         } else if (rule.compute_price === "percentage") {
             price = price - price * (rule.percent_price / 100);
         } else {
-            var price_limit = price;
+            const price_limit = price;
             price -= price * (rule.price_discount / 100);
             if (rule.price_round) {
                 price = roundPrecision(price, rule.price_round);
