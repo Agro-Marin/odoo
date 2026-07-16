@@ -38,4 +38,16 @@ Key API:
     "data": [
         "security/ir.model.access.csv",
     ],
+    "assets": {
+        # The JS mirror of the tax engine (kept consistent with
+        # models/account_tax.py). It used to live in ``account`` and is still
+        # imported as ``@account/helpers/account_tax`` via a re-export shim there;
+        # PoS and pos_self_order pull it into their own bundles explicitly.
+        "web.assets_backend": [
+            "base_tax/static/src/helpers/*.js",
+        ],
+        "web.assets_frontend": [
+            "base_tax/static/src/helpers/*.js",
+        ],
+    },
 }

@@ -309,7 +309,7 @@ class AccountTax(models.Model):
                 )
 
     @api.constrains("tax_group_id")
-    def validate_tax_group_id(self):
+    def _validate_tax_group_id(self):
         for record in self:
             if (
                 record.tax_group_id.country_id
@@ -1190,7 +1190,6 @@ class AccountTax(models.Model):
         product=None,
         product_uom_id=None,
         special_mode=False,
-        manual_tax_amounts=None,
         filter_tax_function=None,
     ):
         """Compute the tax/base amounts for the current taxes.
@@ -1213,7 +1212,6 @@ class AccountTax(models.Model):
                             will give you the same as 100 without any special_mode.
                             Note: You can only expect accurate symmetrical taxes computation with not rounded price_unit
                             as input and 'round_globally' computation. Otherwise, it's not guaranteed.
-        :param manual_tax_amounts:  TO BE REMOVED IN MASTER.
         :param filter_tax_function: Optional function to filter out some taxes from the computation.
         :return: A dict containing:
             'evaluation_context':       The evaluation_context parameter.
@@ -1526,7 +1524,13 @@ class AccountTax(models.Model):
         sorted_taxes = base_line["tax_ids"]._flatten_taxes_and_sort_them()[0]
         if (
             extra_tax_data
-            and extra_tax_data.get("manual_tax_amounts")
+            # Gate on 'currency_id', the sentinel '_export_base_line_extra_tax_data'
+            # writes whenever it stored source data (price_unit/quantity/rate and
+            # any manual amount). Gating on 'manual_tax_amounts' instead would drop
+            # a stored 'manual_total_excluded' on a line that has no per-tax manual
+            # amounts (e.g. an untaxed global-discount/down-payment delta line),
+            # diverging from account_tax.js which gates on 'currency_id'.
+            and extra_tax_data.get("currency_id")
             and base_line["currency_id"].id == extra_tax_data["currency_id"]
             and base_line["currency_id"].compare_amounts(
                 base_line["price_unit"], extra_tax_data["price_unit"]
@@ -2250,7 +2254,7 @@ class AccountTax(models.Model):
                     target_factors=target_factors,
                 )
                 for target_factor, amount_to_distribute in zip(
-                    target_factors, amounts_to_distribute
+                    target_factors, amounts_to_distribute, strict=True
                 ):
                     base_line = target_factor["base_line"]
                     base_line["tax_details"][

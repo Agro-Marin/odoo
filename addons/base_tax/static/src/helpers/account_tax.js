@@ -265,7 +265,6 @@ export const accountTaxHelpers = {
             product = null,
             product_uom_id = null,
             special_mode = null,
-            manual_tax_amounts = null, // TO BE REMOVED IN MASTER
             filter_tax_function = null,
         } = {}
     ) {
