@@ -253,6 +253,27 @@ export function computeSearchPanelDomain(categoryDomain, filterDomain) {
  * @param {boolean} params.raw
  * @returns {any[]|Domain}
  */
+/**
+ * Collect the (non-null) domains of a query group's active items. The
+ * effective search domain OR-combines these per group, and each facet exposes
+ * the same OR as its clickable ``domain`` — shared here so the two stay in
+ * lockstep (see ``buildFacets`` in search_facets.js).
+ *
+ * @param {Object} group - a query group with ``activeItems``
+ * @param {Function} getSearchItemDomain - (activeItem) => Domain|null
+ * @returns {Domain[]}
+ */
+export function computeActiveItemDomains(group, getSearchItemDomain) {
+    const domains = [];
+    for (const activeItem of group.activeItems) {
+        const domain = getSearchItemDomain(activeItem);
+        if (domain) {
+            domains.push(domain);
+        }
+    }
+    return domains;
+}
+
 export function computeDomain({
     groups,
     globalDomain,
@@ -268,15 +289,7 @@ export function computeDomain({
         domains.push(globalDomain);
     }
     for (const group of groups) {
-        const groupActiveItemDomains = [];
-        for (const activeItem of group.activeItems) {
-            const domain = getSearchItemDomain(activeItem);
-            if (domain) {
-                groupActiveItemDomains.push(domain);
-            }
-        }
-        const groupDomain = Domain.or(groupActiveItemDomains);
-        domains.push(groupDomain);
+        domains.push(Domain.or(computeActiveItemDomains(group, getSearchItemDomain)));
     }
     if (withSearchPanel) {
         domains.push(getSearchPanelDomain());
