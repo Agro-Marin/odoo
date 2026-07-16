@@ -70,8 +70,21 @@ function openDatabase() {
     return dbPromise;
 }
 
+self.addEventListener("install", () => {
+    // Activate a freshly installed/updated worker without waiting for every
+    // controlled tab to close, so clients.claim() below can take control of the
+    // pages that are already open.
+    self.skipWaiting();
+});
+
 self.addEventListener("activate", (event) => {
-    event.waitUntil(openDatabase());
+    // clients.claim(): take control of already-open pages immediately. Without
+    // it, the page that registered the worker stays uncontrolled until its next
+    // navigation, so navigator.serviceWorker.controller is null there and the
+    // push-dedup response (see the notification-display-request handshake)
+    // cannot be routed back through it — the worker then always times out and
+    // shows a duplicate notification on the focused tab.
+    event.waitUntil(Promise.all([openDatabase(), self.clients.claim()]));
 });
 
 async function cleanupLogs(dataBase) {
@@ -265,19 +278,26 @@ self.addEventListener("push", (event) => {
                 ),
             );
             return;
-        case PUSH_NOTIFICATION_TYPE.CANCEL:
+        case PUSH_NOTIFICATION_TYPE.CANCEL: {
+            const tag = notification.options?.tag;
+            if (!tag) {
+                // getNotifications({ tag: undefined }) is "match everything", so
+                // a tag-less CANCEL would close every notification for this
+                // origin (unrelated calls/messages included). A CANCEL is only
+                // meaningful when scoped to a tag; ignore it otherwise.
+                return;
+            }
             // waitUntil: without it the worker may be terminated before the
             // async getNotifications() resolves, leaving the notification up.
             event.waitUntil(
-                self.registration
-                    .getNotifications({ tag: notification.options?.tag })
-                    .then((notifications) => {
-                        for (const toCancel of notifications) {
-                            toCancel.close();
-                        }
-                    }),
+                self.registration.getNotifications({ tag }).then((notifications) => {
+                    for (const toCancel of notifications) {
+                        toCancel.close();
+                    }
+                }),
             );
             return;
+        }
     }
     event.waitUntil(handlePushEvent(notification));
 });
@@ -291,11 +311,19 @@ self.addEventListener("message", ({ data }) => {
         const fn = self.handlePushEventMessageFns.get(payload.correlationId);
         if (fn) {
             self.handlePushEventMessageFns.delete(payload.correlationId);
-            fn({ data });
+            fn();
         }
     }
 });
 
+// App-badge ownership contract: the "unread" key of `unread_store` is written
+// by BOTH this worker (incrementUnread, for background pushes no client
+// acknowledged) and the web client (store_service_patch.updateAppBadge, which
+// overwrites it with the authoritative inbox counter whenever a tab is running
+// and synced). The worker increments on top of the last client value; the
+// client resets to its true count. Keep the store name/key in sync between the
+// two files if either changes.
+//
 // Serialize the read-modify-write cycles on the unread counter: concurrent
 // push events would otherwise read the same value and lose increments.
 let unreadUpdatePromise = Promise.resolve();
@@ -313,20 +341,13 @@ async function handlePushEvent(notification) {
     const { model, res_id } = notification.options?.data || {};
     const correlationId = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
     let timeoutId;
-    let promResolve;
-    const onHandlePushEventMessage = ({ data = {} }) => {
-        const { type, payload } = data;
-        if (
-            type === "notification-display-response" &&
-            payload.correlationId === correlationId
-        ) {
-            clearTimeout(timeoutId);
-            promResolve?.();
-        }
-    };
     return new Promise((resolve) => {
-        promResolve = resolve;
-        self.handlePushEventMessageFns.set(correlationId, onHandlePushEventMessage);
+        // The single `message` dispatcher matches by correlationId and invokes
+        // this handler only for the matching response, so no re-check is needed.
+        self.handlePushEventMessageFns.set(correlationId, () => {
+            clearTimeout(timeoutId);
+            resolve();
+        });
         self.clients
             .matchAll({ includeUncontrolled: true, type: "window" })
             .then((clients) => {
