@@ -1131,7 +1131,10 @@ class Website(models.Model):
             )
 
         # Configure the pages
-        for index, page_code in enumerate(requested_pages):
+        # ``requested_pages`` is a set: iterate it sorted so the ``index`` baked
+        # into the copied view key below is stable across runs instead of
+        # depending on set/hash-randomization order.
+        for index, page_code in enumerate(sorted(requested_pages)):
             snippet_list = configurator_snippets.get(page_code, [])
             if page_code == "homepage":
                 page_view_id = self.with_context(website_id=website.id).viewref(
@@ -1276,148 +1279,66 @@ class Website(models.Model):
                         }
                     )
 
-        try:
-            # TODO: Remove this try/except, safety net because it was merged
-            #       to close to OXP.
-            fallback_create_missing_industry_image(
-                "s_intro_pill_default_image", "library_image_10"
-            )
-            fallback_create_missing_industry_image(
-                "s_intro_pill_default_image_2", "library_image_14"
-            )
-            fallback_create_missing_industry_image(
-                "s_banner_default_image_2", "s_image_text_default_image"
-            )
-            fallback_create_missing_industry_image(
-                "s_banner_default_image_3", "s_product_list_default_image_1"
-            )
-            fallback_create_missing_industry_image(
-                "s_striped_top_default_image", "s_picture_default_image"
-            )
-            fallback_create_missing_industry_image(
-                "s_text_cover_default_image", "s_cover_default_image"
-            )
-            fallback_create_missing_industry_image(
-                "s_showcase_default_image", "s_image_text_default_image"
-            )
-            fallback_create_missing_industry_image(
-                "s_image_hexagonal_default_image", "s_cover_default_image"
-            )
-            fallback_create_missing_industry_image(
-                "s_image_hexagonal_default_image_1", "s_company_team_image_1"
-            )
-            fallback_create_missing_industry_image(
-                "s_accordion_image_default_image", "s_image_text_default_image"
-            )
-            fallback_create_missing_industry_image(
-                "s_pricelist_boxed_default_background",
-                "s_product_catalog_default_image",
-            )
-            fallback_create_missing_industry_image(
-                "s_image_title_default_image", "s_cover_default_image"
-            )
-            fallback_create_missing_industry_image(
-                "s_key_images_default_image_1", "s_media_list_default_image_1"
-            )
-            fallback_create_missing_industry_image(
-                "s_key_images_default_image_2", "s_image_text_default_image"
-            )
-            fallback_create_missing_industry_image(
-                "s_key_images_default_image_3", "s_media_list_default_image_2"
-            )
-            fallback_create_missing_industry_image(
-                "s_key_images_default_image_4", "s_text_image_default_image"
-            )
-            fallback_create_missing_industry_image(
-                "s_kickoff_default_image", "s_cover_default_image"
-            )
-            fallback_create_missing_industry_image(
-                "s_quadrant_default_image_1", "library_image_03"
-            )
-            fallback_create_missing_industry_image(
-                "s_quadrant_default_image_2", "library_image_10"
-            )
-            fallback_create_missing_industry_image(
-                "s_quadrant_default_image_3", "library_image_13"
-            )
-            fallback_create_missing_industry_image(
-                "s_quadrant_default_image_4", "library_image_05"
-            )
-            fallback_create_missing_industry_image(
-                "s_sidegrid_default_image_1", "library_image_03"
-            )
-            fallback_create_missing_industry_image(
-                "s_sidegrid_default_image_2", "library_image_10"
-            )
-            fallback_create_missing_industry_image(
-                "s_sidegrid_default_image_3", "library_image_13"
-            )
-            fallback_create_missing_industry_image(
-                "s_sidegrid_default_image_4", "library_image_05"
-            )
-            fallback_create_missing_industry_image(
-                "s_cta_box_default_image", "library_image_02"
-            )
-            fallback_create_missing_industry_image(
-                "s_image_punchy_default_image", "s_cover_default_image"
-            )
-            fallback_create_missing_industry_image(
-                "s_image_frame_default_image", "s_carousel_default_image_2"
-            )
-            fallback_create_missing_industry_image(
-                "s_carousel_intro_default_image_1", "s_cover_default_image"
-            )
-            fallback_create_missing_industry_image(
-                "s_carousel_intro_default_image_2", "s_image_text_default_image"
-            )
-            fallback_create_missing_industry_image(
-                "s_carousel_intro_default_image_3", "s_text_image_default_image"
-            )
-            fallback_create_missing_industry_image(
-                "s_website_form_overlay_default_image", "s_cover_default_image"
-            )
-            fallback_create_missing_industry_image(
-                "s_website_form_cover_default_image", "s_cover_default_image"
-            )
-            fallback_create_missing_industry_image(
-                "s_split_intro_default_image", "s_cover_default_image"
-            )
-            fallback_create_missing_industry_image(
-                "s_framed_intro_default_image", "s_cover_default_image"
-            )
-            fallback_create_missing_industry_image(
-                "s_wavy_grid_default_image_1", "s_cover_default_image"
-            )
-            fallback_create_missing_industry_image(
-                "s_wavy_grid_default_image_2", "s_image_text_default_image"
-            )
-            fallback_create_missing_industry_image(
-                "s_wavy_grid_default_image_3", "s_text_image_default_image"
-            )
-            fallback_create_missing_industry_image(
-                "s_wavy_grid_default_image_4", "s_carousel_default_image_1"
-            )
-            fallback_create_missing_industry_image(
-                "s_timeline_images_default_image_1", "s_media_list_default_image_1"
-            )
-            fallback_create_missing_industry_image(
-                "s_timeline_images_default_image_2", "s_media_list_default_image_2"
-            )
-            fallback_create_missing_industry_image(
-                "s_carousel_cards_default_image_1", "s_carousel_default_image_1"
-            )
-            fallback_create_missing_industry_image(
-                "s_carousel_cards_default_image_2", "s_carousel_default_image_2"
-            )
-            fallback_create_missing_industry_image(
-                "s_carousel_cards_default_image_3", "s_carousel_default_image_3"
-            )
-            fallback_create_missing_industry_image(
-                "s_banner_connected_default_image", "s_cover_default_image"
-            )
-
-        except Exception:
-            pass
+        # Each industry image may fall back to a different one. Attempt them
+        # independently: a single failure (e.g. a missing source attachment)
+        # must not skip the remaining fallbacks, as the previous single
+        # try/except around every call did.
+        fallback_industry_images = [
+            ("s_intro_pill_default_image", "library_image_10"),
+            ("s_intro_pill_default_image_2", "library_image_14"),
+            ("s_banner_default_image_2", "s_image_text_default_image"),
+            ("s_banner_default_image_3", "s_product_list_default_image_1"),
+            ("s_striped_top_default_image", "s_picture_default_image"),
+            ("s_text_cover_default_image", "s_cover_default_image"),
+            ("s_showcase_default_image", "s_image_text_default_image"),
+            ("s_image_hexagonal_default_image", "s_cover_default_image"),
+            ("s_image_hexagonal_default_image_1", "s_company_team_image_1"),
+            ("s_accordion_image_default_image", "s_image_text_default_image"),
+            ("s_pricelist_boxed_default_background", "s_product_catalog_default_image"),
+            ("s_image_title_default_image", "s_cover_default_image"),
+            ("s_key_images_default_image_1", "s_media_list_default_image_1"),
+            ("s_key_images_default_image_2", "s_image_text_default_image"),
+            ("s_key_images_default_image_3", "s_media_list_default_image_2"),
+            ("s_key_images_default_image_4", "s_text_image_default_image"),
+            ("s_kickoff_default_image", "s_cover_default_image"),
+            ("s_quadrant_default_image_1", "library_image_03"),
+            ("s_quadrant_default_image_2", "library_image_10"),
+            ("s_quadrant_default_image_3", "library_image_13"),
+            ("s_quadrant_default_image_4", "library_image_05"),
+            ("s_sidegrid_default_image_1", "library_image_03"),
+            ("s_sidegrid_default_image_2", "library_image_10"),
+            ("s_sidegrid_default_image_3", "library_image_13"),
+            ("s_sidegrid_default_image_4", "library_image_05"),
+            ("s_cta_box_default_image", "library_image_02"),
+            ("s_image_punchy_default_image", "s_cover_default_image"),
+            ("s_image_frame_default_image", "s_carousel_default_image_2"),
+            ("s_carousel_intro_default_image_1", "s_cover_default_image"),
+            ("s_carousel_intro_default_image_2", "s_image_text_default_image"),
+            ("s_carousel_intro_default_image_3", "s_text_image_default_image"),
+            ("s_website_form_overlay_default_image", "s_cover_default_image"),
+            ("s_website_form_cover_default_image", "s_cover_default_image"),
+            ("s_split_intro_default_image", "s_cover_default_image"),
+            ("s_framed_intro_default_image", "s_cover_default_image"),
+            ("s_wavy_grid_default_image_1", "s_cover_default_image"),
+            ("s_wavy_grid_default_image_2", "s_image_text_default_image"),
+            ("s_wavy_grid_default_image_3", "s_text_image_default_image"),
+            ("s_wavy_grid_default_image_4", "s_carousel_default_image_1"),
+            ("s_timeline_images_default_image_1", "s_media_list_default_image_1"),
+            ("s_timeline_images_default_image_2", "s_media_list_default_image_2"),
+            ("s_carousel_cards_default_image_1", "s_carousel_default_image_1"),
+            ("s_carousel_cards_default_image_2", "s_carousel_default_image_2"),
+            ("s_carousel_cards_default_image_3", "s_carousel_default_image_3"),
+            ("s_banner_connected_default_image", "s_cover_default_image"),
+        ]
+        for image_name, fallback_img_name in fallback_industry_images:
+            try:
+                fallback_create_missing_industry_image(image_name, fallback_img_name)
+            except Exception:
+                logger.debug(
+                    "Configurator fallback image %s could not be created",
+                    image_name,
+                    exc_info=True,
+                )
 
         return {"url": redirect_url, "website_id": website.id}
 
