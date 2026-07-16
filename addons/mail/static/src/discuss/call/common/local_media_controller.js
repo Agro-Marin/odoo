@@ -58,6 +58,14 @@ export class LocalMediaController {
      * shared mix AudioContext (double close/create, context leak).
      */
     _audioTrackMutex = new Mutex();
+    /**
+     * Serializes `setVideo` runs per type: two overlapping runs (double
+     * click; the useBlur onChange racing a cameraInputDeviceId onChange)
+     * each acquired a stream and the loser's was overwritten without
+     * closeStream — a live camera/screen capture leaked until the tab
+     * closed.
+     */
+    _videoMutexes = { camera: new Mutex(), screen: new Mutex() };
 
     /**
      * @param {Object} param0
@@ -102,6 +110,12 @@ export class LocalMediaController {
      * @param {Boolean} [param1.refreshStream] whether we are requesting a new stream
      */
     async setVideo(track, type, options) {
+        return this._videoMutexes[type].exec(() =>
+            this._setVideo(track, type, options),
+        );
+    }
+
+    async _setVideo(track, type, options) {
         const settings = this.hooks.getSettings();
         let activateVideo;
         let env;
@@ -208,11 +222,26 @@ export class LocalMediaController {
             this.blurManager = undefined;
             try {
                 this.blurManager = await this.applyBlurEffect(sourceStream);
-                const blurredStream = await this.blurManager.stream;
+                // bounded wait: the mediapipe assets load at runtime from a
+                // CDN — a hang (vs a rejection) would otherwise block here
+                // forever with the camera LED on and the call showing no
+                // video at all
+                const blurredStream = await Promise.race([
+                    this.blurManager.stream,
+                    new Promise((_, reject) =>
+                        browser.setTimeout(
+                            () => reject(new Error(_t("Blur is unavailable"))),
+                            10_000,
+                        ),
+                    ),
+                ]);
                 outputTrack = blurredStream.getVideoTracks()[0];
             } catch (_e) {
                 this.hooks.notify(_e.message);
                 settings.setUseBlur(false);
+                // don't leave the failed pipeline running against the stream
+                this.blurManager?.close();
+                this.blurManager = undefined;
                 outputTrack = sourceStream.getVideoTracks()[0];
             }
         } else if (!settings.useBlur && type === "camera") {

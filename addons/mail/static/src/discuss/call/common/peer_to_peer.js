@@ -740,6 +740,19 @@ export class PeerToPeer extends EventTarget {
                 if (connectionSuccess && iceSuccess) {
                     return;
                 }
+                if (
+                    peer.connection.connectionState === "connecting" ||
+                    peer.connection.iceConnectionState === "checking"
+                ) {
+                    // still progressing: slow ICE (TURN relay allocation,
+                    // mobile networks) routinely exceeds the first timer.
+                    // Tearing the handshake down restarts it from scratch
+                    // with a doubled backoff — the "cannot connect for the
+                    // first ~30s" pathology. Give it another window; a
+                    // genuinely failed ICE leaves these states on its own.
+                    this._recover(peer.id, `${reason} (still progressing)`);
+                    return;
+                }
                 this._emitUpdate({ name: UPDATE_EVENT.RECOVERY, payload: { id } });
                 this._emitLog(
                     id,
@@ -764,7 +777,9 @@ export class PeerToPeer extends EventTarget {
             let failedAttempts = 0;
             let retryDelay = INITIAL_RECONNECT_DELAY;
             while (true) {
-                await new Promise((resolve) => setTimeout(resolve, this._batchDelay));
+                await new Promise((resolve) =>
+                    browser.setTimeout(resolve, this._batchDelay),
+                );
                 if (!this.isActive || this._notificationsToSend.size === 0) {
                     return;
                 }
@@ -811,7 +826,9 @@ export class PeerToPeer extends EventTarget {
                         return;
                     }
                     // retry with an exponential backoff
-                    await new Promise((resolve) => setTimeout(resolve, retryDelay));
+                    await new Promise((resolve) =>
+                        browser.setTimeout(resolve, retryDelay),
+                    );
                     retryDelay = Math.min(retryDelay * 1.5, MAXIMUM_RECONNECT_DELAY);
                     continue;
                 }

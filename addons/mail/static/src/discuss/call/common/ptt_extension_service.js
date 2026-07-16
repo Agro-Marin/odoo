@@ -28,6 +28,10 @@ export const pttExtensionHookService = {
                 sendMessage("is-talking", isTalking);
             },
             subscribe() {
+                // a voice-toggle armed while no call was running must not
+                // survive into this call: it suppresses PTT key releases,
+                // pinning the microphone open
+                self.voiceActivated = false;
                 sendMessage("subscribe");
             },
             unsubscribe() {
@@ -75,6 +79,13 @@ export const pttExtensionHookService = {
                     break;
                 case "toggle-voice":
                     {
+                        if (!rtc.state.channel) {
+                            // no active call: onPushToTalk would be a no-op
+                            // but the flag would still flip, and a stale
+                            // voiceActivated pins the mic open in the next
+                            // call (isPushToTalkRelease stays false)
+                            break;
+                        }
                         if (self.voiceActivated) {
                             rtc.setPttReleaseTimeout(0);
                         } else {

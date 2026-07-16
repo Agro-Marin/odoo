@@ -1,5 +1,6 @@
 /** @odoo-module native */
 import { fields, Record } from "@mail/core/common/record";
+import { browser } from "@web/core/browser/browser";
 import { Deferred } from "@web/core/utils/concurrency";
 /**
  * @typedef {object} SessionInfo
@@ -34,7 +35,7 @@ export class RtcSession extends Record {
                 // late-firing timer would `delete(id)` a *fresh* deferred
                 // registered for the same id in the meantime, leaving its
                 // caller (e.g. _applySessionInfo, handleRemoteTrack) hung.
-                deferred._timeout = setTimeout(() => {
+                deferred._timeout = browser.setTimeout(() => {
                     deferred.resolve();
                     if (this.awaitedRecords.get(id) === deferred) {
                         this.awaitedRecords.delete(id);
@@ -50,7 +51,7 @@ export class RtcSession extends Record {
         const record = super.new(...arguments);
         const deferred = this.awaitedRecords.get(record.id);
         if (deferred) {
-            clearTimeout(deferred._timeout);
+            browser.clearTimeout(deferred._timeout);
             deferred.resolve(record);
             this.awaitedRecords.delete(record.id);
         }
