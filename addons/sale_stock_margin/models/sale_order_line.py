@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 from odoo import api, fields, models
@@ -16,7 +15,7 @@ class SaleOrderLine(models.Model):
                 line_ids_to_pass.add(line.id)
             elif line.product_id and line.product_id.categ_id and line.product_id.categ_id.property_cost_method != 'standard':
                 # don't overwrite any existing value unless non-standard cost method
-                qty_from_delivery = line.qty_delivered
+                qty_from_delivery = line.qty_transferred
                 price_unit_from_delivery = line.move_ids.filtered(lambda m: m.state == 'done')._get_price_unit() if qty_from_delivery > 0 else 0
                 if qty_from_delivery <= 0:
                     purch_price = product.standard_price

@@ -163,8 +163,8 @@ class SaleOrderLine(models.Model):
                 item["product_uom_qty"] = self._convert_qty(
                     sale_line, item["product_uom_qty"], "s2p"
                 )
-                item["qty_delivered"] = self._convert_qty(
-                    sale_line, item["qty_delivered"], "s2p"
+                item["qty_transferred"] = self._convert_qty(
+                    sale_line, item["qty_transferred"], "s2p"
                 )
                 item["qty_invoiced"] = self._convert_qty(
                     sale_line, item["qty_invoiced"], "s2p"

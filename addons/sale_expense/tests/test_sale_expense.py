@@ -1,8 +1,9 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 from odoo import Command
+from odoo.tests import tagged
+
 from odoo.addons.hr_expense.tests.common import TestExpenseCommon
 from odoo.addons.sale.tests.common import TestSaleCommon
-from odoo.tests import tagged
 
 
 @tagged('post_install', '-at_install')
@@ -41,7 +42,7 @@ class TestSaleExpense(TestExpenseCommon, TestSaleCommon):
         # expense should now be in sales order
         self.assertIn(self.company_data['product_delivery_cost'], so.mapped('line_ids.product_id'), 'Sale Expense: expense product should be in so')
         sol = so.line_ids.filtered(lambda sol: sol.product_id.id == self.company_data['product_delivery_cost'].id)
-        self.assertEqual((sol.price_unit, sol.qty_delivered), (55.0, 11.3), 'Sale Expense: error when invoicing an expense at cost')
+        self.assertEqual((sol.price_unit, sol.qty_transferred), (55.0, 11.3), 'Sale Expense: error when invoicing an expense at cost')
         self.assertEqual(so.amount_total, init_price + expense.total_amount, 'Sale Expense: price of so should be updated after adding expense')
         self.assertEqual(sol.analytic_distribution, {str(analytic_account.id): 100})
 
@@ -72,7 +73,7 @@ class TestSaleExpense(TestExpenseCommon, TestSaleCommon):
         # expense should now be in sales order
         self.assertIn(prod_exp_2, so.mapped('line_ids.product_id'), 'Sale Expense: expense product should be in so')
         sol = so.line_ids.filtered(lambda sol: sol.product_id.id == prod_exp_2.id)
-        self.assertEqual((sol.price_unit, sol.qty_delivered), (prod_exp_2.list_price, 100.0), 'Sale Expense: error when invoicing an expense at cost')
+        self.assertEqual((sol.price_unit, sol.qty_transferred), (prod_exp_2.list_price, 100.0), 'Sale Expense: error when invoicing an expense at cost')
         self.assertEqual(so.amount_untaxed, init_price + (prod_exp_2.list_price * 100.0), 'Sale Expense: price of so should be updated after adding expense')
 
         # both expenses should be invoiced

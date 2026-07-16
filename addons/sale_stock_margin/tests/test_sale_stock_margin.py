@@ -1,10 +1,12 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 import datetime
+
 from freezegun import freeze_time
 
 from odoo import fields
 from odoo.tests import Form, tagged
+
 from odoo.addons.stock_account.tests.common import TestStockValuationCommon
 
 
@@ -496,7 +498,7 @@ class TestSaleStockMargin(TestStockValuationCommon):
             # SOL quantity=2, qty_delivered=0
             sol = self._create_sale_order_line(so, self.product_avco_auto, 2, 100)
             self.assertEqual(sol.product_uom_qty, 2)
-            self.assertEqual(sol.qty_delivered, 0)
+            self.assertEqual(sol.qty_transferred, 0)
             self.assertEqual(sol.purchase_price, 30, "purchase_price should match product's standard_price")
             self.assertEqual(sol.margin, 140, "margin = (sale price - purchase_price) * SOL quantity = (100 - 30) * 2 = 140")
 
@@ -541,7 +543,7 @@ class TestSaleStockMargin(TestStockValuationCommon):
             sol = self._create_sale_order_line(so, self.product_avco_auto, 1, 100)
             # SOL quantity=1, qty_delivered=0
             self.assertEqual(sol.product_uom_qty, 1)
-            self.assertEqual(sol.qty_delivered, 0)
+            self.assertEqual(sol.qty_transferred, 0)
             self.assertEqual(sol.purchase_price, self.product_avco_auto.standard_price, "purchase_price should match product's standard_price")
             self.assertEqual(sol.margin, 70, "margin = (sale price - purchase_price) * SOL quantity = (100 - 30) * 1 = 70")
             so.action_confirm()
@@ -549,7 +551,7 @@ class TestSaleStockMargin(TestStockValuationCommon):
             # SOL quantity=0, qty_delivered=0
             sol2 = self._create_sale_order_line(so, self.product_avco_auto, 0, 90)
             self.assertEqual(sol2.product_uom_qty, 0)
-            self.assertEqual(sol2.qty_delivered, 0)
+            self.assertEqual(sol2.qty_transferred, 0)
             self.assertEqual(sol2.purchase_price, self.product_avco_auto.standard_price, "0 Quantity and 0 Delivered => default to standard price")
             self.assertEqual(sol2.margin, 0, "margin = 0 if no quantities sold/delivered")
 
@@ -562,7 +564,7 @@ class TestSaleStockMargin(TestStockValuationCommon):
             delivery = move.picking_id
             delivery.button_validate()
             self.assertEqual(sol.product_uom_qty, 1)
-            self.assertEqual(sol.qty_delivered, 1)
+            self.assertEqual(sol.qty_transferred, 1)
             self.assertEqual(sol.purchase_price, self.product_avco_auto.standard_price, "purchase_price should match product's standard_price")
             self.assertEqual(sol.margin, 60, "margin = (sale price - purchase_price) * SOL quantity = (100 - 40) * 1 = 60")
             freeze.tick(delta=datetime.timedelta(seconds=2))
@@ -578,7 +580,7 @@ class TestSaleStockMargin(TestStockValuationCommon):
             return_pick = self.env['stock.picking'].browse(stock_return_picking_action['res_id'])
             return_pick.button_validate()
             self.assertEqual(sol.product_uom_qty, 1)
-            self.assertEqual(sol.qty_delivered, -2)
+            self.assertEqual(sol.qty_transferred, -2)
             self.assertEqual(self.product_avco_auto.standard_price, 33, "standard_price for avco = (7 * 30 + 3 * 40) / (7 + 3)) = 33: 7 remaining + 3 returned")
             self.assertEqual(sol.purchase_price, self.product_avco_auto.standard_price, "< 0 Delivered => default to standard price")
             self.assertEqual(sol.margin, 67, "margin = (sale price - purchase_price) * SOL quantity = (100 - 33) * 1 = 67")
@@ -607,7 +609,7 @@ class TestSaleStockMargin(TestStockValuationCommon):
             delivery.button_validate()
             sol3 = so2.line_ids - throwaway_sol
             self.assertEqual(sol3.product_uom_qty, 0)
-            self.assertEqual(sol3.qty_delivered, 2)
+            self.assertEqual(sol3.qty_transferred, 2)
             self.assertEqual(self.product_avco_auto.standard_price, 32.5, 'no new incoming moves, std price should be unchanged')
             # purchase_unit_from_delivery = line.move_ids(done)._get_price_unit = (2 * 32.5) / 2 = 32.5
             self.assertEqual(sol3.purchase_price, self.product_avco_auto.standard_price, "purchase_price should match product's standard_price")
@@ -625,7 +627,7 @@ class TestSaleStockMargin(TestStockValuationCommon):
             return_pick = self.env['stock.picking'].browse(stock_return_picking_action['res_id'])
             return_pick.button_validate()
             self.assertEqual(sol3.product_uom_qty, 0)
-            self.assertEqual(sol3.qty_delivered, 1)
+            self.assertEqual(sol3.qty_transferred, 1)
             # purchase_unit_from_delivery = line.move_ids(done)._get_price_unit = (2 * 32.5 + 1 * 32.5) / (2 + 1) = 32.5
             self.assertEqual(sol3.purchase_price, 32.5, "purchase_price = 2 * 32.5 + 1 * 32.5) / (2 + 1) = 32.5")
             self.assertEqual(sol3.margin, -32.5, "margin = SOL qty * sale price - purchase_price * qty_delivered = (0 - 32.5) * 1 = -32.5")

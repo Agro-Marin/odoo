@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 from odoo.tests import tagged
@@ -120,7 +119,7 @@ class TestSaleTimesheetProjectProfitability(TestCommonSaleTimesheet):
         self.assertIn('billable_manual', sequence_per_invoice_type)
         self.assertEqual(self.task.sale_line_id, delivery_service_order_line)
         self.assertEqual((foreign_timesheet1 + foreign_timesheet2).so_line, delivery_service_order_line)
-        self.assertEqual(delivery_service_order_line.qty_delivered, 0.0, 'The service type is not timesheet but manual so the quantity delivered is not increased by the timesheets linked.')
+        self.assertEqual(delivery_service_order_line.qty_transferred, 0.0, 'The service type is not timesheet but manual so the quantity delivered is not increased by the timesheets linked.')
 
         # Adding an extra cost/revenue to ensure those are computed correctly.
         self.env['account.analytic.line'].create([{
@@ -171,7 +170,7 @@ class TestSaleTimesheetProjectProfitability(TestCommonSaleTimesheet):
             'unit_amount': 2.0,
         })
         self.assertEqual((timesheet1 + timesheet2).so_line, delivery_service_order_line)
-        self.assertEqual(delivery_service_order_line.qty_delivered, 0.0, 'The service type is not timesheet but manual so the quantity delivered is not increased by the timesheets linked.')
+        self.assertEqual(delivery_service_order_line.qty_transferred, 0.0, 'The service type is not timesheet but manual so the quantity delivered is not increased by the timesheets linked.')
 
         self.assertDictEqual(
             self.project_task_rate._get_profitability_items(False),
@@ -298,8 +297,8 @@ class TestSaleTimesheetProjectProfitability(TestCommonSaleTimesheet):
         self.task.write({'sale_line_id': foreign_delivery_timesheet_order_line.id})
         billable_timesheets = timesheet1 + timesheet2 + foreign_timesheet1 + foreign_timesheet2
         self.assertEqual(billable_timesheets.so_line, foreign_delivery_timesheet_order_line, 'The SOL of the timesheets should be the one of the task.')
-        self.assertEqual(foreign_delivery_timesheet_order_line.qty_delivered, timesheet1.unit_amount + timesheet2.unit_amount + foreign_timesheet1.unit_amount + foreign_timesheet2.unit_amount,
-                         'Since the product type of the SOL is "delivered on TS", the qty_delivered of the SOL should be the total of unit amount of the TS.')
+        self.assertEqual(foreign_delivery_timesheet_order_line.qty_transferred, timesheet1.unit_amount + timesheet2.unit_amount + foreign_timesheet1.unit_amount + foreign_timesheet2.unit_amount,
+                         'Since the product type of the SOL is "delivered on TS", the qty_transferred of the SOL should be the total of unit amount of the TS.')
 
         self.assertDictEqual(
             self.project_task_rate._get_profitability_items(False),
@@ -425,7 +424,7 @@ class TestSaleTimesheetProjectProfitability(TestCommonSaleTimesheet):
             [data for data in profitability_items['costs']['data'] if data['id'] == 'billable_milestones'][0],
             {'id': 'billable_milestones', 'sequence': sequence_per_invoice_type['billable_milestones'], 'to_bill': 0.0, 'billed': task2_foreign_timesheet.amount * 0.2},
         )
-        milestone_foreign_order_line.qty_delivered = 1
+        milestone_foreign_order_line.qty_transferred = 1
         profitability_items = self.project_task_rate._get_profitability_items(False)
         self.assertDictEqual(
             [data for data in profitability_items['revenues']['data'] if data['id'] == 'billable_milestones'][0],
@@ -445,7 +444,7 @@ class TestSaleTimesheetProjectProfitability(TestCommonSaleTimesheet):
             {'id': 'billable_milestones', 'sequence': sequence_per_invoice_type['billable_milestones'], 'to_bill': 0.0,
              'billed': task2_timesheet.amount + task2_foreign_timesheet.amount * 0.2},
         )
-        milestone_foreign_order_line.qty_delivered = 2
+        milestone_foreign_order_line.qty_transferred = 2
         profitability_items = self.project_task_rate._get_profitability_items(False)
         self.assertDictEqual(
             [data for data in profitability_items['revenues']['data'] if data['id'] == 'billable_milestones'][0],
@@ -474,7 +473,7 @@ class TestSaleTimesheetProjectProfitability(TestCommonSaleTimesheet):
             {'id': 'billable_milestones', 'sequence': sequence_per_invoice_type['billable_milestones'], 'to_bill': 0.0,
              'billed': task2_timesheet.amount + task2_foreign_timesheet.amount * 0.2 + task3_timesheet.amount},
         )
-        milestone_order_line.qty_delivered = 1
+        milestone_order_line.qty_transferred = 1
         profitability_items = self.project_task_rate._get_profitability_items(False)
         self.assertDictEqual(
             [data for data in profitability_items['revenues']['data'] if data['id'] == 'billable_milestones'][0],

@@ -151,7 +151,7 @@ registry.category("web_tour.tours").add('sale_timesheet_tour', {
         let index = -1;
         for (let i = 0; i < tr.children.length; i++) {
             const th = tr.children.item(i);
-            if (th.dataset && th.dataset.name === 'qty_delivered')
+            if (th.dataset && th.dataset.name === 'qty_transferred')
                 index = i;
         }
         const qtyDelivered = queryFirst(`tbody > tr:first-child > td.o_data_cell:eq(${index})`, { root: this.anchor });

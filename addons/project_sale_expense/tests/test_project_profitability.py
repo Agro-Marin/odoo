@@ -2,9 +2,13 @@
 
 from odoo.tests import tagged
 
-from odoo.addons.project_hr_expense.tests.test_project_profitability import TestProjectHrExpenseProfitabilityCommon
+from odoo.addons.project_hr_expense.tests.test_project_profitability import (
+    TestProjectHrExpenseProfitabilityCommon,
+)
 from odoo.addons.sale.tests.common import TestSaleCommon
-from odoo.addons.sale_project.tests.test_project_profitability import TestProjectProfitabilityCommon
+from odoo.addons.sale_project.tests.test_project_profitability import (
+    TestProjectProfitabilityCommon,
+)
 
 
 @tagged('-at_install', 'post_install')
@@ -95,8 +99,8 @@ class TestProjectSaleExpenseProfitability(TestProjectProfitabilityCommon, TestPr
         self.assertEqual(expense.state, 'posted')
         self.assertRecordValues(self.sale_order.line_ids, [
             # Original SO line:
-            {'is_expense': False, 'product_uom_qty': 10.0, 'qty_delivered': 0.0, 'product_id': self.product_delivery_service.id},
-            {'is_expense': True,  'product_uom_qty':  1.0, 'qty_delivered': 1.0, 'product_id': self.company_data['product_order_sales_price'].id},
+            {'is_expense': False, 'product_uom_qty': 10.0, 'qty_transferred': 0.0, 'product_id': self.product_delivery_service.id},
+            {'is_expense': True,  'product_uom_qty':  1.0, 'qty_transferred': 1.0, 'product_id': self.company_data['product_order_sales_price'].id},
         ])
         expense_sol = self.sale_order.line_ids.filtered(lambda sol: sol.product_id == self.company_data['product_order_sales_price'])
 

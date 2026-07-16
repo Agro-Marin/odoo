@@ -1,7 +1,7 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 from collections import defaultdict
 
-from odoo import api, fields, models, _
+from odoo import _, api, fields, models
 
 
 class SaleOrder(models.Model):
@@ -50,15 +50,15 @@ class SaleOrder(models.Model):
 class SaleOrderLine(models.Model):
     _inherit = 'sale.order.line'
 
-    def _compute_qty_delivered(self):
+    def _compute_qty_transferred(self):
         remaining_so_lines = self
         for so_line in self:
             move = so_line.move_ids.sudo().filtered(lambda m: m.repair_id and m.state == 'done')
             if len(move) != 1:
                 continue
             remaining_so_lines -= so_line
-            so_line.qty_delivered = move.quantity
-        return super(SaleOrderLine, remaining_so_lines)._compute_qty_delivered()
+            so_line.qty_transferred = move.quantity
+        return super(SaleOrderLine, remaining_so_lines)._compute_qty_transferred()
 
     @api.model_create_multi
     def create(self, vals_list):

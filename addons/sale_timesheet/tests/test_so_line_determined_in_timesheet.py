@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 from odoo.tests import tagged
@@ -30,7 +29,7 @@ class TestSoLineDeterminedInTimesheet(TestCommonSaleTimesheet):
         # 2) Compute the SOL for the task and check if we have the one containing the prepaid service product
         # task._compute_sale_line()
         self.assertEqual(task.sale_line_id, self.so.line_ids[-1], "The SOL in the task should be the one containing the prepaid service product.")
-        self.assertTrue(all(sol.qty_delivered == 0 for sol in self.so.line_ids), "The quantity delivered should be equal to 0 because we have no timesheet for each SOL containing in the SO.")
+        self.assertTrue(all(sol.qty_transferred == 0 for sol in self.so.line_ids), "The quantity delivered should be equal to 0 because we have no timesheet for each SOL containing in the SO.")
 
         # 3) Create timesheet and check if the SOL in this timesheet is the one in the task
         timesheet = self.env['account.analytic.line'].create({
@@ -41,7 +40,7 @@ class TestSoLineDeterminedInTimesheet(TestCommonSaleTimesheet):
             'task_id': task.id,
         })
         self.assertEqual(timesheet.so_line, task.sale_line_id, "The SOL in the timesheet should be the same than the one in the task.")
-        self.assertEqual(self.so.line_ids[-1].qty_delivered, 2, "The quantity delivered should be equal to 2.")
+        self.assertEqual(self.so.line_ids[-1].qty_transferred, 2, "The quantity delivered should be equal to 2.")
         self.assertEqual(task.remaining_hours_so, 0, "The remaining hours on the SOL containing the prepaid service product should be equals to 0.")
 
         # 4) Since the remaining hours of the prepaid service product is equals to 0 hour, when we create a new task, the SOL in this one should be equals to False
@@ -77,7 +76,7 @@ class TestSoLineDeterminedInTimesheet(TestCommonSaleTimesheet):
             'project_id': self.project_project_rate.id,
         })
         self.assertEqual(task.sale_line_id, self.so.line_ids[0], "The SOL in the task should be the one containing the prepaid service product.")
-        self.assertTrue(all(sol.qty_delivered == 0 for sol in self.so.line_ids), "The quantity delivered should be equal to 0 because we have no timesheet for each SOL containing in the SO.")
+        self.assertTrue(all(sol.qty_transferred == 0 for sol in self.so.line_ids), "The quantity delivered should be equal to 0 because we have no timesheet for each SOL containing in the SO.")
 
         # 3) Create timesheet in the task and check if the SOL in the timesheet is the one in the task
         timesheet = self.env['account.analytic.line'].create({
@@ -88,7 +87,7 @@ class TestSoLineDeterminedInTimesheet(TestCommonSaleTimesheet):
             'task_id': task.id,
         })
         self.assertTrue(timesheet.so_line == task.sale_line_id == self.so.line_ids[0], "The SOL in the timesheet should be the same than the one in the task.")
-        self.assertEqual(self.so.line_ids[0].qty_delivered, 1, "The quantity delivered should be equal to 1.")
+        self.assertEqual(self.so.line_ids[0].qty_transferred, 1, "The quantity delivered should be equal to 1.")
 
         # 4) Change the SOL in the task and check if the SOL in the timesheet has also changed
         task.update({'sale_line_id': self.so.line_ids[1].id})
@@ -123,7 +122,7 @@ class TestSoLineDeterminedInTimesheet(TestCommonSaleTimesheet):
             'project_id': self.project_employee_rate.id,
         })
         self.assertEqual(task.sale_line_id, self.so.line_ids[0], "The SOL in the task should be the one containing the prepaid service product.")
-        self.assertTrue(all(sol.qty_delivered == 0 for sol in self.so.line_ids), "The quantity delivered should be equal to 0 because we have no timesheet for each SOL containing in the SO.")
+        self.assertTrue(all(sol.qty_transferred == 0 for sol in self.so.line_ids), "The quantity delivered should be equal to 0 because we have no timesheet for each SOL containing in the SO.")
 
         # 3) Create timesheet in the task and check if the SOL in the timesheet is the one in the task,
         timesheet = self.env['account.analytic.line'].create({
@@ -135,7 +134,7 @@ class TestSoLineDeterminedInTimesheet(TestCommonSaleTimesheet):
             'task_id': task.id,
         })
         self.assertTrue(timesheet.so_line == task.sale_line_id == self.so.line_ids[0], "The SOL in the timesheet should be the same than the one in the task.")
-        self.assertEqual(self.so.line_ids[0].qty_delivered, 1, "The quantity delivered should be equal to 1 for all SOLs in the SO.")
+        self.assertEqual(self.so.line_ids[0].qty_transferred, 1, "The quantity delivered should be equal to 1 for all SOLs in the SO.")
 
         # 4) Create timesheet in the task for the employee defined in the mapping and check if the SOL in this timesheet is the one defined in the # mapping,
         employee_user_timesheet = timesheet.copy({
@@ -145,7 +144,7 @@ class TestSoLineDeterminedInTimesheet(TestCommonSaleTimesheet):
         })
         employee_user_timesheet._compute_so_line()
         self.assertTrue(employee_user_timesheet.so_line == self.project_employee_rate.sale_line_employee_ids[0].sale_line_id == self.so.line_ids[1], "The SOL in the timesheet should be the one defined in the mapping for the employee user.")
-        self.assertEqual(self.so.line_ids[1].qty_delivered, 2, "The quantity delivered for this SOL should be equal to 2 hours.")
+        self.assertEqual(self.so.line_ids[1].qty_transferred, 2, "The quantity delivered for this SOL should be equal to 2 hours.")
 
         # 5) Change the SOL in the task and check if only the SOL in the timesheet which does not concerne about the mapping changes,
         task.update({'sale_line_id': self.so.line_ids[2].id})

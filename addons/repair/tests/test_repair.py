@@ -1,9 +1,8 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 from odoo import Command, fields
 from odoo.exceptions import UserError
-from odoo.tests import tagged, common, Form, HttpCase
+from odoo.tests import Form, HttpCase, common, tagged
 from odoo.tools import float_compare, float_is_zero
 
 
@@ -415,9 +414,9 @@ class TestRepair(TestRepairCommon):
         for line in repair_order.move_ids:
             line.quantity = line.product_uom_qty
         repair_order.action_repair_end()
-        self.assertEqual(order_line.product_uom_qty, order_line.qty_delivered)
+        self.assertEqual(order_line.product_uom_qty, order_line.qty_transferred)
         self.assertEqual(float_compare(sol_part_0.product_uom_qty, ro_line_0.quantity, 2), 0)
-        self.assertTrue(float_is_zero(sol_part_1.qty_delivered, 2))
+        self.assertTrue(float_is_zero(sol_part_1.qty_transferred, 2))
 
 
     def test_repair_compute_product_uom(self):
@@ -734,7 +733,7 @@ class TestRepair(TestRepairCommon):
         repair_order.action_create_sale_order()
         sale_order = repair_order.sale_order_id
         sale_order.action_confirm()
-        self.assertEqual(sale_order.line_ids.qty_delivered, 1.0)
+        self.assertEqual(sale_order.line_ids.qty_transferred, 1.0)
 
     def test_repair_order_uncomplete_moves(self):
         """

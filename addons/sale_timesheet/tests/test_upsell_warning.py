@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 from odoo.tests import tagged
@@ -65,7 +64,7 @@ class TestUpsellWarning(TestCommonSaleTimesheet):
             'task_id': task.id,
         })
         timesheet._compute_so_line()
-        so.line_ids._compute_qty_delivered()
+        so.line_ids._compute_qty_transferred()
         so.line_ids._compute_invoice_state()
         so._compute_invoice_state()
         # Normally this method is called at the end of _compute_invoice_state and other compute method. Here, we simulate for invoice_state field
@@ -76,7 +75,7 @@ class TestUpsellWarning(TestCommonSaleTimesheet):
             'unit_amount': 6,
         })
         timesheet._compute_so_line()
-        so.line_ids._compute_qty_delivered()
+        so.line_ids._compute_qty_transferred()
         so.line_ids._compute_invoice_state()
         so._compute_invoice_state()
         # Normally this method is called at the end of _compute_invoice_state and other compute method. Here, we simulate for invoice_state field
@@ -144,7 +143,7 @@ class TestUpsellWarning(TestCommonSaleTimesheet):
             'project_id': project.id,
             'task_id': task.id,
         })
-        so.line_ids._compute_qty_delivered()
+        so.line_ids._compute_qty_transferred()
 
         # 5) Create Invoice of the SO
         so._create_invoices()
@@ -214,14 +213,14 @@ class TestUpsellWarning(TestCommonSaleTimesheet):
             'project_id': project.id,
             'task_id': task.id,
         })
-        so.line_ids._compute_qty_delivered()
+        so.line_ids._compute_qty_transferred()
         # Normally this method is called at the end of _get_invoice_state and other compute method. Here, we simulate for invoice_state field
         so._compute_field_value(so._fields['invoice_state'])
         self.assertEqual(len(so.activity_search(['mail.mail_activity_data_todo'])), 1, 'An upsell warning should appear in the SO.')
 
         # 5) Update the ordered quantity of the SOL to match its delivered quantity
         so.line_ids.write({
-            'product_uom_qty': so.line_ids.qty_delivered,
+            'product_uom_qty': so.line_ids.qty_transferred,
         })
 
         # 6) Mark the upsell activity as done
@@ -242,7 +241,7 @@ class TestUpsellWarning(TestCommonSaleTimesheet):
             'project_id': project.id,
             'task_id': task.id,
         })
-        so.line_ids._compute_qty_delivered()
+        so.line_ids._compute_qty_transferred()
         # Normally this method is called at the end of _get_invoice_state and other compute method. Here, we simulate for invoice_state field
         so._compute_field_value(so._fields['invoice_state'])
 
