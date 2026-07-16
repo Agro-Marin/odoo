@@ -15,8 +15,13 @@ import {
     startServer,
 } from "@mail/../tests/mail_test_helpers";
 import { mailDataHelpers } from "@mail/../tests/mock_server/mail_mock_server";
-import { describe, test } from "@odoo/hoot";
-import { Command, serverState, withUser } from "@web/../tests/web_test_helpers";
+import { describe, expect, test } from "@odoo/hoot";
+import {
+    Command,
+    getService,
+    serverState,
+    withUser,
+} from "@web/../tests/web_test_helpers";
 import { rpc } from "@web/core/network/rpc";
 
 describe.current.tags("desktop");
@@ -93,6 +98,38 @@ test("rendering when just one has seen the message", async () => {
     await contains(".o-mail-MessageSeenIndicator[title='Seen by Demo User']");
     await contains(".o-mail-MessageSeenIndicator .fa-check", { count: 2 });
     await contains(".o-mail-MessageSeenIndicator.o-hasEveryoneSeen", { count: 0 });
+});
+
+test("seen by everyone ignores the self member's own seen marker", async () => {
+    const pyEnv = await startServer();
+    const partnerId = pyEnv["res.partner"].create({ name: "Demo User" });
+    const channelId = createChannel(pyEnv, {
+        name: "test",
+        members: ["self", partnerId],
+        channel_type: "group",
+    });
+    const [messageId_1, messageId_2] = createChannelMessages(pyEnv, channelId, [
+        { author_id: serverState.partnerId, body: "<p>First</p>" },
+        { author_id: serverState.partnerId, body: "<p>Second</p>" },
+    ]);
+    // the other member has seen everything...
+    writeMember(pyEnv, channelId, partnerId, {
+        fetched_message_id: messageId_2,
+        seen_message_id: messageId_2,
+    });
+    // ...while the self member's own marker lags (e.g. a stale snapshot from
+    // another device): it must not drag "seen by everyone" backwards
+    writeMember(pyEnv, channelId, serverState.partnerId, {
+        fetched_message_id: messageId_1,
+        seen_message_id: messageId_1,
+    });
+    await start();
+    const store = getService("mail.store");
+    const thread = await store.Thread.getOrFetch({
+        model: "discuss.channel",
+        id: channelId,
+    });
+    expect(thread.lastMessageSeenByAllId).toBe(messageId_2);
 });
 
 test("rendering when just one has seen & received the message", async () => {
