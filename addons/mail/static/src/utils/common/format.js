@@ -271,40 +271,57 @@ function generateMentionsLinks(
 ) {
     const mentions = [];
     for (const partner of partners) {
-        const placeholder = `@-mention-partner-${partner.id}`;
-        const text = `@${thread?.getPersonaName(partner) ?? partner.name}`;
         mentions.push({
+            text: `@${thread?.getPersonaName(partner) ?? partner.name}`,
+            placeholder: `@-mention-partner-${partner.id}`,
             link: generatePartnerMentionElement(partner, thread),
-            placeholder,
         });
-        body = htmlReplace(body, text, placeholder);
     }
-    for (const thread of threads) {
-        const placeholder = `#-mention-channel-${thread.id}`;
-        const text = `#${thread.fullNameWithParent}`;
+    for (const channel of threads) {
         mentions.push({
-            link: generateThreadMentionElement(thread),
-            placeholder,
+            text: `#${channel.fullNameWithParent}`,
+            placeholder: `#-mention-channel-${channel.id}`,
+            link: generateThreadMentionElement(channel),
         });
-        body = htmlReplace(body, text, placeholder);
     }
     for (const special of specialMentions) {
-        const text = `@${special}`;
-        const placeholder = `@-mention-special-${special}`;
         mentions.push({
+            text: `@${special}`,
+            placeholder: `@-mention-special-${special}`,
             link: generateSpecialMentionElement(special),
-            placeholder,
         });
-        body = htmlReplace(body, text, placeholder);
     }
     for (const role of roles) {
-        const placeholder = `@-mention-role-${role.id}`;
-        const text = `@${role.name}`;
         mentions.push({
+            text: `@${role.name}`,
+            placeholder: `@-mention-role-${role.id}`,
             link: generateRoleMentionElement(role),
-            placeholder,
         });
-        body = htmlReplace(body, text, placeholder);
+    }
+    // Group mentions that share the exact same text (e.g. two different people
+    // with the same display name, each mentioned once).
+    const mentionsByText = new Map();
+    for (const mention of mentions) {
+        if (!mentionsByText.has(mention.text)) {
+            mentionsByText.set(mention.text, []);
+        }
+        mentionsByText.get(mention.text).push(mention);
+    }
+    // Substitute the longest mention text first so a shorter name that is a
+    // prefix of a longer one (e.g. "@Jo" vs "@John") cannot splice its
+    // placeholder into the middle of the longer mention.
+    const orderedTexts = [...mentionsByText.keys()].sort((a, b) => b.length - a.length);
+    for (const text of orderedTexts) {
+        const group = mentionsByText.get(text);
+        // Assign the first occurrences to the first personas positionally (this
+        // is how two distinct people sharing a name are told apart)...
+        for (let i = 0; i < group.length - 1; i++) {
+            body = htmlReplace(body, text, group[i].placeholder);
+        }
+        // ...then map every remaining occurrence to the last persona, so a
+        // single persona mentioned repeatedly is fully linkified rather than
+        // only on its first occurrence.
+        body = htmlReplaceAll(body, text, group.at(-1).placeholder);
     }
     for (const mention of mentions) {
         const link = mention.link;
@@ -312,7 +329,7 @@ function generateMentionsLinks(
         // "$`", "$'"... inside the link HTML (e.g. from a display name) as
         // replacement patterns, splicing chunks of the body into the link.
         // markup: outerHTML is safe when used as a node
-        body = htmlReplace(body, mention.placeholder, () => markup(link.outerHTML));
+        body = htmlReplaceAll(body, mention.placeholder, () => markup(link.outerHTML));
     }
     return htmlEscape(body);
 }
