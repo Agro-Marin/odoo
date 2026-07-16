@@ -8,6 +8,17 @@ import { getTabableElements } from "@web/core/utils/dom/ui";
 import { useBus } from "@web/core/utils/hooks";
 
 import { makeEditHandlers } from "./list_keyboard_edit.js";
+
+/**
+ * Max onPatched cycles a virtualized-out focus latch is allowed to survive
+ * unresolved. A virtualized scroll settles within a couple of patches, but a
+ * heavy render (many reactive subscriptions) can split it across more; the
+ * latch must outlive those so focus lands on the target row instead of
+ * dropping to <body>. The cap bounds a pathological latch (target row that
+ * never renders) so it cannot fire at an unrelated later patch and steal focus.
+ */
+const MAX_VIRT_FOCUS_RETRIES = 20;
+
 /**
  * @param {HTMLTableCellElement} cell
  * @param {number} [index]
@@ -144,7 +155,7 @@ export function useListKeyboardNavigation(tableRef, options) {
      * arrow moves, the origin cell/direction so the resolution dispatches
      * through the renderer's overridable ``findFocusFutureCell``.
      *
-     * @type {{ rowIndex: number, colIndex: number, recordId?: string, origin?: { cell: HTMLTableCellElement, cellIsInGroupRow: boolean, direction: "up" | "down" | "left" | "right" } } | null}
+     * @type {{ rowIndex: number, colIndex: number, recordId?: string, retries?: number, origin?: { cell: HTMLTableCellElement, cellIsInGroupRow: boolean, direction: "up" | "down" | "left" | "right" } } | null}
      */
     let pendingVirtFocus = null;
 
@@ -160,35 +171,81 @@ export function useListKeyboardNavigation(tableRef, options) {
             return pendingVirtFocus;
         },
         /**
-         * Retry focus for a pending virtualized-out position.
-         * Call from onPatched after virtualization has scrolled the row into view.
+         * Resolve focus for a pending virtualized-out position. Called from
+         * onPatched. A single edge arrow move scrolls the target row into the
+         * virtualization window, which can span several patches, and a patch
+         * that lands *after* focus was applied can re-create the focused cell
+         * node (dropping focus to <body>). The latch therefore stays sticky —
+         * it survives across patches and re-applies focus whenever it was lost
+         * — until focus rests on the target (settled) or the retry budget is
+         * spent. It is never re-applied over another live element, so it cannot
+         * steal focus the user moved elsewhere.
          */
         resolvePendingVirtFocus() {
             if (!pendingVirtFocus) {
                 return;
             }
             const pending = pendingVirtFocus;
-            pendingVirtFocus = null;
             let { rowIndex, colIndex } = pending;
             // Rows may have shifted between the arrow press and this patch
             // (insertion/removal while the scroll settled): re-resolve the row
             // index from the captured record id so focus lands on the intended
             // record, not whatever now sits at the latched index.
+            let recordStillExists = true;
             if (pending.recordId !== undefined) {
                 const flat = getGridState?.()?.findRowByRecordId(pending.recordId);
                 if (flat) {
                     rowIndex = flat.globalIndex;
+                } else {
+                    recordStillExists = false;
                 }
+            }
+            // Bound the latch's lifetime so a target that never renders (or a
+            // record that was deleted) cannot leave a zombie latch that fires
+            // at an unrelated later patch.
+            if (
+                !recordStillExists ||
+                (pending.retries || 0) >= MAX_VIRT_FOCUS_RETRIES
+            ) {
+                pendingVirtFocus = null;
+                return;
             }
             const element = focusAtPosition(tableRef, { rowIndex, colIndex });
             if (!element) {
+                // The target row has not scrolled into the rendered window yet:
+                // keep the latch so a later patch retries once it renders.
+                pending.retries = (pending.retries || 0) + 1;
                 return;
             }
-            // A plain arrow move dispatches the resolved cell through the
-            // renderer's overridable findFocusFutureCell (with the resolution
-            // latched, so no recompute) — subclasses that sync side state on
-            // arrow moves (documents preview, account_accountant attachment
-            // preview) observe virtualized-out moves like rendered ones.
+            const active = document.activeElement;
+            if (element === active || element.contains(active)) {
+                // Focus already rests on the target: the move has settled.
+                pendingVirtFocus = null;
+                return;
+            }
+            if (
+                active &&
+                active !== document.body &&
+                active.isConnected &&
+                tableRef.el &&
+                !tableRef.el.contains(active)
+            ) {
+                // Focus left the list entirely (the search bar, another widget,
+                // a freshly opened part): the pending move is stale — abandon it
+                // rather than yank focus back and steal it. Focus that is still
+                // inside the table is either the origin cell we are moving away
+                // from or a node a re-render is about to replace, so it does NOT
+                // take this branch.
+                pendingVirtFocus = null;
+                return;
+            }
+            // Focus was lost to <body>/a detached node — a virtualization
+            // re-render replaced the cell node mid-scroll. Re-apply it. A plain
+            // arrow move dispatches the resolved cell through the renderer's
+            // overridable findFocusFutureCell (with the resolution latched, so
+            // no recompute) — subclasses that sync side state on arrow moves
+            // (documents preview, account_accountant attachment preview)
+            // observe virtualized-out moves like rendered ones.
             const origin = pending.origin;
             const toFocus =
                 origin && findFocusFutureCell
@@ -202,6 +259,10 @@ export function useListKeyboardNavigation(tableRef, options) {
             if (toFocus) {
                 self.focus(toFocus);
             }
+            // Keep the latch (bounded): a subsequent re-render during the same
+            // scroll can drop focus again; the next patch re-applies until it
+            // sticks (cleared above once focus rests on the target).
+            pending.retries = (pending.retries || 0) + 1;
         },
 
         /**
