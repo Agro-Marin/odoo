@@ -50,6 +50,11 @@ patch(WebClient.prototype, {
                 .then((perm) => {
                     notificationPerm = perm;
                     notificationPerm.addEventListener("change", onPermissionChange);
+                })
+                .catch(() => {
+                    // engines that don't recognize the permission name reject
+                    // (historically Safari): an unhandled rejection on every
+                    // page load; permission-change tracking is best-effort
                 });
             onWillDestroy(() => {
                 notificationPerm?.removeEventListener("change", onPermissionChange);
@@ -116,10 +121,6 @@ patch(WebClient.prototype, {
                 }
                 return;
             }
-            browser.localStorage.setItem(
-                `${USER_DEVICES_MODEL}_endpoint`,
-                subscription.endpoint,
-            );
         }
         const kwargs = subscription.toJSON();
         if (previousEndpoint && subscription.endpoint !== previousEndpoint) {
@@ -130,6 +131,15 @@ patch(WebClient.prototype, {
                 subscription.options.applicationServerKey,
             );
             await this.orm.call(USER_DEVICES_MODEL, "register_devices", [], kwargs);
+            // refresh after EVERY successful registration, not only after a
+            // fresh subscribe: when the browser rotates the subscription while
+            // one exists (e.g. the worker's pushsubscriptionchange path, which
+            // cannot touch this localStorage), a stale previousEndpoint would
+            // otherwise be re-sent for a long-dead endpoint forever
+            browser.localStorage.setItem(
+                `${USER_DEVICES_MODEL}_endpoint`,
+                subscription.endpoint,
+            );
         } catch (e) {
             const invalidVapidErrorClass =
                 "odoo.addons.mail.tools.jwt.InvalidVapidError";
