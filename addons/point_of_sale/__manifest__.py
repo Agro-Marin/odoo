@@ -246,5 +246,15 @@
             "point_of_sale.base_app",
             "point_of_sale.customer_display_assets",
         ],
+        # ``/pos/ui`` renders ``web.assets_tests`` in test mode; declaring it a
+        # secondary of the POS app bundles makes the served import map carry the
+        # singleton-preserving bridges (``@web/core/browser/browser`` →
+        # ``odoo.loader.modules`` shim), so a test patching ``browser`` reaches
+        # the running app instead of a re-bundled copy. Both the light and dark
+        # prod bundles can be the page's first (import-map-winning) ESM bundle.
+        "secondary_import_map_includes": {
+            "point_of_sale.assets_prod": ["web.assets_tests"],
+            "point_of_sale.assets_prod_dark": ["web.assets_tests"],
+        },
     },
 }

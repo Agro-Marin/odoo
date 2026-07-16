@@ -493,6 +493,7 @@ class AssetsBundle:
         target: str | None = None,
         source_maps: str | None = None,
         dynamic_child_specs: frozenset[str] | None = None,
+        secondary_parent_stubs: dict[str, str] | None = None,
     ) -> EsbuildResult:
         """Bundle native ESM modules into one minified file via esbuild.
 
@@ -505,6 +506,7 @@ class AssetsBundle:
             target=target,
             source_maps=source_maps,
             dynamic_child_specs=dynamic_child_specs,
+            secondary_parent_stubs=secondary_parent_stubs,
         )
 
     # ── bridge layer (in odoo.tools.assets.esm_bridges) ──

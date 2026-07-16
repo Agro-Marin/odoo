@@ -33,14 +33,24 @@
             odoo.loadMenusPromise = Promise.resolve();
         </script>
 
-        <t t-call="web.conditional_assets_tests">
-            <t t-set="ignore_missing_deps" t-value="True"/>
-        </t>
+        <!-- The POS app bundle is rendered FIRST so its ``<script type=importmap>``
+             wins (only the first ESM bundle's import map is honoured per document)
+             AND its module evaluates before ``web.assets_tests``. Both matter:
+             the app bundle registers the core singletons in ``odoo.loader.modules``,
+             then the deferred test bundle resolves its externalised imports
+             (browser/registry/…) through the app map's bridge shims to those very
+             instances. Rendering the tests first (the pre-2026-07 order) made the
+             test bundle inline a SECOND copy of ``browser`` that patches never
+             reached — the singleton-split bug. Mirrors ``web.webclient`` (backend)
+             and the frontend layout, which both render the app bundle first. -->
         <t t-if="request.cookies.get('pos_color_scheme') == 'dark'">
             <t t-call-assets="point_of_sale.assets_prod_dark"/>
         </t>
         <t t-else="">
             <t t-call-assets="point_of_sale.assets_prod"/>
+        </t>
+        <t t-call="web.conditional_assets_tests">
+            <t t-set="ignore_missing_deps" t-value="True"/>
         </t>
         <t t-if="use_pos_fake_tours">
             <t t-call-assets="point_of_sale.assets_debug" />

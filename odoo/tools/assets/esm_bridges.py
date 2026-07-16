@@ -453,6 +453,42 @@ class BridgeShimManager:
                     record(specifier, None)
         return discovered, ext_seen
 
+    def build_shim_sources(self, specifiers: set[str]) -> dict[str, str]:
+        """Return ``{specifier: shim_js}`` for ``specifiers``, WITHOUT persisting.
+
+        A leaner sibling of :meth:`_build_native_to_legacy_bridge` for the
+        esbuild stub-alias path: instead of persisting shims as attachments and
+        returning URLs (for an import map), it returns the shim SOURCE so the
+        compiler can write each to a temp file and inline it via a module-exact
+        ``--alias``.  Used to preserve singleton identity for a secondary
+        bundle's shared specifiers (browser/registry/…) without an import-map
+        round trip — the inlined shim reads ``odoo.loader.modules.get(spec)``,
+        the instance the parent app bundle registered.
+
+        ``specifiers`` must be cross-bundle specifiers (not this bundle's own
+        native modules); each shim re-exports the target's names from
+        ``odoo.loader.modules``.  Import kinds are read from this bundle's
+        actual imports so the shim emits a default export exactly when a
+        consumer uses one.
+        """
+        if not specifiers:
+            return {}
+        # Import kinds (default/star/named) as this bundle's modules use them,
+        # so the shim's export shape matches what consumers destructure.
+        discovered, _ext = self._discover_bridge_specifiers(
+            set(), set(ODOO_EXTERNAL_LIBS)
+        )
+        resolver = _BridgeExportResolver(
+            ODOO_EXTERNAL_LIBS, EsbuildCompiler._LIB_CANDIDATES, self.bundle_name
+        )
+        shims: dict[str, str] = {}
+        for spec in sorted(specifiers):
+            kinds = discovered.get(spec) or {"__default__"}
+            src_names, has_default = resolver.source_exports(spec)
+            shim, _star = _bridge_shim_source(spec, kinds, src_names, has_default)
+            shims[spec] = shim
+        return shims
+
     def _build_native_to_legacy_bridge(
         self,
         native_specifiers: set[str],

@@ -491,6 +491,7 @@ class EsbuildCompiler:
         target: str | None = None,
         source_maps: str | None = None,
         dynamic_child_specs: frozenset[str] | None = None,
+        secondary_parent_stubs: dict[str, str] | None = None,
     ) -> EsbuildResult:
         """Bundle native ESM modules into a single minified file using esbuild.
 
@@ -526,6 +527,19 @@ class EsbuildCompiler:
             the page's import map to the child bundle's registration.
             ``None`` (default) skips this entirely.  Computed by
             ``ir.qweb`` from the manifest-declared ``esm.dynamic_children``.
+        :param secondary_parent_stubs: ``{specifier: shim_js}`` for the
+            specifiers this bundle shares with its parent app bundle (only set
+            for ``secondary_import_map_includes`` bundles like
+            ``web.assets_tests``).  Each shim is written to a temp file and
+            wired as a MODULE-EXACT ``--alias`` (which beats the ``@addon``
+            package alias, so esbuild inlines the tiny shim instead of a SECOND
+            copy of ``@web/core/browser/browser`` / ``@web/core/registry`` / …).
+            The shim reads ``odoo.loader.modules.get(spec)`` at eval time —
+            the instance the parent app bundle registered — so the test bundle
+            and the running app share one object (the identity
+            ``patchWithCleanup(browser, …)`` and RPC's ``browser.fetch``
+            depend on).  Relies on the parent bundle evaluating FIRST
+            (app-before-tests document order).  ``None`` (default) skips it.
 
         Requires esbuild (``npm install`` in the Odoo root).
         """
@@ -585,6 +599,22 @@ class EsbuildCompiler:
         tmp_dir = tempfile.mkdtemp(prefix=f"odoo-esbuild-{self.name}-")
         out_path = str(Path(tmp_dir) / "bundle.out.js")
         metafile_path = str(Path(tmp_dir) / "bundle.meta.json")
+
+        # Secondary-bundle singleton stubs: write each shim to a temp file and
+        # add a MODULE-EXACT ``--alias`` so esbuild inlines the shim (which
+        # reads ``odoo.loader.modules``) instead of a second copy of the shared
+        # module. Exact ``--alias:@web/core/browser/browser=…`` outranks the
+        # ``@web`` package alias, so ONLY these specifiers are redirected; the
+        # bundle's other ``@web/*`` imports still resolve+inline normally. The
+        # stub dir lives under ``tmp_dir`` and is removed with it.
+        alias_flags = list(alias_flags)
+        if secondary_parent_stubs:
+            stub_dir = Path(tmp_dir) / "stubs"
+            stub_dir.mkdir()
+            for i, (spec, shim_js) in enumerate(sorted(secondary_parent_stubs.items())):
+                stub_path = stub_dir / f"stub_{i}.js"
+                stub_path.write_text(shim_js, encoding="utf-8")
+                alias_flags.append(f"--alias:{spec}={stub_path}")
 
         log_event(
             _esbuild_log,
