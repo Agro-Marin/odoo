@@ -118,10 +118,19 @@ class GamificationKudos(models.Model):
     def create(self, vals_list: list[ValuesType]) -> Self:
         """Validate and create kudos, granting karma and posting notifications."""
         for vals in vals_list:
-            # A non-system caller can only send kudos *as themselves*: force the
-            # sender to the current user so a spoofed ``sender_id`` cannot be used
-            # to impersonate a colleague or farm karma onto oneself.
+            # A non-system caller can only send kudos *as themselves*. Reject a
+            # foreign ``sender_id`` loudly instead of silently rewriting it:
+            # the old coercion handed the caller back a record different from
+            # the one they asked for, with no visible error.
             if not self.env.su:
+                # Missing/falsy sender_id (imports, legacy RPC) is "no
+                # opinion", not a spoof — only a present, different id is
+                # rejected.
+                sender_id = vals.get("sender_id")
+                if sender_id and sender_id != self.env.uid:
+                    raise exceptions.UserError(
+                        _("Kudos can only be sent in your own name.")
+                    )
                 vals["sender_id"] = self.env.uid
             if vals.get("sender_id", self.env.uid) == vals.get("recipient_id"):
                 raise exceptions.UserError(_("You cannot send kudos to yourself."))
