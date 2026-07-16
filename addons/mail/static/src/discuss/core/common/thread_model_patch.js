@@ -182,7 +182,10 @@ const threadPatch = {
                 }
                 return this.channel_member_ids.reduce(
                     (lastMessageSeenByAllId, member) => {
-                        if (member.notEq(this.selfMember) && member.seen_message_id) {
+                        if (
+                            member.notEq(this.self_member_id) &&
+                            member.seen_message_id
+                        ) {
                             return lastMessageSeenByAllId
                                 ? Math.min(
                                       lastMessageSeenByAllId,
