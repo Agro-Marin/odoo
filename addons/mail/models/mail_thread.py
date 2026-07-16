@@ -1022,6 +1022,16 @@ class MailThread(models.AbstractModel):
             message_dict["bounced_message"],
         )
 
+        # NOTE (audit finding C-GW-1): a bounce increments message_bounce from
+        # the DSN's attacker-controllable Final-Recipient even without correlating
+        # to a message Odoo actually sent (bounced_message may be empty). This is
+        # an unauthenticated deliverability-poisoning vector, but it cannot be
+        # closed by a lightweight "require bounced_message" gate: Odoo
+        # legitimately supports incrementing the counter for reference-less
+        # bounces addressed to the bounce address (see
+        # test_message_process_bounce_multipart_alias). A proper fix requires
+        # authenticating the bounce via a signed/VERP bounce address encoding the
+        # original recipient — a dedicated change, not done here.
         if bounced_email:
             bounced_model, bounced_res_id = (
                 bounced_message.model,
@@ -1688,6 +1698,41 @@ class MailThread(models.AbstractModel):
                 ],
                 limit=1,
             )
+
+            # A reply matched purely by Message-Id / References is often
+            # addressed to the catchall rather than to the record's alias, which
+            # leaves dest_aliases empty and makes _routing_check_route skip the
+            # alias_contact (followers / partners) enforcement. Fall back to the
+            # target record's own alias so a restrictive contact policy is still
+            # honored: without this, anyone who learns a thread Message-Id (it
+            # leaks through CC/forwarding) could post into a followers-only
+            # thread. This only tightens records that own an alias with a
+            # non-"everyone" contact policy; the default "everyone" path is
+            # unaffected.
+            if not dest_aliases and reply_thread_id:
+                target_record = (
+                    self.env[reply_model].sudo().browse(reply_thread_id).exists()
+                )
+                if (
+                    target_record
+                    and "alias_id" in target_record._fields
+                    and target_record.alias_id
+                ):
+                    # The record owns its alias (alias mixin): use it directly.
+                    dest_aliases = target_record.alias_id
+                else:
+                    # No record-owned alias: consider the aliases that route to
+                    # this model. Only enforce when the policy is unambiguous,
+                    # i.e. every such alias shares a non-"everyone" contact
+                    # setting, so a legitimate reply to a record created through
+                    # a public ("everyone") alias is never blocked.
+                    model_aliases = self.env["mail.alias"].search(
+                        [("alias_model_id", "=", reply_model_id)]
+                    )
+                    if model_aliases and all(
+                        alias_.alias_contact != "everyone" for alias_ in model_aliases
+                    ):
+                        dest_aliases = model_aliases[:1]
 
             user_id = (
                 self._mail_find_user_for_gateway(email_from, alias=dest_aliases).id
@@ -3949,25 +3994,49 @@ class MailThread(models.AbstractModel):
                 ],
             )
         if self._mail_flat_thread and not current_ancestor:
-            # parent_message searched in sudo for performance, only used for id.
-            # Note that with sudo we will match message with internal subtypes.
-            current_ancestor = MailMessage_sudo.search(
-                [
-                    ("res_id", "=", self.id),
-                    ("model", "=", self._name),
-                    ("message_type", "!=", "user_notification"),
-                ],
-                order="date desc, id desc",
-                limit=200,  # arbitrary, but sometimes loops / spam may creater a long history
-            ).sorted(
-                lambda msg: (
-                    msg.message_type in ("comment", "email"),
-                    msg.date or msg.create_date or datetime.datetime.min,  # noqa: DTZ901
-                    msg.id,
-                ),
-                reverse=True,
+            # Attach to the most recent "public discussion" message (a comment
+            # or an email), falling back to the most recent non-notification
+            # message. Resolved with a single query that lets the DB pick the
+            # winner, instead of the old "fetch a fixed 200-row window and
+            # re-sort in Python" approach whose arbitrary window was a
+            # correctness bug: on a busy thread (e.g. an integration logging
+            # hundreds of notifications between two replies) the intended parent
+            # could fall past the window and the message be mis-parented to a
+            # notification or to nothing.
+            #
+            # The ORDER BY mirrors the previous Python sort key exactly:
+            #   1. comment/email before other non-notification messages,
+            #   2. then most recent by effective date -- COALESCE(date,
+            #      create_date) so a message with no explicit date still orders
+            #      by its creation time (a plain "date DESC" would sort such NULLs
+            #      first and wrongly win),
+            #   3. then highest id.
+            # Raw SQL (with an explicit flush, as the fields carry no @api.depends
+            # here) is required because COALESCE cannot be expressed through the
+            # ORM order string. Resolved in sudo, so internal subtypes also match;
+            # only the id is used.
+            self.env["mail.message"].flush_model(
+                ["model", "res_id", "message_type", "date", "create_date"]
             )
-            current_ancestor = current_ancestor[:1]
+            self.env.cr.execute(
+                SQL(
+                    """
+                    SELECT id
+                      FROM mail_message
+                     WHERE model = %s
+                       AND res_id = %s
+                       AND message_type != 'user_notification'
+                     ORDER BY (message_type IN ('comment', 'email')) DESC,
+                              COALESCE(date, create_date) DESC,
+                              id DESC
+                     LIMIT 1
+                    """,
+                    self._name,
+                    self.id,
+                )
+            )
+            row = self.env.cr.fetchone()
+            current_ancestor = MailMessage_sudo.browse(row[0] if row else ())
         return current_ancestor.id
 
     def _message_compute_subject(self):

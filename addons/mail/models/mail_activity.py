@@ -506,8 +506,12 @@ class MailActivity(models.Model):
             )
 
         # retrieve activities and their corresponding res_model, res_id
-        # Don't use the ORM to avoid cache pollution
-        query = super()._search(domain, offset, limit, order, **kwargs)
+        # Don't use the ORM to avoid cache pollution.
+        # Search WITHOUT the caller's offset/limit: the accessibility filter
+        # below runs in Python, so applying LIMIT/OFFSET in SQL first would
+        # truncate the candidates before filtering and yield short/skipped/
+        # duplicated pages. Pagination is re-applied after filtering.
+        query = super()._search(domain, order=order, **kwargs)
         fnames_to_read = ["id", "res_model", "res_id", "user_id"]
         rows = self.env.execute_query(
             query.select(
@@ -536,6 +540,11 @@ class MailActivity(models.Model):
             for id_, res_model, res_id, user_id in rows
             if user_id == self.env.uid or res_id in allowed_ids[res_model]
         )
+        # `rows` preserves the SQL order; apply the caller's pagination only now
+        # so a limited page is filled with accessible records.
+        if offset or limit is not None:
+            stop = (offset + limit) if limit is not None else None
+            activities = activities[offset:stop]
         return activities._as_query(order)
 
     @api.depends("summary", "activity_type_id")

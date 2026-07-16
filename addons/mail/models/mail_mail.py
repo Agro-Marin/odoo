@@ -607,8 +607,32 @@ class MailMail(models.Model):
                         "partner_id": False,
                     }
                 )
+        # On a retry after a partial send, do not resend to recipients whose
+        # email notification is already 'sent'; only the still-pending
+        # recipients must be emailed again. Without this, a mail that succeeded
+        # for some recipients but was re-queued (e.g. after a per-recipient
+        # delivery failure) would deliver a duplicate to everyone who already
+        # received it.
+        recipients = self.recipient_ids
+        if self.is_notification and recipients:
+            already_sent_pids = set(
+                self.env["mail.notification"]
+                .sudo()
+                .search(
+                    [
+                        ("mail_mail_id", "=", self.id),
+                        ("notification_type", "=", "email"),
+                        ("notification_status", "=", "sent"),
+                    ]
+                )
+                .res_partner_id.ids
+            )
+            if already_sent_pids:
+                recipients = recipients.filtered(
+                    lambda partner: partner.id not in already_sent_pids
+                )
         # specific behavior to customize the send email for notified partners
-        for partner in self.recipient_ids:
+        for partner in recipients:
             # check partner email content
             email_to_normalized = tools.mail.email_normalize_all(partner.email)
             email_to = [
@@ -817,6 +841,17 @@ class MailMail(models.Model):
         """To not flag personal email servers as spam, we throttle them at X emails / minutes."""
         if not mail_server or not mail_server.owner_user_id:
             return self
+
+        # Serialize the read-modify-write of the per-minute throttle counters
+        # (owner_limit_count / owner_limit_time) across concurrent send workers.
+        # Without a row lock two crons can both read the same owner_limit_count,
+        # both send up to MAX_SEND, and both write it back, silently doubling
+        # the personal-server rate limit this method exists to enforce. Taking
+        # the lock (and re-reading the counters from DB) makes the update
+        # atomic; the lock is held until the surrounding send transaction
+        # commits.
+        mail_server.lock_for_update()
+        mail_server.invalidate_recordset(["owner_limit_count", "owner_limit_time"])
 
         MAX_SEND = mail_server._get_personal_mail_servers_limit()
 
@@ -1204,6 +1239,34 @@ class MailMail(models.Model):
                             )
                         else:
                             raise
+                    except smtplib.SMTPServerDisconnected:
+                        # The SMTP session is dead: abort the whole batch (let
+                        # the outer connection-error handler re-raise) instead of
+                        # pretending only this recipient failed.
+                        raise
+                    except MailDeliveryException as error:
+                        # Delivery failed for THIS recipient only (e.g. a
+                        # per-address SMTP reject). Record it and keep going so
+                        # the remaining recipients of this mail are still
+                        # attempted; the per-recipient outcome is reflected on
+                        # each mail.notification by _postprocess_sent_message.
+                        # The already-succeeded recipients are collected in
+                        # success_pids/success_emails and, thanks to
+                        # _prepare_outgoing_list skipping 'sent' notifications,
+                        # are not re-emailed if this mail is later retried.
+                        # Preserve the failure classification the whole-mail
+                        # handler below would have applied (e.g. Outlook spam).
+                        if "OutboundSpamException" in str(error):
+                            failure_type = "mail_spam"
+                        else:
+                            failure_type = failure_type or "unknown"
+                        failure_reason = str(error)
+                        _logger.warning(
+                            "Delivery failed for one recipient of mail.mail %s: %s",
+                            mail.message_id,
+                            error,
+                        )
+                        processing_pid = None
                 if res:  # mail has been sent at least once, no major exception occurred
                     mail.write(
                         {

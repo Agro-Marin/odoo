@@ -60,14 +60,18 @@ class TestDiscussChannelAccess(MailCommon):
             ("user", "no_group", "member", "unlink", False),
             ("user", "no_group", "outside", "create", True),
             ("user", "no_group", "outside", "read", True),
-            ("user", "no_group", "outside", "write", True),
+            # structural writes (name/active/...) require membership: a
+            # non-member internal user must not be able to reconfigure a public
+            # channel they never joined.
+            ("user", "no_group", "outside", "write", False),
             ("user", "no_group", "outside", "unlink", False),
             ("user", "group_matching", "member", "read", True),
             ("user", "group_matching", "member", "write", True),
             ("user", "group_matching", "member", "unlink", False),
             ("user", "group_matching", "outside", "create", True),
             ("user", "group_matching", "outside", "read", True),
-            ("user", "group_matching", "outside", "write", True),
+            # structural writes require membership (see no_group case above).
+            ("user", "group_matching", "outside", "write", False),
             ("user", "group_matching", "outside", "unlink", False),
             ("user", "group_failing", "member", "read", False),
             ("user", "group_failing", "member", "write", False),
