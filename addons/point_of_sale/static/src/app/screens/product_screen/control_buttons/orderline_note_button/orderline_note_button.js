@@ -32,10 +32,10 @@ export class NoteButton extends Component {
 
     // Update line changes and set them
     async setChanges(selectedOrderline, payload) {
-        var quantity_with_note = 0;
+        let quantity_with_note = 0;
         const changes = this.pos.getOrderChanges();
         for (const key in changes.orderlines) {
-            if (changes.orderlines[key].uuid == selectedOrderline.uuid) {
+            if (changes.orderlines[key].uuid === selectedOrderline.uuid) {
                 quantity_with_note = changes.orderlines[key].quantity;
                 break;
             }

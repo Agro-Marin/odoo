@@ -1,5 +1,4 @@
 /** @odoo-module native */
-import { luxon } from "@web/core/l10n/luxon";
 import { Component, onMounted, onWillStart, useState } from "@odoo/owl";
 import { CenteredIcon } from "@point_of_sale/app/components/centered_icon/centered_icon";
 import {
@@ -22,6 +21,7 @@ import { SearchBar } from "@point_of_sale/app/screens/ticket_screen/search_bar/s
 import { makeAwaitable } from "@point_of_sale/app/utils/make_awaitable_dialog";
 import { BarcodeVideoScanner } from "@web/components/barcode/barcode_video_scanner";
 import { parseDateTime } from "@web/core/l10n/dates";
+import { luxon } from "@web/core/l10n/luxon";
 import { _t } from "@web/core/l10n/translation";
 import { ConnectionLostError } from "@web/core/network/rpc";
 import { registry } from "@web/core/registry";
@@ -116,7 +116,7 @@ export class TicketScreen extends Component {
         if (nbr && !isNaN(nbr)) {
             this.state.nbrByPage = parseInt(nbr);
             this.state.page = 1;
-            if (this.state.filter == "SYNCED") {
+            if (this.state.filter === "SYNCED") {
                 await this._fetchSyncedOrders();
             }
         }
@@ -141,7 +141,7 @@ export class TicketScreen extends Component {
         this.pos.screenState.ticketSCreen.totalCount = 0;
         this.pos.screenState.ticketSCreen.offsetByDomain = {};
 
-        if (this.state.filter == "SYNCED") {
+        if (this.state.filter === "SYNCED") {
             await this._fetchSyncedOrders();
         }
     }
@@ -182,7 +182,7 @@ export class TicketScreen extends Component {
     async onSearch(search) {
         this.state.search = search;
         this.state.page = 1;
-        if (this.state.filter == "SYNCED") {
+        if (this.state.filter === "SYNCED") {
             await this._fetchSyncedOrders();
         }
     }
@@ -214,7 +214,7 @@ export class TicketScreen extends Component {
     async onNextPage() {
         if (this.state.page < this.getNbrPages()) {
             this.state.page += 1;
-            if (this.state.filter == "SYNCED") {
+            if (this.state.filter === "SYNCED") {
                 await this._fetchSyncedOrders();
             }
         }
@@ -222,7 +222,7 @@ export class TicketScreen extends Component {
     async onPrevPage() {
         if (this.state.page > 1) {
             this.state.page -= 1;
-            if (this.state.filter == "SYNCED") {
+            if (this.state.filter === "SYNCED") {
                 await this._fetchSyncedOrders();
             }
         }
@@ -241,7 +241,7 @@ export class TicketScreen extends Component {
     onClickRefundOrderUid(orderUuid) {
         // Open the refund order.
         const refundOrder = this.pos.models["pos.order"].find(
-            (order) => order.uuid == orderUuid,
+            (order) => order.uuid === orderUuid,
         );
         if (refundOrder) {
             this.setOrder(refundOrder);
@@ -259,7 +259,7 @@ export class TicketScreen extends Component {
             return this.numberBuffer.reset();
         }
 
-        if (buffer == null || buffer == "") {
+        if (buffer == null || buffer === "") {
             toRefundDetail.qty = 0;
         } else {
             const quantity = Math.abs(parseFloat(buffer));
@@ -287,7 +287,7 @@ export class TicketScreen extends Component {
         }
 
         const selectedOrderlineId = this.getSelectedOrderlineId();
-        let orderline = order.lines.find((line) => line.id == selectedOrderlineId);
+        let orderline = order.lines.find((line) => line.id === selectedOrderlineId);
         if (!orderline) {
             return this.numberBuffer.reset();
         }
@@ -562,7 +562,7 @@ export class TicketScreen extends Component {
         const orders = this.pos.models["pos.order"].filter((o) => !o.finalized);
         return (
             (orders.length === 1 && orders[0].lines.length === 0) ||
-            (this.ui.isSmall && order != this.getSelectedOrder()) ||
+            (this.ui.isSmall && order !== this.getSelectedOrder()) ||
             this.isDefaultOrderEmpty(order) ||
             order.finalized ||
             order.payment_ids.some(
@@ -573,7 +573,7 @@ export class TicketScreen extends Component {
     }
     isHighlighted(order) {
         const selectedOrder = this.getSelectedOrder();
-        return selectedOrder ? order.id && order.id == selectedOrder.id : false;
+        return selectedOrder ? order.id && order.id === selectedOrder.id : false;
     }
     showCardholderName() {
         return this.pos.models["pos.payment.method"].some(
@@ -665,7 +665,7 @@ export class TicketScreen extends Component {
     }
     _prepareAutoRefundOnOrder(order) {
         const selectedOrderlineId = this.getSelectedOrderlineId();
-        const orderline = order.lines.find((line) => line.id == selectedOrderlineId);
+        const orderline = order.lines.find((line) => line.id === selectedOrderlineId);
         if (!orderline) {
             return false;
         }

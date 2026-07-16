@@ -8,6 +8,7 @@ import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
 import { formatFloat } from "@web/core/utils/format/numbers";
 import { parseFloat } from "@web/fields/parsers";
+
 import { PosOrderlineAccounting } from "./accounting/pos_order_line_accounting.js";
 
 export class PosOrderline extends PosOrderlineAccounting {
@@ -279,7 +280,7 @@ export class PosOrderline extends PosOrderlineAccounting {
                         "Only a negative quantity is allowed for this refund line. Click on +/- to modify the quantity to be refunded.",
                     ),
                 };
-            } else if (quant == 0) {
+            } else if (quant === 0) {
                 refundDetails.qty = 0;
             } else if (-quant <= maxQtyToRefund) {
                 refundDetails.qty = -quant;
@@ -340,7 +341,7 @@ export class PosOrderline extends PosOrderlineAccounting {
     }
 
     setQuantityByLot() {
-        var valid_lots_quantity = this.getValidLots().length;
+        let valid_lots_quantity = this.getValidLots().length;
         if (this.qty < 0) {
             valid_lots_quantity = -valid_lots_quantity;
         }
@@ -350,7 +351,7 @@ export class PosOrderline extends PosOrderlineAccounting {
     hasValidProductLot() {
         const valid_product_lot = this.getValidLots();
         const lotsRequired =
-            this.product_id.tracking == "serial" ? Math.abs(this.qty) : 1;
+            this.product_id.tracking === "serial" ? Math.abs(this.qty) : 1;
         return lotsRequired === valid_product_lot.length;
     }
 
@@ -494,7 +495,7 @@ export class PosOrderline extends PosOrderlineAccounting {
     get packLotLines() {
         return this.pack_lot_ids.map(
             (l) =>
-                `${l.pos_order_line_id.product_id.tracking == "lot" ? "Lot Number" : "SN"} ${
+                `${l.pos_order_line_id.product_id.tracking === "lot" ? "Lot Number" : "SN"} ${
                     l.lot_name
                 }`,
         );

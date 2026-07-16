@@ -40,7 +40,7 @@ export class SelectProductAttribute extends BaseProductAttribute {
         this.props.setSelected(
             this.props.attribute
                 .values()
-                .find((value) => value.id == event.target.value),
+                .find((value) => value.id === event.target.value),
         );
     }
 }
@@ -167,7 +167,7 @@ export class ProductConfiguratorPopup extends Component {
                     const forceVariant = this.props.forceVariantValue
                         ? Object.values(this.props.forceVariantValue).find(
                               (att) =>
-                                  att.attribute_line_id.id ==
+                                  att.attribute_line_id.id ===
                                   value.attribute_line_id.id,
                           )
                         : false;

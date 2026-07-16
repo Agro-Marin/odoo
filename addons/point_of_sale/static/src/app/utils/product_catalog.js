@@ -60,7 +60,7 @@ export function getProductsBySearchWord(searchWord, products) {
         (a, b) =>
             (a.index === -1) - (b.index === -1) ||
             a.index - b.index ||
-            (a.name == b.name ? 0 : a.name > b.name ? 1 : -1),
+            (a.name === b.name ? 0 : a.name > b.name ? 1 : -1),
     );
 
     return matches.map((m) => m.product);

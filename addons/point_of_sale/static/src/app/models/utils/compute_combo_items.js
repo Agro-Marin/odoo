@@ -93,7 +93,7 @@ export const computeComboItems = (
             remainingTotal -= remaining * extra.qty;
 
             if (
-                comboItem.id ==
+                comboItem.id ===
                 childLineExtra[childLineExtra.length - 1].combo_item_id.id
             ) {
                 priceUnit += remainingTotal / extra.qty;

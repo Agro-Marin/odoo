@@ -26,9 +26,9 @@ export const fonts = {
             return this.cacheCssSelectors[cacheKey];
         }
         this.cacheCssSelectors[cacheKey] = [];
-        var sheets = document.styleSheets;
-        for (var i = 0; i < sheets.length; i++) {
-            var rules;
+        const sheets = document.styleSheets;
+        for (let i = 0; i < sheets.length; i++) {
+            let rules;
             try {
                 // try...catch because Firefox not able to enumerate
                 // document.styleSheets[].cssRules[] for cross-domain
@@ -41,25 +41,28 @@ export const fonts = {
                 continue;
             }
 
-            for (var r = 0; r < rules.length; r++) {
-                var selectorText = rules[r].selectorText;
+            for (let r = 0; r < rules.length; r++) {
+                const selectorText = rules[r].selectorText;
                 if (!selectorText) {
                     continue;
                 }
                 if (cssFilter && !cssFilter.test(rules[r].cssText)) {
                     continue;
                 }
-                var selectors = selectorText.split(/\s*,\s*/);
-                var data = null;
-                for (var s = 0; s < selectors.length; s++) {
-                    var match = selectors[s].trim().match(filter);
+                const selectors = selectorText.split(/\s*,\s*/);
+                let data = null;
+                for (let s = 0; s < selectors.length; s++) {
+                    const match = selectors[s].trim().match(filter);
                     if (!match) {
                         continue;
                     }
                     if (!data) {
                         data = {
                             selector: match[0],
-                            css: rules[r].cssText.replace(/(^.*\{\s*)|(\s*\}\s*$)/g, ""),
+                            css: rules[r].cssText.replace(
+                                /(^.*\{\s*)|(\s*\}\s*$)/g,
+                                "",
+                            ),
                             names: [match[1]],
                         };
                     } else {
@@ -85,14 +88,16 @@ export const fonts = {
      *
      * @type Array
      */
-    fontIcons: [{ base: "fa-solid", parser: /\.(fa-(?:\w|-)+)$/i, cssFilter: /--fa\s*:/ }],
+    fontIcons: [
+        { base: "fa-solid", parser: /\.(fa-(?:\w|-)+)$/i, cssFilter: /--fa\s*:/ },
+    ],
     computedFonts: false,
     /**
      * Searches the fonts described by the @see fontIcons variable.
      */
     computeFonts: function () {
         if (!this.computedFonts) {
-            var self = this;
+            const self = this;
             this.fontIcons.forEach((data) => {
                 data.cssData = self.getCssSelectors(data.parser, data.cssFilter);
                 data.alias = data.cssData.map((x) => x.names).flat();

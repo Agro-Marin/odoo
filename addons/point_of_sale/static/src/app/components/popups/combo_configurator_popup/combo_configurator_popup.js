@@ -101,7 +101,7 @@ export class ComboConfiguratorPopup extends Component {
         return Object.keys(this.state.qty).every((comboId) => {
             const combo = this.pos.models["product.combo"].get(comboId);
             return (
-                combo.qty_free == 0 ||
+                combo.qty_free === 0 ||
                 this.totalQuantityForCombo(comboId) >= combo.qty_free
             );
         });

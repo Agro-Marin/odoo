@@ -11,7 +11,7 @@ export class QuantityButtons extends Component {
     };
 
     changeQuantity(increment) {
-        const isDisabled = increment == 1 && this.props.isPlusButtonDisabled;
+        const isDisabled = increment === 1 && this.props.isPlusButtonDisabled;
         if (!isDisabled) {
             this.props.setQuantity(this.props.quantity + increment);
         }

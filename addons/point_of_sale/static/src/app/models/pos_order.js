@@ -1,9 +1,10 @@
 /** @odoo-module native */
-import { luxon } from "@web/core/l10n/luxon";
 import { formatDate, serializeDateTime } from "@web/core/l10n/dates";
 import { localization } from "@web/core/l10n/localization";
+import { luxon } from "@web/core/l10n/luxon";
 import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
+
 import { PosOrderAccounting } from "./accounting/pos_order_accounting.js";
 import { computeComboItems } from "./utils/compute_combo_items.js";
 const { DateTime } = luxon;
@@ -511,7 +512,7 @@ export class PosOrder extends PosOrderAccounting {
     }
 
     getPaymentlineByUuid(uuid) {
-        var lines = this.payment_ids;
+        const lines = this.payment_ids;
         return lines.find(function (line) {
             return line.uuid === uuid;
         });
@@ -567,7 +568,7 @@ export class PosOrder extends PosOrderAccounting {
                     if (
                         orderLine.displayDiscountPolicy() === "without_discount" &&
                         !(orderLine.price_type === "manual") &&
-                        orderLine.discount == 0
+                        orderLine.discount === 0
                     ) {
                         sum +=
                             (orderLine.displayPriceUnit -
@@ -735,8 +736,8 @@ export class PosOrder extends PosOrderAccounting {
      * @returns {boolean}
      */
     _isValidEmptyOrder() {
-        if (this.lines.length == 0) {
-            return this.payment_ids.length != 0;
+        if (this.lines.length === 0) {
+            return this.payment_ids.length !== 0;
         } else {
             return true;
         }

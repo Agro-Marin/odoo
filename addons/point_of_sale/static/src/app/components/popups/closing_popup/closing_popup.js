@@ -1,5 +1,4 @@
 /** @odoo-module native */
-import { luxon } from "@web/core/l10n/luxon";
 import { Component, useState } from "@odoo/owl";
 import { Input } from "@point_of_sale/app/components/inputs/input/input";
 import { SaleDetailsButton } from "@point_of_sale/app/components/navbar/sale_details_button/sale_details_button";
@@ -8,6 +7,7 @@ import { MoneyDetailsPopup } from "@point_of_sale/app/components/popups/money_de
 import { useAsyncLockedMethod } from "@point_of_sale/app/hooks/hooks";
 import { usePos } from "@point_of_sale/app/hooks/pos_hook";
 import { ask } from "@point_of_sale/app/utils/make_awaitable_dialog";
+import { luxon } from "@web/core/l10n/luxon";
 import { _t } from "@web/core/l10n/translation";
 import { ConnectionLostError } from "@web/core/network/rpc";
 import { useService } from "@web/core/utils/hooks";
@@ -251,7 +251,7 @@ export class ClosePosPopup extends Component {
 
         try {
             const bankPaymentMethodDiffPairs = this.props.non_cash_payment_methods
-                .filter((pm) => pm.type == "bank")
+                .filter((pm) => pm.type === "bank")
                 .map((pm) => [pm.id, this.getDifference(pm.id)]);
             const response = await this.pos.data.call(
                 "pos.session",
