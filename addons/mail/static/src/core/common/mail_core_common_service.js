@@ -23,6 +23,12 @@ export class MailCoreCommon {
         });
         this.busService.subscribe("mail.message/delete", (payload, { id: notifId }) => {
             for (const messageId of payload.message_ids) {
+                // tombstone FIRST, including ids not currently loaded: an
+                // in-flight fetch whose response was computed before the
+                // deletion (but processed after) would otherwise resurrect
+                // the message — store.insert is last-write-wins and only
+                // counters are bus-fenced
+                this.store.deletedMessageIds.add(messageId);
                 const message = this.store["mail.message"].get(messageId);
                 if (!message) {
                     continue;

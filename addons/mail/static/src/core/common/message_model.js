@@ -75,6 +75,12 @@ export class Message extends Record {
     /** @param {Object} data */
     update(data) {
         super.update(data);
+        if (typeof this.id === "number" && this.store.deletedMessageIds?.has(this.id)) {
+            // tombstoned: a stale fetch response must not resurrect a
+            // message deleted via the bus (see mail_core_common_service)
+            this.delete();
+            return;
+        }
         if (typeof this.id === "number" && this.id > this.store.lastKnownMessageId) {
             this.store.lastKnownMessageId = this.id;
         }
