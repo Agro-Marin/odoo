@@ -5,7 +5,7 @@ import re
 import urllib.parse
 
 from odoo import _, api, fields, models
-from odoo.exceptions import AccessError
+from odoo.exceptions import AccessError, ValidationError
 from odoo.fields import Domain
 from odoo.http import request
 from odoo.libs.web.urls import urljoin as url_join
@@ -176,7 +176,12 @@ class WebsiteCover_PropertiesMixin(models.AbstractModel):
         if "cover_properties" not in vals:
             return super().write(vals)
 
-        cover_properties = json_safe.loads(vals["cover_properties"])
+        try:
+            cover_properties = json_safe.loads(vals["cover_properties"])
+        except ValueError, TypeError:
+            # ``cover_properties`` is client-supplied; a malformed value must be
+            # a clean validation error, not an uncaught 500.
+            raise ValidationError(_("Invalid cover properties value.")) from None
         resize_classes = cover_properties.get("resize_class", "").split()
         classes = ["o_half_screen_height", "o_full_screen_height", "cover_auto"]
         if not set(resize_classes).isdisjoint(classes):

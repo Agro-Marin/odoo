@@ -389,20 +389,26 @@ class IrHttp(models.AbstractModel):
     def _serve_redirect(cls):
         req_page = request.httprequest.path
         req_page_with_qs = request.httprequest.environ["REQUEST_URI"]
-        domain = (
-            Domain("redirect_type", "in", ("301", "302"))
+        domain = Domain("redirect_type", "in", ("301", "302")) & Domain(
             # trailing / could have been removed by server_page
-            & Domain(
-                "url_from",
-                "in",
-                [req_page_with_qs, req_page.rstrip("/"), req_page + "/"],
-            )
-            & request.website.website_domain()
+            "url_from",
+            "in",
+            [req_page_with_qs, req_page.rstrip("/"), req_page + "/"],
         )
-        return (
-            request.env["website.rewrite"]
-            .sudo()
-            .search(domain, order="url_from DESC", limit=1)
+        Rewrite = request.env["website.rewrite"].sudo()
+        # Prefer a rewrite specific to the current website over a generic one
+        # (``website_id`` unset). Ordering the combined set only by ``url_from``
+        # let a generic rule with the same ``url_from`` (typically a lower id)
+        # shadow a per-website override, so query the specific rule first and
+        # fall back to the generic one.
+        return Rewrite.search(
+            domain & Domain("website_id", "=", request.website.id),
+            order="url_from DESC",
+            limit=1,
+        ) or Rewrite.search(
+            domain & Domain("website_id", "=", False),
+            order="url_from DESC",
+            limit=1,
         )
 
     @classmethod

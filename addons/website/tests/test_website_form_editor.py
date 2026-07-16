@@ -185,6 +185,42 @@ class TestWebsiteForm(TransactionCase):
             self.test_field.unlink()
         self.assertTrue(self.test_field.exists())
 
+    def test_delete_field_scans_malformed_html_without_crashing(self):
+        """The ondelete scan parses HTML fields (e.g. ``mega_menu_content``),
+        which are commonly non-well-formed XML fragments. It must not crash the
+        deletion with an XML parse error (``etree.fromstring`` did), while still
+        blocking deletion when the field is actually referenced."""
+        # Multiple roots + void <br> + bare '&' -> etree.fromstring would raise.
+        malformed = (
+            "<p>Contact &amp; win</p>"
+            f'<form data-model_name="res.partner"><input name="{self.test_field.name}"><br></form>'
+        )
+        self.env["website.menu"].create(
+            {
+                "name": "Mega",
+                "url": "#",
+                "mega_menu_content": malformed,
+            }
+        )
+
+        # An unrelated field can still be deleted (the malformed HTML must not
+        # crash the scan).
+        other = self.env["ir.model.fields"].create(
+            {
+                "name": "x_unrelated_field",
+                "model_id": self.partner_model.id,
+                "ttype": "char",
+                "field_description": "unrelated",
+            }
+        )
+        other.unlink()
+        self.assertFalse(other.exists())
+
+        # The referenced field is still blocked, even from a non-XML field.
+        with self.assertRaises(ValidationError):
+            self.test_field.unlink()
+        self.assertTrue(self.test_field.exists())
+
     def test_mail_form_signature_is_mandatory(self):
         """A ``mail.mail`` submission must carry a valid ``website_form_signature``
         bound to ``email_to``. Previously the check was skipped whenever
