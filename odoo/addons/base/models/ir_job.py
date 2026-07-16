@@ -250,9 +250,14 @@ class IrJob(models.Model):
         readonly=True,
     )
 
-    _claim_idx = models.Index(
-        "(channel, priority, create_date) WHERE state = 'pending'"
-    )
+    # Matches _claim_next exactly: the claim query filters state='pending'
+    # (plus a non-indexable eta test) and orders by (priority, create_date,
+    # id) with NO channel filter — a leading channel column would force a
+    # full sort of the pending set instead of an ordered index scan.
+    _claim_idx = models.Index("(priority, create_date, id) WHERE state = 'pending'")
+    # Serves the per-channel capacity subquery in _claim_next, which counts
+    # started rows; those are invisible to the pending-only partial above.
+    _capacity_idx = models.Index("(channel) WHERE state = 'started'")
     _identity_uniq = models.UniqueIndex(
         "(identity_key) WHERE state IN ('wait_deps', 'pending', 'started')"
         " AND identity_key IS NOT NULL",
