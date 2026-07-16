@@ -512,14 +512,16 @@ export class PosData extends SignalStore {
             // Prune the row when the record is deleted: the local sync only
             // iterates records still in the store, so rows of deleted lines /
             // payments were never removed — unbounded growth plus phantom
-            // records recreated on every reload.
-            const keyName = this.opts.databaseTable[dynamicModel].key;
-            this.models[dynamicModel].addEventListener("delete", (params) => {
-                const key = params.key ?? params[keyName];
-                if (key) {
-                    this.indexedDB.delete(dynamicModel, [key]);
-                }
-            });
+            // records recreated on every reload. Only models persisted in
+            // IndexedDB (databaseTable) have a store to prune; a module can
+            // declare dynamic models that are not persisted.
+            if (this.opts.databaseTable[dynamicModel]) {
+                this.models[dynamicModel].addEventListener("delete", (params) => {
+                    if (params.key !== undefined) {
+                        this.indexedDB.delete(dynamicModel, [params.key]);
+                    }
+                });
+            }
         }
 
         const ignore = Object.keys(this.opts.databaseTable);
