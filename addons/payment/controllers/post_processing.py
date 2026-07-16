@@ -13,7 +13,6 @@ _logger = logging.getLogger(__name__)
 
 
 class PaymentPostProcessing(http.Controller):
-
     """
     This controller is responsible for the monitoring and finalization of the post-processing of
     transactions.
@@ -23,11 +22,18 @@ class PaymentPostProcessing(http.Controller):
     their post-processing.
     """
 
-    MONITORED_TX_ID_KEY = '__payment_monitored_tx_id__'
+    MONITORED_TX_ID_KEY = "__payment_monitored_tx_id__"
 
-    @http.route('/payment/status', type='http', auth='public', website=True, sitemap=False, list_as_website_content=_lt("Payment Status"))
+    @http.route(
+        "/payment/status",
+        type="http",
+        auth="public",
+        website=True,
+        sitemap=False,
+        list_as_website_content=_lt("Payment Status"),
+    )
     def display_status(self, **kwargs):
-        """ Fetch the transaction and display it on the payment status page.
+        """Fetch the transaction and display it on the payment status page.
 
         :param dict kwargs: Optional data. This parameter is not used here
         :return: The rendered status page
@@ -35,12 +41,12 @@ class PaymentPostProcessing(http.Controller):
         """
         monitored_tx = self._get_monitored_transaction()
         # The session might have expired, or the transaction never existed.
-        values = {'tx': monitored_tx} if monitored_tx else {'payment_not_found': True}
-        return request.render('payment.payment_status', values)
+        values = {"tx": monitored_tx} if monitored_tx else {"payment_not_found": True}
+        return request.render("payment.payment_status", values)
 
-    @http.route('/payment/status/poll', type='jsonrpc', auth='public')
+    @http.route("/payment/status/poll", type="jsonrpc", auth="public")
     def poll_status(self, **_kwargs):
-        """ Fetch the transaction and trigger its post-processing.
+        """Fetch the transaction and trigger its post-processing.
 
         :return: The post-processing values of the transaction.
         :rtype: dict
@@ -54,27 +60,29 @@ class PaymentPostProcessing(http.Controller):
             try:
                 monitored_tx._post_process()
             except (
-                psycopg.OperationalError, psycopg.IntegrityError
+                psycopg.OperationalError,
+                psycopg.IntegrityError,
             ):  # The database cursor could not be committed.
                 request.env.cr.rollback()  # Rollback and try later.
-                raise Exception('retry')
+                raise Exception("retry")
             except Exception as e:
                 request.env.cr.rollback()
                 _logger.exception(
                     "Encountered an error while post-processing transaction with id %s:\n%s",
-                    monitored_tx.id, e
+                    monitored_tx.id,
+                    e,
                 )
                 raise
 
         return {
-            'provider_code': monitored_tx.provider_code,
-            'state': monitored_tx.state,
-            'landing_route': monitored_tx.landing_route,
+            "provider_code": monitored_tx.provider_code,
+            "state": monitored_tx.state,
+            "landing_route": monitored_tx.landing_route,
         }
 
     @classmethod
     def monitor_transaction(cls, transaction):
-        """ Make the provided transaction id monitored.
+        """Make the provided transaction id monitored.
 
         :param payment.transaction transaction: The transaction to monitor.
         :return: None
@@ -82,11 +90,14 @@ class PaymentPostProcessing(http.Controller):
         request.session[cls.MONITORED_TX_ID_KEY] = transaction.id
 
     def _get_monitored_transaction(self):
-        """ Retrieve the user's last transaction from the session (the transaction being monitored).
+        """Retrieve the user's last transaction from the session (the transaction being monitored).
 
         :return: the user's last transaction
         :rtype: payment.transaction
         """
-        return request.env['payment.transaction'].sudo().browse(
-            request.session.get(self.MONITORED_TX_ID_KEY)
-        ).exists()
+        return (
+            request.env["payment.transaction"]
+            .sudo()
+            .browse(request.session.get(self.MONITORED_TX_ID_KEY))
+            .exists()
+        )
