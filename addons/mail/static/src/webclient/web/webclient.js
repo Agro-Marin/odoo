@@ -2,6 +2,7 @@
 import { onWillDestroy } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
 import { _t } from "@web/core/l10n/translation";
+import { Mutex } from "@web/core/utils/concurrency";
 import { useService } from "@web/core/utils/hooks";
 import { patch } from "@web/core/utils/patch";
 import { WebClient } from "@web/webclient/webclient";
@@ -15,6 +16,11 @@ patch(WebClient.prototype, {
         super.setup();
         this.orm = useService("orm");
         this.notification = useService("notification");
+        // Serialize push (un)subscription: WEB_CLIENT_READY and the
+        // notification-permission `change` handler can both fire, and an
+        // overlapping subscribe/unsubscribe (or a subscribe racing its own
+        // retry) would double-register or interleave subscribe-vs-unsubscribe.
+        this._pushMutex = new Mutex();
         // Trigger init_messaging (``/mail/data``) now that we're in the
         // backend WebClient context.  The mail.store service no longer
         // fires this from its ``start()``, so contexts without a
@@ -66,6 +72,13 @@ patch(WebClient.prototype, {
      * @return {Promise<void>}
      */
     async _subscribePush(numberTry = 1) {
+        // public entry point: serialized against _unsubscribePush; the internal
+        // retry recurses into _doSubscribePush directly (already inside the
+        // mutex slot) to avoid self-deadlock.
+        return this._pushMutex.exec(() => this._doSubscribePush(numberTry));
+    },
+
+    async _doSubscribePush(numberTry = 1) {
         await this.serviceWorkerActivatedDeferred;
         const pushManager = await this.pushManager();
         if (!pushManager) {
@@ -126,7 +139,7 @@ patch(WebClient.prototype, {
                 const MAX_TRIES = 2;
                 if (numberTry < MAX_TRIES) {
                     await subscription.unsubscribe();
-                    this._subscribePush(numberTry + 1);
+                    await this._doSubscribePush(numberTry + 1);
                 } else {
                     console.warn(warningMessage);
                 }
@@ -143,6 +156,11 @@ patch(WebClient.prototype, {
      * @return {Promise<void>}
      */
     async _unsubscribePush() {
+        // serialized against _subscribePush (see setup())
+        return this._pushMutex.exec(() => this._doUnsubscribePush());
+    },
+
+    async _doUnsubscribePush() {
         await this.serviceWorkerActivatedDeferred;
         const pushManager = await this.pushManager();
         if (!pushManager) {

@@ -46,9 +46,6 @@ import { session } from "@web/session";
  * @typedef {{isSpecial: boolean, channel_types: string[], label: string, displayName: string, description: string}} SpecialMention
  */
 
-let prevLastMessageId = null;
-let temporaryIdOffset = 0.01;
-
 // "discuss.channel" literals: Store-payload ingestion mapping. Python keys
 // thread data under its own model names; both are funneled into the single
 // JS "Thread" model and channel payloads are tagged with their model so that
@@ -669,6 +666,12 @@ export class Store extends BaseStore {
 
     setup() {
         super.setup();
+        // Per-store temporary-id state (previously module-level `let`s, which
+        // were shared across every Store instance — e.g. a livechat embed and
+        // the backend web client on the same page, or successive stores in the
+        // test suite — causing temp-id collisions and cross-test state bleed).
+        this._prevLastMessageId = null;
+        this._temporaryIdOffset = 0.01;
         this._fetchStoreDataDebounced = debounce(
             this._fetchStoreDataDebounced,
             Store.FETCH_DATA_DEBOUNCE_DELAY,
@@ -770,13 +773,13 @@ export class Store extends BaseStore {
 
     getNextTemporaryId() {
         const lastMessageId = this.getLastMessageId();
-        if (prevLastMessageId === lastMessageId) {
-            temporaryIdOffset += 0.01;
+        if (this._prevLastMessageId === lastMessageId) {
+            this._temporaryIdOffset += 0.01;
         } else {
-            prevLastMessageId = lastMessageId;
-            temporaryIdOffset = 0.01;
+            this._prevLastMessageId = lastMessageId;
+            this._temporaryIdOffset = 0.01;
         }
-        return lastMessageId + temporaryIdOffset;
+        return lastMessageId + this._temporaryIdOffset;
     }
 
     /**

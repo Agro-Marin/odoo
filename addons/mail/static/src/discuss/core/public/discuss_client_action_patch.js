@@ -1,6 +1,7 @@
 /** @odoo-module native */
 import { DiscussClientAction } from "@mail/core/public_web/discuss_client_action";
 import { WelcomePage } from "@mail/discuss/core/public/welcome_page";
+import { useExternalListener } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
 import { patch } from "@web/core/utils/patch";
 DiscussClientAction.components = { ...DiscussClientAction.components, WelcomePage };
@@ -18,7 +19,10 @@ patch(DiscussClientAction.prototype, {
         const url = new URL(browser.location.href);
         url.searchParams.delete("email_token");
         browser.history.replaceState(browser.history.state, null, url.toString());
-        browser.addEventListener("popstate", () =>
+        // useExternalListener auto-removes on unmount; the previous bare
+        // browser.addEventListener leaked a listener (retaining this component
+        // and its props) on every remount and fired on destroyed instances.
+        useExternalListener(browser, "popstate", () =>
             this.restoreDiscussThread(this.props),
         );
     },

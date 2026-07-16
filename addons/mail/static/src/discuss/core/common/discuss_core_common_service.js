@@ -36,11 +36,14 @@ export class DiscussCoreCommon {
         );
         this.busService.subscribe("discuss.channel/transient_message", (payload) => {
             const { body, channel_id } = payload;
-            const lastMessageId = this.store.getLastMessageId();
             const message = this.store["mail.message"].insert({
                 author_id: this.store.odoobot,
                 body: markup(body),
-                id: lastMessageId + 0.01,
+                // getNextTemporaryId() (not getLastMessageId()+0.01): the latter
+                // only tracks persistent messages, so two transient messages
+                // arriving back-to-back computed the same id and the second
+                // insert overwrote the first.
+                id: this.store.getNextTemporaryId(),
                 subtype_id: this.store.mt_note,
                 is_transient: true,
                 thread: { id: channel_id, model: "discuss.channel" },

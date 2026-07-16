@@ -236,6 +236,59 @@ test("failed notification batches retry with backoff then give up", async () => 
     p2p.disconnect();
 });
 
+test("an offer queued while the notification RPC is in flight is not dropped", async () => {
+    await mountWebClient();
+    const route = "/inflight/mock/notification";
+    /** @type {any[][]} content batches, one per RPC call */
+    const batches = [];
+    let markFirstStarted;
+    const firstStarted = new Promise((resolve) => (markFirstStarted = resolve));
+    let releaseFirst;
+    const firstReleased = new Promise((resolve) => (releaseFirst = resolve));
+    let rpcCount = 0;
+    onRpc(route, async (req) => {
+        const {
+            params: { peer_notifications },
+        } = await req.json();
+        batches.push(peer_notifications);
+        if (++rpcCount === 1) {
+            // hold the first batch in flight so a newer offer can be queued
+            // for the same target before the post-RPC cleanup runs
+            markFirstStarted();
+            await firstReleased;
+        }
+    });
+    const p2p = new PeerToPeer({ notificationRoute: route });
+    p2p.connect(1, 1);
+
+    // queue OFFER v1 to peer 2 (fire and forget: the returned promise only
+    // settles once the whole queue drains)
+    p2p._busNotify("offer", { targets: [2], payload: { sdp: "v1" } });
+    // let the batch delay elapse so the first RPC is dispatched
+    await advanceTime(10_000);
+    await firstStarted;
+
+    // While RPC #1 is in flight, queue a NEWER offer for the same target. It
+    // reuses the `latestOffer_to:2` key, overwriting the map entry that RPC #1
+    // is about to acknowledge.
+    p2p._busNotify("offer", { targets: [2], payload: { sdp: "v2" } });
+
+    // Release RPC #1: its post-RPC cleanup must delete the entry ONLY if it is
+    // still the one it sent — the superseded v2 must survive and be sent next.
+    releaseFirst();
+    for (let i = 0; i < 3; i++) {
+        await advanceTime(10_000);
+    }
+
+    // Regression: v2 used to be deleted (by key) right after RPC #1 and never
+    // sent, stalling the handshake. It must now go out in a second batch.
+    expect(rpcCount).toBe(2);
+    expect(batches[0][0][2]).toInclude("v1");
+    expect(batches[1][0][2]).toInclude("v2");
+    expect(p2p._notificationsToSend.size).toBe(0);
+    p2p.disconnect();
+});
+
 onlineTest("recovery timeout firing after peer removal is a no-op", async () => {
     await mountWebClient();
     const network = new Network();

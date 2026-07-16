@@ -29,9 +29,16 @@ export class RtcSession extends Record {
             if (!deferred) {
                 deferred = new Deferred();
                 this.awaitedRecords.set(id, deferred);
-                setTimeout(() => {
+                // Fallback so callers never hang forever. The timer is cleared
+                // in new() when the session actually arrives; without that, a
+                // late-firing timer would `delete(id)` a *fresh* deferred
+                // registered for the same id in the meantime, leaving its
+                // caller (e.g. _applySessionInfo, handleRemoteTrack) hung.
+                deferred._timeout = setTimeout(() => {
                     deferred.resolve();
-                    this.awaitedRecords.delete(id);
+                    if (this.awaitedRecords.get(id) === deferred) {
+                        this.awaitedRecords.delete(id);
+                    }
                 }, 120_000);
             }
             return deferred;
@@ -41,8 +48,12 @@ export class RtcSession extends Record {
     /** @returns {import("models").RtcSession} */
     static new() {
         const record = super.new(...arguments);
-        this.awaitedRecords.get(record.id)?.resolve(record);
-        this.awaitedRecords.delete(record.id);
+        const deferred = this.awaitedRecords.get(record.id);
+        if (deferred) {
+            clearTimeout(deferred._timeout);
+            deferred.resolve(record);
+            this.awaitedRecords.delete(record.id);
+        }
         return record;
     }
 

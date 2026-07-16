@@ -32,11 +32,15 @@ function arrayBufferToBase64Url(buffer) {
     return btoa(binary).replaceAll("+", "-").replaceAll("/", "_").replaceAll("=", "");
 }
 let db;
+let dbPromise;
 const unread_store = new Store("odoo-mail-unread-db", "odoo-mail-unread-store");
 let interactionSinceCleanupCount = 0;
 
-async function openDatabase() {
-    return new Promise((resolve, reject) => {
+function openDatabase() {
+    // Memoize the open: openDatabase() is called from both the `activate`
+    // handler and lazily from storeLogs(); without this, concurrent calls each
+    // open a separate IDB connection and clobber the shared `db` global.
+    dbPromise ??= new Promise((resolve, reject) => {
         const request = indexedDB.open("RtcLogsDB", 1);
         request.onupgradeneeded = function (event) {
             const db = event.target.result;
@@ -58,9 +62,12 @@ async function openDatabase() {
             resolve(db);
         };
         request.onerror = function (event) {
+            // allow a later retry to re-open after a failed attempt
+            dbPromise = undefined;
             reject(event.target.error);
         };
     });
+    return dbPromise;
 }
 
 self.addEventListener("activate", (event) => {

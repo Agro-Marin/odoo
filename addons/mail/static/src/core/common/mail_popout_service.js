@@ -19,6 +19,19 @@ export const mailPopoutService = {
          */
         const popouts = new Map();
 
+        // Close any still-open popout windows when the main window unloads.
+        // Registered ONCE for the service's lifetime — the previous code added
+        // a fresh `beforeunload` listener inside popout() on every open, none
+        // of which were ever removed (and pip() had no such cleanup at all).
+        window.addEventListener("beforeunload", () => {
+            for (const popout of popouts.values()) {
+                const externalWindow = popout.externalWindow;
+                if (externalWindow && !externalWindow.closed) {
+                    externalWindow.close();
+                }
+            }
+        });
+
         /**
          * Reset the external window to its initial state:
          * - Reset the external window header from main window (for appropriate title and other meta data)
@@ -147,11 +160,6 @@ export const mailPopoutService = {
                 const hooks = popout.hooks;
                 hooks?.beforePopout?.();
                 externalWindow = browser.open("about:blank", "_blank", "popup=yes");
-                window.addEventListener("beforeunload", () => {
-                    if (externalWindow && !externalWindow.closed) {
-                        externalWindow.close();
-                    }
-                });
                 popout.externalWindow = externalWindow;
                 pollClosedWindow(id);
             }

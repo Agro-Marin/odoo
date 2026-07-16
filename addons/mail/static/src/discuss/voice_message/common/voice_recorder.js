@@ -45,12 +45,14 @@ export function useVoiceRecorder() {
     const store = useService("mail.store");
     const config = { bitRate: 128 }; // 128 or 160 kbit/s – mid-range bitrate quality
     onWillUnmount(() => {
+        // Discard on unmount — do NOT upload. The user never confirmed, and by
+        // now the attachment uploader may resolve to a different thread, so
+        // stopRecording() here would silently post a partial clip to the wrong
+        // conversation. Just tear down the mic/context.
         if (state.recording) {
             notification.add(_t("Voice recording stopped"), { type: "warning" });
-            stopRecording();
-        } else {
-            cleanUp();
         }
+        cleanUp();
     });
 
     function filename() {
@@ -94,9 +96,22 @@ export function useVoiceRecorder() {
             audioContext = new browser.AudioContext();
 
             await loadLamejs();
+            // A stop (or unmount) during these awaits runs cleanUp(), which
+            // closes audioContext and clears `recording`. Re-check before
+            // touching the context again — otherwise the resumed init builds an
+            // AudioWorkletNode on a closed context and throws a spurious
+            // "not available" error at the user.
+            if (!state.recording || status(component) === "destroyed") {
+                cleanUp();
+                return;
+            }
             await audioContext.audioWorklet.addModule(
                 "/discuss/voice/worklet_processor",
             );
+            if (!state.recording || status(component) === "destroyed") {
+                cleanUp();
+                return;
+            }
             processor = new browser.AudioWorkletNode(audioContext, "processor");
         processor.port.onmessage = (e) => {
             if (state.recording && !startTimeStamp) {
