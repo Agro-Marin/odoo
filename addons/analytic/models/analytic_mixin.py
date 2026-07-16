@@ -4,8 +4,8 @@ from collections import defaultdict
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError, ValidationError
 from odoo.fields import Domain
-from odoo.tools import SQL, Query, unique
 from odoo.libs.numbers.float_utils import float_compare, float_round
+from odoo.tools import SQL, Query
 from odoo.tools.sql import table_exists
 
 
@@ -46,21 +46,42 @@ class AnalyticMixin(models.AbstractModel):
         )
 
     @api.model
+    def _account_ids_from_distribution(self, distribution):
+        """Return the analytic account ids referenced by a single distribution
+        dict, in order of first appearance and de-duplicated.
+
+        Ignores the transient ``__update__`` marker and any non-numeric key
+        segment (e.g. a trailing comma, whitespace padding, or a stale wizard
+        key), so a malformed distribution never raises a raw ``ValueError`` when
+        its keys are parsed. This is the single place that turns distribution
+        keys into ids; every other reader goes through it.
+        """
+        ordered = {}
+        for key in (distribution or ()):
+            for segment in str(key).split(','):
+                segment = segment.strip()
+                if segment.isdigit():
+                    ordered.setdefault(int(segment), None)
+        return list(ordered)
+
+    @api.model
     def _get_analytic_account_ids_from_distributions(self, distributions):
         if not distributions:
-            return []
-
-        if isinstance(distributions, (list, tuple, set)):
-            return {int(_id) for distribution in distributions for key in (distribution or {}) for _id in key.split(',')}
-        else:
-            return {int(_id) for key in (distributions or {}) for _id in key.split(',')}
+            return set()
+        if not isinstance(distributions, (list, tuple, set)):
+            distributions = [distributions]
+        return {
+            account_id
+            for distribution in distributions
+            for account_id in self._account_ids_from_distribution(distribution)
+        }
 
     @api.depends('analytic_distribution')
     def _compute_distribution_analytic_account_ids(self):
-        all_ids = {int(_id) for rec in self for key in (rec.analytic_distribution or {}) for _id in key.split(',') if _id.isdigit()}
+        all_ids = self._get_analytic_account_ids_from_distributions([rec.analytic_distribution for rec in self])
         existing_accounts_ids = set(self.env['account.analytic.account'].browse(all_ids).exists().ids)
         for rec in self:
-            ids = list(unique(int(_id) for key in (rec.analytic_distribution or {}) for _id in key.split(',') if _id.isdigit() and int(_id) in existing_accounts_ids))
+            ids = [aid for aid in self._account_ids_from_distribution(rec.analytic_distribution) if aid in existing_accounts_ids]
             rec.distribution_analytic_account_ids = self.env['account.analytic.account'].browse(ids)
 
     def _search_distribution_analytic_account_ids(self, operator, value):
@@ -112,7 +133,7 @@ class AnalyticMixin(models.AbstractModel):
             ids = [
                 r
                 for v in value
-                for r in (search_value(v, exact=True) if isinstance(value, str) else [v])
+                for r in (search_value(v, exact=True) if isinstance(v, str) else [v])
             ]
         elif operator in ('ilike', 'not ilike'):
             ids = search_value(value, exact=False)
@@ -167,15 +188,15 @@ class AnalyticMixin(models.AbstractModel):
         return super()._read_group_select(aggregate_spec, query)
 
     def _get_count_id(self, query):
-        ids = {
-            'account_move_line': "move_id",
-            'purchase_order_line': "order_id",
-            'account_asset': "id",
-            'hr_expense': "id",
-        }
-        if query.table not in ids:
-            raise ValueError(f"{query.table} does not support analytic_distribution grouping.")
-        return SQL(ids.get(query.table))
+        """Entity counted when grouping by ``analytic_distribution``.
+
+        Defaults to the record itself; a model that would rather count a parent
+        document (e.g. journal entries instead of journal items) overrides this.
+        Kept as an overridable hook so the base ``analytic`` module needs no
+        knowledge of the tables of the modules that depend on it (previously a
+        hardcoded ``{table: id}`` map that hard-errored for any other model).
+        """
+        return SQL("id")
 
     def filtered_domain(self, domain):
         # Filter based on the accounts used (i.e. allowing a name_search) instead of the distribution
@@ -205,7 +226,8 @@ class AnalyticMixin(models.AbstractModel):
             decimal_precision = self.env['decimal.precision'].precision_get('Percentage Analytic')
             distribution_by_root_plan = {}
             for analytic_account_ids, percentage in (self.analytic_distribution or {}).items():
-                for analytic_account in self.env['account.analytic.account'].browse(map(int, analytic_account_ids.split(","))).exists():
+                account_ids = self._account_ids_from_distribution({analytic_account_ids: percentage})
+                for analytic_account in self.env['account.analytic.account'].browse(account_ids).exists():
                     root_plan = analytic_account.root_plan_id
                     distribution_by_root_plan[root_plan.id] = distribution_by_root_plan.get(root_plan.id, 0) + percentage
 
@@ -213,12 +235,27 @@ class AnalyticMixin(models.AbstractModel):
                 if float_compare(distribution_by_root_plan.get(plan_id, 0), 100, precision_digits=decimal_precision) != 0:
                     raise ValidationError(_("One or more lines require a 100% analytic distribution."))
 
+    def _analytic_distribution_consumes_update(self):
+        """Whether this model's write path merges the transient ``__update__``
+        marker into the distribution (see :meth:`_merge_distribution`).
+
+        Only models that actually consume it may let it reach persistence; for
+        every other model the marker is stripped in :meth:`_sanitize_values` so
+        it never corrupts the stored JSON. A persisted ``__update__`` key later
+        makes ``int(...)`` key parsing raise across readers (compute, validation,
+        :meth:`_get_analytic_account_ids_from_distributions`).
+        """
+        return False
+
     def _sanitize_values(self, vals, decimal_precision):
         """ Normalize the float of the distribution """
         if 'analytic_distribution' in vals:
-            vals['analytic_distribution'] = vals.get('analytic_distribution') and {
-                account_id: float_round(distribution, decimal_precision) if account_id != '__update__' else distribution
-                for account_id, distribution in vals['analytic_distribution'].items()
+            distribution = vals.get('analytic_distribution')
+            if distribution and '__update__' in distribution and not self._analytic_distribution_consumes_update():
+                distribution = {key: value for key, value in distribution.items() if key != '__update__'}
+            vals['analytic_distribution'] = distribution and {
+                account_id: float_round(value, decimal_precision) if account_id != '__update__' else value
+                for account_id, value in distribution.items()
             }
         return vals
 
