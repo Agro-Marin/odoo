@@ -305,7 +305,7 @@ class TestAccountPayment(AccountPaymentCommon):
             state='done',
             amount=invoice.invoice_payment_term_id._get_amount_due_after_discount(
                 total_amount=invoice.amount_residual,
-                untaxed_amount=invoice.amount_tax,
+                tax_amount=invoice.amount_tax,
             ),
             invoice_ids=[invoice.id],
             partner_id=self.partner.id,

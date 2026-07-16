@@ -637,7 +637,14 @@ class AccountPartialReconcile(models.Model):
                 # Init the journal entry.
                 journal = partial.company_id.tax_cash_basis_journal_id
                 lock_date = move.company_id._get_user_fiscal_lock_date(journal)
-                move_date = partial.max_date if partial.max_date > lock_date else today
+                # `_compute_max_date` may yield a falsy `max_date` (a counterpart
+                # without a date); guard the comparison so `False > date` can't
+                # raise TypeError on Python 3.
+                move_date = (
+                    partial.max_date
+                    if partial.max_date and partial.max_date > lock_date
+                    else today
+                )
                 move_vals = {
                     "move_type": "entry",
                     "date": move_date,

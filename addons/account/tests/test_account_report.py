@@ -83,3 +83,18 @@ class TestAccountReport(AccountTestInvoicingCommon):
                     "formula": "test(12)",
                 },
             )
+
+    def test_domain_formula_malformed_raises_validation_error(self):
+        """A malformed ``domain_formula`` must raise a clear ValidationError
+        rather than an opaque AttributeError from ``DOMAIN_REGEX.match(...).groups()``.
+        """
+        report = self.env["account.report"].create({"name": "Domain Formula Report"})
+        line = self.env["account.report.line"].create(
+            {"name": "dom_line", "report_id": report.id}
+        )
+        for bad_formula in ("summ(domain)", "just text", "sum missing parens"):
+            with self.assertRaisesRegex(ValidationError, "Invalid domain formula"):
+                line.domain_formula = bad_formula
+        # A well-formed formula is still accepted.
+        line.domain_formula = "sum([('account_id.account_type', '=', 'income')])"
+        self.assertTrue(line.expression_ids)

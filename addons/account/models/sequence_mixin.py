@@ -315,12 +315,19 @@ class SequenceMixin(models.AbstractModel):
         :param relaxed: see _get_last_sequence.
 
         :returns: tuple(where_string, where_params): with
-            where_string: the entire SQL WHERE clause as a string.
+            where_string: the entire SQL WHERE clause as a string (must start
+                with ``WHERE``; the caller appends ``AND sequence_prefix = ...``).
             where_params: a dictionary containing the parameters to substitute
                 at the execution of the query.
         """
         self.ensure_one()
-        return "", {}
+        # Abstract: the caller appends ``AND sequence_prefix = (...)`` to this
+        # clause, so an empty string would build syntactically invalid SQL.
+        # Fail explicitly instead of leaving that trap for a forgotten override.
+        raise NotImplementedError(
+            "Models inheriting 'sequence.mixin' must override "
+            "'_get_last_sequence_domain' and return a 'WHERE ...' clause."
+        )
 
     def _get_starting_sequence(self):
         """Get a default sequence number.

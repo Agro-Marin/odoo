@@ -213,10 +213,14 @@ class AccountMoveSend(models.AbstractModel):
                     lambda m: not m.partner_id.email
                 ).mapped("partner_id")
             else:
-                # Single sending
-                partners_without_mail = moves_data[email_moves][
-                    "mail_partner_ids"
-                ].filtered(lambda p: not p.email)
+                # Single sending. `mail_partner_ids` is a recordset when it comes
+                # from the single wizard's M2M field, but a list of ids when it
+                # comes from `_get_default_sending_settings` (batch data shape);
+                # normalize before filtering so this can't crash on the list form.
+                mail_partners = moves_data[email_moves]["mail_partner_ids"]
+                if not isinstance(mail_partners, models.BaseModel):
+                    mail_partners = self.env["res.partner"].browse(mail_partners)
+                partners_without_mail = mail_partners.filtered(lambda p: not p.email)
 
             # If there are partners without email, add an alert
             if partners_without_mail:
@@ -281,7 +285,10 @@ class AccountMoveSend(models.AbstractModel):
         partners = self.env["res.partner"].with_company(move.company_id)
         if mail_template.use_default_to:
             defaults = move._message_get_default_recipients()[move.id]
-            email_cc = defaults["email_to"]
+            # `_message_get_default_recipients` is called without `with_cc`, so
+            # there is no CC here; the previous `email_cc = defaults["email_to"]`
+            # merely duplicated the To addresses (deduplicated downstream).
+            email_cc = ""
             email_to = defaults["email_to"]
             partners |= partners.browse(defaults["partner_ids"])
         else:

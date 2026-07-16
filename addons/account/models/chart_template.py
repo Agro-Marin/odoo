@@ -608,8 +608,20 @@ class AccountChartTemplate(models.AbstractModel):
                     normalized_code = (
                         f"{values['code']:<0{int(template_data.get('code_digits', 6))}}"
                     )
+                    # `values['code']` is a template-provided account code and
+                    # must be escaped before being dropped into a regex / a SQL
+                    # `SIMILAR TO` pattern: a code carrying a regex or SIMILAR TO
+                    # metacharacter (localizations do use alphanumeric/punctuated
+                    # codes) would otherwise raise `re.error` and abort the whole
+                    # CoA reload, or act as a wildcard and mis-link the xmlid. The
+                    # trailing `0*` stays a real "zero or more trailing zeros"
+                    # wildcard. Mirrors the `re.escape` fix applied to tax names.
+                    escaped_code_re = re.escape(values["code"])
+                    escaped_code_sql = re.sub(
+                        r"([^a-zA-Z0-9])", r"\\\1", values["code"]
+                    )
                     if not account or not re.match(
-                        f"^{values['code']}0*$", account.code
+                        f"^{escaped_code_re}0*$", account.code
                     ):
                         query = self.env["account.account"]._search(
                             self.env["account.account"]._check_company_domain(company)
@@ -620,7 +632,7 @@ class AccountChartTemplate(models.AbstractModel):
                             ._field_to_sql("account_account", "code", query)
                         )
                         query.add_where(
-                            SQL("%s SIMILAR TO %s", account_code, f"{values['code']}0*")
+                            SQL("%s SIMILAR TO %s", account_code, f"{escaped_code_sql}0*")
                         )
                         accounts = self.env["account.account"].browse(query)
                         existing_account = (

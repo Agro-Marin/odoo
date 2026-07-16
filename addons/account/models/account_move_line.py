@@ -7,7 +7,15 @@ from datetime import date
 from odoo import _, api, fields, models
 from odoo.exceptions import RedirectWarning, UserError, ValidationError
 from odoo.fields import Command, Domain
-from odoo.tools import SQL, OrderedSet, Query, float_compare, frozendict, groupby
+from odoo.tools import (
+    SQL,
+    OrderedSet,
+    Query,
+    float_compare,
+    frozendict,
+    groupby,
+    ormcache,
+)
 
 from odoo.addons.account.models.account_move import MAX_HASH_VERSION
 from odoo.addons.web.controllers.utils import clean_action
@@ -689,7 +697,7 @@ class AccountMoveLine(models.Model):
             .sorted(lambda l: l.date_maturity or date.max)
             .grouped("move_id")
         )
-        for line in self.filtered(lambda l: l.move_id.inalterable_hash is False):
+        for line in self.filtered(lambda l: not l.move_id.inalterable_hash):
             if line.display_type == "payment_term":
                 term_lines = term_by_move.get(
                     line.move_id, self.env["account.move.line"]
@@ -892,7 +900,7 @@ class AccountMoveLine(models.Model):
 
         return [("account_id", operator, value)]
 
-    @api.depends("move_id.is_storno", "price_unit", "quantity")
+    @api.depends("move_id.is_storno", "move_id.move_type", "price_unit", "quantity")
     def _compute_is_storno(self):
         for line in self:
             if not line.company_id.account_storno:
@@ -1642,38 +1650,50 @@ class AccountMoveLine(models.Model):
     @api.depends("account_id", "partner_id", "product_id")
     def _compute_analytic_distribution(self):
         cache = {}
+        AnalyticAccount = self.env["account.analytic.account"]
+        # Collect every referenced analytic account across all lines and resolve
+        # their existence (+ root plan) in a single query, instead of running one
+        # `.exists()` per line (an N+1 on bulk-created/imported invoices).
+        lines_info = {}  # line -> (related_distribution, {account ids})
+        all_account_ids = set()
         for line in self:
             if line.display_type == "product" or not line.move_id.is_invoice(
                 include_receipts=True
             ):
                 related_distribution = line._related_analytic_distribution()
-                root_plans = (
-                    self.env["account.analytic.account"]
-                    .browse(
-                        list(
-                            {
-                                int(account_id)
-                                for ids in related_distribution
-                                for account_id in ids.split(",")
-                                if account_id.strip()
-                            }
-                        )
-                    )
-                    .exists()
-                    .root_plan_id
-                )
+                account_ids = {
+                    int(account_id)
+                    for ids in related_distribution
+                    for account_id in ids.split(",")
+                    if account_id.strip()
+                }
+                lines_info[line] = (related_distribution, account_ids)
+                all_account_ids |= account_ids
 
-                arguments = frozendict(
-                    line._get_analytic_distribution_arguments(root_plans)
-                )
-                if arguments not in cache:
-                    cache[arguments] = self.env[
-                        "account.analytic.distribution.model"
-                    ]._get_distribution(arguments)
-                line.analytic_distribution = (
-                    related_distribution | cache[arguments]
-                    or line.analytic_distribution
-                )
+        if not lines_info:
+            return
+
+        existing_accounts = AnalyticAccount.browse(sorted(all_account_ids)).exists()
+        existing_ids = set(existing_accounts.ids)
+        # Warm the ORM cache for the whole batch so the per-line reads below hit
+        # the cache instead of querying root_plan_id account by account.
+        existing_accounts.mapped("root_plan_id")
+
+        for line, (related_distribution, account_ids) in lines_info.items():
+            root_plans = AnalyticAccount.browse(
+                [aid for aid in account_ids if aid in existing_ids]
+            ).root_plan_id
+
+            arguments = frozendict(
+                line._get_analytic_distribution_arguments(root_plans)
+            )
+            if arguments not in cache:
+                cache[arguments] = self.env[
+                    "account.analytic.distribution.model"
+                ]._get_distribution(arguments)
+            line.analytic_distribution = (
+                related_distribution | cache[arguments] or line.analytic_distribution
+            )
 
     def _get_analytic_distribution_arguments(self, root_plans):
         """
@@ -2231,12 +2251,17 @@ class AccountMoveLine(models.Model):
         return result
 
     @api.model
+    @ormcache()
     def _get_default_read_fields(self):
-        return [
+        # Static per model (full field set minus a fixed exclusion frozenset) yet
+        # rebuilt on every fields=None read/search_read. Cache it; the ormcache is
+        # dropped on registry reload, the only time the field set can change.
+        # Returns a tuple so callers can't mutate the cached object.
+        return tuple(
             fname
             for fname in self.fields_get(attributes=())
             if fname not in self._UNREADABLE_BY_DEFAULT
-        ]
+        )
 
     @api.model
     def _get_tracked_fnames(self):
@@ -2253,14 +2278,14 @@ class AccountMoveLine(models.Model):
         ]
 
     def read(self, fields=None, load="_classic_read"):
-        fields = fields or self._get_default_read_fields()
+        fields = fields or list(self._get_default_read_fields())
         return super().read(fields, load)
 
     @api.model
     def search_read(
         self, domain=None, fields=None, offset=0, limit=None, order=None, **read_kwargs
     ):
-        fields = fields or self._get_default_read_fields()
+        fields = fields or list(self._get_default_read_fields())
         return super().search_read(domain, fields, offset, limit, order, **read_kwargs)
 
     def invalidate_model(self, fnames=None, flush=True):
@@ -2284,6 +2309,13 @@ class AccountMoveLine(models.Model):
 
     @api.model
     def search_fetch(self, domain, field_names=None, offset=0, limit=None, order=None):
+        # Only stash the domain/order for `_compute_cumulated_balance` when that
+        # field is actually fetched. Otherwise the per-call `to_tuple` deep-copy
+        # of the whole domain — and its propagation into every downstream prefetch
+        # env's context — is pure overhead on this hot path.
+        if field_names is not None and "cumulated_balance" not in field_names:
+            return super().search_fetch(domain, field_names, offset, limit, order)
+
         def to_tuple(t):
             return tuple(map(to_tuple, t)) if isinstance(t, (list, tuple)) else t
 
@@ -2317,7 +2349,9 @@ class AccountMoveLine(models.Model):
                 self.env.context.get("journal_id")
             )
         ) and journal.default_account_id:
-            defaults["account_id"] = journal.default_account_id
+            # `default_get` must return primitive/id values; the quick-encode
+            # branch above already sets an id, so keep both branches uniform.
+            defaults["account_id"] = journal.default_account_id.id
         return defaults
 
     def _sanitize_vals(self, vals):

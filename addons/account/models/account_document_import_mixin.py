@@ -9,7 +9,7 @@ from struct import error as StructError
 from lxml import etree
 from markupsafe import Markup
 
-from odoo import api, models, modules
+from odoo import api, models, modules, tools
 from odoo.exceptions import RedirectWarning
 from odoo.libs.filesystem.mimetypes import guess_mimetype
 from odoo.tools import groupby
@@ -23,7 +23,10 @@ def _can_commit():
 
     :returns: True if commit is acceptable, False otherwise.
     """
-    return not modules.module.current_test
+    # Kept consistent with ``account.move.send._can_commit``: also suppress
+    # commits under ``--test-enable`` (not only while a test is actively
+    # running), so the two closely-related subsystems behave identically.
+    return not (tools.config["test_enable"] or modules.module.current_test)
 
 
 @contextmanager

@@ -761,9 +761,16 @@ class AccountReportLine(models.Model):
         ).get_external_id()
         for report_line in self:
             if engine == "domain" and report_line.domain_formula:
-                subformula, formula = DOMAIN_REGEX.match(
-                    report_line.domain_formula or ""
-                ).groups()
+                domain_match = DOMAIN_REGEX.match(report_line.domain_formula or "")
+                if not domain_match:
+                    raise ValidationError(_(
+                        "Invalid domain formula %(formula)r on report line "
+                        "%(line)r. Expected the form 'sum(<domain>)' "
+                        "(optionally '-sum(<domain>)').",
+                        formula=report_line.domain_formula,
+                        line=report_line.name,
+                    ))
+                subformula, formula = domain_match.groups()
                 # Resolve the calls to ref(), to mimic the fact those formulas are normally given with an eval="..." in XML
                 formula = re.sub(
                     r"""\bref\((?P<quote>['"])(?P<xmlid>.+?)(?P=quote)\)""",

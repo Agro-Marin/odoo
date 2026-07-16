@@ -241,6 +241,19 @@ export const accountTaxHelpers = {
         if (tax.amount_type === "division") {
             const total_percentage =
                 batch.reduce((sum, batch_tax) => sum + batch_tax.amount, 0) / 100.0;
+            if (!floatIsZero(total_percentage - 1.0, 10) && total_percentage - 1.0 > 0) {
+                // A price-excluded division batch summing to > 100% leaves a
+                // negative base: `1 - total_percentage < 0` would silently flip
+                // the tax sign and produce a negative total. Reject the
+                // configuration instead of returning garbage. (The valid 100%
+                // price-included case goes through the sibling method above.)
+                throw new Error(
+                    _t(
+                        "Division taxes applied together cannot exceed 100%% (got %s%%): it would leave a negative taxable base.",
+                        Math.round(total_percentage * 100.0 * 10000) / 10000
+                    )
+                );
+            }
             const incl_base_multiplicator = floatIsZero(total_percentage - 1.0, 10) ? 1.0 : 1 - total_percentage;
             return (raw_base * tax.amount) / 100.0 / incl_base_multiplicator;
         }

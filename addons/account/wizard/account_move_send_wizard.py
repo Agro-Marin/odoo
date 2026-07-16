@@ -156,6 +156,10 @@ class AccountMoveSendWizard(models.TransientModel):
 
         for wizard in self:
             preferred_methods = self._get_default_sending_methods(wizard.move_id)
+            # Hoist the default settings out of the per-method comprehension: they
+            # are identical for every method key and each call is an expensive
+            # mail-rendering (also avoids re-resolving recipients per method).
+            default_settings = self._get_default_sending_settings(wizard.move_id)
             wizard.sending_method_checkboxes = {
                 method_key: {
                     "checked": (
@@ -165,7 +169,7 @@ class AccountMoveSendWizard(models.TransientModel):
                             or self._is_applicable_to_move(
                                 method_key,
                                 wizard.move_id,
-                                **self._get_default_sending_settings(wizard.move_id),
+                                **default_settings,
                             )
                         )
                     ),  # email method is always ok in single mode since the email can be added if it's missing

@@ -321,6 +321,7 @@ class AccountTax(models.Model):
                     )
                 )
 
+
     @api.constrains(
         "invoice_repartition_line_ids",
         "refund_repartition_line_ids",
@@ -1169,6 +1170,19 @@ class AccountTax(models.Model):
 
         if self.amount_type == "division":
             total_percentage = sum(tax.amount for tax in batch) / 100.0
+            if float_compare(total_percentage, 1.0, precision_digits=10) > 0:
+                # A price-excluded division batch summing to > 100% leaves a
+                # negative base: `1 - total_percentage < 0` would silently flip
+                # the tax sign and produce a negative total. Reject the
+                # configuration instead of returning garbage. (The valid 100%
+                # price-*included* case goes through the sibling method above.)
+                raise ValidationError(
+                    _(
+                        "Division taxes applied together cannot exceed 100%% "
+                        "(got %(total)s%%): it would leave a negative taxable base.",
+                        total=round(total_percentage * 100.0, 4),
+                    )
+                )
             incl_base_multiplicator = (
                 1.0
                 if float_compare(total_percentage, 1.0, precision_digits=10) == 0

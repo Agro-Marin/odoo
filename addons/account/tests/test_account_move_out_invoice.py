@@ -6609,7 +6609,7 @@ class TestAccountMoveOutInvoiceOnchanges(AccountTestInvoicingCommon):
         discounted_amount = (
             invoice.invoice_payment_term_id._get_amount_due_after_discount(
                 total_amount=invoice.amount_total,
-                untaxed_amount=invoice.amount_tax,
+                tax_amount=invoice.amount_tax,
             )
         )
         self.assertEqual(discounted_amount, 52.95)
