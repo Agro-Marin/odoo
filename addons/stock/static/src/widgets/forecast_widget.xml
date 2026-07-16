@@ -2,14 +2,14 @@
 <templates id="template" xml:space="preserve">
     <t t-name="stock.ForecastWidget">
         <span title="Forecasted Report"
-              t-on-click="_openReport" t-att="resId ? {} : {'disabled': ''}"
+              t-on-click="_openReport"
               class="badge rounded-pill align-middle"
               t-att-class="decoration"
         >
-            <t t-if="!forecastExpectedDate and willBeFulfilled">
+            <t t-if="status === 'available'">
                 Available
             </t>
-            <t t-elif="forecastExpectedDate and willBeFulfilled">
+            <t t-elif="status === 'expected'">
                 Exp <t t-out="forecastExpectedDate"/>
             </t>
             <t t-else="">Not Available</t>

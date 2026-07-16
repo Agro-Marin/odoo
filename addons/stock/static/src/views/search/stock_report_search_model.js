@@ -12,7 +12,7 @@ export class StockReportSearchModel extends SearchModel {
     async load() {
         await super.load(...arguments);
         await this._loadWarehouses();
-      }
+    }
 
 
     //---------------------------------------------------------------------
@@ -24,12 +24,18 @@ export class StockReportSearchModel extends SearchModel {
     }
 
     async _loadWarehouses() {
-        this.warehouses = await this.orm.call(
-            'stock.warehouse',
-            'get_current_warehouses',
-            [[]],
-            { context: this.context },
-        );
+        try {
+            this.warehouses = await this.orm.call(
+                'stock.warehouse',
+                'get_current_warehouses',
+                [[]],
+                { context: this.context },
+            );
+        } catch {
+            // A failing warehouse RPC must not abort the whole view load; the
+            // panel just renders without the warehouse filter (warehouses = []).
+            this.warehouses = [];
+        }
     }
 
     /**

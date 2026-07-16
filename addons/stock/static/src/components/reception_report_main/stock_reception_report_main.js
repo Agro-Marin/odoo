@@ -40,8 +40,14 @@ export class ReceptionReportMain extends Component {
                 const parsedIds = JSON.parse(rids);
                 defaultDocIds = [rfield, parsedIds instanceof Array ? parsedIds : [parsedIds]];
             } else {
-                defaultDocIds = Object.entries(this.context).find(([k]) => k.startsWith("default_"));
-                if (!defaultDocIds) {
+                const defaultEntry = Object.entries(this.context).find(([k]) => k.startsWith("default_"));
+                if (defaultEntry) {
+                    // Normalize the raw context value to a list — a scalar
+                    // default_*_id must not reach get_report_data as a bare number
+                    // (the rfield/rids branch above already wraps).
+                    const [field, value] = defaultEntry;
+                    defaultDocIds = [field, Array.isArray(value) ? value : [value]];
+                } else {
                     // If nothing could be found, just ask for empty data.
                     defaultDocIds = [false, [0]];
                 }

@@ -67,15 +67,24 @@ export class ForecastWidgetField extends FloatField {
         this.actionService.doAction(action);
     }
 
-    get decoration() {
-        if (!this.forecastExpectedDate && this.willBeFulfilled){
-            return "text-bg-success"
-        } else if (this.forecastExpectedDate && this.willBeFulfilled){
-            return this.forecastIsLate ? 'text-bg-danger' : 'text-bg-warning'
-        } else {
-            return 'text-bg-danger'
+    // Single source of truth for the badge's tri-state, consumed by both the
+    // color (`decoration`) and the label (template) so they can never disagree.
+    get status() {
+        if (this.willBeFulfilled) {
+            return this.forecastExpectedDate ? "expected" : "available";
         }
+        return "unavailable";
+    }
 
+    get decoration() {
+        switch (this.status) {
+            case "available":
+                return "text-bg-success";
+            case "expected":
+                return this.forecastIsLate ? "text-bg-danger" : "text-bg-warning";
+            default:
+                return "text-bg-danger";
+        }
     }
 }
 

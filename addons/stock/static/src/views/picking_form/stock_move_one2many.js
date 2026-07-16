@@ -5,18 +5,15 @@ import { X2ManyField, x2ManyField } from "@web/fields/relational/x2many/x2many_f
 import { ProductNameAndDescriptionListRendererMixin } from "@product/product_name_and_description/product_name_and_description";
 import { user } from "@web/services/user";
 import { patch } from "@web/core/utils/patch";
-import { useOwnedDialogs, useService } from "@web/core/utils/hooks";
 import { onWillStart } from "@odoo/owl";
-import { openSelectPackagesDialog } from "@stock/views/select_packages_dialog";
+import { useMovePackageDialog } from "@stock/views/select_packages_dialog";
 
 export class MovesListRenderer extends ListRenderer {
     static rowsTemplate = "stock.AddPackageListRendererRows";
 
     setup() {
         super.setup();
-        this.addDialog = useOwnedDialogs();
-        this.orm = useService("orm");
-        this.actionService = useService("action");
+        this.openPackageDialog = useMovePackageDialog();
         this.descriptionColumn = "description_picking";
         this.productColumns = ["product_id", "product_template_id"];
 
@@ -31,13 +28,7 @@ export class MovesListRenderer extends ListRenderer {
         if (!canOpenDialog) {
             return;
         }
-        openSelectPackagesDialog({
-            addDialog: this.addDialog,
-            orm: this.orm,
-            actionService: this.actionService,
-            pickingId: this.pickingId,
-            locationId: this.locationId,
-        });
+        this.openPackageDialog(this.pickingId, this.locationId);
     }
 
     get canAddPackage() {
