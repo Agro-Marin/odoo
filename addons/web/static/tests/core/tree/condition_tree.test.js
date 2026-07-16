@@ -591,6 +591,19 @@ test("cloneTree deep-clones connector children two levels deep", () => {
     expect(clone.children[0].children[0].value).toBe("def");
 });
 
+test("cloneTree reuses (does not rebuild) an immutable Expression value", () => {
+    // Expression is an immutable value object, so cloneTree shares the instance
+    // instead of reconstructing it — rebuilding would re-run formatAST on every
+    // clone across every operate() pass. The surrounding tree node is still
+    // cloned; only the Expression value is shared.
+    const expr = expression("uid + 1");
+    const original = condition("foo", "=", expr);
+    const clone = /** @type {any} */ (cloneTree(original));
+    expect(clone).not.toBe(original);
+    expect(clone).toEqual(original);
+    expect(clone.value).toBe(expr);
+});
+
 test("ternary-shaped subtree nested in a connector keeps its parentheses", () => {
     const options = {
         getFieldDef: (name) => ({ type: "boolean", string: name, name }),
