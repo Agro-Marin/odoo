@@ -65,7 +65,9 @@ class TestPurchasePortalRfqDomain(AccountTestInvoicingCommon):
         )
         self.assertIn(self.rfq, matched, "Draft RFQ should show on /my/rfq")
         self.assertNotIn(
-            self.confirmed, matched, "Confirmed PO should not show on /my/rfq",
+            self.confirmed,
+            matched,
+            "Confirmed PO should not show on /my/rfq",
         )
 
     def test_rfq_report_ref_uses_quotation_for_draft(self):
@@ -178,7 +180,9 @@ class TestPurchaseMergeConsolidation(AccountTestInvoicingCommon):
         target = po1 if po1.state != "cancel" else po2
         product_lines = target.line_ids.filtered(lambda l: not l.display_type)
         self.assertEqual(
-            len(product_lines), 2, "dates > 24h apart must not consolidate",
+            len(product_lines),
+            2,
+            "dates > 24h apart must not consolidate",
         )
 
 
@@ -315,9 +319,7 @@ class TestBillPoLinkTracking(AccountTestInvoicingCommon):
         )
 
     def _has_modified_note(self, move):
-        return any(
-            "modified from" in (m.body or "") for m in move.message_ids
-        )
+        return any("modified from" in (m.body or "") for m in move.message_ids)
 
     def test_linking_po_via_write_posts_note(self):
         bill = self._new_bill()
@@ -381,7 +383,11 @@ class TestPurchaseOverInvoiceState(AccountTestInvoicingCommon):
                 "partner_id": self.partner_a.id,
                 "line_ids": [
                     Command.create(
-                        {"product_id": product.id, "product_qty": qty, "price_unit": 100},
+                        {
+                            "product_id": product.id,
+                            "product_qty": qty,
+                            "price_unit": 100,
+                        },
                     ),
                 ],
             },
@@ -570,15 +576,21 @@ class TestPurchaseInvoiceSections(AccountTestInvoicingCommon):
 
     def _product_cmd(self):
         return Command.create(
-            {"product_id": self.svc.id, "product_qty": 5, "price_unit": 100,
-             "tax_ids": [Command.clear()]},
+            {
+                "product_id": self.svc.id,
+                "product_qty": 5,
+                "price_unit": 100,
+                "tax_ids": [Command.clear()],
+            },
         )
 
     def test_section_before_product_is_billed(self):
-        po = self._po([
-            Command.create({"display_type": "line_section", "name": "Sec A"}),
-            self._product_cmd(),
-        ])
+        po = self._po(
+            [
+                Command.create({"display_type": "line_section", "name": "Sec A"}),
+                self._product_cmd(),
+            ]
+        )
         bill = po.create_invoice()
         sections = bill.invoice_line_ids.filtered(
             lambda l: l.display_type == "line_section",
@@ -586,10 +598,12 @@ class TestPurchaseInvoiceSections(AccountTestInvoicingCommon):
         self.assertEqual(sections.mapped("name"), ["Sec A"])
 
     def test_trailing_section_not_billed(self):
-        po = self._po([
-            self._product_cmd(),
-            Command.create({"display_type": "line_section", "name": "Trailing"}),
-        ])
+        po = self._po(
+            [
+                self._product_cmd(),
+                Command.create({"display_type": "line_section", "name": "Trailing"}),
+            ]
+        )
         bill = po.create_invoice()
         names = bill.invoice_line_ids.filtered(
             lambda l: l.display_type == "line_section",
@@ -633,8 +647,12 @@ class TestPurchaseQtyInvoicedParity(AccountTestInvoicingCommon):
                 "partner_id": self.partner_a.id,
                 "line_ids": [
                     Command.create(
-                        {"product_id": product.id, "product_qty": qty,
-                         "price_unit": 100, "tax_ids": [Command.clear()]},
+                        {
+                            "product_id": product.id,
+                            "product_qty": qty,
+                            "price_unit": 100,
+                            "tax_ids": [Command.clear()],
+                        },
                     ),
                 ],
             },

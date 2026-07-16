@@ -632,7 +632,11 @@ class AccountChartTemplate(models.AbstractModel):
                             ._field_to_sql("account_account", "code", query)
                         )
                         query.add_where(
-                            SQL("%s SIMILAR TO %s", account_code, f"{escaped_code_sql}0*")
+                            SQL(
+                                "%s SIMILAR TO %s",
+                                account_code,
+                                f"{escaped_code_sql}0*",
+                            )
                         )
                         accounts = self.env["account.account"].browse(query)
                         existing_account = (

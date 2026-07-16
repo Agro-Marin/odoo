@@ -14,7 +14,7 @@ class AvcoAccumulator:
     currency. ``uom`` (optional) is used only for the divide-by-zero guard.
     """
 
-    __slots__ = ('_uom', 'quantity', 'unit_cost', 'value')
+    __slots__ = ("_uom", "quantity", "unit_cost", "value")
 
     def __init__(self, quantity=0.0, value=0.0, unit_cost=0.0, uom=None):
         self.quantity = quantity

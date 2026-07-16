@@ -834,8 +834,9 @@ class PosConfig(models.Model):
 
             if config.use_pricelist and any(
                 config.available_pricelist_ids.mapped(
-                    lambda pricelist, config=config: pricelist.currency_id
-                    != config.currency_id
+                    lambda pricelist, config=config: (
+                        pricelist.currency_id != config.currency_id
+                    )
                 )
             ):
                 raise ValidationError(

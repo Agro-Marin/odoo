@@ -77,19 +77,17 @@ DESIGN CHOICES
 from __future__ import annotations
 
 import argparse
-import os
 import sys
+from collections.abc import Iterable
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any
 
 # Path math: /home/marin/Odoo/addons/odoo/addons/web/tooling/scripts/<this>
 #   parents[0] = scripts/, [1] = tooling/, [2] = web/,
 #   parents[3] = addons/ (inner), [4] = core/, [5] = addons/ (outer),
 #   parents[6] = Odoo/        ← the workspace root.
 REPO_ROOT = Path(__file__).resolve().parents[6]
-DEFAULT_OUTPUT_DIR = (
-    REPO_ROOT / "addons/odoo/addons/web/static/src/@types/models"
-)
+DEFAULT_OUTPUT_DIR = REPO_ROOT / "addons/odoo/addons/web/static/src/@types/models"
 
 # Selection literal-union cap — past this, fall back to ``string``.
 # Calibrated against ``res.partner.tz`` (~400 IANA zones, was producing
@@ -205,10 +203,7 @@ def _emit_imports(used_brands: set[str]) -> str:
         return ""
     sorted_brands = sorted(used_brands)
     items = ", ".join(sorted_brands)
-    return (
-        f'    import type {{ {items} }} '
-        f'from "@web/@types/models/_runtime";\n\n'
-    )
+    return f'    import type {{ {items} }} from "@web/@types/models/_runtime";\n\n'
 
 
 def _scan_used_brands(fields: dict[str, dict]) -> set[str]:
@@ -229,9 +224,7 @@ def _scan_used_brands(fields: dict[str, dict]) -> set[str]:
     return used
 
 
-def _model_to_dts(
-    model_name: str, fields: dict[str, dict], module: str
-) -> str:
+def _model_to_dts(model_name: str, fields: dict[str, dict], module: str) -> str:
     """Render the full .d.ts content for one model contribution."""
     iface = _interface_name(model_name)
     used_brands = _scan_used_brands(fields)
@@ -248,7 +241,7 @@ def _model_to_dts(
         f" */\n"
     )
 
-    lines.append(f'declare module "@web/@types/models/_runtime" {{\n')
+    lines.append('declare module "@web/@types/models/_runtime" {\n')
     if used_brands:
         lines.append(_emit_imports(used_brands))
 
@@ -265,24 +258,21 @@ def _model_to_dts(
         # rots faster than the field shape.
         lines.append(f"        {fname}{marker}: {ts_type};\n")
 
-    lines.append(f"    }}\n")
+    lines.append("    }\n")
 
     # Register the interface into the global ``Models`` map.  Module
     # boundaries are preserved via declaration merging — each module's
     # output file declares the same interface; TS unions them.
-    lines.append(f"\n    interface Models {{\n")
+    lines.append("\n    interface Models {\n")
     lines.append(f'        "{model_name}": {iface};\n')
-    lines.append(f"    }}\n")
+    lines.append("    }\n")
 
-    lines.append(f"}}\n")
+    lines.append("}\n")
 
     # The export keeps the file picked up by ``import type`` paths,
     # though declaration merging makes the explicit re-export
     # unnecessary.  Provided for IDE go-to-definition navigation.
-    lines.append(
-        f'\nexport type {{ {iface} }} '
-        f'from "@web/@types/models/_runtime";\n'
-    )
+    lines.append(f'\nexport type {{ {iface} }} from "@web/@types/models/_runtime";\n')
 
     return "".join(lines)
 
@@ -325,9 +315,7 @@ def generate(
             module = getattr(ModelCls, "_original_module", None) or "base"
             targets.append((module, model_name))
     else:
-        installed = env["ir.module.module"].search(
-            [("state", "=", "installed")]
-        )
+        installed = env["ir.module.module"].search([("state", "=", "installed")])
         wanted = set(modules) if modules else {m.name for m in installed}
         for model_name in env.registry:
             ModelCls = env[model_name]
@@ -337,9 +325,7 @@ def generate(
 
     written: dict[str, Path] = {}
     for module, model_name in sorted(targets):
-        ir_model = env["ir.model"].search(
-            [("model", "=", model_name)], limit=1
-        )
+        ir_model = env["ir.model"].search([("model", "=", model_name)], limit=1)
         if not ir_model:
             continue
         # Transient models are always skipped (no data-layer records to
@@ -349,8 +335,9 @@ def generate(
         # ``transient or (modules == "base" and abstract)``, so an
         # abstract model extended by any non-base module is NOT
         # skipped here.  Worth revisiting if wizards want types.
-        if ir_model.transient or ir_model.modules == "base" and (
-            getattr(env[model_name], "_abstract", False)
+        if ir_model.transient or (
+            ir_model.modules == "base"
+            and (getattr(env[model_name], "_abstract", False))
         ):
             continue
 
@@ -401,12 +388,8 @@ def _main() -> int:
     parser = argparse.ArgumentParser(
         description="Generate TS .d.ts files from Odoo fields_get."
     )
-    parser.add_argument(
-        "--config", required=True, help="Path to odoo.conf"
-    )
-    parser.add_argument(
-        "--db", required=True, help="Database name"
-    )
+    parser.add_argument("--config", required=True, help="Path to odoo.conf")
+    parser.add_argument("--db", required=True, help="Database name")
     parser.add_argument(
         "--modules",
         help="Comma-separated module names (default: all installed).",

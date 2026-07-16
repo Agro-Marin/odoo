@@ -7,7 +7,6 @@ from odoo.fields import Command
 from odoo.tools import float_compare
 from odoo.tools.translate import _
 
-
 _logger = logging.getLogger(__name__)
 
 
@@ -129,6 +128,7 @@ class SaleOrder(models.Model):
             self._table,
         )
         self.env.cr.execute(query, params)
+        return None
 
     # ----------------------------------------------------------------------
     # CONSTRAINT METHODS
@@ -138,8 +138,9 @@ class SaleOrder(models.Model):
     def _check_warehouse(self):
         """Ensure that the warehouse is set in case of storable products"""
         orders_without_wh = self.filtered(
-            lambda order: order.state not in ("draft", "cancel")
-            and not order.warehouse_id,
+            lambda order: (
+                order.state not in ("draft", "cancel") and not order.warehouse_id
+            ),
         )
         company_ids_with_wh = {
             company_id.id
@@ -223,8 +224,10 @@ class SaleOrder(models.Model):
             deadline_datetime = vals.get("date_commitment")
             for order in self:
                 moves = order.line_ids.move_ids.filtered(
-                    lambda m: m.state not in ("done", "cancel")
-                    and m.location_dest_id.usage == "customer",
+                    lambda m: (
+                        m.state not in ("done", "cancel")
+                        and m.location_dest_id.usage == "customer"
+                    ),
                 )
                 moves.date_deadline = deadline_datetime or order.date_planned
 
@@ -366,8 +369,10 @@ class SaleOrder(models.Model):
     def _onchange_partner_shipping_id(self):
         res = {}
         pickings = self.picking_ids.filtered(
-            lambda p: p.state not in ["done", "cancel"]
-            and p.partner_id != self.partner_shipping_id,
+            lambda p: (
+                p.state not in ["done", "cancel"]
+                and p.partner_id != self.partner_shipping_id
+            ),
         )
         if pickings:
             res["warning"] = {
@@ -431,9 +436,11 @@ class SaleOrder(models.Model):
     # ----------------------------------------------------------------------
 
     def _add_reference(self, reference):
-        """ link the given references to the list of references. """
+        """link the given references to the list of references."""
         self.ensure_one()
-        self.stock_reference_ids = [Command.link(stock_reference.id) for stock_reference in reference]
+        self.stock_reference_ids = [
+            Command.link(stock_reference.id) for stock_reference in reference
+        ]
 
     def _get_action_view_picking(self, pickings):
         """
@@ -462,10 +469,10 @@ class SaleOrder(models.Model):
             picking_id = picking_id[0]
         else:
             picking_id = pickings[0]
-        action["context"] = dict(
-            default_partner_id=self.partner_id.id,
-            default_picking_type_id=picking_id.picking_type_id.id,
-        )
+        action["context"] = {
+            "default_partner_id": self.partner_id.id,
+            "default_picking_type_id": picking_id.picking_type_id.id,
+        }
         return action
 
     def _get_date_planned(self, date_planneds):
@@ -512,9 +519,11 @@ class SaleOrder(models.Model):
         return invoice_vals
 
     def _remove_reference(self, reference):
-        """ remove the given references from the list of references. """
+        """remove the given references from the list of references."""
         self.ensure_one()
-        self.stock_reference_ids = [Command.unlink(stock_reference.id) for stock_reference in reference]
+        self.stock_reference_ids = [
+            Command.unlink(stock_reference.id) for stock_reference in reference
+        ]
 
     # ----------------------------------------------------------------------
     # VALIDATIONS

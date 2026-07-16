@@ -155,8 +155,10 @@ class TestSaleComboConfigurator(HttpCase, SaleCommon):
         # guard for the combo-save singleton/pricing fix.
         self.assertTrue(
             order.line_ids[1].price_unit > 0 and order.line_ids[2].price_unit > 0,
-            "Combo-item price_unit should be recomputed, got A1=%s B2=%s" % (
-                order.line_ids[1].price_unit, order.line_ids[2].price_unit,
+            "Combo-item price_unit should be recomputed, got A1=%s B2=%s"
+            % (
+                order.line_ids[1].price_unit,
+                order.line_ids[2].price_unit,
             ),
         )
 

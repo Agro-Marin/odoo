@@ -10,9 +10,10 @@ class IrAttachment(models.Model):
         attachments = super().create(vals_list)
         if not self.env.context.get("disable_product_documents_creation"):
             product_attachments = attachments.filtered(
-                lambda attachment: attachment.res_model
-                in ("product.product", "product.template")
-                and not attachment.res_field
+                lambda attachment: (
+                    attachment.res_model in ("product.product", "product.template")
+                    and not attachment.res_field
+                )
             )
             if product_attachments:
                 self.env["product.document"].sudo().create(

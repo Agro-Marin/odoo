@@ -2,7 +2,7 @@ from odoo import api, models
 
 
 class StockMoveLine(models.Model):
-    _inherit = 'stock.move.line'
+    _inherit = "stock.move.line"
 
     @api.model_create_multi
     def create(self, vals_list):
@@ -12,20 +12,31 @@ class StockMoveLine(models.Model):
 
     def write(self, vals):
         analytic_move_to_recompute = set()
-        if 'quantity' in vals or 'move_id' in vals:
+        if "quantity" in vals or "move_id" in vals:
             for move_line in self:
-                move_id = vals.get('move_id', move_line.move_id.id)
+                move_id = vals.get("move_id", move_line.move_id.id)
                 analytic_move_to_recompute.add(move_id)
-        valuation_fields = ['quantity', 'location_id', 'location_dest_id', 'owner_id', 'quant_id', 'lot_id']
+        valuation_fields = [
+            "quantity",
+            "location_id",
+            "location_dest_id",
+            "owner_id",
+            "quant_id",
+            "lot_id",
+        ]
         valuation_trigger = any(field in vals for field in valuation_fields)
         qty_by_ml = {}
         if valuation_trigger:
-            qty_by_ml = {ml: ml.quantity for ml in self if ml.move_id.is_in or ml.move_id.is_out}
+            qty_by_ml = {
+                ml: ml.quantity for ml in self if ml.move_id.is_in or ml.move_id.is_out
+            }
         res = super().write(vals)
         if valuation_trigger and qty_by_ml:
             self._update_stock_move_value(qty_by_ml)
         if analytic_move_to_recompute:
-            self.env['stock.move'].browse(analytic_move_to_recompute).sudo()._create_analytic_move()
+            self.env["stock.move"].browse(
+                analytic_move_to_recompute
+            ).sudo()._create_analytic_move()
         return res
 
     def unlink(self):
@@ -49,7 +60,7 @@ class StockMoveLine(models.Model):
         if not old_qty_by_ml:
             old_qty_by_ml = {}
 
-        for move, mls in self.grouped('move_id').items():
+        for move, mls in self.grouped("move_id").items():
             if not (move.is_in or move.is_out):
                 continue
             if move.is_in:
@@ -63,12 +74,23 @@ class StockMoveLine(models.Model):
                 if delta:
                     move._set_value(correction_quantity=delta)
         if move_to_update:
-            self.env['stock.move'].browse(move_to_update)._set_value()
+            self.env["stock.move"].browse(move_to_update)._set_value()
 
     def _is_consigned_valued_line(self):
-        """ return true if the move line would have been considered in the _get_valued_qty() method except for
+        """return true if the move line would have been considered in the _get_valued_qty() method except for
         the _should_exclude_for_valuation criteria (.i.e the line would have been valued if it wasn't consigned)
         """
-        return self.picked and self._should_exclude_for_valuation() and\
-            (not self.location_id._should_be_valued() and self.location_dest_id._should_be_valued()
-            or self.location_id._should_be_valued() and not self.location_dest_id._should_be_valued())
+        return (
+            self.picked
+            and self._should_exclude_for_valuation()
+            and (
+                (
+                    not self.location_id._should_be_valued()
+                    and self.location_dest_id._should_be_valued()
+                )
+                or (
+                    self.location_id._should_be_valued()
+                    and not self.location_dest_id._should_be_valued()
+                )
+            )
+        )

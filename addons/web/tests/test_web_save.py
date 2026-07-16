@@ -19,15 +19,23 @@ class TestWebSaveOptimisticLocking(common.TransactionCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        cls.c1 = cls.env["res.partner"].create({"name": "Company 1", "is_company": True})
-        cls.c2 = cls.env["res.partner"].create({"name": "Company 2", "is_company": True})
-        cls.c3 = cls.env["res.partner"].create({"name": "Company 3", "is_company": True})
-        cls.partner = cls.env["res.partner"].create({
-            "name": "Base Partner",
-            "phone": "111",
-            "function": "f0",
-            "parent_id": cls.c1.id,
-        })
+        cls.c1 = cls.env["res.partner"].create(
+            {"name": "Company 1", "is_company": True}
+        )
+        cls.c2 = cls.env["res.partner"].create(
+            {"name": "Company 2", "is_company": True}
+        )
+        cls.c3 = cls.env["res.partner"].create(
+            {"name": "Company 3", "is_company": True}
+        )
+        cls.partner = cls.env["res.partner"].create(
+            {
+                "name": "Base Partner",
+                "phone": "111",
+                "function": "f0",
+                "parent_id": cls.c1.id,
+            }
+        )
         cls.env.flush_all()  # ensure the DB holds these values for raw reads
 
     def _server_set(self, **col_vals):
@@ -46,7 +54,8 @@ class TestWebSaveOptimisticLocking(common.TransactionCase):
 
     def test_create_ignores_locking(self):
         result = self.env["res.partner"].web_save(
-            {"name": "New"}, specification={"name": {}},
+            {"name": "New"},
+            specification={"name": {}},
             known_values={"name": "anything"},
         )
         self.assertEqual(result[0]["name"], "New")
@@ -56,7 +65,8 @@ class TestWebSaveOptimisticLocking(common.TransactionCase):
         """A concurrent change to a DIFFERENT field must not block the save."""
         self._server_set(function="changed-by-other")
         self.partner.web_save(
-            {"phone": "222"}, specification={"phone": {}},
+            {"phone": "222"},
+            specification={"phone": {}},
             known_values={"phone": "111"},
         )
         self.assertEqual(self.partner.phone, "222")
@@ -66,7 +76,8 @@ class TestWebSaveOptimisticLocking(common.TransactionCase):
         self._server_set(phone="999")
         with self.assertRaises(UserError):
             self.partner.web_save(
-                {"phone": "222"}, specification={"phone": {}},
+                {"phone": "222"},
+                specification={"phone": {}},
                 known_values={"phone": "111"},
             )
 
@@ -74,7 +85,8 @@ class TestWebSaveOptimisticLocking(common.TransactionCase):
         """If the server already holds the value the user is writing, no loss."""
         self._server_set(phone="222")
         self.partner.web_save(
-            {"phone": "222"}, specification={"phone": {}},
+            {"phone": "222"},
+            specification={"phone": {}},
             known_values={"phone": "111"},
         )
         self.assertEqual(self.partner.phone, "222")
@@ -84,14 +96,18 @@ class TestWebSaveOptimisticLocking(common.TransactionCase):
         self._server_set(parent_id=self.c2.id)
         with self.assertRaises(UserError):
             self.partner.web_save(
-                {"parent_id": self.c3.id}, specification={"parent_id": {}},
-                known_values={"parent_id": {"id": self.c1.id, "display_name": "Company 1"}},
+                {"parent_id": self.c3.id},
+                specification={"parent_id": {}},
+                known_values={
+                    "parent_id": {"id": self.c1.id, "display_name": "Company 1"}
+                },
             )
 
     def test_many2one_user_change_no_conflict(self):
         """User reassigns a many2one nobody else touched -> no conflict."""
         self.partner.web_save(
-            {"parent_id": self.c3.id}, specification={"parent_id": {}},
+            {"parent_id": self.c3.id},
+            specification={"parent_id": {}},
             known_values={"parent_id": {"id": self.c1.id, "display_name": "Company 1"}},
         )
         self.assertEqual(self.partner.parent_id, self.c3)
@@ -100,7 +116,8 @@ class TestWebSaveOptimisticLocking(common.TransactionCase):
         """A baseline for a field NOT being written is ignored (only vals count)."""
         self._server_set(parent_id=self.c2.id)
         self.partner.web_save(
-            {"phone": "222"}, specification={"phone": {}},
+            {"phone": "222"},
+            specification={"phone": {}},
             known_values={
                 "phone": "111",
                 "parent_id": {"id": self.c1.id, "display_name": "Company 1"},
@@ -112,7 +129,8 @@ class TestWebSaveOptimisticLocking(common.TransactionCase):
         """No comparable baselines (e.g. x2many-only edit) -> never blocks."""
         self._server_set(phone="999")
         self.partner.web_save(
-            {"phone": "222"}, specification={"phone": {}},
+            {"phone": "222"},
+            specification={"phone": {}},
             known_values={},
         )
         self.assertEqual(self.partner.phone, "222")
@@ -125,7 +143,8 @@ class TestWebSaveOptimisticLocking(common.TransactionCase):
         self.env.flush_all()
         self.assertTrue(category._fields["name"].translate)  # guard the premise
         category.web_save(
-            {"name": "Renamed"}, specification={"name": {}},
+            {"name": "Renamed"},
+            specification={"name": {}},
             known_values={"name": "Original"},
         )
         self.assertEqual(category.name, "Renamed")
@@ -141,7 +160,8 @@ class TestWebSaveOptimisticLocking(common.TransactionCase):
             ('{"en_US": "Changed Elsewhere"}', category.id),
         )
         category.web_save(
-            {"name": "Renamed"}, specification={"name": {}},
+            {"name": "Renamed"},
+            specification={"name": {}},
             known_values={"name": "Original"},
         )
         self.assertEqual(category.name, "Renamed")
@@ -152,7 +172,8 @@ class TestWebSaveOptimisticLocking(common.TransactionCase):
         self._server_set(write_date=self.partner.write_date + timedelta(seconds=5))
         with self.assertRaises(UserError):
             self.partner.web_save(
-                {"phone": "222"}, specification={"phone": {}},
+                {"phone": "222"},
+                specification={"phone": {}},
                 last_write_date=stale.isoformat(),
             )
 
@@ -171,7 +192,8 @@ class TestWebSaveOptimisticLocking(common.TransactionCase):
         recs = self.c1 + self.c2
         with self.assertRaises(ValueError):
             recs.web_save(
-                {"phone": "9"}, specification={"phone": {}},
+                {"phone": "9"},
+                specification={"phone": {}},
                 last_write_date="2020-01-01T00:00:00.000Z",
             )
 

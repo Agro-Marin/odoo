@@ -1,3 +1,4 @@
+import contextlib
 from collections import defaultdict
 from datetime import timedelta
 
@@ -229,9 +230,8 @@ class SaleOrderLine(models.Model):
         self.display_qty_widget = False
 
         for line in self.filtered(lambda x: x.product_id and x.product_id.is_storable):
-            if (
-                line.state == "draft"
-                or line.state == "done"
+            if line.state == "draft" or (
+                line.state == "done"
                 and line.qty_to_transfer > 0
                 and any(m.state not in ["done", "cancel"] for m in line.move_ids)
             ):
@@ -259,7 +259,8 @@ class SaleOrderLine(models.Model):
             # Check MTO
             mto_route = line.warehouse_id.mto_pull_id.route_id
             if not mto_route:
-                try:
+                # if route MTO not found in ir_model_data, we treat the product as in MTS
+                with contextlib.suppress(UserError):
                     mto_route = self.env[
                         "stock.warehouse"
                     ]._find_or_create_global_route(
@@ -267,9 +268,6 @@ class SaleOrderLine(models.Model):
                         _("Replenish on Order (MTO)"),
                         create=False,
                     )
-                except UserError:
-                    # if route MTO not found in ir_model_data, we treat the product as in MTS
-                    pass
 
             if mto_route and mto_route in product_routes:
                 line.is_mto = True
@@ -313,7 +311,7 @@ class SaleOrderLine(models.Model):
                 line.move_ids._rollup_move_origs(),
             )
             all_moves |= combined_moves.filtered(
-                lambda m: m.product_id == line.product_id,
+                lambda m, line=line: m.product_id == line.product_id,
             )
             line_all_moves_cached[line.id] = all_moves
 
@@ -462,10 +460,7 @@ class SaleOrderLine(models.Model):
 
             qty = line._get_procurement_qty(previous_product_qty)
 
-            if (
-                float_compare(qty, line.product_qty, precision_digits=precision)
-                == 0
-            ):
+            if float_compare(qty, line.product_qty, precision_digits=precision) == 0:
                 continue
 
             references = line.order_id.stock_reference_ids
@@ -593,9 +588,11 @@ class SaleOrderLine(models.Model):
         outgoing_moves = self.env["stock.move"]
         incoming_moves = self.env["stock.move"]
         moves = self.move_ids.filtered(
-            lambda m: m.state != "cancel"
-            and m.location_dest_usage != "inventory"
-            and m.product_id == self.product_id,
+            lambda m: (
+                m.state != "cancel"
+                and m.location_dest_usage != "inventory"
+                and m.product_id == self.product_id
+            ),
         )
 
         if not moves:
@@ -621,7 +618,6 @@ class SaleOrderLine(models.Model):
             )
 
         for move in moves:
-
             if not move._is_dropshipped_returned() and (
                 (strict and move.location_dest_id._is_outgoing())
                 or (
@@ -635,7 +631,7 @@ class SaleOrderLine(models.Model):
                 ):
                     outgoing_moves |= move
             elif move.to_refund and (
-                (strict and move._is_incoming() or move.location_id._is_outgoing())
+                ((strict and move._is_incoming()) or move.location_id._is_outgoing())
                 or (
                     not strict
                     and move.rule_id.id in triggering_rule_ids

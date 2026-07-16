@@ -791,7 +791,9 @@ class OrderLineInvoiceMixin(models.AbstractModel):
             elif float_is_zero(line.qty_to_invoice, precision_digits=precision):
                 # 'transferred' compares to qty received; 'ordered' to qty ordered.
                 qty_to_compare = (
-                    line.qty_transferred if policy == "transferred" else line.product_qty
+                    line.qty_transferred
+                    if policy == "transferred"
+                    else line.product_qty
                 )
                 # transferred, nothing received and nothing invoiced -> nothing yet.
                 if (

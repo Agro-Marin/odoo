@@ -17,7 +17,9 @@ class PosBill(models.Model):
         try:
             value = float(name)
         except ValueError:
-            raise UserError(_("The name of the Coins/Bills must be a number."))
+            raise UserError(
+                _("The name of the Coins/Bills must be a number.")
+            ) from None
         result = super().create({"name": name, "value": value})
         return result.id, result.display_name
 

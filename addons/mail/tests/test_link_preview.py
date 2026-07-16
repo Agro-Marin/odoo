@@ -120,7 +120,8 @@ class TestLinkPreview(MailCommon):
         """A UTF-8 page whose charset is only in <meta> (Content-Type header
         has none) must not be decoded as latin-1."""
         self.assertEqual(
-            self._patch_utf8_without_charset_header().encoding, "ISO-8859-1",
+            self._patch_utf8_without_charset_header().encoding,
+            "ISO-8859-1",
             "precondition: requests defaults header-less text/html to latin-1",
         )
         session = requests.Session()
@@ -149,7 +150,8 @@ class TestLinkPreview(MailCommon):
             preview = link_preview.get_link_preview_from_url(self.source_url, session)
         self.assertFalse(preview)
         self.assertLessEqual(
-            len(hops), link_preview.MAX_REDIRECTS + 1,
+            len(hops),
+            link_preview.MAX_REDIRECTS + 1,
             "must stop after the redirect budget, not follow indefinitely",
         )
 

@@ -291,9 +291,7 @@ class Observability(Controller):
         # even in tests.
         in_test = bool(modules.module.current_test) or config["test_enable"]
         level = (
-            logging.DEBUG
-            if kind == "module_rebind" and in_test
-            else logging.WARNING
+            logging.DEBUG if kind == "module_rebind" and in_test else logging.WARNING
         )
         _logger.log(
             level,

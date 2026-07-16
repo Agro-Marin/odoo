@@ -11,7 +11,10 @@ def migrate(cr, version):
         """
     )
     [project_plan_id] = cr.fetchone()
-    cr.execute("SELECT id FROM account_analytic_plan WHERE id != %s AND parent_id IS NULL", [project_plan_id])
+    cr.execute(
+        "SELECT id FROM account_analytic_plan WHERE id != %s AND parent_id IS NULL",
+        [project_plan_id],
+    )
     plan_ids = [r[0] for r in cr.fetchall()]
     column_names = [f"x_plan{id_}_id" for id_ in plan_ids]
     # Update on_delete for existing x_plan_id columns
@@ -27,5 +30,14 @@ def migrate(cr, version):
     )
     # Change the constraint on the table definition
     for column in column_names:
-        sql.drop_constraint(cr, 'account_analytic_line', f'account_analytic_line_{column}_fkey')
-        sql.add_foreign_key(cr, 'account_analytic_line', column, 'account_analytic_account', 'id', 'restrict')
+        sql.drop_constraint(
+            cr, "account_analytic_line", f"account_analytic_line_{column}_fkey"
+        )
+        sql.add_foreign_key(
+            cr,
+            "account_analytic_line",
+            column,
+            "account_analytic_account",
+            "id",
+            "restrict",
+        )

@@ -102,7 +102,7 @@ class AccountChartTemplate(models.AbstractModel):
         for move in invoices:
             try:
                 move.action_post()
-            except (UserError, ValidationError):
+            except UserError, ValidationError:
                 _logger.exception("Error while posting demo data")
 
     @api.model

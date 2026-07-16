@@ -5,8 +5,8 @@ from dateutil.relativedelta import relativedelta
 from markupsafe import Markup
 
 from odoo import api, fields, models
-from odoo.fields import Command
 from odoo.api import SUPERUSER_ID
+from odoo.fields import Command
 from odoo.tools import groupby
 from odoo.tools.translate import _
 
@@ -63,9 +63,9 @@ class StockRule(models.Model):
         delays, delay_description = super()._get_lead_days(product, **values)
         bypass_delay_description = self.env.context.get("bypass_delay_description")
         buy_rule = self.filtered(lambda r: r.action == "buy")
-        seller = ("supplierinfo" in values and values["supplierinfo"]) or product.with_company(
-            buy_rule.company_id
-        )._select_seller(quantity=None)
+        seller = (
+            "supplierinfo" in values and values["supplierinfo"]
+        ) or product.with_company(buy_rule.company_id)._select_seller(quantity=None)
         if not buy_rule:
             return delays, delay_description
         if not seller:
@@ -126,16 +126,15 @@ class StockRule(models.Model):
 
         # Fall back on a supplier for which no price may be defined. Not ideal, but better than
         # blocking the user.
-        supplier = (
+        return (
             supplier
             or product_id._prepare_sellers(False).filtered(
                 lambda s: not s.company_id or s.company_id == company_id,
             )[:1]
         )
-        return supplier
 
     def _get_message_dict(self):
-        message_dict = super(StockRule, self)._get_message_dict()
+        message_dict = super()._get_message_dict()
         __, destination, __, __ = self._get_message_values()
         message_dict.update(
             {
@@ -151,7 +150,9 @@ class StockRule(models.Model):
         return message_dict
 
     def _get_partner_id(self, values, rule):
-        return values.get("supplierinfo_name") or (values.get("force_uom") and values.get("partner_id"))
+        return values.get("supplierinfo_name") or (
+            values.get("force_uom") and values.get("partner_id")
+        )
 
     @api.model
     def _get_procurements_to_merge_groupby(self, procurement):
@@ -165,7 +166,10 @@ class StockRule(models.Model):
             procurement.product_uom_id,
             procurement.values["propagate_cancel"],
             procurement.values.get("product_description_variants"),
-            (procurement.values.get("orderpoint_id") and not procurement.values.get("move_dest_ids"))
+            (
+                procurement.values.get("orderpoint_id")
+                and not procurement.values.get("move_dest_ids")
+            )
             and procurement.values["orderpoint_id"],
         )
 
@@ -283,7 +287,8 @@ class StockRule(models.Model):
 
     def _post_vendor_notification(self, records_to_notify, users_to_notify, product):
         notification_msg = Markup(" ").join(
-            Markup("%s") % user._get_html_link(f"@{user.name}") for user in users_to_notify
+            Markup("%s") % user._get_html_link(f"@{user.name}")
+            for user in users_to_notify
         )
         notification_msg += Markup("<br/>%s <strong>%s</strong>, %s") % (
             _("No supplier has been found to replenish"),
@@ -302,11 +307,10 @@ class StockRule(models.Model):
         params origins: procuremets origins to write on the PO
         """
         purchase_date = min(
-            [
-                value.get("date_order")
-                or fields.Datetime.from_string(value["date_planned"]) - relativedelta(days=int(value["supplier"].delay))
-                for value in values
-            ],
+            value.get("date_order")
+            or fields.Datetime.from_string(value["date_planned"])
+            - relativedelta(days=int(value["supplier"].delay))
+            for value in values
         )
 
         # Since the procurements are grouped if they share the same domain for
@@ -317,7 +321,11 @@ class StockRule(models.Model):
         partner = values["supplier"].partner_id
         currency = values["supplier"].currency_id
 
-        fpos = self.env["account.fiscal.position"].with_company(company_id)._get_fiscal_position(partner)
+        fpos = (
+            self.env["account.fiscal.position"]
+            .with_company(company_id)
+            ._get_fiscal_position(partner)
+        )
 
         return {
             "partner_id": partner.id,
@@ -342,13 +350,15 @@ class StockRule(models.Model):
         }
 
     def _push_prepare_move_copy_values(self, move_to_copy, new_date):
-        res = super(StockRule, self)._push_prepare_move_copy_values(
+        res = super()._push_prepare_move_copy_values(
             move_to_copy,
             new_date,
         )
         res["purchase_line_id"] = None
         if self.location_dest_id.usage == "supplier":
-            res["purchase_line_id"], res["partner_id"] = move_to_copy._get_purchase_line_and_partner_from_chain()
+            res["purchase_line_id"], res["partner_id"] = (
+                move_to_copy._get_purchase_line_and_partner_from_chain()
+            )
         return res
 
     @api.model
@@ -373,7 +383,9 @@ class StockRule(models.Model):
                 errors.append((procurement, msg))
             elif not supplier:
                 # If the supplier is not set, we cannot create a PO.
-                moves = procurement.values.get("move_dest_ids") or self.env["stock.move"]
+                moves = (
+                    procurement.values.get("move_dest_ids") or self.env["stock.move"]
+                )
                 if moves.propagate_cancel:
                     moves._action_cancel()
                 moves.procure_method = "make_to_stock"
@@ -394,14 +406,18 @@ class StockRule(models.Model):
             # Get the procurements for the current domain.
             # Get the rules for the current domain. Their only use is to create
             # the PO if it does not exist.
-            procurements, rules = zip(*procurements_rules)
+            procurements, rules = zip(*procurements_rules, strict=False)
             # Get the set of procurement origin for the current domain.
-            origins = set([p.origin for p in procurements if p.origin])
+            origins = {p.origin for p in procurements if p.origin}
             # Check if a PO exists for the current domain.
-            po = self.env["purchase.order"].sudo().search([dom for dom in domain], limit=1)
+            po = self.env["purchase.order"].sudo().search(list(domain), limit=1)
             company_id = rules[0].company_id or procurements[0].company_id
             if not po:
-                positive_values = [p.values for p in procurements if p.product_uom_id.compare(p.product_qty, 0.0) >= 0]
+                positive_values = [
+                    p.values
+                    for p in procurements
+                    if p.product_uom_id.compare(p.product_qty, 0.0) >= 0
+                ]
                 if positive_values:
                     # We need a rule to generate the PO. However the rule generated
                     # the same domain for PO and the _prepare_purchase_order method
@@ -415,7 +431,12 @@ class StockRule(models.Model):
                     # _make_po_get_domain add the company in the domain.
                     # We use SUPERUSER_ID since we don't want the current user to be follower of the PO.
                     # Indeed, the current user may be a user without access to Purchase, or even be a portal user.
-                    po = self.env["purchase.order"].with_company(company_id).with_user(SUPERUSER_ID).create(vals)
+                    po = (
+                        self.env["purchase.order"]
+                        .with_company(company_id)
+                        .with_user(SUPERUSER_ID)
+                        .create(vals)
+                    )
             else:
                 reference_ids = set()
 
@@ -474,7 +495,10 @@ class StockRule(models.Model):
                     )
                     po_line.sudo().write(vals)
                 else:
-                    if procurement.product_uom_id.compare(procurement.product_qty, 0) <= 0:
+                    if (
+                        procurement.product_uom_id.compare(procurement.product_qty, 0)
+                        <= 0
+                    ):
                         # If procurement contains negative quantity, don't create a new line that would contain negative qty
                         continue
                     # If it does not exist a PO line for current procurement.
@@ -482,13 +506,17 @@ class StockRule(models.Model):
                     # order to create it in batch.
                     partner = procurement.values["supplier"].partner_id
                     po_line_values.append(
-                        self.env["purchase.order.line"]._prepare_purchase_order_line_from_procurement(
+                        self.env[
+                            "purchase.order.line"
+                        ]._prepare_purchase_order_line_from_procurement(
                             *procurement,
                             po,
                         ),
                     )
                     # Check if we need to advance the order date for the new line
-                    date_planned = po.date_planned or min(v["date_planned"] for v in po_line_values)
+                    date_planned = po.date_planned or min(
+                        v["date_planned"] for v in po_line_values
+                    )
                     order_date_planned = date_planned - relativedelta(
                         days=procurement.values["supplier"].delay,
                     )
@@ -501,7 +529,7 @@ class StockRule(models.Model):
 
     @api.model
     def run(self, procurements, raise_user_error=True):
-        wh_by_comp = dict()
+        wh_by_comp = {}
         for procurement in procurements:
             routes = procurement.values.get("route_ids")
             if routes and any(r.action == "buy" for r in routes.rule_ids):
@@ -547,7 +575,12 @@ class StockRule(models.Model):
             if seller
             else line.price_unit
         )
-        if price_unit and seller and line.order_id.currency_id and seller.currency_id != line.order_id.currency_id:
+        if (
+            price_unit
+            and seller
+            and line.order_id.currency_id
+            and seller.currency_id != line.order_id.currency_id
+        ):
             price_unit = seller.currency_id._convert(
                 price_unit,
                 line.order_id.currency_id,
@@ -558,7 +591,9 @@ class StockRule(models.Model):
         res = {
             "product_qty": line.product_qty + procurement_uom_po_qty,
             "price_unit": price_unit,
-            "move_dest_ids": [Command.link(x.id) for x in values.get("move_dest_ids", [])],
+            "move_dest_ids": [
+                Command.link(x.id) for x in values.get("move_dest_ids", [])
+            ],
         }
         if (
             seller

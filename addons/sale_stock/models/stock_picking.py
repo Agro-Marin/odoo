@@ -1,4 +1,4 @@
-from odoo import api, Command, fields, models
+from odoo import Command, api, fields, models
 from odoo.tools.sql import column_exists, create_column
 
 
@@ -82,9 +82,7 @@ class StockPicking(models.Model):
     def _compute_date_order(self):
         for picking in self:
             picking.delay_pass = (
-                picking.sale_id.date_order
-                if picking.sale_id
-                else fields.Datetime.now()
+                picking.sale_id.date_order if picking.sale_id else fields.Datetime.now()
             )
 
     @api.depends("state", "location_dest_id.usage", "date_done")
@@ -128,15 +126,14 @@ class StockPicking(models.Model):
                 sale_order = self.move_ids.sale_line_id.order_id
                 if len(sale_order) == 1:
                     self.reference_ids.sale_ids = [Command.unlink(sale_order.id)]
-        else:
-            if self.sale_id:
-                reference = self.env["stock.reference"].create(
-                    {
-                        "sale_ids": [Command.link(self.sale_id.id)],
-                        "name": self.sale_id.name,
-                    },
-                )
-                self._add_reference(reference)
+        elif self.sale_id:
+            reference = self.env["stock.reference"].create(
+                {
+                    "sale_ids": [Command.link(self.sale_id.id)],
+                    "name": self.sale_id.name,
+                },
+            )
+            self._add_reference(reference)
         self.move_ids._reassign_sale_lines(self.sale_id)
 
     # ------------------------------------------------------------
@@ -201,7 +198,7 @@ class StockPicking(models.Model):
         )
         self._log_activity(_render_note_exception_quantity, documents)
 
-        return super(StockPicking, self)._log_less_quantities_than_expected(moves)
+        return super()._log_less_quantities_than_expected(moves)
 
     # ------------------------------------------------------------
     # VALIDATIONS

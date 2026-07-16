@@ -444,40 +444,40 @@ This module provides the core of the Odoo Web Client.
             "web/static/src/webclient/clickbot/clickbot.js",
         ],
     },
-    'esm': {
-        'bundles': [
-            'web.assets_web',
-            'web.assets_web_dark',
-            'web.assets_web_print',
-            'web.assets_frontend',
-            'web.assets_frontend_lazy',
-            'web.assets_frontend_minimal',
-            'web.assets_inside_builder_iframe',
-            'web.report_assets_common',
-            'web.report_assets_pdf',
-            'web.assets_tests',
-            'web.assets_unit_tests',
-            'web.assets_unit_tests_setup',
-            'web.assets_clickbot',
-            'web.assets_emoji',
+    "esm": {
+        "bundles": [
+            "web.assets_web",
+            "web.assets_web_dark",
+            "web.assets_web_print",
+            "web.assets_frontend",
+            "web.assets_frontend_lazy",
+            "web.assets_frontend_minimal",
+            "web.assets_inside_builder_iframe",
+            "web.report_assets_common",
+            "web.report_assets_pdf",
+            "web.assets_tests",
+            "web.assets_unit_tests",
+            "web.assets_unit_tests_setup",
+            "web.assets_clickbot",
+            "web.assets_emoji",
         ],
-        'dynamic_children': {
-            'web.assets_web': [
-                'web.assets_clickbot',
-                'web.assets_emoji',
+        "dynamic_children": {
+            "web.assets_web": [
+                "web.assets_clickbot",
+                "web.assets_emoji",
             ],
         },
-        'import_map_includes': {
-            'web.assets_unit_tests_setup': [
-                'web.assets_unit_tests',
+        "import_map_includes": {
+            "web.assets_unit_tests_setup": [
+                "web.assets_unit_tests",
             ],
         },
-        'secondary_import_map_includes': {
-            'web.assets_web': [
-                'web.assets_tests',
+        "secondary_import_map_includes": {
+            "web.assets_web": [
+                "web.assets_tests",
             ],
-            'web.assets_frontend': [
-                'web.assets_tests',
+            "web.assets_frontend": [
+                "web.assets_tests",
             ],
             # Frontend pages using the minimal/lazy split render
             # web.assets_frontend_lazy FIRST (webclient_templates.xml), and
@@ -486,8 +486,8 @@ This module provides the core of the Odoo Web Client.
             # "@account/../tests/tours/...") are absent from the served map and
             # every tour on such a page dies at pre-boot with "Failed to
             # resolve module specifier".
-            'web.assets_frontend_lazy': [
-                'web.assets_tests',
+            "web.assets_frontend_lazy": [
+                "web.assets_tests",
             ],
         },
     },

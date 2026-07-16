@@ -152,12 +152,17 @@ class WebCwvMetric(models.Model):
         switch to ``self.with_context(active_test=False).search([...]).unlink()``
         with a ``LIMIT`` and a follow-up cron retry.
         """
-        days_str = self.env["ir.config_parameter"].sudo().get_param(
-            "web.cwv.retention_days", "30",
+        days_str = (
+            self.env["ir.config_parameter"]
+            .sudo()
+            .get_param(
+                "web.cwv.retention_days",
+                "30",
+            )
         )
         try:
             days = int(days_str)
-        except (TypeError, ValueError):
+        except TypeError, ValueError:
             _logger.warning(
                 "web.cwv.retention_days=%r is not an integer; skipping GC",
                 days_str,

@@ -190,7 +190,9 @@ class TestPosAccountingUnits(TestPoSCommon):
             cash_rounding.loss_account_id.id,
         }
         self.assertTrue(
-            all(line["account_id"] in rounding_accounts for line in aml["cash_rounding"]),
+            all(
+                line["account_id"] in rounding_accounts for line in aml["cash_rounding"]
+            ),
             "cash_rounding line must post to the rounding profit/loss account",
         )
 
@@ -276,18 +278,14 @@ class TestPosSessionAmountBuilders(TestPoSCommon):
             "base_amount": 0.0,
             "base_amount_converted": 0.0,
         }
-        new = session._update_amounts(
-            old, {"amount": 7.0, "base_amount": 100.0}, date
-        )
+        new = session._update_amounts(old, {"amount": 7.0, "base_amount": 100.0}, date)
         self.assertEqual(new["amount"], 7.0)
         self.assertEqual(new["base_amount"], 100.0)
         self.assertEqual(new["base_amount_converted"], 100.0)
 
     def test_round_amounts_uses_company_currency_for_converted(self):
         session = self._start_pos_session(self.cash_pm1, 0)
-        rounded = session._round_amounts(
-            {"amount": 10.126, "amount_converted": 10.124}
-        )
+        rounded = session._round_amounts({"amount": 10.126, "amount_converted": 10.124})
         # `amount` rounds on the session currency, `amount_converted` on the
         # company currency; both default to 0.01 here.
         self.assertAlmostEqual(rounded["amount"], 10.13)
@@ -295,7 +293,9 @@ class TestPosSessionAmountBuilders(TestPoSCommon):
 
     def test_credit_and_debit_amounts_sign_split(self):
         session = self._start_pos_session(self.cash_pm1, 0)
-        partial = {"account_id": self.env.company.account_default_pos_receivable_account_id.id}
+        partial = {
+            "account_id": self.env.company.account_default_pos_receivable_account_id.id
+        }
 
         credit = session._credit_amounts(dict(partial), 50.0, 50.0)
         self.assertAlmostEqual(credit["credit"], 50.0)

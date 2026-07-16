@@ -19,7 +19,6 @@ class MissingActionError(UserError):
 
 
 class Action(Controller):
-
     @route("/web/action/load", type="jsonrpc", auth="user", readonly=True)
     def load(
         self, action_id: int | str, context: dict[str, Any] | None = None

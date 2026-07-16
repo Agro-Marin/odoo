@@ -26,14 +26,16 @@ class TestAuditVerification(TestPoSCommon):
         self._start_pos_session(self.cash_pm1, 0)
         raised = None
         try:
-            self._create_orders([
-                {
-                    "pos_order_lines_ui_args": [(self.product, 1)],
-                    "payments": [(self.cash_pm1, 100)],
-                    "is_invoiced": False,
-                    "uuid": "audit-c1-0001",
-                },
-            ])
+            self._create_orders(
+                [
+                    {
+                        "pos_order_lines_ui_args": [(self.product, 1)],
+                        "payments": [(self.cash_pm1, 100)],
+                        "is_invoiced": False,
+                        "uuid": "audit-c1-0001",
+                    },
+                ]
+            )
         except UserError as e:
             raised = e
         _logger.info("C1 result: raised=%r", raised)
@@ -46,28 +48,34 @@ class TestAuditVerification(TestPoSCommon):
     # control: with an invoice journal set, the same order must work (rules out setup noise)
     def test_C1b_invoice_journal_present_normal_order_ok(self):
         self._start_pos_session(self.cash_pm1, 0)
-        orders = self._create_orders([
-            {
-                "pos_order_lines_ui_args": [(self.product, 1)],
-                "payments": [(self.cash_pm1, 100)],
-                "is_invoiced": False,
-                "uuid": "audit-c1b-0001",
-            },
-        ])
+        orders = self._create_orders(
+            [
+                {
+                    "pos_order_lines_ui_args": [(self.product, 1)],
+                    "payments": [(self.cash_pm1, 100)],
+                    "is_invoiced": False,
+                    "uuid": "audit-c1b-0001",
+                },
+            ]
+        )
         self.assertEqual(len(orders), 1)
 
     # ---- C21 [LOW] unlink leaks order_seq_id / order_backend_seq_id ----
     def test_C21_unlink_sequence_leak(self):
         cfg = self.env["pos.config"].create({"name": "AuditSeqCfg"})
         seq_ids = (
-            cfg.order_seq_id | cfg.order_backend_seq_id
-            | cfg.order_line_seq_id | cfg.device_seq_id
+            cfg.order_seq_id
+            | cfg.order_backend_seq_id
+            | cfg.order_line_seq_id
+            | cfg.device_seq_id
         )
         self.assertEqual(len(seq_ids), 4, "expected 4 sequences created")
         seq_ids_list = seq_ids.ids
         cfg.unlink()
         survivors = self.env["ir.sequence"].browse(seq_ids_list).exists()
-        _logger.info("C21 surviving sequences after unlink: %s", survivors.mapped("name"))
+        _logger.info(
+            "C21 surviving sequences after unlink: %s", survivors.mapped("name")
+        )
         self.assertFalse(
             survivors,
             "BUG CONFIRMED: %d per-config sequence(s) leaked on unlink: %s"
@@ -79,16 +87,24 @@ class TestAuditVerification(TestPoSCommon):
         calendar = self.env["resource.calendar"].create({"name": "AuditCal"})
         raised = None
         try:
-            self.env["pos.preset"].create({
-                "name": "AuditPreset",
-                "resource_calendar_id": calendar.id,
-                "attendance_ids": [(0, 0, {
-                    "name": "Mon eve",
-                    "dayofweek": "0",
-                    "hour_from": 20.0,
-                    "hour_to": 24.0,
-                })],
-            })
+            self.env["pos.preset"].create(
+                {
+                    "name": "AuditPreset",
+                    "resource_calendar_id": calendar.id,
+                    "attendance_ids": [
+                        (
+                            0,
+                            0,
+                            {
+                                "name": "Mon eve",
+                                "dayofweek": "0",
+                                "hour_from": 20.0,
+                                "hour_to": 24.0,
+                            },
+                        )
+                    ],
+                }
+            )
         except ValidationError as e:
             raised = e
         _logger.info("C22 result: raised=%r", raised)
@@ -100,26 +116,34 @@ class TestAuditVerification(TestPoSCommon):
     def _make_configs_with_sessions(self, n):
         sessions = self.env["pos.session"]
         for i in range(n):
-            journal = self.env["account.journal"].create({
-                "name": "AuditCash%d" % i,
-                "code": "ACSH%d" % i,
-                "type": "cash",
-                "company_id": self.env.company.id,
-            })
-            cash_pm = self.env["pos.payment.method"].create({
-                "name": "AuditCashPM%d" % i,
-                "journal_id": journal.id,
-                "receivable_account_id": self.pos_receivable_cash.id,
-                "company_id": self.env.company.id,
-            })
-            cfg = self.env["pos.config"].create({
-                "name": "AuditCfg%d" % i,
-                "payment_method_ids": [(6, 0, cash_pm.ids)],
-            })
-            sessions |= self.env["pos.session"].create({
-                "config_id": cfg.id,
-                "user_id": self.env.uid,
-            })
+            journal = self.env["account.journal"].create(
+                {
+                    "name": "AuditCash%d" % i,
+                    "code": "ACSH%d" % i,
+                    "type": "cash",
+                    "company_id": self.env.company.id,
+                }
+            )
+            cash_pm = self.env["pos.payment.method"].create(
+                {
+                    "name": "AuditCashPM%d" % i,
+                    "journal_id": journal.id,
+                    "receivable_account_id": self.pos_receivable_cash.id,
+                    "company_id": self.env.company.id,
+                }
+            )
+            cfg = self.env["pos.config"].create(
+                {
+                    "name": "AuditCfg%d" % i,
+                    "payment_method_ids": [(6, 0, cash_pm.ids)],
+                }
+            )
+            sessions |= self.env["pos.session"].create(
+                {
+                    "config_id": cfg.id,
+                    "user_id": self.env.uid,
+                }
+            )
         sessions.invalidate_recordset()
         return sessions
 
@@ -136,9 +160,12 @@ class TestAuditVerification(TestPoSCommon):
         with patch.object(type(self.env["pos.payment"]), "_read_group", counting):
             # touch a non-stored cash compute field on the whole recordset at once
             sessions.mapped("cash_register_balance_end")
-        _logger.info("P18a _read_group calls for %d sessions: %d", len(sessions), calls["n"])
+        _logger.info(
+            "P18a _read_group calls for %d sessions: %d", len(sessions), calls["n"]
+        )
         self.assertLessEqual(
-            calls["n"], 1,
+            calls["n"],
+            1,
             "N+1 CONFIRMED: %d pos.payment._read_group calls for %d sessions "
             "(expected batched into <=1)" % (calls["n"], len(sessions)),
         )
@@ -159,14 +186,17 @@ class TestAuditVerification(TestPoSCommon):
             calls["search_count"] += 1
             return real_count(self2, *a, **k)
 
-        with patch.object(Picking, "search", c_search), \
-             patch.object(Picking, "search_count", c_count):
+        with (
+            patch.object(Picking, "search", c_search),
+            patch.object(Picking, "search_count", c_count),
+        ):
             sessions.mapped("picking_count")
             sessions.mapped("failed_pickings")
         total = calls["search"] + calls["search_count"]
         _logger.info("P18b picking queries for %d sessions: %r", len(sessions), calls)
         self.assertLessEqual(
-            total, 2,
+            total,
+            2,
             "N+1 CONFIRMED: %d stock.picking search/search_count calls for %d sessions"
             % (total, len(sessions)),
         )

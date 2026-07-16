@@ -22,7 +22,7 @@ def _to_record_id(value):
     """
     try:
         return int(value)
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         raise NotFound from None
 
 

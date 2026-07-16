@@ -2,6 +2,7 @@ from dateutil.relativedelta import relativedelta
 from freezegun.api import freeze_time
 
 from odoo import Command, fields
+
 from .common import PurchaseTestCommon
 
 
@@ -57,23 +58,29 @@ class TestPurchaseStockValuation(PurchaseTestCommon):
         self.assertEqual(self.product_avco.total_value, 140)
 
     def test_move_value_at_date(self):
-        self.env['product.value'].search([]).unlink()
-        with freeze_time('2025-01-01'):
+        self.env["product.value"].search([]).unlink()
+        with freeze_time("2025-01-01"):
             po = self._create_purchase(self.product_avco, 10, 8)
 
-        with freeze_time('2025-01-02'):
+        with freeze_time("2025-01-02"):
             self._receive(purchase_order=po)
 
-        with freeze_time('2025-01-03'):
+        with freeze_time("2025-01-03"):
             self._create_bill(purchase_order=po, price_unit=12)
 
         self.assertEqual(self.product_avco.total_value, 120)
-        self.assertEqual(self.product_avco.with_context(to_date="2025-01-01").total_value, 0)
-        self.assertEqual(self.product_avco.with_context(to_date="2025-01-02").total_value, 80)
-        self.assertEqual(self.product_avco.with_context(to_date="2025-01-03").total_value, 120)
+        self.assertEqual(
+            self.product_avco.with_context(to_date="2025-01-01").total_value, 0
+        )
+        self.assertEqual(
+            self.product_avco.with_context(to_date="2025-01-02").total_value, 80
+        )
+        self.assertEqual(
+            self.product_avco.with_context(to_date="2025-01-03").total_value, 120
+        )
 
     def test_move_value_with_small_decimals(self):
-        self.env.ref('product.decimal_price').digits = 5
+        self.env.ref("product.decimal_price").digits = 5
         po = self._create_purchase(self.product_avco, 1500, 3.30125)
         move = self._receive(purchase_order=po)
         self.assertEqual(move.value, 4951.88)
@@ -82,29 +89,39 @@ class TestPurchaseStockValuation(PurchaseTestCommon):
         self.assertEqual(move.value, 4951.88)
 
     def test_move_value_multi_currency(self):
-        self.env['product.value'].search([]).unlink()
-        self._use_multi_currencies([
-            ('2025-01-01', 1.25),
-            ('2025-01-02', 1.5),
-            ('2025-01-03', 1.75),
-            ('2025-01-04', 2),
-            ('2025-01-05', 3),
-        ])
-        with freeze_time('2025-01-01'):
-            po = self._create_purchase(self.product_avco, 10, 10, currency_id=self.other_currency.id)
+        self.env["product.value"].search([]).unlink()
+        self._use_multi_currencies(
+            [
+                ("2025-01-01", 1.25),
+                ("2025-01-02", 1.5),
+                ("2025-01-03", 1.75),
+                ("2025-01-04", 2),
+                ("2025-01-05", 3),
+            ]
+        )
+        with freeze_time("2025-01-01"):
+            po = self._create_purchase(
+                self.product_avco, 10, 10, currency_id=self.other_currency.id
+            )
 
-        with freeze_time('2025-01-02'):
+        with freeze_time("2025-01-02"):
             self._receive(purchase_order=po)
 
-        with freeze_time('2025-01-04'):
+        with freeze_time("2025-01-04"):
             self._create_bill(purchase_order=po)
 
         self.assertEqual(self.product_avco.total_value, 50)
-        self.assertEqual(self.product_avco.with_context(to_date="2025-01-01").total_value, 0)
+        self.assertEqual(
+            self.product_avco.with_context(to_date="2025-01-01").total_value, 0
+        )
         # It takes the rate from the delivery date (inverse of 1.5 = 0.666666667)
-        self.assertEqual(self.product_avco.with_context(to_date="2025-01-02").total_value, 66.7)
+        self.assertEqual(
+            self.product_avco.with_context(to_date="2025-01-02").total_value, 66.7
+        )
         # Bill date rate
-        self.assertEqual(self.product_avco.with_context(to_date="2025-01-04").total_value, 50)
+        self.assertEqual(
+            self.product_avco.with_context(to_date="2025-01-04").total_value, 50
+        )
 
     def test_move_value_multi_currency_bill_before_receipt(self):
         # rates = [
@@ -113,7 +130,9 @@ class TestPurchaseStockValuation(PurchaseTestCommon):
         #     ('day after tomorrow', 3.00),
         # ]
         self._use_multi_currencies()
-        po = self._create_purchase(self.product_avco, 10, 10, currency_id=self.other_currency.id)
+        po = self._create_purchase(
+            self.product_avco, 10, 10, currency_id=self.other_currency.id
+        )
         self._create_bill(purchase_order=po, quantity=10)
 
         with freeze_time(fields.Date.today() + relativedelta(days=1)):
@@ -122,9 +141,24 @@ class TestPurchaseStockValuation(PurchaseTestCommon):
         self.assertEqual(self.product_avco.total_value, 100)
 
     def test_move_value_uom(self):
-        uom_pack_of_10 = self.env['uom.uom'].create({'name': 'Pack of 10', 'relative_uom_id': self.uom.id, 'relative_factor': 10})
-        uom_pack_of_1_on_10 = self.env['uom.uom'].create({'name': 'Pack of 1/10', 'relative_uom_id': self.uom.id, 'relative_factor': 1 / 10})
-        self.product_avco.uom_ids = [Command.link(uom_pack_of_10.id), Command.link(uom_pack_of_1_on_10.id)]
+        uom_pack_of_10 = self.env["uom.uom"].create(
+            {
+                "name": "Pack of 10",
+                "relative_uom_id": self.uom.id,
+                "relative_factor": 10,
+            }
+        )
+        uom_pack_of_1_on_10 = self.env["uom.uom"].create(
+            {
+                "name": "Pack of 1/10",
+                "relative_uom_id": self.uom.id,
+                "relative_factor": 1 / 10,
+            }
+        )
+        self.product_avco.uom_ids = [
+            Command.link(uom_pack_of_10.id),
+            Command.link(uom_pack_of_1_on_10.id),
+        ]
         po = self._create_purchase(self.product_avco, 5, 100, uom=uom_pack_of_10)
         move = self._receive(purchase_order=po)
         self.assertEqual(move.value, 500)
@@ -202,9 +236,9 @@ class TestPurchaseStockValuation(PurchaseTestCommon):
 
     def test_move_fifo(self):
         """This test is similar to test_move_avco since all the move under
-         a same purchase order share the value as an average flow. The FIFO
-         only apply on different purchase orders.
-         """
+        a same purchase order share the value as an average flow. The FIFO
+        only apply on different purchase orders.
+        """
         po = self._create_purchase(self.product_fifo, 5, 12)
         move_in_1 = self._receive(po, 2)
         self.assertEqual(self.product_fifo.total_value, 24)

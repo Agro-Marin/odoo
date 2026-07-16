@@ -12,6 +12,6 @@ class StockRulesReport(models.TransientModel):
     )
 
     def _prepare_report_data(self):
-        data = super(StockRulesReport, self)._prepare_report_data()
+        data = super()._prepare_report_data()
         data["so_route_ids"] = self.so_route_ids.ids
         return data

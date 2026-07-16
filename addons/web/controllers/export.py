@@ -391,9 +391,7 @@ class ExportFormat:
             record_rows = {}
             current_id = None
             for batch in split_every(PREFETCH_MAX, records.ids, Model.browse):
-                export_data = batch.export_data([".id"] + field_names).get(
-                    "datas", []
-                )
+                export_data = batch.export_data([".id"] + field_names).get("datas", [])
                 for row in export_data:
                     if row[0]:  # First column is the record ID
                         current_id = int(row[0])

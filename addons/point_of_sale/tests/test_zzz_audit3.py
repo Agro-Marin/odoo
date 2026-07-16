@@ -106,9 +106,7 @@ class TestAuditVerification3(TestPoSCommon):
                 for i in range(3)
             ]
         )
-        result = self.env["pos.order"].search_paid_order_ids(
-            self.config.id, [], 100, 0
-        )
+        result = self.env["pos.order"].search_paid_order_ids(self.config.id, [], 100, 0)
         _logger.info("A2 result=%r", result)
         self.assertEqual(result["totalCount"], 3)
         self.assertEqual(len(result["ordersInfo"]), 3)

@@ -151,6 +151,7 @@ class ProductAttributeValue(models.Model):
             return super()._compute_display_name()
         for value in self:
             value.display_name = f"{value.attribute_id.name}: {value.name}"
+        return None
 
     @api.depends("pav_attribute_line_ids")
     def _compute_is_used_on_products(self):

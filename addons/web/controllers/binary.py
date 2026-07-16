@@ -44,7 +44,6 @@ def clean(name: str) -> str:
 
 
 class Binary(http.Controller):
-
     @http.route("/web/filestore/<path:_path>", type="http", auth="none")
     def content_filestore(self, _path: str) -> Response:
         if odoo.tools.config["x_sendfile"]:

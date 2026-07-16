@@ -76,9 +76,7 @@ class TestTransportErrorTeardown(BaseCase):
         registry_before = MagicMock(registry_sequence=1)
         registry_before.check_signaling.return_value = MagicMock(registry_sequence=2)
         with (
-            patch(
-                "odoo.addons.bus.websocket.Registry", return_value=registry_before
-            ),
+            patch("odoo.addons.bus.websocket.Registry", return_value=registry_before),
             self.assertLogs("odoo.addons.bus.websocket", level="WARNING") as capture,
         ):
             ws._handle_transport_error(RuntimeError("boom"))

@@ -91,9 +91,7 @@ class Base(models.AbstractModel):
             # record._update_cache(values) below raises ValueError on the unknown
             # field name — the exact scenario that guard exists to survive.
             stale_names = [
-                fname
-                for fname in values
-                if fname != "id" and fname not in self._fields
+                fname for fname in values if fname != "id" and fname not in self._fields
             ]
             if stale_names:
                 _logger.warning(

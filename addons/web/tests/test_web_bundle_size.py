@@ -62,7 +62,9 @@ _logger = logging.getLogger(__name__)
 # Optional: when absent, diagnostics fall back to top-N absolute contributors.
 _BASELINE_PATH = (
     Path(__file__).resolve().parents[1]
-    / "tooling" / "scripts" / "bundle_size_inputs_baseline.json"
+    / "tooling"
+    / "scripts"
+    / "bundle_size_inputs_baseline.json"
 )
 
 _DIAGNOSTIC_TOP_N = 10
@@ -71,8 +73,11 @@ _UPDATE_ENV_VAR = "ODOO_BUNDLE_SIZE_UPDATE_BASELINE"
 
 
 @tagged(
-    "post_install", "-at_install",
-    "web_perf", "web_assets", "web_bundle_size",
+    "post_install",
+    "-at_install",
+    "web_perf",
+    "web_assets",
+    "web_bundle_size",
 )
 class TestWebBundleSize(TransactionCase):
     """Pin upper-bound byte sizes for ESM bundles to catch regressions."""
@@ -177,7 +182,7 @@ class TestWebBundleSize(TransactionCase):
             return {}
         try:
             metafile = json.loads(metafile_raw)
-        except (ValueError, TypeError):
+        except ValueError, TypeError:
             return {}
         inputs = {}
         for out_path, out_info in metafile.get("outputs", {}).items():
@@ -204,7 +209,9 @@ class TestWebBundleSize(TransactionCase):
         :rtype: tuple[int, dict[str, int]]
         """
         bundle = self.env["ir.qweb"]._get_asset_bundle(
-            bundle_name, css=False, js=True,
+            bundle_name,
+            css=False,
+            js=True,
         )
         if not bundle.native_modules:
             # Some bundles' contents depend on which addons are
@@ -236,7 +243,7 @@ class TestWebBundleSize(TransactionCase):
             return {}
         try:
             return json.loads(_BASELINE_PATH.read_text(encoding="utf-8"))
-        except (ValueError, OSError):
+        except ValueError, OSError:
             return {}
 
     def _save_baseline_entry(self, bundle_name, total_bytes, inputs_map):
@@ -247,9 +254,7 @@ class TestWebBundleSize(TransactionCase):
         """
         baseline = self._load_baseline()
         baseline["_generated_at"] = date.today().isoformat()
-        baseline["_generator"] = (
-            f"test_web_bundle_size.py with {_UPDATE_ENV_VAR}=1"
-        )
+        baseline["_generator"] = f"test_web_bundle_size.py with {_UPDATE_ENV_VAR}=1"
         bundles = baseline.setdefault("bundles", {})
         bundles[bundle_name] = {
             "_total_bytes": total_bytes,
@@ -281,9 +286,7 @@ class TestWebBundleSize(TransactionCase):
 
         baseline = self._load_baseline()
         bundle_baseline = (
-            baseline.get("bundles", {})
-            .get(bundle_name, {})
-            .get("inputs", {})
+            baseline.get("bundles", {}).get(bundle_name, {}).get("inputs", {})
         )
 
         if bundle_baseline:
@@ -297,8 +300,7 @@ class TestWebBundleSize(TransactionCase):
                 # Bundle grew but no per-input regressed — likely a
                 # new input that the baseline doesn't yet know about.
                 new_inputs = [
-                    (p, b) for p, b in inputs_map.items()
-                    if p not in bundle_baseline
+                    (p, b) for p, b in inputs_map.items() if p not in bundle_baseline
                 ]
                 new_inputs.sort(key=lambda kv: -kv[1])
                 if not new_inputs:
@@ -359,16 +361,21 @@ class TestWebBundleSize(TransactionCase):
             self._save_baseline_entry(bundle_name, actual, inputs_map)
             _logger.info(
                 "[BUNDLE_SIZE] baseline-update bundle=%s total=%d inputs=%d",
-                bundle_name, actual, len(inputs_map),
+                bundle_name,
+                actual,
+                len(inputs_map),
             )
             return
 
         headroom = budget - actual
         headroom_pct = headroom * 100 / budget if budget else 0
         _logger.info(
-            "[BUNDLE_SIZE] bundle=%s actual=%d budget=%d "
-            "headroom=%d (%.1f%%)",
-            bundle_name, actual, budget, headroom, headroom_pct,
+            "[BUNDLE_SIZE] bundle=%s actual=%d budget=%d headroom=%d (%.1f%%)",
+            bundle_name,
+            actual,
+            budget,
+            headroom,
+            headroom_pct,
         )
 
         if actual <= budget:
@@ -501,17 +508,19 @@ class TestParseMetafileInputs(TransactionCase):
         self.assertEqual(self._parse("{partial"), {})
 
     def test_well_formed_metafile_extracts_inputs(self):
-        meta = json.dumps({
-            "outputs": {
-                "/tmp/x.js": {
-                    "inputs": {
-                        "addons/web/static/src/a.js": {"bytesInOutput": 100},
-                        "addons/web/static/src/b.js": {"bytesInOutput": 200},
+        meta = json.dumps(
+            {
+                "outputs": {
+                    "/tmp/x.js": {
+                        "inputs": {
+                            "addons/web/static/src/a.js": {"bytesInOutput": 100},
+                            "addons/web/static/src/b.js": {"bytesInOutput": 200},
+                        },
+                        "bytes": 5000,
                     },
-                    "bytes": 5000,
                 },
-            },
-        })
+            }
+        )
         self.assertEqual(
             self._parse(meta),
             {
@@ -524,16 +533,18 @@ class TestParseMetafileInputs(TransactionCase):
         # Only ``.js`` outputs contribute meaningful per-input bytes;
         # ``.js.map`` entries should be ignored so input bytes aren't
         # double-counted across map+bundle.
-        meta = json.dumps({
-            "outputs": {
-                "/tmp/x.js": {
-                    "inputs": {"a.js": {"bytesInOutput": 100}},
+        meta = json.dumps(
+            {
+                "outputs": {
+                    "/tmp/x.js": {
+                        "inputs": {"a.js": {"bytesInOutput": 100}},
+                    },
+                    "/tmp/x.js.map": {
+                        "inputs": {"a.js": {"bytesInOutput": 50}},
+                    },
                 },
-                "/tmp/x.js.map": {
-                    "inputs": {"a.js": {"bytesInOutput": 50}},
-                },
-            },
-        })
+            }
+        )
         self.assertEqual(self._parse(meta), {"a.js": 100})
 
     def test_missing_outputs_key_returns_empty(self):
@@ -543,14 +554,16 @@ class TestParseMetafileInputs(TransactionCase):
         self.assertEqual(self._parse(json.dumps({"outputs": {}})), {})
 
     def test_missing_bytes_in_output_treated_as_zero(self):
-        meta = json.dumps({
-            "outputs": {
-                "/tmp/x.js": {
-                    "inputs": {
-                        "a.js": {},
-                        "b.js": {"bytesInOutput": 50},
+        meta = json.dumps(
+            {
+                "outputs": {
+                    "/tmp/x.js": {
+                        "inputs": {
+                            "a.js": {},
+                            "b.js": {"bytesInOutput": 50},
+                        },
                     },
                 },
-            },
-        })
+            }
+        )
         self.assertEqual(self._parse(meta), {"a.js": 0, "b.js": 50})

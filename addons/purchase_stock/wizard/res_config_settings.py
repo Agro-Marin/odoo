@@ -13,7 +13,7 @@ class ResConfigSettings(models.TransientModel):
 
     @api.model
     def get_values(self):
-        res = super(ResConfigSettings, self).get_values()
+        res = super().get_values()
         res.update(
             is_installed_sale=self.env["ir.module.module"]
             .search([("name", "=", "sale"), ("state", "=", "installed")])

@@ -65,10 +65,12 @@ class ResPartner(models.Model):
         order_lines.order_id.read(["date_commitment"], load="")
         moves.read(["sale_line_id", "date"], load="")
         moves = moves.filtered(
-            lambda m: m.sale_line_id.order_id.date_commitment
-            and m.date.date() <= m.sale_line_id.order_id.date_commitment.date(),
+            lambda m: (
+                m.sale_line_id.order_id.date_commitment
+                and m.date.date() <= m.sale_line_id.order_id.date_commitment.date()
+            ),
         )
-        for move, quantity in zip(moves, moves.mapped("quantity")):
+        for move, quantity in zip(moves, moves.mapped("quantity"), strict=False):
             lines_quantity[move.sale_line_id.id] += quantity
         partner_dict = {}
         for line in order_lines:

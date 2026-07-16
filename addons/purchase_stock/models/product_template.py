@@ -11,7 +11,7 @@ class ProductTemplate(models.Model):
     @api.onchange("route_ids", "purchase_ok")
     def _onchange_buy_route(self):
         if self.purchase_ok:
-            return
+            return None
         buy_routes = (
             self.env["stock.rule"]
             .search(
@@ -32,3 +32,4 @@ class ProductTemplate(models.Model):
                     ),
                 },
             }
+        return None

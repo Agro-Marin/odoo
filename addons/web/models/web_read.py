@@ -191,7 +191,7 @@ class Base(models.AbstractModel):
                     self._check_concurrent_field_changes(vals, known_values)
                 else:
                     self._check_concurrent_field_changes_multi(vals, known_values)
-            elif last_write_date and 'write_date' in self._fields:
+            elif last_write_date and "write_date" in self._fields:
                 # Row-level write_date check reads ``self.id`` directly: this is a
                 # single-record (urgent sendBeacon) path, so enforce the singleton.
                 self.ensure_one()
@@ -208,7 +208,7 @@ class Base(models.AbstractModel):
                 # client), converting to naive UTC automatically.
                 client_dt = FieldsDatetime.to_datetime(last_write_date)
                 # Normalize server side to naive UTC as well.
-                if server_write_date and getattr(server_write_date, 'tzinfo', None):
+                if server_write_date and getattr(server_write_date, "tzinfo", None):
                     server_write_date = server_write_date.replace(tzinfo=None)
                 # Truncate to seconds — the JS client sends write_date
                 # with .000 milliseconds, losing the microsecond precision
@@ -247,17 +247,26 @@ class Base(models.AbstractModel):
     # jsonb-backed columns (translated / company-dependent fields) are excluded
     # for the same reason: the raw DB value is a per-lang / per-company dict, not
     # the scalar the client read. Excluded types fall through unchecked (fail open).
-    _CONCURRENCY_SAFE_TYPES = frozenset((
-        "integer", "boolean", "char", "text", "selection",
-        "float", "monetary", "many2one",
-    ))
+    _CONCURRENCY_SAFE_TYPES = frozenset(
+        (
+            "integer",
+            "boolean",
+            "char",
+            "text",
+            "selection",
+            "float",
+            "monetary",
+            "many2one",
+        )
+    )
 
     def _concurrency_checkable_fields(self, vals):
         """Field names in *vals* whose value can be safely concurrency-checked
         (model-level: independent of which record). See _CONCURRENCY_SAFE_TYPES.
         """
         return [
-            n for n in vals
+            n
+            for n in vals
             if n in self._fields
             and self._fields[n].store
             and self._fields[n].column_type
@@ -318,12 +327,14 @@ class Base(models.AbstractModel):
             )
         ]
         if conflicts:
-            raise UserError(self.env._(
-                "This record was modified by another user while you were "
-                "editing it.\nConflicting field(s): %s.\n"
-                "Please reload and re-apply your changes.",
-                ", ".join(conflicts),
-            ))
+            raise UserError(
+                self.env._(
+                    "This record was modified by another user while you were "
+                    "editing it.\nConflicting field(s): %s.\n"
+                    "Please reload and re-apply your changes.",
+                    ", ".join(conflicts),
+                )
+            )
 
     def _check_concurrent_field_changes_multi(self, vals, known_values):
         """Per-record field-scoped optimistic lock for a MULTI-record
@@ -377,7 +388,7 @@ class Base(models.AbstractModel):
         for rec_id, base in known_values.items():
             try:
                 baselines[int(rec_id)] = base
-            except (TypeError, ValueError):
+            except TypeError, ValueError:
                 continue
         cols = ", ".join('"%s"' % n for n in checkable)
         # ``= ANY(%s)`` with a list (psycopg3 adapts it to a Postgres array) —
@@ -406,13 +417,15 @@ class Base(models.AbstractModel):
                     conflict_ids.add(rec_id)
                     conflict_fields.add(self._fields[name].string or name)
         if conflict_ids:
-            raise UserError(self.env._(
-                "%(count)s of the records you edited were modified by another "
-                "user in the meantime.\nConflicting field(s): %(fields)s.\n"
-                "Please reload and re-apply your changes.",
-                count=len(conflict_ids),
-                fields=", ".join(sorted(conflict_fields)),
-            ))
+            raise UserError(
+                self.env._(
+                    "%(count)s of the records you edited were modified by another "
+                    "user in the meantime.\nConflicting field(s): %(fields)s.\n"
+                    "Please reload and re-apply your changes.",
+                    count=len(conflict_ids),
+                    fields=", ".join(sorted(conflict_fields)),
+                )
+            )
 
     @staticmethod
     def _coerce_concurrency_value(field, value):
@@ -425,8 +438,11 @@ class Base(models.AbstractModel):
         ftype = field.type
         if value is None or value is False:
             return {
-                "integer": 0, "float": 0.0, "monetary": 0.0,
-                "boolean": False, "many2one": False,
+                "integer": 0,
+                "float": 0.0,
+                "monetary": 0.0,
+                "boolean": False,
+                "many2one": False,
             }.get(ftype, "")
         if ftype == "many2one":
             if isinstance(value, dict):
@@ -625,7 +641,7 @@ class Base(models.AbstractModel):
                             )
                         # Keep UserError if the model does not accept the search
                         # (e.g. account.code.mapping).
-                        except (AccessError, UserError):
+                        except AccessError, UserError:
                             co_records = co_records.browse()
                     order_key = {
                         co_record.id: index

@@ -35,7 +35,9 @@ class ResPartner(models.Model):
             partner.property_product_pricelist = res.get(partner.id)
 
     def _inverse_product_pricelist(self):
-        defaults = self.env['product.pricelist']._get_country_pricelist_multi(self.country_id.ids)
+        defaults = self.env["product.pricelist"]._get_country_pricelist_multi(
+            self.country_id.ids
+        )
         for partner in self:
             default_for_country = defaults.get(partner.country_id.id)
             actual = partner.specific_property_product_pricelist

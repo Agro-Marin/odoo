@@ -2,93 +2,159 @@ from odoo.tests import tagged
 from odoo.tests.common import TransactionCase
 
 
-@tagged('post_install', '-at_install')
+@tagged("post_install", "-at_install")
 class TestAnalyticMixin(TransactionCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
 
-        cls.analytic_plan = cls.env['account.analytic.plan'].create({'name': 'Plan'})
+        cls.analytic_plan = cls.env["account.analytic.plan"].create({"name": "Plan"})
 
-        cls.sales_aa = cls.env['account.analytic.account'].create({'name': 'Sales', 'plan_id': cls.analytic_plan.id})
-        cls.administrative_aa = cls.env['account.analytic.account'].create({'name': 'Administrative', 'plan_id': cls.analytic_plan.id})
-        cls.rd_aa = cls.env['account.analytic.account'].create({'name': 'Research & Development', 'plan_id': cls.analytic_plan.id})
-        cls.commercial_aa = cls.env['account.analytic.account'].create({'name': 'Commercial', 'plan_id': cls.analytic_plan.id})
-        cls.marketing_aa = cls.env['account.analytic.account'].create({'name': 'Marketing', 'plan_id': cls.analytic_plan.id})
-        cls.com_marketing_aa = cls.env['account.analytic.account'].create({'name': 'Commercial & Marketing', 'plan_id': cls.analytic_plan.id})
+        cls.sales_aa = cls.env["account.analytic.account"].create(
+            {"name": "Sales", "plan_id": cls.analytic_plan.id}
+        )
+        cls.administrative_aa = cls.env["account.analytic.account"].create(
+            {"name": "Administrative", "plan_id": cls.analytic_plan.id}
+        )
+        cls.rd_aa = cls.env["account.analytic.account"].create(
+            {"name": "Research & Development", "plan_id": cls.analytic_plan.id}
+        )
+        cls.commercial_aa = cls.env["account.analytic.account"].create(
+            {"name": "Commercial", "plan_id": cls.analytic_plan.id}
+        )
+        cls.marketing_aa = cls.env["account.analytic.account"].create(
+            {"name": "Marketing", "plan_id": cls.analytic_plan.id}
+        )
+        cls.com_marketing_aa = cls.env["account.analytic.account"].create(
+            {"name": "Commercial & Marketing", "plan_id": cls.analytic_plan.id}
+        )
 
     def test_filtered_domain(self):
         """
-            This test covers the filtered_domain override on analytic.mixin.
-            It is supposed to handle the use of analytic_distribution with the following operators
-            with a string representing the analytic account name :
-                - `=`
-                - `!=`
-                - `ilike`,
-                - `not ilike`,
-            and the "in" operator used to directly indicate a tuple/list of analytic account ids.
-            This test verifies that the public method handles all these operators.
+        This test covers the filtered_domain override on analytic.mixin.
+        It is supposed to handle the use of analytic_distribution with the following operators
+        with a string representing the analytic account name :
+            - `=`
+            - `!=`
+            - `ilike`,
+            - `not ilike`,
+        and the "in" operator used to directly indicate a tuple/list of analytic account ids.
+        This test verifies that the public method handles all these operators.
         """
 
-        self.adm_sales_admin_ad = self.env['account.analytic.distribution.model'].create({
-            'analytic_distribution': {
-                self.sales_aa.id: 50,
-                self.administrative_aa.id: 50,
+        self.adm_sales_admin_ad = self.env[
+            "account.analytic.distribution.model"
+        ].create(
+            {
+                "analytic_distribution": {
+                    self.sales_aa.id: 50,
+                    self.administrative_aa.id: 50,
+                }
             }
-        })
-        self.adm_rd_ad = self.env['account.analytic.distribution.model'].create({
-            'analytic_distribution': {self.rd_aa.id: 100},
-        })
-        self.adm_commercial_ad = self.env['account.analytic.distribution.model'].create({
-            'analytic_distribution': {self.commercial_aa.id: 100},
-        })
-        self.adm_com_marketing_ad = self.env['account.analytic.distribution.model'].create({
-            'analytic_distribution': {self.com_marketing_aa.id: 100},
-        })
-        self.adm_without_ad = self.env['account.analytic.distribution.model'].create({})
-        self.adm_without_ad_1 = self.env['account.analytic.distribution.model'].create({})
+        )
+        self.adm_rd_ad = self.env["account.analytic.distribution.model"].create(
+            {
+                "analytic_distribution": {self.rd_aa.id: 100},
+            }
+        )
+        self.adm_commercial_ad = self.env["account.analytic.distribution.model"].create(
+            {
+                "analytic_distribution": {self.commercial_aa.id: 100},
+            }
+        )
+        self.adm_com_marketing_ad = self.env[
+            "account.analytic.distribution.model"
+        ].create(
+            {
+                "analytic_distribution": {self.com_marketing_aa.id: 100},
+            }
+        )
+        self.adm_without_ad = self.env["account.analytic.distribution.model"].create({})
+        self.adm_without_ad_1 = self.env["account.analytic.distribution.model"].create(
+            {}
+        )
 
-        adm_ids = self.env['account.analytic.distribution.model'].search([])
+        adm_ids = self.env["account.analytic.distribution.model"].search([])
 
         def filter_domain(comparator, value):
-            return adm_ids.filtered_domain([('analytic_distribution', comparator, value)])
+            return adm_ids.filtered_domain(
+                [("analytic_distribution", comparator, value)]
+            )
 
-        self.assertEqual(filter_domain('=', 'Research & Development'), self.adm_rd_ad)
-        self.assertEqual(filter_domain('=', 'Sales'), self.adm_sales_admin_ad)
-        self.assertEqual(filter_domain('=', 'Administrative'), self.adm_sales_admin_ad)
-        self.assertEqual(filter_domain('=', 'Commercial'), self.adm_commercial_ad)
-        self.assertFalse(filter_domain('=', ''))  # Should returns an empty recordset
-        self.assertEqual(filter_domain('=', self.commercial_aa.id), self.adm_commercial_ad)
+        self.assertEqual(filter_domain("=", "Research & Development"), self.adm_rd_ad)
+        self.assertEqual(filter_domain("=", "Sales"), self.adm_sales_admin_ad)
+        self.assertEqual(filter_domain("=", "Administrative"), self.adm_sales_admin_ad)
+        self.assertEqual(filter_domain("=", "Commercial"), self.adm_commercial_ad)
+        self.assertFalse(filter_domain("=", ""))  # Should returns an empty recordset
+        self.assertEqual(
+            filter_domain("=", self.commercial_aa.id), self.adm_commercial_ad
+        )
 
-        self.assertEqual(filter_domain('ilike', 'Commercial'), self.adm_commercial_ad | self.adm_com_marketing_ad)
-        self.assertEqual(filter_domain('ilike', ''), adm_ids - self.adm_without_ad - self.adm_without_ad_1)
+        self.assertEqual(
+            filter_domain("ilike", "Commercial"),
+            self.adm_commercial_ad | self.adm_com_marketing_ad,
+        )
+        self.assertEqual(
+            filter_domain("ilike", ""),
+            adm_ids - self.adm_without_ad - self.adm_without_ad_1,
+        )
 
-        self.assertEqual(filter_domain('not ilike', 'Commercial'), adm_ids - self.adm_com_marketing_ad - self.adm_commercial_ad)
-        self.assertEqual(filter_domain('not ilike', ''), self.adm_without_ad + self.adm_without_ad_1)  # Should returns an AML without analytic_distribution
+        self.assertEqual(
+            filter_domain("not ilike", "Commercial"),
+            adm_ids - self.adm_com_marketing_ad - self.adm_commercial_ad,
+        )
+        self.assertEqual(
+            filter_domain("not ilike", ""), self.adm_without_ad + self.adm_without_ad_1
+        )  # Should returns an AML without analytic_distribution
 
-        self.assertEqual(filter_domain('!=', 'Commercial & Marketing'), adm_ids - self.adm_com_marketing_ad)
-        self.assertEqual(filter_domain('!=', ''), adm_ids)  # Should returns an every ADM
-        self.assertEqual(filter_domain('!=', self.commercial_aa.id), adm_ids - self.adm_commercial_ad)
+        self.assertEqual(
+            filter_domain("!=", "Commercial & Marketing"),
+            adm_ids - self.adm_com_marketing_ad,
+        )
+        self.assertEqual(
+            filter_domain("!=", ""), adm_ids
+        )  # Should returns an every ADM
+        self.assertEqual(
+            filter_domain("!=", self.commercial_aa.id), adm_ids - self.adm_commercial_ad
+        )
 
-        self.assertEqual(filter_domain('in', [self.commercial_aa.id]), self.adm_commercial_ad)
-        self.assertEqual(filter_domain('in', (self.sales_aa + self.rd_aa).ids), self.adm_sales_admin_ad + self.adm_rd_ad)
+        self.assertEqual(
+            filter_domain("in", [self.commercial_aa.id]), self.adm_commercial_ad
+        )
+        self.assertEqual(
+            filter_domain("in", (self.sales_aa + self.rd_aa).ids),
+            self.adm_sales_admin_ad + self.adm_rd_ad,
+        )
 
     def test_search_distribution_in_by_account_name(self):
         """`_search_analytic_distribution` must accept a list of account *names*
         for the `in`/`not in` operators (regression: it used to test
         `isinstance(value, str)` instead of the element `v`, so a list of names
         silently matched nothing)."""
-        ADM = self.env['account.analytic.distribution.model']
-        sales_adm = ADM.create({'analytic_distribution': {self.sales_aa.id: 100}})
-        rd_adm = ADM.create({'analytic_distribution': {self.rd_aa.id: 100}})
+        ADM = self.env["account.analytic.distribution.model"]
+        sales_adm = ADM.create({"analytic_distribution": {self.sales_aa.id: 100}})
+        rd_adm = ADM.create({"analytic_distribution": {self.rd_aa.id: 100}})
 
         self.assertEqual(
-            ADM.search([('id', 'in', (sales_adm + rd_adm).ids), ('analytic_distribution', 'in', ['Sales'])]),
+            ADM.search(
+                [
+                    ("id", "in", (sales_adm + rd_adm).ids),
+                    ("analytic_distribution", "in", ["Sales"]),
+                ]
+            ),
             sales_adm,
         )
         self.assertEqual(
-            ADM.search([('id', 'in', (sales_adm + rd_adm).ids),
-                        ('analytic_distribution', 'in', ['Sales', 'Research & Development'])]),
+            ADM.search(
+                [
+                    ("id", "in", (sales_adm + rd_adm).ids),
+                    (
+                        "analytic_distribution",
+                        "in",
+                        ["Sales", "Research & Development"],
+                    ),
+                ]
+            ),
             sales_adm + rd_adm,
         )
 
@@ -96,40 +162,69 @@ class TestAnalyticMixin(TransactionCase):
         """A model that does not consume the transient `__update__` marker must
         never persist it (regression: it leaked into the stored JSON and later
         made `int('__update__')` raise across every key reader)."""
-        ADM = self.env['account.analytic.distribution.model']
+        ADM = self.env["account.analytic.distribution.model"]
         self.assertFalse(ADM._analytic_distribution_consumes_update())
 
-        adm = ADM.create({'analytic_distribution': {f"{self.sales_aa.id}": 100, '__update__': ['x_plan1_id']}})
+        adm = ADM.create(
+            {
+                "analytic_distribution": {
+                    f"{self.sales_aa.id}": 100,
+                    "__update__": ["x_plan1_id"],
+                }
+            }
+        )
         adm.flush_recordset()
         self.env.cr.execute(
             "SELECT analytic_distribution FROM account_analytic_distribution_model WHERE id = %s",
             [adm.id],
         )
         stored = self.env.cr.fetchone()[0]
-        self.assertNotIn('__update__', stored, "the transient marker must be stripped before storage")
+        self.assertNotIn(
+            "__update__", stored, "the transient marker must be stripped before storage"
+        )
         self.assertEqual(stored, {str(self.sales_aa.id): 100})
 
         # A write path must strip it too, not only create.
-        adm.write({'analytic_distribution': {f"{self.rd_aa.id}": 100, '__update__': ['x_plan1_id']}})
+        adm.write(
+            {
+                "analytic_distribution": {
+                    f"{self.rd_aa.id}": 100,
+                    "__update__": ["x_plan1_id"],
+                }
+            }
+        )
         adm.flush_recordset()
-        self.assertNotIn('__update__', adm.analytic_distribution)
+        self.assertNotIn("__update__", adm.analytic_distribution)
 
     def test_account_ids_from_distribution_is_robust(self):
         """The single key parser tolerates the `__update__` marker and malformed
         segments instead of raising, and de-duplicates while preserving order."""
-        mixin = self.env['analytic.mixin']
+        mixin = self.env["analytic.mixin"]
         s, r = self.sales_aa.id, self.rd_aa.id
-        self.assertEqual(mixin._account_ids_from_distribution({f"{s},{r}": 100, '__update__': ['x']}), [s, r])
-        self.assertEqual(mixin._account_ids_from_distribution({f"{s},": 100, f" {r} ": 50}), [s, r])
-        self.assertEqual(mixin._account_ids_from_distribution({f"{s},{r}": 50, f"{r}": 50}), [s, r])
+        self.assertEqual(
+            mixin._account_ids_from_distribution(
+                {f"{s},{r}": 100, "__update__": ["x"]}
+            ),
+            [s, r],
+        )
+        self.assertEqual(
+            mixin._account_ids_from_distribution({f"{s},": 100, f" {r} ": 50}), [s, r]
+        )
+        self.assertEqual(
+            mixin._account_ids_from_distribution({f"{s},{r}": 50, f"{r}": 50}), [s, r]
+        )
         self.assertEqual(mixin._account_ids_from_distribution({}), [])
         # aggregate helper: accepts a single dict or an iterable of dicts, returns a set, never raises
         self.assertEqual(
-            mixin._get_analytic_account_ids_from_distributions({f"{s}": 100, '__update__': ['x']}),
+            mixin._get_analytic_account_ids_from_distributions(
+                {f"{s}": 100, "__update__": ["x"]}
+            ),
             {s},
         )
         self.assertEqual(
-            mixin._get_analytic_account_ids_from_distributions([{f"{s}": 100}, {f"{r}": 100, '__update__': ['x']}]),
+            mixin._get_analytic_account_ids_from_distributions(
+                [{f"{s}": 100}, {f"{r}": 100, "__update__": ["x"]}]
+            ),
             {s, r},
         )
 
@@ -137,17 +232,21 @@ class TestAnalyticMixin(TransactionCase):
         """Grouping by `analytic_distribution` on a model with no dedicated
         count id falls back to counting the record itself, instead of raising
         `ValueError` from a hardcoded table map (inverted-dependency removal)."""
-        ADM = self.env['account.analytic.distribution.model']
-        made = ADM.create([
-            {'analytic_distribution': {self.sales_aa.id: 100}},
-            {'analytic_distribution': {self.sales_aa.id: 100}},
-            {'analytic_distribution': {self.rd_aa.id: 100}},
-        ])
+        ADM = self.env["account.analytic.distribution.model"]
+        made = ADM.create(
+            [
+                {"analytic_distribution": {self.sales_aa.id: 100}},
+                {"analytic_distribution": {self.sales_aa.id: 100}},
+                {"analytic_distribution": {self.rd_aa.id: 100}},
+            ]
+        )
         # grouping by analytic_distribution yields raw account-id keys
-        groups = dict(ADM._read_group(
-            domain=[('id', 'in', made.ids)],
-            groupby=['analytic_distribution'],
-            aggregates=['__count'],
-        ))
+        groups = dict(
+            ADM._read_group(
+                domain=[("id", "in", made.ids)],
+                groupby=["analytic_distribution"],
+                aggregates=["__count"],
+            )
+        )
         self.assertEqual(groups.get(self.sales_aa.id), 2)
         self.assertEqual(groups.get(self.rd_aa.id), 1)

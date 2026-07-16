@@ -94,7 +94,7 @@ class StockMove(models.Model):
             product = move.product_id
 
             if line := purchase_order.line_ids.filtered(
-                lambda l: l.product_id == product,
+                lambda l, product=product: l.product_id == product,
             ):
                 move.purchase_line_id = line[:1]
                 continue
@@ -142,7 +142,9 @@ class StockMove(models.Model):
 
     def _get_quantity_from_bill(self, aml, quantity):
         self.ensure_one()
-        return aml.product_uom_id._compute_quantity(aml.quantity, self.product_id.uom_id)
+        return aml.product_uom_id._compute_quantity(
+            aml.quantity, self.product_id.uom_id
+        )
 
     def _get_cost_ratio(self, quantity):
         self.ensure_one()
@@ -181,9 +183,12 @@ class StockMove(models.Model):
 
     def _get_upstream_documents_and_responsibles(self, visited):
         created_pl = self.created_purchase_line_ids.filtered(
-            lambda cpl: cpl.state != "cancel"
-            and (
-                cpl.state != "draft" or self.env.context.get("include_draft_documents")
+            lambda cpl: (
+                cpl.state != "cancel"
+                and (
+                    cpl.state != "draft"
+                    or self.env.context.get("include_draft_documents")
+                )
             ),
         )
         if created_pl:

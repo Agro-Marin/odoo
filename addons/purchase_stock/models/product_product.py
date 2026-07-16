@@ -1,4 +1,5 @@
 from datetime import datetime
+
 from dateutil.relativedelta import relativedelta
 
 from odoo import api, fields, models
@@ -43,7 +44,9 @@ class ProductProduct(models.Model):
             for product in self:
                 if product.qty_available_virtual >= 0:
                     continue
-                qty = -product.qty_available_virtual * ctx.get("suggest_percent", 0) / 100
+                qty = (
+                    -product.qty_available_virtual * ctx.get("suggest_percent", 0) / 100
+                )
                 product.suggested_qty = max(
                     float_round(qty, precision_digits=0, rounding_method="UP"),
                     0,
@@ -137,7 +140,7 @@ class ProductProduct(models.Model):
 
         if based_on == "one_year":
             factor = 12
-        elif based_on == "three_months" or based_on == "last_year_quarter":
+        elif based_on in {"three_months", "last_year_quarter"}:
             factor = 3
         elif based_on == "one_week":
             # 7 days / (365.25 days/yr / 12 mth/yr) = 0.23 months
@@ -263,7 +266,7 @@ class ProductProduct(models.Model):
     def _get_monthly_demand_range(self, based_on):
         start_date = limit_date = datetime.now()
 
-        if not based_on or based_on == "actual_demand" or based_on == "30_days":
+        if not based_on or based_on in {"actual_demand", "30_days"}:
             start_date = start_date - relativedelta(days=30)  # Default monthly demand
         elif based_on == "one_week":
             start_date = start_date - relativedelta(weeks=1)

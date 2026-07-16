@@ -2,9 +2,9 @@ from dateutil.relativedelta import relativedelta
 from markupsafe import Markup
 
 from odoo import api, fields, models
+from odoo.api import SUPERUSER_ID
 from odoo.exceptions import UserError
 from odoo.fields import Command, Domain
-from odoo.api import SUPERUSER_ID
 from odoo.libs.numbers.float_utils import float_repr
 from odoo.tools.misc import OrderedSet
 from odoo.tools.translate import _
@@ -94,7 +94,10 @@ class PurchaseOrder(models.Model):
 
         if vals.get("line_ids") and self.state == "done":
             for order in self:
-                pre_order_line_qty = {order_line: order_line.product_qty for order_line in order.mapped("line_ids")}
+                pre_order_line_qty = {
+                    order_line: order_line.product_qty
+                    for order_line in order.mapped("line_ids")
+                }
 
         res = super().write(vals)
 
@@ -146,7 +149,9 @@ class PurchaseOrder(models.Model):
     @api.depends("picking_ids", "picking_ids.state")
     def _compute_is_shipped(self):
         for order in self:
-            if order.picking_ids and all(x.state in ["done", "cancel"] for x in order.picking_ids):
+            if order.picking_ids and all(
+                x.state in ["done", "cancel"] for x in order.picking_ids
+            ):
                 order.is_shipped = True
             else:
                 order.is_shipped = False
@@ -164,7 +169,10 @@ class PurchaseOrder(models.Model):
         if not (
             p_type
             and p_type.code == "incoming"
-            and (p_type.warehouse_id.company_id == self.company_id or not p_type.warehouse_id)
+            and (
+                p_type.warehouse_id.company_id == self.company_id
+                or not p_type.warehouse_id
+            )
         ):
             self.picking_type_id = self._get_picking_type(self.company_id.id)
 
@@ -205,10 +213,15 @@ class PurchaseOrder(models.Model):
             )
             if order_line.move_dest_ids:
                 move_dest_ids = order_line.move_dest_ids.filtered(
-                    lambda move: move.state != "done" and move.location_dest_usage != "inventory",
+                    lambda move: (
+                        move.state != "done" and move.location_dest_usage != "inventory"
+                    ),
                 )
                 moves_to_mts = move_dest_ids.filtered(
-                    lambda move: move.rule_id.route_id != move.location_dest_id.warehouse_id.reception_route_id,
+                    lambda move: (
+                        move.rule_id.route_id
+                        != move.location_dest_id.warehouse_id.reception_route_id
+                    ),
                 )
                 move_dest_ids -= moves_to_mts
                 moves_to_recompute_ids.update(moves_to_mts.ids)
@@ -275,7 +288,7 @@ class PurchaseOrder(models.Model):
                 self,
             )
             existing_lines = self.line_ids.filtered(
-                lambda pol: pol.product_id == product,
+                lambda pol, product=product: pol.product_id == product,
             )
 
             if section_id := ctx.get("section_id"):
@@ -292,7 +305,11 @@ class PurchaseOrder(models.Model):
 
             if existing_lines:
                 # Collapse into 1 or 0 po line, discarding previous data in favor of suggested qtys
-                to_unlink = existing_lines if product.suggested_qty == 0 else existing_lines[:-1]
+                to_unlink = (
+                    existing_lines
+                    if product.suggested_qty == 0
+                    else existing_lines[:-1]
+                )
                 lines_commands += [Command.unlink(line.id) for line in to_unlink]
                 if product.suggested_qty > 0:
                     lines_commands.append(
@@ -303,7 +320,9 @@ class PurchaseOrder(models.Model):
 
         self.line_ids = lines_commands
         # Return the change in number of po_lines for the given section
-        return sum({"CREATE": 1, "UNLINK": -1}.get(line[0].name, 0) for line in lines_commands)
+        return sum(
+            {"CREATE": 1, "UNLINK": -1}.get(line[0].name, 0) for line in lines_commands
+        )
 
     def action_view_picking(self):
         return self._get_action_view_picking(self.picking_ids)
@@ -319,7 +338,11 @@ class PurchaseOrder(models.Model):
             "purchase_stock.view_product_product_kanban_catalog_purchase_only",
         ).id
         action["views"] = [
-            ((kanban_view_id, view_type) if view_type == "kanban" else (view_id, view_type))
+            (
+                (kanban_view_id, view_type)
+                if view_type == "kanban"
+                else (view_id, view_type)
+            )
             for (view_id, view_type) in action["views"]
         ]
         return action
@@ -327,7 +350,9 @@ class PurchaseOrder(models.Model):
     def _get_action_add_from_catalog_extra_context(self):
         return {
             **super()._get_action_add_from_catalog_extra_context(),
-            "warehouse_id": (self.picking_type_id.warehouse_id.id if self.picking_type_id else False),
+            "warehouse_id": (
+                self.picking_type_id.warehouse_id.id if self.picking_type_id else False
+            ),
             "vendor_name": self.partner_id.display_name,
             "vendor_suggest_days": self.partner_id.suggest_days,
             "vendor_suggest_based_on": self.partner_id.suggest_based_on,
@@ -417,7 +442,9 @@ class PurchaseOrder(models.Model):
     def _add_reference(self, reference):
         """link the given references to the list of references."""
         self.ensure_one()
-        self.reference_ids = [Command.link(stock_reference.id) for stock_reference in reference]
+        self.reference_ids = [
+            Command.link(stock_reference.id) for stock_reference in reference
+        ]
 
     def _create_picking(self):
         StockPicking = self.env["stock.picking"]
@@ -478,7 +505,11 @@ class PurchaseOrder(models.Model):
         elif len(pickings) == 1:
             res = self.env.ref("stock.view_stock_picking_form", False)
             form_view = [((res and res.id) or False, "form")]
-            result["views"] = form_view + [(state, view) for state, view in result.get("views", []) if view != "form"]
+            result["views"] = form_view + [
+                (state, view)
+                for state, view in result.get("views", [])
+                if view != "form"
+            ]
             result["res_id"] = pickings.id
         return result
 
@@ -541,7 +572,11 @@ class PurchaseOrder(models.Model):
 
         def _render_note_exception_quantity_po(order_exceptions):
             order_line_ids = self.env["purchase.order.line"].browse(
-                [order_line.id for order in order_exceptions.values() for order_line in order[0]],
+                [
+                    order_line.id
+                    for order in order_exceptions.values()
+                    for order_line in order[0]
+                ],
             )
             purchase_order_ids = order_line_ids.mapped("order_id")
             move_ids = self.env["stock.move"].concat(*rendering_context.keys())
@@ -612,7 +647,11 @@ class PurchaseOrder(models.Model):
         result["my"]["otd"] = _(
             "%(otd)s %%",
             otd=float_repr(
-                (my_otd_purchase_count / my_purchase_count * 100 if my_purchase_count else 100),
+                (
+                    my_otd_purchase_count / my_purchase_count * 100
+                    if my_purchase_count
+                    else 100
+                ),
                 precision_digits=0,
             ),
         )
@@ -664,7 +703,9 @@ class PurchaseOrder(models.Model):
     def _remove_reference(self, reference):
         """remove the given references from the list of references."""
         self.ensure_one()
-        self.reference_ids = [Command.unlink(stock_reference.id) for stock_reference in reference]
+        self.reference_ids = [
+            Command.unlink(stock_reference.id) for stock_reference in reference
+        ]
 
     def _merge_metadata(self, target, sources):
         super()._merge_metadata(target, sources)

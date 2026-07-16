@@ -11,7 +11,6 @@ from .utils import clean_action
 
 
 class DataSet(http.Controller):
-
     def _call_kw_readonly(self, rule: Any, args: Any) -> bool:
         # Guard the whole param extraction uniformly: a malformed body missing
         # ``params``/``model``/``method`` (or naming an unknown model) should

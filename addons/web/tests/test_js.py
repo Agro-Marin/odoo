@@ -66,7 +66,6 @@ def unit_test_error_checker(message):
     return "[HOOT]" not in message
 
 
-
 def _get_filters(test_params):
     filters = []
     for sign, param in test_params:

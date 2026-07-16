@@ -10,7 +10,6 @@ from odoo.tests import common
 
 @common.tagged("post_install", "-at_install", "web_unit", "web_onchange")
 class TestOnchange(common.TransactionCase):
-
     def test_first_call_seeds_defaults(self):
         """Empty ``field_names`` => first call: defaults are seeded into value."""
         result = self.env["res.partner"].onchange(
@@ -28,8 +27,10 @@ class TestOnchange(common.TransactionCase):
             {"company_type": {}, "is_company": {}},
         )
         self.assertIn("value", result)
-        self.assertTrue(result["value"].get("is_company"),
-                        "onchange must recompute is_company from company_type")
+        self.assertTrue(
+            result["value"].get("is_company"),
+            "onchange must recompute is_company from company_type",
+        )
 
     def test_unknown_changed_field_is_dropped_not_fatal(self):
         """An unknown name among the changed fields must not void the onchange.

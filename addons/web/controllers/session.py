@@ -76,7 +76,10 @@ class Session(http.Controller):
             # DB/config internals) back to an unauthenticated caller — log it
             # server-side and return a generic message.
             _logger.exception("Failed to fetch language list")
-            return {"error": _("Could not fetch the language list."), "title": _("Languages")}
+            return {
+                "error": _("Could not fetch the language list."),
+                "title": _("Languages"),
+            }
 
     @http.route("/web/session/modules", type="jsonrpc", auth="user", readonly=True)
     def modules(self) -> list[str]:

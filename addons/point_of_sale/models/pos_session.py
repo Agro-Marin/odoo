@@ -638,7 +638,7 @@ class PosSession(models.Model):
                 total_cash = (
                     sum(
                         orders.payment_ids.filtered(
-                            lambda p: (
+                            lambda p, default_cash_payment_method_id=default_cash_payment_method_id: (
                                 p.payment_method_id == default_cash_payment_method_id
                             )
                         ).mapped("amount")
@@ -1144,7 +1144,7 @@ class PosSession(models.Model):
             else self.payment_method_ids
         )
         non_cash_payments_grouped_by_method_id = {
-            pm: orders.payment_ids.filtered(lambda p: p.payment_method_id == pm)
+            pm: orders.payment_ids.filtered(lambda p, pm=pm: p.payment_method_id == pm)
             for pm in non_cash_payment_method_ids
         }
 
@@ -1499,7 +1499,8 @@ class PosSession(models.Model):
                 ]
             )
             for stock_moves_batch in (
-                stock_moves.browse(b) for b in batched(stock_moves._ids, PREFETCH_MAX)
+                stock_moves.browse(b)
+                for b in batched(stock_moves._ids, PREFETCH_MAX, strict=False)
             ):
                 for move in stock_moves_batch:
                     product_accounts = move.product_id._get_product_accounts()
@@ -2019,7 +2020,9 @@ class PosSession(models.Model):
 
         accounts = all_lines.mapped("account_id")
         lines_by_account = [
-            all_lines.filtered(lambda l: l.account_id == account and not l.reconciled)
+            all_lines.filtered(
+                lambda l, account=account: l.account_id == account and not l.reconciled
+            )
             for account in accounts
             if account.reconcile
         ]

@@ -55,6 +55,7 @@ class ResConfigSettings(models.TransientModel):
                         )
                     }
                 }
+        return None
 
     def set_values(self):
         had_group_pl = self.default_get(["group_product_pricelist"])[

@@ -237,11 +237,13 @@ class TestMailRender(TestMailRenderCommon):
         """A batch qweb render compiles the template once, not once per record:
         etree templates are not ormcached, so without a shared compile cache
         each record re-ran codegen + compile() + eval (perf regression guard)."""
-        template = self.env["mail.template"].create({
-            "name": "Batch perf",
-            "model_id": self.env["ir.model"]._get_id("res.partner"),
-            "body_html": '<p>Hi <t t-out="object.name"/> #<t t-out="object.id"/></p>',
-        })
+        template = self.env["mail.template"].create(
+            {
+                "name": "Batch perf",
+                "model_id": self.env["ir.model"]._get_id("res.partner"),
+                "body_html": '<p>Hi <t t-out="object.name"/> #<t t-out="object.id"/></p>',
+            }
+        )
         partners = self.env["res.partner"].create(
             [{"name": "P%d" % idx} for idx in range(6)]
         )
@@ -256,7 +258,8 @@ class TestMailRender(TestMailRenderCommon):
         with patch.object(ir_qweb_cls, "_generate_code_uncached", _counting):
             rendered = template._render_field("body_html", partners.ids)
         self.assertEqual(
-            len(compiles), 1,
+            len(compiles),
+            1,
             "qweb template must be compiled once for the batch, not per record",
         )
         for partner in partners:

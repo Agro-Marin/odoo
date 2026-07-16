@@ -5,37 +5,51 @@ from odoo.addons.stock_account.models.avco import AvcoAccumulator
 
 class StockAverageCostReport(models.AbstractModel):
     _auto = False
-    _name = 'stock.avco.report'
-    _description = 'Stock AVCO Justifier'
-    _order = 'date desc, id desc'
+    _name = "stock.avco.report"
+    _description = "Stock AVCO Justifier"
+    _order = "date desc, id desc"
 
-    date = fields.Date(string='Date', required=True)
-    user_id = fields.Many2one('res.users', string='User', required=True)
-    company_id = fields.Many2one('res.company', string='Company', required=True)
-    currency_id = fields.Many2one('res.currency', related='company_id.currency_id', string='Currency')
+    date = fields.Date(string="Date", required=True)
+    user_id = fields.Many2one("res.users", string="User", required=True)
+    company_id = fields.Many2one("res.company", string="Company", required=True)
+    currency_id = fields.Many2one(
+        "res.currency", related="company_id.currency_id", string="Currency"
+    )
 
-    product_id = fields.Many2one('product.product', string='Product', required=True)
+    product_id = fields.Many2one("product.product", string="Product", required=True)
 
-    reference = fields.Char(string='Reference', required=True)
-    description = fields.Text(string='Description', required=True)
+    reference = fields.Char(string="Reference", required=True)
+    description = fields.Text(string="Description", required=True)
 
-    res_model_name = fields.Selection([
-        ('stock.move', 'Stock Move'),
-        ('product.value', 'Product Value'),
-    ], string='Resource Model Name', required=True)
+    res_model_name = fields.Selection(
+        [
+            ("stock.move", "Stock Move"),
+            ("product.value", "Product Value"),
+        ],
+        string="Resource Model Name",
+        required=True,
+    )
 
-    quantity = fields.Float(string='Added Quantity', required=True)
-    value = fields.Float(string='Value', required=True)
+    quantity = fields.Float(string="Added Quantity", required=True)
+    value = fields.Float(string="Value", required=True)
 
-    added_value = fields.Float(string='Added Value', compute='_compute_cumulative_fields')
-    total_quantity = fields.Float(string='Total Quantity', compute='_compute_cumulative_fields')
-    total_value = fields.Float(string='Total Value', compute='_compute_cumulative_fields')
-    avco_value = fields.Float(string='AVCO Value', compute='_compute_cumulative_fields')
+    added_value = fields.Float(
+        string="Added Value", compute="_compute_cumulative_fields"
+    )
+    total_quantity = fields.Float(
+        string="Total Quantity", compute="_compute_cumulative_fields"
+    )
+    total_value = fields.Float(
+        string="Total Value", compute="_compute_cumulative_fields"
+    )
+    avco_value = fields.Float(string="AVCO Value", compute="_compute_cumulative_fields")
 
-    justification = fields.Text(string='Justification', compute='_compute_justification')
+    justification = fields.Text(
+        string="Justification", compute="_compute_justification"
+    )
 
     def init(self):
-        tools.drop_view_if_exists(self.env.cr, 'stock_avco_report')
+        tools.drop_view_if_exists(self.env.cr, "stock_avco_report")
         query = """
 CREATE OR REPLACE VIEW stock_avco_report AS (
 SELECT
@@ -94,24 +108,33 @@ WHERE
         self.env.cr.execute(query)
 
     def _compute_cumulative_fields(self):
-        total_records_grouped = self.env['stock.avco.report'].search(
-            [('product_id', 'in', self.product_id.mapped('id')), ('company_id', 'in', self.company_id.mapped('id'))]
-        ).grouped(lambda m: (m.product_id, m.company_id))
+        total_records_grouped = (
+            self.env["stock.avco.report"]
+            .search(
+                [
+                    ("product_id", "in", self.product_id.mapped("id")),
+                    ("company_id", "in", self.company_id.mapped("id")),
+                ]
+            )
+            .grouped(lambda m: (m.product_id, m.company_id))
+        )
         for records in self.grouped(lambda m: (m.product_id, m.company_id)).values():
-            current_page_records = records.sorted('date, id')
-            total_records = total_records_grouped.get((records.product_id, records.company_id)).sorted('date, id')
+            current_page_records = records.sorted("date, id")
+            total_records = total_records_grouped.get(
+                (records.product_id, records.company_id)
+            ).sorted("date, id")
             # Replay the same AVCO recurrence as the live valuation engine
             # (product._run_average_batch) via the shared accumulator, so the audit
             # figures cannot drift from the actual valuation.
             avco = AvcoAccumulator(uom=records.product_id.uom_id)
             added_value = 0.0
             for record in total_records:
-                if record.res_model_name == 'stock.move':
+                if record.res_model_name == "stock.move":
                     if record.quantity > 0:
                         added_value = avco.add_in(record.quantity, record.value)
                     else:
                         added_value = -avco.add_out(-record.quantity)
-                elif record.res_model_name == 'product.value':
+                elif record.res_model_name == "product.value":
                     added_value = avco.set_unit_cost(record.value)
 
                 if record in current_page_records:
@@ -123,5 +146,7 @@ WHERE
     def _compute_justification(self):
         self.justification = False
         for record in self:
-            if record.res_model_name == 'stock.move':
-                record.justification = self.env['stock.move'].browse(record.id).value_justification
+            if record.res_model_name == "stock.move":
+                record.justification = (
+                    self.env["stock.move"].browse(record.id).value_justification
+                )

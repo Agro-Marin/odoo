@@ -301,7 +301,9 @@ class TestBaseDocumentLayout(TestBaseDocumentLayoutHelpers):
         result = doc_layout._clean_address_format(
             "%(city)s %(state_id)s\n%(zip)s", company_data
         )
-        self.assertNotIn("%(state_id)s", result, "Mid-format placeholder must be stripped")
+        self.assertNotIn(
+            "%(state_id)s", result, "Mid-format placeholder must be stripped"
+        )
         self.assertIn("12345", result % {k: (v or "") for k, v in company_data.items()})
 
     def test_extract_colors_tolerates_non_text_logo(self):

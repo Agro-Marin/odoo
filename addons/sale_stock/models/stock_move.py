@@ -95,7 +95,7 @@ class StockMove(models.Model):
             product = move.product_id
 
             if line := sale_order.line_ids.filtered(
-                lambda l: l.product_id == product,
+                lambda l, product=product: l.product_id == product,
             ):
                 move.sale_line_id = line[:1]
                 continue
@@ -182,9 +182,12 @@ class StockMove(models.Model):
 
     def _get_upstream_documents_and_responsibles(self, visited):
         created_sl = self.created_sale_line_ids.filtered(
-            lambda csl: csl.state != "cancel"
-            and (
-                csl.state != "draft" or self.env.context.get("include_draft_documents")
+            lambda csl: (
+                csl.state != "cancel"
+                and (
+                    csl.state != "draft"
+                    or self.env.context.get("include_draft_documents")
+                )
             ),
         )
         if created_sl:

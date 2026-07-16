@@ -39,9 +39,7 @@ class TestProductLabelLayout(ProductCommon):
                 self.assertEqual(self.wizard.rows, rows)
                 got_xml_id, data = self.wizard._prepare_report_data()
                 self.assertEqual(got_xml_id, xml_id)
-                self.assertEqual(
-                    data["price_included"], "xprice" in print_format
-                )
+                self.assertEqual(data["price_included"], "xprice" in print_format)
                 # The referenced report must actually exist.
                 self.assertTrue(self.env.ref(xml_id))
 

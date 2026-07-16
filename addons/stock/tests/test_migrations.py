@@ -38,9 +38,7 @@ class TestStock14PreMigrate(BaseCase):
             self.script.migrate(cr, "1.3")
         # No ALTER TABLE should have been issued once the rename already happened.
         alter_calls = [
-            call
-            for call in cr.execute.call_args_list
-            if "ALTER TABLE" in call.args[0]
+            call for call in cr.execute.call_args_list if "ALTER TABLE" in call.args[0]
         ]
         self.assertEqual(alter_calls, [])
         # The four UPDATE sweeps still run unconditionally (safe no-ops).
@@ -56,9 +54,7 @@ class TestStock14PreMigrate(BaseCase):
         with self._patch_column_exists(renamed=False):
             self.script.migrate(cr, "1.3")
         alter_calls = [
-            call
-            for call in cr.execute.call_args_list
-            if "ALTER TABLE" in call.args[0]
+            call for call in cr.execute.call_args_list if "ALTER TABLE" in call.args[0]
         ]
         self.assertEqual(len(alter_calls), 1)
         self.assertIn("quantity_packaging_uom", alter_calls[0].args[0])

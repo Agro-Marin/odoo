@@ -575,9 +575,7 @@ class AccountBankStatementLine(models.Model):
             group_anchors = []
             all_anchors = self.env["account.bank.statement.line"]
             for group_line in result:
-                anchor = self.search(
-                    group_line["__extra_domain"] + domain, limit=1
-                )
+                anchor = self.search(group_line["__extra_domain"] + domain, limit=1)
                 group_anchors.append((group_line, anchor))
                 all_anchors |= anchor
             all_anchors.mapped("running_balance")

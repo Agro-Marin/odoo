@@ -348,7 +348,7 @@ class ProductTemplate(models.Model):
             templates._create_variant_ids()
 
         # This is needed to set given values to first variant after creation
-        for template, vals in zip(templates, vals_list):
+        for template, vals in zip(templates, vals_list, strict=False):
             related_vals = {}
             for field_name in self._get_related_fields_variant_template():
                 if vals.get(field_name) and not template[field_name]:
@@ -404,16 +404,20 @@ class ProductTemplate(models.Model):
         default = dict(default or {})
         vals_list = super().copy_data(default=default)
         if "name" not in default:
-            for template, vals in zip(self, vals_list):
+            for template, vals in zip(self, vals_list, strict=False):
                 vals["name"] = _("%s (copy)", template.name)
         return vals_list
 
     def copy(self, default=None):
         res = super().copy(default=default)
         # Since we don't copy the product template attribute values, we need to match the extra prices.
-        for ptal, copied_ptal in zip(self.attribute_line_ids, res.attribute_line_ids):
+        for ptal, copied_ptal in zip(
+            self.attribute_line_ids, res.attribute_line_ids, strict=False
+        ):
             for ptav, copied_ptav in zip(
-                ptal.product_template_value_ids, copied_ptal.product_template_value_ids
+                ptal.product_template_value_ids,
+                copied_ptal.product_template_value_ids,
+                strict=False,
             ):
                 if not ptav.price_extra:
                     continue
@@ -447,7 +451,7 @@ class ProductTemplate(models.Model):
                 ["res_id"],
                 ["__count"],
             )
-            template_counts = {res_id: count for res_id, count in tmpl_data}
+            template_counts = dict(tmpl_data)
             # Only active variants are summed below, so only fetch their counts.
             variant_ids = self.product_variant_ids
             if variant_ids:
@@ -459,7 +463,7 @@ class ProductTemplate(models.Model):
                     ["res_id"],
                     ["__count"],
                 )
-                variant_counts = {res_id: count for res_id, count in var_data}
+                variant_counts = dict(var_data)
         for template in self:
             count = template_counts.get(template.id, 0)
             for variant in template.product_variant_ids:
@@ -768,6 +772,7 @@ class ProductTemplate(models.Model):
                     ),
                 }
             }
+        return None
 
     def _get_related_fields_variant_template(self):
         """Return a list of fields present on template and variants models and that are related"""
@@ -826,13 +831,19 @@ class ProductTemplate(models.Model):
                 from_template_import=True
             )
             result_product = ProductProduct.load(fields, data_list_products)
-            if any(message["type"] == "error" for message in result_product["messages"]):
+            if any(
+                message["type"] == "error" for message in result_product["messages"]
+            ):
                 return result_product
 
-            product_templates = ProductProduct.browse(result_product["ids"]).product_tmpl_id
+            product_templates = ProductProduct.browse(
+                result_product["ids"]
+            ).product_tmpl_id
             result["ids"].extend(product_templates.ids)
             result["messages"].extend(result_product["messages"])
-            result["nextrow"] = result.get("nextrow", 0) + result_product.get("nextrow", 0)
+            result["nextrow"] = result.get("nextrow", 0) + result_product.get(
+                "nextrow", 0
+            )
 
         return result
 
@@ -1065,16 +1076,18 @@ class ProductTemplate(models.Model):
         if not self.has_dynamic_attributes():
             if log_warning:
                 _logger.warning(
-                    "The user #%s tried to create a variant for the non-dynamic product %s."
-                    % (self.env.user.id, self.id)
+                    "The user #%s tried to create a variant for the non-dynamic product %s.",
+                    self.env.user.id,
+                    self.id,
                 )
             return Product
 
         if not self._is_combination_possible(combination):
             if log_warning:
                 _logger.warning(
-                    "The user #%s tried to create an invalid variant for the product %s."
-                    % (self.env.user.id, self.id)
+                    "The user #%s tried to create an invalid variant for the product %s.",
+                    self.env.user.id,
+                    self.id,
                 )
             return Product
 
@@ -1104,9 +1117,7 @@ class ProductTemplate(models.Model):
         )
 
         for tmpl_id in self:
-            lines_without_no_variants = (
-                tmpl_id.valid_product_template_attribute_line_ids._without_no_variant_attributes()
-            )
+            lines_without_no_variants = tmpl_id.valid_product_template_attribute_line_ids._without_no_variant_attributes()
 
             all_variants = tmpl_id.with_context(
                 active_test=False
@@ -1292,16 +1303,16 @@ class ProductTemplate(models.Model):
         archived_products = self.with_context(
             active_test=False
         ).product_variant_ids.filtered(lambda l: not l.active)
-        active_combinations = set(
+        active_combinations = {
             tuple(product.product_template_attribute_value_ids.ids)
             for product in self.product_variant_ids
-        )
+        }
         return {
             "exclusions": self._complete_inverse_exclusions(
                 self._get_own_attribute_exclusions(combination_ids=combination_ids)
             ),
             "archived_combinations": list(
-                set(
+                {
                     tuple(product.product_template_attribute_value_ids.ids)
                     for product in archived_products
                     if product.product_template_attribute_value_ids
@@ -1310,7 +1321,7 @@ class ProductTemplate(models.Model):
                         or (combination_ids and ptav.id in combination_ids)
                         for ptav in product.product_template_attribute_value_ids
                     )
-                )
+                }
                 - active_combinations
             ),
             "parent_exclusions": self._get_parent_attribute_exclusions(
@@ -1586,9 +1597,9 @@ class ProductTemplate(models.Model):
             return
 
         all_exclusions = {
-            self.env["product.template.attribute.value"]
-            .browse(k): self.env["product.template.attribute.value"]
-            .browse(v)
+            self.env["product.template.attribute.value"].browse(k): self.env[
+                "product.template.attribute.value"
+            ].browse(v)
             for k, v in self._get_own_attribute_exclusions().items()
         }
         # The following dict uses product template attribute values as keys
@@ -1774,8 +1785,7 @@ class ProductTemplate(models.Model):
                 # we consider that combination set, and we yield all the
                 # possible combinations for it.
                 yield next(res)
-                for cur in res:
-                    yield cur
+                yield from res
                 return
             except StopIteration:
                 # There are no results for the given combination, we try to
@@ -1973,10 +1983,9 @@ class ProductTemplate(models.Model):
             if variant and not variant.active:
                 # dynamic and the variant has been archived
                 return False
-        else:
-            if not variant or not variant.active:
-                # not dynamic, the variant has been archived or deleted
-                return False
+        elif not variant or not variant.active:
+            # not dynamic, the variant has been archived or deleted
+            return False
 
         parent_exclusions = self._get_parent_attribute_exclusions(parent_combination)
         if parent_exclusions:

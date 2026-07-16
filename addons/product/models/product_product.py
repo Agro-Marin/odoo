@@ -1090,8 +1090,9 @@ class ProductProduct(models.Model):
                 # We have to manually keep the rules the current variant
                 # wasn't aware of because they targeted other variants.
                 | template.pricelist_rule_ids.filtered(
-                    lambda rule, product=product: rule.product_id
-                    and rule.product_id != product,
+                    lambda rule, product=product: (
+                        rule.product_id and rule.product_id != product
+                    ),
                 )
             )
 
@@ -1358,8 +1359,9 @@ class ProductProduct(models.Model):
         super().action_archive()
         # We deactivate product templates which are active with no active variants.
         records.product_tmpl_id.filtered(
-            lambda product_tmpl: product_tmpl.active
-            and not product_tmpl.product_variant_ids,
+            lambda product_tmpl: (
+                product_tmpl.active and not product_tmpl.product_variant_ids
+            ),
         ).action_archive()
 
     def action_unarchive(self):
@@ -1367,8 +1369,9 @@ class ProductProduct(models.Model):
         super().action_unarchive()
         # We activate product templates which are inactive with active variants.
         records.product_tmpl_id.filtered(
-            lambda product_tmpl: not product_tmpl.active
-            and product_tmpl.product_variant_ids,
+            lambda product_tmpl: (
+                not product_tmpl.active and product_tmpl.product_variant_ids
+            ),
         ).action_unarchive()
 
     @api.model
@@ -1645,9 +1648,11 @@ class ProductProduct(models.Model):
         return sum(
             ptav.price_extra
             for ptav in combination.filtered(
-                lambda ptav: ptav.price_extra
-                and ptav.product_tmpl_id == self.product_tmpl_id
-                and ptav not in self.product_template_attribute_value_ids,
+                lambda ptav: (
+                    ptav.price_extra
+                    and ptav.product_tmpl_id == self.product_tmpl_id
+                    and ptav not in self.product_template_attribute_value_ids
+                ),
             )
         )
 

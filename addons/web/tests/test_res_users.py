@@ -189,8 +189,10 @@ class TestWebCreateUsers(TransactionCase):
             self.skipTest("email_normalized not available (mail not installed)")
         email = "test_reactivate_create@example.com"
         self.env["res.users"].web_create_users([email])
-        user = self.env["res.users"].with_context(active_test=False).search(
-            [("login", "=", email)], limit=1
+        user = (
+            self.env["res.users"]
+            .with_context(active_test=False)
+            .search([("login", "=", email)], limit=1)
         )
         self.assertTrue(user, "User must have been created")
         user.active = False
@@ -203,4 +205,6 @@ class TestWebCreateUsers(TransactionCase):
 @tagged("post_install", "-at_install", "web_tour", "web_users")
 class TestUserSettings(HttpCaseWithUserDemo):
     def test_user_group_settings(self):
-        self.start_tour("/odoo?debug=1", "test_user_group_settings", login="admin", timeout=120)
+        self.start_tour(
+            "/odoo?debug=1", "test_user_group_settings", login="admin", timeout=120
+        )

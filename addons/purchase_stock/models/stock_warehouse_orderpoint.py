@@ -52,8 +52,9 @@ class StockWarehouseOrderpoint(models.Model):
             return res
         # Compute rule_ids only for orderpoint whose compnay_id.days_to_purchase != orderpoint.days_to_order
         orderpoints_to_compute = self.filtered(
-            lambda orderpoint: orderpoint.days_to_order
-            != orderpoint.company_id.days_to_purchase,
+            lambda orderpoint: (
+                orderpoint.days_to_order != orderpoint.company_id.days_to_purchase
+            ),
         )
         for orderpoint in orderpoints_to_compute:
             if "buy" in orderpoint.rule_ids.mapped("action"):
@@ -95,12 +96,13 @@ class StockWarehouseOrderpoint(models.Model):
 
     @api.depends("effective_route_id")
     def _compute_show_supplier(self):
-        buy_route = []
-        for res in self.env["stock.rule"].search_read(
-            [("action", "=", "buy")],
-            ["route_id"],
-        ):
-            buy_route.append(res["route_id"][0])
+        buy_route = [
+            res["route_id"][0]
+            for res in self.env["stock.rule"].search_read(
+                [("action", "=", "buy")],
+                ["route_id"],
+            )
+        ]
         for orderpoint in self:
             orderpoint.show_supplier = orderpoint.effective_route_id.id in buy_route
 
@@ -128,9 +130,7 @@ class StockWarehouseOrderpoint(models.Model):
     def _compute_effective_vendor_id(self):
         for orderpoint in self:
             orderpoint.effective_vendor_id = (
-                orderpoint.supplier_id
-                if orderpoint.supplier_id
-                else orderpoint._get_default_supplier()
+                orderpoint.supplier_id or orderpoint._get_default_supplier()
             ).partner_id
 
     # ------------------------------------------------------------
@@ -169,10 +169,12 @@ class StockWarehouseOrderpoint(models.Model):
             self.env["stock.warehouse.orderpoint"]
             .search([])
             .filtered(
-                lambda orderpoint: orderpoint.product_id._prepare_sellers().mapped(
-                    "partner_id",
-                )
-                & vendors,
+                lambda orderpoint: (
+                    orderpoint.product_id._prepare_sellers().mapped(
+                        "partner_id",
+                    )
+                    & vendors
+                ),
             )
         )
         return [("id", "in", orderpoints.ids)]
@@ -185,7 +187,9 @@ class StockWarehouseOrderpoint(models.Model):
         """This function returns an action that display existing
         purchase orders of given orderpoint.
         """
-        result = self.env["ir.actions.act_window"]._for_xml_id("purchase.action_purchase_order")
+        result = self.env["ir.actions.act_window"]._for_xml_id(
+            "purchase.action_purchase_order"
+        )
 
         # Remvove the context since the action basically display RFQ and not PO.
         result["context"] = {}
@@ -285,7 +289,7 @@ class StockWarehouseOrderpoint(models.Model):
 
     def _quantity_in_progress(self):
         res = super()._quantity_in_progress()
-        qty_by_product_location, dummy = self.product_id._get_quantity_in_progress(
+        qty_by_product_location, _ = self.product_id._get_quantity_in_progress(
             self.location_id.ids,
         )
         for orderpoint in self:

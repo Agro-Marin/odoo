@@ -23,7 +23,9 @@ class Partner(http.Controller):
         partners = request.env["res.partner"]
         if partner_ids:
             partner_ids = [
-                int(pid) for pid in partner_ids.split(",") if pid.isdigit() and pid != "0"
+                int(pid)
+                for pid in partner_ids.split(",")
+                if pid.isdigit() and pid != "0"
             ]
             partners = request.env["res.partner"].browse(partner_ids)
             if len(partners) > 1:

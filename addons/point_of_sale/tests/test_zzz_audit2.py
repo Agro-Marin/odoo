@@ -39,12 +39,14 @@ class TestAuditVerification2(TestPoSCommon):
         _, totals = report._get_total_and_qty_per_category(categories)
         _logger.info("R1 grand totals: %r", totals)
         self.assertEqual(
-            totals["qty"], 6.0,
+            totals["qty"],
+            6.0,
             "BUG CONFIRMED: grand total qty deduplicated identical rows "
             "(got %s, expected 6.0)" % totals["qty"],
         )
         self.assertEqual(
-            totals["total"], 60.0,
+            totals["total"],
+            60.0,
             "BUG CONFIRMED: grand total amount deduplicated identical rows "
             "(got %s, expected 60.0)" % totals["total"],
         )
@@ -61,18 +63,20 @@ class TestAuditVerification2(TestPoSCommon):
     # ---- R3 [MED] pos.order.write leaked per-order derivations through shared vals ----
     def test_R3_batch_write_per_record_has_deleted_line(self):
         self._start_pos_session(self.cash_pm1, 0)
-        orders_map = self._create_orders([
-            {
-                "pos_order_lines_ui_args": [(self.product, 1)],
-                "payments": [(self.cash_pm1, 100)],
-                "uuid": "audit-r3-a",
-            },
-            {
-                "pos_order_lines_ui_args": [(self.product, 1)],
-                "payments": [(self.cash_pm1, 100)],
-                "uuid": "audit-r3-b",
-            },
-        ])
+        orders_map = self._create_orders(
+            [
+                {
+                    "pos_order_lines_ui_args": [(self.product, 1)],
+                    "payments": [(self.cash_pm1, 100)],
+                    "uuid": "audit-r3-a",
+                },
+                {
+                    "pos_order_lines_ui_args": [(self.product, 1)],
+                    "payments": [(self.cash_pm1, 100)],
+                    "uuid": "audit-r3-b",
+                },
+            ]
+        )
         order_a = orders_map["audit-r3-a"]
         order_b = orders_map["audit-r3-b"]
         order_a.has_deleted_line = False
@@ -83,7 +87,8 @@ class TestAuditVerification2(TestPoSCommon):
         (order_a | order_b).write({"has_deleted_line": True})
         _logger.info(
             "R3 has_deleted_line a=%s b=%s",
-            order_a.has_deleted_line, order_b.has_deleted_line,
+            order_a.has_deleted_line,
+            order_b.has_deleted_line,
         )
         self.assertTrue(
             order_a.has_deleted_line,
@@ -101,22 +106,26 @@ class TestAuditVerification2(TestPoSCommon):
         # (exercised by test_tax_is_used_when_in_transactions, which closes the
         # session).
         self._start_pos_session(self.cash_pm1, 0)
-        tax = self.env["account.tax"].create({
-            "name": "AuditTaxR4",
-            "amount": 10.0,
-            "amount_type": "percent",
-            "type_tax_use": "sale",
-        })
+        tax = self.env["account.tax"].create(
+            {
+                "name": "AuditTaxR4",
+                "amount": 10.0,
+                "amount_type": "percent",
+                "type_tax_use": "sale",
+            }
+        )
         product = self.create_product(
             "AuditTaxProdR4", self.categ_basic, 100, 50, tax_ids=tax.ids
         )
-        self._create_orders([
-            {
-                "pos_order_lines_ui_args": [(product, 1)],
-                "payments": [(self.cash_pm1, 110)],
-                "uuid": "audit-r4-0001",
-            },
-        ])
+        self._create_orders(
+            [
+                {
+                    "pos_order_lines_ui_args": [(product, 1)],
+                    "payments": [(self.cash_pm1, 110)],
+                    "uuid": "audit-r4-0001",
+                },
+            ]
+        )
         tax.invalidate_model(fnames=["is_used"])
         self.assertFalse(
             tax.is_used,

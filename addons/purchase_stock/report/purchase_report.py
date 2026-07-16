@@ -37,9 +37,7 @@ class PurchaseReport(models.Model):
         fields["order_id"] = "o.id"
         fields["picking_type_id"] = "spt.warehouse_id"
         fields["date_effective"] = "o.date_effective"
-        fields[
-            "days_to_arrival"
-        ] = """EXTRACT(
+        fields["days_to_arrival"] = """EXTRACT(
             EPOCH FROM age(
                 l.date_planned,
                 COALESCE(

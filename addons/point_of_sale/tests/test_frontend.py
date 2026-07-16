@@ -3861,7 +3861,9 @@ class TestUi(TestPointOfSaleHttpCommon):
         for p in product.product_variant_ids:
             p.write(
                 {
-                    "barcode": f"1234{''.join(p.product_template_attribute_value_ids.mapped(lambda ptav: ptav.name[-1]))}",
+                    "barcode": f"1234{''.join(p.product_template_attribute_value_ids.mapped(lambda ptav: (
+                                ptav.name[-1]
+                            )))}",
                 }
             )
         self.main_pos_config.with_user(self.pos_user).open_ui()
