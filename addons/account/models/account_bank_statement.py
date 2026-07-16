@@ -316,7 +316,11 @@ class AccountBankStatement(models.Model):
                                 PARTITION BY st.journal_id
                                     ORDER BY st.first_line_index
                             ) AS prev_balance_end_real,
-                            currency.decimal_places
+                            -- Fall back to 2 dp when no currency resolves:
+                            -- ROUND(x, NULL) is NULL and `NULL != NULL` is NULL
+                            -- (falsy), so a broken statement would otherwise be
+                            -- silently reported as valid.
+                            COALESCE(currency.decimal_places, 2) AS decimal_places
                        FROM account_bank_statement st
                   LEFT JOIN res_company co ON st.company_id = co.id
                   LEFT JOIN account_journal j ON st.journal_id = j.id

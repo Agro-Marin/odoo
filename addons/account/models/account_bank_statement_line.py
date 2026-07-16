@@ -207,6 +207,17 @@ class AccountBankStatementLine(models.Model):
             company: self.env["res.company"].search([("id", "child_of", company.id)])
             for company in self.journal_id.company_id
         }
+        # Flush once, up front: the loop body below only runs raw SQL reads and
+        # assigns the non-stored `running_balance` in memory, so nothing dirties
+        # these fields between iterations. Flushing inside the per-journal loop
+        # just repeated the same work for every distinct journal.
+        self.flush_model(
+            ["amount", "move_id", "statement_id", "journal_id", "internal_index"]
+        )
+        self.env["account.bank.statement"].flush_model(
+            ["first_line_index", "journal_id", "balance_start"]
+        )
+        self.env["account.move"].flush_model(["state"])
         for journal in self.journal_id:
             journal_lines_indexes = (
                 self.filtered(lambda line, journal=journal: line.journal_id == journal)
@@ -216,9 +227,6 @@ class AccountBankStatementLine(models.Model):
             min_index, max_index = journal_lines_indexes[0], journal_lines_indexes[-1]
 
             # Find the oldest index for each journal.
-            self.env["account.bank.statement"].flush_model(
-                ["first_line_index", "journal_id", "balance_start"]
-            )
             self.env.cr.execute(
                 """
                     SELECT first_line_index, COALESCE(balance_start, 0.0)
@@ -238,13 +246,6 @@ class AccountBankStatementLine(models.Model):
                 starting_index, current_running_balance = row
                 extra_clause = SQL("AND st_line.internal_index >= %s", starting_index)
 
-            self.flush_model(
-                ["amount", "move_id", "statement_id", "journal_id", "internal_index"]
-            )
-            self.env["account.bank.statement"].flush_model(
-                ["first_line_index", "balance_start"]
-            )
-            self.env["account.move"].flush_model(["state"])
             self.env.cr.execute(
                 SQL(
                     """
