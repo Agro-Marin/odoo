@@ -16,8 +16,10 @@ import math
 import threading
 import time
 
+from odoo import modules
 from odoo.http import Controller, Response, request, route
 from odoo.libs.json import loads as json_loads
+from odoo.tools import config
 
 _logger = logging.getLogger(__name__)
 
@@ -266,7 +268,7 @@ class Observability(Controller):
 
         kind = (
             payload.get("kind")
-            if payload.get("kind") in ("error", "unhandledrejection")
+            if payload.get("kind") in ("error", "unhandledrejection", "module_rebind")
             else "error"
         )
         phase = (
@@ -282,7 +284,19 @@ class Observability(Controller):
         col = _int_field(payload.get("col"))
 
         uid = request.session.uid or False
-        _logger.warning(
+        # A module-rebind beacon is production telemetry for accidental bundle
+        # duplication (a real signal → WARNING). Under tests the test-asset
+        # overlay legitimately rebinds prod modules onto the same names, so those
+        # beacons are expected noise (DEBUG) — while genuine JS errors stay loud
+        # even in tests.
+        in_test = bool(modules.module.current_test) or config["test_enable"]
+        level = (
+            logging.DEBUG
+            if kind == "module_rebind" and in_test
+            else logging.WARNING
+        )
+        _logger.log(
+            level,
             "[js_error] uid=%s phase=%s kind=%s msg=%r at %s:%d:%d url=%r ua=%r stack=%r",
             uid or "anon",
             phase,
