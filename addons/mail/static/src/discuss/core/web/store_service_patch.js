@@ -13,25 +13,28 @@ const StorePatch = {
         if (!this.Thread) {
             return super.computeGlobalCounter();
         }
-        const channelsContribution =
-            this.channels.status !== "fetched"
-                ? this.initChannelsUnreadCounter
-                : Object.values(this.Thread.records).filter(
-                      (thread) =>
-                          thread.displayToSelf &&
-                          !thread.self_member_id?.mute_until_dt &&
-                          (thread.self_member_id?.message_unread_counter ||
-                              thread.message_needaction_counter),
-                  ).length;
-        // Needactions are already counted in the super call, but we want to discard them for channel so that there is only +1 per channel.
-        const channelsNeedactionCounter = Object.values(this.Thread.records).reduce(
-            (acc, thread) =>
-                acc +
-                (thread.model === "discuss.channel"
-                    ? thread.message_needaction_counter
-                    : 0),
-            0,
-        );
+        // single pass over Thread.records: this is an eager compute whose
+        // onUpdate refreshes the app badge, so it re-runs on every thread
+        // counter mutation — two separate full scans doubled that cost.
+        const channelsFetched = this.channels.status === "fetched";
+        let channelsContribution = channelsFetched ? 0 : this.initChannelsUnreadCounter;
+        // Needactions are already counted in the super call, but we want to
+        // discard them for channels so there is only +1 per channel.
+        let channelsNeedactionCounter = 0;
+        for (const thread of Object.values(this.Thread.records)) {
+            if (
+                channelsFetched &&
+                thread.displayToSelf &&
+                !thread.self_member_id?.mute_until_dt &&
+                (thread.self_member_id?.message_unread_counter ||
+                    thread.message_needaction_counter)
+            ) {
+                channelsContribution++;
+            }
+            if (thread.model === "discuss.channel") {
+                channelsNeedactionCounter += thread.message_needaction_counter;
+            }
+        }
         return (
             super.computeGlobalCounter() +
             channelsContribution -

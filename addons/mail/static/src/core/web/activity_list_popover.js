@@ -31,8 +31,11 @@ export class ActivityListPopover extends Component {
         super.setup();
         this.orm = useService("orm");
         this.store = useService("mail.store");
-        this.updateFromProps(this.props);
-        onWillUpdateProps((props) => this.updateFromProps(props));
+        // catch: updateFromProps calls activity_format (orm.silent suppresses
+        // the error dialog but the promise still rejects) — an unhandled
+        // rejection if the record vanished
+        this.updateFromProps(this.props).catch(() => {});
+        onWillUpdateProps((props) => this.updateFromProps(props).catch(() => {}));
     }
 
     get activities() {

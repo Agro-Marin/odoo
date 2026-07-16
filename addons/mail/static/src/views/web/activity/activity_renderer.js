@@ -2,7 +2,7 @@
 import { MailColumnProgress } from "@mail/core/web/mail_column_progress";
 import { ActivityCell } from "@mail/views/web/activity/activity_cell";
 import { ActivityRecord } from "@mail/views/web/activity/activity_record";
-import { Component, useState } from "@odoo/owl";
+import { Component, onWillUpdateProps, useState } from "@odoo/owl";
 import { CheckBox } from "@web/components/checkbox/checkbox";
 import { Dropdown } from "@web/components/dropdown/dropdown";
 import { DropdownItem } from "@web/components/dropdown/dropdown_item";
@@ -40,6 +40,28 @@ export class ActivityRenderer extends Component {
             },
             activityTypeId: null,
             resIds: new Set(Object.keys(this.props.groupedActivities)),
+        });
+        onWillUpdateProps((nextProps) => {
+            // the renderer instance persists across reloads (mark-as-done
+            // from a cell popover re-renders with new groupedActivities). An
+            // active column filter's resIds was computed once and went stale
+            // — a record no longer matching the filter kept its highlight and
+            // cell classification. Recompute against the fresh data, but ONLY
+            // when a filter is active: resIds is unused otherwise, and
+            // rewriting it every update would trigger a spurious re-render.
+            if (this.activeFilter.activityTypeId !== null) {
+                const typeId = this.activeFilter.activityTypeId;
+                const name = this.activeFilter.progressValue.active;
+                this.activeFilter.resIds = new Set(
+                    Object.entries(nextProps.groupedActivities)
+                        .filter(
+                            ([, resIds]) =>
+                                typeId in resIds &&
+                                name in resIds[typeId].count_by_state,
+                        )
+                        .map(([key]) => parseInt(key)),
+                );
+            }
         });
 
         this.storageKey = [

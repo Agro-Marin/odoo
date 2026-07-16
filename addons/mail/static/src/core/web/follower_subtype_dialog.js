@@ -53,18 +53,28 @@ export class FollowerSubtypeDialog extends Component {
         const selectedSubtypes = this.state.subtypes.filter((s) =>
             s.in(this.props.follower.subtype_ids),
         );
+        // snapshot so a failed subscribe can be rolled back: onChangeCheckbox
+        // mutates the shared follower.subtype_ids live, so without this a
+        // network error would leave the store record (and any other UI
+        // reading it) reflecting a subscription that was never persisted
+        const previousSubtypes = [...this.props.follower.subtype_ids];
         if (selectedSubtypes.length === 0) {
             await this.props.follower.remove();
         } else {
-            await this.env.services.orm.call(
-                this.props.follower.thread.model,
-                "message_subscribe",
-                [[this.props.follower.thread.id]],
-                {
-                    partner_ids: [this.props.follower.partner_id.id],
-                    subtype_ids: selectedSubtypes.map((subtype) => subtype.id),
-                },
-            );
+            try {
+                await this.env.services.orm.call(
+                    this.props.follower.thread.model,
+                    "message_subscribe",
+                    [[this.props.follower.thread.id]],
+                    {
+                        partner_ids: [this.props.follower.partner_id.id],
+                        subtype_ids: selectedSubtypes.map((subtype) => subtype.id),
+                    },
+                );
+            } catch (e) {
+                this.props.follower.subtype_ids = previousSubtypes;
+                throw e;
+            }
             if (this.store.mt_comment.notIn(selectedSubtypes)) {
                 this.props.follower.removeRecipient();
             }
