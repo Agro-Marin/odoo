@@ -1923,19 +1923,24 @@ class CredentialCredential(models.Model):
             )
 
             for record in eligible:
-                savepoint = f"cred_migrate_{model._table}_{record.id}"
-                self.env.cr.execute(f"SAVEPOINT {savepoint}")
                 try:
-                    if record._reencrypt_with_current_key():
-                        record._stamp_encryption_key_version(current_version)
-                        stats["migrated"] += 1
-                    self.env.cr.execute(f"RELEASE SAVEPOINT {savepoint}")
+                    # ORM-aware savepoint (not a manual SAVEPOINT pair):
+                    # flushes pending writes on entry, restores the ORM cache
+                    # on rollback — a failed row leaves no stale stamp or
+                    # payload in cache.
+                    with self.env.cr.savepoint():
+                        migrated = record._reencrypt_with_current_key()
+                        if migrated:
+                            record._stamp_encryption_key_version(current_version)
                 except Exception as e:
-                    self.env.cr.execute(f"ROLLBACK TO SAVEPOINT {savepoint}")
                     stats["failed"] += 1
                     error_msg = f"{model_name} (ID: {record.id}): {e!s}"
                     totals["errors"].append(error_msg)
                     _logger.error("Failed to migrate record: %s", error_msg)
+                else:
+                    # `else` (not inside the `with`): count only after the
+                    # savepoint's exit flush also succeeded.
+                    stats["migrated"] += bool(migrated)
 
             totals["models"][model_name] = stats
             for key in ("total", "eligible", "skipped", "migrated", "failed"):
