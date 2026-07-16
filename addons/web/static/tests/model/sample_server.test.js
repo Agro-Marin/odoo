@@ -457,3 +457,42 @@ describe("RPC calls", () => {
         expect(result[0]["id:array_agg"]).toEqual(ids);
     });
 });
+
+describe("read_progress_bar", () => {
+    test("never produces NaN buckets for values outside progress_bar.colors", async () => {
+        const flds = {
+            display_name: { string: "Name", type: "char" },
+            flag: { string: "Flag", type: "boolean" },
+            state: {
+                string: "State",
+                type: "selection",
+                selection: [
+                    ["a", "A"],
+                    ["b", "B"],
+                    ["c", "C"],
+                ],
+            },
+        };
+        const server = new DeterministicSampleServer("task", flds);
+        const data = await server.mockRpc({
+            method: "read_progress_bar",
+            model: "task",
+            domain: [],
+            group_by: "flag",
+            // colors intentionally cover NO real state value: every generated
+            // bucket would `undefined += count` -> NaN (and a stray key) without
+            // the guard. With it, only the seeded color keys (value 0) remain.
+            progress_bar: {
+                field: "state",
+                colors: { none1: "success", none2: "warning" },
+            },
+        });
+        expect(Object.keys(data).length > 0).toBe(true);
+        for (const buckets of Object.values(data)) {
+            for (const [key, count] of Object.entries(buckets)) {
+                expect(["none1", "none2"]).toInclude(key);
+                expect(Number.isFinite(count)).toBe(true);
+            }
+        }
+    });
+});
