@@ -7,6 +7,7 @@ from odoo.exceptions import UserError, ValidationError
 from odoo.fields import Domain
 from odoo.tools import SQL, split_every
 
+from odoo.addons.stock_account.models.avco import AvcoAccumulator
 from odoo.addons.stock_account.models.constants import (
     COST_METHOD_SELECTION,
     VALUATION_SELECTION,
@@ -366,11 +367,18 @@ class ProductProduct(models.Model):
         return {pv.product_id: pv for pv in product_values}
 
     def _get_last_in(self, date=None):
-        last_in_domain = Domain([('is_in', '=', True), ('product_id', '=', self.id)])
+        # Scope to the current company explicitly: this runs from sudo call-sites
+        # (compute_sudo valuation, _update_standard_price) where record rules are
+        # bypassed, so without this filter the globally-latest in-move of another
+        # company would leak into this company's standard price / historical value.
+        last_in_domain = Domain([
+            ('is_in', '=', True),
+            ('product_id', '=', self.id),
+            ('company_id', '=', self.env.company.id),
+        ])
         if date:
             last_in_domain &= Domain([('date', '<=', date)])
-        last_in = self.env['stock.move'].search(last_in_domain, order='date desc, id desc', limit=1)
-        return last_in
+        return self.env['stock.move'].search(last_in_domain, order='date desc, id desc', limit=1)
 
     def _is_negative_owned_offset_by_consignment(self, at_date=None):
         """Whether the product's negative owned on-hand is fully covered by non-owned
@@ -512,6 +520,7 @@ class ProductProduct(models.Model):
             )
             average_cost = std_price_by_product_id.get(product.id, first_move_value / first_move_qty if first_move_qty else 0)
             value = value_by_product_id.get(product.id, 0)
+            avco = AvcoAccumulator(quantity, value, average_cost, uom=product.uom_id)
 
             for moves_batch in split_every(batch_size, product_moves.ids):
                 moves_batch = self.env['stock.move'].browse(moves_batch)
@@ -525,37 +534,22 @@ class ProductProduct(models.Model):
                         )
                         if move.is_dropship:
                             in_value = move._get_value(
-                                forced_std_price=average_cost, at_date=at_date
+                                forced_std_price=avco.unit_cost, at_date=at_date
                             )
                         if lot:
                             lot_qty = move._get_valued_qty(lot)
                             in_value = (in_value * lot_qty / in_qty) if in_qty else 0
                             in_qty = lot_qty
-                        previous_qty = quantity
-                        quantity += in_qty
-                        # Regular case, value from accumulation
-                        if previous_qty > 0:
-                            value += in_value
-                            average_cost = value / quantity
-                        # From negative quantity case, value from last_in
-                        elif previous_qty <= 0:
-                            average_cost = in_value / in_qty if in_qty else average_cost
-                            value = average_cost * quantity
+                        avco.add_in(in_qty, in_value)
                     if move.is_out or move.is_dropship:
-                        out_qty = move._get_valued_qty()
-                        out_value = out_qty * average_cost
-                        if lot:
-                            lot_qty = move._get_valued_qty(lot)
-                            out_value = (out_value * lot_qty / out_qty) if out_qty else 0
-                            out_qty = lot_qty
-                        value -= out_value
-                        quantity -= out_qty
+                        out_qty = move._get_valued_qty(lot) if lot else move._get_valued_qty()
+                        avco.add_out(out_qty)
 
                 self.env['stock.move'].invalidate_model()  # Avoid keeping too many records in cache
                 self.env['stock.move.line'].invalidate_model()
 
-            std_price_by_product_id[product.id] = average_cost
-            value_by_product_id[product.id] = value
+            std_price_by_product_id[product.id] = avco.unit_cost
+            value_by_product_id[product.id] = avco.value
 
         return std_price_by_product_id, value_by_product_id
 
@@ -567,7 +561,7 @@ class ProductProduct(models.Model):
             if lot:
                 quantity = lot.product_qty
             value = product._run_fifo(quantity, lot, at_date, location)
-            std_price = value / quantity if quantity else 0
+            std_price = value / quantity if not product.uom_id.is_zero(quantity) else 0
             std_price_by_product_id[product.id] = std_price
             value_by_product_id[product.id] = value
 
@@ -608,11 +602,15 @@ class ProductProduct(models.Model):
             quantity -= in_qty
         # When we required more quantity than available we extrapolate with the last known price
         if quantity > 0:
-            if last_move and last_move.quantity:
+            # Derive the unit price from the valued quantity (product UoM), consistent
+            # with `last_move.value`; `last_move.quantity` is in the move UoM and would
+            # give a wrong unit price whenever the two UoMs differ (e.g. secondary UoM).
+            last_move_valued_qty = last_move._get_valued_qty() if last_move else 0
+            if last_move and last_move_valued_qty:
                 last_move_value = (
                     last_move._get_value(at_date=at_date) if at_date else last_move.value
                 )
-                fifo_cost += quantity * (last_move_value / last_move.quantity)
+                fifo_cost += quantity * (last_move_value / last_move_valued_qty)
             else:
                 fifo_cost += quantity * self.standard_price
         return fifo_cost
@@ -626,6 +624,11 @@ class ProductProduct(models.Model):
             self = self.with_context(location=location.ids)  # noqa: PLW0642
         if lot:
             fifo_stack_size = lot.product_qty
+        elif location:
+            # Keep the explicit `location` scope: `_with_valuation_context` would
+            # override it with every valued location, mismatching the location-only
+            # `moves_domain` below and mis-sizing the stack.
+            fifo_stack_size = self.with_context(to_date=at_date).qty_available
         else:
             fifo_stack_size = self._with_valuation_context().with_context(to_date=at_date).qty_available
         if self.env.context.get('fifo_qty_already_processed'):
