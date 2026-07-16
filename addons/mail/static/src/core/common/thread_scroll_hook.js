@@ -368,7 +368,7 @@ export class ThreadScroll {
             this.isSmoothScrolling = true;
             const onSmoothScrollingEnd = () => {
                 browser.clearTimeout(this.smoothScrollingTimeout);
-                document.removeEventListener("scrollend", onSmoothScrollingEnd, {
+                document.removeEventListener("scrollend", onScrollEnd, {
                     capture: true,
                 });
                 if (this.smoothScrollingDeferred === deferred) {
@@ -376,6 +376,17 @@ export class ThreadScroll {
                     this.isSmoothScrolling = false;
                 }
                 deferred.resolve();
+            };
+            const onScrollEnd = (ev) => {
+                // "scrollend" is captured document-wide and fires for ANY
+                // scrollable (sidebar, another chat window, the chatter):
+                // only OUR element's scrollend may settle this animation —
+                // a foreign one would drop the isSmoothScrolling guard and
+                // un-gate loadOlder/loadNewer mid-animation
+                if (ev.target !== el) {
+                    return;
+                }
+                onSmoothScrollingEnd();
             };
             const { noMovement } = computeSmoothScrollTarget({
                 value,
@@ -389,9 +400,8 @@ export class ThreadScroll {
                 // freeze infinite scroll (loadOlder/loadNewer await it).
                 onSmoothScrollingEnd();
             } else if ("onscrollend" in window) {
-                document.addEventListener("scrollend", onSmoothScrollingEnd, {
+                document.addEventListener("scrollend", onScrollEnd, {
                     capture: true,
-                    once: true,
                 });
                 // Safety net: a missed "scrollend" (interrupted animation,
                 // scrollable removed mid-scroll, ...) must never wedge the
