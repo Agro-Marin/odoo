@@ -3,7 +3,6 @@ import { luxon } from "@web/core/l10n/luxon";
 import {
     Component,
     onMounted,
-    onWillRender,
     onWillUnmount,
     useEffect,
     useState,
@@ -80,12 +79,19 @@ export class ProductScreen extends Component {
             this.numberBuffer.reset();
         });
 
-        onWillRender(() => {
-            // If its a shared order it can be paid from another POS
-            if (this.currentOrder?.state !== "draft" && !this.isValidatingOrder) {
-                this.pos.addNewOrder();
-            }
-        });
+        // A shared order can be paid from another POS: when the current order is
+        // no longer a draft (and we're not mid fast-validate on this screen),
+        // open a fresh draft to keep working. This runs as an effect rather than
+        // in onWillRender so opening the order (a store mutation) never happens
+        // during the render phase — which could schedule an extra render.
+        useEffect(
+            () => {
+                if (this.currentOrder?.state !== "draft" && !this.isValidatingOrder) {
+                    this.pos.addNewOrder();
+                }
+            },
+            () => [this.currentOrder, this.currentOrder?.state, this.isValidatingOrder],
+        );
 
         onWillUnmount(async () => {
             if (
