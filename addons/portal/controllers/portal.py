@@ -72,9 +72,20 @@ def pager(url, total, page=1, step=30, scope=5, url_args=None):
         page_list = [1, "…"] + list(range(page_count - (scope - 2), page_count + 1))
     else:
         half = (scope - 3) // 2
-        page_list = (
-            [1, "…"] + list(range(page - half, page + half + 1)) + ["…", page_count]
-        )
+        window = list(range(page - half, page + half + 1))
+        # Emit "…" only over a real gap: with small scopes (e.g. scope=3 the
+        # window is just [page]) the window can sit adjacent to the first or
+        # last page, and an unconditional ellipsis would cover zero pages
+        # (page=2 of 10 rendered [1, "…", 2, "…", 10]). For scope>=5 the
+        # branch guards keep the window off both edges, so this reproduces
+        # the previous output unchanged.
+        page_list = [1]
+        if window[0] > 2:
+            page_list.append("…")
+        page_list += window
+        if window[-1] < page_count - 1:
+            page_list.append("…")
+        page_list.append(page_count)
 
     pages = [
         {"num": p, "url": get_url(p) if p != "…" else None, "is_current": p == page}

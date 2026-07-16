@@ -754,13 +754,18 @@ class HrVersion(models.Model):
         # sudo: copy_data() reads every copyable field on the template, including
         # manager-only ones (wage, structure_type_id). An HR *officer* who is
         # allowed to pick a template but not read those fields would otherwise hit
-        # an AccessError here, even though the restricted values are filtered out
-        # by the whitelist below.
+        # an AccessError here. The filter below must therefore re-check field
+        # access explicitly: the whitelist alone does NOT do it (wage and
+        # structure_type_id are whitelisted), and without the check the sudo
+        # leaks the template's wage to users outside hr.group_hr_manager.
         contract_template_vals = contract_template_id.sudo().copy_data()[0]
+        HrVersion = self.env["hr.version"]
         return {
             field: value
             for field, value in contract_template_vals.items()
-            if field in whitelist and not self.env["hr.version"]._fields[field].related
+            if field in whitelist
+            and not HrVersion._fields[field].related
+            and HrVersion._has_field_access(HrVersion._fields[field], "read")
         }
 
     @api.depends("wage")
