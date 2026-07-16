@@ -1,77 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
-    <!--
-        List view — default columns surface the four key CWV metrics.
-        Decoration thresholds match Lighthouse 'good'/'poor' bands so a
-        manager scanning the table can immediately spot regressions.
-    -->
-    <record id="view_web_cwv_metric_list" model="ir.ui.view">
-        <field name="name">web.cwv.metric.list</field>
-        <field name="model">web.cwv.metric</field>
-        <field name="arch" type="xml">
-            <list string="Core Web Vitals" create="false" delete="false" edit="false">
-                <field name="recorded_at" />
-                <field name="url" />
-                <field name="user_id" optional="show" />
-                <field name="lcp" decoration-success="lcp &gt; 0 and lcp &lt; 2500"
-                    decoration-warning="lcp &gt;= 2500 and lcp &lt; 4000"
-                    decoration-danger="lcp &gt;= 4000" optional="show" />
-                <field name="fcp" decoration-success="fcp &gt; 0 and fcp &lt; 1800"
-                    decoration-warning="fcp &gt;= 1800 and fcp &lt; 3000"
-                    decoration-danger="fcp &gt;= 3000" optional="show" />
-                <field name="cls" decoration-success="cls &lt; 0.1"
-                    decoration-warning="cls &gt;= 0.1 and cls &lt; 0.25"
-                    decoration-danger="cls &gt;= 0.25" optional="show" />
-                <field name="ttfb" decoration-success="ttfb &gt; 0 and ttfb &lt; 800"
-                    decoration-warning="ttfb &gt;= 800 and ttfb &lt; 1800"
-                    decoration-danger="ttfb &gt;= 1800" optional="show" />
-                <field name="inp" decoration-success="inp &gt; 0 and inp &lt; 200"
-                    decoration-warning="inp &gt;= 200 and inp &lt; 500"
-                    decoration-danger="inp &gt;= 500" optional="show" />
-                <field name="user_agent" optional="hide" />
-            </list>
-        </field>
-    </record>
-
-    <!--
-        Pivot view — default to URL × avg metrics so 'which page is slowest'
-        is one click away.
-    -->
-    <record id="view_web_cwv_metric_pivot" model="ir.ui.view">
-        <field name="name">web.cwv.metric.pivot</field>
-        <field name="model">web.cwv.metric</field>
-        <field name="arch" type="xml">
-            <pivot string="Core Web Vitals">
-                <field name="url" type="row" />
-                <field name="lcp" type="measure" />
-                <field name="fcp" type="measure" />
-                <field name="cls" type="measure" />
-                <field name="ttfb" type="measure" />
-                <field name="inp" type="measure" />
-            </pivot>
-        </field>
-    </record>
-
-    <!--
-        Graph view — line over time, default measure LCP.
-        Use this to spot regressions after a deploy.
-    -->
-    <record id="view_web_cwv_metric_graph" model="ir.ui.view">
-        <field name="name">web.cwv.metric.graph</field>
-        <field name="model">web.cwv.metric</field>
-        <field name="arch" type="xml">
-            <graph string="Core Web Vitals" type="line">
-                <field name="recorded_at" interval="hour" />
-                <field name="lcp" type="measure" />
-            </graph>
-        </field>
-    </record>
-
-    <!--
-        Search view — quick filters on recency and Lighthouse 'poor' bands,
-        plus group-by URL/user/day for ad-hoc analysis.
-    -->
     <record id="view_web_cwv_metric_search" model="ir.ui.view">
         <field name="name">web.cwv.metric.search</field>
         <field name="model">web.cwv.metric</field>
@@ -109,9 +38,60 @@
         </field>
     </record>
 
-    <!--
-        Action — defaults to the list view; pivot/graph one click away.
-    -->
+    <record id="view_web_cwv_metric_list" model="ir.ui.view">
+        <field name="name">web.cwv.metric.list</field>
+        <field name="model">web.cwv.metric</field>
+        <field name="arch" type="xml">
+            <list string="Core Web Vitals" create="false" delete="false" edit="false">
+                <field name="recorded_at" />
+                <field name="url" />
+                <field name="user_id" optional="show" />
+                <field name="lcp" decoration-success="lcp &gt; 0 and lcp &lt; 2500"
+                    decoration-warning="lcp &gt;= 2500 and lcp &lt; 4000"
+                    decoration-danger="lcp &gt;= 4000" optional="show" />
+                <field name="fcp" decoration-success="fcp &gt; 0 and fcp &lt; 1800"
+                    decoration-warning="fcp &gt;= 1800 and fcp &lt; 3000"
+                    decoration-danger="fcp &gt;= 3000" optional="show" />
+                <field name="cls" decoration-success="cls &lt; 0.1"
+                    decoration-warning="cls &gt;= 0.1 and cls &lt; 0.25"
+                    decoration-danger="cls &gt;= 0.25" optional="show" />
+                <field name="ttfb" decoration-success="ttfb &gt; 0 and ttfb &lt; 800"
+                    decoration-warning="ttfb &gt;= 800 and ttfb &lt; 1800"
+                    decoration-danger="ttfb &gt;= 1800" optional="show" />
+                <field name="inp" decoration-success="inp &gt; 0 and inp &lt; 200"
+                    decoration-warning="inp &gt;= 200 and inp &lt; 500"
+                    decoration-danger="inp &gt;= 500" optional="show" />
+                <field name="user_agent" optional="hide" />
+            </list>
+        </field>
+    </record>
+
+    <record id="view_web_cwv_metric_pivot" model="ir.ui.view">
+        <field name="name">web.cwv.metric.pivot</field>
+        <field name="model">web.cwv.metric</field>
+        <field name="arch" type="xml">
+            <pivot string="Core Web Vitals">
+                <field name="url" type="row" />
+                <field name="lcp" type="measure" />
+                <field name="fcp" type="measure" />
+                <field name="cls" type="measure" />
+                <field name="ttfb" type="measure" />
+                <field name="inp" type="measure" />
+            </pivot>
+        </field>
+    </record>
+
+    <record id="view_web_cwv_metric_graph" model="ir.ui.view">
+        <field name="name">web.cwv.metric.graph</field>
+        <field name="model">web.cwv.metric</field>
+        <field name="arch" type="xml">
+            <graph string="Core Web Vitals" type="line">
+                <field name="recorded_at" interval="hour" />
+                <field name="lcp" type="measure" />
+            </graph>
+        </field>
+    </record>
+
     <record id="action_web_cwv_metric" model="ir.actions.act_window">
         <field name="name">Core Web Vitals</field>
         <field name="res_model">web.cwv.metric</field>
