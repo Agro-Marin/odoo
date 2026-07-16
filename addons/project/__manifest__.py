@@ -199,5 +199,12 @@
         "bundles": [
             "project.webclient",
         ],
+        # The project-sharing page renders web.assets_tests after this app
+        # bundle in test mode; declare it a secondary so the served import map
+        # carries the singleton-preserving bridges (browser/registry/…) the test
+        # bundle externalises. See web.assets_tests / the 2026-07 split note.
+        "secondary_import_map_includes": {
+            "project.webclient": ["web.assets_tests"],
+        },
     },
 }

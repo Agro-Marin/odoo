@@ -1131,6 +1131,13 @@ class IrQweb(models.AbstractModel):
                         for child_ab in child_bundles
                         for asset in child_ab.native_modules
                     }
+                    # A secondary/test bundle (``web.assets_tests``) must not
+                    # inline the core singletons it shares with its parent app
+                    # bundle — alias them to shims reading ``odoo.loader.modules``
+                    # so they resolve to the parent's registered instance.
+                    secondary_stubs = self._secondary_parent_stubs(
+                        bundle, assets_params
+                    )
                     try:
                         esbuild_result = asset_bundle.esbuild_native_bundle(
                             timeout_s=self._get_esbuild_setting(
@@ -1147,6 +1154,7 @@ class IrQweb(models.AbstractModel):
                                 default=EsbuildCompiler._ESBUILD_SOURCE_MAPS,
                             ),
                             dynamic_child_specs=frozenset(_child_specs) or None,
+                            secondary_parent_stubs=secondary_stubs or None,
                         )
                         self._esbuild_circuit_record_success(bundle)
                     except Exception as e:
@@ -1285,6 +1293,103 @@ class IrQweb(models.AbstractModel):
                 drop_unresolved=True,
             )
         return include_names
+
+    def _secondary_shared_specs(
+        self,
+        bundle: str,
+        assets_params: dict[str, Any] | None,
+    ) -> frozenset[str]:
+        """Specifiers a SECONDARY esbuild bundle must alias to a loader shim
+        rather than inline, to preserve singleton identity with its parent(s).
+
+        A ``secondary_import_map_includes`` bundle (``web.assets_tests``) is
+        esbuild-compiled self-contained, so every ``@web/core/*`` module it
+        imports transitively is INLINED — a second copy distinct from the one
+        the parent app bundle registered in ``odoo.loader.modules``. Patching
+        that copy from a test (``patchWithCleanup(browser, …)``) never reaches
+        the running app, and RPC's ``browser.fetch`` keeps using the app's copy
+        (see the 2026-07 singleton-split research note). The caller
+        (``_secondary_parent_stubs``) turns each returned specifier into a
+        module-exact ``--alias`` to a shim reading ``odoo.loader.modules``.
+
+        The safe set is::
+
+            discovered(bundle) ∩ ⋂ parent.native_specifiers
+
+        * ``discovered`` — specifiers this bundle's native modules import from
+          OUTSIDE the bundle (only those can be inlined-and-split).
+        * the parent intersection — specifiers EVERY declared parent registers,
+          so the shim's ``odoo.loader.modules.get(spec)`` always finds an
+          instance whichever parent is on the page (backend ``assets_web``,
+          ``/pos/ui`` ``assets_prod``, a frontend bundle, …). A specifier only
+          SOME parents own (e.g. ``@web/session``, absent from the frontend
+          bundle) stays inlined — aliasing it would make the shim read
+          ``undefined`` on pages whose parent never registered it.
+
+        Parents not installed in this DB contribute no specifiers and are
+        skipped (their page never renders), widening the set to what the
+        installed parents share — never referencing a bundle that cannot
+        resolve it. Returns an empty set for non-secondary bundles.
+        """
+        parents = esm_registry().secondary_parents.get(bundle)
+        if not parents:
+            return frozenset()
+        parent_spec_sets = []
+        for parent in parents:
+            parent_ab = self._get_asset_bundle(
+                parent,
+                js=True,
+                css=False,
+                debug_assets=False,
+                assets_params=assets_params,
+            )
+            specs = set(
+                parent_ab.get_native_module_data(with_bridges=False)["import_map"]
+            )
+            if specs:  # skip uninstalled / empty parents — their page never renders
+                parent_spec_sets.append(specs)
+        if not parent_spec_sets:
+            return frozenset()
+        shared = set.intersection(*parent_spec_sets)
+        sec_ab = self._get_asset_bundle(
+            bundle,
+            js=True,
+            css=False,
+            debug_assets=False,
+            assets_params=assets_params,
+        )
+        own_specs = set(sec_ab.get_native_module_data(with_bridges=False)["import_map"])
+        discovered, _ext = sec_ab._bridges._discover_bridge_specifiers(
+            own_specs,
+            set(self._ODOO_EXTERNAL_LIBS),
+        )
+        return frozenset(set(discovered) & shared)
+
+    def _secondary_parent_stubs(
+        self,
+        bundle: str,
+        assets_params: dict[str, Any] | None,
+    ) -> dict[str, str]:
+        """``{spec: shim_js}`` for a secondary bundle's shared specifiers.
+
+        Each shim re-exports from ``odoo.loader.modules.get(spec)``. The
+        esbuild layer writes them to temp files and wires a module-exact
+        ``--alias`` so the shim is inlined in place of a second copy of the
+        shared module — preserving singleton identity with the parent app
+        bundle (which registered ``spec`` and evaluates first). Empty for a
+        non-secondary bundle.
+        """
+        shared = self._secondary_shared_specs(bundle, assets_params)
+        if not shared:
+            return {}
+        sec_ab = self._get_asset_bundle(
+            bundle,
+            js=True,
+            css=False,
+            debug_assets=False,
+            assets_params=assets_params,
+        )
+        return sec_ab._bridges.build_shim_sources(set(shared))
 
     def _merge_secondary_import_maps(
         self,

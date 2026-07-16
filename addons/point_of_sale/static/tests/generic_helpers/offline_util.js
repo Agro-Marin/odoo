@@ -11,14 +11,19 @@ export function setOfflineMode() {
     return run(() => {
         // Simulate offline at the state layer the app actually checks —
         // `pos.data.network.offline`, read by syncAllOrders (and data.call)
-        // before any request. The transport itself cannot be intercepted from a
-        // test: rpc() goes through `browser.fetch`, which both captured the
-        // original window.fetch (bound) at import AND lives in a `browser` module
-        // duplicated across the test vs prod ESM bundle — so neither a
-        // window.fetch nor a browser.fetch patch here reaches it. `window.posmodel`
-        // is a plain global (see pos_app.js), so it is the same store instance.
+        // before any request. This is the cleanest primitive: it doesn't
+        // depend on the transport internals. `window.posmodel` is a plain
+        // global (see pos_app.js), so it is the same store instance.
         window.posmodel.data.network.offline = true;
-        // Belt-and-suspenders for any code path that still uses window/XHR directly.
+        // Belt-and-suspenders for any path that reaches the transport anyway.
+        // `browser.fetch` (which rpc() uses) IS now patchable from a test: the
+        // ESM singleton split that used to give the test bundle its own copy of
+        // `@web/core/browser/browser` is fixed — secondary bundles alias shared
+        // core specifiers to `odoo.loader.modules` shims (see esm_bridges /
+        // ir_qweb_assets `_secondary_parent_stubs`). Note `window.fetch` still
+        // has no effect on rpc: browser.js captures `window.fetch.bind(window)`
+        // at import, so reassigning `window.fetch` doesn't reach that capture —
+        // which is exactly why we patch `browser.fetch`, not `window.fetch`.
         const throwOffline = () => {
             throw new ConnectionLostError();
         };

@@ -83,6 +83,14 @@ class EsmRegistry(NamedTuple):
     # Flat sets for O(1) membership checks — derived from the mappings.
     dynamic_bundle_names: frozenset
     import_map_included_bundles: frozenset
+    # Reverse of ``secondary_import_map_includes``: ``{child: (parent, ...)}``.
+    # A secondary/test bundle (``web.assets_tests``) needs its parents to
+    # compute the specifiers it must alias to an ``odoo.loader.modules`` shim
+    # rather than inline (the intersection of the parents' native specifiers).
+    # Built here so the ir_qweb bridge layer never inverts the mapping per render.
+    secondary_parents: Mapping = MappingProxyType({})
+    # Flat set of every secondary child — O(1) "is this a secondary bundle?".
+    secondary_bundle_names: frozenset = frozenset()
     # Bundles compiled WITHOUT the page-context glue (no ``@odoo/owl``
     # external import, no ``odoo.loader.registerNativeModules`` trailer):
     # self-contained artifacts for non-page runtimes such as web workers,
@@ -206,6 +214,21 @@ def _build() -> EsmRegistry:
         ),
         import_map_included_bundles=frozenset(
             child for children in import_map_includes.values() for child in children
+        ),
+        secondary_parents=MappingProxyType(
+            {
+                child: tuple(
+                    parent
+                    for parent, children in secondary_includes.items()
+                    if child in children
+                )
+                for child in {
+                    c for children in secondary_includes.values() for c in children
+                }
+            }
+        ),
+        secondary_bundle_names=frozenset(
+            child for children in secondary_includes.values() for child in children
         ),
         standalone_bundles=frozenset(standalone_bundles),
     )
