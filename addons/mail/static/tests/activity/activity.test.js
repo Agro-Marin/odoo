@@ -774,5 +774,8 @@ test("activity updates are shared between tabs", async () => {
             payload: { id: serverState.partnerId, model: "res.partner" },
         },
     });
-    await expect.waitForSteps(["/mail/thread/messages"]);
+    // messages AND activities: an activity marked done in another tab must
+    // not stay rendered with live buttons here (the /mail/data fetch is the
+    // activities request of fetchThreadData)
+    await expect.waitForSteps(["/mail/thread/messages", "/mail/data"]);
 });

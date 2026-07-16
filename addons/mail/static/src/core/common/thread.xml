@@ -35,7 +35,7 @@
                         squashed="isSquashed(msg, prevMsg)"
                         onParentMessageClick.bind="() => this.onParentMessageClick(msg.parent_id)"
                         thread="props.thread"
-                        isFirstMessage="msg_first"
+                       
                         hasActions="props.messageActions and !msg.eq(props.thread.from_message_id)"
                         showDates="props.showDates"
                     />

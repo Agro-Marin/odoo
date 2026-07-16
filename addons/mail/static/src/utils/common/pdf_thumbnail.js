@@ -21,12 +21,6 @@ export async function generatePdfThumbnail(
     } catch (_error) {
         if (_error.status === 415) {
             isPdfValid = false;
-        } else if (
-            _error.name !== "UnexpectedResponseException" &&
-            _error.status &&
-            _error.status !== 403
-        ) {
-            pdf = undefined;
         }
     }
     if (pdf) {

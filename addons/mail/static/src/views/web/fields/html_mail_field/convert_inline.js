@@ -91,7 +91,7 @@ export const TABLE_STYLES = {
     "line-height": "inherit",
 };
 
-export const BASIC_THEME_TABLE_STYLES = {
+const BASIC_THEME_TABLE_STYLES = {
     "background-color": "transparent",
     color: "inherit",
 };

@@ -1,7 +1,6 @@
 /** @odoo-module native */
 import { reactive } from "@odoo/owl";
 import { AssetsLoadingError, getBundle } from "@web/core/assets";
-import { rpc } from "@web/core/network/rpc";
 import { memoize } from "@web/core/utils/functions";
 import { effect } from "@web/core/utils/reactive";
 export function assignDefined(obj, data, keys = Object.keys(data)) {
@@ -64,15 +63,6 @@ export function nearestGreaterThanOrEqual(list, target, itemToCompareVal) {
 export const mailGlobal = {
     isInTest: false,
 };
-
-/**
- * Use `rpc` instead.
- *
- * @deprecated
- */
-export function rpcWithEnv() {
-    return rpc;
-}
 
 // todo: move this some other place in the future
 export function isDragSourceExternalFile(dataTransfer) {

@@ -19,7 +19,7 @@ import { Deferred } from "@web/core/utils/concurrency";
 import { makeDraggableHook } from "@web/core/utils/dnd/draggable_hook_builder_owl";
 import { useService } from "@web/core/utils/hooks";
 import { OVERLAY_SYMBOL } from "@web/ui/overlay/overlay_container";
-export function useLazyExternalListener(target, eventName, handler, eventParams) {
+function useLazyExternalListener(target, eventName, handler, eventParams) {
     const boundHandler = handler.bind(useComponent());
     let t;
     onMounted(() => {
@@ -160,9 +160,12 @@ export function useHover(
         } else if (!hovering) {
             state.isHover = false;
             clearTimeout(awayTimeout);
+            // unconditional: with no onAway callback (or an onHovering delay
+            // expiring inside the 100ms away debounce) the pending timer
+            // fired its callback while not hovering anymore
+            clearTimeout(hoveringTimeout);
             if (typeof onAway === "function") {
                 awayTimeout = setTimeout(() => {
-                    clearTimeout(hoveringTimeout);
                     onAway();
                 }, 100);
             }
@@ -489,7 +492,13 @@ export function useMicrophoneVolume() {
     });
     onWillUnmount(async () => {
         isClosed = true;
-        await audioMonitorPromise;
+        try {
+            await audioMonitorPromise;
+        } catch {
+            // already handled by toggle()'s catch: re-awaiting the same
+            // rejected promise here escaped as an unhandled rejection AND
+            // skipped the track/monitor cleanup below
+        }
         audioTrack?.stop();
         disconnectAudioMonitor?.();
     });

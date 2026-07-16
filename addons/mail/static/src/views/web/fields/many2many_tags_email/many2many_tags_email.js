@@ -50,16 +50,8 @@ export class FieldMany2ManyTagsEmail extends Many2ManyTagsField {
         if (this.quickCreate) {
             this.quickCreate = this.quickCreateRecipient.bind(this);
         }
-        this.openedDialogs = 0;
-        this.recordsIdsToAdd = [];
-
         this.recipientsPopover = usePopover(RecipientsPopover);
         this.actionService = useService("action");
-
-        const update = this.update;
-        this.update = async (object) => {
-            await update(object);
-        };
     }
 
     get tags() {

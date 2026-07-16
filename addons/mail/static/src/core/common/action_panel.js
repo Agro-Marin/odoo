@@ -21,7 +21,7 @@ export class ActionPanel extends Component {
         "initialWidth?",
         "minWidth?",
     ];
-    static defaultProps = { contentPadding: true, resizable: true };
+    static defaultProps = { resizable: true };
 
     setup() {
         super.setup();

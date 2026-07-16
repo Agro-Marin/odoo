@@ -54,7 +54,6 @@ export class ChannelMember extends Record {
     });
     fetched_message_id = fields.One("mail.message");
     seen_message_id = fields.One("mail.message");
-    hideUnreadBanner = false;
     message_unread_counter = fields.Attr(0, {
         /** @this {import("models").ChannelMember} */
         onUpdate() {

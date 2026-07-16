@@ -57,20 +57,14 @@ TextField.props = {
     keydownDebounceDelay: { type: Number, optional: true },
 };
 
-const charExtractProps = charField.extractProps;
-charField.extractProps = (fieldInfo) =>
-    Object.assign(charExtractProps(fieldInfo), {
-        onchangeOnKeydown: exprToBoolean(fieldInfo.attrs.onchange_on_keydown),
-        keydownDebounceDelay: fieldInfo.attrs.keydown_debounce_delay
-            ? Number(fieldInfo.attrs.keydown_debounce_delay)
-            : 2000,
-    });
-
-const textExtractProps = textField.extractProps;
-textField.extractProps = (fieldInfo) =>
-    Object.assign(textExtractProps(fieldInfo), {
-        onchangeOnKeydown: exprToBoolean(fieldInfo.attrs.onchange_on_keydown),
-        keydownDebounceDelay: fieldInfo.attrs.keydown_debounce_delay
-            ? Number(fieldInfo.attrs.keydown_debounce_delay)
-            : 2000,
-    });
+function extendExtractProps(baseExtractProps) {
+    return (fieldInfo) =>
+        Object.assign(baseExtractProps(fieldInfo), {
+            onchangeOnKeydown: exprToBoolean(fieldInfo.attrs.onchange_on_keydown),
+            keydownDebounceDelay: fieldInfo.attrs.keydown_debounce_delay
+                ? Number(fieldInfo.attrs.keydown_debounce_delay)
+                : 2000,
+        });
+}
+charField.extractProps = extendExtractProps(charField.extractProps);
+textField.extractProps = extendExtractProps(textField.extractProps);

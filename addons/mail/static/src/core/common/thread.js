@@ -19,7 +19,6 @@ import {
 } from "@odoo/owl";
 import { Transition } from "@web/components/transition";
 import { browser } from "@web/core/browser/browser";
-import { escape } from "@web/core/utils/format/strings";
 import { useBus, useRefListener, useService } from "@web/core/utils/hooks";
 import { useThrottleForAnimation } from "@web/core/utils/timing";
 
@@ -65,7 +64,6 @@ export class Thread extends Component {
 
     setup() {
         super.setup();
-        this.escape = escape;
         // Throttled: the handler does several layout reads and a reactive
         // record write, way too much work for every native scroll tick.
         this.onScroll = useThrottleForAnimation(this.onScroll);
@@ -101,7 +99,6 @@ export class Thread extends Component {
             },
             () => [this.messageHighlight?.highlightedMessageId],
         );
-        this.present = useRef("load-newer");
         this.jumpPresentRef = useRef("jump-present");
         this.root = useRef("messages");
         this.visibleState = useVisible("messages", () => {
