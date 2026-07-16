@@ -131,6 +131,10 @@ const StorePatch = {
     },
     updateAppBadge() {
         if (unread_store) {
+            // Authoritative reset of the shared "unread" badge key: overwrites
+            // any background-push increments the service worker accumulated
+            // while no tab was running (see the ownership note in
+            // service_worker.js incrementUnread).
             window.idbKeyval.set("unread", this.globalCounter, unread_store);
             Promise.resolve(navigator.setAppBadge?.(this.globalCounter)).catch(
                 () => {},

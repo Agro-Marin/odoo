@@ -682,7 +682,8 @@ export class Store extends BaseStore {
     onStarted() {
         this.isOdooWhiteTheme =
             cookie.get("color_scheme") !== "dark" || this.inPublicPage;
-        navigator.serviceWorker?.addEventListener("message", ({ data = {} }) => {
+        navigator.serviceWorker?.addEventListener("message", (ev) => {
+            const { data = {} } = ev;
             const { type, payload } = data;
             if (type === "notification-display-request") {
                 const { correlationId, model, res_id } = payload;
@@ -703,7 +704,11 @@ export class Store extends BaseStore {
                     this.store.self.main_user_id?.notification_type === "inbox" &&
                     model !== "discuss.channel";
                 if ((isTabFocused && thread?.isDisplayed) || isInbox) {
-                    navigator.serviceWorker.controller?.postMessage({
+                    // Reply through the worker that sent the request (ev.source)
+                    // so the response is delivered even when this page is not
+                    // yet controlled (controller is null until the worker claims
+                    // it); fall back to the controller if source is unavailable.
+                    (ev.source ?? navigator.serviceWorker.controller)?.postMessage({
                         type: "notification-display-response",
                         payload: { correlationId },
                     });
