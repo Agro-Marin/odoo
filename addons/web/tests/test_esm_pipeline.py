@@ -2072,3 +2072,142 @@ class TestGeneratedAssetDomains(TransactionCase):
             "classic .min.js bundles have their own rotation and must never "
             "match the ESM-narrowed domain",
         )
+
+
+@tagged("web_unit", "web_assets")
+class TestSecondaryBundleSingletons(TransactionCase):
+    """A secondary (test) bundle must SHARE core singletons with its parent app
+    bundle, not inline private copies.
+
+    Regression guard for the ESM singleton split: ``web.assets_tests`` is
+    esbuild-compiled self-contained, so a core module it imports transitively
+    (``@web/core/browser/browser``, ``@web/env``, ``@web/core/registry``) used
+    to be inlined as a second, UNregistered copy — a test patching it
+    (``patchWithCleanup(browser, …)``, offline simulation) never reached the
+    running app. The fix aliases those specifiers to shims reading
+    ``odoo.loader.modules`` (``ir.qweb._secondary_parent_stubs`` →
+    ``BridgeShimManager.build_shim_sources`` → a module-exact esbuild
+    ``--alias``).
+    """
+
+    def _shared(self):
+        return self.env["ir.qweb"]._secondary_shared_specs("web.assets_tests", None)
+
+    def test_safe_set_contains_core_singletons(self):
+        """The shared set includes singletons the app registers and tests patch.
+
+        ``@web/core/browser/browser`` and ``@web/env`` are imported directly by
+        ``web/static/tests/helpers/utils.js`` (always present — ``web`` is
+        always installed), so they must always be shared, never inlined.
+        """
+        shared = self._shared()
+        for spec in ("@web/core/browser/browser", "@web/env"):
+            self.assertIn(
+                spec,
+                shared,
+                msg=f"{spec} must be shared with the parent app bundle, not inlined",
+            )
+
+    def test_safe_set_subset_of_every_installed_parent(self):
+        """Safety invariant: every shared specifier is registered by EVERY
+        declared+installed parent, so no page ever gets an unresolvable alias.
+
+        This is what keeps the module-exact alias safe across heterogeneous
+        parents (backend ``assets_web``, ``/pos/ui`` ``assets_prod``, a frontend
+        bundle, enterprise app bundles): a specifier only SOME parents own must
+        stay inlined, never aliased.
+        """
+        from odoo.tools.assets.esm_registry import esm_registry
+
+        IrQweb = self.env["ir.qweb"]
+        shared = self._shared()
+        self.assertTrue(shared, "expected a non-empty shared set for web.assets_tests")
+        parents = esm_registry().secondary_parents.get("web.assets_tests", ())
+        checked = 0
+        for parent in parents:
+            ab = IrQweb._get_asset_bundle(
+                parent, js=True, css=False, debug_assets=False, assets_params=None
+            )
+            specs = set(ab.get_native_module_data(with_bridges=False)["import_map"])
+            if not specs:
+                continue  # uninstalled parent — its page never renders here
+            checked += 1
+            self.assertLessEqual(
+                shared,
+                specs,
+                msg=(
+                    f"shared specs not all registered by {parent!r}: "
+                    f"{sorted(shared - specs)} — that page would get an "
+                    "unresolvable alias"
+                ),
+            )
+        self.assertGreater(checked, 0, "no installed parent bundle to check against")
+
+    def test_non_secondary_bundle_has_no_shared_specs(self):
+        """A normal app bundle is not a secondary → nothing to alias out."""
+        self.assertEqual(
+            self.env["ir.qweb"]._secondary_shared_specs("web.assets_web", None),
+            frozenset(),
+        )
+
+    def test_stub_sources_read_the_loader(self):
+        """Each stub re-exports from ``odoo.loader.modules.get(spec)``."""
+        stubs = self.env["ir.qweb"]._secondary_parent_stubs("web.assets_tests", None)
+        self.assertIn("@web/core/browser/browser", stubs)
+        browser_stub = stubs["@web/core/browser/browser"]
+        self.assertIn(
+            'odoo.loader.modules.get("@web/core/browser/browser")',
+            browser_stub,
+        )
+        self.assertIn("export const browser", browser_stub)
+
+
+@tagged("web_unit", "web_assets")
+class TestSecondaryBundleSingletonsBuild(TransactionCase):
+    """esbuild integration: the built secondary bundle must NOT inline the
+    shared core, and must reach it through the loader shim instead.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        odoo_root = Path(odoo.__path__[0]).parent
+        cls.esbuild = shutil.which("esbuild") or shutil.which(
+            "esbuild", path=str(odoo_root / "node_modules" / ".bin")
+        )
+
+    def setUp(self):
+        super().setUp()
+        if not self.esbuild:
+            self.skipTest("esbuild binary not found (run 'npm install').")
+
+    def test_browser_is_aliased_not_inlined(self):
+        """Building with the stubs replaces the inlined browser.js with a shim."""
+        IrQweb = self.env["ir.qweb"]
+        ab = IrQweb._get_asset_bundle(
+            "web.assets_tests",
+            js=True,
+            css=False,
+            debug_assets=False,
+            assets_params=None,
+        )
+        stubs = IrQweb._secondary_parent_stubs("web.assets_tests", None)
+        self.assertTrue(stubs, "web.assets_tests should have shared-specifier stubs")
+
+        inlined = ab.esbuild_native_bundle().code
+        aliased = ab.esbuild_native_bundle(secondary_parent_stubs=stubs).code
+
+        # browser.js captures ``window.fetch.bind(window)`` at eval — that
+        # signature is the fingerprint of an INLINED copy of the module.
+        sig = "window.fetch.bind(window)"
+        self.assertIn(sig, inlined, "control: the unaliased build inlines browser.js")
+        self.assertNotIn(
+            sig,
+            aliased,
+            "aliased build must NOT inline a second copy of browser.js",
+        )
+        self.assertIn(
+            'odoo.loader.modules.get("@web/core/browser/browser")',
+            aliased,
+            "aliased build must reach browser via the loader singleton",
+        )
