@@ -460,7 +460,6 @@ export const treeProcessorService = {
                 }
                 return description;
             }
-            const getFieldDef = await makeGetFieldDef(resModel, tree);
             const getConditionDescription = await makeGetConditionDescription(
                 resModel,
                 tree,
@@ -477,6 +476,13 @@ export const treeProcessorService = {
                     addParenthesis ? `( ${jointedValues} )` : jointedValues,
                 );
             } else if (isTree(tree.value)) {
+                // Only resolve field defs here (their sole consumer): the common
+                // scalar-value branch above already gets everything it needs
+                // from ``getConditionDescription``, which resolves field defs
+                // internally. Computing them unconditionally re-ran
+                // makeGetFieldDef (getPathsInTree walk + loadFieldInfo per path
+                // + Promise.all + map build) a second time for every condition.
+                const getFieldDef = await makeGetFieldDef(resModel, tree);
                 const _fieldDef = getFieldDef(/** @type {any} */ (tree).path);
                 const _resModel = getResModel(_fieldDef);
                 const _tree = /** @type {any} */ (tree.value);
