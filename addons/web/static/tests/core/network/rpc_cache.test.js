@@ -3,7 +3,7 @@
 import { Deferred, describe, expect, microTick, test, tick } from "@odoo/hoot";
 import { mockIndexedDBForTests } from "@web/../tests/_framework/mock_indexed_db.hoot";
 import { patchWithCleanup } from "@web/../tests/web_test_helpers";
-import { RPCCache } from "@web/core/network/rpc_cache";
+import { RAM_CACHE_MAX_ENTRIES, RPCCache } from "@web/core/network/rpc_cache";
 import { IDBQuotaExceededError, IndexedDB } from "@web/core/utils/indexed_db";
 
 // rpc_cache asserts against `instance.mockIndexedDB.<table>.<key>` —
@@ -1907,4 +1907,52 @@ test("checkSize: prefers the IndexedDB-specific usage over the origin-wide figur
     await rpcCache.checkSize();
     expect.verifySteps([]);
     expect(warnings.length).toBe(1);
+});
+
+const RAM_SECRET = "85472d41873cdb504b7c7dfecdb8993d90db142c4c03e6d94c4ae37a7771dc5b";
+
+test("RamCache: bounded by RAM_CACHE_MAX_ENTRIES (LRU eviction)", () => {
+    const rc = new RPCCache("mockRpc", 1, RAM_SECRET).ramCache;
+    // Write cap + 5 distinct entries; the 5 coldest (first written) evict.
+    for (let i = 0; i < RAM_CACHE_MAX_ENTRIES + 5; i++) {
+        rc.write("t", `k${i}`, Promise.resolve(i));
+    }
+    expect(rc.lru.size).toBe(RAM_CACHE_MAX_ENTRIES);
+    expect(Object.keys(rc.ram.t).length).toBe(RAM_CACHE_MAX_ENTRIES);
+    // The coldest are gone; the rest survive.
+    expect(rc.read("t", "k0")).toBe(undefined);
+    expect(rc.read("t", "k4")).toBe(undefined);
+    expect(rc.read("t", "k5")).not.toBe(undefined);
+    expect(rc.read("t", `k${RAM_CACHE_MAX_ENTRIES + 4}`)).not.toBe(undefined);
+});
+
+test("RamCache: a read keeps its entry warm across later eviction", () => {
+    const rc = new RPCCache("mockRpc", 1, RAM_SECRET).ramCache;
+    for (let i = 0; i < RAM_CACHE_MAX_ENTRIES; i++) {
+        rc.write("t", `k${i}`, Promise.resolve(i));
+    }
+    // k0 is the coldest; a read touches it to the warm end.
+    expect(rc.read("t", "k0")).not.toBe(undefined);
+    // Two fresh writes now evict the two CURRENT coldest (k1, k2), not k0.
+    rc.write("t", "new1", Promise.resolve("a"));
+    rc.write("t", "new2", Promise.resolve("b"));
+    expect(rc.read("t", "k0")).not.toBe(undefined); // survived (was warmed)
+    expect(rc.read("t", "k1")).toBe(undefined); // evicted
+    expect(rc.read("t", "k2")).toBe(undefined); // evicted
+});
+
+test("RamCache: eviction keeps the model reverse index consistent", () => {
+    const rc = new RPCCache("mockRpc", 1, RAM_SECRET).ramCache;
+    // A model-scoped entry written first -> it becomes the eviction victim.
+    rc.write("t", "victim", Promise.resolve("x"), "res.partner");
+    for (let i = 0; i < RAM_CACHE_MAX_ENTRIES; i++) {
+        rc.write("t", `k${i}`, Promise.resolve(i), "other.model");
+    }
+    // Evicted from ram AND from both reverse indexes (set pruned when empty).
+    expect(rc.read("t", "victim")).toBe(undefined);
+    expect(rc.modelIndex.t.get("res.partner")).toBe(undefined);
+    expect(rc.keyModel.t.victim).toBe(undefined);
+    // invalidateByModel on the evicted model is a clean no-op, no stale keys.
+    rc.invalidateByModel(["t"], "res.partner");
+    expect(rc.lru.size).toBe(RAM_CACHE_MAX_ENTRIES);
 });

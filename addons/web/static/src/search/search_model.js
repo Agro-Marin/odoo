@@ -1081,10 +1081,25 @@ export class SearchModel extends EventBus {
         this._reset();
 
         if (this.blockNotification) {
+            // A reload (or load()) currently holds the lock across an await.
+            // Dropping this notification would leave the search-panel counters
+            // stale until the next unrelated interaction (the record-list
+            // domain still updates, but the panel counts fetched by the
+            // in-flight reload predate this query change). Record that state
+            // changed again so the lock holder fires one coalesced reload.
+            this._pendingNotification = true;
             return;
         }
 
-        await this._reloadSections();
+        // Only one _notify can reach here at a time: reloadSections sets
+        // blockNotification synchronously before its first await, so every
+        // concurrent _notify during the await takes the branch above. Loop
+        // until no further change arrived mid-reload, so the FINAL query state
+        // always gets a reload + UPDATE.
+        do {
+            this._pendingNotification = false;
+            await this._reloadSections();
+        } while (this._pendingNotification);
 
         this.trigger(SearchModelEvent.UPDATE);
     }

@@ -585,27 +585,46 @@ rpc._rpc = function (url, params, settings) {
             fallback,
             cacheSettings,
         );
-        /** @type {any} */ (cacheProm).abort = function (rejectError = true) {
-            // A silent abort leaves the fallback fetch pending forever, so the
-            // cache's own settle-time bookkeeping never runs — evict the
-            // cache-miss slot synchronously (mirrors the dedup layer) so the
-            // key can be fetched fresh next time instead of wedging.
-            //
-            // Identity guard: only the INITIATOR of the cache-miss fetch may
-            // evict. ``innerAbort`` is set exactly when THIS caller's
-            // ``fallback`` ran (a real miss or ``update: "always"`` refresh)
-            // and is null for a joiner that shared the initiator's still
-            // in-flight request (a hit on a pending entry). A joiner calling
-            // ``abortPending`` would tear down the initiator's live
-            // pendingRequests/RAM slot — defeating stampede protection and
-            // orphaning the initiator's fetch — so gate on ``innerAbort``,
-            // the cache layer's analogue of the dedup layer's identity guard.
-            if (!rejectError && innerAbort) {
-                _rpcState.rpcCache?.abortPending(cacheTable, cacheKey);
+        // ``fallback`` runs synchronously inside ``read()`` on a cache MISS, so
+        // by now ``innerAbort`` is set iff THIS caller initiated the underlying
+        // fetch (a real miss or ``update: "always"`` refresh). It is null for a
+        // joiner that shared the initiator's still in-flight request, and for a
+        // warm hit on an already-resolved entry — neither owns a fetch.
+        if (innerAbort) {
+            /** @type {any} */ (cacheProm).abort = function (rejectError = true) {
+                // A silent abort leaves the fallback fetch pending forever, so
+                // the cache's own settle-time bookkeeping never runs — evict the
+                // cache-miss slot synchronously (mirrors the dedup layer) so the
+                // key can be fetched fresh next time instead of wedging. Only the
+                // INITIATOR may evict (the ``innerAbort`` identity guard): a
+                // joiner calling ``abortPending`` would tear down the initiator's
+                // live pendingRequests/RAM slot, orphaning its fetch.
+                if (!rejectError) {
+                    _rpcState.rpcCache?.abortPending(cacheTable, cacheKey);
+                }
+                innerAbort(rejectError);
+            };
+            return cacheProm;
+        }
+        // Joiner / warm hit: no own fetch to abort. ``read()`` returned a plain
+        // ``ramValue.then(shape)`` with no ``abort`` and no way to reject just
+        // this caller. Wrap it so ``abort(true)`` honors the reject contract
+        // (rejects THIS caller with ``ConnectionAbortedError``) without touching
+        // the initiator's shared in-flight request. ``abort(false)`` stays a
+        // silent cancel — the promise is left unsettled, matching the non-cached
+        // ``abort(false)`` contract. Without this, an aborted joiner's promise
+        // silently resolved with the shared value after the caller had torn down.
+        let abortReject;
+        const joinerProm = new Promise((resolve, reject) => {
+            abortReject = reject;
+            cacheProm.then(resolve, reject);
+        });
+        /** @type {any} */ (joinerProm).abort = function (rejectError = true) {
+            if (rejectError) {
+                abortReject(new ConnectionAbortedError(url));
             }
-            innerAbort?.(rejectError);
         };
-        return cacheProm;
+        return joinerProm;
     }
     if (settings.retry) {
         return _rpcWithRetry(url, params, settings);

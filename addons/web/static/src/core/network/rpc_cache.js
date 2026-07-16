@@ -121,6 +121,17 @@ function deepFreeze(value) {
 const CRYPTO_ALGO = "AES-GCM";
 const MAX_STORAGE_SIZE = 2 * 1024 * 1024 * 1024; // 2Gb
 
+/**
+ * Max number of live entries in the in-memory RAM cache before the
+ * least-recently-used one is evicted. Unlike the disk cache (bounded by
+ * ``MAX_STORAGE_SIZE``), ``RamCache`` was pruned only by explicit
+ * ``invalidate``/``invalidateByModel``: reads with varying params
+ * (search-panel / name_search-style calls) accumulated a distinct entry for the
+ * whole tab lifetime. Eviction only drops an entry, forcing a later re-fetch —
+ * it never serves stale data.
+ */
+export const RAM_CACHE_MAX_ENTRIES = 10000;
+
 class Crypto {
     /**
      * @param {string} secret
@@ -193,6 +204,37 @@ class RamCache {
         // to remove from without the caller re-supplying the model. Kept
         // off the hot read() path to avoid a property-access tax.
         this.keyModel = Object.create(null);
+        // Global LRU order across ALL (table, key) pairs: a Map keyed by the
+        // composite ``table\x00key`` whose insertion order IS the recency
+        // order (first = coldest), value ``[table, key]`` for O(1) eviction.
+        // ``\x00`` can't appear in a method-name/URL table nor in a
+        // JSON-serialised key (control chars are ``\uXXXX``-escaped).
+        /** @type {Map<string, [string, string]>} */
+        this.lru = new Map();
+    }
+
+    /** Move (table, key) to the warm end of the LRU order (insert if absent). */
+    _touchLru(table, key) {
+        const ck = `${table}\x00${key}`;
+        this.lru.delete(ck);
+        this.lru.set(ck, [table, key]);
+    }
+
+    /** Drop (table, key) from the LRU order — called by every ram-removal path. */
+    _forgetLru(table, key) {
+        this.lru.delete(`${table}\x00${key}`);
+    }
+
+    /**
+     * Evict the coldest entries until the cache is back within
+     * ``RAM_CACHE_MAX_ENTRIES``. Reuses ``delete()`` so the model reverse
+     * indexes (and the LRU map itself) stay consistent.
+     */
+    _evictIfNeeded() {
+        while (this.lru.size > RAM_CACHE_MAX_ENTRIES) {
+            const [table, key] = this.lru.values().next().value;
+            this.delete(table, key);
+        }
     }
 
     /**
@@ -232,6 +274,10 @@ class RamCache {
         } else if (prevModel) {
             delete this.keyModel[table][key];
         }
+        // LRU bookkeeping last, so a fresh write is the warmest and eviction
+        // targets the cold end (never the entry just written).
+        this._touchLru(table, key);
+        this._evictIfNeeded();
     }
 
     /**
@@ -239,7 +285,14 @@ class RamCache {
      * @param {string} key
      */
     read(table, key) {
-        return this.ram[table]?.[key];
+        const value = this.ram[table]?.[key];
+        // A hit is the canonical LRU touch (values are always promises, so a
+        // miss is the only ``undefined``). The touch cost is dwarfed by the
+        // deepCopy/deepFreeze the caller then runs on the payload.
+        if (value !== undefined) {
+            this._touchLru(table, key);
+        }
+        return value;
     }
 
     /**
@@ -248,6 +301,7 @@ class RamCache {
      */
     delete(table, key) {
         delete this.ram[table]?.[key];
+        this._forgetLru(table, key);
         const model = this.keyModel[table]?.[key];
         if (model) {
             const set = this.modelIndex[table]?.get(model);
@@ -267,6 +321,9 @@ class RamCache {
             tables = typeof tables === "string" ? [tables] : tables;
             for (const table of tables) {
                 if (table in this.ram) {
+                    for (const key of Object.keys(this.ram[table])) {
+                        this._forgetLru(table, key);
+                    }
                     this.ram[table] = Object.create(null);
                     this.modelIndex[table] = new Map();
                     this.keyModel[table] = Object.create(null);
@@ -276,6 +333,7 @@ class RamCache {
             this.ram = Object.create(null);
             this.modelIndex = Object.create(null);
             this.keyModel = Object.create(null);
+            this.lru = new Map();
         }
     }
 
@@ -299,6 +357,7 @@ class RamCache {
             for (const key of keys) {
                 delete tableMap[key];
                 delete keyMap[key];
+                this._forgetLru(table, key);
             }
             this.modelIndex[table].delete(model);
         }

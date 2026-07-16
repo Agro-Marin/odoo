@@ -183,6 +183,14 @@ const STRING = {
         if (count === undefined || count === null || count < 0) {
             return this.replaceAll(oldStr, newStr);
         }
+        // CPython requires an int count; a float raises TypeError. Guard before
+        // the loop so ``'aaa'.replace('a','b',2.5)`` can't over-replace (the
+        // ``k < 2.5`` loop ran 3 times).
+        if (!Number.isInteger(count) && typeof count !== "boolean") {
+            throw new EvaluationError(
+                `replace() count must be an integer, not '${pyTypeName(count)}'`,
+            );
+        }
         let rest = String(this);
         let out = "";
         for (let k = 0; k < count; k++) {
@@ -275,6 +283,7 @@ const STRING = {
         const kwargs = args.at(-1) ?? {};
         const positional = args.slice(0, -1);
         let auto = 0;
+        let mode = null; // "auto" ({}) | "manual" ({0}) — CPython forbids mixing
         return this.replace(/\{\{|\}\}|\{([^{}]*)\}/g, (m, field) => {
             if (m === "{{") {
                 return "{";
@@ -288,7 +297,20 @@ const STRING = {
                 );
             }
             if (field === "" || /^\d+$/.test(field)) {
-                const index = field === "" ? auto++ : Number(field);
+                const isAuto = field === "";
+                // CPython raises ValueError on ``'{}{0}'.format(...)``: auto and
+                // manual positional numbering cannot be mixed. Named fields
+                // ({name}) are independent and don't set the mode.
+                if (mode === null) {
+                    mode = isAuto ? "auto" : "manual";
+                } else if ((mode === "auto") !== isAuto) {
+                    throw new EvaluationError(
+                        isAuto
+                            ? "cannot switch from manual field specification to automatic field numbering"
+                            : "cannot switch from automatic field numbering to manual field specification",
+                    );
+                }
+                const index = isAuto ? auto++ : Number(field);
                 if (index >= positional.length) {
                     throw new EvaluationError(
                         `Replacement index ${index} out of range for positional args tuple`,
@@ -566,6 +588,15 @@ function pyStringFormat(fmt, value) {
                 arg = values[i++];
             }
             let str;
+            const isNumericConv = "diufeEgGxXo".includes(conv);
+            if (isNumericConv && typeof arg !== "number" && Number.isNaN(Number(arg))) {
+                // CPython raises TypeError rather than emitting the literal
+                // "NaN" when a numeric conversion gets a non-number
+                // (``'%d' % 'x'`` was producing "NaN").
+                throw new EvaluationError(
+                    `%${conv} format: a number is required, not '${pyTypeName(arg)}'`,
+                );
+            }
             switch (conv) {
                 case "s":
                     str = pyStr(arg);
@@ -611,6 +642,28 @@ function pyStringFormat(fmt, value) {
                     break;
                 default:
                     str = pyStr(arg);
+            }
+            // Alternate form (#): radix prefix for integer conversions
+            // ('%#x' % 255 → "0xff"). Sign goes before the prefix (below).
+            if (flags.includes("#")) {
+                if (conv === "x") {
+                    str = "0x" + str;
+                } else if (conv === "X") {
+                    str = "0X" + str;
+                } else if (conv === "o") {
+                    str = "0o" + str;
+                }
+            }
+            // Sign flags for numeric conversions: force a leading sign on
+            // non-negative values ('%+d' % 5 → "+5", '% d' % 5 → " 5"). The
+            // space flag yields to '+' when both are given, as in CPython.
+            if (
+                isNumericConv &&
+                str[0] !== "-" &&
+                (flags.includes("+") || flags.includes(" "))
+            ) {
+                const signCh = flags.includes("+") ? "+" : " ";
+                str = signCh + str;
             }
             if (width) {
                 const w = Number(width);
@@ -736,6 +789,15 @@ function _applyBinaryOp(ast, recurse) {
             if (leftSeq !== rightSeq) {
                 const seq = leftSeq ? left : right;
                 const count = leftSeq ? right : left;
+                // CPython allows only int (and bool) repetition counts; a float
+                // raises TypeError rather than silently truncating
+                // (``'x' * 2.5`` must not become ``'xx'``). This mirrors the
+                // strict type-checking every other branch of ``*`` already does.
+                if (!Number.isInteger(count) && typeof count !== "boolean") {
+                    throw new EvaluationError(
+                        `can't multiply sequence by non-int of type '${pyTypeName(count)}'`,
+                    );
+                }
                 const n = Math.max(0, Math.trunc(Number(count)));
                 if (typeof seq === "string") {
                     return seq.repeat(n);

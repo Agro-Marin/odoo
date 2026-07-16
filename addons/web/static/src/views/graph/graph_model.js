@@ -324,7 +324,10 @@ export class GraphModel extends Model {
                     data: new Array(dataLength).fill(0),
                     cumulatedStart,
                     trueLabels: labels.slice(0, dataLength),
-                    domains: new Array(dataLength).fill([]),
+                    // Distinct [] per slot: ``fill([])`` aliases one array
+                    // across every empty cell, so a later push into one cell's
+                    // domain would corrupt all the others.
+                    domains: Array.from({ length: dataLength }, () => []),
                     identifiers: new Set(),
                     currencyIds: new Array(dataLength).fill(),
                 });
