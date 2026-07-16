@@ -6,6 +6,7 @@ from . import test_controller_thread
 from . import test_invite
 from . import test_ir_actions
 from . import test_ir_attachment
+from . import test_js
 from . import test_mail_activity
 from . import test_mail_activity_mixin
 from . import test_mail_activity_plan
