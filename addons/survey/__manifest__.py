@@ -1,6 +1,6 @@
 {
     "name": "Surveys",
-    "version": "3.7",
+    "version": "3.8",
     "category": "Marketing/Surveys",
     "description": """
 Create beautiful surveys and visualize answers

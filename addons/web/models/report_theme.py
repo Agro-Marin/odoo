@@ -3,8 +3,10 @@ from markupsafe import Markup
 from odoo import fields, models
 
 # Characters that would let a token value escape its declaration and corrupt the
-# shared company stylesheet. Stripped before the value is emitted as raw CSS.
-_CSS_UNSAFE = str.maketrans("", "", "{};\n\r")
+# shared company stylesheet — or, via "</style>", escape the <style> element
+# itself and inject markup (the block is emitted as raw Markup). Stripped before
+# the value is emitted as raw CSS.
+_CSS_UNSAFE = str.maketrans("", "", "{};\n\r<>")
 
 
 class ReportTheme(models.Model):
