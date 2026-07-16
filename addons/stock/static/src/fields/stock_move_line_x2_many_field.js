@@ -1,10 +1,13 @@
 /** @odoo-module native */
+import { Domain } from "@web/core/domain";
 import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
-import { X2ManyField, x2ManyField } from "@web/fields/relational/x2many/x2many_field";
-import { useSelectCreate, useOpenMany2XRecord} from "@web/fields/relational/many2x_autocomplete";
 import { useService } from "@web/core/utils/hooks";
-import { Domain } from "@web/core/domain";
+import {
+    useOpenMany2XRecord,
+    useSelectCreate,
+} from "@web/fields/relational/many2x_autocomplete";
+import { X2ManyField, x2ManyField } from "@web/fields/relational/x2many/x2many_field";
 
 export class SMLX2ManyField extends X2ManyField {
     setup() {
@@ -28,7 +31,7 @@ export class SMLX2ManyField extends X2ManyField {
         });
     }
 
-    get quantListViewShowOnHandOnly(){
+    get quantListViewShowOnHandOnly() {
         return true; // To override in mrp_subcontracting
     }
 
@@ -93,10 +96,10 @@ export class SMLX2ManyField extends X2ManyField {
         // the record has been saved, it is necessary to determine the offset of the DB quant data.
         this.dirtyQuantsData.clear();
         const dirtyQuantityMoveLines = this._move_line_ids.filter(
-            (ml) => !ml.data.quant_id && this._unsavedQtyDelta(ml)
+            (ml) => !ml.data.quant_id && this._unsavedQtyDelta(ml),
         );
         const dirtyQuantMoveLines = this._move_line_ids.filter(
-            (ml) => ml.data.quant_id.id
+            (ml) => ml.data.quant_id.id,
         );
         const dirtyMoveLines = [...dirtyQuantityMoveLines, ...dirtyQuantMoveLines];
         if (!dirtyMoveLines.length) {
@@ -106,14 +109,12 @@ export class SMLX2ManyField extends X2ManyField {
             "stock.move.line",
             "get_move_line_quant_match",
             [
-                this._move_line_ids
-                    .filter((rec) => rec.resId)
-                    .map((rec) => rec.resId),
+                this._move_line_ids.filter((rec) => rec.resId).map((rec) => rec.resId),
                 this.props.record.resId,
                 dirtyMoveLines.filter((rec) => rec.resId).map((rec) => rec.resId),
                 dirtyQuantMoveLines.map((ml) => ml.data.quant_id.id),
             ],
-            {}
+            {},
         );
         const quants = match[0];
         if (!quants.length) {
@@ -121,17 +122,24 @@ export class SMLX2ManyField extends X2ManyField {
         }
         const dbMoveLinesData = new Map();
         for (const data of match[1]) {
-            dbMoveLinesData.set(data[0], { quantity: data[1].quantity, quantId: data[1].quant_id });
+            dbMoveLinesData.set(data[0], {
+                quantity: data[1].quantity,
+                quantId: data[1].quant_id,
+            });
         }
         const offsetByQuant = new Map();
         for (const ml of dirtyQuantMoveLines) {
             const quantId = ml.data.quant_id.id;
-            offsetByQuant.set(quantId, (offsetByQuant.get(quantId) || 0) - ml.data.quantity);
+            offsetByQuant.set(
+                quantId,
+                (offsetByQuant.get(quantId) || 0) - ml.data.quantity,
+            );
             const dbQuantId = dbMoveLinesData.get(ml.resId)?.quantId;
-            if (dbQuantId && quantId != dbQuantId) {
+            if (dbQuantId && quantId !== dbQuantId) {
                 offsetByQuant.set(
                     dbQuantId,
-                    (offsetByQuant.get(dbQuantId) || 0) + dbMoveLinesData.get(ml.resId).quantity
+                    (offsetByQuant.get(dbQuantId) || 0) +
+                        dbMoveLinesData.get(ml.resId).quantity,
                 );
             }
         }
@@ -145,7 +153,8 @@ export class SMLX2ManyField extends X2ManyField {
                 .reduce((val, sum) => val + sum, 0);
             const quantOffset = offsetByQuant.get(quant[0]) || 0;
             this.dirtyQuantsData.set(quant[0], {
-                available_quantity: quant[1].available_quantity + quantityOffset + quantOffset,
+                available_quantity:
+                    quant[1].available_quantity + quantityOffset + quantOffset,
             });
         }
     }
@@ -164,7 +173,7 @@ export class SMLX2ManyField extends X2ManyField {
         } else if (this.dirtyQuantsData.has(res_ids[0])) {
             params.context.default_quantity = Math.min(
                 this.dirtyQuantsData.get(res_ids[0]).available_quantity,
-                demand
+                demand,
             );
         }
         this.list.addNewRecord(params).then((record) => {

@@ -1,16 +1,16 @@
-import * as ProductScreen from "@point_of_sale/../tests/pos/tours/utils/product_screen_util";
-import * as PaymentScreen from "@point_of_sale/../tests/pos/tours/utils/payment_screen_util";
-import * as TicketScreen from "@point_of_sale/../tests/pos/tours/utils/ticket_screen_util";
-import * as ReceiptScreen from "@point_of_sale/../tests/pos/tours/utils/receipt_screen_util";
-import * as combo from "@point_of_sale/../tests/pos/tours/utils/combo_popup_util";
 import * as Dialog from "@point_of_sale/../tests/generic_helpers/dialog_util";
+import * as Numpad from "@point_of_sale/../tests/generic_helpers/numpad_util";
 import * as Order from "@point_of_sale/../tests/generic_helpers/order_widget_util";
 import { scan_barcode } from "@point_of_sale/../tests/generic_helpers/utils";
-import { inLeftSide } from "@point_of_sale/../tests/pos/tours/utils/common";
-import * as Chrome from "@point_of_sale/../tests/pos/tours/utils/chrome_util";
-import { registry } from "@web/core/registry";
-import * as Numpad from "@point_of_sale/../tests/generic_helpers/numpad_util";
 import * as Utils from "@point_of_sale/../tests/generic_helpers/utils";
+import * as Chrome from "@point_of_sale/../tests/pos/tours/utils/chrome_util";
+import * as combo from "@point_of_sale/../tests/pos/tours/utils/combo_popup_util";
+import { inLeftSide } from "@point_of_sale/../tests/pos/tours/utils/common";
+import * as PaymentScreen from "@point_of_sale/../tests/pos/tours/utils/payment_screen_util";
+import * as ProductScreen from "@point_of_sale/../tests/pos/tours/utils/product_screen_util";
+import * as ReceiptScreen from "@point_of_sale/../tests/pos/tours/utils/receipt_screen_util";
+import * as TicketScreen from "@point_of_sale/../tests/pos/tours/utils/ticket_screen_util";
+import { registry } from "@web/core/registry";
 
 registry.category("web_tour.tours").add("ProductComboPriceTaxIncludedTour", {
     steps: () =>
@@ -50,7 +50,11 @@ registry.category("web_tour.tours").add("ProductComboPriceTaxIncludedTour", {
             combo.isNotSelected("Combo Product 7"),
             Dialog.confirm(),
             inLeftSide([
-                ...ProductScreen.selectedOrderlineHasDirect("Office Combo", "1", "62.1"),
+                ...ProductScreen.selectedOrderlineHasDirect(
+                    "Office Combo",
+                    "1",
+                    "62.1",
+                ),
                 ...ProductScreen.clickLine("Combo Product 3"),
                 ...ProductScreen.selectedOrderlineHasDirect("Combo Product 3", "1"),
                 ...ProductScreen.clickLine("Combo Product 5"),
@@ -234,7 +238,11 @@ registry.category("web_tour.tours").add("ProductComboMaxFreeQtyTour", {
 
             Dialog.confirm(),
             inLeftSide([
-                ...ProductScreen.selectedOrderlineHasDirect("Office Combo", "1", "151.98"),
+                ...ProductScreen.selectedOrderlineHasDirect(
+                    "Office Combo",
+                    "1",
+                    "151.98",
+                ),
             ]),
             ProductScreen.totalAmountIs("151.98"),
             ProductScreen.clickPayButton(),
@@ -334,7 +342,11 @@ registry.category("web_tour.tours").add("test_combo_no_free_item", {
             combo.checkTotal(`${114 + 30 * 3 + 5}.00`),
             Dialog.confirm(),
             inLeftSide([
-                ...ProductScreen.selectedOrderlineHasDirect("Office Combo", "1", "232.10"),
+                ...ProductScreen.selectedOrderlineHasDirect(
+                    "Office Combo",
+                    "1",
+                    "232.10",
+                ),
             ]),
             ProductScreen.totalAmountIs("232.10"),
             ProductScreen.clickPayButton(),

@@ -1,12 +1,12 @@
-import * as ProductScreen from "@point_of_sale/../tests/pos/tours/utils/product_screen_util";
 import * as Dialog from "@point_of_sale/../tests/generic_helpers/dialog_util";
-import * as Chrome from "@point_of_sale/../tests/pos/tours/utils/chrome_util";
-import * as ProductConfigurator from "@point_of_sale/../tests/pos/tours/utils/product_configurator_util";
-import * as combo from "@point_of_sale/../tests/pos/tours/utils/combo_popup_util";
 import * as Order from "@point_of_sale/../tests/generic_helpers/order_widget_util";
-import { inLeftSide } from "@point_of_sale/../tests/pos/tours/utils/common";
-import { registry } from "@web/core/registry";
 import { negateStep } from "@point_of_sale/../tests/generic_helpers/utils";
+import * as Chrome from "@point_of_sale/../tests/pos/tours/utils/chrome_util";
+import * as combo from "@point_of_sale/../tests/pos/tours/utils/combo_popup_util";
+import { inLeftSide } from "@point_of_sale/../tests/pos/tours/utils/common";
+import * as ProductConfigurator from "@point_of_sale/../tests/pos/tours/utils/product_configurator_util";
+import * as ProductScreen from "@point_of_sale/../tests/pos/tours/utils/product_screen_util";
+import { registry } from "@web/core/registry";
 
 registry.category("web_tour.tours").add("ProductConfiguratorTour", {
     steps: () =>
@@ -46,7 +46,7 @@ registry.category("web_tour.tours").add("ProductConfiguratorTour", {
                 "Configurable Chair",
                 "1",
                 "11.0",
-                "Red, Metal, Fabrics: Other: Custom Fabric, Cushion, Headrest"
+                "Red, Metal, Fabrics: Other: Custom Fabric, Cushion, Headrest",
             ),
 
             // Orderlines with the same attributes should be merged
@@ -60,7 +60,7 @@ registry.category("web_tour.tours").add("ProductConfiguratorTour", {
                 "Configurable Chair",
                 "2",
                 "22.0",
-                "Red, Metal, Fabrics: Other: Custom Fabric, Cushion, Headrest"
+                "Red, Metal, Fabrics: Other: Custom Fabric, Cushion, Headrest",
             ),
 
             // Orderlines with different attributes shouldn't be merged
@@ -71,7 +71,7 @@ registry.category("web_tour.tours").add("ProductConfiguratorTour", {
                 "Configurable Chair",
                 "1",
                 "10.0",
-                "Blue, Metal, Leather"
+                "Blue, Metal, Leather",
             ),
 
             // Inactive variant attributes should not be displayed
@@ -98,7 +98,7 @@ registry.category("web_tour.tours").add("ProductConfiguratorTour", {
                 "Configurable Chair",
                 "2",
                 "22.0",
-                "Red, Metal, Fabrics: Other: Custom Fabric, Cushion, Headrest"
+                "Red, Metal, Fabrics: Other: Custom Fabric, Cushion, Headrest",
             ),
         ].flat(),
 });
@@ -115,11 +115,21 @@ registry.category("web_tour.tours").add("PosProductWithDynamicAttributes", {
             ProductScreen.clickDisplayedProduct("Dynamic Product"),
             ProductConfigurator.pickRadio("Test 1"),
             Dialog.confirm(),
-            ProductScreen.selectedOrderlineHas("Dynamic Product", "1", "1.15", "Test 1"),
+            ProductScreen.selectedOrderlineHas(
+                "Dynamic Product",
+                "1",
+                "1.15",
+                "Test 1",
+            ),
             ProductScreen.clickDisplayedProduct("Dynamic Product"),
             ProductConfigurator.pickRadio("Test 2"),
             Dialog.confirm(),
-            ProductScreen.selectedOrderlineHas("Dynamic Product", "1", "12.65", "Test 2"),
+            ProductScreen.selectedOrderlineHas(
+                "Dynamic Product",
+                "1",
+                "12.65",
+                "Test 2",
+            ),
         ].flat(),
 });
 
@@ -137,7 +147,7 @@ registry.category("web_tour.tours").add("test_attribute_order", {
                 "Product Test",
                 "1",
                 "10",
-                "Value 1, Value 2, Value 3"
+                "Value 1, Value 2, Value 3",
             ),
         ].flat(),
 });
@@ -163,7 +173,7 @@ registry.category("web_tour.tours").add("test_combo_variant_mix", {
                         price: 20.0,
                         attributes: "Blue, Large",
                     }),
-                ].flat()
+                ].flat(),
             ),
         ].flat(),
 });

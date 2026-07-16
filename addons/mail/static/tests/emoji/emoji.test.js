@@ -1,11 +1,4 @@
 import {
-    patchTranslations,
-    patchWithCleanup,
-    preloadBundle,
-    serverState,
-} from "@web/../tests/web_test_helpers";
-
-import {
     click,
     contains,
     defineMailModels,
@@ -17,8 +10,13 @@ import {
     triggerHotkey,
 } from "@mail/../tests/mail_test_helpers";
 import { describe, getFixture, test } from "@odoo/hoot";
-
 import { queryFirst } from "@odoo/hoot-dom";
+import {
+    patchTranslations,
+    patchWithCleanup,
+    preloadBundle,
+    serverState,
+} from "@web/../tests/web_test_helpers";
 import { loader as emojiLoader } from "@web/components/emoji_picker/emoji_picker";
 
 describe.current.tags("desktop");
@@ -122,7 +120,9 @@ test("Basic keyboard navigation", async () => {
     await contains(".o-Emoji[data-index='0'].o-active");
     // detect amount of emojis per row for navigation
     const emojis = Array.from(
-        getFixture().querySelectorAll(".o-EmojiPicker-category[data-category='1'] ~ .o-Emoji")
+        getFixture().querySelectorAll(
+            ".o-EmojiPicker-category[data-category='1'] ~ .o-Emoji",
+        ),
     );
     const baseOffset = emojis[0].offsetTop;
     const breakIndex = emojis.findIndex((item) => item.offsetTop > baseOffset);
@@ -130,13 +130,17 @@ test("Basic keyboard navigation", async () => {
     triggerHotkey("ArrowRight");
     await contains(".o-EmojiPicker-content .o-Emoji[data-index='1'].o-active");
     triggerHotkey("ArrowDown");
-    await contains(`.o-EmojiPicker-content .o-Emoji[data-index='${EMOJI_PER_ROW + 1}'].o-active`);
+    await contains(
+        `.o-EmojiPicker-content .o-Emoji[data-index='${EMOJI_PER_ROW + 1}'].o-active`,
+    );
     triggerHotkey("ArrowLeft");
-    await contains(`.o-EmojiPicker-content .o-Emoji[data-index='${EMOJI_PER_ROW}'].o-active`);
+    await contains(
+        `.o-EmojiPicker-content .o-Emoji[data-index='${EMOJI_PER_ROW}'].o-active`,
+    );
     triggerHotkey("ArrowUp");
     await contains(".o-EmojiPicker-content .o-Emoji[data-index='0'].o-active");
     const { codepoints } = queryFirst(
-        ".o-EmojiPicker-content .o-Emoji[data-index='0'].o-active"
+        ".o-EmojiPicker-content .o-Emoji[data-index='0'].o-active",
     ).dataset;
     triggerHotkey("Enter");
     await contains(".o-EmojiPicker", { count: 0 });
@@ -189,7 +193,10 @@ test("search matches only frequently used emojis", async () => {
     await contains(".o-EmojiPicker-sectionIcon", { count: 0 }); // await search performed
     await contains(".o-EmojiPicker-content .o-Emoji:eq(0)", { text: "🥦" });
     await contains(".o-EmojiPicker-content .o-Emoji", { count: 1 });
-    await contains(".o-EmojiPicker-content", { text: "No emojis match your search", count: 0 });
+    await contains(".o-EmojiPicker-content", {
+        text: "No emojis match your search",
+        count: 0,
+    });
     await insertText(".o-EmojiPicker-search input", "2");
     await contains(".o-EmojiPicker-content", { text: "No emojis match your search" });
 });

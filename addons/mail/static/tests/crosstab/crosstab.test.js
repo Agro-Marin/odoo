@@ -1,4 +1,3 @@
-import { luxon } from "@web/core/l10n/luxon";
 import {
     click,
     contains,
@@ -12,7 +11,6 @@ import {
 import { describe, test } from "@odoo/hoot";
 import { press } from "@odoo/hoot-dom";
 import { mockDate } from "@odoo/hoot-mock";
-
 import { inputFiles } from "@web/../tests/utils";
 import {
     asyncStep,
@@ -21,6 +19,7 @@ import {
     serverState,
     waitForSteps,
 } from "@web/../tests/web_test_helpers";
+import { luxon } from "@web/core/l10n/luxon";
 
 describe.current.tags("desktop");
 defineMailModels();
@@ -36,8 +35,12 @@ test("Messages are received cross-tab", async () => {
     await contains(`${env2.selector} .o-mail-Thread:contains('Welcome to #General!')`); // wait for loaded and focus in input
     await insertText(`${env1.selector} .o-mail-Composer-input`, "Hello World!");
     await press("Enter");
-    await contains(`${env1.selector} .o-mail-Message-content`, { text: "Hello World!" });
-    await contains(`${env2.selector} .o-mail-Message-content`, { text: "Hello World!" });
+    await contains(`${env1.selector} .o-mail-Message-content`, {
+        text: "Hello World!",
+    });
+    await contains(`${env2.selector} .o-mail-Message-content`, {
+        text: "Hello World!",
+    });
 });
 
 test.tags("focus required");
@@ -51,9 +54,13 @@ test("Thread rename", async () => {
     const env2 = await start({ asTab: true });
     await openDiscuss(channelId, { target: env1 });
     await openDiscuss(channelId, { target: env2 });
-    await insertText(`${env1.selector} .o-mail-DiscussContent-threadName:enabled`, "Sales", {
-        replace: true,
-    });
+    await insertText(
+        `${env1.selector} .o-mail-DiscussContent-threadName:enabled`,
+        "Sales",
+        {
+            replace: true,
+        },
+    );
     triggerHotkey("Enter");
     await contains(`${env2.selector} .o-mail-DiscussContent-threadName[title='Sales']`);
     await contains(`${env2.selector} .o-mail-DiscussSidebarChannel`, { text: "Sales" });
@@ -75,17 +82,19 @@ test("Thread description update", async () => {
         "The very best channel",
         {
             replace: true,
-        }
+        },
     );
     triggerHotkey("Enter");
     await contains(
-        `${env2.selector} .o-mail-DiscussContent-threadDescription[title='The very best channel']`
+        `${env2.selector} .o-mail-DiscussContent-threadDescription[title='The very best channel']`,
     );
 });
 
 test.skip("Channel subscription is renewed when channel is added from invite", async () => {
     const now = luxon.DateTime.now();
-    mockDate(`${now.year}-${now.month}-${now.day} ${now.hour}:${now.minute}:${now.second}`);
+    mockDate(
+        `${now.year}-${now.month}-${now.day} ${now.hour}:${now.minute}:${now.second}`,
+    );
     const pyEnv = await startServer();
     const [, channelId] = pyEnv["discuss.channel"].create([
         { name: "R&D" },
@@ -95,7 +104,7 @@ test.skip("Channel subscription is renewed when channel is added from invite", a
     // when the client starts.
     const later = now.plus({ seconds: 10 });
     mockDate(
-        `${later.year}-${later.month}-${later.day} ${later.hour}:${later.minute}:${later.second}`
+        `${later.year}-${later.month}-${later.day} ${later.hour}:${later.minute}:${later.second}`,
     );
     await start();
     mockService("bus_service", {
@@ -129,16 +138,23 @@ test("Adding attachments", async () => {
     await contains(`${env1.selector} .o-mail-Message:contains('Hello world!')`);
     await contains(`${env2.selector} .o-mail-Message:contains('Hello world!')`);
     await click(`${env1.selector} .o-mail-Message button[title='Edit']`);
-    await click(`${env1.selector} .o-mail-Message .o-mail-Composer button[title='More Actions']`);
-    await click(`${env1.selector} .o_popover button[name='upload-files']`);
-    await inputFiles(`${env1.selector} .o-mail-Message .o-mail-Composer .o_input_file`, [file]);
-    await contains(
-        `${env1.selector} .o-mail-AttachmentContainer:not(.o-isUploading):contains(test.txt) .fa-check`
+    await click(
+        `${env1.selector} .o-mail-Message .o-mail-Composer button[title='More Actions']`,
     );
-    await click(`${env1.selector} .o-mail-Message .o-mail-Composer button[data-type='save']`);
+    await click(`${env1.selector} .o_popover button[name='upload-files']`);
+    await inputFiles(
+        `${env1.selector} .o-mail-Message .o-mail-Composer .o_input_file`,
+        [file],
+    );
+    await contains(
+        `${env1.selector} .o-mail-AttachmentContainer:not(.o-isUploading):contains(test.txt) .fa-check`,
+    );
+    await click(
+        `${env1.selector} .o-mail-Message .o-mail-Composer button[data-type='save']`,
+    );
 
     await contains(
-        `${env2.selector} .o-mail-AttachmentContainer:not(.o-isUploading):contains(test.txt)`
+        `${env2.selector} .o-mail-AttachmentContainer:not(.o-isUploading):contains(test.txt)`,
     );
 });
 
@@ -163,7 +179,10 @@ test("Remove attachment from message", async () => {
     await contains(`${env1.selector} .o-mail-AttachmentCard`, { text: "test.txt" });
     await click(`${env2.selector} .o-mail-Attachment-unlink`);
     await click(`${env2.selector} .modal-footer .btn`, { text: "Ok" });
-    await contains(`${env1.selector} .o-mail-AttachmentCard`, { count: 0, text: "test.txt" });
+    await contains(`${env1.selector} .o-mail-AttachmentCard`, {
+        count: 0,
+        text: "test.txt",
+    });
 });
 
 test("Message (hard) delete notification", async () => {
@@ -187,12 +206,18 @@ test("Message (hard) delete notification", async () => {
     await openDiscuss("mail.box_inbox");
     await click("[title='Add Star']");
     await contains("button", { text: "Inbox", contains: [".badge", { text: "1" }] });
-    await contains("button", { text: "Starred messages", contains: [".badge", { text: "1" }] });
+    await contains("button", {
+        text: "Starred messages",
+        contains: [".badge", { text: "1" }],
+    });
     const [partner] = pyEnv["res.partner"].read(serverState.partnerId);
     pyEnv["bus.bus"]._sendone(partner, "mail.message/delete", {
         message_ids: [messageId],
     });
     await contains(".o-mail-Message", { count: 0 });
     await contains("button", { text: "Inbox", contains: [".badge", { count: 0 }] });
-    await contains("button", { text: "Starred messages", contains: [".badge", { count: 0 }] });
+    await contains("button", {
+        text: "Starred messages",
+        contains: [".badge", { count: 0 }],
+    });
 });

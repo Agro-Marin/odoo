@@ -7,7 +7,6 @@ import {
     start,
     startServer,
 } from "@mail/../tests/mail_test_helpers";
-
 import { describe, test } from "@odoo/hoot";
 import { animationFrame } from "@odoo/hoot-dom";
 import { getOrigin } from "@web/core/utils/urls";
@@ -56,7 +55,10 @@ test("message link shows error when the message is not known", async () => {
 
 test("same-thread message link does not open the thread again but highlights the message", async () => {
     const pyEnv = await startServer();
-    const [aliceId, lenaId] = pyEnv["res.partner"].create([{ name: "Alice" }, { name: "Lena" }]);
+    const [aliceId, lenaId] = pyEnv["res.partner"].create([
+        { name: "Alice" },
+        { name: "Lena" },
+    ]);
     const helloMessageId = pyEnv["mail.message"].create({
         body: "Hello",
         model: "res.partner",

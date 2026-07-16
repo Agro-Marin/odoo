@@ -1,5 +1,4 @@
 import { Action } from "@mail/core/common/action";
-
 import { describe, expect, test } from "@odoo/hoot";
 
 describe.current.tags("desktop");

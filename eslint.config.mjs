@@ -73,6 +73,18 @@ const COMMUNITY_MODULES = [
     "addons/pos_stripe",
     // Misc
     "addons/l10n_br_website_sale",
+    // Accounting / stock / sale / mrp stack (onboarded to ESLint)
+    "addons/account",
+    "addons/base_tax",
+    "addons/analytic",
+    "addons/product",
+    "addons/uom",
+    "addons/stock",
+    "addons/stock_account",
+    "addons/sale",
+    "addons/sale_stock",
+    "addons/mrp",
+    "addons/purchase_stock",
 ];
 
 const ENTERPRISE_MODULES = [
@@ -361,8 +373,24 @@ export default [
     // =========================================================================
     {
         files: ["**/service_worker.js"],
+        languageOptions: {
+            globals: {
+                ...globals.serviceworker,
+            },
+        },
         rules: {
             "no-restricted-globals": ["error", "event"],
+        },
+    },
+
+    // Web/dedicated workers (e.g. discuss tick_worker.js) — eslint 10 dropped
+    // `/* eslint-env worker */` comments, so declare the worker globals here.
+    {
+        files: ["**/*_worker.js"],
+        languageOptions: {
+            globals: {
+                ...globals.worker,
+            },
         },
     },
 

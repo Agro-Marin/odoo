@@ -12,12 +12,11 @@ import {
     startServer,
     triggerHotkey,
 } from "@mail/../tests/mail_test_helpers";
+import { HIGHLIGHT_CLASS } from "@mail/core/common/message_search_hook";
 import { expect, mockTouch, mockUserAgent, test } from "@odoo/hoot";
 import { press } from "@odoo/hoot-dom";
 import { tick } from "@odoo/hoot-mock";
 import { serverState } from "@web/../tests/web_test_helpers";
-
-import { HIGHLIGHT_CLASS } from "@mail/core/common/message_search_hook";
 
 defineMailModels();
 

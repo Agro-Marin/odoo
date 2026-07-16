@@ -1,8 +1,9 @@
 import { expect, test } from "@odoo/hoot";
 import { SERIALIZED_UI_STATE_PROP } from "@point_of_sale/app/models/related_models/utils";
-import { getRelatedModelsInstance } from "../data/get_model_definitions.js";
 import { makeMockServer } from "@web/../tests/web_test_helpers";
+
 import { definePosModels } from "../data/generate_model_definitions.js";
+import { getRelatedModelsInstance } from "../data/get_model_definitions.js";
 import { getFilledOrder, setupPosEnv } from "../utils.js";
 
 definePosModels();

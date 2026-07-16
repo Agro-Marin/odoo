@@ -1,7 +1,7 @@
 /** @odoo-module native */
-import { registry } from "@web/core/registry";
-import { Component } from "@odoo/owl";
 import { JsonBlobField } from "@account/components/json_blob_field/json_blob_field";
+import { Component } from "@odoo/owl";
+import { registry } from "@web/core/registry";
 
 class ListItem extends Component {
     static template = "account.GroupedItemTemplate";

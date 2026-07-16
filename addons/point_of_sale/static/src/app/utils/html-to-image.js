@@ -445,7 +445,7 @@ async function cloneSingleNode(node, options) {
 const isSlotElement = (node) =>
     node.tagName != null && node.tagName.toUpperCase() === "SLOT";
 async function cloneChildren(nativeNode, clonedNode, options) {
-    let children = [];
+    let children;
     if (isSlotElement(nativeNode) && nativeNode.assignedNodes) {
         children = toArray(nativeNode.assignedNodes());
     } else if (

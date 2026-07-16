@@ -6,6 +6,7 @@ import { registry } from "@web/core/registry";
 import { Mutex } from "@web/core/utils/concurrency";
 import { session } from "@web/session";
 import { AlertDialog } from "@web/ui/dialog/confirmation_dialog";
+
 import { logPosMessage } from "../utils/pretty_console_log.js";
 
 export class BarcodeReader {

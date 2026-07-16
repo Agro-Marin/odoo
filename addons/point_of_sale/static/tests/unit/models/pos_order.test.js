@@ -1,6 +1,7 @@
-import { test, expect } from "@odoo/hoot";
-import { getFilledOrder, setupPosEnv } from "../utils.js";
+import { expect, test } from "@odoo/hoot";
+
 import { definePosModels } from "../data/generate_model_definitions.js";
+import { getFilledOrder, setupPosEnv } from "../utils.js";
 
 definePosModels();
 
@@ -58,7 +59,9 @@ test("updateLastOrderChange", async () => {
     order.setGeneralCustomerNote("Customer note");
     order.setInternalNote("Internal note");
     order.updateLastOrderChange();
-    expect(order.last_order_preparation_change.general_customer_note).toBe("Customer note");
+    expect(order.last_order_preparation_change.general_customer_note).toBe(
+        "Customer note",
+    );
     expect(order.last_order_preparation_change.internal_note).toBe("Internal note");
 });
 
@@ -121,7 +124,7 @@ test("customer requirements", async () => {
     expect(order.presetRequirementsFilled).toBe(false);
     expect(order.getMissingPresetRequirement().field).toBe("Customer");
     expect(order.getMissingPresetRequirement().message).toBe(
-        "Please add a valid customer to the order."
+        "Please add a valid customer to the order.",
     );
 
     // Partner
@@ -141,7 +144,7 @@ test("Address requirements", async () => {
     expect(order.presetRequirementsFilled).toBe(false);
     expect(order.getMissingPresetRequirement().field).toBe("Address");
     expect(order.getMissingPresetRequirement().message).toBe(
-        "The selected customer needs an address."
+        "The selected customer needs an address.",
     );
 
     // Partner with address
@@ -159,7 +162,7 @@ test("slot requirement preset", async () => {
     expect(order.presetRequirementsFilled).toBe(false);
     expect(order.getMissingPresetRequirement().field).toBe("Slot");
     expect(order.getMissingPresetRequirement().message).toBe(
-        "Please select a time slot before proceeding."
+        "Please select a time slot before proceeding.",
     );
 
     // Slot set
@@ -263,7 +266,8 @@ test("[get prices] check prices and taxes", async () => {
     expect(orderTaxesWDiscount.tax_amount).toBe(2.45);
 
     // Check first line with a price_unit of 3, 3 qty and 30% discount
-    const line1DataWDiscount = dataWDiscount.baseLineByLineUuids[order.lines[0].uuid].tax_details;
+    const line1DataWDiscount =
+        dataWDiscount.baseLineByLineUuids[order.lines[0].uuid].tax_details;
     expect(line1DataWDiscount.total_excluded).toBe(6.3);
     expect(line1DataWDiscount.total_included).toBe(7.25);
     expect(line1DataWDiscount.taxes_data[0].tax_amount).toBe(0.95);
@@ -323,7 +327,7 @@ test("priceDoesntChangeWhenChangingPreset", async () => {
             ],
             qty: 1,
         },
-        order
+        order,
     );
     order.setOrderPrices();
     let total = order.amount_total;
@@ -338,7 +342,7 @@ test("priceDoesntChangeWhenChangingPreset", async () => {
             payload: [[{ combo_item_id: comboProduct1, qty: 2 }]],
             qty: 1,
         },
-        order2
+        order2,
     );
     order2.setOrderPrices();
     total = order2.amount_total;
@@ -356,7 +360,7 @@ test("priceDoesntChangeWhenChangingPreset", async () => {
             ],
             qty: 1,
         },
-        order3
+        order3,
     );
     order3.setOrderPrices();
     total = order3.amount_total;
@@ -374,7 +378,7 @@ test("priceDoesntChangeWhenChangingPreset", async () => {
             ],
             qty: 1,
         },
-        order4
+        order4,
     );
     order4.setOrderPrices();
     total = order4.amount_total;

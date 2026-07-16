@@ -1,17 +1,18 @@
 /** @odoo-module native */
+import { Component, onWillStart, useState } from "@odoo/owl";
 import { registry } from "@web/core/registry";
 import { useBus, useService } from "@web/core/utils/hooks";
 import { ControlPanel } from "@web/search/control_panel/control_panel";
+import { standardActionServiceProps } from "@web/webclient/actions/action_service";
+
 import { ReceptionReportTable } from "../reception_report_table/stock_reception_report_table.js";
 import {
-    collectAssignable,
     assignMoves,
-    collectAssignedLabels,
     buildLabelAction,
+    collectAssignable,
+    collectAssignedLabels,
     isLineAssignable,
 } from "../reception_report_utils.js";
-import { Component, onWillStart, useState } from "@odoo/owl";
-import { standardActionServiceProps } from "@web/webclient/actions/action_service";
 
 export class ReceptionReportMain extends Component {
     static template = "stock.ReceptionReportMain";
@@ -30,7 +31,9 @@ export class ReceptionReportMain extends Component {
         this.state = useState({
             sourcesToLines: {},
         });
-        useBus(this.env.bus, "update-assign-state", (ev) => this._changeAssignedState(ev.detail));
+        useBus(this.env.bus, "update-assign-state", (ev) =>
+            this._changeAssignedState(ev.detail),
+        );
 
         onWillStart(async () => {
             // Check the URL if report was alreadu loaded.
@@ -38,9 +41,14 @@ export class ReceptionReportMain extends Component {
             const { rfield, rids } = this.props.action.context.params || {};
             if (rfield && rids) {
                 const parsedIds = JSON.parse(rids);
-                defaultDocIds = [rfield, parsedIds instanceof Array ? parsedIds : [parsedIds]];
+                defaultDocIds = [
+                    rfield,
+                    parsedIds instanceof Array ? parsedIds : [parsedIds],
+                ];
             } else {
-                const defaultEntry = Object.entries(this.context).find(([k]) => k.startsWith("default_"));
+                const defaultEntry = Object.entries(this.context).find(([k]) =>
+                    k.startsWith("default_"),
+                );
                 if (defaultEntry) {
                     // Normalize the raw context value to a list — a scalar
                     // default_*_id must not reach get_report_data as a bare number
@@ -56,29 +64,33 @@ export class ReceptionReportMain extends Component {
 
             if (this.contextDefaultDoc.field) {
                 // Add the fields/ids to the URL, so we can properly reload them after a page refresh.
-                this.props.updateActionState({ rfield: this.contextDefaultDoc.field, rids: JSON.stringify(this.contextDefaultDoc.ids) });
+                this.props.updateActionState({
+                    rfield: this.contextDefaultDoc.field,
+                    rids: JSON.stringify(this.contextDefaultDoc.ids),
+                });
             }
             this.data = await this.getReportData();
             this.state.sourcesToLines = this.data.sources_to_lines;
 
-            const matchingReports = await this.ormService.searchRead("ir.actions.report", [
-                ["report_name", "in", [this.reportName, this.labelReportName]],
-            ]);
+            const matchingReports = await this.ormService.searchRead(
+                "ir.actions.report",
+                [["report_name", "in", [this.reportName, this.labelReportName]]],
+            );
             this.receptionReportAction = matchingReports.find(
-                (report) => report.report_name === this.reportName
+                (report) => report.report_name === this.reportName,
             );
             this.receptionReportLabelAction = matchingReports.find(
-                (report) => report.report_name === this.labelReportName
+                (report) => report.report_name === this.labelReportName,
             );
         });
     }
 
     async getReportData() {
-        const context = { ...this.context, [this.contextDefaultDoc.field]: this.contextDefaultDoc.ids };
-        const args = [
-            this.contextDefaultDoc.ids,
-            { context, report_type: "html" },
-        ];
+        const context = {
+            ...this.context,
+            [this.contextDefaultDoc.field]: this.contextDefaultDoc.ids,
+        };
+        const args = [this.contextDefaultDoc.ids, { context, report_type: "html" }];
         return this.ormService.call(
             "report.stock.report_reception",
             "get_report_data",
@@ -119,7 +131,11 @@ export class ReceptionReportMain extends Component {
     onClickPrintLabels() {
         const lines = Object.values(this.state.sourcesToLines).flat();
         const { docids, quantities } = collectAssignedLabels(lines);
-        const action = buildLabelAction(this.receptionReportLabelAction, docids, quantities);
+        const action = buildLabelAction(
+            this.receptionReportLabelAction,
+            docids,
+            quantities,
+        );
         if (action) {
             return this.actionService.doAction(action);
         }
@@ -132,9 +148,11 @@ export class ReceptionReportMain extends Component {
         const isBulk = isNaN(lineIndex);
 
         for (const [tabIndex, lines] of Object.entries(this.state.sourcesToLines)) {
-            if (tableIndex && tableIndex != tabIndex) continue;
-            lines.forEach(line => {
-                if (!isBulk && lineIndex != line.index) {
+            if (tableIndex && tableIndex !== tabIndex) {
+                continue;
+            }
+            lines.forEach((line) => {
+                if (!isBulk && lineIndex !== line.index) {
                     return;
                 }
                 // Bulk assign only flips lines that were actually assignable, so
@@ -156,17 +174,22 @@ export class ReceptionReportMain extends Component {
     }
 
     get hasContent() {
-        return this.data.sources_to_lines && Object.keys(this.data.sources_to_lines).length > 0;
+        return (
+            this.data.sources_to_lines &&
+            Object.keys(this.data.sources_to_lines).length > 0
+        );
     }
 
     get isAssignAllDisabled() {
-        return Object.values(this.state.sourcesToLines).every(
-            lines => lines.every(line => !isLineAssignable(line))
+        return Object.values(this.state.sourcesToLines).every((lines) =>
+            lines.every((line) => !isLineAssignable(line)),
         );
     }
 
     get isPrintLabelDisabled() {
-        return Object.values(this.state.sourcesToLines).every(lines => lines.every(line => !line.is_assigned));
+        return Object.values(this.state.sourcesToLines).every((lines) =>
+            lines.every((line) => !line.is_assigned),
+        );
     }
 }
 

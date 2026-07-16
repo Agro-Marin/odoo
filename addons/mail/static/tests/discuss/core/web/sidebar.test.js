@@ -10,7 +10,12 @@ import {
 } from "@mail/../tests/mail_test_helpers";
 import { describe, test } from "@odoo/hoot";
 import { press } from "@odoo/hoot-dom";
-import { asyncStep, Command, serverState, waitForSteps } from "@web/../tests/web_test_helpers";
+import {
+    asyncStep,
+    Command,
+    serverState,
+    waitForSteps,
+} from "@web/../tests/web_test_helpers";
 
 describe.current.tags("desktop");
 defineMailModels();
@@ -26,7 +31,7 @@ test("unknown channel can be displayed and interacted with", async () => {
     });
     const env = await start();
     env.services.bus_service.subscribe("discuss.channel/new_message", () =>
-        asyncStep("discuss.channel/new_message")
+        asyncStep("discuss.channel/new_message"),
     );
     await openDiscuss("mail.box_inbox");
     await contains("button.o-active", { text: "Inbox" });
@@ -39,7 +44,9 @@ test("unknown channel can be displayed and interacted with", async () => {
     await contains(".o-mail-Message", { text: "Hello" });
     await waitForSteps(["discuss.channel/new_message"]);
     await click("button", { text: "Inbox" });
-    await contains(".o-mail-DiscussSidebarChannel:not(.o-active)", { text: "Not So Secret" });
+    await contains(".o-mail-DiscussSidebarChannel:not(.o-active)", {
+        text: "Not So Secret",
+    });
     await click("[title='Channel Actions']");
     await click(".o-dropdown-item:contains('Leave Channel')");
     await click("button", { text: "Leave Conversation" });

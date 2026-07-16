@@ -1,13 +1,16 @@
 /** @odoo-module native */
 import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
-import { statusBarField, StatusBarField } from "@web/fields/display/statusbar/statusbar_field";
+import {
+    StatusBarField,
+    statusBarField,
+} from "@web/fields/display/statusbar/statusbar_field";
 
 export class AccountMoveStatusBarSecuredField extends StatusBarField {
     static template = "account.MoveStatusBarSecuredField";
 
     get isSecured() {
-        return this.props.record.data['secured'];
+        return this.props.record.data["secured"];
     }
 
     get currentItem() {
@@ -23,4 +26,6 @@ export const accountMoveStatusBarSecuredField = {
     additionalClasses: ["o_field_statusbar"],
 };
 
-registry.category("fields").add("account_move_statusbar_secured", accountMoveStatusBarSecuredField);
+registry
+    .category("fields")
+    .add("account_move_statusbar_secured", accountMoveStatusBarSecuredField);

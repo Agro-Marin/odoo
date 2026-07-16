@@ -1,5 +1,4 @@
 import {
-    SIZES,
     click,
     contains,
     defineMailModels,
@@ -7,14 +6,14 @@ import {
     openFormView,
     patchUiSize,
     scroll,
+    SIZES,
     start,
     startServer,
     triggerHotkey,
 } from "@mail/../tests/mail_test_helpers";
+import { HIGHLIGHT_CLASS } from "@mail/core/common/message_search_hook";
 import { describe, test } from "@odoo/hoot";
 import { serverState } from "@web/../tests/web_test_helpers";
-
-import { HIGHLIGHT_CLASS } from "@mail/core/common/message_search_hook";
 
 describe.current.tags("desktop");
 defineMailModels();
@@ -55,7 +54,9 @@ test("Search in chatter", async () => {
     triggerHotkey("Enter");
     await contains(".o-mail-SearchMessageResult .o-mail-Message");
     await click(".o-mail-MessageCard-jump");
-    await contains(".o-mail-Message.o-highlighted .o-mail-Message-content", { text: "not empty" });
+    await contains(".o-mail-Message.o-highlighted .o-mail-Message-content", {
+        text: "not empty",
+    });
 });
 
 test("Close button should close the search panel", async () => {

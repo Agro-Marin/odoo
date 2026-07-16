@@ -12,7 +12,12 @@ import {
 import { describe, test } from "@odoo/hoot";
 import { animationFrame } from "@odoo/hoot-dom";
 import { mockDate } from "@odoo/hoot-mock";
-import { Command, getService, serverState, withUser } from "@web/../tests/web_test_helpers";
+import {
+    Command,
+    getService,
+    serverState,
+    withUser,
+} from "@web/../tests/web_test_helpers";
 
 describe.current.tags("desktop");
 defineMailModels();
@@ -169,14 +174,19 @@ test("unnamed group chat should display correct name just after being invited", 
     await start();
     await openDiscuss();
     await contains(".o-mail-DiscussSidebarChannel", { text: "General" });
-    await contains(".o-mail-DiscussSidebarChannel", { count: 0, text: "Jane and Mitchell Admin" });
+    await contains(".o-mail-DiscussSidebarChannel", {
+        count: 0,
+        text: "Jane and Mitchell Admin",
+    });
     const currentPartnerId = serverState.partnerId;
     await withUser(userId, async () => {
         await getService("orm").call("discuss.channel", "add_members", [[channelId]], {
             partner_ids: [currentPartnerId],
         });
     });
-    await contains(".o-mail-DiscussSidebarChannel", { text: "Jane and Mitchell Admin" });
+    await contains(".o-mail-DiscussSidebarChannel", {
+        text: "Jane and Mitchell Admin",
+    });
     await contains(".o_notification", {
         text: "You have been invited to #Jane and Mitchell Admin",
     });
@@ -221,8 +231,12 @@ test("invite user to self chat opens DM chat with user", async () => {
     await start();
     await openDiscuss(selfChatId);
     await contains(".o-mail-DiscussSidebarChannel", { text: "Mitchell Admin" }); // self-chat
-    await contains(".o-mail-DiscussSidebarChannel", { text: "TestPartner and Mitchell Admin" });
-    await contains(".o-mail-DiscussSidebarChannel", { text: "TestGuest and Mitchell Admin" });
+    await contains(".o-mail-DiscussSidebarChannel", {
+        text: "TestPartner and Mitchell Admin",
+    });
+    await contains(".o-mail-DiscussSidebarChannel", {
+        text: "TestGuest and Mitchell Admin",
+    });
     await contains(".o-mail-DiscussSidebarChannel", { text: "TestPartner" });
     await click(".o-mail-DiscussContent-header button[title='Invite People']");
     await insertText(".o-discuss-ChannelInvitation-search", "TestPartner");

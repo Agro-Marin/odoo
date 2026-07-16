@@ -1,9 +1,9 @@
 /** @odoo-module native */
-import { luxon } from "@web/core/l10n/luxon";
 import { fields, Record } from "@mail/core/common/record";
 import { Store } from "@mail/core/common/store_service";
 import { browser } from "@web/core/browser/browser";
 import { deserializeDateTime } from "@web/core/l10n/dates";
+import { luxon } from "@web/core/l10n/luxon";
 import { user } from "@web/services/user";
 const { DateTime } = luxon;
 

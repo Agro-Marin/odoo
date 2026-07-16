@@ -15,7 +15,10 @@ defineMailModels();
 
 test("initially online", async () => {
     const pyEnv = await startServer();
-    const partnerId = pyEnv["res.partner"].create({ name: "Demo", im_status: "online" });
+    const partnerId = pyEnv["res.partner"].create({
+        name: "Demo",
+        im_status: "online",
+    });
     const channelId = pyEnv["discuss.channel"].create({
         channel_member_ids: [
             Command.create({ partner_id: serverState.partnerId }),
@@ -30,7 +33,10 @@ test("initially online", async () => {
 
 test("initially offline", async () => {
     const pyEnv = await startServer();
-    const partnerId = pyEnv["res.partner"].create({ name: "Demo", im_status: "offline" });
+    const partnerId = pyEnv["res.partner"].create({
+        name: "Demo",
+        im_status: "offline",
+    });
     const channelId = pyEnv["discuss.channel"].create({
         channel_member_ids: [
             Command.create({ partner_id: serverState.partnerId }),
@@ -91,7 +97,10 @@ test("change icon on change partner im_status", async () => {
 
 test("show im status in messaging menu preview of chat", async () => {
     const pyEnv = await startServer();
-    const partnerId = pyEnv["res.partner"].create({ name: "Demo", im_status: "online" });
+    const partnerId = pyEnv["res.partner"].create({
+        name: "Demo",
+        im_status: "online",
+    });
     pyEnv["discuss.channel"].create({
         channel_member_ids: [
             Command.create({ partner_id: serverState.partnerId }),

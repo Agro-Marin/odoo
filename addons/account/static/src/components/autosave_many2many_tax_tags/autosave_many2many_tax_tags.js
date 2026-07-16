@@ -1,10 +1,10 @@
 /** @odoo-module native */
-import { registry } from "@web/core/registry";
-import { useRecordObserver } from "@web/fields/hooks/record_observer";
 import {
     Many2ManyTaxTagsField,
-    many2ManyTaxTagsField
+    many2ManyTaxTagsField,
 } from "@account/components/many2x_tax_tags/many2x_tax_tags";
+import { registry } from "@web/core/registry";
+import { useRecordObserver } from "@web/fields/hooks/record_observer";
 
 export class AutosaveMany2ManyTaxTagsField extends Many2ManyTaxTagsField {
     setup() {
@@ -35,9 +35,11 @@ export class AutosaveMany2ManyTaxTagsField extends Many2ManyTaxTagsField {
         if (line.tax_ids.records.length > 0) {
             // account_id/partner_id are `false` when unset, so guard with ?. before
             // reading .id (a fresh line can have a tax tag but no account/partner yet).
-            if (line.balance !== this.lastBalance
-                || line.account_id?.id !== this.lastAccount?.id
-                || line.partner_id?.id !== this.lastPartner?.id) {
+            if (
+                line.balance !== this.lastBalance ||
+                line.account_id?.id !== this.lastAccount?.id ||
+                line.partner_id?.id !== this.lastPartner?.id
+            ) {
                 this.lastBalance = line.balance;
                 this.lastAccount = line.account_id;
                 this.lastPartner = line.partner_id;
@@ -56,4 +58,6 @@ export const autosaveMany2ManyTaxTagsField = {
     component: AutosaveMany2ManyTaxTagsField,
 };
 
-registry.category("fields").add("autosave_many2many_tax_tags", autosaveMany2ManyTaxTagsField);
+registry
+    .category("fields")
+    .add("autosave_many2many_tax_tags", autosaveMany2ManyTaxTagsField);

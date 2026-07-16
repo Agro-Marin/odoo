@@ -16,7 +16,6 @@ import { queryFirst } from "@odoo/hoot-dom";
 import { disableAnimations } from "@odoo/hoot-mock";
 import { getService, serverState } from "@web/../tests/web_test_helpers";
 import { deserializeDateTime } from "@web/core/l10n/dates";
-
 import { getOrigin } from "@web/core/utils/urls";
 
 describe.current.tags("desktop");
@@ -43,7 +42,9 @@ test("click on message in reply to highlight the parent message", async () => {
     await click(".o-mail-MessageInReply-message", {
         parent: [".o-mail-Message", { text: "Reply to Hey" }],
     });
-    await contains(".o-mail-Message.o-highlighted .o-mail-Message-content", { text: "Hey lol" });
+    await contains(".o-mail-Message.o-highlighted .o-mail-Message-content", {
+        text: "Hey lol",
+    });
 });
 
 test("click on message in reply to scroll to the parent message", async () => {
@@ -58,7 +59,7 @@ test("click on message in reply to scroll to the parent message", async () => {
                 message_type: "comment",
                 model: "discuss.channel",
                 res_id: channelId,
-            }))
+            })),
     );
     pyEnv["mail.message"].create({
         body: "Response to first message",
@@ -85,7 +86,9 @@ test("reply shows correct author avatar", async () => {
         res_id: channelId,
     });
     const partnerId = pyEnv["res.partner"].create({ name: "John Doe" });
-    const partner = pyEnv["res.partner"].search_read([["id", "=", serverState.partnerId]])[0];
+    const partner = pyEnv["res.partner"].search_read([
+        ["id", "=", serverState.partnerId],
+    ])[0];
     pyEnv["mail.message"].create({
         body: "Howdy",
         message_type: "comment",
@@ -99,7 +102,7 @@ test("reply shows correct author avatar", async () => {
     await contains(
         `.o-mail-MessageInReply-avatar[data-src='${`${getOrigin()}/web/image/res.partner/${
             serverState.partnerId
-        }/avatar_128?unique=${deserializeDateTime(partner.write_date).ts}`}`
+        }/avatar_128?unique=${deserializeDateTime(partner.write_date).ts}`}`,
     );
 });
 
@@ -122,9 +125,11 @@ test("click on message in reply highlights original message", async () => {
     await start();
     await openDiscuss(channelId);
     await click(
-        ".o-mail-Message:contains('Response to deleted message') .o-mail-MessageInReply:contains('Original message was deleted') .cursor-pointer"
+        ".o-mail-Message:contains('Response to deleted message') .o-mail-MessageInReply:contains('Original message was deleted') .cursor-pointer",
     );
-    await contains(".o-mail-Message.o-highlighted:contains('This message has been removed')");
+    await contains(
+        ".o-mail-Message.o-highlighted:contains('This message has been removed')",
+    );
 });
 
 test("can reply to logged note in chatter", async () => {
@@ -156,11 +161,15 @@ test("can reply to logged note in chatter", async () => {
     await openFormView("res.partner", serverState.partnerId);
     await click(".o-mail-Message:contains('Test message from B') [title='Reply']");
     await contains("button.active", { text: "Log note" });
-    await contains(".o-mail-Composer.o-focused .o-mail-Composer-input", { value: "@Partner B " });
+    await contains(".o-mail-Composer.o-focused .o-mail-Composer-input", {
+        value: "@Partner B ",
+    });
     await click(".o-mail-Composer-send:enabled");
     await contains(".o-mail-Message a.o_mail_redirect", { text: "@Partner B" });
     await contains(".o-mail-Message:contains('@Partner B') [title='Edit']");
-    await contains(".o-mail-Message:contains('@Partner B') [title='Reply']", { count: 0 });
+    await contains(".o-mail-Message:contains('@Partner B') [title='Reply']", {
+        count: 0,
+    });
     await click(".o-mail-Message:contains('@Partner B') [title='Expand']");
     await contains(".o-dropdown-item:contains('Delete')");
     await contains(".o-dropdown-item:contains('Reply')", { count: 0 });
@@ -184,9 +193,11 @@ test("reply to logged note in chatter keeps prefilled mention in html composer",
     await openFormView("res.partner", serverState.partnerId);
     await click(".o-mail-Message:contains('Test message from B') [title='Reply']");
     await contains("button.active:text('Log note')");
-    await contains(".o-mail-Composer.o-focused .o-mail-Composer-html.odoo-editor-editable");
     await contains(
-        ".o-mail-Composer-html.odoo-editor-editable a.o_mail_redirect:text('@Partner B')"
+        ".o-mail-Composer.o-focused .o-mail-Composer-html.odoo-editor-editable",
+    );
+    await contains(
+        ".o-mail-Composer-html.odoo-editor-editable a.o_mail_redirect:text('@Partner B')",
     );
     const editor = {
         document,
@@ -195,7 +206,9 @@ test("reply to logged note in chatter keeps prefilled mention in html composer",
     await htmlInsertText(editor, "Hello");
     await contains(".o-mail-Composer-send:enabled");
     await click(".o-mail-Composer-send:enabled");
-    await contains(".o-mail-Message:contains('Hello') a.o_mail_redirect:text('@Partner B')");
+    await contains(
+        ".o-mail-Message:contains('Hello') a.o_mail_redirect:text('@Partner B')",
+    );
 });
 
 test("Replying to a message containing line breaks should be correctly inlined", async () => {
@@ -296,7 +309,7 @@ test("click on message in reply in inbox navigates to the parent message", async
         parent: [".o-mail-Message", { text: "Reply to parent message" }],
     });
     await contains(
-        ".o-mail-DiscussContent:has(.o-mail-DiscussContent-threadName[title='General']) .o-mail-Message.o-highlighted .o-mail-Message-content:has(:text('Parent message'))"
+        ".o-mail-DiscussContent:has(.o-mail-DiscussContent-threadName[title='General']) .o-mail-Message.o-highlighted .o-mail-Message-content:has(:text('Parent message'))",
     );
 });
 
@@ -326,7 +339,7 @@ test("Click reply to note again preserves composer content", async () => {
     };
     pasteHtml(editor, "<strong>Strong Text</strong>");
     await contains(
-        ".o-mail-Composer-html.odoo-editor-editable:text('@Batman Strong Text'):has(a.o_mail_redirect:text('@Batman')):has(strong:text('Strong Text'))"
+        ".o-mail-Composer-html.odoo-editor-editable:text('@Batman Strong Text'):has(a.o_mail_redirect:text('@Batman')):has(strong:text('Strong Text'))",
     );
     // check the exact textContent because :text() validates the rendered text, not the NBSP separator.
     expect(editor.editable.textContent).toBe("\uFEFF@Batman\uFEFF\u00A0Strong Text");
@@ -335,7 +348,7 @@ test("Click reply to note again preserves composer content", async () => {
     await click(".o-mail-Message:contains(I am Justice) [title='Reply']");
     await contains(".o-mail-Composer.o-focused");
     await contains(
-        ".o-mail-Composer-html.odoo-editor-editable:text('@Batman Strong Text'):has(a.o_mail_redirect:text('@Batman')):has(strong:text('Strong Text'))"
+        ".o-mail-Composer-html.odoo-editor-editable:text('@Batman Strong Text'):has(a.o_mail_redirect:text('@Batman')):has(strong:text('Strong Text'))",
     );
     expect(editor.editable.textContent).toBe("\uFEFF@Batman\uFEFF\u00A0Strong Text");
 });

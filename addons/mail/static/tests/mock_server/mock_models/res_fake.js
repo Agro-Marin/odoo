@@ -22,10 +22,19 @@ export class ResFake extends models.Model {
     email_from = fields.Char({ string: "Email" });
     email_cc = fields.Char();
     message_ids = fields.One2many({ relation: "mail.message" });
-    message_follower_ids = fields.Many2many({ relation: "mail.followers", string: "Followers" });
-    partner_ids = fields.One2many({ relation: "res.partner", string: "Related partners" });
+    message_follower_ids = fields.Many2many({
+        relation: "mail.followers",
+        string: "Followers",
+    });
+    partner_ids = fields.One2many({
+        relation: "res.partner",
+        string: "Related partners",
+    });
     phone = fields.Char({ string: "Phone number" });
-    partner_id = fields.Many2one({ relation: "res.partner", string: "contact partner" });
+    partner_id = fields.Many2one({
+        relation: "res.partner",
+        string: "contact partner",
+    });
 
     _mail_get_partner_fields() {
         return ["partner_id"];
@@ -49,7 +58,11 @@ export class ResFake extends models.Model {
     }
 
     /** @param {number[]} ids */
-    _message_get_suggested_recipients(ids, additional_partners = [], primary_email = false) {
+    _message_get_suggested_recipients(
+        ids,
+        additional_partners = [],
+        primary_email = false,
+    ) {
         /** @type {import("mock_models").MailThread} */
         const MailThread = this.env["mail.thread"];
         /** @type {import("mock_models").ResPartner} */
@@ -69,7 +82,7 @@ export class ResFake extends models.Model {
                         email: record.email_cc,
                         partner: undefined,
                         reason: "CC email",
-                    })
+                    }),
                 );
             }
             if (primary_email) {
@@ -82,7 +95,7 @@ export class ResFake extends models.Model {
                         email: primary_email,
                         partner: undefined,
                         reason: "CC email",
-                    })
+                    }),
                 );
             }
             const partners = ResPartner.browse(record.partner_ids);
@@ -96,11 +109,13 @@ export class ResFake extends models.Model {
                             email: partner.email,
                             partner,
                             reason: "Email partner",
-                        })
+                        }),
                     );
                 }
             }
-            const partner_id = additional_partners.length ? additional_partners : record.partner_id;
+            const partner_id = additional_partners.length
+                ? additional_partners
+                : record.partner_id;
             const [partner] = ResPartner.browse(partner_id);
             if (partner) {
                 MailThread._message_add_suggested_recipient.call(
@@ -111,7 +126,7 @@ export class ResFake extends models.Model {
                         email: partner.email,
                         partner,
                         reason: "contact partner",
-                    })
+                    }),
                 );
             }
         }

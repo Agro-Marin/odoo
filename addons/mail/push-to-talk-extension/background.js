@@ -27,42 +27,44 @@ async function updateAppIcon() {
     chrome.action.setIcon({ path: isTalking ? ACTIVE_APP_ICON : INACTIVE_APP_ICON });
 }
 
-chrome.runtime.onMessageExternal.addListener(async function (request, sender, sendResponse) {
-    const { type, value } = request;
-    switch (type) {
-        case "subscribe":
-            {
-                const isTalkingByTabId = await getIsTalkingByTabId();
-                isTalkingByTabId[sender.tab.id] = false;
-                await chrome.storage.session.set({ isTalkingByTabId });
-            }
-            break;
-        case "unsubscribe":
-            {
-                const isTalkingByTabId = await getIsTalkingByTabId();
-                delete isTalkingByTabId[sender.tab.id];
-                await chrome.storage.session.set({ isTalkingByTabId });
-                await updateAppIcon();
-            }
-            break;
-        case "is-talking":
-            {
-                const isTalkingByTabId = await getIsTalkingByTabId();
-                isTalkingByTabId[sender.tab.id] = value;
-                await chrome.storage.session.set({ isTalkingByTabId });
-                await updateAppIcon();
-            }
-            break;
-        case "ask-is-enabled":
-            chrome.tabs.sendMessage(sender.tab.id, {
-                from: "discuss-push-to-talk",
-                type: "answer-is-enabled",
-            });
-            break;
-        case "ask-version":
-            sendResponse(chrome.runtime.getManifest().version);
-    }
-});
+chrome.runtime.onMessageExternal.addListener(
+    async function (request, sender, sendResponse) {
+        const { type, value } = request;
+        switch (type) {
+            case "subscribe":
+                {
+                    const isTalkingByTabId = await getIsTalkingByTabId();
+                    isTalkingByTabId[sender.tab.id] = false;
+                    await chrome.storage.session.set({ isTalkingByTabId });
+                }
+                break;
+            case "unsubscribe":
+                {
+                    const isTalkingByTabId = await getIsTalkingByTabId();
+                    delete isTalkingByTabId[sender.tab.id];
+                    await chrome.storage.session.set({ isTalkingByTabId });
+                    await updateAppIcon();
+                }
+                break;
+            case "is-talking":
+                {
+                    const isTalkingByTabId = await getIsTalkingByTabId();
+                    isTalkingByTabId[sender.tab.id] = value;
+                    await chrome.storage.session.set({ isTalkingByTabId });
+                    await updateAppIcon();
+                }
+                break;
+            case "ask-is-enabled":
+                chrome.tabs.sendMessage(sender.tab.id, {
+                    from: "discuss-push-to-talk",
+                    type: "answer-is-enabled",
+                });
+                break;
+            case "ask-version":
+                sendResponse(chrome.runtime.getManifest().version);
+        }
+    },
+);
 
 /**
  * Broadcast commands to all subcribers. Note that anyone can subscribe to the

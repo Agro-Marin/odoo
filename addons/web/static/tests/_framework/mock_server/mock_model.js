@@ -695,7 +695,7 @@ function getReadGroupOrder(order, groupby, aggregates) {
     const orderSpecs = [];
     for (const orderSpec of order.split(",")) {
         const [fname, direction] = orderSpec.trim().split(" ");
-        if (fname == "__count") {
+        if (fname === "__count") {
             orderSpecs.push(`${fname} ${direction}`);
             continue;
         }
@@ -1975,11 +1975,12 @@ export class Model extends Array {
                 );
                 const value = formatFieldValue(field.type, groupbySpec, recordValue);
 
-                if (field.type == "many2many" && value) {
+                if (field.type === "many2many" && value) {
                     // many2many groupby duplicates recordGroupsValues per value; a record
                     // can land in multiple groups
                     for (const group of [...recordGroupsValues]) {
                         for (const [index, id] of Object.entries(value)) {
+                            // eslint-disable-next-line eqeqeq -- index is a string key from Object.entries; loose == 0 matches only the first ("0") entry, === would never match
                             if (/** @type {any} */ (index) == 0) {
                                 group[groupbySpec] = id;
                             } else {
@@ -3119,7 +3120,7 @@ export class Model extends Array {
             }
 
             nbOpenedGroup += 1;
-            if (remainingGroupby.length == 1) {
+            if (remainingGroupby.length === 1) {
                 if (argsRead.offset && argsRead.offset >= group.__count) {
                     group.__offset = 0;
                     argsRead.offset = 0;

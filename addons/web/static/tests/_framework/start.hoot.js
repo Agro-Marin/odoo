@@ -180,7 +180,7 @@ export async function loadAndStart(testSpecifiers) {
             if (bucket) {
                 bucket.specifiers.push(specifier);
             } else {
-                let typeName = "(unknown)";
+                let typeName;
                 try {
                     typeName =
                         reason?.constructor?.name ||

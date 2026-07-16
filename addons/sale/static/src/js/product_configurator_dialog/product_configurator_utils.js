@@ -93,7 +93,9 @@ export function checkExclusions(products, product) {
     if (exclusions) {
         for (const ptavId of combination) {
             for (const excludedPtavId of exclusions[ptavId] || []) {
-                const excludedPtav = ptavList.find((ptav) => ptav.id === excludedPtavId);
+                const excludedPtav = ptavList.find(
+                    (ptav) => ptav.id === excludedPtavId,
+                );
                 if (excludedPtav) {
                     excludedPtav.excluded = true; // Assign only if the element exists
                 }
@@ -112,7 +114,9 @@ export function checkExclusions(products, product) {
     }
     if (archivedCombinations) {
         for (const excludedCombination of archivedCombinations) {
-            const ptavCommon = excludedCombination.filter((ptav) => combination.includes(ptav));
+            const ptavCommon = excludedCombination.filter((ptav) =>
+                combination.includes(ptav),
+            );
             if (ptavCommon.length === combination.length) {
                 for (const excludedPtavId of ptavCommon) {
                     const ptav = ptavList.find((ptav) => ptav.id === excludedPtavId);
@@ -123,9 +127,11 @@ export function checkExclusions(products, product) {
             } else if (ptavCommon.length === combination.length - 1) {
                 // In this case we only need to disable the remaining ptav
                 const disabledPtavId = excludedCombination.find(
-                    (ptav) => !combination.includes(ptav)
+                    (ptav) => !combination.includes(ptav),
                 );
-                const excludedPtav = ptavList.find((ptav) => ptav.id === disabledPtavId);
+                const excludedPtav = ptavList.find(
+                    (ptav) => ptav.id === disabledPtavId,
+                );
                 if (excludedPtav) {
                     excludedPtav.excluded = true;
                 }

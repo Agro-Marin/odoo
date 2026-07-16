@@ -1,8 +1,8 @@
 /** @odoo-module native */
 import { registry } from "@web/core/registry";
-import { ORM } from "@web/services/orm_service";
 import { unique } from "@web/core/utils/collections/arrays";
 import { Deferred } from "@web/core/utils/concurrency";
+import { ORM } from "@web/services/orm_service";
 
 class RequestBatcherORM extends ORM {
     constructor() {
@@ -61,8 +61,10 @@ class RequestBatcherORM extends ORM {
      * @returns {Promise<Object[]>}
      */
     async read(resModel, resIds, fields, kwargs) {
-        const records = await this.batch(resIds, ["read", resModel, fields, kwargs], (resIds) =>
-            super.read(resModel, resIds, fields, kwargs)
+        const records = await this.batch(
+            resIds,
+            ["read", resModel, fields, kwargs],
+            (resIds) => super.read(resModel, resIds, fields, kwargs),
         );
         return records.filter((r) => resIds.includes(r.id));
     }

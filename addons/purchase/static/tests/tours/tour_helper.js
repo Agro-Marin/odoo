@@ -22,7 +22,7 @@ export const purchaseForm = {
             for (const key in values) {
                 if (!Object.keys(fieldAndLabelDict).includes(key)) {
                     throw new Error(
-                        `'checkPurchaseOrderLineValues' is called with unsupported key: ${key}`
+                        `'checkPurchaseOrderLineValues' is called with unsupported key: ${key}`,
                     );
                 }
                 const value = values[key];
@@ -30,11 +30,11 @@ export const purchaseForm = {
                 const lineValue = getFieldValue(fieldName);
                 if (!lineValue) {
                     throw new Error(
-                        `Purchase order line at index ${index} expected ${value} as ${label} but got nothing`
+                        `Purchase order line at index ${index} expected ${value} as ${label} but got nothing`,
                     );
                 } else if (lineValue !== value) {
                     throw new Error(
-                        `Purchase order line at index ${index} expected ${value} as ${label} but got ${lineValue} instead`
+                        `Purchase order line at index ${index} expected ${value} as ${label} but got ${lineValue} instead`,
                     );
                 }
             }
@@ -61,7 +61,8 @@ export const purchaseForm = {
         return [
             {
                 content: "Go to product catalog",
-                trigger: ".o_field_x2many_list_row_add > button[name='action_add_from_catalog']",
+                trigger:
+                    ".o_field_x2many_list_row_add > button[name='action_add_from_catalog']",
                 run: "click",
             },
         ];

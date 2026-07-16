@@ -1,8 +1,12 @@
-import { click, contains, defineMailModels, start } from "@mail/../tests/mail_test_helpers";
+import {
+    click,
+    contains,
+    defineMailModels,
+    start,
+} from "@mail/../tests/mail_test_helpers";
+import { Avatar } from "@mail/views/web/fields/avatar/avatar";
 import { describe, test } from "@odoo/hoot";
 import { mountWithCleanup, serverState } from "@web/../tests/web_test_helpers";
-
-import { Avatar } from "@mail/views/web/fields/avatar/avatar";
 
 describe.current.tags("desktop");
 defineMailModels();

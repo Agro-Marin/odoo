@@ -28,7 +28,9 @@ test("Member list and Pinned Messages Panel menu are exclusive", async () => {
 test("subscribe to presence channels according to store data", async () => {
     const env = await makeMockEnv();
     const store = env.services["mail.store"];
-    onWebsocketEvent("subscribe", (data) => expect.step(`subscribe - [${data.channels}]`));
+    onWebsocketEvent("subscribe", (data) =>
+        expect.step(`subscribe - [${data.channels}]`),
+    );
     expect(env.services.bus_service.isActive).toBe(false);
     // Should not subscribe to presences as bus service is not started.
     store["res.partner"].insert({ id: 1, name: "Partner 1" });

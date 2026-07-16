@@ -8,14 +8,13 @@ import {
     start,
     startServer,
 } from "@mail/../tests/mail_test_helpers";
-import { describe, globals, test } from "@odoo/hoot";
-import { Deferred, mockDate } from "@odoo/hoot-mock";
-import { Command, patchWithCleanup, serverState } from "@web/../tests/web_test_helpers";
-
+import { Mp3Encoder } from "@mail/discuss/voice_message/common/mp3_encoder";
 import { loadLamejs } from "@mail/discuss/voice_message/common/voice_message_service";
 import { VoicePlayer } from "@mail/discuss/voice_message/common/voice_player";
 import { patchable } from "@mail/discuss/voice_message/common/voice_recorder";
-import { Mp3Encoder } from "@mail/discuss/voice_message/common/mp3_encoder";
+import { describe, globals, test } from "@odoo/hoot";
+import { Deferred, mockDate } from "@odoo/hoot-mock";
+import { Command, patchWithCleanup, serverState } from "@web/../tests/web_test_helpers";
 
 describe.current.tags("desktop");
 defineMailModels();

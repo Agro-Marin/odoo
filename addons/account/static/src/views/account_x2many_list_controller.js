@@ -1,8 +1,8 @@
 /** @odoo-module native */
-import { ListController } from "@web/views/list/list_controller";
+import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
-import {registry} from "@web/core/registry";
-import {listView} from "@web/views/list/list_view";
+import { ListController } from "@web/views/list/list_controller";
+import { listView } from "@web/views/list/list_view";
 
 export class AccountX2ManyListController extends ListController {
     setup() {
@@ -11,7 +11,12 @@ export class AccountX2ManyListController extends ListController {
     }
 
     async openRecord(record) {
-        const action = await this.orm.call(record.resModel, 'action_view_business_doc', [record.resId], {});
+        const action = await this.orm.call(
+            record.resModel,
+            "action_view_business_doc",
+            [record.resId],
+            {},
+        );
         return this.actionService.doAction(action);
     }
 }

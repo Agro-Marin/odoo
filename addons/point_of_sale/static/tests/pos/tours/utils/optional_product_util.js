@@ -25,9 +25,10 @@ export function addOptionalProduct(productName, quantity, configurable) {
             ...ProductConfigurator.pickRadio("wool"),
             // confirm Attribute Selection dialogue
             {
-                trigger: ".o-overlay-item:nth-child(2) .modal-footer button:contains('Add')",
+                trigger:
+                    ".o-overlay-item:nth-child(2) .modal-footer button:contains('Add')",
                 run: "click",
-            }
+            },
         );
     }
 
@@ -43,7 +44,7 @@ export function addOptionalProduct(productName, quantity, configurable) {
                     content: `Increase the quantity of "${productName}" by clicking the "+" button.`,
                     trigger: `.optional-product-line .cart-buttons button:eq(1)`,
                     run: "click",
-                }
+                },
             );
         }
         step.push({

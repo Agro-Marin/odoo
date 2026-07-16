@@ -56,7 +56,7 @@ export class DeviceSelect extends Component {
         browser.navigator.mediaDevices.addEventListener("devicechange", boundHandler, {
             signal,
         });
-        if (this.props.kind == "videoinput") {
+        if (this.props.kind === "videoinput") {
             const cameraPermission = await browser.navigator.permissions.query({
                 name: "camera",
             });

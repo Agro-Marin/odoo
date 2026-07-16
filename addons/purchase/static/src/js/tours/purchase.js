@@ -1,9 +1,8 @@
 /** @odoo-module native */
+import PurchaseAdditionalTourSteps from "@purchase/js/tours/purchase_steps";
 import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
 import { stepUtils } from "@web_tour/tour_utils";
-
-import PurchaseAdditionalTourSteps from "@purchase/js/tours/purchase_steps";
 
 registry.category("web_tour.tours").add("purchase_tour", {
     url: "/odoo",
@@ -13,7 +12,7 @@ registry.category("web_tour.tours").add("purchase_tour", {
             isActive: ["community"],
             trigger: '.o_app[data-menu-xmlid="purchase.menu_purchase_root"]',
             content: _t(
-                "Let's try the Purchase app to manage the flow from purchase to reception and invoice control."
+                "Let's try the Purchase app to manage the flow from purchase to reception and invoice control.",
             ),
             tooltipPosition: "right",
             run: "click",
@@ -22,7 +21,7 @@ registry.category("web_tour.tours").add("purchase_tour", {
             isActive: ["enterprise"],
             trigger: '.o_app[data-menu-xmlid="purchase.menu_purchase_root"]',
             content: _t(
-                "Let's try the Purchase app to manage the flow from purchase to reception and invoice control."
+                "Let's try the Purchase app to manage the flow from purchase to reception and invoice control.",
             ),
             tooltipPosition: "bottom",
             run: "click",
@@ -54,7 +53,8 @@ registry.category("web_tour.tours").add("purchase_tour", {
             run: "click",
         },
         {
-            trigger: ".o_field_res_partner_many2one[name='partner_id'] .o_external_button",
+            trigger:
+                ".o_field_res_partner_many2one[name='partner_id'] .o_external_button",
         },
         {
             trigger: ".o_field_x2many_list_row_add > a",
@@ -66,7 +66,8 @@ registry.category("web_tour.tours").add("purchase_tour", {
             trigger: ".o_purchase_order",
         },
         {
-            trigger: ".o_field_widget[name=product_id], .o_field_widget[name=product_template_id]",
+            trigger:
+                ".o_field_widget[name=product_id], .o_field_widget[name=product_template_id]",
             content: _t("Select a product, or create a new one on the fly."),
             tooltipPosition: "right",
             async run(actions) {
@@ -93,11 +94,12 @@ registry.category("web_tour.tours").add("purchase_tour", {
         },
         {
             isActive: ["auto", "mobile"],
-            trigger: ".o_statusbar_buttons .o_arrow_button_current[name='action_send_rfq']",
+            trigger:
+                ".o_statusbar_buttons .o_arrow_button_current[name='action_send_rfq']",
         },
         ...stepUtils.statusbarButtonsSteps(
             "Send by Email",
-            _t("Send the request for quotation to your vendor.")
+            _t("Send the request for quotation to your vendor."),
         ),
         {
             trigger: ".modal-footer button[name='action_send_mail']",
@@ -118,7 +120,7 @@ registry.category("web_tour.tours").add("purchase_tour", {
         {
             trigger: "tbody tr.o_data_row .o_list_number[name='price_unit']",
             content: _t(
-                "Once you get the price from the vendor, you can complete the purchase order with the right price."
+                "Once you get the price from the vendor, you can complete the purchase order with the right price.",
             ),
             tooltipPosition: "right",
             run: "edit 200.00",

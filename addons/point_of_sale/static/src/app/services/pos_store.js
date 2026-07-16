@@ -2076,7 +2076,7 @@ export class PosStore extends WithLazyGetterTrap {
                     changes,
                     change,
                 );
-                let result = {};
+                let result;
                 for (const data of receiptsData) {
                     result = await this.printOrderChanges(data, printer);
                     if (result.successful) {

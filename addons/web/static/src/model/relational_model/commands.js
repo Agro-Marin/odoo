@@ -14,13 +14,15 @@ export const x2ManyCommands = {
     // (0, virtualID | false, { values })
     CREATE: 0,
     create(virtualID, values) {
-        const { id: _, ...vals } = values;
+        const vals = { ...values };
+        delete vals.id;
         return [x2ManyCommands.CREATE, virtualID || false, vals];
     },
     // (1, id, { values })
     UPDATE: 1,
     update(id, values) {
-        const { id: _, ...vals } = values;
+        const vals = { ...values };
+        delete vals.id;
         return [x2ManyCommands.UPDATE, id, vals];
     },
     // (2, id[, _])

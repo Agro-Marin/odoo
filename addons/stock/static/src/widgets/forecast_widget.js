@@ -1,9 +1,9 @@
 /** @odoo-module native */
-import { FloatField, floatField } from "@web/fields/basic/float/float_field";
 import { formatDate } from "@web/core/l10n/dates";
-import { formatFloat } from "@web/fields/formatters";
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
+import { FloatField, floatField } from "@web/fields/basic/float/float_field";
+import { formatFloat } from "@web/fields/formatters";
 
 export class ForecastWidgetField extends FloatField {
     static template = "stock.ForecastWidget";
@@ -37,7 +37,11 @@ export class ForecastWidgetField extends FloatField {
 
     get willBeFulfilled() {
         const { data, fields } = this.props.record;
-        const options = { digits: fields.forecast_availability.digits, thousandsSep: "", decimalPoint: "." };
+        const options = {
+            digits: fields.forecast_availability.digits,
+            thousandsSep: "",
+            decimalPoint: ".",
+        };
         return (
             parseFloat(formatFloat(data.forecast_availability, options)) >=
             parseFloat(formatFloat(data.product_qty, options))
@@ -61,9 +65,11 @@ export class ForecastWidgetField extends FloatField {
         if (!this.resId || !this.props.record.data.is_storable) {
             return;
         }
-        const action = await this.orm.call("stock.move", "action_product_forecast_report", [
-            this.resId,
-        ]);
+        const action = await this.orm.call(
+            "stock.move",
+            "action_product_forecast_report",
+            [this.resId],
+        );
         this.actionService.doAction(action);
     }
 

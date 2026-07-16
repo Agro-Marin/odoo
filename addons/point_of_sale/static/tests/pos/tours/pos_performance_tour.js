@@ -4,7 +4,7 @@ function logText(displayText) {
     console.log(
         "\n\n┏" + "━".repeat(displayText.length) + "┓",
         `\n┃${displayText}┃`,
-        "\n┗" + "━".repeat(displayText.length) + "┛\n"
+        "\n┗" + "━".repeat(displayText.length) + "┛\n",
     );
 }
 
@@ -20,7 +20,7 @@ registry.category("web_tour.tours").add("tourSessionOpenProductPerformance", {
                     const endTime = Date.now();
                     const loadingTimeSec = (endTime - startTime) / 1000;
                     logText(
-                        ` POS loading time: ${loadingTimeSec.toFixed(2)} seconds for 20000 products`
+                        ` POS loading time: ${loadingTimeSec.toFixed(2)} seconds for 20000 products`,
                     );
                 },
             },

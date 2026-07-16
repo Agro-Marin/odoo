@@ -52,11 +52,11 @@ import { registerCleanup } from "./cleanup.js";
  * @param {number} [ms=0]
  */
 export function patchDate(year, month, day, hours, minutes, seconds, ms = 0) {
-    var RealDate = window.Date;
-    var actualDate = new RealDate();
+    const RealDate = window.Date;
+    const actualDate = new RealDate();
 
     // By default, RealDate uses the browser offset, so we must replace it with the offset fixed in luxon.
-    var fakeDate = new RealDate(year, month, day, hours, minutes, seconds, ms);
+    const fakeDate = new RealDate(year, month, day, hours, minutes, seconds, ms);
     if (!(luxon.Settings.defaultZone instanceof luxon.FixedOffsetZone)) {
         throw new Error("luxon.Settings.defaultZone must be a FixedOffsetZone");
     }
@@ -66,15 +66,15 @@ export function patchDate(year, month, day, hours, minutes, seconds, ms = 0) {
     const correctedMinutes = fakeDate.getMinutes() - offsetDiff;
     fakeDate.setMinutes(correctedMinutes);
 
-    var timeInterval = actualDate.getTime() - fakeDate.getTime();
+    const timeInterval = actualDate.getTime() - fakeDate.getTime();
 
     window.Date = (function (NativeDate) {
         function Date(Y, M, D, h, m, s, ms) {
-            var length = arguments.length;
+            const length = arguments.length;
             let date;
             if (arguments.length > 0) {
                 date =
-                    length == 1 && String(Y) === Y // isString(Y)
+                    length === 1 && String(Y) === Y // isString(Y)
                         ? // We explicitly pass it through parse:
                           new NativeDate(Date.parse(Y))
                         : // We have to manually make calls depending on argument
@@ -99,7 +99,7 @@ export function patchDate(year, month, day, hours, minutes, seconds, ms = 0) {
                 return date;
             } else {
                 date = new NativeDate();
-                var time = date.getTime();
+                let time = date.getTime();
                 time -= timeInterval;
                 date.setTime(time);
                 return date;
@@ -107,15 +107,15 @@ export function patchDate(year, month, day, hours, minutes, seconds, ms = 0) {
         }
 
         // Copy any custom methods a 3rd party library may have added
-        for (var key in NativeDate) {
+        for (const key in NativeDate) {
             Date[key] = NativeDate[key];
         }
 
         // Copy "native" methods explicitly; they may be non-enumerable
         // exception: 'now' uses fake date as reference
         Date.now = function () {
-            var date = new NativeDate();
-            var time = date.getTime();
+            const date = new NativeDate();
+            let time = date.getTime();
             time -= timeInterval;
             return time;
         };

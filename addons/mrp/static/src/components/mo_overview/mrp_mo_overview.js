@@ -1,13 +1,14 @@
 /** @odoo-module native */
-import { Component, EventBus, onWillStart, useSubEnv, useState } from "@odoo/owl";
+import { Component, EventBus, onWillStart, useState, useSubEnv } from "@odoo/owl";
 import { registry } from "@web/core/registry";
 import { useBus, useService } from "@web/core/utils/hooks";
+import { formatMonetary } from "@web/fields/formatters";
 import { Layout } from "@web/search/layout";
 import { standardActionServiceProps } from "@web/webclient/actions/action_service";
-import { MoOverviewLine } from "../mo_overview_line/mrp_mo_overview_line.js";
-import { MoOverviewDisplayFilter } from "../mo_overview_display_filter/mrp_mo_overview_display_filter.js";
+
 import { MoOverviewComponentsBlock } from "../mo_overview_components_block/mrp_mo_overview_components_block.js";
-import { formatMonetary } from "@web/fields/formatters";
+import { MoOverviewDisplayFilter } from "../mo_overview_display_filter/mrp_mo_overview_display_filter.js";
+import { MoOverviewLine } from "../mo_overview_line/mrp_mo_overview_line.js";
 import { getColorClass } from "../mrp_overview_utils.js";
 import { FOLD_ALL, useUnfoldedIds } from "../overview_fold.js";
 
@@ -110,7 +111,9 @@ export class MoOverview extends Component {
     }
 
     formatCost(cost) {
-        return formatMonetary(cost, { currencyId: this.state.data.summary.currency_id });
+        return formatMonetary(cost, {
+            currencyId: this.state.data.summary.currency_id,
+        });
     }
 
     //---- Getters ----
@@ -176,12 +179,22 @@ export class MoOverview extends Component {
     }
 
     get totalColspan() {
-        let colspan = 2;  // Name & Quantity
-        if (this.showReplenishments) colspan++;
-        if (this.showAvailabilities) colspan += 2;  // Free to use / On Hand & Reserved
-        if (this.showUom) colspan++;
-        if (this.showReceipts) colspan++;
-        if (this.showUnitCosts) colspan++;
+        let colspan = 2; // Name & Quantity
+        if (this.showReplenishments) {
+            colspan++;
+        }
+        if (this.showAvailabilities) {
+            colspan += 2;
+        } // Free to use / On Hand & Reserved
+        if (this.showUom) {
+            colspan++;
+        }
+        if (this.showReceipts) {
+            colspan++;
+        }
+        if (this.showUnitCosts) {
+            colspan++;
+        }
         return colspan;
     }
 

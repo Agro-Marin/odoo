@@ -1,9 +1,9 @@
 /* global posmodel */
 
-import * as Numpad from "@point_of_sale/../tests/generic_helpers/numpad_util";
 import * as Dialog from "@point_of_sale/../tests/generic_helpers/dialog_util";
-import * as PartnerList from "@point_of_sale/../tests/pos/tours/utils/partner_list_util";
 import * as NumberPopup from "@point_of_sale/../tests/generic_helpers/number_popup_util";
+import * as Numpad from "@point_of_sale/../tests/generic_helpers/numpad_util";
+import * as PartnerList from "@point_of_sale/../tests/pos/tours/utils/partner_list_util";
 
 /**
  * Clicks on the payment method and then performs checks if necessary.
@@ -78,7 +78,8 @@ export function clickRetryButton() {
     return [
         {
             content: "Retry sending the payment request using the payment terminal.",
-            trigger: ".paymentlines .paymentline .send_payment_request:contains('Retry')",
+            trigger:
+                ".paymentlines .paymentline .send_payment_request:contains('Retry')",
             run: "click",
         },
     ];
@@ -142,7 +143,9 @@ export function clickValidate() {
  * @param {String} keys space-separated numpad keys
  */
 export function clickNumpad(keys) {
-    return keys.split(" ").map((key) => ({ ...Numpad.click(key), isActive: ["desktop"] }));
+    return keys
+        .split(" ")
+        .map((key) => ({ ...Numpad.click(key), isActive: ["desktop"] }));
 }
 export function clickBack() {
     return [
@@ -191,7 +194,12 @@ export function clickTipButton() {
  * // Enter the amount "100" on the "Bank" payment line and check that the remaining amount is 50 and the change is 20
  * enterPaymentLineAmount("Bank", "100", true, { remaining: "50.0", change: "20.0" });
  */
-export function enterPaymentLineAmount(lineName, keys, isCheckNeeded = false, options = {}) {
+export function enterPaymentLineAmount(
+    lineName,
+    keys,
+    isCheckNeeded = false,
+    options = {},
+) {
     const { remaining = null, change = null, amount = null } = options;
     const step = [
         ...clickNumpad(keys.split("").join(" ")),
@@ -379,7 +387,10 @@ export function clickPartnerButton() {
 }
 
 export function clickCustomer(name, pressEnter = false) {
-    return [...PartnerList.searchCustomerValue(name, pressEnter), PartnerList.clickPartner(name)];
+    return [
+        ...PartnerList.searchCustomerValue(name, pressEnter),
+        PartnerList.clickPartner(name),
+    ];
 }
 
 export function shippingLaterHighlighted() {

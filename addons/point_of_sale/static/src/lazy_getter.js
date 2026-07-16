@@ -1,5 +1,6 @@
 /** @odoo-module native */
 import { effect } from "@web/core/utils/reactive";
+
 import { getDisabler } from "./proxy_trap.js";
 function getAllGetters(proto) {
     const getters = new Map();

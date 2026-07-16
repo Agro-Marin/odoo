@@ -1,7 +1,5 @@
-import { luxon } from "@web/core/l10n/luxon";
 import { waitForChannels } from "@bus/../tests/bus_test_helpers";
 import { onWebsocketEvent } from "@bus/../tests/mock_websocket";
-
 import {
     click,
     contains,
@@ -12,10 +10,9 @@ import {
     start,
     startServer,
 } from "@mail/../tests/mail_test_helpers";
-
 import { describe, edit, expect, mockDate, press, test } from "@odoo/hoot";
-
 import { Command } from "@web/../tests/web_test_helpers";
+import { luxon } from "@web/core/l10n/luxon";
 
 defineMailModels();
 
@@ -24,7 +21,10 @@ describe.current.tags("desktop");
 test("bus subscription updated when joining/leaving thread as non member", async () => {
     const pyEnv = await startServer();
     const johnUser = pyEnv["res.users"].create({ name: "John" });
-    const johnPartner = pyEnv["res.partner"].create({ name: "John", user_ids: [johnUser] });
+    const johnPartner = pyEnv["res.partner"].create({
+        name: "John",
+        user_ids: [johnUser],
+    });
     const channelId = pyEnv["discuss.channel"].create({
         channel_member_ids: [Command.create({ partner_id: johnPartner })],
         name: "General",
@@ -84,7 +84,7 @@ test("bus subscription is refreshed when channel is joined", async () => {
     onWebsocketEvent("subscribe", () => expect.step("subscribe"));
     const later = luxon.DateTime.now().plus({ seconds: 2 });
     mockDate(
-        `${later.year}-${later.month}-${later.day} ${later.hour}:${later.minute}:${later.second}`
+        `${later.year}-${later.month}-${later.day} ${later.hour}:${later.minute}:${later.second}`,
     );
     await start();
     await expect.waitForSteps(["subscribe"]);
@@ -101,7 +101,7 @@ test("bus subscription is refreshed when channel is left", async () => {
     onWebsocketEvent("subscribe", () => expect.step("subscribe"));
     const later = luxon.DateTime.now().plus({ seconds: 2 });
     mockDate(
-        `${later.year}-${later.month}-${later.day} ${later.hour}:${later.minute}:${later.second}`
+        `${later.year}-${later.month}-${later.day} ${later.hour}:${later.minute}:${later.second}`,
     );
     await start();
     await expect.waitForSteps(["subscribe"]);

@@ -327,7 +327,8 @@ export class WebsocketWorker {
                             channels: this._getAllChannels(),
                             db: this.currentDB,
                             is_reconnecting: this.isReconnecting,
-                            last_subscription: this._connection?.lastSubscription ?? null,
+                            last_subscription:
+                                this._connection?.lastSubscription ?? null,
                             name: this.name,
                             number_of_clients: this.channelsByClient.size,
                             reconnect_delay: this.connectRetryDelay,
@@ -1025,8 +1026,7 @@ export class WebsocketWorker {
         this.isReconnecting = false;
         const connection = this._connection;
         const shouldBroadcastClose =
-            connection &&
-            connection.socket.readyState !== WEBSOCKET_READY_STATE.CLOSED;
+            connection && connection.socket.readyState !== WEBSOCKET_READY_STATE.CLOSED;
         connection?.socket.close();
         this._removeWebsocketListeners();
         // Drop the connection before resolving its gate: `_stop` removed the

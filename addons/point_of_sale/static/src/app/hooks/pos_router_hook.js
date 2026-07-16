@@ -1,6 +1,7 @@
 /** @odoo-module native */
 import { useComponent } from "@odoo/owl";
 import { registry } from "@web/core/registry";
+
 import { usePos, usePosRouter } from "./pos_hook.js";
 export const useRouterParamsChecker = () => {
     const component = useComponent();

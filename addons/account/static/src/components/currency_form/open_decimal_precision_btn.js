@@ -1,9 +1,9 @@
 /** @odoo-module native */
 
-import { registry } from "@web/core/registry";
-import { standardFieldProps } from "@web/fields/standard_field_props";
-import { useService } from "@web/core/utils/hooks";
 import { Component } from "@odoo/owl";
+import { registry } from "@web/core/registry";
+import { useService } from "@web/core/utils/hooks";
+import { standardFieldProps } from "@web/fields/standard_field_props";
 
 class OpenDecimalPrecisionButton extends Component {
     static template = "account.OpenDecimalPrecisionButton";

@@ -1,5 +1,4 @@
 /** @odoo-module native */
-import { luxon } from "@web/core/l10n/luxon";
 import { isEmptyBlock } from "@html_editor/utils/dom_info";
 import {
     fillPartnersMentionToken,
@@ -19,6 +18,7 @@ import { markup, toRaw } from "@odoo/owl";
 import { loadEmoji } from "@web/components/emoji_picker/emoji_picker";
 import { browser } from "@web/core/browser/browser";
 import { router } from "@web/core/browser/router";
+import { luxon } from "@web/core/l10n/luxon";
 import { _t } from "@web/core/l10n/translation";
 import { rpc } from "@web/core/network/rpc";
 import {

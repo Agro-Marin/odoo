@@ -113,40 +113,42 @@ export function useVoiceRecorder() {
                 return;
             }
             processor = new browser.AudioWorkletNode(audioContext, "processor");
-        processor.port.onmessage = (e) => {
-            if (state.recording && !startTimeStamp) {
-                startTimeStamp = e.timeStamp;
-            }
-            if (!startTimeStamp) {
-                return;
-            }
-            const elapsedSeconds = Math.floor((e.timeStamp - startTimeStamp) / 1000);
-            const second = elapsedSeconds % 60;
-            const minute = Math.floor(elapsedSeconds / 60);
-            state.elapsed =
-                (minute < 10 ? "0" + minute : minute) +
-                " : " +
-                (second < 10 ? "0" + second : second);
-            if (elapsedSeconds > 55 && elapsedSeconds < 60) {
-                state.limitWarning = true;
-            }
-            if (elapsedSeconds === 60) {
-                notification.add(
-                    _t("The duration of voice messages is limited to 1 minute."),
-                    {
-                        type: "warning",
-                    },
+            processor.port.onmessage = (e) => {
+                if (state.recording && !startTimeStamp) {
+                    startTimeStamp = e.timeStamp;
+                }
+                if (!startTimeStamp) {
+                    return;
+                }
+                const elapsedSeconds = Math.floor(
+                    (e.timeStamp - startTimeStamp) / 1000,
                 );
-                stopRecording();
-                // stopRecording() already flushed the encoder and ran cleanUp();
-                // don't fall through to _encode() on the finished encoder.
-                return;
-            }
-            if (!e.data) {
-                return;
-            }
-            _encode(e.data);
-        };
+                const second = elapsedSeconds % 60;
+                const minute = Math.floor(elapsedSeconds / 60);
+                state.elapsed =
+                    (minute < 10 ? "0" + minute : minute) +
+                    " : " +
+                    (second < 10 ? "0" + second : second);
+                if (elapsedSeconds > 55 && elapsedSeconds < 60) {
+                    state.limitWarning = true;
+                }
+                if (elapsedSeconds === 60) {
+                    notification.add(
+                        _t("The duration of voice messages is limited to 1 minute."),
+                        {
+                            type: "warning",
+                        },
+                    );
+                    stopRecording();
+                    // stopRecording() already flushed the encoder and ran cleanUp();
+                    // don't fall through to _encode() on the finished encoder.
+                    return;
+                }
+                if (!e.data) {
+                    return;
+                }
+                _encode(e.data);
+            };
             streamSource = audioContext.createMediaStreamSource(microphone);
 
             // Start to get microphone data

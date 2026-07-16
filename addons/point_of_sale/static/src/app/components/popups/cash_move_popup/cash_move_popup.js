@@ -1,5 +1,4 @@
 /** @odoo-module native */
-import { luxon } from "@web/core/l10n/luxon";
 import { Component, useState } from "@odoo/owl";
 import { Input } from "@point_of_sale/app/components/inputs/input/input";
 import { CashMoveListPopup } from "@point_of_sale/app/components/popups/cash_move_popup/cash_move_list_popup/cash_move_list_popup";
@@ -8,6 +7,7 @@ import { NumberPopup } from "@point_of_sale/app/components/popups/number_popup/n
 import { useAsyncLockedMethod } from "@point_of_sale/app/hooks/hooks";
 import { usePos } from "@point_of_sale/app/hooks/pos_hook";
 import { makeAwaitable } from "@point_of_sale/app/utils/make_awaitable_dialog";
+import { luxon } from "@web/core/l10n/luxon";
 import { _t } from "@web/core/l10n/translation";
 import { useService } from "@web/core/utils/hooks";
 import { parseFloat } from "@web/fields/parsers";

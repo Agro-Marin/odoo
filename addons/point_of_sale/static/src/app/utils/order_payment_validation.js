@@ -1,9 +1,10 @@
 /** @odoo-module native */
-import { luxon } from "@web/core/l10n/luxon";
 import { serializeDateTime } from "@web/core/l10n/dates";
+import { luxon } from "@web/core/l10n/luxon";
 import { _t } from "@web/core/l10n/translation";
 import { ConnectionLostError, RPCError } from "@web/core/network/rpc";
 import { AlertDialog, ConfirmationDialog } from "@web/ui/dialog/confirmation_dialog";
+
 import { handleRPCError, showLimitedFunctionalityWarning } from "./error_handlers.js";
 import { ask } from "./make_awaitable_dialog.js";
 
@@ -40,7 +41,10 @@ export default class OrderPaymentValidation {
     }
 
     get nextPage() {
-        if (this.pos.config.iface_print_auto && this.pos.config.iface_print_skip_screen) {
+        if (
+            this.pos.config.iface_print_auto &&
+            this.pos.config.iface_print_skip_screen
+        ) {
             return {
                 page: "FeedbackScreen",
                 params: {

@@ -1,12 +1,14 @@
 /** @odoo-module native */
 import { Component } from "@odoo/owl";
-
 import { _t } from "@web/core/l10n/translation";
 import { evaluateExpr } from "@web/core/py_js/py";
-import { floatField, FloatField } from "@web/fields/basic/float/float_field";
-import { monetaryField, MonetaryField } from "@web/fields/basic/monetary/monetary_field";
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
+import { FloatField, floatField } from "@web/fields/basic/float/float_field";
+import {
+    MonetaryField,
+    monetaryField,
+} from "@web/fields/basic/monetary/monetary_field";
 
 const fieldRegistry = registry.category("fields");
 
@@ -21,7 +23,7 @@ class StockActionField extends Component {
     static components = {
         FloatField,
         MonetaryField,
-    }
+    };
     static template = "stock.actionField";
 
     setup() {
@@ -29,16 +31,18 @@ class StockActionField extends Component {
         this.actionService = useService("action");
         this.fieldType = this.props.record.fields[this.props.name].type;
     }
-    
-    extractProps () {
+
+    extractProps() {
         const keysToRemove = ["actionName", "actionContext", "disabled"];
         return Object.fromEntries(
-         Object.entries(this.props).filter(([prop]) => !keysToRemove.includes(prop))
-       );
+            Object.entries(this.props).filter(([prop]) => !keysToRemove.includes(prop)),
+        );
     }
 
     get disabled() {
-         return this.props.disabled ? evaluateExpr(this.props.disabled, this.props.record.evalContext) : false;
+        return this.props.disabled
+            ? evaluateExpr(this.props.disabled, this.props.record.evalContext)
+            : false;
     }
 
     _onClick(ev) {
@@ -69,9 +73,9 @@ const stockActionField = {
         ...Object.values(
             Object.fromEntries(
                 [...floatField.supportedOptions, ...monetaryField.supportedOptions].map(
-                    (option) => [option.name, option]
-                )
-            )
+                    (option) => [option.name, option],
+                ),
+            ),
         ),
         {
             label: _t("Action Name"),
@@ -82,7 +86,9 @@ const stockActionField = {
             label: _t("Disabled"),
             name: "disabled",
             type: "string",
-            help: _t("Python expression evaluated against the record to disable the field."),
+            help: _t(
+                "Python expression evaluated against the record to disable the field.",
+            ),
         },
     ],
     extractProps: (...args) => {
@@ -94,13 +100,13 @@ const stockActionField = {
             actionName: options.action_name,
             disabled: options.disabled,
             actionContext: context,
-        }
-        let props = {...action_props}
+        };
+        let props = { ...action_props };
         if (fieldType === "monetary") {
             props = { ...action_props, ...monetaryField.extractProps(...args) };
         } else if (fieldType === "float") {
             props = { ...action_props, ...floatField.extractProps(...args) };
-        };
+        }
         return props;
     },
 };

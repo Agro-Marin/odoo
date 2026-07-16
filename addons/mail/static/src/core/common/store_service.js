@@ -1,17 +1,4 @@
 /** @odoo-module native */
-import {
-    fields,
-    makeStore,
-    Store as BaseStore,
-    storeInsertFns,
-} from "@mail/core/common/record";
-import { threadCompareRegistry } from "@mail/core/common/thread_compare";
-import {
-    attClassObjectToString,
-    cleanTerm,
-    prettifyMessageText,
-} from "@mail/utils/common/format";
-import { compareDatetime } from "@mail/utils/common/misc";
 // Side-effect imports: the bundle graph must include every dependency
 // referenced by ``mail.store`` through a runtime string identifier so
 // that esbuild does not tree-shake them when ``store_service.js`` is
@@ -27,6 +14,20 @@ import { compareDatetime } from "@mail/utils/common/misc";
 //   if the corresponding ``*_model.js`` file was not imported.
 import "@mail/core/common/im_status_service";
 import "./_models.js";
+
+import {
+    fields,
+    makeStore,
+    Store as BaseStore,
+    storeInsertFns,
+} from "@mail/core/common/record";
+import { threadCompareRegistry } from "@mail/core/common/thread_compare";
+import {
+    attClassObjectToString,
+    cleanTerm,
+    prettifyMessageText,
+} from "@mail/utils/common/format";
+import { compareDatetime } from "@mail/utils/common/misc";
 import { reactive } from "@odoo/owl";
 import { loader } from "@web/components/emoji_picker/emoji_picker";
 import { browser } from "@web/core/browser/browser";

@@ -51,7 +51,8 @@ export function rottingProgressBarPatch() {
          */
         getGroupCount(group) {
             if (this.rotIsFiltered[group.id]) {
-                return group.list.records.filter((record) => record.data.is_rotting).length;
+                return group.list.records.filter((record) => record.data.is_rotting)
+                    .length;
             }
             return super.getGroupCount(group);
         },

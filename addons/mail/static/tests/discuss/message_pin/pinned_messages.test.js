@@ -7,7 +7,7 @@ import {
     start,
     startServer,
 } from "@mail/../tests/mail_test_helpers";
-import { describe, test, expect } from "@odoo/hoot";
+import { describe, expect, test } from "@odoo/hoot";
 import { disableAnimations } from "@odoo/hoot-mock";
 import { getService } from "@web/../tests/web_test_helpers";
 
@@ -35,7 +35,9 @@ async function assertPinnedPanelUnpinCount(expectedCount) {
     await contains(".o-discuss-PinnedMessagesPanel .o-mail-Message", {
         text: "Test pinned message",
     });
-    expect(".o-discuss-PinnedMessagesPanel button[title='Unpin']").toHaveCount(expectedCount);
+    expect(".o-discuss-PinnedMessagesPanel button[title='Unpin']").toHaveCount(
+        expectedCount,
+    );
 }
 
 test("Pin message", async () => {
@@ -56,7 +58,9 @@ test("Pin message", async () => {
     await click(".o-mail-Message [title='Expand']");
     await click(".dropdown-item", { text: "Pin" });
     await click(".modal-footer button", { text: "Yeah, pin it!" });
-    await contains(".o-discuss-PinnedMessagesPanel .o-mail-Message", { text: "Hello world!" });
+    await contains(".o-discuss-PinnedMessagesPanel .o-mail-Message", {
+        text: "Hello world!",
+    });
 });
 
 test("Unpin message", async () => {
@@ -120,7 +124,10 @@ test("Jump to message", async () => {
     await contains(".o-discuss-ChannelMemberList"); // wait for auto-open of this panel
     await click(".o-mail-DiscussContent-header button[title='Pinned Messages']");
     await click(".o-discuss-PinnedMessagesPanel a[role='button']", { text: "Jump" });
-    await contains(".o-mail-Thread .o-mail-Message-body", { text: "Hello world!", visible: true });
+    await contains(".o-mail-Thread .o-mail-Message-body", {
+        text: "Hello world!",
+        visible: true,
+    });
 });
 
 test("Jump to message from notification", async () => {
@@ -167,7 +174,9 @@ test("can add reactions from pinned panel", async () => {
     await click(".o-mail-QuickReactionMenu button", { text: "👍" });
     await contains(".o-mail-MessageReaction", { text: "👍1" });
     await click(".o-mail-DiscussContent-header button[title='Pinned Messages']");
-    await click(".o-discuss-PinnedMessagesPanel .o-mail-Message [title='Add a Reaction']");
+    await click(
+        ".o-discuss-PinnedMessagesPanel .o-mail-Message [title='Add a Reaction']",
+    );
     await click(".o-mail-QuickReactionMenu button", { text: "👍" });
     await contains(".o-mail-MessageReaction", { count: 0 });
 });

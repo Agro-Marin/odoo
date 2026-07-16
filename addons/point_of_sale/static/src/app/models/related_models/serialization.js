@@ -1,5 +1,6 @@
 /** @odoo-module native */
 import { serializeDate, serializeDateTime } from "@web/core/l10n/dates";
+
 import { DATE_TIME_TYPE, X2MANY_TYPES } from "./utils.js";
 const deepSerialization = (
     record,

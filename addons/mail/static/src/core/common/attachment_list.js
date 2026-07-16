@@ -1,5 +1,6 @@
 /** @odoo-module native */
 import { Gif } from "@mail/core/common/gif";
+import { attClassObjectToString } from "@mail/utils/common/format";
 import { Component } from "@odoo/owl";
 import { Dropdown } from "@web/components/dropdown/dropdown";
 import { useDropdownState } from "@web/components/dropdown/dropdown_hooks";
@@ -11,7 +12,6 @@ import { download } from "@web/core/network/download";
 import { useService } from "@web/core/utils/hooks";
 import { url } from "@web/core/utils/urls";
 import { ConfirmationDialog } from "@web/ui/dialog/confirmation_dialog";
-import { attClassObjectToString } from "@mail/utils/common/format";
 class Actions extends Component {
     static components = { Dropdown, DropdownItem };
     static props = ["actions"];

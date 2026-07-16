@@ -1,8 +1,9 @@
 /** @odoo-module native */
-import { _t } from '@web/core/l10n/translation';
-import { useService } from "@web/core/utils/hooks";
 import { UploadDropZone } from "@account/components/upload_drop_zone/upload_drop_zone";
 import { useState } from "@odoo/owl";
+import { _t } from "@web/core/l10n/translation";
+import { useService } from "@web/core/utils/hooks";
+
 import { uploadFileFromData } from "./upload_file_from_data_hook.js";
 
 /**
@@ -22,7 +23,9 @@ export const FileUploadDropzoneRendererMixin = (Base) =>
             super.setup();
             this.dropzoneState = useState({ visible: false });
             this.uploadFileFromData = uploadFileFromData(useService("notification"));
-            this.dropZoneTitle = _t("Drop and let the AI process your bills automatically.");
+            this.dropZoneTitle = _t(
+                "Drop and let the AI process your bills automatically.",
+            );
         }
 
         async onPaste(ev) {

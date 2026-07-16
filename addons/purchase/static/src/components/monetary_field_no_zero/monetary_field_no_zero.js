@@ -1,7 +1,10 @@
 /** @odoo-module native */
-import { monetaryField, MonetaryField } from "@web/fields/basic/monetary/monetary_field";
 import { registry } from "@web/core/registry";
 import { floatIsZero } from "@web/core/utils/format/numbers";
+import {
+    MonetaryField,
+    monetaryField,
+} from "@web/fields/basic/monetary/monetary_field";
 
 export class MonetaryFieldNoZero extends MonetaryField {
     static props = {

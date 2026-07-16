@@ -1,7 +1,7 @@
 /** @odoo-module native */
-import { luxon } from "@web/core/l10n/luxon";
 import { useEffect, useState } from "@odoo/owl";
 import { localization } from "@web/core/l10n/localization";
+import { luxon } from "@web/core/l10n/luxon";
 const { DateTime } = luxon;
 
 export function useTime() {

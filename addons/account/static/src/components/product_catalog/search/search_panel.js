@@ -1,14 +1,13 @@
 /** @odoo-module native */
-import { _t } from "@web/core/l10n/translation";
-import { onWillStart, useState } from '@odoo/owl';
+import { onWillStart, useState } from "@odoo/owl";
 import { getActiveHotkey } from "@web/core/browser/hotkeys";
-import { rpc } from '@web/core/network/rpc';
-import { useBus, useService } from '@web/core/utils/hooks';
-import { SearchPanel } from '@web/search/search_panel/search_panel';
-
+import { _t } from "@web/core/l10n/translation";
+import { rpc } from "@web/core/network/rpc";
+import { useBus, useService } from "@web/core/utils/hooks";
+import { SearchPanel } from "@web/search/search_panel/search_panel";
 
 export class AccountProductCatalogSearchPanel extends SearchPanel {
-    static template = 'account.ProductCatalogSearchPanel';
+    static template = "account.ProductCatalogSearchPanel";
 
     setup() {
         super.setup();
@@ -17,11 +16,15 @@ export class AccountProductCatalogSearchPanel extends SearchPanel {
         this.state = useState({
             ...this.state,
             sections: new Map(),
-            isAddingSection: '',
+            isAddingSection: "",
             newSectionName: "",
         });
 
-        useBus(this.env.searchModel, 'section-line-count-change', this.updateSectionLineCount);
+        useBus(
+            this.env.searchModel,
+            "section-line-count-change",
+            this.updateSectionLineCount,
+        );
 
         onWillStart(async () => await this.loadSections());
     }
@@ -52,7 +55,7 @@ export class AccountProductCatalogSearchPanel extends SearchPanel {
     }
 
     onDragStart(sectionId, ev) {
-        ev.dataTransfer.setData('section_id', sectionId);
+        ev.dataTransfer.setData("section_id", sectionId);
     }
 
     onDragOver(ev) {
@@ -61,28 +64,30 @@ export class AccountProductCatalogSearchPanel extends SearchPanel {
 
     onDrop(targetSecId, ev) {
         ev.preventDefault();
-        const moveSecId = parseInt(ev.dataTransfer.getData('section_id'));
-        if (moveSecId !== targetSecId) this.reorderSections(moveSecId, targetSecId);
+        const moveSecId = parseInt(ev.dataTransfer.getData("section_id"));
+        if (moveSecId !== targetSecId) {
+            this.reorderSections(moveSecId, targetSecId);
+        }
     }
 
     enableSectionInput(isAddingSection) {
         this.state.isAddingSection = isAddingSection;
-        setTimeout(() => document.querySelector('.o_section_input')?.focus(), 100);
+        setTimeout(() => document.querySelector(".o_section_input")?.focus(), 100);
     }
 
     onSectionInputKeydown(ev) {
         const hotkey = getActiveHotkey(ev);
-        if (hotkey === 'enter') {
+        if (hotkey === "enter") {
             this.createSection();
-        } else if (hotkey === 'escape') {
+        } else if (hotkey === "escape") {
             Object.assign(this.state, {
-                isAddingSection: '',
+                isAddingSection: "",
                 newSectionName: "",
             });
         }
     }
 
-    setSelectedSection(sectionId=null, filtered=false) {
+    setSelectedSection(sectionId = null, filtered = false) {
         this.env.searchModel.setSelectedSection(sectionId, filtered);
     }
 
@@ -93,7 +98,7 @@ export class AccountProductCatalogSearchPanel extends SearchPanel {
         // (Enter + blur, or a double Enter) can't fire a second create RPC with the
         // same name before this one resolves.
         Object.assign(this.state, {
-            isAddingSection: '',
+            isAddingSection: "",
             newSectionName: "",
         });
         if (!sectionName) {
@@ -101,18 +106,19 @@ export class AccountProductCatalogSearchPanel extends SearchPanel {
         }
 
         try {
-            const section = await rpc('/product/catalog/create_section',
+            const section = await rpc(
+                "/product/catalog/create_section",
                 this._getSectionInfoParams({
                     name: sectionName,
                     position: position,
-                })
+                }),
             );
 
             if (section) {
                 const sections = this.state.sections;
                 let newLineCount = 0;
 
-                if (position === 'top') {
+                if (position === "top") {
                     newLineCount = sections.get(false).line_count;
                     sections.delete(false);
                 }
@@ -130,18 +136,23 @@ export class AccountProductCatalogSearchPanel extends SearchPanel {
     }
 
     async loadSections() {
-        if (!this.showSections) return;
+        if (!this.showSections) {
+            return;
+        }
         let sections;
         try {
-            sections = await rpc('/product/catalog/get_sections', this._getSectionInfoParams());
+            sections = await rpc(
+                "/product/catalog/get_sections",
+                this._getSectionInfoParams(),
+            );
         } catch (error) {
             this._notifySectionError(error);
             return;
         }
 
         const sectionMap = new Map();
-        for (const {id, name, sequence, line_count} of sections) {
-            sectionMap.set(id, {name, sequence, line_count});
+        for (const { id, name, sequence, line_count } of sections) {
+            sectionMap.set(id, { name, sequence, line_count });
         }
         this.state.sections = sectionMap;
         this.setSelectedSection(sectionMap.size > 0 ? [...sectionMap.keys()][0] : null);
@@ -152,17 +163,20 @@ export class AccountProductCatalogSearchPanel extends SearchPanel {
         const moveSection = sections.get(moveId);
         const targetSection = sections.get(targetId);
 
-        if (!moveSection || !targetSection) return;
+        if (!moveSection || !targetSection) {
+            return;
+        }
 
         let updatedSequences;
         try {
-            updatedSequences = await rpc('/product/catalog/resequence_sections',
+            updatedSequences = await rpc(
+                "/product/catalog/resequence_sections",
                 this._getSectionInfoParams({
                     sections: [
                         { id: moveId, sequence: moveSection.sequence },
                         { id: targetId, sequence: targetSection.sequence },
                     ],
-                })
+                }),
             );
         } catch (error) {
             // Nothing was mutated locally yet (the sequence swap happens below on
@@ -180,10 +194,12 @@ export class AccountProductCatalogSearchPanel extends SearchPanel {
         this._sortSectionsBySequence(sections);
     }
 
-    updateSectionLineCount({detail: {sectionId, lineCountChange}}) {
+    updateSectionLineCount({ detail: { sectionId, lineCountChange } }) {
         const sections = this.state.sections;
         const section = sections.get(sectionId);
-        if (!section) return;
+        if (!section) {
+            return;
+        }
 
         section.line_count = Math.max(0, section.line_count + lineCountChange);
 
@@ -205,7 +221,7 @@ export class AccountProductCatalogSearchPanel extends SearchPanel {
 
     _sortSectionsBySequence(sections) {
         this.state.sections = new Map(
-            [...sections].sort((a, b) => a[1].sequence - b[1].sequence)
+            [...sections].sort((a, b) => a[1].sequence - b[1].sequence),
         );
     }
 }

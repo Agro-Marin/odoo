@@ -13,6 +13,7 @@ import {
 } from "@mail/views/web/fields/html_mail_field/convert_inline";
 import { beforeEach, describe, expect, getFixture, test } from "@odoo/hoot";
 import { enableTransitions } from "@odoo/hoot-mock";
+
 import {
     getGridHtml,
     getRegularGridHtml,
@@ -171,7 +172,13 @@ describe("Convert Bootstrap grids to tables", () => {
         // 3x[3,2,1]
         testConvertGrid({
             before: getRegularGridHtml(3, [3, 2, 1]),
-            after: getRegularTableHtml(3, [3, 2, 1], [4, 6, 12], [33.33, 50, 100], TEST_WIDTH),
+            after: getRegularTableHtml(
+                3,
+                [3, 2, 1],
+                [4, 6, 12],
+                [33.33, 50, 100],
+                TEST_WIDTH,
+            ),
             title: "should have converted a 3x[3,2,1] grid to an equivalent table",
         });
     });
@@ -194,7 +201,10 @@ describe("Convert Bootstrap grids to tables", () => {
         testConvertGrid({
             before: getRegularGridHtml(2, [1, 13]),
             after:
-                getRegularTableHtml(2, [1, 12], [12, 1], [100, 8.33], TEST_WIDTH).slice(0, -8) +
+                getRegularTableHtml(2, [1, 12], [12, 1], [100, 8.33], TEST_WIDTH).slice(
+                    0,
+                    -8,
+                ) +
                 `<tr>` +
                 getTdHtml(1, "(1, 12)", TEST_WIDTH) +
                 getTdHtml(11, "", TEST_WIDTH) + // 13 overflowed the row by 1 -> fill up
@@ -206,7 +216,10 @@ describe("Convert Bootstrap grids to tables", () => {
         testConvertGrid({
             before: getRegularGridHtml(3, [1, 13, 6]),
             after:
-                getRegularTableHtml(2, [1, 12], [12, 1], [100, 8.33], TEST_WIDTH).slice(0, -8) +
+                getRegularTableHtml(2, [1, 12], [12, 1], [100, 8.33], TEST_WIDTH).slice(
+                    0,
+                    -8,
+                ) +
                 `<tr>` +
                 getTdHtml(1, "(1, 12)", TEST_WIDTH) +
                 getTdHtml(11, "", TEST_WIDTH) + // 13 overflowed the row by 1 -> fill up
@@ -226,7 +239,7 @@ describe("Convert Bootstrap grids to tables", () => {
                     [1, 6, 12],
                     [12, 2, 1],
                     [100, 16.67, 8.33],
-                    TEST_WIDTH
+                    TEST_WIDTH,
                 ).slice(0, -8) +
                 `<tr>` +
                 getTdHtml(1, "(2, 12)", TEST_WIDTH) +
@@ -247,7 +260,7 @@ describe("Convert Bootstrap grids to tables", () => {
                         [4, 33.33],
                     ],
                 ],
-                TEST_WIDTH
+                TEST_WIDTH,
             ),
             title: "should have converted a 1x2 irregular grid to an equivalent table",
         });
@@ -263,7 +276,7 @@ describe("Convert Bootstrap grids to tables", () => {
                         [7, 58.33],
                     ],
                 ],
-                TEST_WIDTH
+                TEST_WIDTH,
             ),
             title: "should have converted a 1x3 grid to an equivalent table",
         });
@@ -284,7 +297,7 @@ describe("Convert Bootstrap grids to tables", () => {
                         [7, 58.33, ""],
                     ],
                 ],
-                TEST_WIDTH
+                TEST_WIDTH,
             ),
             title: "should have converted a 1x2 irregular overflowing grid to an equivalent table",
         });
@@ -307,7 +320,7 @@ describe("Convert Bootstrap grids to tables", () => {
                         [3, 25, ""],
                     ],
                 ],
-                TEST_WIDTH
+                TEST_WIDTH,
             ),
             title: "should have converted a 1x3 irregular overflowing grid to an equivalent table",
         });
@@ -331,7 +344,7 @@ describe("Convert Bootstrap grids to tables", () => {
                         [10, 83.33],
                     ],
                 ],
-                TEST_WIDTH
+                TEST_WIDTH,
             ),
             title: "should have converted a 2x2 irregular grid to an equivalent table",
         });
@@ -354,7 +367,7 @@ describe("Convert Bootstrap grids to tables", () => {
                         [2, 16.67],
                     ],
                 ],
-                TEST_WIDTH
+                TEST_WIDTH,
             ),
             title: "should have converted a 2x[2,3] irregular grid to an equivalent table",
         });
@@ -386,7 +399,7 @@ describe("Convert Bootstrap grids to tables", () => {
                         [3, 25, ""],
                     ],
                 ],
-                TEST_WIDTH
+                TEST_WIDTH,
             ),
             title: "should have converted a 2x[1,13] irregular grid to an equivalent table (both rows overflowing)",
         });
@@ -413,7 +426,7 @@ describe("Convert Bootstrap grids to tables", () => {
                         [6, 50, "(1, 2)"],
                     ],
                 ],
-                TEST_WIDTH
+                TEST_WIDTH,
             ),
             title: "should have converted a 2x[2,3] irregular grid to an equivalent table (first row overflowing)",
         });
@@ -440,7 +453,7 @@ describe("Convert Bootstrap grids to tables", () => {
                         [4, 33.33, ""],
                     ],
                 ],
-                TEST_WIDTH
+                TEST_WIDTH,
             ),
             title: "should have converted a 2x[3,2] irregular grid to an equivalent table (second row overflowing)",
         });
@@ -472,7 +485,7 @@ describe("Convert Bootstrap grids to tables", () => {
                         `role="presentation" style="width: 100% !important; border-collapse: separate; border-spacing: 0px; text-align: inherit; ` +
                         `font-size: unset; line-height: inherit; height: 100%;"><tr>` +
                         `<td class="card-header"><span>HEADER</span></td>` +
-                        `</tr></table></td>`
+                        `</tr></table></td>`,
                 )
                 .replace(
                     /<td[^>]*>\(1, 0\)<\/td>/,
@@ -481,7 +494,7 @@ describe("Convert Bootstrap grids to tables", () => {
                         `role="presentation" style="width: 100% !important; border-collapse: separate; border-spacing: 0px; text-align: inherit; ` +
                         `font-size: unset; line-height: inherit; height: 100%;"><tr>` +
                         `<td class="card-body"><h2 class="card-title">TITLE</h2><small>BODY <img></small></td>` +
-                        `</tr></table></td>`
+                        `</tr></table></td>`,
                 )
                 .replace(
                     /<td[^>]*>\(2, 0\)<\/td>/,
@@ -490,7 +503,7 @@ describe("Convert Bootstrap grids to tables", () => {
                         `role="presentation" style="width: 100% !important; border-collapse: separate; border-spacing: 0px; text-align: inherit; ` +
                         `font-size: unset; line-height: inherit; height: 100%;"><tr>` +
                         `<td class="card-footer"><a href="#" class="btn">FOOTER</a></td>` +
-                        `</tr></table></td>`
+                        `</tr></table></td>`,
                 ),
         });
     });
@@ -519,7 +532,7 @@ describe("Convert Bootstrap grids to tables", () => {
                 .replace(/<td[^>]*>(\(1, 0\))<\/td>/, '<td class="a">$1</td>')
                 .replace(
                     /<tr><td[^>]*>(\(2, 0\))<\/td>/,
-                    '<img><tr><td><strong class="b">$1</strong></td>'
+                    '<img><tr><td><strong class="b">$1</strong></td>',
                 ),
         });
     });
@@ -560,7 +573,7 @@ describe("Convert Bootstrap grids to tables", () => {
                         [2, 16.67, ""],
                     ],
                 ],
-                TEST_WIDTH
+                TEST_WIDTH,
             ),
             title: "should have converted a column with an offset to two columns, then completed the column",
         });
@@ -580,7 +593,7 @@ describe("Convert Bootstrap grids to tables", () => {
                         [6, 50, ""],
                     ],
                 ],
-                TEST_WIDTH
+                TEST_WIDTH,
             ),
             title: "should have converted a column with an offset to two columns, then completed the column (overflowing)",
         });
@@ -606,7 +619,7 @@ describe("Normalize styles", () => {
                     <p style="border: 1px #3264c8 solid; color: #238636;">Test</p>
                 </div>
             </div>`,
-            { message: "should have converted several rgb colors to hexadecimal" }
+            { message: "should have converted several rgb colors to hexadecimal" },
         );
     });
 
@@ -626,8 +639,9 @@ describe("Normalize styles", () => {
                 `</div>` +
                 `</div>`,
             {
-                message: "should have converted several rem sizes to px using the default rem size",
-            }
+                message:
+                    "should have converted several rem sizes to px using the default rem size",
+            },
         );
 
         editable.innerHTML = testDom;
@@ -639,8 +653,9 @@ describe("Normalize styles", () => {
                 `</div>` +
                 `</div>`,
             {
-                message: "should have converted several rem sizes to px using a set rem size",
-            }
+                message:
+                    "should have converted several rem sizes to px using a set rem size",
+            },
         );
     });
 
@@ -733,7 +748,7 @@ describe("Normalize styles", () => {
         removeGeneratedMarkers(editable);
         expect(editable).toHaveInnerHTML(
             `<table><tbody style="vertical-align: top;"><tr><td>I don't have a body :'(</td></tr></tbody></table>`,
-            { message: "should have added a tbody to a table that didn't have one" }
+            { message: "should have added a tbody to a table that didn't have one" },
         );
     });
 
@@ -742,14 +757,20 @@ describe("Normalize styles", () => {
         formatTables(editable);
         expect(editable).toHaveInnerHTML(
             `<table><tbody style="height: 0px;"><tr style="height: 100%;"><td>yup</td></tr></tbody></table>`,
-            { message: "should have added a 0 height to the parent of a 100% height element" }
+            {
+                message:
+                    "should have added a 0 height to the parent of a 100% height element",
+            },
         );
 
         editable.innerHTML = `<table><tbody style="height: 200px;"><tr style="height: 100%;"><td>yup</td></tr></tbody></table>`;
         formatTables(editable);
         expect(editable).toHaveInnerHTML(
             `<table><tbody style="height: 200px;"><tr style="height: 100%;"><td>yup</td></tr></tbody></table>`,
-            { message: "should have added a 0 height to the parent of a 100% height element" }
+            {
+                message:
+                    "should have added a 0 height to the parent of a 100% height element",
+            },
         );
 
         editable.innerHTML = `<table><tbody style="height: 50%;"><tr style="height: 100%;"><td>yup</td></tr></tbody></table>`;
@@ -759,7 +780,7 @@ describe("Normalize styles", () => {
             {
                 message:
                     "should have changed the height of the grandparent of a 100% height element",
-            }
+            },
         );
     });
 
@@ -768,21 +789,21 @@ describe("Normalize styles", () => {
         formatTables(editable);
         expect(editable).toHaveInnerHTML(
             `<table><tbody><tr><td style="align-self: start; vertical-align: top;">yup</td></tr></tbody></table>`,
-            { message: "should have added a top vertical alignment" }
+            { message: "should have added a top vertical alignment" },
         );
 
         editable.innerHTML = `<table><tbody><tr><td style="align-self: center;">yup</td></tr></tbody></table>`;
         formatTables(editable);
         expect(editable).toHaveInnerHTML(
             `<table><tbody><tr><td style="align-self: center; vertical-align: middle;">yup</td></tr></tbody></table>`,
-            { message: "should have added a middle vertical alignment" }
+            { message: "should have added a middle vertical alignment" },
         );
 
         editable.innerHTML = `<table><tbody><tr><td style="align-self: end;">yup</td></tr></tbody></table>`;
         formatTables(editable);
         expect(editable).toHaveInnerHTML(
             `<table><tbody><tr><td style="align-self: end; vertical-align: bottom;">yup</td></tr></tbody></table>`,
-            { message: "should have added a bottom vertical alignment" }
+            { message: "should have added a bottom vertical alignment" },
         );
     });
 });
@@ -805,13 +826,13 @@ describe("Convert snippets and mailing bodies to tables", () => {
                     "<td>" +
                         getRegularTableHtml(1, 1, 12, 100).replace(
                             /<td[^>]*>\(0, 0\)/,
-                            "<td><div>Snippet</div>"
-                        )
+                            "<td><div>Snippet</div>",
+                        ),
                 ),
             {
                 message:
                     "should have converted .o_mail_snippet_general to a special table structure with a table in it",
-            }
+            },
         );
 
         editable.innerHTML = `
@@ -826,12 +847,12 @@ describe("Convert snippets and mailing bodies to tables", () => {
                 .join('class="o_mail_snippet_general" style=')
                 .replace(
                     /<td[^>]*>\(0, 0\)/,
-                    "<td><table><tbody><tr><td>Snippet</td></tr></tbody></table>"
+                    "<td><table><tbody><tr><td>Snippet</td></tr></tbody></table>",
                 ),
             {
                 message:
                     "should have converted .o_mail_snippet_general to a special table structure, keeping the table in it",
-            }
+            },
         );
     });
 
@@ -849,13 +870,13 @@ describe("Convert snippets and mailing bodies to tables", () => {
                     "<td>" +
                         getRegularTableHtml(1, 1, 12, 100).replace(
                             /<td[^>]*>\(0, 0\)/,
-                            "<td><div>Mailing</div>"
-                        )
+                            "<td><div>Mailing</div>",
+                        ),
                 ),
             {
                 message:
                     "should have converted .o_layout to a special table structure with a table in it",
-            }
+            },
         );
 
         editable.innerHTML = `
@@ -871,12 +892,12 @@ describe("Convert snippets and mailing bodies to tables", () => {
                 .replace(" font-size: unset; line-height: inherit;", "") // o_layout keeps those default values
                 .replace(
                     /<td[^>]*>\(0, 0\)/,
-                    "<td><table><tbody><tr><td>Mailing</td></tr></tbody></table>"
+                    "<td><table><tbody><tr><td>Mailing</td></tr></tbody></table>",
                 ),
             {
                 message:
                     "should have converted .o_layout to a special table structure, keeping the table in it",
-            }
+            },
         );
     });
 });
@@ -891,7 +912,9 @@ describe("Convert classes to inline styles", () => {
         styleEl = document.createElement("style");
         styleEl.title = "test-stylesheet";
         document.head.appendChild(styleEl);
-        styleSheet = [...document.styleSheets].find((sheet) => sheet.title === "test-stylesheet");
+        styleSheet = [...document.styleSheets].find(
+            (sheet) => sheet.title === "test-stylesheet",
+        );
     });
 
     test("convert Bootstrap classes to inline styles", async () => {
@@ -905,7 +928,7 @@ describe("Convert classes to inline styles", () => {
             `div {
                 border-color: ${borderColor} !important;
             }`,
-            0
+            0,
         );
 
         classToStyle(editable, getCSSRules(editable.ownerDocument));
@@ -925,7 +948,7 @@ describe("Convert classes to inline styles", () => {
             {
                 message:
                     "should have converted the classes of a simple Bootstrap grid to inline styles",
-            }
+            },
         );
         styleSheet.deleteRule(0);
     });
@@ -958,7 +981,7 @@ describe("Convert classes to inline styles", () => {
                 border-top-left-radius: 40%;
             }
         `,
-            0
+            0,
         );
         editable.innerHTML = `<div class="test-border-radius"></div>`;
         classToStyle(editable, getCSSRules(editable.ownerDocument));
@@ -969,7 +992,7 @@ describe("Convert classes to inline styles", () => {
             {
                 message:
                     "should have converted border-[position]-radius styles (from class) to border-radius",
-            }
+            },
         );
         styleSheet.deleteRule(0);
 
@@ -983,7 +1006,7 @@ describe("Convert classes to inline styles", () => {
                 border-left-style: solid;
             }
         `,
-            0
+            0,
         );
         editable.innerHTML = `<div class="test-border"></div>`;
         classToStyle(editable, getCSSRules(editable.ownerDocument));
@@ -992,7 +1015,7 @@ describe("Convert classes to inline styles", () => {
             {
                 message:
                     "should have converted border-[position]-style styles (from class) to border-style",
-            }
+            },
         );
         styleSheet.deleteRule(0);
 
@@ -1004,13 +1027,16 @@ describe("Convert classes to inline styles", () => {
                 margin-left: 40px;
             }
         `,
-            0
+            0,
         );
         editable.innerHTML = `<div class="test-margin"></div>`;
         classToStyle(editable, getCSSRules(editable.ownerDocument));
         expect(editable).toHaveInnerHTML(
             `<div class="test-margin" style="margin:0 20px 30px 40px;box-sizing:border-box;"></div>`,
-            { message: "should have converted margin-[position] styles (from class) to margin" }
+            {
+                message:
+                    "should have converted margin-[position] styles (from class) to margin",
+            },
         );
         styleSheet.deleteRule(0);
 
@@ -1022,13 +1048,16 @@ describe("Convert classes to inline styles", () => {
                 padding-left: 40px;
             }
         `,
-            0
+            0,
         );
         editable.innerHTML = `<div class="test-padding"></div>`;
         classToStyle(editable, getCSSRules(editable.ownerDocument));
         expect(editable).toHaveInnerHTML(
             `<div class="test-padding" style="padding:10px 0 30px 40px;box-sizing:border-box;"></div>`,
-            { message: "should have converted padding-[position] styles (from class) to padding" }
+            {
+                message:
+                    "should have converted padding-[position] styles (from class) to padding",
+            },
         );
         styleSheet.deleteRule(0);
 
@@ -1043,7 +1072,7 @@ describe("Convert classes to inline styles", () => {
                 border-left-style: dotted;
             }
         `,
-            0
+            0,
         );
         editable.innerHTML = `<div class="test-border-uniform"></div>`;
         classToStyle(editable, getCSSRules(editable.ownerDocument));
@@ -1052,7 +1081,7 @@ describe("Convert classes to inline styles", () => {
             {
                 message:
                     "should have converted uniform border-[position]-style styles (from class) to border-style",
-            }
+            },
         );
         styleSheet.deleteRule(0);
 
@@ -1065,7 +1094,7 @@ describe("Convert classes to inline styles", () => {
                 margin-left: 10px;
             }
         `,
-            0
+            0,
         );
         editable.innerHTML = `<div class="test-margin-uniform"></div>`;
         classToStyle(editable, getCSSRules(editable.ownerDocument));
@@ -1074,7 +1103,7 @@ describe("Convert classes to inline styles", () => {
             {
                 message:
                     "should have converted uniform margin-[position] styles (from class) to margin",
-            }
+            },
         );
         styleSheet.deleteRule(0);
 
@@ -1087,7 +1116,7 @@ describe("Convert classes to inline styles", () => {
                 padding-left: 10px;
             }
         `,
-            0
+            0,
         );
         editable.innerHTML = `<div class="test-padding-uniform"></div>`;
         classToStyle(editable, getCSSRules(editable.ownerDocument));
@@ -1096,7 +1125,7 @@ describe("Convert classes to inline styles", () => {
             {
                 message:
                     "should have converted uniform padding-[position] styles (from class) to padding",
-            }
+            },
         );
         styleSheet.deleteRule(0);
 
@@ -1111,7 +1140,7 @@ describe("Convert classes to inline styles", () => {
                 border-left-style: solid;
             }
         `,
-            0
+            0,
         );
         editable.innerHTML = `<div class="test-border-inherit"></div>`;
         classToStyle(editable, getCSSRules(editable.ownerDocument));
@@ -1120,7 +1149,7 @@ describe("Convert classes to inline styles", () => {
             {
                 message:
                     "should not have converted border-[position]-style styles (from class) to border-style as they include an inherit",
-            }
+            },
         );
         styleSheet.deleteRule(0);
 
@@ -1133,7 +1162,7 @@ describe("Convert classes to inline styles", () => {
                 margin-left: 40px;
             }
         `,
-            0
+            0,
         );
         editable.innerHTML = `<div class="test-margin-inherit"></div>`;
         classToStyle(editable, getCSSRules(editable.ownerDocument));
@@ -1142,7 +1171,7 @@ describe("Convert classes to inline styles", () => {
             {
                 message:
                     "should not have converted margin-[position] styles (from class) to margin as they include an inherit",
-            }
+            },
         );
         styleSheet.deleteRule(0);
 
@@ -1155,7 +1184,7 @@ describe("Convert classes to inline styles", () => {
                 padding-left: 40px;
             }
         `,
-            0
+            0,
         );
         editable.innerHTML = `<div class="test-padding-inherit"></div>`;
         classToStyle(editable, getCSSRules(editable.ownerDocument));
@@ -1164,7 +1193,7 @@ describe("Convert classes to inline styles", () => {
             {
                 message:
                     "should have converted padding-[position] styles (from class) to padding as they include an inherit",
-            }
+            },
         );
         styleSheet.deleteRule(0);
 
@@ -1181,7 +1210,7 @@ describe("Convert classes to inline styles", () => {
                 margin-left: 40px;
             }
         `,
-            0
+            0,
         );
         editable.innerHTML = `<div class="test-margin-initial"></div>`;
         classToStyle(editable, getCSSRules(editable.ownerDocument));
@@ -1190,7 +1219,7 @@ describe("Convert classes to inline styles", () => {
             {
                 message:
                     "should not have converted margin-[position] styles (from class) to margin as they include an initial",
-            }
+            },
         );
         styleSheet.deleteRule(0);
 
@@ -1203,7 +1232,7 @@ describe("Convert classes to inline styles", () => {
                 padding-left: initial;
             }
         `,
-            0
+            0,
         );
         editable.innerHTML = `<div class="test-padding-initial"></div>`;
         classToStyle(editable, getCSSRules(editable.ownerDocument));
@@ -1212,7 +1241,7 @@ describe("Convert classes to inline styles", () => {
             {
                 message:
                     "should not have converted padding-[position] styles (from class) to padding as they include an initial",
-            }
+            },
         );
         styleSheet.deleteRule(0);
 
@@ -1230,7 +1259,7 @@ describe("Convert classes to inline styles", () => {
                 text-decoration-thickness: 10px;
             }
         `,
-            0
+            0,
         );
         editable.innerHTML = `<div class="test-decoration"></div>`;
         classToStyle(editable, getCSSRules(editable.ownerDocument));
@@ -1239,7 +1268,7 @@ describe("Convert classes to inline styles", () => {
             {
                 message:
                     "should have removed all text-decoration-[prop] styles (from class) and kept a simple text-decoration",
-            }
+            },
         );
         styleSheet.deleteRule(0);
 
@@ -1253,13 +1282,13 @@ describe("Convert classes to inline styles", () => {
                 border-left-style: initial;
             }
         `,
-            0
+            0,
         );
         editable.innerHTML = `<div class="test-border-initial"></div>`;
         classToStyle(editable, getCSSRules(editable.ownerDocument));
         expect(editable).toHaveInnerHTML(
             `<div class="test-border-initial" style="box-sizing:border-box;border-bottom-style:double;border-right-style:dashed;border-top-style:dotted;"></div>`,
-            { message: "should have removed border initial" }
+            { message: "should have removed border initial" },
         );
         styleSheet.deleteRule(0);
 
@@ -1270,13 +1299,13 @@ describe("Convert classes to inline styles", () => {
                 display: block;
             }
         `,
-            0
+            0,
         );
         editable.innerHTML = `<div class="test-block"></div>`;
         classToStyle(editable, getCSSRules(editable.ownerDocument));
         expect(editable).toHaveInnerHTML(
             `<div class="test-block" style="box-sizing:border-box;"></div>`,
-            { message: "should have removed display block" }
+            { message: "should have removed display block" },
         );
         styleSheet.deleteRule(0);
 
@@ -1287,13 +1316,13 @@ describe("Convert classes to inline styles", () => {
                 color: blue;
             }
         `,
-            0
+            0,
         );
         editable.innerHTML = `<div class="test-unimportant-color"></div>`;
         classToStyle(editable, getCSSRules(editable.ownerDocument));
         expect(editable).toHaveInnerHTML(
             `<div class="test-unimportant-color" style="box-sizing:border-box;color:blue;"></div>`,
-            { message: "should have converted a simple color" }
+            { message: "should have converted a simple color" },
         );
         styleSheet.insertRule(
             `
@@ -1301,13 +1330,16 @@ describe("Convert classes to inline styles", () => {
                 color: red !important;
             }
         `,
-            0
+            0,
         );
         editable.innerHTML = `<div class="test-important-color test-unimportant-color"></div>`;
         classToStyle(editable, getCSSRules(editable.ownerDocument));
         expect(editable).toHaveInnerHTML(
             `<div class="test-important-color test-unimportant-color" style="box-sizing:border-box;color:red;"></div>`,
-            { message: "should have converted an important color and removed the !important" }
+            {
+                message:
+                    "should have converted an important color and removed the !important",
+            },
         );
         styleSheet.deleteRule(0);
         styleSheet.deleteRule(0);
@@ -1319,13 +1351,13 @@ describe("Convert classes to inline styles", () => {
                 animation: example 5s linear 2s infinite alternate;
             }
         `,
-            0
+            0,
         );
         editable.innerHTML = `<div class="test-animation"></div>`;
         classToStyle(editable, getCSSRules(editable.ownerDocument));
         expect(editable).toHaveInnerHTML(
             `<div class="test-animation" style="box-sizing:border-box;"></div>`,
-            { message: "should have removed animation style" }
+            { message: "should have removed animation style" },
         );
         styleSheet.deleteRule(0);
         styleSheet.insertRule(
@@ -1339,13 +1371,13 @@ describe("Convert classes to inline styles", () => {
                 animation-direction: alternate;
             }
         `,
-            0
+            0,
         );
         editable.innerHTML = `<div class="test-animation-specific"></div>`;
         classToStyle(editable, getCSSRules(editable.ownerDocument));
         expect(editable).toHaveInnerHTML(
             `<div class="test-animation-specific" style="box-sizing:border-box;"></div>`,
-            { message: "should have removed all specific animation styles" }
+            { message: "should have removed all specific animation styles" },
         );
         styleSheet.deleteRule(0);
 
@@ -1357,13 +1389,13 @@ describe("Convert classes to inline styles", () => {
                 flex-flow: column wrap;
             }
         `,
-            0
+            0,
         );
         editable.innerHTML = `<div class="test-flex"></div>`;
         classToStyle(editable, getCSSRules(editable.ownerDocument));
         expect(editable).toHaveInnerHTML(
             `<div class="test-flex" style="box-sizing:border-box;"></div>`,
-            { message: "should have removed all flex styles" }
+            { message: "should have removed all flex styles" },
         );
         styleSheet.deleteRule(0);
         styleSheet.insertRule(
@@ -1377,13 +1409,13 @@ describe("Convert classes to inline styles", () => {
                 flex-grow: 4;
             }
         `,
-            0
+            0,
         );
         editable.innerHTML = `<div class="test-flex-specific"></div>`;
         classToStyle(editable, getCSSRules(editable.ownerDocument));
         expect(editable).toHaveInnerHTML(
             `<div class="test-flex-specific" style="box-sizing:border-box;"></div>`,
-            { message: "should have removed all specific flex styles" }
+            { message: "should have removed all specific flex styles" },
         );
         styleSheet.deleteRule(0);
 
@@ -1401,7 +1433,7 @@ describe("Convert classes to inline styles", () => {
         styleEl.title = "test-stylesheet";
         iframe.contentDocument.head.appendChild(styleEl);
         const styleSheet = [...iframe.contentDocument.styleSheets].find(
-            (sheet) => sheet.title === "test-stylesheet"
+            (sheet) => sheet.title === "test-stylesheet",
         );
         const borderColor = `rgb(255, 0, 0)`;
         styleSheet.insertRule(
@@ -1416,13 +1448,13 @@ describe("Convert classes to inline styles", () => {
                 }
             }
         `,
-            0
+            0,
         );
         iframeEditable.innerHTML = `<div class="o_layout" style="padding: 50px;">Test</div>`;
         classToStyle(iframeEditable, getCSSRules(iframeEditable.ownerDocument));
         expect(iframeEditable).toHaveInnerHTML(
             `<div class="o_layout" style="box-sizing:border-box;border-left-color:${borderColor};border-bottom-color:${borderColor};border-right-color:${borderColor};border-top-color:${borderColor};font-size:50px;direction:rtl;color:white;background-color:red;padding: 50px;">Test</div>`,
-            { message: "should have given all styles of body to .o_layout" }
+            { message: "should have given all styles of body to .o_layout" },
         );
         styleSheet.deleteRule(0);
     });
@@ -1434,7 +1466,7 @@ describe("Convert classes to inline styles", () => {
                 color: green;
             }
         `,
-            0
+            0,
         );
         styleSheet.insertRule(
             `
@@ -1442,7 +1474,7 @@ describe("Convert classes to inline styles", () => {
                 color: red;
             }
         `,
-            1
+            1,
         );
         styleSheet.insertRule(
             `
@@ -1450,28 +1482,28 @@ describe("Convert classes to inline styles", () => {
                 color: blue;
             }
         `,
-            2
+            2,
         );
 
         editable.innerHTML = `<span class="test-color"></span>`;
         classToStyle(editable, getCSSRules(editable.ownerDocument));
         expect(editable).toHaveInnerHTML(
             `<span class="test-color" style="box-sizing:border-box;color:blue;"></span>`,
-            { message: "should have prioritized the last defined style" }
+            { message: "should have prioritized the last defined style" },
         );
 
         editable.innerHTML = `<div class="test-color"></div>`;
         classToStyle(editable, getCSSRules(editable.ownerDocument));
         expect(editable).toHaveInnerHTML(
             `<div class="test-color" style="box-sizing:border-box;color:green;"></div>`,
-            { message: "should have prioritized the more specific style" }
+            { message: "should have prioritized the more specific style" },
         );
 
         editable.innerHTML = `<div class="test-color" style="color: yellow;"></div>`;
         classToStyle(editable, getCSSRules(editable.ownerDocument));
         expect(editable).toHaveInnerHTML(
             `<div class="test-color" style="box-sizing:border-box;color: yellow;"></div>`,
-            { message: "should have prioritized the inline style" }
+            { message: "should have prioritized the inline style" },
         );
 
         styleSheet.insertRule(
@@ -1480,18 +1512,17 @@ describe("Convert classes to inline styles", () => {
                 color: black !important;
             }
         `,
-            0
+            0,
         );
         editable.innerHTML = `<div class="test-color"></div>`;
         classToStyle(editable, getCSSRules(editable.ownerDocument));
         expect(editable).toHaveInnerHTML(
             `<div class="test-color" style="box-sizing:border-box;color:black;"></div>`,
-            { message: "should have prioritized the important style" }
+            { message: "should have prioritized the important style" },
         );
 
         // @todo to adapt when hoot has a better way to remove it
     });
-
 
     test("do not force computed grouped styles without dynamic values", async () => {
         enableTransitions();
@@ -1501,7 +1532,7 @@ describe("Convert classes to inline styles", () => {
                 color: blue;
             }
         `,
-            0
+            0,
         );
         editable.innerHTML = `<div class="test-no-bloat">Hello</div>`;
         getFixture().append(editable); // Attached: computed styles are resolvable.
@@ -1511,7 +1542,7 @@ describe("Convert classes to inline styles", () => {
             {
                 message:
                     "should not have baked computed border/margin/padding/border-radius values into the inline style",
-            }
+            },
         );
         styleSheet.deleteRule(0);
     });
@@ -1527,7 +1558,7 @@ describe("Convert classes to inline styles", () => {
                 border-color: blue;
             }
         `,
-            0
+            0,
         );
         editable.innerHTML = `<div class="test-var-border">Hello</div>`;
         getFixture().append(editable); // Attached: computed styles are resolvable.
@@ -1549,13 +1580,13 @@ describe("Convert classes to inline styles", () => {
                 color: red;
             }
         `,
-            0
+            0,
         );
         editable.innerHTML = `<div class="test-inline-flex" style="display: flex; flex-grow: 1; text-align: center;"></div>`;
         classToStyle(editable, getCSSRules(editable.ownerDocument));
         expect(editable).toHaveInnerHTML(
             `<div class="test-inline-flex" style="box-sizing:border-box;color:red; text-align: center;"></div>`,
-            { message: "should have removed the inline flex declarations" }
+            { message: "should have removed the inline flex declarations" },
         );
         styleSheet.deleteRule(0);
     });
@@ -1565,13 +1596,13 @@ describe("Convert classes to inline styles", () => {
         styleSheet.insertRule(`#test-spec-id { color: red; }`, 0);
         styleSheet.insertRule(
             `.tsc1.tsc2.tsc3.tsc4.tsc5.tsc6.tsc7.tsc8.tsc9.tsc10 { color: blue; }`,
-            1
+            1,
         );
         editable.innerHTML = `<div id="test-spec-id" class="tsc1 tsc2 tsc3 tsc4 tsc5 tsc6 tsc7 tsc8 tsc9 tsc10"></div>`;
         classToStyle(editable, getCSSRules(editable.ownerDocument));
         expect(editable).toHaveInnerHTML(
             `<div id="test-spec-id" class="tsc1 tsc2 tsc3 tsc4 tsc5 tsc6 tsc7 tsc8 tsc9 tsc10" style="box-sizing:border-box;color:red;"></div>`,
-            { message: "should have prioritized one id over ten classes" }
+            { message: "should have prioritized one id over ten classes" },
         );
         styleSheet.deleteRule(0);
         styleSheet.deleteRule(0);
@@ -1586,7 +1617,7 @@ describe("Convert classes to inline styles", () => {
             {
                 message:
                     "should have prioritized the (0, 1, 1) pseudo-class selector over the (0, 1, 0) class",
-            }
+            },
         );
         styleSheet.deleteRule(0);
         styleSheet.deleteRule(0);
@@ -1602,7 +1633,7 @@ describe("Convert classes to inline styles", () => {
             {
                 message:
                     "should have resolved the specificity tie between :not() and a class by document order",
-            }
+            },
         );
         styleSheet.deleteRule(0);
         styleSheet.deleteRule(0);
@@ -1611,28 +1642,34 @@ describe("Convert classes to inline styles", () => {
     test("only collect email-compatible css rules", async () => {
         styleSheet.insertRule(
             `@media (min-width: 1200px) { .test-media-desktop { color: red; } }`,
-            0
+            0,
         );
         styleSheet.insertRule(
             `@media (min-width: 768px) and (max-width: 991.98px) { .test-media-tablet { color: blue; } }`,
-            1
+            1,
         );
         styleSheet.insertRule(
             `@media (max-width: 575.98px) { .test-media-mobile { color: green; } }`,
-            2
+            2,
         );
-        styleSheet.insertRule(`@media screen { .test-media-screen { color: purple; } }`, 3);
-        styleSheet.insertRule(`@media print { .test-media-print { color: black; } }`, 4);
+        styleSheet.insertRule(
+            `@media screen { .test-media-screen { color: purple; } }`,
+            3,
+        );
+        styleSheet.insertRule(
+            `@media print { .test-media-print { color: black; } }`,
+            4,
+        );
         styleSheet.insertRule(
             `.test-nested-parent { .test-nested-child { color: orange; } }`,
-            5
+            5,
         );
         styleSheet.insertRule(`.test-visited:visited { color: yellow; }`, 6);
         styleSheet.insertRule(`.test-checked:checked { color: yellow; }`, 7);
         styleSheet.insertRule(`.test-disabled:disabled { color: yellow; }`, 8);
 
         const selectors = new Set(
-            getCSSRules(editable.ownerDocument).map((rule) => rule.selector)
+            getCSSRules(editable.ownerDocument).map((rule) => rule.selector),
         );
         // Unbounded desktop min-width rules apply to emails.
         expect(selectors.has(".test-media-desktop")).toBe(true);
@@ -1665,7 +1702,7 @@ describe("Convert classes to inline styles", () => {
                 border-style: solid;
             }
         `,
-            0
+            0,
         );
 
         styleSheet.insertRule(
@@ -1678,21 +1715,21 @@ describe("Convert classes to inline styles", () => {
                 border-style: solid;
             }
         `,
-            1
+            1,
         );
 
         editable.innerHTML = `<div><div class="test-border-zero"></div></div>`;
         classToStyle(editable, getCSSRules(editable.ownerDocument));
         expect(editable).toHaveInnerHTML(
             `<div><div class="test-border-zero" style="border-style:none;box-sizing:border-box;border-top-width:0px;border-right-width:0px;border-left-width:0px;border-bottom-width:0px;"></div></div>`,
-            { message: "Should change border-style to none" }
+            { message: "Should change border-style to none" },
         );
 
         editable.innerHTML = `<div><div class="test-border-one"></div></div>`;
         classToStyle(editable, getCSSRules(editable.ownerDocument));
         expect(editable).toHaveInnerHTML(
             `<div><div class="test-border-one" style="border-style:solid;box-sizing:border-box;border-top-width:1px;border-right-width:1px;border-left-width:1px;border-bottom-width:1px;"></div></div>`,
-            { message: "Should keep border style solid" }
+            { message: "Should keep border style solid" },
         );
     });
 
@@ -1704,7 +1741,7 @@ describe("Convert classes to inline styles", () => {
         getFixture().append(editable);
         styleSheet.insertRule(
             `.bubble { border-radius: calc(4px) calc(8px) calc(12px) calc(16px); }`,
-            0
+            0,
         );
         classToStyle(editable, getCSSRules(editable.ownerDocument));
         const div = editable.querySelector("div");
@@ -1730,8 +1767,7 @@ describe("Convert classes to inline styles", () => {
         // align-items on a flex row must translate to vertical-align on the row.
         // The flex-strip in classToStyle must not swallow the flex-* keyword
         // before formatTables gets to read it.
-        editable.innerHTML =
-            `<table><tbody><tr style="align-items: flex-start;"><td>x</td></tr></tbody></table>`;
+        editable.innerHTML = `<table><tbody><tr style="align-items: flex-start;"><td>x</td></tr></tbody></table>`;
         getFixture().append(editable);
         classToStyle(editable, getCSSRules(editable.ownerDocument));
         formatTables(editable);
@@ -1740,8 +1776,7 @@ describe("Convert classes to inline styles", () => {
             message: "align-items:flex-start must become vertical-align:top",
         });
 
-        editable.innerHTML =
-            `<table><tbody><tr style="align-items: flex-end;"><td>x</td></tr></tbody></table>`;
+        editable.innerHTML = `<table><tbody><tr style="align-items: flex-end;"><td>x</td></tr></tbody></table>`;
         getFixture().append(editable);
         classToStyle(editable, getCSSRules(editable.ownerDocument));
         formatTables(editable);
@@ -1755,17 +1790,19 @@ describe("Properly add MSO conditions", () => {
     test("Create mso properly", async () => {
         expect(createMso("<div>abcde</div>").nodeValue).toEqual(
             `[if mso]><div>abcde</div><![endif]`,
-            { message: "Should wrap the content in mso condition" }
+            { message: "Should wrap the content in mso condition" },
         );
 
         expect(
-            createMso("<div>ef<!--[if mso]><div>abcd</div><![endif]-->gh</div>").nodeValue
+            createMso("<div>ef<!--[if mso]><div>abcd</div><![endif]-->gh</div>")
+                .nodeValue,
         ).toEqual(`[if mso]><div>ef<div>abcd</div>gh</div><![endif]`, {
             message: "Should wrap the content inside one mso condition",
         });
 
         expect(
-            createMso("<div>ef<!--[if !mso]><div>abcd</div><![endif]-->gh</div>").nodeValue
+            createMso("<div>ef<!--[if !mso]><div>abcd</div><![endif]-->gh</div>")
+                .nodeValue,
         ).toEqual(`[if mso]><div>efgh</div><![endif]`, {
             message: "Should remove nested mso hide condition",
         });
@@ -1782,7 +1819,9 @@ describe("Should not convert blacklisted class to inline styles", () => {
         styleEl.type = "text/css";
         styleEl.title = "test-stylesheet";
         document.head.appendChild(styleEl);
-        styleSheet = [...document.styleSheets].find((sheet) => sheet.title === "test-stylesheet");
+        styleSheet = [...document.styleSheets].find(
+            (sheet) => sheet.title === "test-stylesheet",
+        );
     });
 
     test("should not convert blacklisted class to inline style", async () => {
@@ -1795,7 +1834,7 @@ describe("Should not convert blacklisted class to inline styles", () => {
             `<a contenteditable="false" href="#" class="o_mail_redirect" style="text-decoration: none; padding: 0rem 0.15rem; margin: 0rem 0.025rem; box-sizing: border-box; overflow-wrap: unset;">@Marc Demo</a> Testing!`,
             {
                 message: "blacklisted class styles should remain unconverted",
-            }
+            },
         );
     });
 
@@ -1809,7 +1848,10 @@ describe("Should not convert blacklisted class to inline styles", () => {
         classToStyle(editable, getCSSRules(editable.ownerDocument));
         expect(editable).toHaveInnerHTML(
             `<a contenteditable="false" href="#" class="o_mail_redirect test-style" style="text-decoration: none; padding: 0rem 0.15rem; margin: 0rem 0.025rem; box-sizing: border-box; background-color: yellow; overflow-wrap: unset;"> @Marc Demo </a> Testing!`,
-            { message: "styles marked !important should override blacklisted class restrictions" }
+            {
+                message:
+                    "styles marked !important should override blacklisted class restrictions",
+            },
         );
     });
 
@@ -1826,7 +1868,7 @@ describe("Should not convert blacklisted class to inline styles", () => {
             {
                 message:
                     "should ignore styles from lower specificity class in favor of blacklisted class",
-            }
+            },
         );
     });
 });

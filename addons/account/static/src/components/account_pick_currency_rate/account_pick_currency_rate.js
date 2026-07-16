@@ -1,10 +1,9 @@
 /** @odoo-module native */
 import { Component } from "@odoo/owl";
-import { registry } from "@web/core/registry";
 import { useDateTimePicker } from "@web/components/datetime/datetime_picker_hook";
+import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
 import { standardWidgetProps } from "@web/views/widgets/standard_widget_props";
-
 
 export class AccountPickCurrencyDate extends Component {
     static template = "account.AccountPickCurrencyDate";
@@ -17,20 +16,21 @@ export class AccountPickCurrencyDate extends Component {
     setup() {
         this.orm = useService("orm");
         this.dateTimePicker = useDateTimePicker({
-            target: 'datetime-picker-target',
+            target: "datetime-picker-target",
             onApply: async (date) => {
-                const record = this.props.record
-                const rate = await this.orm.call(
-                    'account.move',
-                    'get_currency_rate',
-                    [record.resId, record.data.company_id.id, record.data.currency_id.id, date.toISODate()],
-                );
+                const record = this.props.record;
+                const rate = await this.orm.call("account.move", "get_currency_rate", [
+                    record.resId,
+                    record.data.company_id.id,
+                    record.data.currency_id.id,
+                    date.toISODate(),
+                ]);
                 this.props.record.update({ invoice_currency_rate: rate });
                 await this.props.record.save();
             },
             get pickerProps() {
                 return {
-                    type: 'date',
+                    type: "date",
                 };
             },
         });
@@ -39,6 +39,8 @@ export class AccountPickCurrencyDate extends Component {
 
 export const accountPickCurrencyDate = {
     component: AccountPickCurrencyDate,
-}
+};
 
-registry.category("view_widgets").add("account_pick_currency_date",  accountPickCurrencyDate);
+registry
+    .category("view_widgets")
+    .add("account_pick_currency_date", accountPickCurrencyDate);

@@ -34,11 +34,16 @@ const archs = {
 
 test("Show 'Followers only' placeholder for recipients input when no recipient", async () => {
     const pyEnv = await startServer();
-    const partnerId = pyEnv["res.partner"].create({ name: "test name 1", email: "test1@odoo.com" });
+    const partnerId = pyEnv["res.partner"].create({
+        name: "test name 1",
+        email: "test1@odoo.com",
+    });
     await start();
     await openFormView("res.partner", partnerId);
     await click("button", { text: "Send message" });
-    await contains(".o-mail-RecipientsInput .o-autocomplete--input[placeholder='Followers only']");
+    await contains(
+        ".o-mail-RecipientsInput .o-autocomplete--input[placeholder='Followers only']",
+    );
 });
 
 test("Opening full composer in 'send message' mode should copy selected suggested recipients", async () => {
@@ -65,7 +70,10 @@ test("Opening full composer in 'send message' mode should copy selected suggeste
             const [johnTestPartnerId] = pyEnv["res.partner"].search([
                 ["email", "=", "john@test.be"],
             ]);
-            expect(action.context.default_partner_ids).toEqual([johnTestPartnerId, partnerId]);
+            expect(action.context.default_partner_ids).toEqual([
+                johnTestPartnerId,
+                partnerId,
+            ]);
             def.resolve();
         },
     });
@@ -166,11 +174,15 @@ test("suggest recipient on 'Send message' composer", async () => {
     await click("button", { text: "Send message" });
     await contains(".o-mail-RecipientsInput .o_tag_badge_text:contains(john@test.be)");
     // Ensure that partner `john@test.be` is created before sending the message
-    expect(pyEnv["res.partner"].search_read([["email", "=", "john@test.be"]])).toHaveLength(0);
+    expect(
+        pyEnv["res.partner"].search_read([["email", "=", "john@test.be"]]),
+    ).toHaveLength(0);
     await insertText(".o-mail-Composer-input", "Dummy Message");
     await click(".o-mail-Composer-send:enabled");
     await tick();
-    expect(pyEnv["res.partner"].search_read([["email", "=", "john@test.be"]])).toHaveLength(1);
+    expect(
+        pyEnv["res.partner"].search_read([["email", "=", "john@test.be"]]),
+    ).toHaveLength(1);
     await contains(".o-mail-Followers-counter", { text: "1" });
 });
 
@@ -208,7 +220,9 @@ test("suggested recipients without name should show display_name instead", async
     await start();
     await openFormView("res.fake", fakeId);
     await click("button", { text: "Send message" });
-    await contains(".o-mail-RecipientsInput .o_tag_badge_text", { text: "Test Partner, Invoice" });
+    await contains(".o-mail-RecipientsInput .o_tag_badge_text", {
+        text: "Test Partner, Invoice",
+    });
 });
 
 test("update email for the partner on the fly", async () => {
@@ -239,7 +253,9 @@ test("recipients dropdown only offers 'Create' when the input has text", async (
     await click("button", { text: "Send message" });
     await insertText(".o-mail-RecipientsInput .o-autocomplete--input", "New");
     await contains(".o_m2o_dropdown_option_create", { text: "Create New" });
-    await insertText(".o-mail-RecipientsInput .o-autocomplete--input", "", { replace: true });
+    await insertText(".o-mail-RecipientsInput .o-autocomplete--input", "", {
+        replace: true,
+    });
     await contains(".o_m2o_dropdown_option_create", { count: 0 });
 });
 

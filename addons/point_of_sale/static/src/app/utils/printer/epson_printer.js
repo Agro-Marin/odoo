@@ -1,9 +1,9 @@
 /** @odoo-module native */
+import { getLNATargetAddressSpace } from "@point_of_sale/app/utils/init_lna";
 import { BasePrinter } from "@point_of_sale/app/utils/printer/base_printer";
 import { _t } from "@web/core/l10n/translation";
 import { getTemplate } from "@web/core/templates";
 import { append, createElement, createTextNode } from "@web/core/utils/dom/xml";
-import { getLNATargetAddressSpace } from "@point_of_sale/app/utils/init_lna";
 const STATUS_ROLL_PAPER_HAS_RUN_OUT = 0x00080000;
 const STATUS_ROLL_PAPER_HAS_ALMOST_RUN_OUT = 0x00020000;
 const ERROR_CODE_PRINTER_NOT_REACHABLE = "PRINTER_NOT_REACHABLE";

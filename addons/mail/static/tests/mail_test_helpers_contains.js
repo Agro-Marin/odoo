@@ -2,7 +2,7 @@
 
 import { __debug__, after, afterEach, expect, getFixture } from "@odoo/hoot";
 import { queryAll, queryFirst } from "@odoo/hoot-dom";
-import { Deferred, animationFrame, tick } from "@odoo/hoot-mock";
+import { animationFrame, Deferred, tick } from "@odoo/hoot-mock";
 import { isMacOS } from "@web/core/browser/feature_detection";
 import { isVisible } from "@web/core/utils/dom/ui";
 
@@ -167,7 +167,9 @@ function findElement(el, selector) {
             throw new Error(`No element found (selector: ${selector})`);
         }
         if (els.length > 1) {
-            throw new Error(`Found ${els.length} elements, instead of 1 (selector: ${selector})`);
+            throw new Error(
+                `Found ${els.length} elements, instead of 1 (selector: ${selector})`,
+            );
         }
         target = els[0];
     }
@@ -200,7 +202,7 @@ function triggerEvent(el, selector, eventType, eventInit, options = {}) {
         throw new Error(
             `Cannot trigger event${eventType ? ` "${eventType}"` : ""}${
                 selector ? ` (with selector "${selector}")` : ""
-            }: ${errors.join(" and ")}`
+            }: ${errors.join(" and ")}`,
         );
     }
 
@@ -231,7 +233,9 @@ function triggerEvent(el, selector, eventType, eventInit, options = {}) {
  */
 function _triggerEvents(el, selector, eventDefs, options = {}) {
     const events = [...eventDefs].map((eventDef) => {
-        const [eventType, eventInit] = Array.isArray(eventDef) ? eventDef : [eventDef, {}];
+        const [eventType, eventInit] = Array.isArray(eventDef)
+            ? eventDef
+            : [eventDef, {}];
         return triggerEvent(el, selector, eventType, eventInit, options);
     });
     if (options.sync) {
@@ -244,7 +248,11 @@ function _triggerEvents(el, selector, eventDefs, options = {}) {
 function _click(
     el,
     selector,
-    { mouseEventInit = {}, skipDisabledCheck = false, skipVisibilityCheck = false } = {}
+    {
+        mouseEventInit = {},
+        skipDisabledCheck = false,
+        skipVisibilityCheck = false,
+    } = {},
 ) {
     if (!skipDisabledCheck && el.disabled) {
         throw new Error("Can't click on a disabled button");
@@ -261,14 +269,16 @@ function _click(
             "mouseup",
             ["click", mouseEventInit],
         ],
-        { skipVisibilityCheck }
+        { skipVisibilityCheck },
     );
 }
 
 export async function editInput(el, selector, value) {
     const input = findElement(el, selector);
     if (!(input instanceof HTMLInputElement || input instanceof HTMLTextAreaElement)) {
-        throw new Error("Only 'input' and 'textarea' elements can be edited with 'editInput'.");
+        throw new Error(
+            "Only 'input' and 'textarea' elements can be edited with 'editInput'.",
+        );
     }
     if (
         ![
@@ -292,7 +302,9 @@ export async function editInput(el, selector, value) {
         const dataTransfer = new DataTransfer();
         for (const file of files) {
             if (!(file instanceof File)) {
-                throw new Error(`File input value should be one or several File objects.`);
+                throw new Error(
+                    `File input value should be one or several File objects.`,
+                );
             }
             dataTransfer.items.add(file);
         }
@@ -461,7 +473,11 @@ export async function triggerEvents(selector, events, options) {
  * @param {boolean} addOverlayModParts
  * @param {KeyboardEventInit} eventAttrs
  */
-export async function triggerHotkey(hotkey, addOverlayModParts = false, eventAttrs = {}) {
+export async function triggerHotkey(
+    hotkey,
+    addOverlayModParts = false,
+    eventAttrs = {},
+) {
     eventAttrs.key = hotkey.split("+").pop();
     if (/shift/i.test(hotkey)) {
         eventAttrs.shiftKey = true;
@@ -490,7 +506,7 @@ export async function triggerHotkey(hotkey, addOverlayModParts = false, eventAtt
             ["keydown", eventAttrs],
             ["keyup", eventAttrs],
         ],
-        { skipVisibilityCheck: true }
+        { skipVisibilityCheck: true },
     );
     return { keydownEvent, keyupEvent };
 }
@@ -602,7 +618,7 @@ class Contains {
             hasUsedContainsPositively = true;
         } else if (!hasUsedContainsPositively) {
             throw new Error(
-                `Starting a test with "contains" of count 0 for selector "${this.selector}" is useless because it might immediately resolve. Start the test by checking that an expected element actually exists.`
+                `Starting a test with "contains" of count 0 for selector "${this.selector}" is useless because it might immediately resolve. Start the test by checking that an expected element actually exists.`,
             );
         }
         /** @type {string} */
@@ -616,7 +632,7 @@ class Contains {
             this.timeoutCount++;
             const res = this.runOnce(
                 `Timeout of ${(this.timeoutCount * this.tickTimeoutDelay) / 1000} seconds`,
-                { crashOnFail: this.timeoutCount >= 3000 / this.tickTimeoutDelay }
+                { crashOnFail: this.timeoutCount >= 3000 / this.tickTimeoutDelay },
             );
             if (!res) {
                 this.setTickTimeout();
@@ -693,7 +709,9 @@ class Contains {
                 el.removeEventListener("scroll", this.onScroll);
             }
             document.body.removeEventListener("blur", this.onBlur, { capture: true });
-            document.body.removeEventListener("change", this.onChange, { capture: true });
+            document.body.removeEventListener("change", this.onChange, {
+                capture: true,
+            });
             document.body.removeEventListener("focus", this.onFocus, { capture: true });
             this.done = true;
         }
@@ -798,8 +816,12 @@ class Contains {
             el.focus();
             if (this.options.insertText.replace) {
                 el.value = "";
-                el.dispatchEvent(new window.KeyboardEvent("keydown", { key: "Backspace" }));
-                el.dispatchEvent(new window.KeyboardEvent("keyup", { key: "Backspace" }));
+                el.dispatchEvent(
+                    new window.KeyboardEvent("keydown", { key: "Backspace" }),
+                );
+                el.dispatchEvent(
+                    new window.KeyboardEvent("keyup", { key: "Backspace" }),
+                );
                 el.dispatchEvent(new window.InputEvent("input"));
             }
             for (const char of this.options.insertText.content) {
@@ -825,7 +847,9 @@ class Contains {
         if (this.options.setScroll !== undefined) {
             message = `${message} and set scroll to "${this.options.setScroll}"`;
             el.scrollTop =
-                this.options.setScroll === "bottom" ? el.scrollHeight : this.options.setScroll;
+                this.options.setScroll === "bottom"
+                    ? el.scrollHeight
+                    : this.options.setScroll;
         }
         if (this.options.triggerEvents) {
             message = `${message} and triggered "${this.options.triggerEvents.join(", ")}" events`;
@@ -872,13 +896,14 @@ class Contains {
                 (this.options.value === undefined || el.value === this.options.value) &&
                 (this.options.scroll === undefined ||
                     (this.options.scroll === "bottom"
-                        ? Math.abs(el.scrollHeight - el.clientHeight - el.scrollTop) <= 1
+                        ? Math.abs(el.scrollHeight - el.clientHeight - el.scrollTop) <=
+                          1
                         : Math.abs(el.scrollTop - this.options.scroll) <= 1));
             if (condition && this.options.text !== undefined) {
                 if (
                     el.textContent.trim() !== this.options.text &&
                     [...el.querySelectorAll("*")].every(
-                        (el) => el.textContent.trim() !== this.options.text
+                        (el) => el.textContent.trim() !== this.options.text,
                     )
                 ) {
                     condition = false;
@@ -886,7 +911,10 @@ class Contains {
             }
             if (condition && this.options.contains) {
                 for (const param of this.options.contains) {
-                    const childContains = new Contains(param[0], { ...param[1], target: el });
+                    const childContains = new Contains(param[0], {
+                        ...param[1],
+                        target: el,
+                    });
                     if (
                         !childContains.runOnce(`as child of el ${currentIndex + 1})`, {
                             executeOnSuccess: false,
@@ -912,7 +940,10 @@ class Contains {
                 })?.[0];
                 if (
                     !afterEl ||
-                    !(el.compareDocumentPosition(afterEl) & Node.DOCUMENT_POSITION_PRECEDING)
+                    !(
+                        el.compareDocumentPosition(afterEl) &
+                        Node.DOCUMENT_POSITION_PRECEDING
+                    )
                 ) {
                     condition = false;
                 }
@@ -928,7 +959,10 @@ class Contains {
                 })?.[0];
                 if (
                     !beforeEl ||
-                    !(el.compareDocumentPosition(beforeEl) & Node.DOCUMENT_POSITION_FOLLOWING)
+                    !(
+                        el.compareDocumentPosition(beforeEl) &
+                        Node.DOCUMENT_POSITION_FOLLOWING
+                    )
                 ) {
                     condition = false;
                 }
@@ -965,7 +999,9 @@ class Contains {
                 ...this.options.parent[1],
                 target: this.options.target,
             });
-            return this.parentContains.runOnce(`as parent`, { executeOnSuccess: false })?.[0];
+            return this.parentContains.runOnce(`as parent`, {
+                executeOnSuccess: false,
+            })?.[0];
         }
         return this.options.target;
     }

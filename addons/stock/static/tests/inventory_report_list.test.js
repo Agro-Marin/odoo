@@ -1,4 +1,3 @@
-import { luxon } from "@web/core/l10n/luxon";
 import { defineMailModels } from "@mail/../tests/mail_test_helpers";
 import { expect, test } from "@odoo/hoot";
 import { animationFrame, queryAll } from "@odoo/hoot-dom";
@@ -11,6 +10,7 @@ import {
     mountView,
     onRpc,
 } from "@web/../tests/web_test_helpers";
+import { luxon } from "@web/core/l10n/luxon";
 
 const { DateTime } = luxon;
 
@@ -124,7 +124,7 @@ test("Don't duplicate record", async function () {
     await animationFrame();
     expect(".o_notification").toHaveCount(1);
     expect(".o_notification .o_notification_body").toHaveText(
-        "This record already exists. You tried to create a record that already exists. The existing record was modified instead."
+        "This record already exists. You tried to create a record that already exists. The existing record was modified instead.",
     );
 });
 
@@ -180,7 +180,7 @@ test("Work in grouped list", async function () {
     await contains(".o_group_header:eq(2)").click();
     expect(".o_data_row").toHaveCount(3);
     const danielRow = queryAll(".o_data_row").find((row) =>
-        row.textContent.includes("Daniel Fortesque")
+        row.textContent.includes("Daniel Fortesque"),
     );
     expect(danielRow.querySelector('[name="age"]').textContent).toBe("55");
 });

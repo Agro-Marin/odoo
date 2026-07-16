@@ -15,8 +15,16 @@ function makeProduct(overrides = {}) {
         product_tmpl_id: 1,
         parent_product_tmpl_id: undefined,
         attribute_lines: [
-            { id: 1, selected_attribute_value_ids: [11], attribute_values: [{ id: 11 }, { id: 12 }] },
-            { id: 2, selected_attribute_value_ids: [21], attribute_values: [{ id: 21 }, { id: 22 }] },
+            {
+                id: 1,
+                selected_attribute_value_ids: [11],
+                attribute_values: [{ id: 11 }, { id: 12 }],
+            },
+            {
+                id: 2,
+                selected_attribute_value_ids: [21],
+                attribute_values: [{ id: 21 }, { id: 22 }],
+            },
         ],
         exclusions: {},
         parent_exclusions: {},
@@ -35,8 +43,15 @@ test("getCombination collects selected ids across lines", () => {
 test("findProduct / getChildProducts / getParentsCombination", () => {
     const parent = makeProduct({ product_tmpl_id: 1 });
     const child = makeProduct({
-        product_tmpl_id: 2, parent_product_tmpl_id: 1,
-        attribute_lines: [{ id: 3, selected_attribute_value_ids: [31], attribute_values: [{ id: 31 }, { id: 32 }] }],
+        product_tmpl_id: 2,
+        parent_product_tmpl_id: 1,
+        attribute_lines: [
+            {
+                id: 3,
+                selected_attribute_value_ids: [31],
+                attribute_values: [{ id: 31 }, { id: 32 }],
+            },
+        ],
     });
     const pool = [parent, child];
     expect(findProduct(pool, 2)).toBe(child);
@@ -72,8 +87,15 @@ test("checkExclusions resets stale flags and tolerates sparse dicts", () => {
 test("checkExclusions applies parent exclusions to children", () => {
     const parent = makeProduct({ product_tmpl_id: 1 });
     const child = makeProduct({
-        product_tmpl_id: 2, parent_product_tmpl_id: 1,
-        attribute_lines: [{ id: 3, selected_attribute_value_ids: [31], attribute_values: [{ id: 31 }, { id: 32 }] }],
+        product_tmpl_id: 2,
+        parent_product_tmpl_id: 1,
+        attribute_lines: [
+            {
+                id: 3,
+                selected_attribute_value_ids: [31],
+                attribute_values: [{ id: 31 }, { id: 32 }],
+            },
+        ],
         parent_exclusions: { 11: [32], 21: [] },
     });
     checkExclusions([parent, child], child);
@@ -98,8 +120,15 @@ test("checkExclusions: archived n-1 match disables the remaining value", () => {
 test("checkExclusions recurses into child products", () => {
     const parent = makeProduct({ product_tmpl_id: 1 });
     const child = makeProduct({
-        product_tmpl_id: 2, parent_product_tmpl_id: 1,
-        attribute_lines: [{ id: 3, selected_attribute_value_ids: [31], attribute_values: [{ id: 31 }, { id: 32 }] }],
+        product_tmpl_id: 2,
+        parent_product_tmpl_id: 1,
+        attribute_lines: [
+            {
+                id: 3,
+                selected_attribute_value_ids: [31],
+                attribute_values: [{ id: 31 }, { id: 32 }],
+            },
+        ],
         exclusions: { 31: [32], 32: [31] },
     });
     checkExclusions([parent, child], parent); // called on parent, recurses into child

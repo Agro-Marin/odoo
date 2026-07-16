@@ -88,7 +88,10 @@ test("Conversation mentions in the command palette with @", async () => {
     await contains(".o_command_palette .o_command_category", {
         contains: [
             ["span.fw-bold", { text: "Mentions" }],
-            [".o_command.focused .o_command_name", { text: "Mitchell Admin and Mario" }],
+            [
+                ".o_command.focused .o_command_name",
+                { text: "Mitchell Admin and Mario" },
+            ],
         ],
     });
     // can also make self conversation
@@ -171,5 +174,7 @@ test("Can create group chat from ctrl-k without any user selected", async () => 
     triggerHotkey("control+k");
     await click(".o_command_name:contains(Create Chat)");
     await click(".modal-footer > .btn:contains(Create Group Chat)");
-    await contains(".o-mail-DiscussSidebarChannel-itemName", { text: "Mitchell Admin" });
+    await contains(".o-mail-DiscussSidebarChannel-itemName", {
+        text: "Mitchell Admin",
+    });
 });

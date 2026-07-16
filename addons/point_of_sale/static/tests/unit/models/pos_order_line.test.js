@@ -1,6 +1,7 @@
-import { test, expect, describe } from "@odoo/hoot";
-import { setupPosEnv, getFilledOrder } from "../utils.js";
+import { describe, expect, test } from "@odoo/hoot";
+
 import { definePosModels } from "../data/generate_model_definitions.js";
+import { getFilledOrder, setupPosEnv } from "../utils.js";
 
 definePosModels();
 
@@ -283,11 +284,13 @@ describe("Test taxes after fiscal position", () => {
         // Taxed order line
         const orderLine = data["pos.order.line"][0];
         // Taxed Product
-        const taxedProductLineValues = orderLine.prepareBaseLineForTaxesComputationExtraValues();
+        const taxedProductLineValues =
+            orderLine.prepareBaseLineForTaxesComputationExtraValues();
         expect(taxedProductLineValues.tax_ids.length).toBe(1);
         // Non Taxed Product
         orderLine.product_id.taxes_id = [];
-        const nonTaxedProductlineValues = orderLine.prepareBaseLineForTaxesComputationExtraValues();
+        const nonTaxedProductlineValues =
+            orderLine.prepareBaseLineForTaxesComputationExtraValues();
         expect(nonTaxedProductlineValues.tax_ids.length).toBe(1);
     });
     test("Non-taxed orderline after fiscal position", async () => {
@@ -300,11 +303,13 @@ describe("Test taxes after fiscal position", () => {
         // Non taxed order line
         orderLine.tax_ids = [];
         // Taxed product
-        const taxedProductLineValues = orderLine.prepareBaseLineForTaxesComputationExtraValues();
+        const taxedProductLineValues =
+            orderLine.prepareBaseLineForTaxesComputationExtraValues();
         expect(taxedProductLineValues.tax_ids.length).toBe(0);
         orderLine.product_id.taxes_id = [];
         // Non Taxed product
-        const nonTaxedProductlineValues = orderLine.prepareBaseLineForTaxesComputationExtraValues();
+        const nonTaxedProductlineValues =
+            orderLine.prepareBaseLineForTaxesComputationExtraValues();
         expect(nonTaxedProductlineValues.tax_ids.length).toBe(0);
     });
 });

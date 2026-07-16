@@ -1,6 +1,6 @@
 /** @odoo-module native */
-import { SearchPanel } from "@web/search/search_panel/search_panel";
 import { useState } from "@odoo/owl";
+import { SearchPanel } from "@web/search/search_panel/search_panel";
 
 export class StockReportSearchPanel extends SearchPanel {
     static template = "stock.StockReportSearchPanel";

@@ -13,7 +13,7 @@ import {
     waitFor,
     waitForNone,
 } from "@odoo/hoot-dom";
-import { Deferred, animationFrame } from "@odoo/hoot-mock";
+import { animationFrame, Deferred } from "@odoo/hoot-mock";
 import {
     contains,
     makeMockServer,
@@ -24,6 +24,7 @@ import {
     patchWithCleanup,
     serverState,
 } from "@web/../tests/web_test_helpers";
+
 import {
     click,
     defineMailModels,
@@ -97,7 +98,9 @@ test("media dialog: upload", async function () {
         return attachment;
     });
 
-    onRpc("ir.attachment", "generate_access_token", () => ["129a52e1-6bf2-470a-830e-8e368b022e13"]);
+    onRpc("ir.attachment", "generate_access_token", () => [
+        "129a52e1-6bf2-470a-830e-8e368b022e13",
+    ]);
     await mountView({
         type: "form",
         resId,
@@ -125,13 +128,13 @@ test("media dialog: upload", async function () {
     const fileBytes = new Uint8Array(
         atob(fileB64)
             .split("")
-            .map((char) => char.charCodeAt(0))
+            .map((char) => char.charCodeAt(0)),
     );
     // redefine 'files' so we can put mock data in through js
     fileInputs.forEach((input) =>
         Object.defineProperty(input, "files", {
             value: [new File(fileBytes, "test.jpg", { type: "image/jpeg" })],
-        })
+        }),
     );
     fileInputs.forEach((input) => {
         manuallyDispatchProgrammaticEvent(input, "change");
@@ -177,9 +180,9 @@ test("mention a partner", async () => {
 
     await press("a");
     await waitFor(".overlay .o-mail-NavigableList .o-mail-NavigableList-item");
-    expect(queryAllTexts(".overlay .o-mail-NavigableList .o-mail-NavigableList-item")).toEqual([
-        "Mitchell Admin",
-    ]);
+    expect(
+        queryAllTexts(".overlay .o-mail-NavigableList .o-mail-NavigableList-item"),
+    ).toEqual(["Mitchell Admin"]);
     expect.verifySteps(["get_mention_suggestions: a"]);
 
     await press("enter");
@@ -207,7 +210,9 @@ test("mention a channel", async () => {
     setSelection({ anchorNode, anchorOffset: 0 });
     await insertText(htmlEditor, "#");
     await animationFrame();
-    expect(".overlay .search input[placeholder='Search for a channel...']").toBeFocused();
+    expect(
+        ".overlay .search input[placeholder='Search for a channel...']",
+    ).toBeFocused();
     expect(".overlay .o-mail-NavigableList .o-mail-NavigableList-item").toHaveCount(0);
 
     await press("a");
@@ -247,7 +252,9 @@ describe("Remove attachments", () => {
         await waitFor(".odoo-editor-editable .o_file_box:has(a:contains('file.txt'))");
         await click("[name='attachment_ids'] button:has(i.fa-times)");
         await waitForNone("[name='attachment_ids'] a:contains('file.txt')");
-        await waitForNone(".odoo-editor-editable .o_file_box:has(a:contains('file.txt'))");
+        await waitForNone(
+            ".odoo-editor-editable .o_file_box:has(a:contains('file.txt'))",
+        );
     });
 
     test("should remove image from html editor if removed from attachment list", async () => {

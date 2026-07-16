@@ -10,11 +10,13 @@ registry.category("web_tour.tours").add("discuss.invite_by_email", {
             run: "click",
         },
         {
-            trigger: ".o-discuss-ChannelInvitation-search[placeholder='Invite people or email']",
+            trigger:
+                ".o-discuss-ChannelInvitation-search[placeholder='Invite people or email']",
             run: "edit john@test.com",
         },
         {
-            trigger: ".o-discuss-ChannelInvitation-selectable:contains('john (base.group_user)')",
+            trigger:
+                ".o-discuss-ChannelInvitation-selectable:contains('john (base.group_user)')",
             async run({ waitFor, click }) {
                 await waitFor(".o-discuss-ChannelInvitation-selectable", {
                     only: true,
@@ -32,7 +34,8 @@ registry.category("web_tour.tours").add("discuss.invite_by_email", {
             run: "edit unknown_email@test.com",
         },
         {
-            trigger: ".o-discuss-ChannelInvitation-selectable:contains('unknown_email@test.com')",
+            trigger:
+                ".o-discuss-ChannelInvitation-selectable:contains('unknown_email@test.com')",
             run: "click",
         },
         {

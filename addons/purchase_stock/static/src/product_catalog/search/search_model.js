@@ -1,6 +1,7 @@
 /** @odoo-module native */
 import { AccountProductCatalogSearchModel } from "@account/components/product_catalog/search/search_model";
 import { useSubEnv } from "@odoo/owl";
+
 import { getSuggestToggleState } from "../utils.js";
 
 export class PurchaseStockProductCatalogSearchModel extends AccountProductCatalogSearchModel {
@@ -28,10 +29,14 @@ export class PurchaseStockProductCatalogSearchModel extends AccountProductCatalo
      */
     async load(config) {
         Object.assign(this.suggest, {
-            numberOfDays: config.context.vendor_suggest_days ?? this.suggest.numberOfDays,
+            numberOfDays:
+                config.context.vendor_suggest_days ?? this.suggest.numberOfDays,
             basedOn: config.context.vendor_suggest_based_on ?? this.suggest.basedOn,
-            percentFactor: config.context.vendor_suggest_percent ?? this.suggest.percentFactor,
-            suggestToggle: getSuggestToggleState(config.context.product_catalog_order_state),
+            percentFactor:
+                config.context.vendor_suggest_percent ?? this.suggest.percentFactor,
+            suggestToggle: getSuggestToggleState(
+                config.context.product_catalog_order_state,
+            ),
         });
         if (this.suggest.suggestToggle.isOn) {
             // Add default filters for suggest before loading
@@ -75,11 +80,11 @@ export class PurchaseStockProductCatalogSearchModel extends AccountProductCatalo
             "product.product",
             this.domain,
             ["suggest_estimated_price"],
-            { context: this.globalContext }
+            { context: this.globalContext },
         );
         this.suggest.totalEstimatedPrice = product_prices.reduce(
             (sum, p) => sum + Number(p.suggest_estimated_price || 0),
-            0
+            0,
         );
     }
 
@@ -89,7 +94,9 @@ export class PurchaseStockProductCatalogSearchModel extends AccountProductCatalo
      * @param {boolean} turnOn eg. toggles filter "On" if turnOn = true and filter is currently "Off"
      */
     toggleFilters(filterNames, turnOn) {
-        const searchFilters = new Map(Object.values(this.searchItems).map((i) => [i.name, i]));
+        const searchFilters = new Map(
+            Object.values(this.searchItems).map((i) => [i.name, i]),
+        );
         const activeFilters = new Set(this.query.map((q) => q.searchItemId));
 
         const toToggle = [];
@@ -111,7 +118,7 @@ export class PurchaseStockProductCatalogSearchModel extends AccountProductCatalo
         if (this.suggest.suggestToggle.isOn) {
             this._computeTotalEstimatedPrice();
         }
-        if (toToggle.length == 0) {
+        if (toToggle.length === 0) {
             this._notify(); // Force reload, useful for eg. when toggling suggest off with filter already deactivated
         }
     }

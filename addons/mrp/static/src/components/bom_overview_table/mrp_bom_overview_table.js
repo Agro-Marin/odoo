@@ -1,9 +1,10 @@
 /** @odoo-module native */
-import { formatFloat, formatMonetary } from "@web/fields/formatters";
-import { useService } from "@web/core/utils/hooks";
-import { BomOverviewLine } from "../bom_overview_line/mrp_bom_overview_line.js";
-import { BomOverviewComponentsBlock } from "../bom_overview_components_block/mrp_bom_overview_components_block.js";
 import { Component } from "@odoo/owl";
+import { useService } from "@web/core/utils/hooks";
+import { formatFloat, formatMonetary } from "@web/fields/formatters";
+
+import { BomOverviewComponentsBlock } from "../bom_overview_components_block/mrp_bom_overview_components_block.js";
+import { BomOverviewLine } from "../bom_overview_line/mrp_bom_overview_line.js";
 
 export class BomOverviewTable extends Component {
     static template = "mrp.BomOverviewTable";
@@ -30,7 +31,8 @@ export class BomOverviewTable extends Component {
     setup() {
         this.actionService = useService("action");
         this.formatFloat = formatFloat;
-        this.formatMonetary = (val) => formatMonetary(val, { currencyId: this.data.currency_id });
+        this.formatMonetary = (val) =>
+            formatMonetary(val, { currencyId: this.data.currency_id });
     }
 
     //---- Handlers ----
@@ -59,7 +61,7 @@ export class BomOverviewTable extends Component {
     }
 
     get forecastMode() {
-        return this.props.showOptions.mode == "forecast";
+        return this.props.showOptions.mode === "forecast";
     }
 
     get showUnitCosts() {

@@ -1,9 +1,10 @@
 /** @odoo-module native */
 import { registry } from "@web/core/registry";
+
 import {
-    SectionAndNoteListRenderer,
     SectionAndNoteFieldOne2Many,
     sectionAndNoteFieldOne2Many,
+    SectionAndNoteListRenderer,
 } from "../section_and_note_fields_backend/section_and_note_fields_backend.js";
 
 export class AccountMergeWizardLinesRenderer extends SectionAndNoteListRenderer {
@@ -27,7 +28,8 @@ export class AccountMergeWizardLinesRenderer extends SectionAndNoteListRenderer 
     getSectionColumns(columns) {
         const sectionCols = columns.filter(
             (col) =>
-                col.type === "field" && (col.name === this.titleField || col.name === "is_selected")
+                col.type === "field" &&
+                (col.name === this.titleField || col.name === "is_selected"),
         );
         return sectionCols.map((col) => {
             if (col.name === this.titleField) {

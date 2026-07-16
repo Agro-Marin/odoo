@@ -2,7 +2,10 @@
 import { Component } from "@odoo/owl";
 import { registry } from "@web/core/registry";
 import { computeM2OProps, Many2One } from "@web/fields/relational/many2one/many2one";
-import { buildM2OFieldDescription, Many2OneField } from "@web/fields/relational/many2one/many2one_field";
+import {
+    buildM2OFieldDescription,
+    Many2OneField,
+} from "@web/fields/relational/many2one/many2one_field";
 
 export class ForcedPlaceholder extends Many2One {
     static template = "stock.ForcedPlaceholder";
@@ -20,7 +23,7 @@ export class ForcedPlaceholderField extends Component {
         return {
             ...props,
             canOpen: !props.readonly && props.canOpen, // to remove the wrong link and the hand cursor on hover
-        }
+        };
     }
 }
 

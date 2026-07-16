@@ -1,4 +1,3 @@
-import { describe, expect, test } from "@odoo/hoot";
 import {
     DISPLAY_TYPES,
     getPreviousSectionRecords,
@@ -11,6 +10,7 @@ import {
     isSubSectionType,
     isTopSectionType,
 } from "@account/components/section_and_note_fields_backend/section_and_note_helpers";
+import { describe, expect, test } from "@odoo/hoot";
 
 describe("section_and_note_helpers", () => {
     const rec = (id, displayType) => ({ id, data: { display_type: displayType } });
@@ -41,7 +41,12 @@ describe("section_and_note_helpers", () => {
 
     test("getSectionRecords walks down to the next section (subsections included)", () => {
         const list = makeList();
-        expect(ids(getSectionRecords(list, list.records[1]))).toEqual(["l1", "ss1", "l2", "n1"]);
+        expect(ids(getSectionRecords(list, list.records[1]))).toEqual([
+            "l1",
+            "ss1",
+            "l2",
+            "n1",
+        ]);
     });
 
     test("getSectionRecords stops at a subsection when subSection is true", () => {
@@ -70,6 +75,8 @@ describe("section_and_note_helpers", () => {
     test("no section above yields an empty array and index -1 (no undefined entry)", () => {
         const list = makeList();
         expect(getPreviousSectionRecords(list, list.records[0])).toEqual([]);
-        expect(getRecordsUntilSection(list, list.records[0], false).sectionIndex).toBe(-1);
+        expect(getRecordsUntilSection(list, list.records[0], false).sectionIndex).toBe(
+            -1,
+        );
     });
 });

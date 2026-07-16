@@ -69,7 +69,7 @@ export function getProductsBySearchWord(searchWord, products) {
 export function computeProductsToDisplay(pos) {
     const searchWord = pos.searchProductWord.trim();
     const allProducts = pos.models["product.template"].getAll();
-    let list = [];
+    let list;
     const isSearchByWord = searchWord !== "";
 
     if (isSearchByWord) {

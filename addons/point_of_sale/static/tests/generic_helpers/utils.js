@@ -31,7 +31,8 @@ export function refresh() {
         async () => {
             await new Promise((resolve) => {
                 const checkTransaction = () => {
-                    const activeTransactions = posmodel.data.indexedDB.activeTransactions;
+                    const activeTransactions =
+                        posmodel.data.indexedDB.activeTransactions;
                     if (activeTransactions.size === 0) {
                         window.location.reload();
                         resolve();
@@ -46,17 +47,17 @@ export function refresh() {
                 setTimeout(() => {
                     const activeTx = posmodel.data.indexedDB.activeTransactions;
                     const storeNames = Array.from(activeTx).flatMap((tx) =>
-                        Array.from(tx.objectStoreName)
+                        Array.from(tx.objectStoreName),
                     );
                     const uniqueStores = [...new Set(storeNames)].join(", ");
                     throw new Error(
-                        `Timeout waiting indexedDB for transactions to finish. Stores open: [${uniqueStores}]`
+                        `Timeout waiting indexedDB for transactions to finish. Stores open: [${uniqueStores}]`,
                     );
                 }, 2000);
             });
         },
         "refresh page",
-        true
+        true,
     );
 }
 export function elementDoesNotExist(selector) {

@@ -1,13 +1,13 @@
 /** @odoo-module native */
-import { registry } from "@web/core/registry";
 import { Component } from "@odoo/owl";
-import { standardFieldProps } from "@web/fields/standard_field_props";
+import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
+import { standardFieldProps } from "@web/fields/standard_field_props";
 
 const WARNING_TYPE_ORDER = ["danger", "warning", "info"];
 
 export class ActionableErrors extends Component {
-    static props = { errorData: {type: Object} };
+    static props = { errorData: { type: Object } };
     static template = "account.ActionableErrors";
 
     setup() {
@@ -20,7 +20,7 @@ export class ActionableErrors extends Component {
         return this.props.errorData;
     }
 
-    async handleOnClick(errorData){
+    async handleOnClick(errorData) {
         if (errorData.action_call) {
             const [model, method, args] = errorData.action_call;
             await this.orm.call(model, method, [args]);
@@ -30,7 +30,10 @@ export class ActionableErrors extends Component {
             if (action?.view_mode) {
                 // view_mode is not handled JS side; translate it to `views` on a
                 // copy rather than mutating the reactive errorData in place.
-                action = { ...action, views: action.view_mode.split(',').map(mode => [false, mode]) };
+                action = {
+                    ...action,
+                    views: action.view_mode.split(",").map((mode) => [false, mode]),
+                };
                 delete action.view_mode;
             }
             this.actionService.doAction(action);
@@ -38,12 +41,15 @@ export class ActionableErrors extends Component {
     }
 
     get sortedActionableErrors() {
-        return this.errorData && Object.fromEntries(
-            Object.entries(this.errorData).sort(
-                (a, b) =>
-                    WARNING_TYPE_ORDER.indexOf(a[1]["level"] || "warning") -
-                    WARNING_TYPE_ORDER.indexOf(b[1]["level"] || "warning"),
-            ),
+        return (
+            this.errorData &&
+            Object.fromEntries(
+                Object.entries(this.errorData).sort(
+                    (a, b) =>
+                        WARNING_TYPE_ORDER.indexOf(a[1]["level"] || "warning") -
+                        WARNING_TYPE_ORDER.indexOf(b[1]["level"] || "warning"),
+                ),
+            )
         );
     }
 }
@@ -56,5 +62,5 @@ export class ActionableErrorsField extends ActionableErrors {
     }
 }
 
-export const actionableErrorsField = {component: ActionableErrorsField};
+export const actionableErrorsField = { component: ActionableErrorsField };
 registry.category("fields").add("actionable_errors", actionableErrorsField);

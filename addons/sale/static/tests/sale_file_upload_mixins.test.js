@@ -1,13 +1,13 @@
 import { expect, test } from "@odoo/hoot";
+// Importing the concrete classes forces the factory invocations in those modules to
+// run at load time — a broken factory application would fail this file's import.
+import { SaleFileUploadKanbanRenderer } from "@sale/views/sale_file_upload_kanban/sale_file_upload_kanban_renderer";
+import { SaleFileUploadListRenderer } from "@sale/views/sale_file_upload_list/sale_file_upload_list_renderer";
 import {
     saleFileUploadController,
     saleFileUploadRenderer,
     saleOnboardingRenderer,
 } from "@sale/views/sale_file_upload_mixins";
-// Importing the concrete classes forces the factory invocations in those modules to
-// run at load time — a broken factory application would fail this file's import.
-import { SaleFileUploadKanbanRenderer } from "@sale/views/sale_file_upload_kanban/sale_file_upload_kanban_renderer";
-import { SaleFileUploadListRenderer } from "@sale/views/sale_file_upload_list/sale_file_upload_list_renderer";
 import { SaleKanbanRenderer } from "@sale/views/sale_onboarding_kanban/sale_onboarding_kanban_renderer";
 import { SaleListRenderer } from "@sale/views/sale_onboarding_list/sale_onboarding_list_renderer";
 
@@ -30,7 +30,9 @@ test("saleFileUploadRenderer sets the RFQ drop-zone title and description", () =
     }
     const instance = new (saleFileUploadRenderer(Base))();
     instance.setup();
-    expect(instance.dropZoneTitle).toBe("Import a request for quotation from a customer");
+    expect(instance.dropZoneTitle).toBe(
+        "Import a request for quotation from a customer",
+    );
     expect(instance.dropZoneDescription.includes("UBL-RequestForQuotation")).toBe(true);
 });
 
@@ -57,6 +59,8 @@ test("concrete file-upload/onboarding view classes are produced correctly", () =
     expect(SaleListRenderer.template).toBe("sale.SaleListRenderer");
     expect(!!SaleKanbanRenderer.components.SaleActionHelper).toBe(true);
     expect(!!SaleListRenderer.components.SaleActionHelper).toBe(true);
-    expect(SaleKanbanRenderer.prototype instanceof SaleFileUploadKanbanRenderer).toBe(true);
+    expect(SaleKanbanRenderer.prototype instanceof SaleFileUploadKanbanRenderer).toBe(
+        true,
+    );
     expect(SaleListRenderer.prototype instanceof SaleFileUploadListRenderer).toBe(true);
 });

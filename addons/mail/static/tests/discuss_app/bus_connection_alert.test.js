@@ -1,10 +1,12 @@
-import { addBusServiceListeners, lockWebsocketConnect } from "@bus/../tests/bus_test_helpers";
+import {
+    addBusServiceListeners,
+    lockWebsocketConnect,
+} from "@bus/../tests/bus_test_helpers";
 import { getWebSocketWorker } from "@bus/../tests/mock_websocket";
 import { WEBSOCKET_CLOSE_CODES } from "@bus/workers/websocket_worker";
 import { defineMailModels, openDiscuss, start } from "@mail/../tests/mail_test_helpers";
 import { describe, expect, test } from "@odoo/hoot";
 import { animationFrame, runAllTimers, waitFor, waitForNone } from "@odoo/hoot-dom";
-
 import {
     asyncStep,
     makeMockServer,
@@ -33,22 +35,24 @@ test("show warning when bus connection encounters issues", async () => {
                 ev.preventDefault();
                 ev.stopImmediatePropagation();
             },
-            { capture: true }
+            { capture: true },
         );
     }
     addBusServiceListeners(
         ["BUS:CONNECT", () => asyncStep("BUS:CONNECT")],
         ["BUS:RECONNECT", () => asyncStep("BUS:RECONNECT")],
-        ["BUS:RECONNECTING", () => asyncStep("BUS:RECONNECTING")]
+        ["BUS:RECONNECTING", () => asyncStep("BUS:RECONNECTING")],
     );
     await start();
     await openDiscuss();
     await waitForSteps(["BUS:CONNECT"]);
     const unlockWebsocket = lockWebsocketConnect();
-    MockServer.env["bus.bus"]._simulateDisconnection(WEBSOCKET_CLOSE_CODES.ABNORMAL_CLOSURE);
+    MockServer.env["bus.bus"]._simulateDisconnection(
+        WEBSOCKET_CLOSE_CODES.ABNORMAL_CLOSURE,
+    );
     await waitForSteps(["BUS:RECONNECTING"]);
     expect(await waitFor(".o-bus-ConnectionAlert", { timeout: 2500 })).toHaveText(
-        "Real-time connection lost..."
+        "Real-time connection lost...",
     );
     await runAllTimers();
     await animationFrame();

@@ -9,6 +9,7 @@ import {
     m2oSupportedOptions,
     Many2OneField,
 } from "@web/fields/relational/many2one/many2one_field";
+
 import {
     getProductId,
     getProductQuantity,

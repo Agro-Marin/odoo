@@ -1,7 +1,7 @@
 /** @odoo-module native */
 import { Component } from "@odoo/owl";
-import { useService } from "@web/core/utils/hooks";
 import { registry } from "@web/core/registry";
+import { useService } from "@web/core/utils/hooks";
 import { computeM2OProps, Many2One } from "@web/fields/relational/many2one/many2one";
 import {
     buildM2OFieldDescription,
@@ -86,7 +86,10 @@ export class StockPackageMany2One extends Component {
         if (this.isDone && displayVal?.display_name) {
             // Return a trimmed copy; never mutate the record's own datapoint data
             // from a render getter (other consumers/persistence read the same object).
-            return { ...displayVal, display_name: displayVal.display_name.split(" > ").pop() };
+            return {
+                ...displayVal,
+                display_name: displayVal.display_name.split(" > ").pop(),
+            };
         }
         return displayVal;
     }

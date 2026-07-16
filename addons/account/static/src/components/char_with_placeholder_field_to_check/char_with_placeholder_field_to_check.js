@@ -1,8 +1,9 @@
 /** @odoo-module native */
 import { registry } from "@web/core/registry";
+
 import {
+    CharWithPlaceholderField,
     charWithPlaceholderField,
-    CharWithPlaceholderField
 } from "../char_with_placeholder_field/char_with_placeholder_field.js";
 
 export class CharWithPlaceholderFieldToCheck extends CharWithPlaceholderField {
@@ -14,4 +15,6 @@ export const charWithPlaceholderFieldToCheck = {
     component: CharWithPlaceholderFieldToCheck,
 };
 
-registry.category("fields").add("char_with_placeholder_field_to_check", charWithPlaceholderFieldToCheck);
+registry
+    .category("fields")
+    .add("char_with_placeholder_field_to_check", charWithPlaceholderFieldToCheck);

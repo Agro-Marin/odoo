@@ -3,10 +3,10 @@ import { ImStatus } from "@mail/core/common/im_status";
 import { onExternalClick } from "@mail/utils/common/hooks";
 import { Component, useEffect, useExternalListener, useRef, useState } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
+import { getActiveHotkey } from "@web/core/browser/hotkeys";
 import { usePosition } from "@web/core/position/position_hook";
 import { isEventHandled, markEventHandled } from "@web/core/utils/dom/events";
 import { useService } from "@web/core/utils/hooks";
-import { getActiveHotkey } from "@web/core/browser/hotkeys";
 export class NavigableList extends Component {
     static components = { ImStatus };
     static template = "mail.NavigableList";
@@ -159,7 +159,7 @@ export class NavigableList extends Component {
         }
         const activeOptionId =
             this.state.activeIndex !== null ? this.state.activeIndex : 0;
-        let targetId = undefined;
+        let targetId;
         switch (direction) {
             case "first":
                 targetId = 0;

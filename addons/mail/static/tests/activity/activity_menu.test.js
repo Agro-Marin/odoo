@@ -34,7 +34,7 @@ test("global shortcut", async () => {
     await animationFrame();
     expect(queryText(`.o_command:contains("Activity") .o_command_hotkey`)).toEqual(
         "Activity\nALT + SHIFT + A",
-        { message: "The command should be registered with the right hotkey" }
+        { message: "The command should be registered with the right hotkey" },
     );
     await triggerHotkey("alt+shift+a");
     await animationFrame();

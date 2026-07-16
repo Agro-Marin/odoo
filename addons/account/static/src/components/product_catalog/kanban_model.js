@@ -8,7 +8,10 @@ patch(ProductCatalogKanbanModel.prototype, {
         if (selectedSection.filtered) {
             params = {
                 ...params,
-                domain: [...(params.domain || []), ['is_in_selected_section_of_order', '=', true]],
+                domain: [
+                    ...(params.domain || []),
+                    ["is_in_selected_section_of_order", "=", true],
+                ],
                 context: {
                     ...params.context,
                     section_id: selectedSection.sectionId,
@@ -23,5 +26,5 @@ patch(ProductCatalogKanbanModel.prototype, {
             ...super._getOrderLinesInfoParams(params, productIds),
             section_id: this.env.searchModel.selectedSection.sectionId,
         };
-    }
-})
+    },
+});

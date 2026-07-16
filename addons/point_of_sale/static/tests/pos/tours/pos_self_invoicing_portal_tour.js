@@ -11,8 +11,9 @@ registry.category("web_tour.tours").add("invoicePoSOrderWithSelfInvocing", {
             trigger: ".o_portal_wrap input[name='date_order']",
             run: function () {
                 const date_order = luxon.DateTime.now();
-                document.querySelector(".o_portal_wrap input[name='date_order']").value =
-                    date_order.toFormat("yyyy-MM-dd");
+                document.querySelector(
+                    ".o_portal_wrap input[name='date_order']",
+                ).value = date_order.toFormat("yyyy-MM-dd");
             },
         },
         {
@@ -39,7 +40,9 @@ registry.category("web_tour.tours").add("invoicePoSOrderWithSelfInvocing", {
         {
             trigger: ".o_portal_wrap input[name='company_name']",
             run: function () {
-                const companyNameInput = document.querySelector("input[name='company_name']");
+                const companyNameInput = document.querySelector(
+                    "input[name='company_name']",
+                );
                 if (companyNameInput.hasAttribute("readonly")) {
                     throw new Error("The company name input must not be readonly.");
                 }
@@ -75,7 +78,9 @@ registry.category("web_tour.tours").add("invoicePoSOrderWithSelfInvocing", {
         {
             trigger: ".o_portal_wrap select[name='country_id']",
             run: function () {
-                const countrySelect = document.querySelector("select[name='country_id']");
+                const countrySelect = document.querySelector(
+                    "select[name='country_id']",
+                );
                 if (Array.from(countrySelect.classList).includes("d-none")) {
                     throw new Error("The language selector must not be hidden.");
                 }

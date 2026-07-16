@@ -1,10 +1,10 @@
 /** @odoo-module native */
-import { _t } from "@web/core/l10n/translation";
 import { Component, onWillStart, useState } from "@odoo/owl";
+import { useSetupAction } from "@web/core/action_hook";
+import { _t } from "@web/core/l10n/translation";
 import { download } from "@web/core/network/download";
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
-import { useSetupAction } from "@web/core/action_hook";
 import { Layout } from "@web/search/layout";
 import { standardActionServiceProps } from "@web/webclient/actions/action_service";
 
@@ -50,8 +50,16 @@ export class TraceabilityReport extends Component {
             lines: this.props.state?.lines || [],
         });
 
-        const { active_id, active_model, auto_unfold, context, lot_name, ttype, url, lang } =
-            this.props.action.context;
+        const {
+            active_id,
+            active_model,
+            auto_unfold,
+            context,
+            lot_name,
+            ttype,
+            url,
+            lang,
+        } = this.props.action.context;
         this.controllerUrl = url;
 
         // Shallow-copy: the following Object.assign must not mutate the live
@@ -60,7 +68,8 @@ export class TraceabilityReport extends Component {
         Object.assign(this.context, {
             active_id: active_id || this.props.action.params.active_id,
             auto_unfold: auto_unfold || false,
-            model: active_model || this.props.action.context.params?.active_model || false,
+            model:
+                active_model || this.props.action.context.params?.active_model || false,
             lot_name: lot_name || false,
             ttype: ttype || false,
             lang: lang || false,
@@ -78,9 +87,11 @@ export class TraceabilityReport extends Component {
 
     async onWillStart() {
         if (!this.state.lines.length) {
-            const mainLines = await this.orm.call("stock.traceability.report", "get_main_lines", [
-                this.context,
-            ]);
+            const mainLines = await this.orm.call(
+                "stock.traceability.report",
+                "get_main_lines",
+                [this.context],
+            );
             this.state.lines = mainLines.map(processLine);
         }
     }
@@ -107,11 +118,11 @@ export class TraceabilityReport extends Component {
 
     onClickOpenLot(line) {
         this.actionService.doAction({
-            type: 'ir.actions.act_window',
-            res_model: 'stock.lot',
+            type: "ir.actions.act_window",
+            res_model: "stock.lot",
             res_id: line.lot_id,
-            views: [[false, 'form']],
-            target: 'current',
+            views: [[false, "form"]],
+            target: "current",
         });
     }
 
@@ -156,11 +167,16 @@ export class TraceabilityReport extends Component {
         line.isFolded = !line.isFolded;
         if (!line.lines.length) {
             line.lines = (
-                await this.orm.call("stock.traceability.report", "get_lines", [line.id], {
-                    model_id: line.model_id,
-                    model_name: line.model,
-                    level: (line.level ?? 0) + 30,
-                })
+                await this.orm.call(
+                    "stock.traceability.report",
+                    "get_lines",
+                    [line.id],
+                    {
+                        model_id: line.model_id,
+                        model_name: line.model,
+                        level: (line.level ?? 0) + 30,
+                    },
+                )
             ).map(processLine);
         }
     }

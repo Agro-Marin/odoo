@@ -8,6 +8,7 @@ import {
     mountView,
     onRpc,
 } from "@web/../tests/web_test_helpers";
+
 import { defineAnalyticModels } from "./analytic_test_helpers.js";
 
 defineAnalyticModels();
@@ -16,7 +17,10 @@ class AccountAnalyticAccount extends models.Model {
     _name = "account.analytic.account";
     name = fields.Char({ string: "Name" });
     plan_id = fields.Many2one({ string: "Plan", relation: "account.analytic.plan" });
-    root_plan_id = fields.Many2one({ string: "Root Plan", relation: "account.analytic.plan" });
+    root_plan_id = fields.Many2one({
+        string: "Root Plan",
+        relation: "account.analytic.plan",
+    });
     color = fields.Integer({ string: "Color" });
     code = fields.Char({ string: "Ref" });
     partner_id = fields.Many2one({ string: "Partner", relation: "partner" });
@@ -25,18 +29,95 @@ class AccountAnalyticAccount extends models.Model {
         { id: 1, color: 1, root_plan_id: 2, plan_id: 2, name: "RD", company_id: 1 },
         { id: 2, color: 1, root_plan_id: 2, plan_id: 2, name: "HR", company_id: 1 },
         { id: 3, color: 1, root_plan_id: 2, plan_id: 2, name: "FI", company_id: 1 },
-        { id: 4, color: 2, root_plan_id: 1, plan_id: 1, name: "Time Off", company_id: 1 },
-        { id: 5, color: 2, root_plan_id: 1, plan_id: 1, name: "Operating Costs", company_id: 1 },
-        { id: 6, color: 6, root_plan_id: 4, plan_id: 4, name: "Incognito", company_id: 1 },
-        { id: 7, color: 5, root_plan_id: 5, plan_id: 5, name: "Belgium", company_id: 1 },
-        { id: 8, color: 6, root_plan_id: 5, plan_id: 6, name: "Brussels", company_id: 1 },
+        {
+            id: 4,
+            color: 2,
+            root_plan_id: 1,
+            plan_id: 1,
+            name: "Time Off",
+            company_id: 1,
+        },
+        {
+            id: 5,
+            color: 2,
+            root_plan_id: 1,
+            plan_id: 1,
+            name: "Operating Costs",
+            company_id: 1,
+        },
+        {
+            id: 6,
+            color: 6,
+            root_plan_id: 4,
+            plan_id: 4,
+            name: "Incognito",
+            company_id: 1,
+        },
+        {
+            id: 7,
+            color: 5,
+            root_plan_id: 5,
+            plan_id: 5,
+            name: "Belgium",
+            company_id: 1,
+        },
+        {
+            id: 8,
+            color: 6,
+            root_plan_id: 5,
+            plan_id: 6,
+            name: "Brussels",
+            company_id: 1,
+        },
         { id: 9, color: 6, root_plan_id: 5, plan_id: 6, name: "Beirut", company_id: 1 },
-        { id: 10, color: 6, root_plan_id: 5, plan_id: 6, name: "Berlin", company_id: 1 },
-        { id: 11, color: 6, root_plan_id: 5, plan_id: 6, name: "Bruges", company_id: 1 },
-        { id: 12, color: 6, root_plan_id: 5, plan_id: 6, name: "Birmingham", company_id: 1 },
-        { id: 13, color: 6, root_plan_id: 5, plan_id: 6, name: "Bologna", company_id: 1 },
-        { id: 14, color: 6, root_plan_id: 5, plan_id: 6, name: "Bratislava", company_id: 1 },
-        { id: 15, color: 6, root_plan_id: 5, plan_id: 6, name: "Budapest", company_id: 1 },
+        {
+            id: 10,
+            color: 6,
+            root_plan_id: 5,
+            plan_id: 6,
+            name: "Berlin",
+            company_id: 1,
+        },
+        {
+            id: 11,
+            color: 6,
+            root_plan_id: 5,
+            plan_id: 6,
+            name: "Bruges",
+            company_id: 1,
+        },
+        {
+            id: 12,
+            color: 6,
+            root_plan_id: 5,
+            plan_id: 6,
+            name: "Birmingham",
+            company_id: 1,
+        },
+        {
+            id: 13,
+            color: 6,
+            root_plan_id: 5,
+            plan_id: 6,
+            name: "Bologna",
+            company_id: 1,
+        },
+        {
+            id: 14,
+            color: 6,
+            root_plan_id: 5,
+            plan_id: 6,
+            name: "Bratislava",
+            company_id: 1,
+        },
+        {
+            id: 15,
+            color: 6,
+            root_plan_id: 5,
+            plan_id: 6,
+            name: "Budapest",
+            company_id: 1,
+        },
         { id: 16, color: 6, root_plan_id: 5, plan_id: 6, name: "Namur", company_id: 1 },
     ];
     _views = {
@@ -69,12 +150,48 @@ class Plan extends models.Model {
     parent_id = fields.Many2one({ relation: "account.analytic.plan" });
     column_name = fields.Char();
     _records = [
-        { id: 1, name: "Internal", applicability: "optional", all_account_count: 2, column_name: 'x_plan1_id' },
-        { id: 2, name: "Departments", applicability: "mandatory", all_account_count: 3, column_name: 'x_plan2_id' },
-        { id: 3, name: "Projects", applicability: "optional", column_name: 'account_id' },
-        { id: 4, name: "Hidden", applicability: "unavailable", all_account_count: 1, column_name: 'x_plan4_id' },
-        { id: 5, name: "Country", applicability: "optional", all_account_count: 3, column_name: 'x_plan5_id' },
-        { id: 6, name: "City", applicability: "optional", all_account_count: 2, parent_id: 5, column_name: 'x_plan5_id' },
+        {
+            id: 1,
+            name: "Internal",
+            applicability: "optional",
+            all_account_count: 2,
+            column_name: "x_plan1_id",
+        },
+        {
+            id: 2,
+            name: "Departments",
+            applicability: "mandatory",
+            all_account_count: 3,
+            column_name: "x_plan2_id",
+        },
+        {
+            id: 3,
+            name: "Projects",
+            applicability: "optional",
+            column_name: "account_id",
+        },
+        {
+            id: 4,
+            name: "Hidden",
+            applicability: "unavailable",
+            all_account_count: 1,
+            column_name: "x_plan4_id",
+        },
+        {
+            id: 5,
+            name: "Country",
+            applicability: "optional",
+            all_account_count: 3,
+            column_name: "x_plan5_id",
+        },
+        {
+            id: 6,
+            name: "City",
+            applicability: "optional",
+            all_account_count: 2,
+            parent_id: 5,
+            column_name: "x_plan5_id",
+        },
     ];
 }
 
@@ -107,8 +224,21 @@ class Aml extends models.Model {
             analytic_precision: 3,
             company_id: 1,
         },
-        { id: 2, label: "Coke", amount: 100.0, analytic_distribution: {}, company_id: 1 },
-        { id: 3, label: "Sprite", amount: 100.0, analytic_distribution: {}, analytic_precision: 3, company_id: 1 },
+        {
+            id: 2,
+            label: "Coke",
+            amount: 100.0,
+            analytic_distribution: {},
+            company_id: 1,
+        },
+        {
+            id: 3,
+            label: "Sprite",
+            amount: 100.0,
+            analytic_distribution: {},
+            analytic_precision: 3,
+            company_id: 1,
+        },
         { id: 4, label: "", amount: 100.0, analytic_distribution: {}, company_id: 1 },
     ];
 }
@@ -118,7 +248,9 @@ defineModels([Aml, AccountAnalyticAccount, Move, Plan]);
 test.tags("desktop");
 test("analytic field in form view basic features", async () => {
     onRpc("account.analytic.plan", "get_relevant_plans", function ({ model }) {
-        return this.env[model].filter((r) => !r.parent_id && r.applicability !== "unavailable");
+        return this.env[model].filter(
+            (r) => !r.parent_id && r.applicability !== "unavailable",
+        );
     });
     await mountView({
         type: "form",
@@ -147,11 +279,13 @@ test("analytic field in form view basic features", async () => {
 
     // contents of popup
     expect(".analytic_distribution_popup table:eq(0) tr").toHaveCount(4);
-    expect(".analytic_distribution_popup table:eq(0) tr:first-of-type #x_plan1_id").toBeFocused();
+    expect(
+        ".analytic_distribution_popup table:eq(0) tr:first-of-type #x_plan1_id",
+    ).toBeFocused();
 
     // change percentage
     await contains(
-        ".analytic_distribution_popup table:eq(0) tr:first-of-type .o_field_percentage input"
+        ".analytic_distribution_popup table:eq(0) tr:first-of-type .o_field_percentage input",
     ).edit("19.7001");
 
     // mandatory plan is red
@@ -167,15 +301,15 @@ test("analytic field in form view basic features", async () => {
 
     // add a line
     await contains(
-        ".analytic_distribution_popup table:eq(0) .o_field_x2many_list_row_add a"
+        ".analytic_distribution_popup table:eq(0) .o_field_x2many_list_row_add a",
     ).click();
     expect(
-        ".analytic_distribution_popup table:eq(0) tr:nth-of-type(3) .o_field_percentage input"
+        ".analytic_distribution_popup table:eq(0) tr:nth-of-type(3) .o_field_percentage input",
     ).toHaveValue("50");
 
     // choose an account for the mandatory plan using the keyboard
     await contains(
-        ".analytic_distribution_popup table:eq(0) tr:nth-of-type(3) #x_plan2_id"
+        ".analytic_distribution_popup table:eq(0) tr:nth-of-type(3) #x_plan2_id",
     ).click();
     await press("ArrowDown");
     await animationFrame();
@@ -184,7 +318,7 @@ test("analytic field in form view basic features", async () => {
 
     // mandatory plan is green
     expect(
-        ".analytic_distribution_popup table:eq(0) th:contains(Departments) .text-success:contains(100%)"
+        ".analytic_distribution_popup table:eq(0) th:contains(Departments) .text-success:contains(100%)",
     ).toHaveCount(1);
 
     // tags
@@ -233,13 +367,19 @@ test("analytic field in multi_edit list view + search more", async () => {
 
     // add a line
     await contains(".analytic_distribution_popup .o_field_x2many_list_row_add").click();
-    await contains(".analytic_distribution_popup tr[name='line_2'] #x_plan5_id").click();
-    await contains(".analytic_distribution_popup .ui-menu-item:contains(search more)").click();
+    await contains(
+        ".analytic_distribution_popup tr[name='line_2'] #x_plan5_id",
+    ).click();
+    await contains(
+        ".analytic_distribution_popup .ui-menu-item:contains(search more)",
+    ).click();
 
     expect(".modal-dialog .o_list_renderer").toHaveCount(1);
 
     await contains(".modal-dialog .modal-title").click();
-    await contains(".modal-dialog .o_data_row:nth-of-type(4) .o_data_cell:first-of-type").click();
+    await contains(
+        ".modal-dialog .o_data_row:nth-of-type(4) .o_data_cell:first-of-type",
+    ).click();
     expect(".modal-dialog .o_list_renderer").toHaveCount(0);
 
     await contains(".fa-close").click();
@@ -247,7 +387,7 @@ test("analytic field in multi_edit list view + search more", async () => {
     await animationFrame();
     expect(".o_data_row .badge").toHaveCount(4);
     expect("tr:nth-of-type(2) .badge:nth-of-type(2) .o_tag_badge_text").toHaveText(
-        "30.3% Belgium | 69.7% Berlin"
+        "30.3% Belgium | 69.7% Berlin",
     );
 });
 
@@ -255,7 +395,10 @@ test.tags("desktop");
 test("Rounding, value suggestions, keyboard only", async () => {
     onRpc("account.analytic.plan", "get_relevant_plans", function ({ model }) {
         return this.env[model].filter(
-            (r) => !r.parent_id && r.applicability !== "unavailable" && r.all_account_count
+            (r) =>
+                !r.parent_id &&
+                r.applicability !== "unavailable" &&
+                r.all_account_count,
         );
     });
     await mountView({
@@ -352,7 +495,8 @@ test("Rounding, value suggestions, keyboard only", async () => {
     const autocomplete = getActiveElement().parentNode;
     // choose Operating Costs
     while (
-        autocomplete.querySelector("a[aria-selected='true']")?.textContent !== "Operating Costs"
+        autocomplete.querySelector("a[aria-selected='true']")?.textContent !==
+        "Operating Costs"
     ) {
         await press("ArrowDown");
         await animationFrame();

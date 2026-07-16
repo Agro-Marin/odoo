@@ -46,7 +46,9 @@ export class ResUsersSettings extends webModels.ResUsersSettings {
         }
         const [partner] = ResPartner.read(this.env.user.partner_id);
         BusBus._sendone(partner, "res.users.settings.volumes", {
-            ...ResUsersSettingsVolumes.discuss_users_settings_volume_format(volumeSettings.id),
+            ...ResUsersSettingsVolumes.discuss_users_settings_volume_format(
+                volumeSettings.id,
+            ),
         });
         return volumeSettings;
     }
@@ -56,7 +58,9 @@ export class ResUsersSettings extends webModels.ResUsersSettings {
         ids = kwargs.ids;
         delete kwargs.ids;
         custom_notifications = kwargs.custom_notifications;
-        this.set_res_users_settings(ids, { channel_notifications: custom_notifications });
+        this.set_res_users_settings(ids, {
+            channel_notifications: custom_notifications,
+        });
     }
 }
 
@@ -73,9 +77,10 @@ patch(webModels.ResUsersSettings.prototype, {
 
         const [settings] = this.browse(id);
         if (Reflect.ownKeys(res).includes("volume_settings_ids")) {
-            const volumeSettings = ResUsersSettingsVolumes.discuss_users_settings_volume_format(
-                settings.volume_settings_ids
-            );
+            const volumeSettings =
+                ResUsersSettingsVolumes.discuss_users_settings_volume_format(
+                    settings.volume_settings_ids,
+                );
             res.volumes = [["ADD", volumeSettings]];
         }
         return res;
@@ -97,7 +102,9 @@ patch(webModels.ResUsersSettings.prototype, {
         const [id] = ensureArray(idOrIds);
         const [oldSettings] = this.browse(id);
         const [relatedUser] = ResUsers.search_read([["id", "=", oldSettings.user_id]]);
-        const [relatedPartner] = ResPartner.search_read([["id", "=", relatedUser.partner_id[0]]]);
+        const [relatedPartner] = ResPartner.search_read([
+            ["id", "=", relatedUser.partner_id[0]],
+        ]);
         BusBus._sendone(relatedPartner, "res.users.settings", {
             ...changedSettings,
             id,

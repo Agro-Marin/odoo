@@ -1,6 +1,7 @@
 /** @odoo-module native */
 import { waitImages } from "@point_of_sale/utils";
 import { SignalStore } from "@web/core/utils/reactive";
+
 import { logPosMessage } from "../utils/pretty_console_log.js";
 export const printerService = {
     dependencies: ["renderer"],

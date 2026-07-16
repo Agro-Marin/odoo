@@ -202,11 +202,15 @@ export function lostConnectionHandler(env, error, originalError) {
                     return true;
                 }
                 sessionExpiredDialogOpen = true;
-                env.services.dialog.add(SessionExpiredDialog, {}, {
-                    onClose: () => {
-                        sessionExpiredDialogOpen = false;
+                env.services.dialog.add(
+                    SessionExpiredDialog,
+                    {},
+                    {
+                        onClose: () => {
+                            sessionExpiredDialogOpen = false;
+                        },
                     },
-                });
+                );
                 return true;
             }
             env.services.dialog.add(NetworkErrorDialog, {

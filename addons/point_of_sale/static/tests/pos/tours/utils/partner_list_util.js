@@ -35,7 +35,7 @@ export function clickSettleOrderName(
     prefix,
     suffix = "",
     checkCurrentYear = false,
-    availability = true
+    availability = true,
 ) {
     let trigger = `tr.o_data_row td[name='name']:contains("${prefix}")`;
     if (checkCurrentYear) {
@@ -62,7 +62,7 @@ export function settleCustomerAccount(
     orderSuffix = "",
     checkYear = false,
     orderSettlement = false,
-    availability = true
+    availability = true,
 ) {
     const steps = [
         {
@@ -75,7 +75,7 @@ export function settleCustomerAccount(
         ...[
             clickDropDownItemText(buttonText),
             clickSettleOrderName(orderPrefix, orderSuffix, checkYear, availability),
-        ]
+        ],
     );
     return steps;
 }
@@ -147,7 +147,9 @@ export function searchCustomerValue(val, pressEnter = false) {
             run: function () {
                 document
                     .querySelector(".modal-dialog .input-group input")
-                    .dispatchEvent(new KeyboardEvent("keydown", { bubbles: true, key: "Enter" }));
+                    .dispatchEvent(
+                        new KeyboardEvent("keydown", { bubbles: true, key: "Enter" }),
+                    );
             },
         });
     }

@@ -23,10 +23,6 @@ const charFields = {
     code: { type: "char" },
 };
 
-const numericFields = {
-    amount: { type: "float" },
-};
-
 const m2oFields = {
     partner_id: { type: "many2one" },
 };

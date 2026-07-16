@@ -21,4 +21,6 @@ class AccountPaymentRegisterHtmlField extends Component {
 
 const accountPaymentRegisterHtmlField = { component: AccountPaymentRegisterHtmlField };
 
-registry.category("fields").add("account_payment_register_html", accountPaymentRegisterHtmlField);
+registry
+    .category("fields")
+    .add("account_payment_register_html", accountPaymentRegisterHtmlField);

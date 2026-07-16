@@ -1,5 +1,4 @@
 import {
-    SIZES,
     click,
     contains,
     defineMailModels,
@@ -7,6 +6,7 @@ import {
     openFormView,
     patchUiSize,
     scroll,
+    SIZES,
     start,
     startServer,
 } from "@mail/../tests/mail_test_helpers";
@@ -99,7 +99,9 @@ test("view attachments", async () => {
                 <chatter open_attachments="True"/>
             </form>`,
     });
-    await click('.o-mail-AttachmentContainer[aria-label="Blah.txt"] .o-mail-AttachmentCard-image');
+    await click(
+        '.o-mail-AttachmentContainer[aria-label="Blah.txt"] .o-mail-AttachmentCard-image',
+    );
     await contains(".o-FileViewer");
     await contains(".o-FileViewer-header", { text: "Blah.txt" });
     await contains(".o-FileViewer div[aria-label='Next']");

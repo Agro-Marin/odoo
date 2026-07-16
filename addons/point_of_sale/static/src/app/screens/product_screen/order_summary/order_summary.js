@@ -35,7 +35,7 @@ export class OrderSummary extends Component {
 
     async editPackLotLines(line) {
         const isAllowOnlyOneLot = line.product_id.isAllowOnlyOneLot();
-        let editedPackLotLines = [];
+        let editedPackLotLines;
         if (line.refunded_orderline_id) {
             editedPackLotLines = await this.pos.editLotsRefund(line);
         } else {

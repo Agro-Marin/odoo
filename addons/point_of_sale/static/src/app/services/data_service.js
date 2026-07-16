@@ -1,15 +1,16 @@
 /** @odoo-module native */
-import { luxon } from "@web/core/l10n/luxon";
 import { markRaw } from "@odoo/owl";
 import { createRelatedModels } from "@point_of_sale/app/models/related_models";
 import { getOnNotified, uuidv4 } from "@point_of_sale/utils";
 import { browser } from "@web/core/browser/browser";
+import { luxon } from "@web/core/l10n/luxon";
 import { _t } from "@web/core/l10n/translation";
-import { ConnectionLostError, RPCError, rpc } from "@web/core/network/rpc";
+import { ConnectionLostError, rpc, RPCError } from "@web/core/network/rpc";
 import { registry } from "@web/core/registry";
 import { Mutex } from "@web/core/utils/concurrency";
 import { SignalStore } from "@web/core/utils/reactive";
 import { debounce } from "@web/core/utils/timing";
+
 import { DataServiceOptions } from "../models/data_service_options.js";
 import IndexedDB from "../models/utils/indexed_db.js";
 import DeviceIdentifierSequence from "../utils/devices_identifier_sequence.js";

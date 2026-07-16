@@ -1,11 +1,12 @@
 /** @odoo-module native */
+import { Component } from "@odoo/owl";
 import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
-
-import { SelectionField, selectionField } from "@web/fields/selection/selection/selection_field";
-
-import { Component } from "@odoo/owl";
+import {
+    SelectionField,
+    selectionField,
+} from "@web/fields/selection/selection/selection_field";
 
 export class DocumentStatePopover extends Component {
     static template = "account.DocumentStatePopover";
@@ -35,7 +36,9 @@ export class DocumentState extends SelectionField {
             await navigator.clipboard.writeText(this.message);
             this.notification.add(_t("Text copied"), { type: "success" });
         } catch {
-            this.notification.add(_t("Could not copy to clipboard"), { type: "warning" });
+            this.notification.add(_t("Could not copy to clipboard"), {
+                type: "warning",
+            });
         }
         this.popoverCloseFn();
         this.popoverCloseFn = null;

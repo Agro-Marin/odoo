@@ -1,7 +1,7 @@
-import * as Chrome from "@point_of_sale/../tests/pos/tours/utils/chrome_util";
 import * as Dialog from "@point_of_sale/../tests/generic_helpers/dialog_util";
-import * as ProductScreen from "@point_of_sale/../tests/pos/tours/utils/product_screen_util";
+import * as Chrome from "@point_of_sale/../tests/pos/tours/utils/chrome_util";
 import * as PaymentScreen from "@point_of_sale/../tests/pos/tours/utils/payment_screen_util";
+import * as ProductScreen from "@point_of_sale/../tests/pos/tours/utils/product_screen_util";
 import { registry } from "@web/core/registry";
 
 registry.category("web_tour.tours").add("test_pos_order_shipping_date", {
@@ -24,7 +24,9 @@ registry.category("web_tour.tours").add("test_pos_order_shipping_date", {
                 content: "pick a date",
                 trigger: '.modal-body input[type="date"]',
                 run: () => {
-                    const input = document.querySelector('.modal-body input[type="date"]');
+                    const input = document.querySelector(
+                        '.modal-body input[type="date"]',
+                    );
                     const nextYear = new Date().getFullYear() + 1;
                     input.value = `${nextYear}-05-30`;
                     input.dispatchEvent(new Event("input", { bubbles: true }));
@@ -41,7 +43,9 @@ registry.category("web_tour.tours").add("test_pos_order_shipping_date", {
                 trigger: ".payment-buttons .d-flex .btn span",
                 run: () => {
                     const spans = [
-                        ...document.querySelectorAll(".payment-buttons .d-flex .btn span"),
+                        ...document.querySelectorAll(
+                            ".payment-buttons .d-flex .btn span",
+                        ),
                     ];
                     const nextYear = new Date().getFullYear() + 1;
                     const expectedDate = `05/30/${nextYear}`;
@@ -55,7 +59,9 @@ registry.category("web_tour.tours").add("test_pos_order_shipping_date", {
                 content: "Assert shipping date in receipt",
                 trigger: ".pos-receipt-order-data",
                 run: () => {
-                    const dateDiv = document.querySelector(".pos-receipt-order-data div");
+                    const dateDiv = document.querySelector(
+                        ".pos-receipt-order-data div",
+                    );
                     const nextYear = new Date().getFullYear() + 1;
                     const expectedDate = `5/30/${nextYear}`;
                     if (dateDiv.innerText !== expectedDate) {

@@ -138,10 +138,14 @@ test("remove banner when opening thread at the bottom", async () => {
         ["partner_id", "=", serverState.partnerId],
         ["channel_id", "=", channelId],
     ]);
-    pyEnv["discuss.channel.member"].write([selfMemberId], { new_message_separator: messageId + 1 });
+    pyEnv["discuss.channel.member"].write([selfMemberId], {
+        new_message_separator: messageId + 1,
+    });
     await start();
     await openDiscuss(channelId);
-    await click("[title='Expand']", { parent: [".o-mail-Message", { text: "Hello World" }] });
+    await click("[title='Expand']", {
+        parent: [".o-mail-Message", { text: "Hello World" }],
+    });
     await click(".o-dropdown-item:contains('Mark as Unread')");
     await contains(".o-mail-Thread-banner", { text: "1 new message" });
     await click(".o-mail-DiscussSidebar-item", { text: "Inbox" });
@@ -165,7 +169,9 @@ test("keep banner after mark as unread when scrolling to bottom", async () => {
     }
     await start();
     await openDiscuss(channelId);
-    await click("[title='Expand']", { parent: [".o-mail-Message", { text: "message 29" }] });
+    await click("[title='Expand']", {
+        parent: [".o-mail-Message", { text: "message 29" }],
+    });
     await click(".o-dropdown-item:contains('Mark as Unread')");
     await scroll(".o-mail-Thread", "bottom");
     await contains(".o-mail-Thread-banner", { text: "30 new messages" });
@@ -174,7 +180,10 @@ test("keep banner after mark as unread when scrolling to bottom", async () => {
 test("sidebar and banner counters display same value", async () => {
     const pyEnv = await startServer();
     const bobPartnerId = pyEnv["res.partner"].create({ name: "Bob" });
-    const bobUserId = pyEnv["res.users"].create({ name: "Bob", partner_id: bobPartnerId });
+    const bobUserId = pyEnv["res.users"].create({
+        name: "Bob",
+        partner_id: bobPartnerId,
+    });
     const channelId = pyEnv["discuss.channel"].create({
         channel_type: "chat",
         channel_member_ids: [
@@ -208,7 +217,7 @@ test("sidebar and banner counters display same value", async () => {
             },
             thread_id: channelId,
             thread_model: "discuss.channel",
-        })
+        }),
     );
     await contains(".o-mail-Thread-banner", { text: "31 new messages" });
     await contains(".o-mail-DiscussSidebar-badge", {
@@ -245,5 +254,8 @@ test("mobile: mark as read when opening chat", async () => {
     await contains(".o-mail-Thread.o-focused");
     await contains(".o-mail-Composer:not(.o-focused)");
     await click(".o-mail-ChatWindow-header [title*='Close Chat Window']");
-    await contains(".o-mail-NotificationItem:has(.badge:contains(1))", { text: "bob", count: 0 });
+    await contains(".o-mail-NotificationItem:has(.badge:contains(1))", {
+        text: "bob",
+        count: 0,
+    });
 });

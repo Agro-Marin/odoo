@@ -33,7 +33,8 @@ registry.category("web_tour.tours").add("mail_activity_date_format", {
         },
         {
             // Default due date is 5 days after creation date.
-            trigger: ".o-mail-Activity-details tr:contains('Due on') td:contains('06/Jan/24')",
+            trigger:
+                ".o-mail-Activity-details tr:contains('Due on') td:contains('06/Jan/24')",
         },
     ],
 });

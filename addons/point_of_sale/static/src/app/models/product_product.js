@@ -1,6 +1,7 @@
 /** @odoo-module native */
 import { normalize } from "@web/core/l10n/utils";
 import { registry } from "@web/core/registry";
+
 import { Base } from "./related_models/index.js";
 // When adding a method to this class, please pay attention to naming.
 // As in the backend, when trying to access taxes_id on product.product,

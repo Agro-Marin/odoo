@@ -6,7 +6,6 @@ import {
     start,
     startServer,
 } from "@mail/../tests/mail_test_helpers";
-
 import { describe, test } from "@odoo/hoot";
 import { getOrigin } from "@web/core/utils/urls";
 
@@ -39,13 +38,19 @@ test("clicking message link does not swap open chat window", async () => {
     setupChatHub({ opened: [rdId, supportId] });
     await start();
     await contains(".o-mail-ChatWindow:eq(0) .o-mail-ChatWindow-header:contains(R&D)");
-    await contains(".o-mail-ChatWindow:eq(1) .o-mail-ChatWindow-header:contains(Support)");
+    await contains(
+        ".o-mail-ChatWindow:eq(1) .o-mail-ChatWindow-header:contains(Support)",
+    );
     await click("a.o_message_redirect:contains(R&D)");
     await contains(".o-mail-Message.o-highlighted:contains(Hello R&D)");
     await contains(".o-mail-ChatWindow:eq(0) .o-mail-ChatWindow-header:contains(R&D)");
-    await contains(".o-mail-ChatWindow:eq(1) .o-mail-ChatWindow-header:contains(Support)");
+    await contains(
+        ".o-mail-ChatWindow:eq(1) .o-mail-ChatWindow-header:contains(Support)",
+    );
     await click("a.o_message_redirect:contains(Support)");
     await contains(".o-mail-Message.o-highlighted:contains(Hello from there)");
     await contains(".o-mail-ChatWindow:eq(0) .o-mail-ChatWindow-header:contains(R&D)");
-    await contains(".o-mail-ChatWindow:eq(1) .o-mail-ChatWindow-header:contains(Support)");
+    await contains(
+        ".o-mail-ChatWindow:eq(1) .o-mail-ChatWindow-header:contains(Support)",
+    );
 });

@@ -1,5 +1,4 @@
 import { insertText as htmlInsertText } from "@html_editor/../tests/_helpers/user_actions";
-
 import {
     click,
     contains,
@@ -155,6 +154,6 @@ test("html composer: trim boundary empty formatting on send", async () => {
     await click(".o-mail-Composer button[title='Send']:enabled");
     await expect.waitForSteps(["/mail/message/post"]);
     // Expected editor shape before trimming: '<div><br></div><div">Hello World<br/></div>'
-    expect(body).toBe('<div>Hello World</div>');
+    expect(body).toBe("<div>Hello World</div>");
     await contains(".o-mail-Message[data-persistent]:contains(Hello)");
 });

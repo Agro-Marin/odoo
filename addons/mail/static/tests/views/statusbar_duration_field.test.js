@@ -43,7 +43,11 @@ test("status bar duration field used in form view", async () => {
     await contains("span[title='7 days, 30 minutes']", {
         parent: [".o_statusbar_status button", { text: "New" }],
     });
-    await contains("span[title='3 hours']", { parent: ["button", { text: "Qualified" }] });
+    await contains("span[title='3 hours']", {
+        parent: ["button", { text: "Qualified" }],
+    });
     await contains("button", { text: "Proposition" });
-    await contains("span[title='2 days, 5 hours']", { parent: ["button", { text: "Won" }] });
+    await contains("span[title='2 days, 5 hours']", {
+        parent: ["button", { text: "Won" }],
+    });
 });

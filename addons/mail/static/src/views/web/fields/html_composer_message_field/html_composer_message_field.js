@@ -41,9 +41,9 @@ export class HtmlComposerMessageField extends HtmlMailField {
 
     getConfig() {
         const config = super.getConfig(...arguments);
-        config.Plugins = config.Plugins
-            .filter((plugin) => !["video"].includes(plugin.id))
-            .concat([DisableBannerCommandsPlugin, MentionPlugin]);
+        config.Plugins = config.Plugins.filter(
+            (plugin) => !["video"].includes(plugin.id),
+        ).concat([DisableBannerCommandsPlugin, MentionPlugin]);
         if (this.props.record.data.composition_comment_option === "reply_all") {
             config.Plugins.push(ContentExpandablePlugin);
         }
@@ -54,12 +54,10 @@ export class HtmlComposerMessageField extends HtmlMailField {
         }
         config.onAttachmentChange = (attachment) => {
             // This only needs to happen for the composer for now
-            if (
-                !(
-                    this.props.record.fieldNames.includes("attachment_ids") &&
-                    this.props.record.resModel === "mail.compose.message"
-                )
-            ) {
+            if (!(
+                this.props.record.fieldNames.includes("attachment_ids") &&
+                this.props.record.resModel === "mail.compose.message"
+            )) {
                 return;
             }
             this.props.record.data.attachment_ids.linkTo(attachment.id, attachment);

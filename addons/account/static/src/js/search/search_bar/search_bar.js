@@ -9,11 +9,11 @@ patch(SearchBar.prototype, {
         // Compare fieldName directly: property-field search items are not in
         // this.fields, so dereferencing this.fields[fieldName].name would crash.
         if (
-            searchItem.fieldName === 'payment_date'
-            || searchItem.fieldName === 'next_payment_date'
+            searchItem.fieldName === "payment_date" ||
+            searchItem.fieldName === "next_payment_date"
         ) {
             preposition = _t("until");
         }
         return preposition;
-    }
+    },
 });

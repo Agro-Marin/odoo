@@ -1,6 +1,7 @@
-import { test, expect, describe } from "@odoo/hoot";
-import { getFilledOrder, setupPosEnv } from "../utils.js";
+import { describe, expect, test } from "@odoo/hoot";
+
 import { definePosModels } from "../data/generate_model_definitions.js";
+import { getFilledOrder, setupPosEnv } from "../utils.js";
 
 definePosModels();
 

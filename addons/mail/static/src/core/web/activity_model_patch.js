@@ -1,9 +1,9 @@
 /** @odoo-module native */
+import { isEmptyBlock } from "@html_editor/utils/dom_info";
 import { Activity } from "@mail/core/common/activity_model";
 import { fields } from "@mail/core/common/record";
 import { formatDate, formatDateTime } from "@web/core/l10n/dates";
 import { _t } from "@web/core/l10n/translation";
-import { isEmptyBlock } from "@html_editor/utils/dom_info";
 import { createElementWithContent } from "@web/core/utils/dom/html";
 import { patch } from "@web/core/utils/patch";
 patch(Activity.prototype, {
@@ -12,7 +12,8 @@ patch(Activity.prototype, {
         this.isNoteEmpty = fields.Attr(true, {
             compute() {
                 return (
-                    !this.note || isEmptyBlock(createElementWithContent("div", this.note))
+                    !this.note ||
+                    isEmptyBlock(createElementWithContent("div", this.note))
                 );
             },
         });

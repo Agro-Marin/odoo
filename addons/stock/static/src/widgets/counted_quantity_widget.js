@@ -1,8 +1,8 @@
 /** @odoo-module native */
-import { FloatField, floatField } from "@web/fields/basic/float/float_field";
-import { registry } from "@web/core/registry";
-import { getActiveHotkey } from "@web/core/browser/hotkeys";
 import { useEffect, useRef } from "@odoo/owl";
+import { getActiveHotkey } from "@web/core/browser/hotkeys";
+import { registry } from "@web/core/registry";
+import { FloatField, floatField } from "@web/fields/basic/float/float_field";
 
 export class CountedQuantityWidgetField extends FloatField {
     // These blur/keydown listeners run *in addition to* the base FloatField's own
@@ -30,14 +30,17 @@ export class CountedQuantityWidgetField extends FloatField {
                     };
                 }
             },
-            () => [inputRef.el]
+            () => [inputRef.el],
         );
     }
 
-    updateValue(ev){
+    updateValue(ev) {
         try {
             const val = this.parse(ev.target.value);
-            this.props.record.update({ [this.props.name]: val, inventory_quantity_set: true });
+            this.props.record.update({
+                [this.props.name]: val,
+                inventory_quantity_set: true,
+            });
         } catch {
             // Parse failure: the base FloatField commit runs on the same event and
             // already flags the field invalid (setInvalidField), so swallow here
@@ -59,7 +62,8 @@ export class CountedQuantityWidgetField extends FloatField {
     get formattedValue() {
         if (
             this.props.readonly &&
-            !this.props.record.data[this.props.name] && !this.props.record.data.inventory_quantity_set
+            !this.props.record.data[this.props.name] &&
+            !this.props.record.data.inventory_quantity_set
         ) {
             return "";
         }

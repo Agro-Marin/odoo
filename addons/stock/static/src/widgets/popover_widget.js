@@ -1,8 +1,8 @@
 /** @odoo-module native */
-import { registry } from "@web/core/registry";
-import { usePopover } from "@web/ui/popover/popover_hook";
 import { Component } from "@odoo/owl";
+import { registry } from "@web/core/registry";
 import { standardFieldProps } from "@web/fields/standard_field_props";
+import { usePopover } from "@web/ui/popover/popover_hook";
 
 /**
  * Extend this to add functionality to Popover (custom methods etc.)
@@ -29,8 +29,8 @@ export class PopoverComponent extends Component {
 export class PopoverWidgetField extends Component {
     static template = "stock.popoverButton";
     static components = { Popover: PopoverComponent };
-    static props = {...standardFieldProps};
-    setup(){
+    static props = { ...standardFieldProps };
+    setup() {
         this.popover = usePopover(this.constructor.components.Popover, {
             position: this.jsonValue.position || "top",
         });
@@ -58,14 +58,17 @@ export class PopoverWidgetField extends Component {
         return rawIcon.includes(" ") ? rawIcon : `fa-solid ${rawIcon}`;
     }
 
-    showPopup(ev){
-        this.popover.open(ev.currentTarget, { ...this.jsonValue, record: this.props.record });
+    showPopup(ev) {
+        this.popover.open(ev.currentTarget, {
+            ...this.jsonValue,
+            record: this.props.record,
+        });
     }
 }
 
 export const popoverWidgetField = {
     component: PopoverWidgetField,
-    supportedTypes: ['char'],
+    supportedTypes: ["char"],
 };
 
 registry.category("fields").add("popover_widget", popoverWidgetField);

@@ -1,8 +1,8 @@
 import { openFormView, start, startServer } from "@mail/../tests/mail_test_helpers";
 import { defineMrpModels } from "@mrp/../tests/mrp_test_helpers";
-import { MrpTimer } from "@mrp/widgets/timer";
 import { getStateDecorator } from "@mrp/components/mo_overview_line/mo_overview_colors";
 import { getColorClass, getForecastAction } from "@mrp/components/mrp_overview_utils";
+import { MrpTimer } from "@mrp/widgets/timer";
 import { describe, expect, test } from "@odoo/hoot";
 import { advanceTime } from "@odoo/hoot-mock";
 import { Component, xml } from "@odoo/owl";
@@ -49,7 +49,9 @@ test("shared overview helpers", () => {
     expect(getColorClass("success")).toBe("text-success");
     expect(getColorClass(false)).toBe("");
     expect(getForecastAction("product.product")).toBe("action_product_forecast_report");
-    expect(getForecastAction("product.template")).toBe("action_product_tmpl_forecast_report");
+    expect(getForecastAction("product.template")).toBe(
+        "action_product_tmpl_forecast_report",
+    );
     expect(getForecastAction("mrp.bom")).toBe(undefined);
 });
 

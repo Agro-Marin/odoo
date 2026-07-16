@@ -1,13 +1,14 @@
 /** @odoo-module native */
-import { Component, useEffect, onWillRender } from "@odoo/owl";
+import { Component, onWillRender, useEffect } from "@odoo/owl";
 import { _t } from "@web/core/l10n/translation";
-import { x2ManyCommands } from "@web/model/relational_model/commands";
 import { registry } from "@web/core/registry";
 import { CharField } from "@web/fields/basic/char/char_field";
-import { standardFieldProps } from "@web/fields/standard_field_props";
 import { ListTextField, TextField } from "@web/fields/basic/text/text_field";
 import { X2ManyField, x2ManyField } from "@web/fields/relational/x2many/x2many_field";
+import { standardFieldProps } from "@web/fields/standard_field_props";
+import { x2ManyCommands } from "@web/model/relational_model/commands";
 import { ListRenderer } from "@web/views/list/list_renderer";
+
 import {
     DISPLAY_TYPES,
     getPreviousSectionRecords,
@@ -24,8 +25,12 @@ import {
 // Re-exported for external consumers (e.g. sale_management's order line field).
 export { getSectionRecords };
 
-const SHOW_ALL_ITEMS_TOOLTIP = _t("Some lines can be on the next page, display them to unlock actions on section.");
-const DISABLED_MOVE_DOWN_ITEM_TOOLTIP = _t("Some lines of the next section can be on the next page, display them to unlock the action.");
+const SHOW_ALL_ITEMS_TOOLTIP = _t(
+    "Some lines can be on the next page, display them to unlock actions on section.",
+);
+const DISABLED_MOVE_DOWN_ITEM_TOOLTIP = _t(
+    "Some lines of the next section can be on the next page, display them to unlock the action.",
+);
 
 export class SectionAndNoteListRenderer extends ListRenderer {
     static template = "account.SectionAndNoteListRenderer";
@@ -53,7 +58,7 @@ export class SectionAndNoteListRenderer extends ListRenderer {
         this.parentSectionMap = new Map();
         useEffect(
             (editedRecord) => this.focusToName(editedRecord),
-            () => [this.editedRecord]
+            () => [this.editedRecord],
         );
         onWillRender(() => {
             this.buildParentSectionMap();
@@ -79,11 +84,14 @@ export class SectionAndNoteListRenderer extends ListRenderer {
     }
 
     get disablePricesButton() {
-        return this.shouldCollapse(this.record, 'collapse_prices') || this.disableCompositionButton;
+        return (
+            this.shouldCollapse(this.record, "collapse_prices") ||
+            this.disableCompositionButton
+        );
     }
 
     get disableCompositionButton() {
-        return this.shouldCollapse(this.record, 'collapse_composition');
+        return this.shouldCollapse(this.record, "collapse_composition");
     }
 
     buildParentSectionMap() {
@@ -107,14 +115,16 @@ export class SectionAndNoteListRenderer extends ListRenderer {
 
     async toggleCollapse(record, fieldName) {
         // We don't want to have 'collapse_prices' & 'collapse_composition' set to True at the same time
-        const reverseFieldName = fieldName === 'collapse_prices' ? 'collapse_composition' : 'collapse_prices';
+        const reverseFieldName =
+            fieldName === "collapse_prices"
+                ? "collapse_composition"
+                : "collapse_prices";
         const changes = {
             [fieldName]: !record.data[fieldName],
             [reverseFieldName]: false,
         };
         await record.update(changes);
     }
-
 
     async addNoteInSection(record) {
         const canProceed = await this.props.list.leaveEditMode({ canAbandon: false });
@@ -179,7 +189,9 @@ export class SectionAndNoteListRenderer extends ListRenderer {
             const sectionRecords = getSectionRecords(this.props.list, record);
             for (const sectionRecord of sectionRecords) {
                 commands.push(
-                    x2ManyCommands[method](sectionRecord.resId || sectionRecord._virtualId)
+                    x2ManyCommands[method](
+                        sectionRecord.resId || sectionRecord._virtualId,
+                    ),
                 );
             }
             await this.props.list.applyCommands(commands);
@@ -192,10 +204,14 @@ export class SectionAndNoteListRenderer extends ListRenderer {
             return;
         }
 
-        const { sectionRecords, sectionIndex } = getRecordsUntilSection(this.props.list, record, true)
-        const recordsToDuplicate = sectionRecords.filter((record) => {
-            return this.shouldDuplicateSectionItem(record);
-        });
+        const { sectionRecords, sectionIndex } = getRecordsUntilSection(
+            this.props.list,
+            record,
+            true,
+        );
+        const recordsToDuplicate = sectionRecords.filter((record) =>
+            this.shouldDuplicateSectionItem(record),
+        );
         await this.props.list.duplicateRecords(recordsToDuplicate, {
             targetIndex: sectionIndex,
             copyFields: this.copyFields,
@@ -246,7 +262,11 @@ export class SectionAndNoteListRenderer extends ListRenderer {
             return false;
         }
 
-        const { sectionIndex } = getRecordsUntilSection(this.props.list, this.props.list.records[index], true);
+        const { sectionIndex } = getRecordsUntilSection(
+            this.props.list,
+            this.props.list.records[index],
+            true,
+        );
         return sectionIndex < this.props.list.limit;
     }
 
@@ -324,7 +344,10 @@ export class SectionAndNoteListRenderer extends ListRenderer {
     getRowClass(record) {
         const existingClasses = super.getRowClass(record);
         let newClasses = `${existingClasses} o_is_${record.data.display_type}`;
-        if (this.props.hideComposition && this.shouldCollapse(record, 'collapse_composition')) {
+        if (
+            this.props.hideComposition &&
+            this.shouldCollapse(record, "collapse_composition")
+        ) {
             newClasses += " text-muted";
         }
         return newClasses;
@@ -334,17 +357,17 @@ export class SectionAndNoteListRenderer extends ListRenderer {
         let classNames = super.getCellClass(column, record);
         // For hiding columnns of section and note
         if (
-            this.isSectionOrNote(record)
-            && column.widget !== "handle"
-            && ![this.titleField, ...this.props.aggregatedFields].includes(column.name)
+            this.isSectionOrNote(record) &&
+            column.widget !== "handle" &&
+            ![this.titleField, ...this.props.aggregatedFields].includes(column.name)
         ) {
             return `${classNames} o_hidden`;
         }
         // For muting the price columns
         if (
-            this.props.hidePrices
-            && this.shouldCollapse(record, 'collapse_prices')
-            && this.priceColumns.includes(column.name)
+            this.props.hidePrices &&
+            this.shouldCollapse(record, "collapse_prices") &&
+            this.priceColumns.includes(column.name)
         ) {
             classNames += " text-muted";
         }
@@ -361,11 +384,16 @@ export class SectionAndNoteListRenderer extends ListRenderer {
     }
 
     getFormattedValue(column, record) {
-        if (this.isSection(record) && this.props.aggregatedFields.includes(column.name)) {
+        if (
+            this.isSection(record) &&
+            this.props.aggregatedFields.includes(column.name)
+        ) {
             const total = getSectionRecords(this.props.list, record)
                 .filter((record) => !this.isSection(record))
                 .reduce((total, record) => total + (record.data[column.name] || 0), 0);
-            const formatter = registry.category("formatters").get(column.fieldType, (val) => val);
+            const formatter = registry
+                .category("formatters")
+                .get(column.fieldType, (val) => val);
             return formatter(total, {
                 ...formatter.extractOptions?.(column),
                 data: record.data,
@@ -378,9 +406,10 @@ export class SectionAndNoteListRenderer extends ListRenderer {
     getSectionColumns(columns, record) {
         const sectionCols = columns.filter(
             (col) =>
-                col.widget === "handle"
-                || col.name === this.titleField
-                || (this.isSection(record) && this.props.aggregatedFields.includes(col.name))
+                col.widget === "handle" ||
+                col.name === this.titleField ||
+                (this.isSection(record) &&
+                    this.props.aggregatedFields.includes(col.name)),
         );
         return sectionCols.map((col) => {
             if (col.name === this.titleField) {
@@ -399,7 +428,10 @@ export class SectionAndNoteListRenderer extends ListRenderer {
 
         const sectionRecords = getSectionRecords(this.props.list, record);
         const index = this.props.list.records.indexOf(record) + sectionRecords.length;
-        const nextSectionRecords = getSectionRecords(this.props.list, this.props.list.records[index]);
+        const nextSectionRecords = getSectionRecords(
+            this.props.list,
+            this.props.list.records[index],
+        );
         return this.swapSections(sectionRecords, nextSectionRecords);
     }
 
@@ -409,7 +441,10 @@ export class SectionAndNoteListRenderer extends ListRenderer {
             return;
         }
 
-        const previousSectionRecords = getPreviousSectionRecords(this.props.list, record);
+        const previousSectionRecords = getPreviousSectionRecords(
+            this.props.list,
+            record,
+        );
         const sectionRecords = getSectionRecords(this.props.list, record);
         return this.swapSections(previousSectionRecords, sectionRecords);
     }
@@ -422,14 +457,18 @@ export class SectionAndNoteListRenderer extends ListRenderer {
         const commands = [];
         let sequence = sectionRecords1[0].data[this.props.list.handleField];
         for (const record of sectionRecords2) {
-            commands.push(x2ManyCommands.update(record.resId || record._virtualId, {
-                [this.props.list.handleField]: sequence++,
-            }));
+            commands.push(
+                x2ManyCommands.update(record.resId || record._virtualId, {
+                    [this.props.list.handleField]: sequence++,
+                }),
+            );
         }
         for (const record of sectionRecords1) {
-            commands.push(x2ManyCommands.update(record.resId || record._virtualId, {
-                [this.props.list.handleField]: sequence++,
-            }));
+            commands.push(
+                x2ManyCommands.update(record.resId || record._virtualId, {
+                    [this.props.list.handleField]: sequence++,
+                }),
+            );
         }
         await this.props.list.applyCommands(commands, { sort: true });
     }
@@ -441,14 +480,16 @@ export class SectionAndNoteListRenderer extends ListRenderer {
     async sortDrop(dataRowId, dataGroupId, options) {
         await super.sortDrop(dataRowId, dataGroupId, options);
 
-        const record = this.props.list.records.find(r => r.id === dataRowId);
+        const record = this.props.list.records.find((r) => r.id === dataRowId);
         const parentSection = this.parentSectionMap.get(record);
         const commands = [];
 
         if (this.resetOnResequence(record, parentSection)) {
-            commands.push(x2ManyCommands.update(record.resId || record._virtualId, {
-                ...this.fieldsToReset(),
-            }));
+            commands.push(
+                x2ManyCommands.update(record.resId || record._virtualId, {
+                    ...this.fieldsToReset(),
+                }),
+            );
         }
 
         await this.props.list.applyCommands(commands);
@@ -456,9 +497,9 @@ export class SectionAndNoteListRenderer extends ListRenderer {
 
     resetOnResequence(record, parentSection) {
         return (
-            this.isSubSection(record)
-            && parentSection?.data.collapse_composition
-            && (record.data.collapse_composition || record.data.collapse_prices)
+            this.isSubSection(record) &&
+            parentSection?.data.collapse_composition &&
+            (record.data.collapse_composition || record.data.collapse_prices)
         );
     }
 
@@ -500,7 +541,9 @@ export class SectionAndNoteText extends Component {
     static props = { ...standardFieldProps };
 
     get componentToUse() {
-        return this.props.record.data.display_type === "line_section" ? CharField : TextField;
+        return this.props.record.data.display_type === "line_section"
+            ? CharField
+            : TextField;
     }
 }
 
@@ -516,17 +559,15 @@ export const sectionAndNoteFieldOne2Many = {
     ...x2ManyField,
     component: SectionAndNoteFieldOne2Many,
     additionalClasses: [...(x2ManyField.additionalClasses || []), "o_field_one2many"],
-    extractProps: (staticInfo, dynamicInfo) => {
-        return {
-            ...x2ManyField.extractProps(staticInfo, dynamicInfo),
-            aggregatedFields: staticInfo.attrs.aggregated_fields
-                ? staticInfo.attrs.aggregated_fields.split(/\s*,\s*/)
-                : [],
-            hideComposition: staticInfo.options?.hide_composition ?? false,
-            hidePrices: staticInfo.options?.hide_prices ?? false,
-            subsections: staticInfo.options?.subsections ?? false,
-        };
-    },
+    extractProps: (staticInfo, dynamicInfo) => ({
+        ...x2ManyField.extractProps(staticInfo, dynamicInfo),
+        aggregatedFields: staticInfo.attrs.aggregated_fields
+            ? staticInfo.attrs.aggregated_fields.split(/\s*,\s*/)
+            : [],
+        hideComposition: staticInfo.options?.hide_composition ?? false,
+        hidePrices: staticInfo.options?.hide_prices ?? false,
+        subsections: staticInfo.options?.subsections ?? false,
+    }),
 };
 
 export const sectionAndNoteText = {
@@ -539,6 +580,8 @@ export const listSectionAndNoteText = {
     component: ListSectionAndNoteText,
 };
 
-registry.category("fields").add("section_and_note_one2many", sectionAndNoteFieldOne2Many);
+registry
+    .category("fields")
+    .add("section_and_note_one2many", sectionAndNoteFieldOne2Many);
 registry.category("fields").add("section_and_note_text", sectionAndNoteText);
 registry.category("fields").add("list.section_and_note_text", listSectionAndNoteText);

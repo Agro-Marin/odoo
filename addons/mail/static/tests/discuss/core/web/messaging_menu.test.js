@@ -1,5 +1,4 @@
 import {
-    SIZES,
     click,
     contains,
     defineMailModels,
@@ -7,6 +6,7 @@ import {
     openDiscuss,
     patchBrowserNotification,
     patchUiSize,
+    SIZES,
     start,
     startServer,
 } from "@mail/../tests/mail_test_helpers";
@@ -21,7 +21,6 @@ import {
     swipeRight,
     withUser,
 } from "@web/../tests/web_test_helpers";
-
 import { rpc } from "@web/core/network/rpc";
 
 describe.current.tags("desktop");
@@ -128,10 +127,10 @@ test("deleted message should not show parent message reference and mentions", as
     await openDiscuss(channelId);
     await contains(".o-mail-MessageInReply", { text: "Parent Message" });
     await webContains(
-        ".o-mail-Message:has(.o-mail-Message-bubble.o-orange):contains('reply message')"
+        ".o-mail-Message:has(.o-mail-Message-bubble.o-orange):contains('reply message')",
     ).hover();
     await webContains(
-        ".o-mail-Message:has(.o-mail-Message-bubble.o-orange):contains('reply message') [title='Expand']"
+        ".o-mail-Message:has(.o-mail-Message-bubble.o-orange):contains('reply message') [title='Expand']",
     ).click();
     await click(".o-mail-Message-moreMenu .o-dropdown-item:contains(Delete)");
     await click(".o_dialog button:contains(Delete)");
@@ -210,7 +209,7 @@ test("channel preview ignores messages from the past", async () => {
             post_data: { body: "it's a good idea", message_type: "comment" },
             thread_id: channelId,
             thread_model: "discuss.channel",
-        })
+        }),
     );
     await contains(".o-mail-NotificationItem-text", { text: "You: it's a good idea" });
 });
@@ -222,7 +221,10 @@ test("counter is taking into account non-fetched channels", async () => {
     const channelId = pyEnv["discuss.channel"].create({
         name: "General",
         channel_member_ids: [
-            Command.create({ message_unread_counter: 1, partner_id: serverState.partnerId }),
+            Command.create({
+                message_unread_counter: 1,
+                partner_id: serverState.partnerId,
+            }),
             Command.create({ partner_id: partnerId }),
         ],
     });
@@ -236,7 +238,12 @@ test("counter is taking into account non-fetched channels", async () => {
     await start();
     await contains(".o-mail-MessagingMenu-counter", { text: "1" });
     expect(
-        Boolean(getService("mail.store").Thread.get({ model: "discuss.channel", id: channelId }))
+        Boolean(
+            getService("mail.store").Thread.get({
+                model: "discuss.channel",
+                id: channelId,
+            }),
+        ),
     ).toBe(false);
 });
 
@@ -263,14 +270,19 @@ test("counter is updated on receiving message on non-fetched channels", async ()
     await contains(".o_menu_systray .dropdown-toggle i[aria-label='Messages']");
     await contains(".o-mail-MessagingMenu-counter", { count: 0 });
     expect(
-        Boolean(getService("mail.store").Thread.get({ model: "discuss.channel", id: channelId }))
+        Boolean(
+            getService("mail.store").Thread.get({
+                model: "discuss.channel",
+                id: channelId,
+            }),
+        ),
     ).toBe(false);
     withUser(userId, () =>
         rpc("/mail/message/post", {
             post_data: { body: "good to know", message_type: "comment" },
             thread_id: channelId,
             thread_model: "discuss.channel",
-        })
+        }),
     );
     await contains(".o-mail-MessagingMenu-counter", { text: "1" });
 });
@@ -279,7 +291,10 @@ test("can use notification item swipe actions", async () => {
     mockTouch(true);
     patchUiSize({ size: SIZES.SM });
     const pyEnv = await startServer();
-    const partnerId = pyEnv["res.partner"].create({ name: "Demo", email: "demo@odoo.com" });
+    const partnerId = pyEnv["res.partner"].create({
+        name: "Demo",
+        email: "demo@odoo.com",
+    });
     const channelId = pyEnv["discuss.channel"].create({
         channel_type: "chat",
         channel_member_ids: [
@@ -298,7 +313,9 @@ test("can use notification item swipe actions", async () => {
     await openDiscuss();
     await contains("button.active", { text: "Notifications" });
     await click("button", { text: "Chats" });
-    await contains(".o-mail-NotificationItem .o-mail-NotificationItem-badge:contains(1)");
+    await contains(
+        ".o-mail-NotificationItem .o-mail-NotificationItem-badge:contains(1)",
+    );
     await swipeRight(".o_actionswiper"); // marks as read
     await contains(".o-mail-NotificationItem-badge", { count: 0 });
     await swipeLeft(".o_actionswiper"); // unpins

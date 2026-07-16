@@ -1,5 +1,4 @@
 /** @odoo-module native */
-import { luxon } from "@web/core/l10n/luxon";
 import {
     Component,
     onMounted,
@@ -8,6 +7,7 @@ import {
     onWillUpdateProps,
     useRef,
 } from "@odoo/owl";
+import { luxon } from "@web/core/l10n/luxon";
 import { _t } from "@web/core/l10n/translation";
 import { escape } from "@web/core/utils/format/strings";
 import { useService } from "@web/core/utils/hooks";
@@ -65,7 +65,7 @@ export class NotificationMessage extends Component {
             duration = duration.set({ seconds: 0 });
         }
         const units = Object.entries(duration.toObject())
-            .filter(([unit, amount]) => amount != 0)
+            .filter(([unit, amount]) => amount !== 0)
             .map(([unit, amount]) => unit);
         return _t("Call lasted %(duration)s.", {
             duration: duration.shiftTo(...units).toHuman({ unitDisplay: "short" }),

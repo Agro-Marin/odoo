@@ -1,12 +1,13 @@
-import * as Chrome from "@point_of_sale/../tests/pos/tours/utils/chrome_util";
 import * as Dialog from "@point_of_sale/../tests/generic_helpers/dialog_util";
-import * as ProductScreen from "@point_of_sale/../tests/pos/tours/utils/product_screen_util";
-import * as PaymentScreen from "@point_of_sale/../tests/pos/tours/utils/payment_screen_util";
-import { registry } from "@web/core/registry";
-import * as OfflineUtil from "@point_of_sale/../tests/generic_helpers/offline_util";
-import * as TicketScreen from "@point_of_sale/../tests/pos/tours/utils/ticket_screen_util";
-import * as Order from "@point_of_sale/../tests/generic_helpers/order_widget_util";
 import * as Numpad from "@point_of_sale/../tests/generic_helpers/numpad_util";
+import * as OfflineUtil from "@point_of_sale/../tests/generic_helpers/offline_util";
+import * as Order from "@point_of_sale/../tests/generic_helpers/order_widget_util";
+import * as Chrome from "@point_of_sale/../tests/pos/tours/utils/chrome_util";
+import * as PaymentScreen from "@point_of_sale/../tests/pos/tours/utils/payment_screen_util";
+import * as ProductScreen from "@point_of_sale/../tests/pos/tours/utils/product_screen_util";
+import * as TicketScreen from "@point_of_sale/../tests/pos/tours/utils/ticket_screen_util";
+import { registry } from "@web/core/registry";
+
 import { inLeftSide } from "./utils/common.js";
 
 registry.category("web_tour.tours").add("PaymentScreenTour", {
@@ -99,14 +100,20 @@ registry.category("web_tour.tours").add("PaymentScreenRoundingUp", {
             ProductScreen.clickPayButton(),
 
             PaymentScreen.totalIs("1.96"),
-            PaymentScreen.clickPaymentMethod("Cash", true, { remaining: "0.0", amount: "2.00" }),
+            PaymentScreen.clickPaymentMethod("Cash", true, {
+                remaining: "0.0",
+                amount: "2.00",
+            }),
             PaymentScreen.clickValidate(),
 
             Chrome.clickOrders(),
             TicketScreen.selectFilter("Paid"),
             TicketScreen.selectOrder("001"),
             inLeftSide([
-                ...Order.hasLine({ productName: "Product Test", withClass: ".selected" }),
+                ...Order.hasLine({
+                    productName: "Product Test",
+                    withClass: ".selected",
+                }),
                 Numpad.click("1"),
             ]),
             TicketScreen.confirmRefund(),
@@ -114,7 +121,10 @@ registry.category("web_tour.tours").add("PaymentScreenRoundingUp", {
             // To get negative of existing quantity just send -
             PaymentScreen.isShown(),
             PaymentScreen.totalIs("-1.96"),
-            PaymentScreen.clickPaymentMethod("Cash", true, { remaining: "0.0", amount: "-2.00" }),
+            PaymentScreen.clickPaymentMethod("Cash", true, {
+                remaining: "0.0",
+                amount: "-2.00",
+            }),
         ].flat(),
 });
 
@@ -127,14 +137,20 @@ registry.category("web_tour.tours").add("PaymentScreenRoundingDown", {
             ProductScreen.clickPayButton(),
 
             PaymentScreen.totalIs("1.98"),
-            PaymentScreen.clickPaymentMethod("Cash", true, { remaining: "0.0", amount: "1.95" }),
+            PaymentScreen.clickPaymentMethod("Cash", true, {
+                remaining: "0.0",
+                amount: "1.95",
+            }),
             PaymentScreen.clickValidate(),
 
             Chrome.clickOrders(),
             TicketScreen.selectFilter("Paid"),
             TicketScreen.selectOrder("001"),
             inLeftSide([
-                ...Order.hasLine({ productName: "Product Test", withClass: ".selected" }),
+                ...Order.hasLine({
+                    productName: "Product Test",
+                    withClass: ".selected",
+                }),
                 Numpad.click("1"),
             ]),
             TicketScreen.confirmRefund(),
@@ -142,7 +158,10 @@ registry.category("web_tour.tours").add("PaymentScreenRoundingDown", {
             // To get negative of existing quantity just send -
             PaymentScreen.isShown(),
             PaymentScreen.totalIs("-1.98"),
-            PaymentScreen.clickPaymentMethod("Cash", true, { remaining: "0.0", amount: "-1.95" }),
+            PaymentScreen.clickPaymentMethod("Cash", true, {
+                remaining: "0.0",
+                amount: "-1.95",
+            }),
         ].flat(),
 });
 
@@ -212,16 +231,18 @@ registry.category("web_tour.tours").add("test_pos_large_amount_confirmation_dial
         ].flat(),
 });
 
-registry.category("web_tour.tours").add("test_add_money_button_with_different_decimal_separator", {
-    steps: () =>
-        [
-            Chrome.startPoS(),
-            Dialog.confirm("Open Register"),
-            ProductScreen.addOrderline("Whiteboard Pen", "1"),
-            ProductScreen.clickPayButton(),
-            PaymentScreen.clickPaymentMethod("Bank"),
-            PaymentScreen.clickNumpad("+50"),
-            PaymentScreen.fillPaymentLineAmountMobile("Bank", "53,20"),
-            PaymentScreen.changeIs("50"),
-        ].flat(),
-});
+registry
+    .category("web_tour.tours")
+    .add("test_add_money_button_with_different_decimal_separator", {
+        steps: () =>
+            [
+                Chrome.startPoS(),
+                Dialog.confirm("Open Register"),
+                ProductScreen.addOrderline("Whiteboard Pen", "1"),
+                ProductScreen.clickPayButton(),
+                PaymentScreen.clickPaymentMethod("Bank"),
+                PaymentScreen.clickNumpad("+50"),
+                PaymentScreen.fillPaymentLineAmountMobile("Bank", "53,20"),
+                PaymentScreen.changeIs("50"),
+            ].flat(),
+    });

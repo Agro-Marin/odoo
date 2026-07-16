@@ -9,7 +9,10 @@ registry.category("web_tour.tours").add("can_create_channel_from_form_view", {
         {
             trigger: ".o-mail-DiscussContent-threadName[title='OdooBot']",
         },
-        { trigger: "button[title='View or join channels']:not(:visible)", run: "click" },
+        {
+            trigger: "button[title='View or join channels']:not(:visible)",
+            run: "click",
+        },
         {
             trigger: ".o_control_panel_main_buttons button:contains('New')",
             run: "click",

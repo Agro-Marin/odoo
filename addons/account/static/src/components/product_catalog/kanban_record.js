@@ -1,8 +1,9 @@
 /** @odoo-module native */
 import { useSubEnv } from "@odoo/owl";
 import { ProductCatalogKanbanRecord } from "@product/product_catalog/kanban_record";
-import { ProductCatalogAccountMoveLine } from "./account_move_line.js";
 import { patch } from "@web/core/utils/patch";
+
+import { ProductCatalogAccountMoveLine } from "./account_move_line.js";
 
 patch(ProductCatalogKanbanRecord.prototype, {
     setup() {
@@ -24,12 +25,17 @@ patch(ProductCatalogKanbanRecord.prototype, {
     _getUpdateQuantityAndGetPriceParams() {
         return {
             ...super._getUpdateQuantityAndGetPriceParams(),
-            section_id: this.env.selectedSectionId ?? this.env.searchModel.selectedSection.sectionId,
+            section_id:
+                this.env.selectedSectionId ??
+                this.env.searchModel.selectedSection.sectionId,
         };
     },
 
     addProduct(qty = 1) {
-        if (this.productCatalogData.quantity === 0 && qty < this.productCatalogData.min_qty) {
+        if (
+            this.productCatalogData.quantity === 0 &&
+            qty < this.productCatalogData.min_qty
+        ) {
             qty = this.productCatalogData.min_qty; // Take seller's minimum if trying to add less
         }
         super.addProduct(qty);
@@ -40,7 +46,8 @@ patch(ProductCatalogKanbanRecord.prototype, {
         // adds nor removes an order line; emitting a section count change here would
         // desync the sidebar counter. Only notify when the change is real.
         if (!this.productCatalogData.readOnly) {
-            const lineCountChange = (quantity > 0) - (this.productCatalogData.quantity > 0);
+            const lineCountChange =
+                (quantity > 0) - (this.productCatalogData.quantity > 0);
             if (lineCountChange !== 0) {
                 this.notifyLineCountChange(lineCountChange);
             }
@@ -50,9 +57,9 @@ patch(ProductCatalogKanbanRecord.prototype, {
     },
 
     notifyLineCountChange(lineCountChange) {
-        this.env.searchModel.trigger('section-line-count-change', {
+        this.env.searchModel.trigger("section-line-count-change", {
             sectionId: this.env.selectedSectionId,
             lineCountChange: lineCountChange,
         });
     },
-})
+});

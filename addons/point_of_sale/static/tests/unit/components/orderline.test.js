@@ -1,8 +1,9 @@
-import { test, expect } from "@odoo/hoot";
-import { mountWithCleanup } from "@web/../tests/web_test_helpers";
+import { expect, test } from "@odoo/hoot";
 import { Orderline } from "@point_of_sale/app/components/orderline/orderline";
-import { expectFormattedPrice, setupPosEnv } from "../utils.js";
+import { mountWithCleanup } from "@web/../tests/web_test_helpers";
+
 import { definePosModels } from "../data/generate_model_definitions.js";
+import { expectFormattedPrice, setupPosEnv } from "../utils.js";
 
 definePosModels();
 
@@ -16,7 +17,7 @@ test("orderline.js", async () => {
             qty: 3,
             note: '[{"text":"Test 1","colorIndex":0},{"text":"Test 2","colorIndex":0}]',
         },
-        order
+        order,
     );
 
     const comp = await mountWithCleanup(Orderline, {

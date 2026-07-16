@@ -1,6 +1,6 @@
 /** @odoo-module native */
-import { formatFloat, formatFloatTime, formatMonetary } from "@web/fields/formatters";
 import { Component } from "@odoo/owl";
+import { formatFloat, formatFloatTime, formatMonetary } from "@web/fields/formatters";
 
 export class BomOverviewSpecialLine extends Component {
     static template = "mrp.BomOverviewSpecialLine";
@@ -27,7 +27,8 @@ export class BomOverviewSpecialLine extends Component {
     setup() {
         this.formatFloat = formatFloat;
         this.formatFloatTime = formatFloatTime;
-        this.formatMonetary = (val) => formatMonetary(val, { currencyId: this.data.currency_id });
+        this.formatMonetary = (val) =>
+            formatMonetary(val, { currencyId: this.data.currency_id });
     }
 
     //---- Getters ----
@@ -45,7 +46,7 @@ export class BomOverviewSpecialLine extends Component {
     }
 
     get forecastMode() {
-        return this.props.showOptions.mode == "forecast";
+        return this.props.showOptions.mode === "forecast";
     }
 
     get showUom() {

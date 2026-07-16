@@ -14,7 +14,10 @@ defineMailModels();
 
 test("Channel subscription is renewed when channel is manually added", async () => {
     const pyEnv = await startServer();
-    const channelId = pyEnv["discuss.channel"].create({ name: "General", channel_member_ids: [] });
+    const channelId = pyEnv["discuss.channel"].create({
+        name: "General",
+        channel_member_ids: [],
+    });
     await start();
     mockService("bus_service", {
         forceUpdateChannels() {

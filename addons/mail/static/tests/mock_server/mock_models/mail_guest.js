@@ -17,7 +17,7 @@ export class MailGuest extends models.ServerModel {
         fields = kwargs.fields;
         store._add_record_fields(
             this,
-            fields.filter((field) => !["avatar_128"].includes(field))
+            fields.filter((field) => !["avatar_128"].includes(field)),
         );
         for (const guest of this) {
             const data = {};

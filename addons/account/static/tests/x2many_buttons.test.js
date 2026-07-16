@@ -27,7 +27,12 @@ class AccountMove extends models.Model {
         { id: 3, display_name: "Bill 3", duplicated_ref_ids: [1], ref: "b3" },
         { id: 4, display_name: "Bill 4", duplicated_ref_ids: [1, 2, 3], ref: "b4" },
         { id: 5, display_name: "Bill 5", duplicated_ref_ids: [], ref: "b5" },
-        { id: 6, display_name: "Bill 6", duplicated_ref_ids: [1, 2, 3, 4, 5], ref: "b6" },
+        {
+            id: 6,
+            display_name: "Bill 6",
+            duplicated_ref_ids: [1, 2, 3, 4, 5],
+            ref: "b6",
+        },
     ];
 
     _views = {

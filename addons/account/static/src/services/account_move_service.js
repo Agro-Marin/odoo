@@ -1,6 +1,6 @@
 /** @odoo-module native */
-import { _t } from "@web/core/l10n/translation";
 import { markup } from "@odoo/owl";
+import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
 
 export class AccountMoveService {
@@ -16,7 +16,11 @@ export class AccountMoveService {
     }
 
     async getDeletionDialogBody(body, moveIds) {
-        const isMoveEndOfChain = await this.orm.call("account.move", "check_move_sequence_chain", [moveIds]);
+        const isMoveEndOfChain = await this.orm.call(
+            "account.move",
+            "check_move_sequence_chain",
+            [moveIds],
+        );
         if (!isMoveEndOfChain) {
             const message = _t("This operation will create a gap in the sequence.");
             return markup`<div class="text-danger">${message}</div>${body}`;
@@ -28,7 +32,7 @@ export class AccountMoveService {
         const downloadAction = await this.orm.call(
             "account.move",
             "action_invoice_download_pdf",
-            [accountMoveId, target]
+            [accountMoveId, target],
         );
         await this.action.doAction(downloadAction);
     }

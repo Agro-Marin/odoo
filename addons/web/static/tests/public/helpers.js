@@ -1,6 +1,6 @@
 // @ts-check
 
-import { after, afterEach, before, getFixture } from "@odoo/hoot";
+import { after, before, getFixture } from "@odoo/hoot";
 import {
     clearRegistry,
     makeMockEnv,

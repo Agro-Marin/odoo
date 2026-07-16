@@ -1,11 +1,12 @@
 import { reactive } from "@odoo/owl";
+import { click, inputFiles } from "@web/../tests/utils";
 import { registry } from "@web/core/registry";
 import { getOrigin } from "@web/core/utils/urls";
-import { click, inputFiles } from "@web/../tests/utils";
 
 // The tour is ran twice, ensure the correct message is always targetted.
 const messageSelector = ".o-mail-Message:has(.o-mail-Message-body:contains('cheese'))";
-const editedMessageSelector = ".o-mail-Message:has(.o-mail-Message-body:contains('vegetables'))";
+const editedMessageSelector =
+    ".o-mail-Message:has(.o-mail-Message-body:contains('vegetables'))";
 
 registry.category("web_tour.tours").add("discuss_channel_public_tour.js", {
     steps: () => [
@@ -25,15 +26,17 @@ registry.category("web_tour.tours").add("discuss_channel_public_tour.js", {
                 document.body.classList.add("o_discuss_channel_public_modules_loaded");
                 if (
                     !document.title.includes(
-                        document.querySelector(".o-mail-DiscussContent-threadName")?.value
+                        document.querySelector(".o-mail-DiscussContent-threadName")
+                            ?.value,
                     )
                 ) {
                     console.error(
                         `Tab title should match conversation name. Got "${
                             document.title
                         }" instead of "${
-                            document.querySelector(".o-mail-DiscussContent-threadName")?.value
-                        }".`
+                            document.querySelector(".o-mail-DiscussContent-threadName")
+                                ?.value
+                        }".`,
                     );
                 }
             },
@@ -50,12 +53,15 @@ registry.category("web_tour.tours").add("discuss_channel_public_tour.js", {
         {
             trigger: ".dropdown-item:contains('Attach Files')",
             async run() {
-                const text = new File(["hello, world"], "text.txt", { type: "text/plain" });
+                const text = new File(["hello, world"], "text.txt", {
+                    type: "text/plain",
+                });
                 await inputFiles(".o-mail-Composer .o_input_file", [text]);
             },
         },
         {
-            trigger: ".o-mail-AttachmentContainer:not(.o-isUploading):contains(text.txt)",
+            trigger:
+                ".o-mail-AttachmentContainer:not(.o-isUploading):contains(text.txt)",
         },
         {
             trigger: ".dropdown-item:contains('Attach Files')",
@@ -65,25 +71,26 @@ registry.category("web_tour.tours").add("discuss_channel_public_tour.js", {
                         [
                             await (
                                 await fetch(
-                                    "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIW2P4v5ThPwAG7wKklwQ/bwAAAABJRU5ErkJggg=="
+                                    "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIW2P4v5ThPwAG7wKklwQ/bwAAAABJRU5ErkJggg==",
                                 )
                             ).blob(),
                         ],
                         "image.png",
-                        { type: "image/png" }
+                        { type: "image/png" },
                     ),
                 ]);
             },
         },
         {
-            trigger: '.o-mail-AttachmentContainer:not(.o-isUploading)[title="image.png"]',
+            trigger:
+                '.o-mail-AttachmentContainer:not(.o-isUploading)[title="image.png"]',
             async run({ waitFor }) {
                 /** @type {import("models").Store} */
                 const store = odoo.__WOWL_DEBUG__.root.env.services["mail.store"];
                 if (store.self_guest) {
                     const src = this.anchor.querySelector("img").src;
                     const attachment = store["ir.attachment"].get(
-                        (src.match("/web/image/([0-9]+)") || []).at(-1)
+                        (src.match("/web/image/([0-9]+)") || []).at(-1),
                     );
                     if (!attachment) {
                         throw new Error(`Attachment was not found from src: ${src}`);
@@ -105,7 +112,7 @@ registry.category("web_tour.tours").add("discuss_channel_public_tour.js", {
                             attachment.id
                         }?access_token=${attachment.raw_access_token}&filename=image.png&unique=${
                             attachment.checksum
-                        }"]`
+                        }"]`,
                     );
                 }
             },
@@ -160,7 +167,9 @@ registry.category("web_tour.tours").add("discuss_channel_public_tour.js", {
         {
             trigger: ".dropdown-item:contains('Attach Files')",
             async run() {
-                const extratxt = new File(["hello 2"], "extra.txt", { type: "text/plain" });
+                const extratxt = new File(["hello 2"], "extra.txt", {
+                    type: "text/plain",
+                });
                 await inputFiles(".o-mail-Message .o_input_file", [extratxt]);
             },
         },

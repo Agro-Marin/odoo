@@ -1,5 +1,5 @@
-import { registry } from "@web/core/registry";
 import { contains, scroll } from "@web/../tests/utils";
+import { registry } from "@web/core/registry";
 
 registry.category("web_tour.tours").add("mail_message_load_order_tour", {
     steps: () => [
@@ -36,7 +36,7 @@ registry.category("web_tour.tours").add("mail_message_load_order_tour", {
                 // ensure 1 - 31 are loaded in order: 30 below and the
                 // one we're loading messages around.
                 const messages = Array.from(
-                    document.querySelectorAll(".o-mail-Thread .o-mail-Message-content")
+                    document.querySelectorAll(".o-mail-Thread .o-mail-Message-content"),
                 ).map((el) => el.innerText);
                 for (let i = 0; i < 31; i++) {
                     if (messages[i] !== (i + 1).toString()) {
@@ -51,12 +51,13 @@ registry.category("web_tour.tours").add("mail_message_load_order_tour", {
             // was (1 -31): 30 before (but none were found), 30 after
             // and the pinned message itself. This trigger ensures the
             // next messages are fetched after scrolling to the bottom.
-            trigger: ".o-mail-Thread .o-mail-Message .o-mail-Message-textContent:contains(17)",
+            trigger:
+                ".o-mail-Thread .o-mail-Message .o-mail-Message-textContent:contains(17)",
             async run() {
                 await contains(".o-mail-Thread .o-mail-Message", { count: 60 });
                 // ensure 1 - 60  are loaded in order.
                 const messages = Array.from(
-                    document.querySelectorAll(".o-mail-Thread .o-mail-Message-content")
+                    document.querySelectorAll(".o-mail-Thread .o-mail-Message-content"),
                 ).map((el) => el.innerText);
                 for (let i = 0; i < 60; i++) {
                     if (messages[i] !== (i + 1).toString()) {

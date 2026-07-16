@@ -34,7 +34,6 @@ import {
     withUser,
 } from "@web/../tests/web_test_helpers";
 import { browser } from "@web/core/browser/browser";
-
 import { rpc } from "@web/core/network/rpc";
 
 describe.current.tags("desktop");
@@ -62,7 +61,7 @@ test("Mobile: chat window shouldn't open automatically after receiving a new mes
             post_data: { body: "hu", message_type: "comment" },
             thread_id: channelId,
             thread_model: "discuss.channel",
-        })
+        }),
     );
     await contains(".o-mail-MessagingMenu-counter", { text: "1" });
     await contains(".o-mail-ChatWindow", { count: 0 });
@@ -114,7 +113,9 @@ test("chat window: basic rendering", async () => {
     await contains("[title='Open Actions Menu']");
     await contains("[title='Fold']");
     await contains("[title*='Close Chat Window']");
-    await contains(".o-mail-ChatWindow .o-mail-Thread", { text: "Welcome to #General!" });
+    await contains(".o-mail-ChatWindow .o-mail-Thread", {
+        text: "Welcome to #General!",
+    });
     // dropdown requires an extra delay before click (because handler is registered in useEffect)
     await contains("[title='Open Actions Menu']");
     await click("[title='Open Actions Menu']");
@@ -245,7 +246,7 @@ test("chat window: close on ESCAPE (multi)", async () => {
     const channelIds = pyEnv["discuss.channel"].create(
         Array(4)
             .keys()
-            .map((i) => ({ name: `channel_${i}` }))
+            .map((i) => ({ name: `channel_${i}` })),
     );
     patchUiSize({ width: 1920 });
     setupChatHub({ opened: channelIds.reverse() });
@@ -348,7 +349,9 @@ test("open 2 different chat windows: enough screen width", async () => {
     await start();
     const store = getService("mail.store");
     expect(
-        store.chatHub.WINDOW_GAP * 2 + store.chatHub.WINDOW * 2 + store.chatHub.WINDOW_INBETWEEN
+        store.chatHub.WINDOW_GAP * 2 +
+            store.chatHub.WINDOW * 2 +
+            store.chatHub.WINDOW_INBETWEEN,
     ).toBeLessThan(1920, {
         message: "should have enough space to open 2 chat windows simultaneously",
     });
@@ -371,13 +374,18 @@ test("open 2 different chat windows: enough screen width", async () => {
 test.tags("focus required");
 test("focus next visible chat window when closing current chat window with ESCAPE", async () => {
     const pyEnv = await startServer();
-    const channelIds = pyEnv["discuss.channel"].create([{ name: "General" }, { name: "MyTeam" }]);
+    const channelIds = pyEnv["discuss.channel"].create([
+        { name: "General" },
+        { name: "MyTeam" },
+    ]);
     patchUiSize({ width: 1920 });
     setupChatHub({ opened: channelIds });
     await start();
     const store = getService("mail.store");
     expect(
-        store.chatHub.WINDOW_GAP * 2 + store.chatHub.WINDOW * 2 + store.chatHub.WINDOW_INBETWEEN
+        store.chatHub.WINDOW_GAP * 2 +
+            store.chatHub.WINDOW * 2 +
+            store.chatHub.WINDOW_INBETWEEN,
     ).toBeLessThan(1920, {
         message: "should have enough space to open 2 chat windows simultaneously",
     });
@@ -401,7 +409,9 @@ test("chat window: switch on TAB", async () => {
     await start();
     const store = getService("mail.store");
     expect(
-        store.chatHub.WINDOW_GAP * 2 + store.chatHub.WINDOW * 2 + store.chatHub.WINDOW_INBETWEEN
+        store.chatHub.WINDOW_GAP * 2 +
+            store.chatHub.WINDOW * 2 +
+            store.chatHub.WINDOW_INBETWEEN,
     ).toBeLessThan(1920, {
         message: "should have enough space to open 2 chat windows simultaneously",
     });
@@ -444,7 +454,9 @@ test("chat window: TAB cycle with 3 open chat windows", async () => {
     await start();
     const store = getService("mail.store");
     expect(
-        store.chatHub.WINDOW_GAP * 3 + store.chatHub.WINDOW * 3 + store.chatHub.WINDOW_INBETWEEN * 2
+        store.chatHub.WINDOW_GAP * 3 +
+            store.chatHub.WINDOW * 3 +
+            store.chatHub.WINDOW_INBETWEEN * 2,
     ).toBeLessThan(1920, {
         message: "should have enough space to open 3 chat windows simultaneously",
     });
@@ -473,7 +485,10 @@ test("chat window: TAB cycle with 3 open chat windows", async () => {
 test("chat window should open when receiving a new DM", async () => {
     mockDate("2023-01-03 12:00:00"); // so that it's after last interest (mock server is in 2019 by default!)
     const pyEnv = await startServer();
-    const partnerId = pyEnv["res.partner"].create({ im_status: "online", name: "DemoUser" });
+    const partnerId = pyEnv["res.partner"].create({
+        im_status: "online",
+        name: "DemoUser",
+    });
     const userId = pyEnv["res.users"].create({ partner_id: partnerId });
     const channelId = pyEnv["discuss.channel"].create({
         channel_member_ids: [
@@ -499,7 +514,7 @@ test("chat window should open when receiving a new DM", async () => {
             },
             thread_id: channelId,
             thread_model: "discuss.channel",
-        })
+        }),
     );
     await contains(".o-mail-ChatBubble");
     await contains(".o-mail-ChatBubble-counter", { text: "1" });
@@ -529,7 +544,7 @@ test("chat window should not open when receiving a new DM from odoobot", async (
             post_data: { body: "Hello, I'm new", message_type: "comment" },
             thread_id: channelId,
             thread_model: "discuss.channel",
-        })
+        }),
     );
     await contains(".o-mail-ChatWindow", { count: 0 });
 });
@@ -576,7 +591,7 @@ test("chat window should remain folded when new message is received", async () =
             post_data: { body: "New Message", message_type: "comment" },
             thread_id: channelId,
             thread_model: "discuss.channel",
-        })
+        }),
     );
     await contains(".o-mail-ChatBubble-counter", { text: "1" });
     await contains(".o-mail-ChatBubble");
@@ -588,21 +603,24 @@ test("chat window: composer state conservation on toggle discuss", async () => {
     const textFile1 = new File(
         ["hello, world"],
         "text state conversation on toggle home menu.txt",
-        { type: "text/plain" }
+        { type: "text/plain" },
     );
     const textFile2 = new File(
         ["hello, xdu is da best man"],
         "text2 state conversation on toggle home menu.txt",
-        { type: "text/plain" }
+        { type: "text/plain" },
     );
     await start();
     await click(".o_menu_systray i[aria-label='Messages']");
     await click(".o-mail-NotificationItem");
     // Set content of the composer of the chat window
     await insertText(".o-mail-Composer-input", "XDU for the win !");
-    await contains(".o-mail-Composer-footer .o-mail-AttachmentList .o-mail-AttachmentContainer", {
-        count: 0,
-    });
+    await contains(
+        ".o-mail-Composer-footer .o-mail-AttachmentList .o-mail-AttachmentContainer",
+        {
+            count: 0,
+        },
+    );
     // Set attachments of the composer
     await inputFiles(".o-mail-Composer .o_input_file", [textFile1, textFile2]);
     await contains(".o-mail-AttachmentContainer .fa-check", { count: 2 });
@@ -611,7 +629,7 @@ test("chat window: composer state conservation on toggle discuss", async () => {
     await openFormView("discuss.channel", channelId);
     await contains(
         ".o-mail-Composer-footer .o-mail-AttachmentList .o-mail-AttachmentContainer:not(.o-isUploading)",
-        { count: 2 }
+        { count: 2 },
     );
     await contains(".o-mail-Composer-input", { value: "XDU for the win !" });
 });
@@ -836,7 +854,10 @@ test("Close dropdown in chat window with ESCAPE does not also close the chat win
 test("mark as read when opening chat window", async () => {
     const pyEnv = await startServer();
     const bobPartnerId = pyEnv["res.partner"].create({ name: "bob" });
-    const bobUserId = pyEnv["res.users"].create({ name: "bob", partner_id: bobPartnerId });
+    const bobUserId = pyEnv["res.users"].create({
+        name: "bob",
+        partner_id: bobPartnerId,
+    });
     const channelId = pyEnv["discuss.channel"].create({
         channel_type: "chat",
         channel_member_ids: [
@@ -861,7 +882,7 @@ test("mark as read when opening chat window", async () => {
             },
             thread_id: channelId,
             thread_model: "discuss.channel",
-        })
+        }),
     );
     await contains(".o-mail-ChatWindow-counter", { text: "1" });
     await click(".o-mail-ChatWindow-header [title*='Close Chat Window']");
@@ -916,7 +937,7 @@ test("open channel in chat window from push notification", async () => {
     browser.navigator.serviceWorker.dispatchEvent(
         new MessageEvent("message", {
             data: { action: "OPEN_CHANNEL", data: { id: channelId } },
-        })
+        }),
     );
     await contains(".o-mail-ChatWindow", { text: "General" });
 });
@@ -996,7 +1017,7 @@ test("getting focus of chat window through tab key should jump to new message se
     await contains(".o-mail-ChatWindow:eq(0) .o-mail-Composer.o-focused");
     await isInViewportOf(
         ".o-mail-Message:contains(message_20)",
-        ".o-mail-ChatWindow:eq(0) .o-mail-Thread"
+        ".o-mail-ChatWindow:eq(0) .o-mail-Thread",
     );
 });
 

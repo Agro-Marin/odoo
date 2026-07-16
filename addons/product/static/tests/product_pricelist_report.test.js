@@ -1,7 +1,15 @@
 import { defineMailModels } from "@mail/../tests/mail_test_helpers";
 import { expect, test } from "@odoo/hoot";
 import { queryAllTexts } from "@odoo/hoot-dom";
-import { contains, defineModels, fields, getService, models, mountWebClient, onRpc } from "@web/../tests/web_test_helpers";
+import {
+    contains,
+    defineModels,
+    fields,
+    getService,
+    models,
+    mountWebClient,
+    onRpc,
+} from "@web/../tests/web_test_helpers";
 
 class ProductProduct extends models.Model {
     _records = [{ id: 42, name: "Customizable Desk" }];
@@ -58,7 +66,7 @@ test(`Pricelist Client Action`, async () => {
     expect(`.o_notification`).toHaveCount(1);
     expect(`.o_notification .o_notification_content`).toHaveText(
         "Quantity already present (1).",
-        { message: "Existing Quantity can not be added" }
+        { message: "Existing Quantity can not be added" },
     );
     expect(`.o_notification .o_notification_bar`).toHaveClass("bg-info");
     await contains(`.o_notification_close`).click();
@@ -82,7 +90,7 @@ test(`Pricelist Client Action`, async () => {
     expect(`.o_notification`).toHaveCount(1);
     expect(`.o_notification .o_notification_content`).toHaveText(
         "At most 5 quantities can be displayed simultaneously. Remove a selected quantity to add others.",
-        { message: "Can not add more then 5 quantities" }
+        { message: "Can not add more then 5 quantities" },
     );
     expect(`.o_notification .o_notification_bar`).toHaveClass("bg-warning");
 });

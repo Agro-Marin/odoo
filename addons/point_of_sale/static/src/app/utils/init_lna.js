@@ -15,8 +15,8 @@ export const initLNA = async (notificationService, callback = () => {}) => {
     }
 
     const processLNAState = (result) => {
-        let type = "";
-        let message = "";
+        let type;
+        let message;
 
         if (result.state === "granted") {
             type = "success";

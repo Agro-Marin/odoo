@@ -41,7 +41,7 @@ export function pickSelect(name) {
                 const selects = queryAll`.modal .configurator_select`;
                 for (const select of selects) {
                     const option = Array.from(select.options).find(
-                        (opt) => opt.textContent.trim() === name
+                        (opt) => opt.textContent.trim() === name,
                     );
                     if (option) {
                         select.value = option.value;
@@ -127,9 +127,12 @@ export function numberRadioOptions(number) {
         {
             trigger: `.attribute-name-cell`,
             run: () => {
-                const radio_options = document.querySelectorAll(".attribute-name-cell").length;
+                const radio_options =
+                    document.querySelectorAll(".attribute-name-cell").length;
                 if (radio_options !== number) {
-                    throw new Error(`Expected ${number} radio options, got ${radio_options}`);
+                    throw new Error(
+                        `Expected ${number} radio options, got ${radio_options}`,
+                    );
                 }
             },
         },

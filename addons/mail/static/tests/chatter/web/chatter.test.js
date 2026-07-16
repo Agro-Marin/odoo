@@ -1,6 +1,4 @@
 import {
-    SIZES,
-    STORE_FETCH_ROUTES,
     click,
     contains,
     defineMailModels,
@@ -12,13 +10,18 @@ import {
     openFormView,
     patchUiSize,
     scroll,
+    SIZES,
     start,
     startServer,
+    STORE_FETCH_ROUTES,
     triggerHotkey,
     waitStoreFetch,
 } from "@mail/../tests/mail_test_helpers";
+import { DELAY_FOR_SPINNER, WebChatter } from "@mail/chatter/web/web_chatter";
+import { Chatter } from "@mail/chatter/web_portal/chatter";
 import { describe, expect, test } from "@odoo/hoot";
-import { Deferred, advanceTime, animationFrame } from "@odoo/hoot-mock";
+import { queryFirst } from "@odoo/hoot-dom";
+import { advanceTime, animationFrame, Deferred } from "@odoo/hoot-mock";
 import {
     asyncStep,
     defineActions,
@@ -30,10 +33,6 @@ import {
     serverState,
     waitForSteps,
 } from "@web/../tests/web_test_helpers";
-
-import { DELAY_FOR_SPINNER, WebChatter } from "@mail/chatter/web/web_chatter";
-import { Chatter } from "@mail/chatter/web_portal/chatter";
-import { queryFirst } from "@odoo/hoot-dom";
 
 describe.current.tags("desktop");
 defineMailModels();
@@ -79,7 +78,7 @@ test("simple chatter on a record", async () => {
             stepsAfter: [
                 `/mail/thread/messages - {"thread_id":${partnerId},"thread_model":"res.partner","fetch_params":{"limit":30}}`,
             ],
-        }
+        },
     );
 });
 
@@ -262,7 +261,9 @@ test("chatter: drop attachment should refresh thread data with hasParentReloadOn
     await patchUiSize({ size: SIZES.XXL });
     const pyEnv = await startServer();
     const partnerId = pyEnv["res.partner"].create({});
-    const textPdf = new File([new Uint8Array(1)], "text.pdf", { type: "application/pdf" });
+    const textPdf = new File([new Uint8Array(1)], "text.pdf", {
+        type: "application/pdf",
+    });
 
     await start();
     await openFormView("res.partner", partnerId, {
@@ -292,7 +293,9 @@ test("should display subject when subject isn't infered from the record", async 
     });
     await start();
     await openFormView("res.partner", partnerId);
-    await contains(".o-mail-Message", { text: "Subject: Salutations, voyageurnot empty" });
+    await contains(".o-mail-Message", {
+        text: "Subject: Salutations, voyageurnot empty",
+    });
 });
 
 test("should not display user notification messages in chatter", async () => {
@@ -474,7 +477,7 @@ test("scroll position is kept when navigating from one record to another", async
                 body: "Non Empty Body ".repeat(25),
                 model: "res.partner",
                 res_id: index < 20 ? partnerId_1 : partnerId_2,
-            }))
+            })),
     );
     await start();
     await openFormView("res.partner", partnerId_1);
@@ -491,11 +494,15 @@ test("scroll position is kept when navigating from one record to another", async
     await openFormView("res.partner", partnerId_1);
     await contains(".o-mail-Message", { count: 20 });
     const clientHeight3 = queryFirst(".o-mail-Chatter:first").clientHeight;
-    await contains(".o-mail-Chatter", { scroll: scrollValue1 - (clientHeight3 - clientHeight1) });
+    await contains(".o-mail-Chatter", {
+        scroll: scrollValue1 - (clientHeight3 - clientHeight1),
+    });
     await openFormView("res.partner", partnerId_2);
     await contains(".o-mail-Message", { count: 30 });
     const clientHeight4 = queryFirst(".o-mail-Chatter:first").clientHeight;
-    await contains(".o-mail-Chatter", { scroll: scrollValue2 - (clientHeight4 - clientHeight2) });
+    await contains(".o-mail-Chatter", {
+        scroll: scrollValue2 - (clientHeight4 - clientHeight2),
+    });
 });
 
 test("basic chatter rendering", async () => {
@@ -704,7 +711,9 @@ test("Mentions in composer should still work when using pager", async () => {
     ]);
     await patchUiSize({ size: SIZES.LG });
     await start();
-    await openFormView("res.partner", partnerId_1, { resIds: [partnerId_1, partnerId_2] });
+    await openFormView("res.partner", partnerId_1, {
+        resIds: [partnerId_1, partnerId_2],
+    });
     await click("button", { text: "Log note" });
     await click(".o_pager_next");
     await insertText(".o-mail-Composer-input", "@");
@@ -739,7 +748,9 @@ test("should display the subject even if the record name is false", async () => 
     });
     await start();
     await openFormView("res.fake", fakeId);
-    await contains(".o-mail-Message", { text: "Subject: Salutations, voyageurnot empty" });
+    await contains(".o-mail-Message", {
+        text: "Subject: Salutations, voyageurnot empty",
+    });
 });
 
 test("Update message recipients without saving", async () => {
@@ -759,7 +770,9 @@ test("Update message recipients without saving", async () => {
     await contains(".o-mail-RecipientsInput .o_tag_badge_text", { text: "John Doe" });
     await click(".o_field_many2one_selection input");
     await click(".o-autocomplete--dropdown-item", { text: "Mitchell Admin" });
-    await contains(".o-mail-RecipientsInput .o_tag_badge_text", { text: "Mitchell Admin" });
+    await contains(".o-mail-RecipientsInput .o_tag_badge_text", {
+        text: "Mitchell Admin",
+    });
 });
 
 test("Update primary email in recipient without saving", async () => {
@@ -778,7 +791,9 @@ test("Update primary email in recipient without saving", async () => {
     await click("button", { text: "Send message" });
     await insertText("div[name='email_cc'] input", "test@test.be");
     document.querySelector("div[name='email_cc'] input").blur();
-    await contains(".o-mail-RecipientsInput .o_tag_badge_text", { text: "test@test.be" });
+    await contains(".o-mail-RecipientsInput .o_tag_badge_text", {
+        text: "test@test.be",
+    });
 });
 
 test("form view mounts WebChatter; base Chatter statics stay portal-clean", async () => {
