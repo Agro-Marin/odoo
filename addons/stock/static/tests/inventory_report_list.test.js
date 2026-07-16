@@ -1,7 +1,7 @@
 import { luxon } from "@web/core/l10n/luxon";
 import { defineMailModels } from "@mail/../tests/mail_test_helpers";
 import { expect, test } from "@odoo/hoot";
-import { animationFrame, queryOne } from "@odoo/hoot-dom";
+import { animationFrame, queryAll } from "@odoo/hoot-dom";
 import {
     contains,
     defineModels,
@@ -161,28 +161,26 @@ test("Work in grouped list", async function () {
     // Check we still have 2 records...
     expect(".o_data_row").toHaveCount(2);
 
-    // Create an existing but not displayed record...
+    // Add an already-existing record whose group ('Soldier') is folded, so its
+    // duplicate is not loaded, and whose group-by value differs from the group it
+    // is added in. It must NOT be stranded in the Professor group: it is really an
+    // update of the existing record, so the added row is removed.
     await contains(".o_group_field_row_add a").click();
     await contains("[name=name] input").edit("Daniel Fortesque", { confirm: false });
     await contains("[name=age] input").edit("55", { confirm: false });
-    await contains("[name=job] input").edit("Soldier", { confirm: false }); // let it in its original group
+    await contains("[name=job] input").edit("Soldier", { confirm: false });
     await contains(".o_control_panel_main_buttons .o_list_button_save").click();
-    // Check we have 3 records...
-    expect(".o_data_row").toHaveCount(3);
+    // The Professor group still shows only its own 2 records — no phantom Soldier
+    // record left behind (which previously corrupted row indexing / spawned an
+    // empty edit row).
+    expect(".o_data_row").toHaveCount(2);
 
-    // Opens 'Soldier' group
+    // Open 'Soldier': the existing record shows in its correct group with the
+    // updated value (age 55).
     await contains(".o_group_header:eq(2)").click();
-
-    // Check 'original' record has been updated...
-    // : Daniel Fortesque is in record 0 for group Soldier and in record 3 for group Professor
-    expect('.o_data_row:eq(0) [name="age"]').toHaveText("55");
-
-    // Edit the freshly created record...
-    await contains(".o_data_row:eq(3) .o_field_cell").click();
-    await contains("[name=age] input").edit("66");
-
-    // Check both records have been updated...
-    expect(queryOne('.o_data_row:eq(0) [name="age"]').textContent).toBe(
-        queryOne('.o_data_row:eq(3) [name="age"]').textContent
+    expect(".o_data_row").toHaveCount(3);
+    const danielRow = queryAll(".o_data_row").find((row) =>
+        row.textContent.includes("Daniel Fortesque")
     );
+    expect(danielRow.querySelector('[name="age"]').textContent).toBe("55");
 });
