@@ -71,7 +71,6 @@ export class PosOrder extends PosOrderAccounting {
             TipScreen: {
                 inputTipAmount: "",
             },
-            requiredPartnerDetails: {},
         };
     }
 
@@ -157,31 +156,43 @@ export class PosOrder extends PosOrderAccounting {
     }
 
     get presetRequirementsFilled() {
+        return !this.getMissingPresetRequirement();
+    }
+
+    /**
+     * The first unmet preset requirement as `{ field, message }` (both
+     * translated), or `null` when the order satisfies its preset. Pure — kept
+     * separate from `presetRequirementsFilled` so reading validity never mutates
+     * state (a getter read during render must not), and so the presentation
+     * strings live with the caller that shows them, not in a side effect.
+     */
+    getMissingPresetRequirement() {
         const invalidCustomer =
             (this.preset_id?.needsName &&
                 !(this.floating_order_name || this.partner_id)) ||
             (this.preset_id?.needsPartner && !this.partner_id);
+        if (invalidCustomer) {
+            return {
+                field: _t("Customer"),
+                message: _t("Please add a valid customer to the order."),
+            };
+        }
         const isAddressMissing =
             this.preset_id?.needsPartner &&
             !(this.partner_id?.street || this.partner_id?.street2);
-        const invalidSlot = this.preset_id?.needsSlot && !this.preset_time;
-
-        if (invalidCustomer || isAddressMissing || invalidSlot) {
-            this.uiState.requiredPartnerDetails = {
-                field: invalidCustomer
-                    ? _t("Customer")
-                    : isAddressMissing
-                      ? _t("Address")
-                      : _t("Slot"),
-                message: invalidCustomer
-                    ? _t("Please add a valid customer to the order.")
-                    : isAddressMissing
-                      ? _t("The selected customer needs an address.")
-                      : _t("Please select a time slot before proceeding."),
+        if (isAddressMissing) {
+            return {
+                field: _t("Address"),
+                message: _t("The selected customer needs an address."),
             };
-            return false;
         }
-        return true;
+        if (this.preset_id?.needsSlot && !this.preset_time) {
+            return {
+                field: _t("Slot"),
+                message: _t("Please select a time slot before proceeding."),
+            };
+        }
+        return null;
     }
 
     get isRefund() {

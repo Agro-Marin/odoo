@@ -334,8 +334,9 @@ export default class OrderPaymentValidation {
             return false;
         }
 
-        if (!this.order.presetRequirementsFilled) {
-            const { field, message } = this.order.uiState.requiredPartnerDetails || {};
+        const missingRequirement = this.order.getMissingPresetRequirement();
+        if (missingRequirement) {
+            const { field, message } = missingRequirement;
             this.pos.dialog.add(AlertDialog, {
                 title: field ? _t("%s required", field) : _t("Missing required"),
                 body: message || _t("Some required information is missing."),
