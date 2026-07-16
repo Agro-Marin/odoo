@@ -296,6 +296,16 @@ export class GifPicker extends Component {
                 { silent: true },
             );
         }
+        if (this.showFavorite) {
+            // the favorites view renders from the evenGif/oddGif columns, not
+            // state.favorites.gifs: rebuild them so a toggle while viewing
+            // favorites is reflected immediately (un-favoriting a visible gif
+            // otherwise left the tile on screen until the category reopened)
+            this.clear();
+            for (const favorite of this.state.favorites.gifs) {
+                this.pushGif(favorite);
+            }
+        }
     }
 
     async loadFavorites() {

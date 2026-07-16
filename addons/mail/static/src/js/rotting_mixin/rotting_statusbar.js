@@ -9,9 +9,10 @@ import { getRottingDaysTitle } from "./rotting_widget.js";
 export class RottingStatusBarDurationField extends StatusBarDurationField {
     static template = "mail.RottingStatusBarDurationField";
 
-    setup() {
-        super.setup();
-        this.title = getRottingDaysTitle(
+    // getter, not a setup() field: the widget is reused across data updates,
+    // so a cached title kept the stale rotting_days after an inline edit
+    get title() {
+        return getRottingDaysTitle(
             this.env.model.config.resModel,
             this.props.record.data.rotting_days,
         );
