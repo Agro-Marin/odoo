@@ -38,16 +38,31 @@ export class FeedbackScreen extends Component {
         useEffect(
             () => {
                 const waiter = async () => {
+                    let result;
                     try {
                         if (this.props.waitFor) {
-                            await this.props.waitFor;
+                            result = await this.props.waitFor;
                         }
                     } finally {
                         this.state.loading = false;
-                        this.timeout = setTimeout(() => {
-                            this.goNext();
-                        }, 5000);
                     }
+                    if (result && result.ok === false) {
+                        // The background finalization failed (the order was
+                        // reset to draft): do not show 5 seconds of success
+                        // and wipe the order — bring the cashier back to the
+                        // payment screen to resolve it.
+                        this.notification.add(
+                            _t("The order could not be validated. Please try again."),
+                            { type: "danger" },
+                        );
+                        this.pos.navigate("PaymentScreen", {
+                            orderUuid: this.props.orderUuid,
+                        });
+                        return;
+                    }
+                    this.timeout = setTimeout(() => {
+                        this.goNext();
+                    }, 5000);
                 };
 
                 waiter();

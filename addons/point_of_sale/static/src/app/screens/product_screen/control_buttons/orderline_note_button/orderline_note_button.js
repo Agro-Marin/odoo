@@ -47,10 +47,15 @@ export class NoteButton extends Component {
         }
         const saved_quantity = selectedOrderline.qty - quantity_with_note;
         if (saved_quantity > 0 && quantity_with_note > 0) {
+            // The field depends on which button subclass runs: the customer
+            // variant used to write the payload into the internal `note`
+            // field, losing the customer note from receipts and printing it
+            // as a kitchen note instead.
+            const noteField = this.type === "internal" ? "note" : "customer_note";
             await this.pos.addLineToCurrentOrder({
                 product_tmpl_id: selectedOrderline.product_id.product_tmpl_id,
                 qty: quantity_with_note,
-                note: payload,
+                [noteField]: payload,
             });
             selectedOrderline.qty = saved_quantity;
             for (const line of selectedOrderline.combo_line_ids) {

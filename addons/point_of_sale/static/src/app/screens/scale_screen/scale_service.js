@@ -35,6 +35,11 @@ export class PosScaleService extends SignalStore {
         this.isMeasuring = false;
         this.product = null;
         this.onError = null;
+        // Cancel the pending poll: reopening the scale within the delay used
+        // to leave the old loop's timeout alive — it saw the new session's
+        // isMeasuring flag and kept polling alongside the new loop.
+        clearTimeout(this._pollHandle);
+        this._pollHandle = null;
     }
 
     confirmWeight() {
@@ -47,7 +52,14 @@ export class PosScaleService extends SignalStore {
             return;
         }
         await this.readWeight();
-        setTimeout(() => this._readWeightContinuously(), MEASURING_DELAY_MS);
+        // Re-check after the await: reset() may have run during the read.
+        if (!this.isMeasuring) {
+            return;
+        }
+        this._pollHandle = setTimeout(
+            () => this._readWeightContinuously(),
+            MEASURING_DELAY_MS,
+        );
     }
 
     async _getWeightFromScale() {

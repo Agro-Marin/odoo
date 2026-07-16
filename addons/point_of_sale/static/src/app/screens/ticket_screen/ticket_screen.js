@@ -91,7 +91,9 @@ export class TicketScreen extends Component {
                     await this.pos.getServerOrders();
                 } catch (error) {
                     if (error instanceof ConnectionLostError) {
-                        Promise.reject(error);
+                        // Degrade gracefully offline — the bare Promise.reject
+                        // that used to sit here surfaced an unhandled-rejection
+                        // popup on top of the working local list.
                         return error;
                     }
                     throw error;
@@ -333,6 +335,19 @@ export class TicketScreen extends Component {
             return;
         }
 
+        // Precondition: checked BEFORE building anything. This used to run
+        // after the refund lines were created and the refund details stamped,
+        // leaving a hidden half-built refund order that wedged later retries.
+        if (order.fiscal_position_not_found) {
+            this.dialog.add(AlertDialog, {
+                title: _t("Fiscal Position not found"),
+                body: _t(
+                    "The fiscal position used in the original order is not loaded. Make sure it is loaded by adding it in the pos configuration.",
+                ),
+            });
+            return;
+        }
+
         const partner = order.getPartner();
         // The order that will contain the refund orderlines.
         // We select the order if it is empty, else we create a new one.
@@ -381,17 +396,6 @@ export class TicketScreen extends Component {
                 .map((l) => l.refund_orderline_ids)
                 .flat();
             refundComboParent.combo_line_ids = [["link", ...children]];
-        }
-
-        //Add a check too see if the fiscal position exist in the pos
-        if (order.fiscal_position_not_found) {
-            this.dialog.add(AlertDialog, {
-                title: _t("Fiscal Position not found"),
-                body: _t(
-                    "The fiscal position used in the original order is not loaded. Make sure it is loaded by adding it in the pos configuration.",
-                ),
-            });
-            return;
         }
 
         if (order.fiscal_position_id) {
