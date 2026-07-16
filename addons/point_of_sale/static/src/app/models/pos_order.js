@@ -545,6 +545,13 @@ export class PosOrder extends PosOrderAccounting {
                 if (!ignored_product_ids.includes(orderLine.product_id.id)) {
                     const data =
                         orderLine.order_id.prices.baseLineByLineUuids[orderLine.uuid];
+                    if (!data) {
+                        // The memoized prices may not yet cover a just-added line
+                        // (the recompute is reactive); skip it this pass instead
+                        // of throwing on `data.tax_details`. It is counted once
+                        // prices catch up and this getter is re-read.
+                        return sum;
+                    }
                     sum += data.tax_details.discount_amount;
                     if (
                         orderLine.displayDiscountPolicy() === "without_discount" &&
