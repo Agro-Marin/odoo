@@ -8,7 +8,58 @@ export class CriticalPOSError extends Component {
     setup() {
         this.state = useState({ expanded: false });
     }
+    retry() {
+        location.reload();
+    }
+
+    // Best-effort dump of every local IndexedDB database to a downloaded JSON
+    // file, so a factory reset never silently destroys unsynced (possibly
+    // paid) orders. Self-contained on purpose: this screen renders when the
+    // app failed to mount, so no POS service can be assumed to exist.
+    async exportLocalData() {
+        const dump = {};
+        const dbs = await indexedDB.databases();
+        for (const { name } of dbs) {
+            if (!name) {
+                continue;
+            }
+            const db = await new Promise((resolve, reject) => {
+                const req = indexedDB.open(name);
+                req.onsuccess = () => resolve(req.result);
+                req.onerror = () => reject(req.error);
+            });
+            try {
+                dump[name] = {};
+                for (const storeName of db.objectStoreNames) {
+                    dump[name][storeName] = await new Promise((resolve, reject) => {
+                        const req = db
+                            .transaction(storeName, "readonly")
+                            .objectStore(storeName)
+                            .getAll();
+                        req.onsuccess = () => resolve(req.result);
+                        req.onerror = () => reject(req.error);
+                    });
+                }
+            } finally {
+                db.close();
+            }
+        }
+        const blob = new Blob([JSON.stringify(dump)], { type: "application/json" });
+        const link = document.createElement("a");
+        link.href = URL.createObjectURL(blob);
+        link.download = `pos-data-backup-${new Date().toISOString().replaceAll(":", "-")}.json`;
+        link.click();
+        URL.revokeObjectURL(link.href);
+    }
+
     async fullReset() {
+        if (
+            !window.confirm(
+                "This permanently deletes ALL locally cached Point of Sale data on this device, including orders that were not yet synchronized to the server.\n\nA backup file of the local data will be downloaded first.\n\nReset this device?",
+            )
+        ) {
+            return;
+        }
         const step = async (fn) => {
             try {
                 await fn();
@@ -18,6 +69,9 @@ export class CriticalPOSError extends Component {
         };
 
         try {
+            // Backup before destroying anything (best effort).
+            await step(() => this.exportLocalData());
+
             // Storage
             await step(() => localStorage.clear());
             await step(() => sessionStorage.clear());
@@ -69,7 +123,10 @@ export class CriticalPOSError extends Component {
         }
     }
     async copyToClipboard() {
-        const text = this.state.expanded ? this.props.error.stack : this.props.error;
+        const error = this.props.error;
+        const text = this.state.expanded
+            ? error.stack
+            : error.message || String(error);
         if (!text) {
             return;
         }

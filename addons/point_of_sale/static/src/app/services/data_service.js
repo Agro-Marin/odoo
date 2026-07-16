@@ -252,9 +252,10 @@ export class PosData extends SignalStore {
         const serverProductIds = this.models["product.product"].map((p) => p.id);
         const databaseProductIds = missing["product.product"]?.map((p) => p.id) ?? [];
         const loadedProductIds = new Set([...databaseProductIds, ...serverProductIds]);
-        missing["pos.order.line"] = missing["pos.order.line"]?.filter((line) =>
-            loadedProductIds.has(line.product_id),
-        );
+        missing["pos.order.line"] =
+            missing["pos.order.line"]?.filter((line) =>
+                loadedProductIds.has(line.product_id),
+            ) ?? [];
 
         const results = this.models.loadConnectedData(missing, []);
 
@@ -694,6 +695,18 @@ export class PosData extends SignalStore {
     }
 
     async missingRecursive(recordMap, idsMap = {}, acc = {}) {
+        // Fold the input into the accumulator before the offline check: being
+        // offline only means missing *relations* cannot be fetched — the records
+        // we already have (e.g. the IndexedDB restore payload on an offline
+        // boot) must still be returned, or the whole input is discarded.
+        for (const [model, records] of Object.entries(recordMap)) {
+            if (!acc[model]) {
+                acc[model] = records;
+            } else {
+                acc[model] = acc[model].concat(records);
+            }
+        }
+
         if (this.network.offline) {
             return acc;
         }
@@ -708,12 +721,6 @@ export class PosData extends SignalStore {
         );
 
         for (const [model, records] of Object.entries(recordMap)) {
-            if (!acc[model]) {
-                acc[model] = records;
-            } else {
-                acc[model] = acc[model].concat(records);
-            }
-
             if (!this.relations[model]) {
                 continue;
             }
