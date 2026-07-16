@@ -815,7 +815,7 @@ class MrpProduction(models.Model):
                 production_capacity = min(
                     moves.mapped(
                         lambda move: (
-                            move.product_id.uom_id._compute_quantity(
+                            move.product_id.uom_id._compute_quantity_estimate(
                                 move.product_id.qty_available, move.product_uom_id
                             )
                             / move.unit_factor

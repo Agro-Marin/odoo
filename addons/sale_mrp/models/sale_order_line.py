@@ -94,7 +94,7 @@ class SaleOrderLine(models.Model):
                             or (m.location_dest_id.usage != 'customer'
                             and m.state == 'done'
                             and float_compare(m.quantity,
-                                                sum(sub_m.product_uom_id._compute_quantity(sub_m.quantity, m.product_uom_id) for sub_m in m.returned_move_ids if sub_m.state == 'done'),
+                                                sum(sub_m.product_uom_id._compute_quantity_reconcile(sub_m.quantity, m.product_uom_id) for sub_m in m.returned_move_ids if sub_m.state == 'done'),
                                                 precision_rounding=m.product_uom_id.rounding) > 0)
                             for m in moves) or not moves:
                         line.qty_transferred = 0
@@ -112,9 +112,9 @@ class SaleOrderLine(models.Model):
                     'outgoing_moves': lambda m:
                         m._is_incoming() and m.to_refund,
                 }
-                order_qty = line.product_uom_id._compute_quantity(line.product_uom_qty, relevant_bom.product_uom_id)
+                order_qty = line.product_uom_id._compute_quantity_reconcile(line.product_uom_qty, relevant_bom.product_uom_id)
                 qty_transferred = moves._compute_kit_quantities(line.product_id, order_qty, relevant_bom, filters)
-                line.qty_transferred = relevant_bom.product_uom_id._compute_quantity(qty_transferred, line.product_uom_id)
+                line.qty_transferred = relevant_bom.product_uom_id._compute_quantity_reconcile(qty_transferred, line.product_uom_id)
 
             # If no relevant BOM is found, fall back on the all-or-nothing policy. This happens
             # when the product sold is made only of kits. In this case, the BOM of the stock moves
@@ -159,7 +159,7 @@ class SaleOrderLine(models.Model):
                                or (m.location_dest_id.usage != 'customer'
                                and m.state == 'done'
                                and float_compare(m.quantity,
-                                                 sum(sub_m.product_uom_id._compute_quantity(sub_m.quantity, m.product_uom_id) for sub_m in m.returned_move_ids if sub_m.state == 'done'),
+                                                 sum(sub_m.product_uom_id._compute_quantity_reconcile(sub_m.quantity, m.product_uom_id) for sub_m in m.returned_move_ids if sub_m.state == 'done'),
                                                  precision_rounding=m.product_uom_id.rounding) > 0)
                                for m in moves) or not moves:
                             delivered_qties[order_line] = 0
@@ -175,9 +175,9 @@ class SaleOrderLine(models.Model):
                         'outgoing_moves': lambda m:
                             m._is_incoming() and m.to_refund,
                     }
-                    order_qty = order_line.product_uom_id._compute_quantity(order_line.product_uom_qty, relevant_bom.product_uom_id)
+                    order_qty = order_line.product_uom_id._compute_quantity_reconcile(order_line.product_uom_qty, relevant_bom.product_uom_id)
                     qty_transferred = moves._compute_kit_quantities(order_line.product_id, order_qty, relevant_bom, filters)
-                    delivered_qties[order_line] += relevant_bom.product_uom_id._compute_quantity(qty_transferred, order_line.product_uom_id)
+                    delivered_qties[order_line] += relevant_bom.product_uom_id._compute_quantity_reconcile(qty_transferred, order_line.product_uom_id)
 
                 # If no relevant BOM is found, fall back on the all-or-nothing policy. This happens
                 # when the product sold is made only of kits. In this case, the BOM of the stock moves
@@ -197,7 +197,7 @@ class SaleOrderLine(models.Model):
         return super().compute_uom_qty(new_qty, stock_move, rounding)
 
     def _get_bom_component_qty(self, bom):
-        bom_quantity = self.product_id.uom_id._compute_quantity(1, bom.product_uom_id, rounding_method='HALF-UP')
+        bom_quantity = self.product_id.uom_id._compute_quantity_estimate(1, bom.product_uom_id, rounding_method='HALF-UP')
         boms, lines = bom.explode(self.product_id, bom_quantity)
         components = {}
         for line, line_data in lines:
@@ -208,14 +208,14 @@ class SaleOrderLine(models.Model):
                 if uom.id != components[product]['uom']:
                     from_uom = uom
                     to_uom = self.env['uom.uom'].browse(components[product]['uom'])
-                    qty = from_uom._compute_quantity(qty, to_uom)
+                    qty = from_uom._compute_quantity_estimate(qty, to_uom)
                 components[product]['qty'] += qty
             else:
                 # To be in the uom reference of the product
                 to_uom = self.env['product.product'].browse(product).uom_id
                 if uom.id != to_uom.id:
                     from_uom = uom
-                    qty = from_uom._compute_quantity(qty, to_uom)
+                    qty = from_uom._compute_quantity_estimate(qty, to_uom)
                 components[product] = {'qty': qty, 'uom': to_uom.id}
         return components
 

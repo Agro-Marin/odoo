@@ -47,7 +47,7 @@ class ReportMrpReport_Bom_Structure(models.AbstractModel):
                 comp["base_bom_line_qty"]
             ):
                 continue
-            components_qty_to_produce[product.id] += comp["uom"]._compute_quantity(
+            components_qty_to_produce[product.id] += comp["uom"]._compute_quantity_report(
                 comp["base_bom_line_qty"], product.uom_id
             )
             components_qty_available[product.id] = product.qty_free
@@ -287,7 +287,7 @@ class ReportMrpReport_Bom_Structure(models.AbstractModel):
         current_quantity = line_qty
         if bom_line:
             current_quantity = (
-                bom_line.product_uom_id._compute_quantity(line_qty, bom.product_uom_id)
+                bom_line.product_uom_id._compute_quantity_report(line_qty, bom.product_uom_id)
                 or 0
             )
 
@@ -333,7 +333,7 @@ class ReportMrpReport_Bom_Structure(models.AbstractModel):
 
         key = product.id
         bom_key = bom.id
-        qty_product_uom = bom.product_uom_id._compute_quantity(
+        qty_product_uom = bom.product_uom_id._compute_quantity_report(
             current_quantity, product.uom_id or bom.product_tmpl_id.uom_id
         )
         self._update_product_info(
@@ -412,7 +412,7 @@ class ReportMrpReport_Bom_Structure(models.AbstractModel):
             if not line.child_bom_id:
                 no_bom_lines |= line
                 # Update product_info for all the components before computing closest forecasted.
-                qty_product_uom = line.product_uom_id._compute_quantity(
+                qty_product_uom = line.product_uom_id._compute_quantity_report(
                     line_quantity, line.product_id.uom_id
                 )
                 self._update_product_info(
@@ -718,16 +718,16 @@ class ReportMrpReport_Bom_Structure(models.AbstractModel):
     ):
         quantities_info = {
             "qty_free": max(
-                product.uom_id._compute_quantity(product.qty_free, bom_uom), 0
+                product.uom_id._compute_quantity_report(product.qty_free, bom_uom), 0
             )
             if product.is_storable
             else 0,
-            "on_hand_qty": product.uom_id._compute_quantity(
+            "on_hand_qty": product.uom_id._compute_quantity_report(
                 product.qty_available, bom_uom
             )
             if product.is_storable
             else 0,
-            "forecasted_qty": product.uom_id._compute_quantity(
+            "forecasted_qty": product.uom_id._compute_quantity_report(
                 product.qty_available_virtual, bom_uom
             )
             if product.is_storable
@@ -830,10 +830,10 @@ class ReportMrpReport_Bom_Structure(models.AbstractModel):
             bom_report_line["availability_state"] in ["unavailable", "estimated"]
             and bom.operation_ids
         ):
-            qty_requested = bom.product_uom_id._compute_quantity(
+            qty_requested = bom.product_uom_id._compute_quantity_report(
                 qty, bom.product_tmpl_id.uom_id
             )
-            qty_to_produce = bom.product_tmpl_id.uom_id._compute_quantity(
+            qty_to_produce = bom.product_tmpl_id.uom_id._compute_quantity_report(
                 max(
                     0,
                     qty_requested - (product.qty_available_virtual if level > 1 else 0),

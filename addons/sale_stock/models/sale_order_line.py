@@ -201,14 +201,14 @@ class SaleOrderLine(models.Model):
             outgoing_moves, incoming_moves = line._get_stock_moves_outgoing_incoming()
 
             for move in incoming_moves.filtered(lambda x: x.state == "done"):
-                qty_transferred -= move.product_uom_id._compute_quantity(
+                qty_transferred -= move.product_uom_id._compute_quantity_reconcile(
                     move.quantity,
                     line.product_uom_id,
                     rounding_method="HALF-UP",
                 )
 
             for move in outgoing_moves.filtered(lambda x: x.state == "done"):
-                qty_transferred += move.product_uom_id._compute_quantity(
+                qty_transferred += move.product_uom_id._compute_quantity_reconcile(
                     move.quantity,
                     line.product_uom_id,
                     rounding_method="HALF-UP",
@@ -332,11 +332,11 @@ class SaleOrderLine(models.Model):
             qty_free_today = 0
 
             for move in moves:
-                qty_available_today += move.product_uom_id._compute_quantity(
+                qty_available_today += move.product_uom_id._compute_quantity_estimate(
                     move.quantity,
                     line.product_uom_id,
                 )
-                qty_free_today += move.product_id.uom_id._compute_quantity(
+                qty_free_today += move.product_id.uom_id._compute_quantity_estimate(
                     move.forecast_availability,
                     line.product_uom_id,
                 )
@@ -400,21 +400,21 @@ class SaleOrderLine(models.Model):
                 product_qty = line.product_qty
 
                 if line.product_uom_id != line.product_id.uom_id:
-                    line.qty_available_today = line.product_id.uom_id._compute_quantity(
+                    line.qty_available_today = line.product_id.uom_id._compute_quantity_estimate(
                         line.qty_available_today,
                         line.product_uom_id,
                     )
-                    line.qty_free_today = line.product_id.uom_id._compute_quantity(
+                    line.qty_free_today = line.product_id.uom_id._compute_quantity_estimate(
                         line.qty_free_today,
                         line.product_uom_id,
                     )
                     line.qty_available_virtual_at_date = (
-                        line.product_id.uom_id._compute_quantity(
+                        line.product_id.uom_id._compute_quantity_estimate(
                             line.qty_available_virtual_at_date,
                             line.product_uom_id,
                         )
                     )
-                    product_qty = line.product_uom_id._compute_quantity(
+                    product_qty = line.product_uom_id._compute_quantity_estimate(
                         product_qty,
                         line.product_id.uom_id,
                     )
@@ -526,7 +526,7 @@ class SaleOrderLine(models.Model):
         res = super()._get_product_catalog_lines_data(**kwargs)
         res["deliveredQty"] = sum(
             self.mapped(
-                lambda line: line.product_uom_id._compute_quantity(
+                lambda line: line.product_uom_id._compute_quantity_report(
                     qty=line.qty_transferred,
                     to_unit=line.product_id.uom_id,
                 ),
@@ -695,7 +695,7 @@ class SaleOrderLine(models.Model):
                 for move in outgoing_moves:
                     if move.state != "done":
                         continue
-                    qty += move.product_uom_id._compute_quantity(
+                    qty += move.product_uom_id._compute_quantity_reconcile(
                         move.quantity,
                         line.product_uom_id,
                         rounding_method="HALF-UP",
@@ -703,7 +703,7 @@ class SaleOrderLine(models.Model):
                 for move in incoming_moves:
                     if move.state != "done":
                         continue
-                    qty -= move.product_uom_id._compute_quantity(
+                    qty -= move.product_uom_id._compute_quantity_reconcile(
                         move.quantity,
                         line.product_uom_id,
                         rounding_method="HALF-UP",

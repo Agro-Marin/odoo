@@ -90,6 +90,76 @@ class TestUom(UomCommon):
             "Failed conversions must return the initial quantity",
         )
 
+    def test_compute_quantity_wrappers_degrade(self):
+        """The report/estimate/reconcile wrappers force raise_if_failure=False:
+        incompatible UoMs return the unconverted quantity, and the opt-out
+        cannot be overridden by a caller passing raise_if_failure=True."""
+        self.assertFalse(self.uom_gram._has_common_reference(self.uom_hour))
+        for wrapper in (
+            self.uom_gram._compute_quantity_report,
+            self.uom_gram._compute_quantity_estimate,
+            self.uom_gram._compute_quantity_reconcile,
+        ):
+            with self.subTest(wrapper=wrapper.__name__):
+                self.assertEqual(
+                    wrapper(1000, self.uom_hour), 1000,
+                    "Incompatible conversion must return the initial quantity",
+                )
+                self.assertEqual(
+                    wrapper(1000, self.uom_hour, raise_if_failure=True), 1000,
+                    "The forced opt-out must not be overridable by the caller",
+                )
+
+    def test_compute_quantity_wrappers_forward_kwargs(self):
+        """The wrappers forward round/rounding_method through to the base
+        _compute_quantity. Uses the same controlled setup as test_20_rounding
+        (Product Unit precision 0 + a Score unit worth 20 units) so the
+        assertions do not depend on the reference UoMs' stored rounding."""
+        self.env['decimal.precision'].search([('name', '=', 'Product Unit')]).digits = 0
+        score = self.env['uom.uom'].create({
+            'name': 'Score',
+            'relative_factor': 20,
+            'relative_uom_id': self.uom_unit.id,
+        })
+        for wrapper_name in (
+            '_compute_quantity_report',
+            '_compute_quantity_estimate',
+            '_compute_quantity_reconcile',
+        ):
+            with self.subTest(wrapper=wrapper_name):
+                wrapper = getattr(self.uom_unit, wrapper_name)
+                # 2 units = 0.1 score: round=False keeps 0.1, default rounds up to 1
+                self.assertEqual(
+                    wrapper(2, score, round=False),
+                    self.uom_unit._compute_quantity(2, score, round=False),
+                )
+                self.assertNotEqual(
+                    wrapper(2, score, round=False),
+                    wrapper(2, score),
+                    "round=False must differ from the rounded default",
+                )
+                # rounding_method forwarded: DOWN rounds 0.1 score to 0, matching base
+                self.assertEqual(
+                    wrapper(2, score, rounding_method='DOWN'),
+                    self.uom_unit._compute_quantity(2, score, rounding_method='DOWN'),
+                )
+
+    def test_compute_quantity_wrappers_match_base_for_compatible(self):
+        """For compatible UoMs the wrappers are byte-identical to the base
+        _compute_quantity — they only differ when conversion is impossible."""
+        cases = [(self.uom_gram, 1020000, self.uom_ton), (self.uom_dozen, 1, self.uom_unit)]
+        for wrapper_name in (
+            '_compute_quantity_report',
+            '_compute_quantity_estimate',
+            '_compute_quantity_reconcile',
+        ):
+            for src, qty, dst in cases:
+                with self.subTest(wrapper=wrapper_name, src=src.name, dst=dst.name):
+                    self.assertEqual(
+                        getattr(src, wrapper_name)(qty, dst),
+                        src._compute_quantity(qty, dst),
+                    )
+
     def test_conversion_degenerate_recordsets(self):
         empty_uom = self.env['uom.uom']
         self.assertEqual(empty_uom._compute_quantity(5.0, self.uom_gram), 5.0)
