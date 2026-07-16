@@ -73,7 +73,7 @@ class AccountReconcileModelLine(models.Model):
         self.amount_string = ""
         if self.amount_type in ("percentage", "percentage_st_line"):
             self.amount_string = "100"
-        elif self.amount_type in ("regex", "from_transaction_details"):
+        elif self.amount_type == "regex":
             self.amount_string = r"([\d,]+)"
 
     @api.depends("amount_string")

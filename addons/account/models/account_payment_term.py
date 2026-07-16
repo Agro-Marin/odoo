@@ -95,12 +95,23 @@ class AccountPaymentTerm(models.Model):
                 payment_term.company_id.currency_id or self.env.company.currency_id
             )
 
-    def _get_amount_due_after_discount(self, total_amount, untaxed_amount):
+    def _get_amount_due_after_discount(self, total_amount, tax_amount):
+        """Return the amount due once the early-payment discount is applied.
+
+        :param total_amount: the tax-included total of the document.
+        :param tax_amount: the *tax* portion of ``total_amount``. For the
+            ``excluded``/``mixed`` computations the discount is applied on the
+            untaxed base only, which is recovered here as
+            ``total_amount - tax_amount``. NB: despite what an "amount due after
+            discount" reading might suggest, the second argument is the tax
+            amount, not the untaxed base -- passing the untaxed base here
+            silently discounts the wrong amount.
+        """
         self.ensure_one()
         if self.early_discount:
             percentage = self.discount_percentage / 100.0
             if self.early_pay_discount_computation in ("excluded", "mixed"):
-                discount_amount_currency = (total_amount - untaxed_amount) * percentage
+                discount_amount_currency = (total_amount - tax_amount) * percentage
             else:
                 discount_amount_currency = total_amount * percentage
             # `total_amount`/`untaxed_amount` are expressed in the document's
@@ -563,9 +574,12 @@ class AccountPaymentTermLine(models.Model):
             if line.value == "fixed":
                 line.value_amount = 0
             else:
+                # Sum the OTHER percent lines only: `line_ids` includes ``line``
+                # itself, so counting it would subtract its own current value and,
+                # on any recompute of an already-filled line, double-count it.
                 amount = 0
-                for i in line.payment_id.line_ids.filtered(
-                    lambda r: r.value == "percent"
+                for other in line.payment_id.line_ids.filtered(
+                    lambda r, line=line: r.value == "percent" and r != line
                 ):
-                    amount += i["value_amount"]
+                    amount += other.value_amount
                 line.value_amount = 100 - amount

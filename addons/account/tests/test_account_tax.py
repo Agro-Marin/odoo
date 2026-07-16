@@ -1,5 +1,5 @@
 from odoo import Command
-from odoo.exceptions import UserError
+from odoo.exceptions import UserError, ValidationError
 from odoo.tests import tagged
 
 from odoo.addons.account.tests.common import AccountTestInvoicingCommon
@@ -504,3 +504,60 @@ class TestAccountTax(AccountTestInvoicingCommon):
         self.assertIn("50.0", joined)
         self.assertIn("100.0", joined)
         self.assertIn("Use in tax closing", joined)
+
+    def test_compute_all_rounds_per_tax_base_under_round_globally(self):
+        """Under 'round_globally' the raw base is a full-precision float; the
+        per-tax 'base' returned by the legacy compute_all API must be rounded to
+        the currency (like the totals), unless round_base=False is requested."""
+        company = self.env.company
+        company.tax_calculation_rounding_method = "round_globally"
+        currency = company.currency_id
+        tax = self.env["account.tax"].create(
+            {
+                "name": "incl 21",
+                "amount_type": "percent",
+                "amount": 21.0,
+                "type_tax_use": "sale",
+                "price_include_override": "tax_included",
+                "company_id": company.id,
+            }
+        )
+        res = tax.with_context(round_globally=True).compute_all(
+            100.0, currency=currency, quantity=1.0
+        )
+        base = res["taxes"][0]["base"]
+        self.assertEqual(
+            base,
+            currency.round(base),
+            "per-tax base must be currency-rounded (round_base default True)",
+        )
+        # The raw, unrounded base is still available on explicit request.
+        raw = tax.with_context(round_globally=True, round_base=False).compute_all(
+            100.0, currency=currency, quantity=1.0
+        )["taxes"][0]["base"]
+        self.assertNotEqual(raw, currency.round(raw), "round_base=False keeps raw base")
+
+    def test_division_tax_batch_over_100_percent_is_rejected(self):
+        """A price-excluded division-tax batch summing to > 100% would leave a
+        negative base and silently flip the tax sign; it must raise instead."""
+        company = self.env.company
+        currency = company.currency_id
+        div_taxes = self.env["account.tax"].create(
+            [
+                {
+                    "name": f"div60_{i}",
+                    "amount_type": "division",
+                    "amount": 60.0,
+                    "type_tax_use": "sale",
+                    "price_include_override": "tax_excluded",
+                    "company_id": company.id,
+                }
+                for i in range(2)
+            ]
+        )
+        with self.assertRaisesRegex(ValidationError, "cannot exceed 100"):
+            div_taxes.compute_all(100.0, currency=currency, quantity=1.0)
+
+        # A single valid price-excluded division tax still computes.
+        result = div_taxes[0].compute_all(100.0, currency=currency, quantity=1.0)
+        self.assertGreater(result["total_included"], 0.0)

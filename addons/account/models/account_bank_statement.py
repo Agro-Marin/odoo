@@ -227,7 +227,9 @@ class AccountBankStatement(models.Model):
     @api.depends("balance_end", "balance_end_real", "line_ids.amount", "line_ids.state")
     def _compute_is_complete(self):
         for stmt in self:
-            stmt.is_complete = (
+            # `and` short-circuits to the empty recordset when there are no
+            # posted lines; coerce to a real bool for this Boolean field.
+            stmt.is_complete = bool(
                 stmt.line_ids.filtered(lambda l: l.state == "posted")
                 and stmt.currency_id.compare_amounts(
                     stmt.balance_end, stmt.balance_end_real

@@ -32,6 +32,25 @@ class TestAccountMoveMarinDepends(AccountTestInvoicingCommon):
         self.assertIn("line_ids.matched_debit_ids", recon)
         self.assertIn("line_ids.matched_credit_ids", recon)
         self.assertIn("line_ids.amount_currency", self._deps("payment_term_details"))
+        # show_delivery_date branches on is_sale_document() (move_type) but
+        # historically depended only on delivery_date.
+        self.assertIn("move_type", self._deps("show_delivery_date"))
+
+    def test_show_delivery_date_recomputes_on_move_type_change(self):
+        invoice = self.init_invoice(
+            "out_invoice", partner=self.partner_a, amounts=[100.0], post=False
+        )
+        invoice.delivery_date = fields.Date.context_today(invoice)
+        self.assertTrue(
+            invoice.show_delivery_date, "a sale document with a delivery date shows it"
+        )
+        # Change to a non-sale type without touching delivery_date: the flag must
+        # refresh (it would stay stale True without the move_type dependency).
+        invoice.move_type = "entry"
+        self.assertFalse(
+            invoice.show_delivery_date,
+            "show_delivery_date must refresh when the move type stops being a sale",
+        )
 
     # ----- functional: stale cached warnings ----------------------------
     def test_partner_credit_warning_clears_on_post(self):
@@ -59,6 +78,42 @@ class TestAccountMoveMarinDepends(AccountTestInvoicingCommon):
             invoice.has_reconciled_entries,
             "field must flip once the invoice is reconciled with its payment",
         )
+
+    def test_outstanding_widget_batched_across_moves(self):
+        """Two invoices for one partner + an unreconciled payment: both must see
+        the same outstanding credit. `_compute_payments_widget_to_reconcile_info`
+        batches the lookup by (company, partner, direction); this guards that the
+        batching still yields each move its correct content."""
+        inv1 = self.init_invoice(
+            "out_invoice", partner=self.partner_a, amounts=[100.0], post=True
+        )
+        inv2 = self.init_invoice(
+            "out_invoice", partner=self.partner_a, amounts=[200.0], post=True
+        )
+        payment = self.env["account.payment"].create(
+            {
+                "payment_type": "inbound",
+                "partner_type": "customer",
+                "partner_id": self.partner_a.id,
+                "amount": 50.0,
+                "journal_id": self.company_data["default_journal_bank"].id,
+            }
+        )
+        payment.action_post()
+        receivable_line = payment.move_id.line_ids.filtered(
+            lambda line: line.account_id.account_type == "asset_receivable"
+        )
+
+        moves = inv1 + inv2
+        moves.invalidate_recordset(["invoice_outstanding_credits_debits_widget"])
+        for inv in moves:
+            widget = inv.invoice_outstanding_credits_debits_widget
+            self.assertTrue(widget, "each invoice must surface the outstanding payment")
+            self.assertIn(
+                receivable_line.id,
+                [content["id"] for content in widget["content"]],
+                "the batched result must include the partner's outstanding credit",
+            )
 
     # ----- non-mutation of caller-owned data ----------------------------
     def test_sanitize_vals_does_not_mutate_caller(self):

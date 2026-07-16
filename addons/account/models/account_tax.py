@@ -1453,14 +1453,6 @@ class AccountTax(models.Model):
                 grouping_key.update(grouping_function(new_base_line))
             grouping_key = frozendict(grouping_key)
 
-            if base_line["analytic_distribution"]:
-                for account_id, distribution in base_line[
-                    "analytic_distribution"
-                ].items():
-                    aggregated_base_lines.setdefault(account_id, []).append(
-                        distribution
-                    )
-
             target_base_line = base_line_map.get(grouping_key)
             if target_base_line:
                 target_base_line["price_unit"] += new_base_line["price_unit"]
@@ -2496,6 +2488,9 @@ class AccountTax(models.Model):
         """Get the minimum missing amount having 'raw_current_amount_precision_digits' as precision
         to be added to 'raw_current_amount' to give 'target_amount' after rounding using 'target_currency'.
 
+        [!] Only added python-side. No mirror in account_tax.js despite sitting above the
+        "END HELPERS IN BOTH PYTHON/JAVASCRIPT" marker; do not try to keep a JS twin in sync.
+
         :param target_amount:                       The amount to reach after rounding the raw amount using 'target_currency'.
         :param target_currency:                     The currency used to round 'target_amount'.
         :param raw_current_amount:                  The raw amount that needs to reach 'target_amount'.
@@ -2540,6 +2535,9 @@ class AccountTax(models.Model):
         in_foreign_currency=True,
     ):
         """Round 'raw_total_excluded[_currency]' according 'precision_digits'.
+
+        [!] Only added python-side. No mirror in account_tax.js despite sitting above the
+        "END HELPERS IN BOTH PYTHON/JAVASCRIPT" marker; do not try to keep a JS twin in sync.
 
         :param base_lines:              A list of python dictionaries created using the '_prepare_base_line_for_taxes_computation' method.
         :param company:                 The company owning the base lines.
@@ -2612,53 +2610,6 @@ class AccountTax(models.Model):
             base_line["tax_details"][raw_field] += amount_to_distribute
 
     @api.model
-    def _get_gross_total_without_tax(
-        self,
-        base_line,
-        company,
-        in_foreign_currency=True,
-        account_discount_base_lines=False,
-        precision_digits=None,
-    ):
-        """Infer the gross total without tax from the base line.
-
-        :param base_line:                   A base line (see '_prepare_base_line_for_taxes_computation').
-        :param company:                     The company owning the base line.
-        :param in_foreign_currency:         True if to be applied on amounts expressed in foreign currency,
-                                            False for amounts expressed in company currency.
-        :param account_discount_base_lines: Account the distributed global discount in 'discount_base_lines'
-                                            using '_dispatch_global_discount_lines' in 'raw_discount_amount'.
-        :param precision_digits:            The precision to be used to round.
-        :return:                            The gross total without tax.
-        """
-        suffix = "_currency" if in_foreign_currency else ""
-
-        tax_details = base_line["tax_details"]
-        raw_total_excluded = tax_details[f"raw_total_excluded{suffix}"]
-
-        discount_factor = 1 - (base_line["discount"] / 100.0)
-        if discount_factor:
-            raw_gross_total_excluded = raw_total_excluded / discount_factor
-        elif in_foreign_currency:
-            raw_gross_total_excluded = base_line["price_unit"] * base_line["quantity"]
-        elif base_line["rate"]:
-            raw_gross_total_excluded = (
-                base_line["price_unit"] * base_line["quantity"] / base_line["rate"]
-            )
-        else:
-            raw_gross_total_excluded = 0.0
-        if account_discount_base_lines:
-            raw_gross_total_excluded -= sum(
-                discount_base_line["tax_details"][f"raw_total_excluded{suffix}"]
-                for discount_base_line in base_line.get("discount_base_lines", [])
-            )
-
-        if precision_digits is not None:
-            raw_gross_total_excluded = float_round(
-                raw_gross_total_excluded, precision_digits=precision_digits
-            )
-        return raw_gross_total_excluded
-
     @api.model
     def _get_price_unit_without_tax(
         self,
@@ -2742,7 +2693,10 @@ class AccountTax(models.Model):
         in_foreign_currency=True,
         account_discount_base_lines=False,
     ):
-        """Compute and add 'raw_gross_total_excluded[_currency]' / 'raw_gross_price_unit[_currency]' / 'raw_discount_amount[_currency]'
+        """[!] Only added python-side. No mirror in account_tax.js despite sitting above the
+        "END HELPERS IN BOTH PYTHON/JAVASCRIPT" marker; do not try to keep a JS twin in sync.
+
+        Compute and add 'raw_gross_total_excluded[_currency]' / 'raw_gross_price_unit[_currency]' / 'raw_discount_amount[_currency]'
         to the tax details according 'precision_digits' / 'in_foreign_currency'.
 
         :param base_lines:                  A list of python dictionaries created using the '_prepare_base_line_for_taxes_computation' method.
@@ -2881,6 +2835,9 @@ class AccountTax(models.Model):
         company,
         in_foreign_currency=True,
     ):
+        """[!] Only added python-side. No mirror in account_tax.js despite sitting above the
+        "END HELPERS IN BOTH PYTHON/JAVASCRIPT" marker; do not try to keep a JS twin in sync.
+        """
         if not base_lines:
             return
 
@@ -2979,6 +2936,9 @@ class AccountTax(models.Model):
         in_foreign_currency=True,
     ):
         """Round 'raw_tax_amount[_currency]'/'raw_base_amount[_currency]' according 'precision_digits' / 'in_foreign_currency'.
+
+        [!] Only added python-side. No mirror in account_tax.js despite sitting above the
+        "END HELPERS IN BOTH PYTHON/JAVASCRIPT" marker; do not try to keep a JS twin in sync.
 
         :param base_lines_aggregated_values:    The result of '_aggregate_base_lines_tax_details'.
         :param company:                         The company owning the base lines.
@@ -3205,6 +3165,11 @@ class AccountTax(models.Model):
         tax_details = base_line["tax_details"]
         total_void = total_excluded = tax_details["raw_total_excluded_currency"]
         total_included = tax_details["raw_total_included_currency"]
+        # Same rounding switch that governs the totals below: under
+        # 'round_globally' the raw base is a full-precision float, so the per-tax
+        # 'base' must be rounded here too, otherwise legacy compute_all consumers
+        # (POS, reports) receive an unrounded base that the totals never expose.
+        round_base = self.env.context.get("round_base", True)
 
         # Convert to the 'old' compute_all api.
         taxes = []
@@ -3218,7 +3183,11 @@ class AccountTax(models.Model):
                         "name": (partner and tax.with_context(lang=partner.lang).name)
                         or tax.name,
                         "amount": tax_rep_data["tax_amount_currency"],
-                        "base": tax_data["raw_base_amount_currency"],
+                        "base": (
+                            currency.round(tax_data["raw_base_amount_currency"])
+                            if round_base
+                            else tax_data["raw_base_amount_currency"]
+                        ),
                         "sequence": tax.sequence,
                         "account_id": tax_rep_data["account"].id,
                         "analytic": tax.analytic,
@@ -3235,7 +3204,7 @@ class AccountTax(models.Model):
                 if not rep_line.account_id:
                     total_void += tax_rep_data["tax_amount_currency"]
 
-        if self.env.context.get("round_base", True):
+        if round_base:
             total_excluded = currency.round(total_excluded)
             total_included = currency.round(total_included)
 

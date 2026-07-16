@@ -1046,6 +1046,7 @@ class AccountJournal(models.Model):
             SELECT move.journal_id AS journal_id,
                    move.company_id AS company_id,
                    move.currency_id AS currency,
+                   COUNT(*) AS count,
                    SUM(CASE
                        WHEN payment.payment_type = 'outbound' THEN -payment.amount
                        ELSE payment.amount
@@ -1084,6 +1085,7 @@ class AccountJournal(models.Model):
             SELECT payment.journal_id AS journal_id,
                    payment.company_id AS company_id,
                    payment.currency_id AS currency,
+                   COUNT(*) AS count,
                    SUM(CASE
                        WHEN payment.payment_type = 'outbound' THEN -payment.amount
                        ELSE payment.amount

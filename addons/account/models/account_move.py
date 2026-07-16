@@ -27,6 +27,7 @@ from odoo.tools import (
     frozendict,
     get_lang,
     groupby,
+    ormcache,
 )
 from odoo.tools.mail import (
     email_re,
@@ -1371,8 +1372,10 @@ class AccountMove(models.Model):
     def _compute_delivery_date(self):
         pass
 
-    @api.depends("delivery_date")
+    @api.depends("delivery_date", "move_type")
     def _compute_show_delivery_date(self):
+        # `is_sale_document()` keys off `move_type`; without depending on it the
+        # flag goes stale when a move's type changes but `delivery_date` doesn't.
         for move in self:
             move.show_delivery_date = move.delivery_date and move.is_sale_document()
 
@@ -1880,10 +1883,18 @@ class AccountMove(models.Model):
             )
 
     def _compute_payments_widget_to_reconcile_info(self):
+        self.invoice_outstanding_credits_debits_widget = False
 
+        # Batch the outstanding-line lookup: moves sharing the same
+        # (company, commercial partner, payment direction) resolve to the very
+        # same candidate outstanding lines, so one search per group replaces the
+        # former per-move search (an N+1 on list views and on the
+        # `invoice_has_outstanding` compute that depends on this field).
+        candidates = {}  # move -> set of its receivable/payable account ids
+        groups = defaultdict(
+            lambda: {"moves": self.env["account.move"], "account_ids": set()}
+        )
         for move in self:
-            move.invoice_outstanding_credits_debits_widget = False
-
             if (
                 move.state not in {"draft", "posted"}
                 or move.payment_state not in ("not_paid", "partial")
@@ -1891,25 +1902,45 @@ class AccountMove(models.Model):
             ):
                 continue
 
-            pay_term_lines = move.line_ids.filtered(
+            pay_term_account_ids = move.line_ids.filtered(
                 lambda line: (
                     line.account_id.account_type
                     in ("asset_receivable", "liability_payable")
                 )
+            ).account_id.ids
+            if not pay_term_account_ids:
+                continue
+
+            candidates[move] = set(pay_term_account_ids)
+            key = (move.company_id.id, move.commercial_partner_id.id, move.is_inbound())
+            groups[key]["moves"] |= move
+            groups[key]["account_ids"].update(pay_term_account_ids)
+
+        if not candidates:
+            return
+
+        # One search per group; its result is shared by every move in the group
+        # and filtered down to each move's own receivable/payable accounts below.
+        lines_per_group = {}
+        for key, group in groups.items():
+            company_id, partner_id, is_inbound = key
+            company = self.env["res.company"].browse(company_id)
+            lines_per_group[key] = self.env["account.move.line"].search(
+                [
+                    ("account_id", "in", list(group["account_ids"])),
+                    ("parent_state", "=", "posted"),
+                    *self.env["account.move"]._check_company_domain(company),
+                    ("partner_id", "=", partner_id),
+                    ("reconciled", "=", False),
+                    ("balance", "<" if is_inbound else ">", 0.0),
+                    "|",
+                    ("amount_residual", "!=", 0.0),
+                    ("amount_residual_currency", "!=", 0.0),
+                ]
             )
 
-            domain = [
-                ("account_id", "in", pay_term_lines.account_id.ids),
-                ("parent_state", "=", "posted"),
-                *move._check_company_domain(move.company_id),
-                ("partner_id", "=", move.commercial_partner_id.id),
-                ("reconciled", "=", False),
-                ("balance", "<" if move.is_inbound() else ">", 0.0),
-                "|",
-                ("amount_residual", "!=", 0.0),
-                ("amount_residual_currency", "!=", 0.0),
-            ]
-
+        for move, account_id_set in candidates.items():
+            key = (move.company_id.id, move.commercial_partner_id.id, move.is_inbound())
             payments_widget_vals = {
                 "outstanding": True,
                 "content": [],
@@ -1919,7 +1950,11 @@ class AccountMove(models.Model):
                 else _("Outstanding debits"),
             }
 
-            for line in self.env["account.move.line"].search(domain):
+            for line in lines_per_group[key]:
+                # Restrict the shared group result to this move's own accounts,
+                # equivalent to the former per-move `account_id in ...` domain.
+                if line.account_id.id not in account_id_set:
+                    continue
                 if line.currency_id == move.currency_id:
                     # Same foreign currency.
                     amount = abs(line.amount_residual_currency)
@@ -4130,19 +4165,25 @@ class AccountMove(models.Model):
         return result
 
     @api.model
+    @ormcache()
     def _get_default_read_fields(self):
-        return [
+        # The result is static per model (the full field set minus a fixed
+        # exclusion frozenset), yet this runs on every fields=None read/
+        # search_read -- a very hot RPC path. Cache it; the ormcache is dropped
+        # on registry reload, which is the only time the field set can change.
+        # Returns a tuple so callers can't mutate the cached object.
+        return tuple(
             fname
             for fname in self.fields_get(attributes=())
             if fname not in self._UNREADABLE_BY_DEFAULT
-        ]
+        )
 
     def read(self, fields=None, load="_classic_read"):
         # Only substitute the default field set when the caller asked for "all"
         # (fields is None). An explicit empty list is the idiomatic "just ids"
         # call and must NOT be inflated to every default field.
         if fields is None:
-            fields = self._get_default_read_fields()
+            fields = list(self._get_default_read_fields())
         return super().read(fields, load)
 
     @api.model
@@ -4153,7 +4194,7 @@ class AccountMove(models.Model):
         # asked for "all" (fields is None). An explicit empty list is the
         # idiomatic "just ids" call and must NOT be inflated to every field.
         if fields is None:
-            fields = self._get_default_read_fields()
+            fields = list(self._get_default_read_fields())
         return super().search_read(domain, fields, offset, limit, order, **read_kwargs)
 
     def copy_data(self, default=None):

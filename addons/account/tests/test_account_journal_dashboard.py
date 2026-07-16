@@ -439,6 +439,31 @@ class TestAccountJournalDashboard(TestAccountJournalDashboardCommon):
             (bank_journal.currency_id or self.env.company.currency_id).format(100),
         )
 
+    def test_outstanding_payments_count_is_per_payment_not_per_currency(self):
+        """The outstanding-payments KPI must count payments, not currency groups:
+        the SQL aggregates GROUP BY currency, so without an explicit COUNT(*) the
+        count collapsed to 1 per currency (e.g. 3 same-currency payments -> 1)."""
+        bank_journal = self.company_data["default_journal_bank"]
+        for amount in (10.0, 20.0, 30.0):
+            payment = self.env["account.payment"].create(
+                {
+                    "amount": amount,
+                    "payment_type": "inbound",
+                    "partner_type": "customer",
+                    "journal_id": bank_journal.id,
+                }
+            )
+            payment.action_post()
+
+        dashboard_data = bank_journal._get_journal_dashboard_data_batched()[
+            bank_journal.id
+        ]
+        self.assertEqual(
+            dashboard_data["nb_lines_outstanding_pay_account_balance"],
+            3,
+            "3 same-currency outstanding payments must be counted as 3, not 1.",
+        )
+
     def test_bank_journal_different_currency(self):
         """Test that the misc operations amount on the dashboard is correct
         for a bank account in another currency."""
