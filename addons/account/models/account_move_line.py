@@ -1888,6 +1888,15 @@ class AccountMoveLine(models.Model):
                 line.debit = 0
             line.balance = line.debit - line.credit
 
+    def _analytic_distribution_consumes_update(self):
+        # The inverse below merges the transient ``__update__`` marker via
+        # ``_merge_distribution``, so it must survive ``_sanitize_values``.
+        return True
+
+    def _get_count_id(self, query):
+        # Grouping journal items by analytic_distribution counts distinct moves.
+        return SQL("move_id")
+
     def _inverse_analytic_distribution(self):
         """Unlink and recreate analytic_lines when modifying the distribution."""
         if self.env.context.get("skip_analytic_sync"):

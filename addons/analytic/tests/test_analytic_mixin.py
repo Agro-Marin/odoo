@@ -72,3 +72,82 @@ class TestAnalyticMixin(TransactionCase):
 
         self.assertEqual(filter_domain('in', [self.commercial_aa.id]), self.adm_commercial_ad)
         self.assertEqual(filter_domain('in', (self.sales_aa + self.rd_aa).ids), self.adm_sales_admin_ad + self.adm_rd_ad)
+
+    def test_search_distribution_in_by_account_name(self):
+        """`_search_analytic_distribution` must accept a list of account *names*
+        for the `in`/`not in` operators (regression: it used to test
+        `isinstance(value, str)` instead of the element `v`, so a list of names
+        silently matched nothing)."""
+        ADM = self.env['account.analytic.distribution.model']
+        sales_adm = ADM.create({'analytic_distribution': {self.sales_aa.id: 100}})
+        rd_adm = ADM.create({'analytic_distribution': {self.rd_aa.id: 100}})
+
+        self.assertEqual(
+            ADM.search([('id', 'in', (sales_adm + rd_adm).ids), ('analytic_distribution', 'in', ['Sales'])]),
+            sales_adm,
+        )
+        self.assertEqual(
+            ADM.search([('id', 'in', (sales_adm + rd_adm).ids),
+                        ('analytic_distribution', 'in', ['Sales', 'Research & Development'])]),
+            sales_adm + rd_adm,
+        )
+
+    def test_update_marker_not_persisted_on_plain_mixin(self):
+        """A model that does not consume the transient `__update__` marker must
+        never persist it (regression: it leaked into the stored JSON and later
+        made `int('__update__')` raise across every key reader)."""
+        ADM = self.env['account.analytic.distribution.model']
+        self.assertFalse(ADM._analytic_distribution_consumes_update())
+
+        adm = ADM.create({'analytic_distribution': {f"{self.sales_aa.id}": 100, '__update__': ['x_plan1_id']}})
+        adm.flush_recordset()
+        self.env.cr.execute(
+            "SELECT analytic_distribution FROM account_analytic_distribution_model WHERE id = %s",
+            [adm.id],
+        )
+        stored = self.env.cr.fetchone()[0]
+        self.assertNotIn('__update__', stored, "the transient marker must be stripped before storage")
+        self.assertEqual(stored, {str(self.sales_aa.id): 100})
+
+        # A write path must strip it too, not only create.
+        adm.write({'analytic_distribution': {f"{self.rd_aa.id}": 100, '__update__': ['x_plan1_id']}})
+        adm.flush_recordset()
+        self.assertNotIn('__update__', adm.analytic_distribution)
+
+    def test_account_ids_from_distribution_is_robust(self):
+        """The single key parser tolerates the `__update__` marker and malformed
+        segments instead of raising, and de-duplicates while preserving order."""
+        mixin = self.env['analytic.mixin']
+        s, r = self.sales_aa.id, self.rd_aa.id
+        self.assertEqual(mixin._account_ids_from_distribution({f"{s},{r}": 100, '__update__': ['x']}), [s, r])
+        self.assertEqual(mixin._account_ids_from_distribution({f"{s},": 100, f" {r} ": 50}), [s, r])
+        self.assertEqual(mixin._account_ids_from_distribution({f"{s},{r}": 50, f"{r}": 50}), [s, r])
+        self.assertEqual(mixin._account_ids_from_distribution({}), [])
+        # aggregate helper: accepts a single dict or an iterable of dicts, returns a set, never raises
+        self.assertEqual(
+            mixin._get_analytic_account_ids_from_distributions({f"{s}": 100, '__update__': ['x']}),
+            {s},
+        )
+        self.assertEqual(
+            mixin._get_analytic_account_ids_from_distributions([{f"{s}": 100}, {f"{r}": 100, '__update__': ['x']}]),
+            {s, r},
+        )
+
+    def test_read_group_by_distribution_defaults_to_self(self):
+        """Grouping by `analytic_distribution` on a model with no dedicated
+        count id falls back to counting the record itself, instead of raising
+        `ValueError` from a hardcoded table map (inverted-dependency removal)."""
+        ADM = self.env['account.analytic.distribution.model']
+        made = ADM.create([
+            {'analytic_distribution': {self.sales_aa.id: 100}},
+            {'analytic_distribution': {self.sales_aa.id: 100}},
+            {'analytic_distribution': {self.rd_aa.id: 100}},
+        ])
+        # grouping by analytic_distribution yields raw account-id keys
+        groups = dict(ADM._read_group(
+            domain=[('id', 'in', made.ids)],
+            groupby=['analytic_distribution'],
+            aggregates=['__count'],
+        ))
+        self.assertEqual(groups.get(self.sales_aa.id), 2)
+        self.assertEqual(groups.get(self.rd_aa.id), 1)

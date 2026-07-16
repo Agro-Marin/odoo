@@ -7,7 +7,7 @@ from pytz import UTC
 from odoo import api, fields, models
 from odoo.exceptions import UserError
 from odoo.fields import Command
-from odoo.tools import DEFAULT_SERVER_DATETIME_FORMAT, get_lang
+from odoo.tools import DEFAULT_SERVER_DATETIME_FORMAT, SQL, get_lang
 from odoo.tools.translate import _
 
 
@@ -203,6 +203,10 @@ class PurchaseOrderLine(models.Model):
 
     def _get_display_type_nullify_vals(self):
         return {**super()._get_display_type_nullify_vals(), "date_planned": False}
+
+    def _get_count_id(self, query):
+        # Grouping purchase order lines by analytic_distribution counts orders.
+        return SQL("order_id")
 
     def _get_tracked_qty_fields(self):
         return [*super()._get_tracked_qty_fields(), "qty_transferred"]
