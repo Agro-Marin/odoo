@@ -5,7 +5,6 @@ import re
 
 
 class SensitiveDataFilter(logging.Filter):
-
     def __init__(self, sensitive_keys):
         super().__init__()
         if sensitive_keys is None:
@@ -49,7 +48,9 @@ class SensitiveDataFilter(logging.Filter):
         if isinstance(data, dict):
             masked_dict = {}
             for k, v in data.items():
-                masked_dict[k] = "[REDACTED]" if k in self._sensitive_keys else self._mask(v)
+                masked_dict[k] = (
+                    "[REDACTED]" if k in self._sensitive_keys else self._mask(v)
+                )
             return masked_dict
         if isinstance(data, (list, tuple, set)):
             cls = type(data)
@@ -65,6 +66,7 @@ class SensitiveDataFilter(logging.Filter):
         :return: The masked string.
         :rtype: str
         """
+
         def replace(m):
             # 1st group: "<key>" or '<key>'
             # 2nd group: The quote char for the value
