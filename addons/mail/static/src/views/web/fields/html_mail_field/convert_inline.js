@@ -10,7 +10,7 @@ import {
     _computeStyleAndSpecificityOnRules,
     _getRightmostSelectorTokens,
     splitSelectorAroundCommasOutsideParentheses,
-} from "./css_specificity";
+} from "./css_specificity.js";
 
 // Re-exported for backward compatibility of the module's public API (tests and
 // external importers still import it from convert_inline).
