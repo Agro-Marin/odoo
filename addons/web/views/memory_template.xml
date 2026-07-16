@@ -1,16 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
-    <template id="view_memory">
-        &lt;!DOCTYPE html&gt;
-        <html lang="en">
-        <head>
-            <meta charset="UTF-8" />
-            <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-            <title>Memory Usage Visualization</title>
-            <script src="https://cdn.jsdelivr.net/npm/chart.js" />
-            <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels" />
-            <style>
+    <template id="view_memory"> &lt;!DOCTYPE html&gt; <html lang="en">
+            <head>
+                <meta charset="UTF-8" />
+                <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+                <title>Memory Usage Visualization</title>
+                <script src="https://cdn.jsdelivr.net/npm/chart.js" />
+                <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels" />
+                <style>
                 /* General body and layout styles */
                 body {
                     font-family: Arial, sans-serif;
@@ -107,27 +105,28 @@
                     color: #555;
                 }
             </style>
-        </head>
-        <body>
-            <div class="container">
-                <!-- Top row for the full-width line chart -->
-                <div class="top-row">
-                    <div class="chart-container">
-                        <canvas id="totalMemoryChart" />
+            </head>
+            <body>
+                <div class="container">
+                    <!-- Top row for the full-width line chart -->
+                    <div class="top-row">
+                        <div class="chart-container">
+                            <canvas id="totalMemoryChart" />
+                        </div>
+                    </div>
+                    <!-- Bottom row for the bar chart and traceback panel -->
+                    <div class="bottom-row">
+                        <div class="bar-chart-wrapper chart-container" id="memoryChartContainer">
+                            <canvas id="memoryChart" />
+                        </div>
+                        <div class="traceback-panel" id="tracebackPanel">
+                            <div class="no-selection">Click a point on the top chart, then a bar
+        below to see details.</div>
+                        </div>
                     </div>
                 </div>
-                <!-- Bottom row for the bar chart and traceback panel -->
-                <div class="bottom-row">
-                    <div class="bar-chart-wrapper chart-container" id="memoryChartContainer">
-                        <canvas id="memoryChart" />
-                    </div>
-                    <div class="traceback-panel" id="tracebackPanel">
-                        <div class="no-selection">Click a point on the top chart, then a bar below to see details.</div>
-                    </div>
-                </div>
-            </div>
 
-            <script>
+                <script>
                 // Get data from Odoo template
                 let rawData;
                 try {
@@ -408,7 +407,7 @@
                 // Initial render
                 updateBarChart();
             </script>
-        </body>
+            </body>
         </html>
     </template>
 

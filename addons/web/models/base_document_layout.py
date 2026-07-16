@@ -62,12 +62,15 @@ class BaseDocumentLayout(models.TransientModel):
 
     company_id = fields.Many2one(
         "res.company",
-        default=lambda self: self.env.company,
         required=True,
+        default=lambda self: self.env.company,
     )
     logo = fields.Binary(related="company_id.logo", readonly=False)
     preview_logo = fields.Binary(related="logo", string="Preview logo")
-    report_header = fields.Html(related="company_id.report_header", readonly=False)
+    report_header = fields.Html(
+        related="company_id.report_header",
+        readonly=False,
+    )
     report_footer = fields.Html(
         related="company_id.report_footer",
         readonly=False,
@@ -78,14 +81,13 @@ class BaseDocumentLayout(models.TransientModel):
         readonly=False,
         default=_default_company_details,
     )
-    is_company_details_empty = fields.Boolean(compute="_compute_empty_company_details")
-
-    # Not in _compute_preview's @api.depends, so changing it does not refresh the preview.
+    is_company_details_empty = fields.Boolean(
+        compute="_compute_empty_company_details",
+    )
     paperformat_id = fields.Many2one(
         related="company_id.paperformat_id",
         readonly=False,
     )
-
     external_report_layout_id = fields.Many2one(
         related="company_id.external_report_layout_id",
         readonly=False,
