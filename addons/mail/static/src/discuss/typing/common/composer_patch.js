@@ -10,6 +10,9 @@ import { useDebounced } from "@web/core/utils/timing";
 const commandRegistry = registry.category("discuss.channel_commands");
 
 export const SHORT_TYPING = 5000;
+// Must stay well below Store.OTHER_LONG_TYPING (60s, the receiving side's
+// expiry, see channel_member_model.js): the re-notification below is what
+// keeps a continuously-typing user's indicator alive on the other clients.
 export const LONG_TYPING = 50000;
 
 patch(Composer, {
@@ -23,6 +26,7 @@ patch(Composer.prototype, {
     setup() {
         super.setup();
         this.typingNotified = false;
+        this.serverKnowsTyping = false;
         this.stopTypingDebounced = useDebounced(
             this.stopTyping.bind(this),
             SHORT_TYPING,
@@ -79,6 +83,13 @@ patch(Composer.prototype, {
         }
         if (!this.typingNotified && value) {
             this.typingNotified = true;
+            // separate from typingNotified: "the server was told we type"
+            // (cleared only by an explicit stop) vs "a re-notification is
+            // due" (cleared by the LONG_TYPING timer). Conflating them made
+            // stopTyping() skip the final is_typing=false when the last
+            // keystroke fell just before the timer reset — the other clients
+            // then kept the indicator until their own 60s expiry.
+            this.serverKnowsTyping = true;
             this.notifyIsTyping();
             // After LONG_TYPING of continuous typing, clear the flag so the next
             // keystroke re-notifies. Track the timer so it can be cleared on
@@ -100,8 +111,9 @@ patch(Composer.prototype, {
     },
     stopTyping() {
         browser.clearTimeout(this._typingNotifiedTimeout);
-        if (this.typingNotified) {
-            this.typingNotified = false;
+        this.typingNotified = false;
+        if (this.serverKnowsTyping) {
+            this.serverKnowsTyping = false;
             this.notifyIsTyping(false);
         }
     },

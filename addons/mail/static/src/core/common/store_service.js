@@ -637,7 +637,14 @@ export class Store extends BaseStore {
                 });
                 ev.preventDefault();
                 return true;
-            } else if (link.getAttribute("href")?.startsWith(getOrigin())) {
+            } else if (
+                link.href &&
+                new URL(link.href, getOrigin()).origin === getOrigin()
+            ) {
+                // link.href (not the raw attribute): a relative
+                // /mail/message/... href is same-origin by definition but a
+                // raw-attribute startsWith(origin) check never matched it,
+                // navigating away instead of showing the access error
                 showAccessError();
                 ev.preventDefault();
                 return true;
@@ -918,6 +925,14 @@ export const storeService = {
     start(env, services) {
         const store = makeStore(env);
         store.insert(session.storeData);
+        // the negative fetch cache ("this thread field came back absent, do
+        // not request it again") must not survive a reconnection: the miss
+        // may have been transient (access granted since, partial serializer
+        // under load) and an unexpirable cache makes recovery impossible
+        // without a full page reload
+        services.bus_service.addEventListener("BUS:RECONNECT", () => {
+            store._threadFetchAttempted.clear();
+        });
         /**
          * Add defaults for `self` and `settings` because in livechat there could be no user and no
          * guest yet (both undefined at init), but some parts of the code that loosely depend on

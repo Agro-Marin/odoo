@@ -102,8 +102,13 @@ export class Activity extends Component {
 
     async unlink() {
         const thread = this.thread;
-        this.props.activity.remove();
-        await this.env.services.orm.unlink("mail.activity", [this.props.activity.id]);
+        const { activity } = this.props;
+        // server first: the local remove() broadcasts the deletion to every
+        // tab and has no rollback — removing before the RPC made a failed
+        // unlink (access error, network) vanish the activity everywhere
+        // while it still exists server-side
+        await this.env.services.orm.unlink("mail.activity", [activity.id]);
+        activity.remove();
         this.props.onActivityChanged(thread);
     }
 

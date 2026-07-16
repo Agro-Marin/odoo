@@ -73,20 +73,26 @@ export function useMessageSearch(thread) {
         async search(before = false) {
             if (this.searchTerm || this.is_notification !== undefined) {
                 this.searching = true;
-                const data = await sequential(() =>
-                    store.searchMessagesInThread(
-                        this.searchTerm,
-                        this.thread,
-                        before,
-                        this.is_notification,
-                    ),
-                );
+                let data;
+                try {
+                    data = await sequential(() =>
+                        store.searchMessagesInThread(
+                            this.searchTerm,
+                            this.thread,
+                            before,
+                            this.is_notification,
+                        ),
+                    );
+                } finally {
+                    // a failed RPC (or a superseded call resolving undefined)
+                    // must not leave the spinner on forever
+                    this.searching = false;
+                }
                 if (!data) {
                     return;
                 }
                 const { count, loadMore, messages } = data;
                 this.searched = true;
-                this.searching = false;
                 this.count = count;
                 this.loadMore = loadMore;
                 if (before) {

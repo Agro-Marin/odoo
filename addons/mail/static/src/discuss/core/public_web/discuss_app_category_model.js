@@ -11,7 +11,10 @@ export class DiscussAppCategory extends Record {
      */
     sortThreads(t1, t2) {
         if (this.id === "channels") {
-            return String.prototype.localeCompare.call(t1.name, t2.name);
+            // `name` can be transiently undefined during an insert-time
+            // resort (partially inserted channel): a bare localeCompare
+            // would throw inside the eager sort (cf. store.sortMembers)
+            return (t1.name || "").localeCompare(t2.name || "");
         }
         if (this.id === "chats") {
             return (
@@ -128,6 +131,22 @@ export class DiscussAppCategory extends Record {
         } else {
             this._openLocally = value;
             browser.localStorage.setItem(this.localStateKey, value);
+        }
+    }
+
+    /**
+     * Applies a state change broadcast by another tab: update the local
+     * mirror WITHOUT re-persisting — the originating tab already saved
+     * (server or localStorage), so persisting here would issue one duplicate
+     * settings RPC per listening tab.
+     *
+     * @param {boolean} value
+     */
+    applyBroadcastedOpen(value) {
+        if (this.saveStateToServer) {
+            this.store.settings[this.serverStateKey] = value;
+        } else {
+            this._openLocally = value;
         }
     }
 

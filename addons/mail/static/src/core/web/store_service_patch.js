@@ -163,6 +163,13 @@ const StorePatch = {
                     id: data.payload.id,
                 });
                 thread.fetchNewMessages();
+                // messages alone are not enough: marking an activity done in
+                // another tab must also refresh this tab's activity list, or
+                // the done activity stays rendered with live buttons (a
+                // second "Done" click then errors server-side).
+                // `fetchThreadData` is patched onto Thread by the chatter
+                // layer; optional-chained since core/web may load without it.
+                thread.fetchThreadData?.(["activities"]);
                 break;
             }
         }

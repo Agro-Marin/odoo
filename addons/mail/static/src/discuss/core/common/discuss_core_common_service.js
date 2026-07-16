@@ -67,6 +67,11 @@ export class DiscussCoreCommon {
                     const { self_member_id } = message.thread;
                     if (
                         self_member_id &&
+                        // mirror the increment's guard: notification-type
+                        // messages never counted up, so deleting one must
+                        // not count down (the clamp at 0 would then hide a
+                        // real unread)
+                        !message.isNotification &&
                         // no seen message means nothing was seen yet: the
                         // deleted message was necessarily unread.
                         message.id > (self_member_id.seen_message_id?.id ?? 0)

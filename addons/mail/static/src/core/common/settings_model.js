@@ -44,6 +44,9 @@ export class Settings extends Record {
         }
         this.volumeSettingsTimeouts.clear();
         browser.clearTimeout(this.globalSettingsTimeout);
+        // same timer family as the two above: without this it can fire
+        // against a deleted record
+        this.saveVoiceThresholdDebounce.cancel();
         super.delete(...arguments);
     }
 
@@ -433,18 +436,28 @@ export class Settings extends Record {
      */
     async _onSaveGlobalSettingsTimeout() {
         this.globalSettingsTimeout = undefined;
-        await this.store.env.services.orm.call(
-            "res.users.settings",
-            "set_res_users_settings",
-            [[this.id]],
-            {
-                new_settings: {
-                    push_to_talk_key: this.push_to_talk_key,
-                    use_push_to_talk: this.use_push_to_talk,
-                    voice_active_duration: this.voice_active_duration,
+        try {
+            await this.store.env.services.orm.call(
+                "res.users.settings",
+                "set_res_users_settings",
+                [[this.id]],
+                {
+                    new_settings: {
+                        push_to_talk_key: this.push_to_talk_key,
+                        use_push_to_talk: this.use_push_to_talk,
+                        voice_active_duration: this.voice_active_duration,
+                    },
                 },
-            },
-        );
+            );
+        } catch {
+            // timer callback: nothing awaits it, a network blip 2s after the
+            // change would surface as an unhandled rejection while the
+            // setting silently diverges from the server — tell the user
+            this.store.env.services.notification.add(
+                _t("Failed to save your voice settings, please try again."),
+                { type: "warning" },
+            );
+        }
     }
     /**
      * @param {Object} param0
@@ -454,12 +467,20 @@ export class Settings extends Record {
      */
     async _onSaveVolumeSettingTimeout({ key, partnerId, guestId, volume }) {
         this.volumeSettingsTimeouts.delete(key);
-        await this.store.env.services.orm.call(
-            "res.users.settings",
-            "set_volume_setting",
-            [[this.id], partnerId, volume],
-            { guest_id: guestId },
-        );
+        try {
+            await this.store.env.services.orm.call(
+                "res.users.settings",
+                "set_volume_setting",
+                [[this.id], partnerId, volume],
+                { guest_id: guestId },
+            );
+        } catch {
+            // see _onSaveGlobalSettingsTimeout
+            this.store.env.services.notification.add(
+                _t("Failed to save the volume setting, please try again."),
+                { type: "warning" },
+            );
+        }
     }
     onStorage(ev) {
         if (ev.key === MESSAGE_SOUND) {

@@ -19,16 +19,20 @@ export class ChatHub extends Record {
     static new() {
         /** @type {import("models").ChatHub} */
         const chatHub = super.new(...arguments);
-        browser.addEventListener("storage", (ev) => {
+        chatHub._onStorage = (ev) => {
             if (ev.key === CHAT_HUB_KEY) {
-                chatHub.load(ev.newValue || undefined);
+                // catch like the boot-time load below: another tab mutating
+                // the hub while this one is offline must not surface an
+                // unhandled rejection (load() can fetch threads)
+                chatHub.load(ev.newValue || undefined).catch(() => {});
             } else if (ev.key === null) {
-                chatHub.load();
+                chatHub.load().catch(() => {});
             }
             if (ev.key === CHAT_HUB_COMPACT_LS) {
                 chatHub._recomputeCompact++;
             }
-        });
+        };
+        browser.addEventListener("storage", chatHub._onStorage);
         chatHub
             .load(browser.localStorage.getItem(CHAT_HUB_KEY) ?? undefined)
             .catch(() => {
@@ -38,6 +42,13 @@ export class ChatHub extends Record {
             })
             .finally(() => chatHub.initPromise.resolve());
         return chatHub;
+    }
+
+    delete() {
+        // the storage listener holds this record in its closure: without
+        // removal it leaks across store re-creations (tests, livechat embed)
+        browser.removeEventListener("storage", this._onStorage);
+        super.delete(...arguments);
     }
     _recomputeCompact = 0;
     compact = fields.Attr(false, {

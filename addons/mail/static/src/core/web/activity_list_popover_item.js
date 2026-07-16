@@ -95,10 +95,11 @@ export class ActivityListPopoverItem extends Component {
         this.props.onActivityChanged?.();
     }
 
-    unlink() {
+    async unlink() {
+        // server first: remove() broadcasts to every tab with no rollback
+        // (see Activity.unlink)
+        await this.env.services.orm.unlink("mail.activity", [this.props.activity.id]);
         this.props.activity.remove();
-        this.env.services.orm
-            .unlink("mail.activity", [this.props.activity.id])
-            .then(() => this.props.onActivityChanged?.());
+        this.props.onActivityChanged?.();
     }
 }
