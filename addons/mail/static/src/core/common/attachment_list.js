@@ -115,7 +115,7 @@ export class AttachmentList extends Component {
 
     getActions(attachment) {
         const res = [];
-        if (this.showDelete) {
+        if (this.showDelete(attachment)) {
             res.push({
                 label: _t("Remove"),
                 icon: "fa-solid fa-trash-can",
@@ -132,12 +132,15 @@ export class AttachmentList extends Component {
         return res;
     }
 
-    get showDelete() {
+    /**
+     * @param {import("models").Attachment} attachment
+     */
+    showDelete(attachment) {
         // in the composer they should all be implicitly deletable
         if (this.env.inComposer) {
             return true;
         }
-        if (!this.attachment.isDeletable) {
+        if (!attachment.isDeletable) {
             return false;
         }
         // in messages users are expected to delete the message instead of just the attachment

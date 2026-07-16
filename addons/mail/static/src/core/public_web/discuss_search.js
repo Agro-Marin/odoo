@@ -62,7 +62,7 @@ export class DiscussSearch extends Component {
     }
 
     onClickNewMeeting() {
-        this.store.startMeeting();
+        this.store.startMeeting?.();
         if (this.env.inMessagingMenu) {
             this.env.inMessagingMenu.dropdown.close();
         }

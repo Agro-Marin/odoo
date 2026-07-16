@@ -1,5 +1,6 @@
 /** @odoo-module native */
-import { onMounted } from "@odoo/owl";
+import { onMounted, onWillUnmount } from "@odoo/owl";
+import { browser } from "@web/core/browser/browser";
 import { FormViewDialog } from "@web/views/view_dialogs/form_view_dialog";
 export class AvatarUserFormViewDialog extends FormViewDialog {
     setup() {
@@ -11,12 +12,13 @@ export class AvatarUserFormViewDialog extends FormViewDialog {
         });
 
         onMounted(() => {
-            setTimeout(() => {
-                const input = this.modalRef.el.querySelector("#name_0");
-                if (input) {
-                    input.focus();
-                }
+            this._focusTimeout = browser.setTimeout(() => {
+                // optional chain: a dialog destroyed in the same tick has no
+                // modal element anymore
+                const input = this.modalRef.el?.querySelector("#name_0");
+                input?.focus();
             });
         });
+        onWillUnmount(() => browser.clearTimeout(this._focusTimeout));
     }
 }

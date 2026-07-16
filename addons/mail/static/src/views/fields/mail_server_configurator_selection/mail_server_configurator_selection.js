@@ -52,7 +52,9 @@ export class MailServerConfiguratorSelection extends SelectionField {
             }
         } catch (error) {
             this.state.value = oldValue;
-            this.notification.add(error.data.message, {
+            // transport-level errors (connection lost, ...) have no .data:
+            // dereferencing it threw INSIDE the catch, swallowing the revert
+            this.notification.add(error.data?.message || error.message, {
                 type: "danger",
             });
         }
@@ -68,9 +70,10 @@ export class MailServerConfiguratorSelection extends SelectionField {
             this.state.connectionFailed = false;
             this.action.doAction(action);
         } catch (error) {
-            this.notification.add(_t("Connection failed: %s", error.data.message), {
-                type: "danger",
-            });
+            this.notification.add(
+                _t("Connection failed: %s", error.data?.message || error.message),
+                { type: "danger" },
+            );
             this.state.connectionFailed = true;
         }
     }

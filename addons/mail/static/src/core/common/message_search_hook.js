@@ -96,7 +96,10 @@ export function useMessageSearch(thread) {
                 this.count = count;
                 this.loadMore = loadMore;
                 if (before) {
-                    this.messages.push(...messages);
+                    // dedupe: a retried/overlapping load-more otherwise
+                    // renders duplicate result cards
+                    const known = new Set(this.messages.map((m) => m.id));
+                    this.messages.push(...messages.filter((m) => !known.has(m.id)));
                 } else {
                     this.messages = messages;
                 }

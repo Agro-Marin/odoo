@@ -6,9 +6,8 @@ import { MessageCardList } from "./message_card_list.js";
 /**
  * @typedef {Object} Props
  * @property {import("@mail/core/common/thread_model").Thread} thread
- * @property {Object} [messaageSearch]
+ * @property {ReturnType<import("@mail/core/common/message_search_hook").useMessageSearch>} messageSearch
  * @property {function} [onClickJump]
- * @property {function} [loadMore]
  */
 export class SearchMessageResult extends Component {
     static template = "mail.SearchMessageResult";
