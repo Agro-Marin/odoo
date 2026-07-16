@@ -128,13 +128,16 @@ class ResConfigSettings(models.TransientModel):
         for config in self:
             value = config.plausible_shared_key
             if value and value.startswith("http"):
+                # A pasted Plausible share URL is parsed into (key, site); only
+                # a malformed URL raises here (urlsplit -> ValueError). Narrow the
+                # catch so genuine bugs aren't silently swallowed.
                 try:
                     url = urlsplit(value)
                     config.plausible_shared_key = parse_qs(url.query).get("auth", [""])[
                         0
                     ]
                     config.plausible_site = url.path.split("/")[-1]
-                except Exception:  # noqa
+                except ValueError:
                     pass
 
     def _inverse_shared_user_account(self):
