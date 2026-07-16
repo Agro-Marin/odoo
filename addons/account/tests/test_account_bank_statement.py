@@ -1471,6 +1471,31 @@ class TestAccountBankStatementLine(AccountTestInvoicingCommon):
             ],
         )
 
+    def test_formatted_read_group_running_balance(self):
+        """`formatted_read_group` under the `show_running_balance_latest` context
+        annotates each group with its anchor line's running balance (computed in
+        one batched pass over all anchors, not once per group)."""
+        self.env.user.company_id = self.company_data_2["company"]
+        self.create_bank_transaction(10, "2020-02-01")
+        self.create_bank_transaction(20, "2020-02-02")
+        self.create_bank_transaction(30, "2020-02-03")
+
+        groups = (
+            self.env["account.bank.statement.line"]
+            .with_context(show_running_balance_latest=True)
+            .formatted_read_group(
+                [("company_id", "=", self.env.company.id)],
+                ["date:day"],
+                ["amount:sum"],
+            )
+        )
+        # One transaction per day, so each group's running balance is that
+        # line's: 10, then 10+20=30, then 10+20+30=60.
+        self.assertEqual(
+            sorted(group["running_balance"] for group in groups),
+            [10, 30, 60],
+        )
+
     def test_statement_split(self):
         self.env.user.company_id = self.company_data_2["company"]
 

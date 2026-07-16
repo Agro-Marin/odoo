@@ -568,13 +568,21 @@ class AccountBankStatementLine(models.Model):
                 show_running_balance = True
                 break
         if show_running_balance:
+            # `running_balance` is a non-stored compute that loops per journal,
+            # so computing it once over all group anchors together is far cheaper
+            # than a separate compute per group. Collect the per-group anchor
+            # lines first, prime the batched compute, then read from cache.
+            group_anchors = []
+            all_anchors = self.env["account.bank.statement.line"]
             for group_line in result:
-                group_line["running_balance"] = (
-                    self.search(
-                        group_line["__extra_domain"] + domain, limit=1
-                    ).running_balance
-                    or 0.0
+                anchor = self.search(
+                    group_line["__extra_domain"] + domain, limit=1
                 )
+                group_anchors.append((group_line, anchor))
+                all_anchors |= anchor
+            all_anchors.mapped("running_balance")
+            for group_line, anchor in group_anchors:
+                group_line["running_balance"] = anchor.running_balance or 0.0
         return result
 
     # -------------------------------------------------------------------------
