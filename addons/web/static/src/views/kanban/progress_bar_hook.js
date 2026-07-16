@@ -644,7 +644,7 @@ class ProgressBarState {
             const domain = this.model.root.domain;
             const context = this.model.root.context;
             const { colors, fieldName: field, help } = this.progressAttributes;
-            const groupsId = this.model.root.groups.map((g) => g.id).join();
+            const groupIds = new Set(this.model.root.groups.map((g) => g.id));
             const res = await this.model.orm.call(resModel, "read_progress_bar", [], {
                 domain,
                 group_by: groupBy[0],
@@ -654,7 +654,17 @@ class ProgressBarState {
             if (epoch !== this._pbEpoch) {
                 return; // a more recent call superseded this one
             }
-            if (groupsId !== this.model.root.groups.map((g) => g.id).join()) {
+            // Bail only if the SET of groups changed (membership) during the
+            // RPC — a mere resequence (same ids, new order) must NOT discard a
+            // valid result, since _refreshBars matches counts to groups by
+            // value, not position. The previous order-sensitive ``join()``
+            // comparison threw away good data on a quick-create column add or a
+            // group reorder, leaving _pbCounts stale.
+            const currentIds = this.model.root.groups.map((g) => g.id);
+            if (
+                currentIds.length !== groupIds.size ||
+                currentIds.some((id) => !groupIds.has(id))
+            ) {
                 return;
             }
             this._pbCounts = res;

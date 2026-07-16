@@ -499,10 +499,22 @@ export class EmbeddedActions {
         this.embeddedInfos.embeddedActions.push(enrichedNewEmbeddedAction);
         visibleEmbeddedActions.push(embeddedActionId);
         const order = this.embeddedInfos.embeddedActions.map((el) => el.id);
-        await this.configHandler.setEmbeddedActionsConfig({
+        const saved = await this.configHandler.setEmbeddedActionsConfig({
             embedded_actions_visibility: [...visibleEmbeddedActions],
             embedded_actions_order: order,
         });
+        if (!saved) {
+            // The action itself was created server-side (orm.create +
+            // createNewFavorite above), so we do NOT revert the local push the
+            // way toggleActionVisibility does — that would hide a record that
+            // now exists and would reappear on reload. Persisting its
+            // visibility/order failed, though, so surface it instead of
+            // silently reporting success.
+            this.notificationService.add(
+                _t("The action was created, but saving its position failed."),
+                { type: "warning" },
+            );
+        }
         this.embeddedInfos.currentEmbeddedAction = enrichedNewEmbeddedAction;
         this.embeddedInfos.newActionName = `${newActionName} Custom`;
         return true;

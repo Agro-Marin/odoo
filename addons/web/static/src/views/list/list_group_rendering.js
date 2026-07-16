@@ -7,7 +7,8 @@
  * Group rendering cohort extracted from ``ListRenderer``.
  *
  * Same prototype-mixin pattern as ``list_styling.js``: methods land on
- * ``ListRenderer.prototype`` so subclasses' ``super.<method>(...)`` keeps
+ * ``ListRenderer.prototype`` (via ``installListRendererMixin`` — descriptor
+ * copying, not ``Object.assign``) so subclasses' ``super.<method>(...)`` keeps
  * resolving to the canonical implementation. Field initializations stay in
  * the renderer's setup; only method bodies move here.
  *

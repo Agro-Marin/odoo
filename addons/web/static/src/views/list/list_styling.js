@@ -4,8 +4,11 @@
 /** @module @web/views/list/list_styling - Class-name + formatted-value helpers extracted from ListRenderer */
 
 /**
- * Styling cohort extracted from ``ListRenderer``, applied via
- * ``Object.assign(ListRenderer.prototype, listStylingMixin)`` in list_renderer.js.
+ * Styling cohort extracted from ``ListRenderer``, installed onto
+ * ``ListRenderer.prototype`` via ``installListRendererMixin`` in list_renderer.js
+ * (descriptor copying with ``enumerable: false`` — NOT ``Object.assign``, which
+ * would invoke the getters at install time and break OWL's reactivity capture;
+ * see the rationale at the install site).
  *
  * Mixin rather than a hook (unlike ``useListAggregates``, ``useListSelection``)
  * because ~40 fork-wide subclasses (stock, hr, account, sale, web_studio, ...)
