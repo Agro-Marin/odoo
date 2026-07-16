@@ -1327,7 +1327,11 @@ class Website(Home):
                 if not first_error:
                     first_error = e
                 continue
-        raise first_error
+        if first_error:
+            raise first_error
+        # No records to check (empty input): nothing is denied. Returning True
+        # here avoids ``raise None`` -> TypeError/500.
+        return True
 
     @http.route(
         ["/google<string(length=16):key>.html"],
@@ -1652,9 +1656,16 @@ class Website(Home):
 
         # find the action_id: either an xml_id, the path, or an ID
         if isinstance(path_or_xml_id_or_id, str) and "." in path_or_xml_id_or_id:
-            action = request.env.ref(
-                path_or_xml_id_or_id, raise_if_not_found=False
-            ).sudo()
+            # ``ref`` returns None (not an empty recordset) for an unknown
+            # xml_id, and may resolve to a record of any model; guard against
+            # both so a public GET of a bogus/foreign xml_id cannot 500 on
+            # ``None.sudo()`` or run ``.run()`` against the wrong model.
+            record = request.env.ref(path_or_xml_id_or_id, raise_if_not_found=False)
+            action = (
+                record.sudo()
+                if record is not None and record._name == "ir.actions.server"
+                else None
+            )
         if not action:
             action = ServerActions.sudo().search(
                 [

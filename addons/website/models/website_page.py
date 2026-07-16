@@ -430,6 +430,15 @@ class WebsitePage(models.Model):
             request.lang.code,
             request.httprequest.path,
             request.session.debug,
+            # The rendered HTML depends on optional-cookie consent: with the
+            # cookies bar + third-party blocking on, embeds are neutralized to
+            # ``about:blank`` for non-consenting visitors (see
+            # ``ir.qweb._post_processing_att``). Without this in the key, the
+            # first visitor's consent state would be served to everyone —
+            # leaking third-party content past a refusal, or breaking embeds
+            # for a consenter. Constant (``True``) when the bar is disabled, so
+            # it adds no fragmentation there.
+            request.env["ir.http"]._is_allowed_cookie("optional"),
         )
 
     def _get_response(self, request):
@@ -474,9 +483,17 @@ class WebsitePage(models.Model):
             # The cached response is too old and considered out-of-date. Get it
             # from scratch and update the cache accordingly.
             response = self._get_response_raw(request)
-            self._get_response_cached.__cache__.add_value(
-                self, request, cache_value=(response, cache_key)
-            )
+            if response:
+                # Flatten before storing, exactly like the initial population
+                # path (``_get_response_cached``). A freshly rendered qweb
+                # Response keeps its body in ``.template`` with an empty
+                # ``.response`` until flushed, so a concurrent reader of the
+                # refreshed entry would otherwise raise ``IndexError`` on
+                # ``response.response[0]``.
+                response.flatten()
+                self._get_response_cached.__cache__.add_value(
+                    self, request, cache_value=(response, cache_key)
+                )
             return response
 
         return self._get_response_raw(request)

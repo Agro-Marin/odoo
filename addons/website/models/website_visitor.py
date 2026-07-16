@@ -283,8 +283,8 @@ class WebsiteVisitor(models.Model):
         :param access_token: token to be used to upsert the visitor
         :param force_track_values: an optional dict to create a track at the
             same time.
-        :return: a tuple containing the visitor id and the upsert result (either
-            `inserted` or `updated).
+        :return: a tuple containing the visitor id and a boolean that is True
+            when the row was inserted and False when an existing row was updated.
         """
         create_values = {
             "access_token": str(access_token),
@@ -301,29 +301,31 @@ class WebsiteVisitor(models.Model):
             # used instead as the token.
             "partner_id": None if len(str(access_token)) == 32 else access_token,
         }
+        # ``INSERT ... ON CONFLICT`` (not ``MERGE``): the unique index on
+        # ``access_token`` serializes concurrent upserts of the same token, so a
+        # second request that races the first on a not-yet-existing visitor is
+        # funnelled into the ``DO UPDATE`` branch instead of raising a
+        # ``unique_violation``. ``MERGE`` takes no such predicate lock and would
+        # 500 the losing request on this per-page-view hot path.
+        # ``(xmax = 0)`` distinguishes a fresh insert (True) from an update to a
+        # pre-existing row (False).
         query = SQL(
             """
-            MERGE INTO website_visitor t
-            USING (VALUES (
-                %(partner_id)s::integer, %(access_token)s, %(lang_id)s,
-                %(website_id)s, %(timezone)s, %(create_uid)s, %(write_uid)s,
-                (SELECT id FROM res_country WHERE code = %(country_code)s)
-            )) AS s(partner_id, access_token, lang_id, website_id, timezone, create_uid, write_uid, country_id)
-            ON t.access_token = s.access_token
-            WHEN MATCHED THEN
-                UPDATE SET
-                    last_connection_datetime = now() at time zone 'UTC',
-                    visit_count = CASE WHEN t.last_connection_datetime < NOW() AT TIME ZONE 'UTC' - INTERVAL '8 hours'
-                                        THEN t.visit_count + 1
-                                        ELSE t.visit_count
-                                    END
-            WHEN NOT MATCHED THEN
-                INSERT (partner_id, access_token, last_connection_datetime, visit_count, lang_id,
-                        website_id, timezone, write_uid, create_uid, write_date, create_date, country_id)
-                VALUES (s.partner_id, s.access_token, now() at time zone 'UTC', 1, s.lang_id,
-                        s.website_id, s.timezone, s.create_uid, s.write_uid,
-                        now() at time zone 'UTC', now() at time zone 'UTC', s.country_id)
-            RETURNING NEW.id, merge_action() AS upsert
+            INSERT INTO website_visitor (
+                partner_id, access_token, last_connection_datetime, visit_count, lang_id,
+                website_id, timezone, write_uid, create_uid, write_date, create_date, country_id)
+            VALUES (
+                %(partner_id)s::integer, %(access_token)s, now() at time zone 'UTC', 1, %(lang_id)s,
+                %(website_id)s, %(timezone)s, %(write_uid)s, %(create_uid)s,
+                now() at time zone 'UTC', now() at time zone 'UTC',
+                (SELECT id FROM res_country WHERE code = %(country_code)s))
+            ON CONFLICT (access_token) DO UPDATE SET
+                last_connection_datetime = now() at time zone 'UTC',
+                visit_count = CASE WHEN website_visitor.last_connection_datetime < NOW() AT TIME ZONE 'UTC' - INTERVAL '8 hours'
+                                    THEN website_visitor.visit_count + 1
+                                    ELSE website_visitor.visit_count
+                                END
+            RETURNING id, (xmax = 0) AS upsert
         """,
             **create_values,
         )

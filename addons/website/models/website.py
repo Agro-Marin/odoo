@@ -355,6 +355,11 @@ class Website(models.Model):
                 )
 
         websites = super().create(vals_list)
+        # Mirror ``write``: a new website (its ``domain``, default lang, public
+        # user, …) changes the result of ormcached lookups such as
+        # ``_get_current_website_id`` and ``_get_cached_values``, which are not
+        # invalidated automatically on create.
+        self.env.registry.clear_cache()
         websites.company_id._compute_website_id()
         for website in websites:
             website._bootstrap_homepage()
@@ -524,6 +529,11 @@ class Website(models.Model):
 
         companies = self.company_id
         res = super().unlink()
+        # A deleted website must drop out of ormcached lookups (e.g.
+        # ``_get_current_website_id``), otherwise a stale host mapping keeps
+        # returning a dangling id and ``get_current_website()`` browses a
+        # non-existent record.
+        self.env.registry.clear_cache()
         companies._compute_website_id()
         return res
 
@@ -1636,10 +1646,13 @@ class Website(models.Model):
         # Look for unique key
         key_copy = string
         inc = 0
-        domain_static = self.get_current_website().website_domain()
         website_id = self.env.context.get("website_id", False)
         if website_id:
             domain_static = Domain("website_id", "in", (False, website_id))
+        else:
+            # Only resolve the current website (a non-trivial lookup) when it is
+            # actually needed, i.e. when ``website_id`` is not already in context.
+            domain_static = self.get_current_website().website_domain()
         while (
             self.env["ir.ui.view"]
             .with_context(active_test=False)
@@ -1713,7 +1726,7 @@ class Website(models.Model):
                 model_label = self.env["ir.model"]._display_name_for([model_name])[0][
                     "display_name"
                 ]
-                field_string = Model.fields_get()[field_name]["string"]
+                field_string = Model.fields_get([field_name])[field_name]["string"]
                 dependencies.setdefault(model_label, [])
                 dependencies[model_label] += [
                     {

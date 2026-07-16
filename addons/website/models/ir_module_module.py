@@ -442,6 +442,14 @@ class IrModuleModule(models.Model):
         if not self.env.user.has_group("website.group_website_restricted_editor"):
             raise werkzeug.exceptions.Forbidden
 
+        # This runs the module install/upgrade machinery (arbitrary server-side
+        # Python) under ``sudo()`` for a merely restricted-editor user, so the
+        # target set must be restricted to actual theme modules — a non-theme
+        # ``self`` must not be draggable into a sudo install.
+        themes = self.env["ir.module.module"].search(self.get_themes_domain())
+        if self - themes:
+            raise werkzeug.exceptions.Forbidden
+
         def install_or_upgrade(theme):
             if theme.state != "installed":
                 theme.button_install()

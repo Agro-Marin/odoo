@@ -5,7 +5,7 @@ from urllib.parse import urlsplit
 
 from lxml import html
 
-from odoo.exceptions import UserError
+from odoo.exceptions import AccessError, UserError
 from odoo.tests import common
 
 from odoo.addons.http_routing.tests.common import MockRequest
@@ -409,6 +409,48 @@ class TestMenu(common.TransactionCase):
         # which should raise a UserError because a main_menu had child.
         with self.assertRaises(UserError):
             self.main_menu.parent_id = self.another_menu.id
+
+    def test_08_menu_save_is_gated_and_field_whitelisted(self):
+        """``website.menu.save`` is an RPC entry point that writes a
+        client-controlled dict per menu. It must (1) require the website-editor
+        group and (2) only write whitelisted fields, so a client cannot reassign
+        a menu to another website or grant itself menu visibility groups."""
+        Menu = self.env["website.menu"]
+        website = self.env["website"].search([], limit=1)
+        other_website = self.env["website"].create({"name": "W2"})
+        menu = Menu.create(
+            {"name": "Editable", "url": "/editable", "website_id": website.id}
+        )
+
+        # (1) A user without the editor group cannot call save().
+        public = self.env.ref("base.public_user")
+        with self.assertRaises(AccessError):
+            Menu.with_user(public).save(website.id, {"data": [], "to_delete": []})
+
+        # (2) As an editor, injected non-whitelisted fields are dropped.
+        payload = {
+            "data": [
+                {
+                    "id": menu.id,
+                    "name": "Renamed",
+                    "url": "/editable",
+                    "parent_id": website.menu_id.id,
+                    "sequence": 3,
+                    # Injected, security-sensitive — must be ignored:
+                    "website_id": other_website.id,
+                    "group_ids": [(6, 0, [self.env.ref("base.group_user").id])],
+                }
+            ],
+            "to_delete": [],
+        }
+        with MockRequest(self.env, website=website):
+            Menu.save(website.id, payload)
+        menu.invalidate_recordset()
+        self.assertEqual(menu.name, "Renamed", "whitelisted field must be written")
+        self.assertEqual(
+            menu.website_id, website, "website_id injection must be ignored"
+        )
+        self.assertFalse(menu.group_ids, "group_ids injection must be ignored")
 
 
 class TestMenuHttp(common.HttpCase):

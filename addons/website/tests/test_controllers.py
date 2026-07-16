@@ -43,8 +43,10 @@ class TestControllers(tests.HttpCase):
         self.url_open(
             url=suggested_links_url, json={"params": {"needle": "/", "limit": 10}}
         )
-        # mark as old
-        old_pages._write({"write_date": "2020-01-01"})
+        # mark as old (bypass the automatic write_date=now of ``write``).
+        # This fork renamed the low-level ``_write`` to ``_write_multi``, which
+        # takes one vals dict per record in ``self``.
+        old_pages._write_multi([{"write_date": "2020-01-01"}] * len(old_pages))
 
         res = self.url_open(
             url=suggested_links_url, json={"params": {"needle": "/", "limit": 10}}
@@ -231,6 +233,30 @@ class TestControllers(tests.HttpCase):
         res = self.url_open("/website/action/my_test_action")
         self.assertEqual(res.status_code, 200)
         self.assertEqual(res.text, "{'message': 'Succeeded'}")
+
+        # A dotted-but-unknown xml_id must not 500 (``env.ref(...)`` returns
+        # None -> ``None.sudo()``); it should fall through to a redirect.
+        res = self.url_open("/website/action/foo.does_not_exist", allow_redirects=False)
+        self.assertNotEqual(res.status_code, 500)
+        self.assertIn(res.status_code, (301, 302, 303))
+
+        # A dotted xml_id resolving to a *non* server action must also not 500
+        # and must not be run; it should redirect like any non-match.
+        res = self.url_open("/website/action/base.user_root", allow_redirects=False)
+        self.assertNotEqual(res.status_code, 500)
+        self.assertIn(res.status_code, (301, 302, 303))
+
+    def test_08_check_can_modify_any_empty(self):
+        """``check_can_modify_any`` with an empty ``records`` list must not
+        ``raise None`` (TypeError/500); it returns True vacuously."""
+        self.authenticate("admin", "admin")
+        base_url = self.env["ir.config_parameter"].sudo().get_param("web.base.url")
+        res = self.url_open(
+            base_url + "/website/check_can_modify_any",
+            json={"params": {"records": []}},
+        )
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.json()["result"], True)
 
     def test_07_get_alt_images(self):
         test_view = self.env["ir.ui.view"].create(

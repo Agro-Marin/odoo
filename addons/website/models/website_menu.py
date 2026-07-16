@@ -5,7 +5,7 @@ from urllib.parse import parse_qsl, urlsplit
 import werkzeug.exceptions
 
 from odoo import _, api, fields, models
-from odoo.exceptions import UserError
+from odoo.exceptions import AccessError, UserError
 from odoo.fields import Domain
 from odoo.http import request
 from odoo.tools.translate import html_translate
@@ -340,8 +340,27 @@ class WebsiteMenu(models.Model):
         menu = (menu_id and self.browse(menu_id)) or website.menu_id
         return make_tree(menu)
 
+    # Fields the menu editor legitimately round-trips (see ``get_tree`` and the
+    # ``edit_menu.js`` payload); ``page_id`` is resolved server-side below.
+    # Everything else a client might inject (``website_id``, ``group_ids`` and
+    # other security-sensitive columns) is dropped rather than written blindly.
+    _SAVE_ALLOWED_FIELDS = frozenset(
+        {
+            "name",
+            "url",
+            "new_window",
+            "is_mega_menu",
+            "sequence",
+            "parent_id",
+            "page_id",
+        }
+    )
+
     @api.model
     def save(self, website_id, data):
+        if not self.env.user.has_group("website.group_website_restricted_editor"):
+            raise AccessError(_("Only website editors can edit the menus."))
+
         def replace_id(old_id, new_id):
             for menu in data["data"]:
                 if menu["id"] == old_id:
@@ -395,6 +414,8 @@ class WebsiteMenu(models.Model):
                         menu_id.page_id = None
                     except werkzeug.exceptions.NotFound:
                         menu_id.page_id.write({"url": menu["url"]})
-            menu_id.write(menu)
+            menu_id.write(
+                {k: v for k, v in menu.items() if k in self._SAVE_ALLOWED_FIELDS}
+            )
 
         return True
