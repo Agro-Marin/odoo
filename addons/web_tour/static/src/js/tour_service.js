@@ -55,6 +55,15 @@ const StepSchema = {
 const TourSchema = {
     name: { type: String, optional: true },
     steps: Function,
+    // Tour-level default timeout applied to every step that does not define
+    // its own (see ``step.timeout || this.timeout || 10000`` in
+    // tour_automatic.js). Same bounds as the per-step ``timeout``.
+    timeout: {
+        optional: true,
+        validate(value) {
+            return value >= 0 && value <= 60000;
+        },
+    },
     url: { type: String, optional: true },
     wait_for: { type: [Function, Object], optional: true },
 };

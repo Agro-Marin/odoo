@@ -133,8 +133,12 @@ test("items prop validates each item's shape", async () => {
     await expect(mountWithCleanup(Parent)).rejects.toThrow(
         /Invalid props for component 'Dropdown'/,
     );
-    // The rejected mount also surfaces the error through owl's global handler;
-    // consume it so the runner doesn't count an unverified error.
+    // The rejected mount also surfaces the error through owl's global handler,
+    // but asynchronously (owl re-emits it as a window error event on a later
+    // tick, after the mount promise has already rejected). Wait a frame so the
+    // error has been registered before consuming it, else verifyErrors sees an
+    // empty list and the late error is counted as unverified.
+    await animationFrame();
     expect.verifyErrors([/Invalid props for component 'Dropdown'/]);
 });
 

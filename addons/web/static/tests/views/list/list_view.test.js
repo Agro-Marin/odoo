@@ -26,6 +26,7 @@ import {
     animationFrame,
     Deferred,
     mockDate,
+    mockSendBeacon,
     mockTimeZone,
     runAllTimers,
     tick,
@@ -16958,9 +16959,19 @@ test(`Auto save: save on closing tab/browser`, async () => {
 });
 
 test(`Auto save: save on closing tab/browser (pending changes)`, async () => {
-    onRpc("foo", "web_save", ({ args }) => {
+    // On tab close the editable list saves urgently via navigator.sendBeacon
+    // (like the form): the WILL_SAVE_URGENTLY flush commits the still-pending
+    // cell input into the change set before the beacon serializes it.
+    const sendBeaconDeferred = new Deferred();
+    mockSendBeacon((_, blob) => {
         expect.step("web_save");
-        expect(args).toEqual([[1], { foo: "test" }]);
+        blob.text().then((r) => {
+            const { params } = JSON.parse(r);
+            expect(params.method).toBe("web_save");
+            expect(params.args).toEqual([[1], { foo: "test" }]);
+            sendBeaconDeferred.resolve();
+        });
+        return true;
     });
 
     await mountView({
@@ -16972,7 +16983,7 @@ test(`Auto save: save on closing tab/browser (pending changes)`, async () => {
     await contains(`.o_data_cell [name=foo] input`).edit("test", { confirm: false });
 
     await unload();
-    await animationFrame();
+    await sendBeaconDeferred;
     expect.verifySteps(["web_save"]);
 });
 
@@ -17005,9 +17016,19 @@ test(`Auto save: save on closing tab/browser (onchanges + pending changes)`, asy
 
     const deferred = new Deferred();
     onRpc("foo", "onchange", () => deferred);
-    onRpc("foo", "web_save", ({ args }) => {
+    // On tab close the urgent save fires via sendBeacon and does NOT await the
+    // in-flight onchange RPC: only the committed change (int_field) is beaconed,
+    // not the onchange's derived foo value.
+    const sendBeaconDeferred = new Deferred();
+    mockSendBeacon((_, blob) => {
         expect.step("web_save");
-        expect(args).toEqual([[1], { int_field: 2021 }]);
+        blob.text().then((r) => {
+            const { params } = JSON.parse(r);
+            expect(params.method).toBe("web_save");
+            expect(params.args).toEqual([[1], { int_field: 2021 }]);
+            sendBeaconDeferred.resolve();
+        });
+        return true;
     });
 
     await mountView({
@@ -17026,7 +17047,7 @@ test(`Auto save: save on closing tab/browser (onchanges + pending changes)`, asy
     });
 
     await unload();
-    await animationFrame();
+    await sendBeaconDeferred;
     expect.verifySteps(["web_save"]);
 });
 
@@ -17039,9 +17060,19 @@ test(`Auto save: save on closing tab/browser (onchanges)`, async () => {
 
     const deferred = new Deferred();
     onRpc("foo", "onchange", () => deferred);
-    onRpc("foo", "web_save", ({ args }) => {
+    // On tab close the urgent save fires via sendBeacon: the WILL_SAVE_URGENTLY
+    // flush commits BOTH pending cell inputs (foo + int_field) into the change
+    // set, while the in-flight onchange RPC is skipped (not awaited).
+    const sendBeaconDeferred = new Deferred();
+    mockSendBeacon((_, blob) => {
         expect.step("web_save");
-        expect(args).toEqual([[1], { foo: "test", int_field: 2021 }]);
+        blob.text().then((r) => {
+            const { params } = JSON.parse(r);
+            expect(params.method).toBe("web_save");
+            expect(params.args).toEqual([[1], { foo: "test", int_field: 2021 }]);
+            sendBeaconDeferred.resolve();
+        });
+        return true;
     });
 
     await mountView({
@@ -17061,7 +17092,7 @@ test(`Auto save: save on closing tab/browser (onchanges)`, async () => {
     await contains(`.o_data_cell [name="foo"] input`).edit("test", { confirm: "blur" });
 
     await unload();
-    await animationFrame();
+    await sendBeaconDeferred;
     expect.verifySteps(["web_save"]);
 });
 

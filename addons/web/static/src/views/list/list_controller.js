@@ -237,6 +237,14 @@ export class ListController extends MultiRecordController {
                 limit: this.archInfo.limit || this.props.limit,
                 groupsLimit: this.archInfo.groupsLimit,
                 multiEdit: !this.props.readonly && this.archInfo.multiEdit,
+                // Opt the editable-list model into sendBeacon urgent saves, like
+                // FormController does: ``beforeUnload`` gates its beacon path on
+                // this flag (``canBeacon``), and only that path fires
+                // ``WILL_SAVE_URGENTLY`` to flush a still-pending inline cell edit
+                // (uncommitted input / in-flight onchange) into ``_changes``
+                // before the tab-close web_save. Without it the flag defaulted to
+                // false and pending edits were silently dropped on tab close.
+                useSendBeaconToSaveUrgently: true,
             },
         });
     }
