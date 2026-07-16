@@ -615,9 +615,17 @@ export class PosStore extends WithLazyGetterTrap {
                 },
             });
         };
+        // Two-phase: validate every precondition BEFORE mutating anything —
+        // aborting halfway used to leave some orders locally deleted while the
+        // whole operation reported failure.
+        for (const order of orders) {
+            if (order && !(await this._onBeforeDeleteOrder(order))) {
+                return false;
+            }
+        }
         try {
             for (const order of orders) {
-                if (order && (await this._onBeforeDeleteOrder(order))) {
+                if (order) {
                     if (
                         !ignoreChange &&
                         order.isSynced &&
@@ -637,8 +645,6 @@ export class PosStore extends WithLazyGetterTrap {
                         await actionPosOrderCancelCall([order.id]);
                     }
                     ordersToDelete.push(order);
-                } else {
-                    return false;
                 }
             }
 
@@ -947,9 +953,11 @@ export class PosStore extends WithLazyGetterTrap {
         const code = opts.code;
         let pack_lot_ids = {};
         if (values.product_tmpl_id.isTracked() && (configure || code)) {
+            // Use the order threaded through this method, not the globally
+            // selected one (they differ for shared/synced-order flows).
             const packLotLinesToEdit =
                 (!values.product_tmpl_id.isAllowOnlyOneLot() &&
-                    this.getOrder()
+                    order
                         .getOrderlines()
                         .filter((line) => !line.getDiscount())
                         .find((line) => line.product_id.id === values.product_id.id)
@@ -1492,6 +1500,14 @@ export class PosStore extends WithLazyGetterTrap {
 
     postSyncAllOrders(orders) {}
     async syncAllOrders(options = {}) {
+        // Every entry point serializes on one mutex. The per-uuid
+        // syncingOrders guard alone had skip-not-wait semantics: a validation
+        // sync racing the debounced background sync got its order silently
+        // skipped, and two overlapping runs both read the pending-delete set
+        // before either consumed it.
+        return this.pushOrderMutex.exec(() => this._syncAllOrders(options));
+    }
+    async _syncAllOrders(options = {}) {
         if (this.data.network.offline) {
             if (options.throw) {
                 throw new ConnectionLostError();
@@ -1599,7 +1615,7 @@ export class PosStore extends WithLazyGetterTrap {
                     [newData],
                 );
 
-                for (const line of newData["pos.order.line"]) {
+                for (const line of newData["pos.order.line"] ?? []) {
                     const refundedOrderLine = line.refunded_orderline_id;
 
                     if (
@@ -1613,9 +1629,9 @@ export class PosStore extends WithLazyGetterTrap {
                     }
                 }
 
-                await this.postSyncAllOrders(newData["pos.order"]);
+                await this.postSyncAllOrders(newData["pos.order"] ?? []);
                 this.removePendingOrder(order);
-                syncedOrders.push(...newData["pos.order"]);
+                syncedOrders.push(...(newData["pos.order"] ?? []));
                 newSession = newSession || data["pos.session"].length > 0;
             } catch (error) {
                 if (!(error instanceof ConnectionLostError)) {
@@ -1673,7 +1689,8 @@ export class PosStore extends WithLazyGetterTrap {
     }
 
     pushSingleOrder(order) {
-        return this.pushOrderMutex.exec(() => this.syncAllOrders({ orders: [order] }));
+        // syncAllOrders now owns the mutex — taking it here too would deadlock.
+        return this.syncAllOrders({ orders: [order] });
     }
 
     async pay() {
@@ -1980,9 +1997,21 @@ export class PosStore extends WithLazyGetterTrap {
             return this.sendOrderInPreparation(order, opts);
         }
 
-        const data = await this.data.call("pos.order", "get_preparation_change", [
-            order.id,
-        ]);
+        let data;
+        try {
+            data = await this.data.call("pos.order", "get_preparation_change", [
+                order.id,
+            ]);
+        } catch (error) {
+            if (error instanceof ConnectionLostError) {
+                // Offline: local kitchen printing still works — degrade to the
+                // local change set instead of rejecting (callers deliberately
+                // fire-and-forget this method, so a rejection was silent and
+                // the kitchen never received the final ticket).
+                return this.sendOrderInPreparation(order, opts);
+            }
+            throw error;
+        }
         const rawchange = data.last_order_preparation_change || "{}";
         const lastChanges = JSON.parse(rawchange);
         const lastServerDate = DateTime.fromSQL(
@@ -2306,7 +2335,15 @@ export class PosStore extends WithLazyGetterTrap {
 
             if (data.status === "success") {
                 this.redirectToBackend();
+            } else {
+                this.notification.add(
+                    _t("The opening-control session could not be deleted."),
+                    { type: "danger" },
+                );
             }
+            // Never fall through: the generic close path below would sync and
+            // redirect against a session that was just deleted server-side.
+            return;
         }
 
         // If there are orders in the db left unsynced, we try to sync.
@@ -2321,7 +2358,7 @@ export class PosStore extends WithLazyGetterTrap {
     async openPresetTiming(order = this.getOrder()) {
         const data = await makeAwaitable(this.dialog, PresetSlotsPopup);
         if (data) {
-            if (order.preset_id.id !== data.presetId) {
+            if (order.preset_id?.id !== data.presetId) {
                 await this.selectPreset(this.models["pos.preset"].get(data.presetId));
             }
 
@@ -2357,8 +2394,10 @@ export class PosStore extends WithLazyGetterTrap {
         }
 
         if (preset) {
-            order.setPreset(preset);
-
+            // Gather the preset's requirements BEFORE applying it: cancelling
+            // the partner/address dialogs used to leave the order carrying a
+            // half-configured preset (pricing/fiscal position included) that
+            // the flow itself had just declared invalid.
             if (preset.needsPartner) {
                 const partner = order.partner_id || (await this.selectPartner(order));
                 if (!partner) {
@@ -2374,6 +2413,8 @@ export class PosStore extends WithLazyGetterTrap {
                     }
                 }
             }
+
+            order.setPreset(preset);
 
             if (preset.identification === "name") {
                 await this.handleSelectNamePreset(order);
@@ -2686,7 +2727,11 @@ export class PosStore extends WithLazyGetterTrap {
                         "Connection to the server has been lost. Please check your internet connection.",
                     );
                 } else {
-                    message = error.data.message;
+                    // Not every failure is an RPCError with a data payload —
+                    // dereferencing error.data.message could throw inside the
+                    // error handler and replace this dialog with a crash.
+                    message =
+                        error?.data?.message ?? error?.message ?? _t("Unknown error");
                 }
                 this.env.services.dialog.add(AlertDialog, {
                     title: _t("Failure to generate Payment QR Code"),

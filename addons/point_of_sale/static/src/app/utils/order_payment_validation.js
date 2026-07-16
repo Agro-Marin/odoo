@@ -7,6 +7,7 @@ import { AlertDialog, ConfirmationDialog } from "@web/ui/dialog/confirmation_dia
 
 import { handleRPCError, showLimitedFunctionalityWarning } from "./error_handlers.js";
 import { ask } from "./make_awaitable_dialog.js";
+import { logPosMessage } from "./pretty_console_log.js";
 
 /**
  * This class contains all methods related to order validation. Previously,
@@ -160,8 +161,16 @@ export default class OrderPaymentValidation {
         this.pos.data.localUnsyncedPaidOrderUuids.add(this.order.uuid);
 
         try {
-            // 1. Save order to server.
-            const syncOrderResult = await this.pos.syncAllOrders({ throw: true });
+            // 1. Save order to server. Sync exactly this order, forced: with
+            // the sync mutex, a background sync that ran first would leave the
+            // order clean and the un-forced pending-list sync would skip it —
+            // returning undefined and aborting the invoice/post-push steps for
+            // an order that validated fine.
+            const syncOrderResult = await this.pos.syncAllOrders({
+                orders: [this.order],
+                throw: true,
+                force: true,
+            });
             if (!syncOrderResult) {
                 return false;
             }
@@ -218,11 +227,23 @@ export default class OrderPaymentValidation {
 
     async afterOrderValidation() {
         // Always show the next screen regardless of error since pos has to
-        // continue working even offline.
+        // continue working even offline. Deliberately not awaited, so the
+        // rejection must be handled here — it used to become an unhandled
+        // promise rejection and the kitchen silently never got the ticket.
         if (!this.pos.config.module_pos_restaurant) {
-            this.pos.checkPreparationStateAndSentOrderInPreparation(this.order, {
-                orderDone: true,
-            });
+            this.pos
+                .checkPreparationStateAndSentOrderInPreparation(this.order, {
+                    orderDone: true,
+                })
+                .catch((error) => {
+                    logPosMessage(
+                        "OrderPaymentValidation",
+                        "afterOrderValidation",
+                        "Failed to send the order to preparation tools",
+                        undefined,
+                        [error],
+                    );
+                });
         }
 
         if (this.order.nb_print === 0 && this.pos.config.iface_print_auto) {
