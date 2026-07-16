@@ -228,9 +228,22 @@ export class CallPreview extends Component {
         ) {
             return false;
         }
-        const stream = await navigator.mediaDevices.getUserMedia({
-            [kind]: constraints,
-        });
+        let stream;
+        try {
+            stream = await navigator.mediaDevices.getUserMedia({
+                [kind]: constraints,
+            });
+        } catch {
+            // permission may be "granted" while the device is unusable:
+            // claimed by another app (NotReadableError) or unplugged since
+            // the grant (NotFoundError) — without this it escaped as an
+            // unhandled rejection and left the preview state inconsistent
+            this.rtc.showMediaUnavailableWarning({
+                microphone: kind === "audio",
+                camera: kind === "video",
+            });
+            return false;
+        }
         // destroyed check must come first: on a dismissed popup the stream must be closed,
         // not leaked with the device LED on.
         if (status(this) === "destroyed") {

@@ -33,11 +33,16 @@ export class CallParticipantVideo extends Component {
         if (!this.root.el) {
             return;
         }
-        if (!this.props.session || !this.props.session.getStream(this.props.type)) {
-            this.root.el.srcObject = undefined;
-        } else {
-            this.root.el.srcObject = this.props.session.getStream(this.props.type);
+        const stream = this.props.session?.getStream(this.props.type);
+        const srcObject = stream ?? null;
+        if (this.root.el.srcObject === srcObject) {
+            // onPatched runs on EVERY parent re-render (talking indicators,
+            // overlay toggles): reassigning the same stream and calling
+            // load() restarts the media pipeline — decode reset and a
+            // black-frame flicker per render during the call
+            return;
         }
+        this.root.el.srcObject = srcObject;
         this.root.el.load();
     }
 

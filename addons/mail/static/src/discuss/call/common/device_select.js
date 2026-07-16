@@ -56,16 +56,24 @@ export class DeviceSelect extends Component {
         browser.navigator.mediaDevices.addEventListener("devicechange", boundHandler, {
             signal,
         });
-        if (this.props.kind === "videoinput") {
-            const cameraPermission = await browser.navigator.permissions.query({
-                name: "camera",
-            });
-            cameraPermission.addEventListener("change", boundHandler, { signal });
-        } else {
-            const microphonePermission = await browser.navigator.permissions.query({
-                name: "microphone",
-            });
-            microphonePermission.addEventListener("change", boundHandler, { signal });
+        try {
+            if (this.props.kind === "videoinput") {
+                const cameraPermission = await browser.navigator.permissions.query({
+                    name: "camera",
+                });
+                cameraPermission.addEventListener("change", boundHandler, { signal });
+            } else {
+                const microphonePermission = await browser.navigator.permissions.query({
+                    name: "microphone",
+                });
+                microphonePermission.addEventListener("change", boundHandler, {
+                    signal,
+                });
+            }
+        } catch {
+            // engines that don't recognize these permission names reject on
+            // every open of the select; permission-change refresh is
+            // best-effort (devicechange still updates the list)
         }
     }
 

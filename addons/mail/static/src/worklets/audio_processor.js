@@ -81,8 +81,10 @@ class ThresholdProcessor extends globalThis.AudioWorkletProcessor {
         this.postAllTics = postAllTics;
         this.volume = 0;
         this.wasAboveThreshold = undefined;
-        const centerFrequency = (frequencyRange[0] + frequencyRange[1]) / 2;
-        const bandwidth = frequencyRange[1] - frequencyRange[0];
+        // read from this.frequencyRange (not the raw parameter): a caller
+        // omitting the option would otherwise throw right past the default
+        const centerFrequency = (this.frequencyRange[0] + this.frequencyRange[1]) / 2;
+        const bandwidth = this.frequencyRange[1] - this.frequencyRange[0];
         this.bandpassFilter = new BiquadBandpassFilter(
             globalThis.sampleRate,
             centerFrequency,

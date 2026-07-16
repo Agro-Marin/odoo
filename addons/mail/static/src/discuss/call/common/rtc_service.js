@@ -13,7 +13,6 @@ import { CALL_PROMOTE_FULLSCREEN } from "@mail/discuss/call/common/thread_model_
 import { assignDefined, closeStream, onChange } from "@mail/utils/common/misc";
 import { reactive, toRaw } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
-import { isBrowserSafari, isMobileOS } from "@web/core/browser/feature_detection";
 import { _t } from "@web/core/l10n/translation";
 import { rpc } from "@web/core/network/rpc";
 import { registry } from "@web/core/registry";
@@ -496,7 +495,10 @@ export class Rtc extends Record {
             !this.state.channel ||
             !this.store.settings.use_push_to_talk ||
             (ev instanceof KeyboardEvent && !this.store.settings.isPushToTalkKey(ev)) ||
-            !this.localSession.isTalking ||
+            // optional chain: state.channel is set before the local session
+            // is inserted (joinCall) — a keypress in that window must not
+            // throw in a capture-phase listener
+            !this.localSession?.isTalking ||
             this.pttExtService.voiceActivated
         ) {
             return false;
@@ -567,6 +569,8 @@ export class Rtc extends Record {
     onPushToTalk() {
         if (
             !this.state.channel ||
+            // see isPushToTalkRelease: keypress before the session insert
+            !this.localSession ||
             this.store.settings.isRegisteringKey ||
             !this.store.settings.use_push_to_talk
         ) {
@@ -769,7 +773,10 @@ export class Rtc extends Record {
         }
         if (!isActiveCall) {
             const joinCallOpts = { audio, camera };
-            if (this.microphonePermission !== "granted") {
+            // only a KNOWN not-granted state joins muted: undefined means
+            // the permission is unknowable here (permissions.query
+            // unsupported for these names) and getUserMedia must be tried
+            if (["denied", "prompt"].includes(this.microphonePermission)) {
                 joinCallOpts.audio = false;
             }
             await this.joinCall(channel, joinCallOpts);
@@ -783,6 +790,11 @@ export class Rtc extends Record {
     }
 
     async toggleDeafen() {
+        if (!this.selfSession) {
+            // the Call component (and its shift+d hotkey) is also mounted
+            // for ongoing calls the user has NOT joined
+            return;
+        }
         if (this.selfSession.is_deaf) {
             await this.undeafen();
             if (this.selfSession.is_muted) {
@@ -794,6 +806,10 @@ export class Rtc extends Record {
     }
 
     async toggleMicrophone() {
+        if (!this.selfSession) {
+            // see toggleDeafen (shift+m on a non-joined call view)
+            return;
+        }
         if (this.selfSession.isMute) {
             if (this.selfSession.is_muted) {
                 await this.unmute();
@@ -853,13 +869,16 @@ export class Rtc extends Record {
                 audio: audio ? this.store.settings.audioConstraints : false,
                 video: video ? this.store.settings.cameraConstraints : false,
             });
-            if (isBrowserSafari() || isMobileOS()) {
-                if (audio) {
-                    this.microphonePermission = "granted";
-                }
-                if (video) {
-                    this.cameraPermission = "granted";
-                }
+            // a successful acquisition IS the permission proof — on every
+            // browser, not only Safari/mobile: engines whose
+            // permissions.query rejects on these names would otherwise keep
+            // the flags undefined and this method returned false forever
+            // (the user could then never join with audio)
+            if (audio) {
+                this.microphonePermission = "granted";
+            }
+            if (video) {
+                this.cameraPermission = "granted";
             }
             closeStream(stream);
         } catch {
@@ -1153,7 +1172,7 @@ export class Rtc extends Record {
                 const { id } = payload;
                 const session = this.store["discuss.channel.rtc.session"].get(id);
                 if (
-                    this.selfSession?.persona.main_user_id?.share !== false ||
+                    this.selfSession?.persona?.main_user_id?.share !== false ||
                     this.serverInfo ||
                     this.state.fallbackMode ||
                     !session?.channel.eq(this.state.channel)
@@ -1455,7 +1474,9 @@ export class Rtc extends Record {
     disconnect(session) {
         const downloadTimeout = this.downloadTimeouts.get(session.id);
         if (downloadTimeout) {
-            clearTimeout(downloadTimeout);
+            // browser.clearTimeout: the id comes from browser.setTimeout —
+            // the bare global doesn't clear mocked timers in tests
+            browser.clearTimeout(downloadTimeout);
             this.downloadTimeouts.delete(session.id);
         }
         this.removeCallNotification("raise_hand_" + session.id);
@@ -1785,7 +1806,10 @@ export class Rtc extends Record {
             audioElement.autoplay = true;
             session.audioElement = audioElement;
             session.audioStream = stream;
-            session.is_muted = false;
+            // do NOT reset is_muted here: peers upload their audio track
+            // regardless of mute (mute is track.enabled + session info), so
+            // every (re)negotiation briefly rendered a muted participant as
+            // unmuted until the next info_change corrected it
             session.isTalking = false;
             await session.playAudio();
         }
@@ -1973,14 +1997,25 @@ export const rtcService = {
                 }
             }
         });
-        browser.navigator.permissions?.query({ name: "microphone" }).then((status) => {
-            rtc.microphonePermission = status.state;
-            status.onchange = () => (rtc.microphonePermission = status.state);
-        });
-        browser.navigator.permissions?.query({ name: "camera" }).then((status) => {
-            rtc.cameraPermission = status.state;
-            status.onchange = () => (rtc.cameraPermission = status.state);
-        });
+        browser.navigator.permissions
+            ?.query({ name: "microphone" })
+            .then((status) => {
+                rtc.microphonePermission = status.state;
+                status.onchange = () => (rtc.microphonePermission = status.state);
+            })
+            .catch(() => {
+                // engines that don't recognize the permission name reject
+                // (older Firefox, some WebViews): the flag stays undefined,
+                // meaning "unknown" — askForBrowserPermission sets it from
+                // an actual getUserMedia success instead
+            });
+        browser.navigator.permissions
+            ?.query({ name: "camera" })
+            .then((status) => {
+                rtc.cameraPermission = status.state;
+                status.onchange = () => (rtc.cameraPermission = status.state);
+            })
+            .catch(() => {});
         rtc.p2pService = services["discuss.p2p"];
         rtc.p2pService.acceptOffer = async (id, sequence) => {
             const session = await store["discuss.channel.rtc.session"].getWhenReady(

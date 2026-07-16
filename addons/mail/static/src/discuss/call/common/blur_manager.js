@@ -90,7 +90,10 @@ export class BlurManager {
         this.video.removeEventListener("loadeddata", this._onVideoPlay);
         this.video.srcObject = null;
         this.isVideoDataLoaded = false;
-        this.selfieSegmentation.reset();
+        // close(), not reset(): each BlurManager constructs its own
+        // SelfieSegmentation, so a kept WASM context leaks one heap per
+        // camera/blur toggle for the lifetime of the tab
+        Promise.resolve(this.selfieSegmentation.close?.()).catch(() => {});
         closeStream(this.canvasStream);
         this.canvasStream = null;
         this._terminateWorker();
@@ -110,7 +113,9 @@ export class BlurManager {
     async _handleWorkerMessage(e) {
         if (e.data.command === "tick") {
             await this._onFrame();
-            this.worker.postMessage({ command: "tock" });
+            // close() can run during the awaited frame: _terminateWorker
+            // nulled the slot and posting would throw
+            this.worker?.postMessage({ command: "tock" });
         }
     }
 
@@ -155,7 +160,20 @@ export class BlurManager {
         if (!this.isVideoDataLoaded) {
             return;
         }
-        await this.selfieSegmentation.send({ image: this.video });
+        try {
+            await this.selfieSegmentation.send({ image: this.video });
+        } catch (error) {
+            // the mediapipe model/WASM files load at runtime from a CDN:
+            // unreachable (offline, CSP, air-gapped deployment) means send()
+            // rejects and no result callback ever fires. Without this, the
+            // `stream` promise stays pending FOREVER — setVideo hangs with
+            // the camera LED on — and each frame is an unhandled rejection.
+            this.isVideoDataLoaded = false; // stop the tick/rAF loop
+            if (this.resolveStreamPromise) {
+                this.rejectStreamPromise(error);
+                this.resolveStreamPromise = null;
+            }
+        }
     }
 
     /**

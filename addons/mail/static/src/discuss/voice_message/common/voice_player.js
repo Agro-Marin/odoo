@@ -188,10 +188,12 @@ export class VoicePlayer extends Component {
             try {
                 this.source.stop();
             } catch (e) {
-                if (e.name === "InvalidStateError") {
-                    return;
+                if (e.name !== "InvalidStateError") {
+                    throw e;
                 }
-                throw e;
+                // never-started source: fall through — returning here would
+                // skip the paused/playing bookkeeping below and desync the
+                // player UI state
             }
         }
         if (!options?.continue) {

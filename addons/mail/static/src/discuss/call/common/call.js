@@ -216,11 +216,20 @@ export class Call extends Component {
         if (!this.grid.el) {
             return;
         }
-        this.grid.el.style.setProperty("--width", "0");
-        this.grid.el.style.setProperty("--height", "0");
+        // measure BEFORE writing: zeroing --width/--height first forced two
+        // layouts per call to compute the same numbers (the grid size does
+        // not depend on the tile custom properties)
         const { width, height } = this.grid.el.getBoundingClientRect();
         const aspectRatio = this.minimized ? 1 : 16 / 9;
         const tileCount = this.grid.el.children.length;
+        const inputsKey = `${width},${height},${aspectRatio},${tileCount}`;
+        if (inputsKey === this._lastTileInputsKey) {
+            // onPatched fires on every render during a call (talking
+            // indicators, overlays): same inputs → same layout, skip the
+            // loop and the style writes
+            return;
+        }
+        this._lastTileInputsKey = inputsKey;
         let optimal = {
             area: 0,
             columnCount: 0,
