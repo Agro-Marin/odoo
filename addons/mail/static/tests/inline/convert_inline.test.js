@@ -963,7 +963,9 @@ describe("Convert classes to inline styles", () => {
         editable.innerHTML = `<div class="test-border-radius"></div>`;
         classToStyle(editable, getCSSRules(editable.ownerDocument));
         expect(editable).toHaveInnerHTML(
-            `<div class="test-border-radius" style="border-radius:30%;box-sizing:border-box;"></div>`,
+            // top-left top-right bottom-right bottom-left — each distinct corner
+            // must be preserved (this used to collapse to a single 30%).
+            `<div class="test-border-radius" style="border-radius:40% 10% 20% 30%;box-sizing:border-box;"></div>`,
             {
                 message:
                     "should have converted border-[position]-radius styles (from class) to border-radius",
@@ -1692,6 +1694,60 @@ describe("Convert classes to inline styles", () => {
             `<div><div class="test-border-one" style="border-style:solid;box-sizing:border-box;border-top-width:1px;border-right-width:1px;border-left-width:1px;border-bottom-width:1px;"></div></div>`,
             { message: "Should keep border style solid" }
         );
+    });
+
+    test("preserve asymmetric border-radius corners when inlining (regression: bug E)", async () => {
+        // Distinct per-corner radii, reached via calc() so the dynamic-substyle
+        // path materialises the four computed corner longhands (a plain
+        // shorthand would be merged by the CSSOM before classToStyle sees it).
+        editable.innerHTML = `<div class="bubble">x</div>`;
+        getFixture().append(editable);
+        styleSheet.insertRule(
+            `.bubble { border-radius: calc(4px) calc(8px) calc(12px) calc(16px); }`,
+            0
+        );
+        classToStyle(editable, getCSSRules(editable.ownerDocument));
+        const div = editable.querySelector("div");
+        // The shorthand collapse must keep every corner. The current code copies
+        // border-bottom-left-radius onto all four corners, so a card authored
+        // with distinct corners renders with a single (bottom-left) radius.
+        expect(div.style.borderTopLeftRadius).toBe("4px", {
+            message: "top-left radius must survive inlining",
+        });
+        expect(div.style.borderTopRightRadius).toBe("8px", {
+            message: "top-right radius must survive inlining",
+        });
+        expect(div.style.borderBottomRightRadius).toBe("12px", {
+            message: "bottom-right radius must survive inlining",
+        });
+        expect(div.style.borderBottomLeftRadius).toBe("16px", {
+            message: "bottom-left radius must survive inlining",
+        });
+        styleSheet.deleteRule(0);
+    });
+
+    test("flex alignment survives inlining so formatTables can map it (regression: bug G)", async () => {
+        // align-items on a flex row must translate to vertical-align on the row.
+        // The flex-strip in classToStyle must not swallow the flex-* keyword
+        // before formatTables gets to read it.
+        editable.innerHTML =
+            `<table><tbody><tr style="align-items: flex-start;"><td>x</td></tr></tbody></table>`;
+        getFixture().append(editable);
+        classToStyle(editable, getCSSRules(editable.ownerDocument));
+        formatTables(editable);
+        const tr = editable.querySelector("tr");
+        expect(tr.style.verticalAlign).toBe("top", {
+            message: "align-items:flex-start must become vertical-align:top",
+        });
+
+        editable.innerHTML =
+            `<table><tbody><tr style="align-items: flex-end;"><td>x</td></tr></tbody></table>`;
+        getFixture().append(editable);
+        classToStyle(editable, getCSSRules(editable.ownerDocument));
+        formatTables(editable);
+        expect(editable.querySelector("tr").style.verticalAlign).toBe("bottom", {
+            message: "align-items:flex-end must become vertical-align:bottom",
+        });
     });
 });
 

@@ -142,6 +142,32 @@ const GROUPED_STYLES_SHORTHANDS = {
 // information: forcing them inline would only bloat the email.
 const STYLE_INITIAL_VALUES = ["0px", "none", "medium"];
 
+// Flex/grid *layout* properties are meaningless in the table-based, Outlook-
+// friendly markup this module emits, so they are dropped while inlining. Only
+// layout properties are listed here: the *alignment* properties
+// (align-items/align-self/justify-content/…) are deliberately kept, because
+// `formatTables` translates them into `vertical-align` on the generated rows
+// and cells. A blanket "declaration contains the substring 'flex'" filter used
+// to run instead, which also swallowed `align-items: flex-start`,
+// `justify-content: flex-end`, etc. before `formatTables` could map them (and
+// even a `font-family: flexo`).
+const FLEX_LAYOUT_PROPERTIES = new Set([
+    "flex",
+    "flex-grow",
+    "flex-shrink",
+    "flex-basis",
+    "flex-direction",
+    "flex-wrap",
+    "flex-flow",
+]);
+function isDroppedFlexDeclaration(propertyName, propertyValue) {
+    return (
+        FLEX_LAYOUT_PROPERTIES.has(propertyName) ||
+        (propertyName === "display" &&
+            (propertyValue === "flex" || propertyValue === "inline-flex"))
+    );
+}
+
 //--------------------------------------------------------------------------
 // Public
 //--------------------------------------------------------------------------
@@ -681,13 +707,22 @@ export function classToStyle(element, cssRules) {
         let style = node.getAttribute("style") || "";
         // Outlook doesn't support inline !important
         style = style.replace(/!important/g, "");
-        // Outlook doesn't support flexbox: drop inline flex declarations
-        // from the style string itself, as it is what gets written back to
-        // the node. (Flex styles from matched rules are already dropped by
+        // Outlook doesn't support flexbox: drop inline flex *layout*
+        // declarations from the style string itself, as it is what gets written
+        // back to the node. Alignment declarations are kept for `formatTables`.
+        // (Flex styles from matched rules are already dropped by
         // `_getMatchedCSSRules`.)
         style = style
             .split(";")
-            .filter((declaration) => !declaration.includes("flex"))
+            .filter((declaration) => {
+                const separator = declaration.indexOf(":");
+                if (separator === -1) {
+                    return true; // empty / malformed chunk: leave untouched
+                }
+                const name = declaration.slice(0, separator).trim();
+                const value = declaration.slice(separator + 1).trim();
+                return !isDroppedFlexDeclaration(name, value);
+            })
             .join(";");
         styleProbe.style.cssText = style;
         for (const [key, value] of Object.entries(css)) {
@@ -696,7 +731,7 @@ export function classToStyle(element, cssRules) {
             }
         }
         style = correctBorderAttributes(style);
-        if (Object.keys(style || {}).length === 0 || node.nodeName === "T") {
+        if (!style.trim() || node.nodeName === "T") {
             writes.push(() => {
                 node.removeAttribute("style");
             });
@@ -2247,12 +2282,22 @@ function _getMatchedCSSRules(node, cssRules) {
         }
     }
 
-    if (processedStyle["border-bottom-left-radius"]) {
-        processedStyle["border-radius"] = processedStyle["border-bottom-left-radius"];
-        delete processedStyle["border-bottom-left-radius"];
-        delete processedStyle["border-bottom-right-radius"];
-        delete processedStyle["border-top-left-radius"];
-        delete processedStyle["border-top-right-radius"];
+    // Collapse the four corner radii into the `border-radius` shorthand for
+    // better email-client compatibility, mirroring the margin/padding collapse
+    // above: keep a single value when every corner is equal, otherwise emit all
+    // four in `top-left top-right bottom-right bottom-left` order (a missing
+    // corner defaults to `0`, its CSS initial). The previous version copied
+    // `border-bottom-left-radius` onto every corner, silently squaring off any
+    // asymmetric radius.
+    const borderRadiusKeys = GROUPED_STYLES["border-radius"];
+    if (borderRadiusKeys.some((key) => processedStyle[key])) {
+        const values = borderRadiusKeys.map((key) => processedStyle[key] || "0");
+        processedStyle["border-radius"] = values.every((v) => v === values[0])
+            ? values[0]
+            : values.join(" ");
+        for (const key of borderRadiusKeys) {
+            delete processedStyle[key];
+        }
     }
 
     // If the border styling is initial we remove it to simplify the css tags
@@ -2277,10 +2322,7 @@ function _getMatchedCSSRules(node, cssRules) {
 
     // flexboxes are not supported in Windows Outlook
     for (const styleName in processedStyle) {
-        if (
-            styleName.includes("flex") ||
-            `${processedStyle[styleName]}`.includes("flex")
-        ) {
+        if (isDroppedFlexDeclaration(styleName, `${processedStyle[styleName]}`)) {
             delete processedStyle[styleName];
         }
     }
