@@ -178,7 +178,8 @@
             # main.js boots the pos app, it is only included in the prod bundle as tests mount the app themselves
             ("remove", "point_of_sale/static/src/app/main.js"),
             ("include", "point_of_sale.base_tests"),
-            # account
+            # account tax engine: base_tax owns the JS mirror; account re-exports it
+            "base_tax/static/src/helpers/*.js",
             "account/static/src/helpers/*.js",
             "account/static/src/services/account_move_service.js",
             "mail/static/src/core/common/sound_effects_service.js",
