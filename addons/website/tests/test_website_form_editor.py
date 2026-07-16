@@ -135,6 +135,42 @@ class TestWebsiteForm(TransactionCase):
                 "HTML should be escaped in website form (2)",
             )
 
+    def test_form_non_mail_field_whitelist(self):
+        """A field POSTed to /website/form/<model> that is not opted into the
+        form builder must not reach the created record; it is routed to the
+        custom-data dump. This is the core public-write boundary."""
+        partner_model = self.env["ir.model"].search([("model", "=", "res.partner")])
+        partner_model.website_form_access = True
+        # Opt only 'name' into the builder; everything else stays blacklisted.
+        self.env["ir.model.fields"].formbuilder_whitelist("res.partner", ["name"])
+        controller = WebsiteForm()
+        website = self.env["website"].browse(1)
+        with MockRequest(self.env, website=website):
+            data = controller.extract_data(
+                partner_model.sudo(),
+                {
+                    "name": "Legit Name",
+                    "function": "injected",
+                    "website_published": "1",
+                },
+            )
+        self.assertEqual(data["record"].get("name"), "Legit Name")
+        self.assertNotIn(
+            "function",
+            data["record"],
+            "a non-whitelisted field must not reach the record",
+        )
+        self.assertNotIn(
+            "website_published",
+            data["record"],
+            "a non-whitelisted field must not reach the record",
+        )
+        self.assertIn(
+            "function",
+            data["custom"],
+            "non-whitelisted fields are routed to the custom dump",
+        )
+
     def test_website_form_commit_when_creating(self):
         self.env.ref("base.model_res_partner").website_form_access = True
         self.env["ir.model.fields"].formbuilder_whitelist("res.partner", ["name"])
