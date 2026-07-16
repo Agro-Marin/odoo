@@ -762,6 +762,37 @@ export class RecordList extends Array {
         }
         return undefined;
     }
+
+    findLast(fn) {
+        // direct reverse loop like find(): the generic fallthrough would
+        // materialize a full proxy array per call, and findLast is on hot
+        // paths (thread scroll bookkeeping reads the newest message)
+        const recordList = toRaw(this)._raw;
+        const recordListFullProxy = recordList._.downgradeProxy(recordList, this);
+        const recordByLocalId = recordListFullProxy._store.recordByLocalId;
+        const data = recordListFullProxy.data;
+        for (let index = data.length - 1; index >= 0; index--) {
+            const recordProxy = recordByLocalId.get(data[index]);
+            if (fn(recordProxy, index, this)) {
+                return recordProxy;
+            }
+        }
+        return undefined;
+    }
+
+    findLastIndex(fn) {
+        const recordList = toRaw(this)._raw;
+        const recordListFullProxy = recordList._.downgradeProxy(recordList, this);
+        const recordByLocalId = recordListFullProxy._store.recordByLocalId;
+        const data = recordListFullProxy.data;
+        for (let index = data.length - 1; index >= 0; index--) {
+            const recordProxy = recordByLocalId.get(data[index]);
+            if (fn(recordProxy, index, this)) {
+                return index;
+            }
+        }
+        return -1;
+    }
     /** @param {(record: R, index: number) => boolean} fn */
     findIndex(fn) {
         const recordList = toRaw(this)._raw;

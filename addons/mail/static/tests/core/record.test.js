@@ -1638,6 +1638,10 @@ test("record list read methods work and unsupported mutators throw", async () =>
     expect(messages.find((msg) => msg.id === 42)).toBe(undefined);
     expect(messages.findIndex((msg) => msg.id === 2)).toBe(1);
     expect(messages.findIndex((msg) => msg.id === 42)).toBe(-1);
+    expectRecord(messages.findLast((msg) => msg.id < 3)).toEqual(store.Message.get(2));
+    expect(messages.findLast((msg) => msg.id === 42)).toBe(undefined);
+    expect(messages.findLastIndex((msg) => msg.id < 3)).toBe(1);
+    expect(messages.findLastIndex((msg) => msg.id === 42)).toBe(-1);
     expect(messages.some((msg) => msg.id === 3)).toBe(true);
     expect(messages.some((msg) => msg.id === 42)).toBe(false);
     expect(messages.every((msg) => msg.id > 0)).toBe(true);

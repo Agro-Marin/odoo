@@ -528,19 +528,23 @@ export class Thread extends Record {
         return this.messages.findLast((msg) => Number.isInteger(msg.id));
     }
 
-    newestPersistentAllMessages = fields.Many("mail.message", {
-        compute() {
-            const allPersistentMessages = this.allMessages.filter((message) =>
-                Number.isInteger(message.id),
-            );
-            allPersistentMessages.sort((m1, m2) => m2.id - m1.id);
-            return allPersistentMessages;
-        },
-    });
-
     newestPersistentOfAllMessage = fields.One("mail.message", {
         compute() {
-            return this.newestPersistentAllMessages[0];
+            // O(n) max instead of the previous filter + full sort of
+            // allMessages: this recomputes on EVERY message insert of the
+            // thread and feeds the menuThreads ordering, so every message
+            // arriving anywhere re-sorted every loaded message of its thread
+            // just to read element [0]
+            let newest;
+            for (const message of this.allMessages) {
+                if (
+                    Number.isInteger(message.id) &&
+                    (!newest || message.id > newest.id)
+                ) {
+                    newest = message;
+                }
+            }
+            return newest;
         },
     });
 
