@@ -111,8 +111,15 @@ class AccountPartialReconcile(models.Model):
     @api.depends("debit_move_id.date", "credit_move_id.date")
     def _compute_max_date(self):
         for partial in self:
+            # Filter out falsy dates: a reconciled line without a date (e.g. a
+            # not-yet-posted counterpart) would otherwise make `max()` compare a
+            # `date` with `False` and raise TypeError on Python 3.14.
             partial.max_date = max(
-                partial.debit_move_id.date, partial.credit_move_id.date
+                filter(
+                    None,
+                    [partial.debit_move_id.date, partial.credit_move_id.date],
+                ),
+                default=False,
             )
 
     @api.depends("debit_move_id", "credit_move_id")
