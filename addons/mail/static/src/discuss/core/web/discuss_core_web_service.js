@@ -42,10 +42,18 @@ export class DiscussCoreWeb {
         this.env.bus.addEventListener(
             "mail.message/delete",
             ({ detail: { message } }) => {
-                if (message.thread?.model === "discuss.channel") {
-                    // initChannelsUnreadCounter becomes unreliable: drop the
-                    // cached result so the channels (and their counters) are
-                    // actually fetched again.
+                if (
+                    message.thread?.model === "discuss.channel" &&
+                    this.store.channels.status !== "fetched"
+                ) {
+                    // initChannelsUnreadCounter (only used until the channel
+                    // list is fetched) becomes unreliable: drop the cached
+                    // result so the channels are actually fetched again.
+                    // Once fetched, the global counter derives from Thread
+                    // records, which the bus-fenced delta in
+                    // discuss_core_common_service keeps current — refetching
+                    // every client's whole channel list on every deletion in
+                    // a busy database is pure waste.
                     this.store.channels.invalidate();
                     this.store.channels.fetch();
                 }

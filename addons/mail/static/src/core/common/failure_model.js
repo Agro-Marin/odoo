@@ -1,9 +1,7 @@
 /** @odoo-module native */
 import { fields, Record } from "@mail/core/common/record";
-import { markRaw } from "@odoo/owl";
 import { _t } from "@web/core/l10n/translation";
 export class Failure extends Record {
-    static nextId = markRaw({ value: 1 });
     static id = "id";
 
     notifications = fields.Many("mail.notification", {
@@ -32,10 +30,14 @@ export class Failure extends Record {
     lastMessage = fields.One("mail.message", {
         /** @this {import("models").Failure} */
         compute() {
-            let lastMsg = this.notifications[0]?.mail_message_id;
+            // don't seed with notifications[0]'s message: when that message
+            // is not loaded, `undefined < x` is false and the seed would
+            // stick even though later notifications carry messages
+            let lastMsg;
             for (const notification of this.notifications) {
-                if (lastMsg?.id < notification.mail_message_id?.id) {
-                    lastMsg = notification.mail_message_id;
+                const msg = notification.mail_message_id;
+                if (msg && (!lastMsg || lastMsg.id < msg.id)) {
+                    lastMsg = msg;
                 }
             }
             return lastMsg;

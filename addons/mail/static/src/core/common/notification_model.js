@@ -21,23 +21,21 @@ export class Notification extends Record {
         inverse: "notifications",
         /** @this {import("models").Notification} */
         compute() {
-            const thread = this.mail_message_id?.thread;
-            if (!this.mail_message_id?.isSelfAuthored) {
-                return;
+            if (!this.mail_message_id?.isSelfAuthored || !this.isFailure) {
+                return false;
             }
-            const failure = Object.values(this.store.Failure.records).find(
-                (f) =>
-                    f.resModel === thread?.model &&
-                    f.type === this.notification_type &&
-                    // f.resModel === thread.model here, so the thread predicate
-                    // stands in for the failure's resModel kind.
-                    (!thread?.isChannelKind || f.resIds.has(thread?.id)),
-            );
-            return this.isFailure
-                ? {
-                      id: failure ? failure.id : this.store.Failure.nextId.value++,
-                  }
-                : false;
+            const thread = this.mail_message_id?.thread;
+            // Deterministic grouping key: one failure per (type, model) —
+            // and per record for channel kinds. The previous implementation
+            // scanned every Failure record (subscribing each notification's
+            // compute to the whole collection, O(N²) on bulk ingestion) and
+            // allocated Failure.nextId INSIDE the compute — a side effect
+            // that churned Failure identities on transient misses. The
+            // insert-or-get semantics of the record layer replace both.
+            const channelPart = thread?.isChannelKind ? thread.id : "";
+            return {
+                id: `${this.notification_type},${thread?.model ?? ""},${channelPart}`,
+            };
         },
         eager: true,
     });
