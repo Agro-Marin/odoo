@@ -131,9 +131,15 @@ export class Network {
      */
     addSfu(sfu) {
         if (this.sfu) {
-            this.sfu.disconnect();
+            this.removeSfu();
         }
         this.sfu = sfu;
+        // listeners registered before the SFU existed (p2p listeners are
+        // attached at network creation, the SFU bundle loads seconds later)
+        // must reach the SFU too
+        for (const { name, f } of this._listeners) {
+            sfu.addEventListener(name, f);
+        }
     }
     removeSfu() {
         if (!this.sfu) {
@@ -305,6 +311,15 @@ export class CallTransport {
             iceServers: this.hooks.getIceServers(),
         });
         this.network = new Network(this.p2p);
+        // register BEFORE any await: a p2p-fallback participant can react to
+        // our session insert immediately and complete its handshake while the
+        // SFU bundle is still loading — TRACK/BROADCAST events emitted with no
+        // listener are dropped for good (the connection is healthy, so no
+        // recovery path ever replays them). addSfu() forwards these listeners
+        // to the SFU client once it is ready.
+        this.network.addEventListener("stateChange", this._handleSfuStateChange);
+        this.network.addEventListener("update", this.hooks.onNetworkUpdate);
+        this.network.addEventListener("log", this.hooks.onNetworkLog);
         this.hooks.updateUpload();
         if (this.serverInfo) {
             this.hooks.log("loading sfu server", {
@@ -342,9 +357,6 @@ export class CallTransport {
         } else {
             this.hooks.log("no sfu server info, using peer-to-peer");
         }
-        this.network.addEventListener("stateChange", this._handleSfuStateChange);
-        this.network.addEventListener("update", this.hooks.onNetworkUpdate);
-        this.network.addEventListener("log", this.hooks.onNetworkLog);
         if (this.state.channel) {
             await this.call();
             if (epoch !== this._connectEpoch) {
