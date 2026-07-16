@@ -13,6 +13,13 @@ import { batched } from "@web/core/utils/timing";
 /**
  * Use only in a component field (depends on record props). Runs once at
  * setup and again whenever a record value read in the callback changes.
+ *
+ * The effect is re-armed on record *identity* changes only, but the ``props``
+ * given to the callback are always the component's latest props: prop-only
+ * updates (readonly/domain/context/...) refresh the reference read at call
+ * time instead of leaving the callback with the snapshot captured when the
+ * effect was armed. Callbacks fired asynchronously (batched on an animation
+ * frame) therefore never observe stale non-record props.
  * @param {(record: any, props?: any) => void | Promise<void>} callback
  */
 export function useRecordObserver(callback) {
@@ -21,6 +28,9 @@ export function useRecordObserver(callback) {
     // Disposer for the active effect. Disposed on each record swap and on
     // teardown so a superseded effect stops firing (no wasted batched rAF).
     let disposeEffect;
+    // Latest props received by the component; the callback invocations below
+    // read this at call time rather than capturing `observeRecord`'s argument.
+    let latestProps = component.props;
     const observeRecord = (props) => {
         currentId = uniqueId();
         disposeEffect?.();
@@ -38,7 +48,7 @@ export function useRecordObserver(callback) {
                     // disposableEffect doesn't clean up on unmount; guard manually.
                     return;
                 }
-                return Promise.resolve(callback(record, props))
+                return Promise.resolve(callback(record, latestProps))
                     .then(def.resolve)
                     .catch(def.reject);
             },
@@ -51,7 +61,7 @@ export function useRecordObserver(callback) {
             (record) => {
                 if (firstCall) {
                     firstCall = false;
-                    return Promise.resolve(callback(record, props))
+                    return Promise.resolve(callback(record, latestProps))
                         .then(def.resolve)
                         .catch(def.reject);
                 } else {
@@ -68,9 +78,15 @@ export function useRecordObserver(callback) {
         disposeEffect = undefined;
     });
     onWillStart(async () => {
+        latestProps = component.props;
         await observeRecord(component.props);
     });
     onWillUpdateProps(async (nextProps) => {
+        // Always refresh the props reference — even on a prop-only update —
+        // so pending/future callback invocations see the fresh props; only a
+        // record identity change requires re-arming the effect (and firing
+        // the callback) since the reactive subscriptions target the record.
+        latestProps = nextProps;
         if (nextProps.record !== component.props.record) {
             await observeRecord(nextProps);
         }

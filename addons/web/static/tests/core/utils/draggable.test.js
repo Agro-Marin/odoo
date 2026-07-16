@@ -340,6 +340,42 @@ test("Dragging element with touch event: initiation delay can be overrided", asy
     expect.verifySteps(["start"]);
 });
 
+test("Dragging element with touch event: explicit touchDelay wins over delay", async () => {
+    // Documented contract: `touchDelay` is "same as delay, but specific to
+    // touch environments" — so when BOTH are given, touch must honor
+    // `touchDelay`, not be overridden by the (longer) generic `delay`.
+    mockTouch(true);
+    class List extends Component {
+        static template = xml`
+            <div t-ref="root" class="root">
+                <ul class="list">
+                    <li t-foreach="[1, 2, 3]" t-as="i" t-key="i" t-esc="i" class="item" />
+                </ul>
+            </div>`;
+        static props = ["*"];
+        setup() {
+            useDraggable({
+                ref: useRef("root"),
+                delay: 1000,
+                touchDelay: 300,
+                elements: ".item",
+                onDragStart() {
+                    expect.step("start");
+                },
+            });
+        }
+    }
+
+    await mountWithCleanup(List);
+
+    // 500ms sits between touchDelay (300) and delay (1000): the drag must
+    // initiate, proving touch uses touchDelay.
+    await contains(".item:first-child").dragAndDrop(".item:nth-child(2)", {
+        pointerDownDuration: 500,
+    });
+    expect.verifySteps(["start"]);
+});
+
 test.tags("desktop");
 test("Elements are confined within their container and keep their initial width and height", async () => {
     class List extends Component {

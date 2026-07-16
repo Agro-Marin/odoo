@@ -42,6 +42,12 @@ export class StaticList extends DataPoint {
         this._commandsPromise = null;
         this._savePoint = undefined;
         this._unknownRecordCommands = {}; // tracks update commands on records we haven't fetched yet
+        // Page-fill stubs whose base values are still loading: their stash
+        // entries in ``_unknownRecordCommands`` must keep accumulating until
+        // the load lands (the command engine replays them then). A LOADED
+        // record can also own a stash entry (deferred invisible-x2many
+        // slices) — this set is what tells the two states apart.
+        this._loadingStubIds = new Set();
         this._currentIds = [...this.resIds];
         this._needsReordering = false;
         this._tmpIncreaseLimit = 0;
@@ -759,7 +765,13 @@ export class StaticList extends DataPoint {
         /** @type {any} */
         const config = {
             context: this.context,
-            activeFields: { ...(params.activeFields || this.activeFields) },
+            // Share the list's ``activeFields`` object by identity for the
+            // common (un-extended) row: it is arch-stable and never mutated
+            // per-record (``extendRecord`` builds each extended record its own
+            // ``params.activeFields``), so sharing lets ``getModifierDependencies``
+            // memoise once per list instead of re-parsing every modifier
+            // expression per row (a fresh spread was a distinct WeakMap key).
+            activeFields: params.activeFields || this.activeFields,
             resModel: this.resModel,
             fields: params.fields || this.fields,
             relationField: this.config.relationField,
@@ -816,6 +828,7 @@ export class StaticList extends DataPoint {
     _clearCommands() {
         this._commands = [];
         this._unknownRecordCommands = {};
+        this._loadingStubIds.clear();
         this._pruneCache();
     }
 
@@ -862,6 +875,7 @@ export class StaticList extends DataPoint {
             this.count = this.resIds.length;
         }
         this._unknownRecordCommands = {};
+        this._loadingStubIds.clear();
         const limit = this.limit - this._tmpIncreaseLimit;
         this._tmpIncreaseLimit = 0;
         this.model._patchConfig(this.config, { limit });

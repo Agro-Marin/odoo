@@ -11,9 +11,11 @@ import {
 } from "@odoo/hoot";
 import { on } from "@odoo/hoot-dom";
 import { mockFetch } from "@odoo/hoot-mock";
+import { browser } from "@web/core/browser/browser";
 import {
     ConnectionAbortedError,
     ConnectionLostError,
+    ConnectionTimeoutError,
     InvalidResponseError,
     rpc,
     rpcBus,
@@ -178,6 +180,134 @@ test("abort during body streaming stays silent, no InvalidResponseError", async 
     // Only the abort's RPC:RESPONSE — no second (InvalidResponseError) event and
     // no rejection of the caller-orphaned promise.
     expect.verifySteps(["RPC:RESPONSE"]);
+});
+
+// settings.timeout / ConnectionTimeoutError
+//
+// ``AbortSignal.timeout()`` is native — hoot's mocked timers do not drive it —
+// so these tests use tiny REAL timeouts (~10ms).  hoot's ``mockFetch`` also
+// replaces the ``signal`` rpc passes to fetch with its own controller's signal
+// and never rejects when it fires, so the tests that need the real fetch/signal
+// contract patch ``browser.fetch`` directly with a stub honoring it: reject
+// with ``signal.reason`` (a TimeoutError DOMException) when the signal fires.
+
+/**
+ * @param {(url: string, init: RequestInit) => Promise<any>} fetchFn
+ */
+function patchBrowserFetch(fetchFn) {
+    const originalFetch = browser.fetch;
+    browser.fetch = fetchFn;
+    after(() => (browser.fetch = originalFetch));
+}
+
+/**
+ * Response whose headers pass every guard (200 + application/json) but whose
+ * body read parks forever and fails only when ``signal`` fires — modeling a
+ * body still streaming when the timeout signal cancels the read.
+ *
+ * @param {AbortSignal} signal
+ */
+function streamingBodyResponse(signal) {
+    const response = new Response("{}", {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+    });
+    response.json = () =>
+        new Promise((_resolve, reject) => {
+            signal.addEventListener("abort", () => reject(signal.reason));
+        });
+    return response;
+}
+
+test("settings.timeout: timeout before the response arrives is a ConnectionTimeoutError", async () => {
+    // Pins the outer fetch .catch classification: the fetch itself rejects
+    // with the timeout signal's TimeoutError DOMException.
+    patchBrowserFetch(
+        (_url, { signal }) =>
+            new Promise((_resolve, reject) => {
+                signal.addEventListener("abort", () => reject(signal.reason));
+            }),
+    );
+
+    const error = await rpc("/test/", {}, { timeout: 10 }).catch((e) => e);
+    expect(error).toBeInstanceOf(ConnectionTimeoutError);
+    expect(error.timeoutMs).toBe(10);
+    expect(error.url).toBe("/test/");
+});
+
+test("settings.timeout firing during the body read is a ConnectionTimeoutError, not InvalidResponseError", async () => {
+    // Regression: the timeout signal passed to fetch also cancels an
+    // in-progress body read, so ``response.json()`` rejects with a
+    // TimeoutError DOMException AFTER the headers passed every guard.
+    // Pre-fix, the body-read catch only checked the caller-abort flag and
+    // fell through to the status-based fallback — on a 200 response that
+    // fabricated an InvalidResponseError (false "Session Expired" dialog,
+    // page-reload button discarding form state) and, being excluded from
+    // ``isRetryable``, stopped retry chains on exactly the retryable case.
+    patchBrowserFetch((_url, { signal }) =>
+        Promise.resolve(streamingBodyResponse(signal)),
+    );
+
+    const error = await rpc("/test/", {}, { timeout: 10 }).catch((e) => e);
+    expect(error).toBeInstanceOf(ConnectionTimeoutError);
+    expect(error).not.toBeInstanceOf(InvalidResponseError);
+    expect(error.timeoutMs).toBe(10);
+    expect(error.url).toBe("/test/");
+});
+
+test("settings.timeout: silent caller abort during body read still wins over a fired timeout", async () => {
+    // Ordering pin: when BOTH the timeout signal has fired and the caller
+    // aborted by the time the body-read failure is handled, caller intent
+    // wins — abort() already emitted its RPC:RESPONSE and (silently) decided
+    // the promise's fate. Classifying as ConnectionTimeoutError here would
+    // reject the caller-orphaned promise and double-emit for this data.id.
+    let rejectJson;
+    const response = new Response("{}", {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+    });
+    response.json = () => new Promise((_resolve, reject) => (rejectJson = reject));
+    mockFetch(() => response);
+    onRpcResponse(() => expect.step("RPC:RESPONSE"));
+
+    const connection = rpc("/test/", {}, { timeout: 10 });
+    connection.then(
+        () => expect.step("resolved"),
+        () => expect.step("rejected"),
+    );
+    // Park on response.json(), then let the (real) 10ms timeout signal fire.
+    await tick();
+    await new Promise((resolve) => setTimeout(resolve, 30));
+    // Silent abort AFTER the timeout fired, then fail the held body read the
+    // way the cancelled stream would.
+    connection.abort(false);
+    rejectJson(new DOMException("The operation timed out.", "TimeoutError"));
+    await tick();
+    await tick();
+
+    // Only the abort's RPC:RESPONSE; the silently-aborted promise stays pending.
+    expect.verifySteps(["RPC:RESPONSE"]);
+});
+
+test("Retry: mid-body timeout is retryable", async () => {
+    // ConnectionTimeoutError is in ``isRetryable``; pre-fix the mid-body
+    // misclassification (InvalidResponseError) aborted the retry chain on
+    // the first attempt.
+    let fetchCount = 0;
+    patchBrowserFetch((_url, { signal }) => {
+        fetchCount++;
+        return Promise.resolve(streamingBodyResponse(signal));
+    });
+
+    const prom = rpc(
+        "/test/",
+        {},
+        { timeout: 10, retry: { retries: 1, baseMs: 1, maxMs: 1 } },
+    );
+    const error = await prom.catch((e) => e);
+    expect(error).toBeInstanceOf(ConnectionTimeoutError);
+    // Initial attempt + 1 retry — pre-fix this stopped at 1.
+    expect(fetchCount).toBe(2);
 });
 
 test("trigger a ServerOverloadError when response carries a non-JSON content-type", async () => {

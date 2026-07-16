@@ -4,7 +4,11 @@
 /** @module @web/core/network/download - File download via RPC with content-disposition filename extraction */
 
 import { browser } from "@web/core/browser/browser";
-import { ConnectionLostError, makeErrorFromResponse } from "@web/core/network/rpc";
+import {
+    ConnectionLostError,
+    InvalidResponseError,
+    makeErrorFromResponse,
+} from "@web/core/network/rpc";
 
 import { parse } from "./content_disposition.js";
 
@@ -198,6 +202,22 @@ function configureBlobDownloadXHR(
                     const node = nodes[1] || nodes[0];
                     error = JSON.parse(node.textContent);
                 } catch {
+                    if (
+                        xhr.status >= 200 &&
+                        xhr.status < 300 &&
+                        mimetype === "text/html"
+                    ) {
+                        // A 2xx HTML body that is NOT a serialized Python
+                        // error (parsed above) is a genuine HTML page: the
+                        // XHR followed the session-expired redirect and
+                        // landed on the login page with a 200. Classify it
+                        // like rpc.js does (InvalidResponseError) so the
+                        // connection-lost handler routes it to the
+                        // session-expired flow, instead of popping a fake
+                        // "Arbitrary Uncaught Python Exception" dialog.
+                        onFailure(new InvalidResponseError(url ?? "", xhr.status));
+                        return;
+                    }
                     error = {
                         message: "Arbitrary Uncaught Python Exception",
                         data: {

@@ -3191,6 +3191,49 @@ test("remove a measure while loading a group by", async () => {
     expect(getCurrentValues()).toBe(["4", "1", "3"].join(","));
 });
 
+test("remove a measure while a group expansion is in flight", async () => {
+    // Regression: addGroupBy snapshotted metaData before its RPC and assigned
+    // it wholesale on completion, clobbering an interleaved toggleMeasure
+    // (its remove path runs outside the expandMutex): the removed measure
+    // column reappeared once the expansion landed. The expansion must merge
+    // only its own delta into the current metaData instead.
+    let def;
+    onRpc("formatted_read_grouping_sets", () => def);
+    await mountView({
+        type: "pivot",
+        resModel: "partner",
+        arch: `
+			<pivot>
+				<field name="foo" type="measure"/>
+				<field name="product_id" type="row"/>
+			</pivot>`,
+    });
+
+    // Activate Count so removing Foo still leaves a measure.
+    await toggleMenu("Measures");
+    await toggleMenuItem("Count");
+    expect(getCurrentValues()).toBe(["32", "4", "12", "1", "20", "3"].join(","));
+
+    // Expand the first row group (this read_group is delayed).
+    def = new Deferred();
+    await contains("tbody .o_pivot_header_cell_closed").click();
+    await contains(".o-dropdown--menu .dropdown-item").click();
+    expect(getCurrentValues()).toBe(["32", "4", "12", "1", "20", "3"].join(","));
+
+    // Remove Foo while the expansion RPC is in flight: it applies immediately
+    // (no reload is needed for a removal).
+    await toggleMenu("Measures");
+    await toggleMenuItem("Foo");
+    expect(getCurrentValues()).toBe(["4", "1", "3"].join(","));
+
+    def.resolve();
+    await animationFrame();
+
+    // The expansion landed (xphone got its sub-group row) AND the removed
+    // measure stayed removed.
+    expect(getCurrentValues()).toBe(["4", "1", "1", "3"].join(","));
+});
+
 test("sort rows while loading a filter", async () => {
     let def;
     onRpc("formatted_read_grouping_sets", () => def);

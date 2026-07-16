@@ -404,6 +404,105 @@ test("invalidateWhere, no-op when none of the tables exist", async () => {
     await ensureDbIsAbsent();
 });
 
+test("blocked schema-upgrade open degrades to no-cache instead of hanging", async () => {
+    const BLOCKED_DB_NAME = "unit_test_blocked_upgrade";
+    patchWithCleanup(console, {
+        warn: (message) => expect.step(`warn:${String(message).slice(0, 25)}`),
+    });
+
+    // Seed the DB so it exists with one object store.
+    const seed = new IndexedDB(BLOCKED_DB_NAME, "v1");
+    await seed.write("mytable", "k", "v");
+    seed._closeCachedDB();
+
+    // A foreign connection (e.g. a frozen tab) that never closes on
+    // versionchange: any version-bump open stays blocked behind it.
+    /** @type {IDBDatabase} */
+    const blocker = await new Promise((resolve, reject) => {
+        const request = indexedDB.open(BLOCKED_DB_NAME);
+        request.onsuccess = (ev) =>
+            resolve(/** @type {IDBOpenDBRequest} */ (ev.target).result);
+        request.onerror = () => reject(request.error);
+    });
+
+    // Reading a NEW table forces a schema upgrade (version-bump open), which
+    // blocks behind the foreign connection; subsequent operations queue on
+    // the instance mutex. Without the onblocked fallback this hangs forever.
+    const wrapper = new IndexedDB(BLOCKED_DB_NAME, "v1");
+    const readPromise = wrapper.read("newtable", "k");
+    // Interleave mock-timer advances with real macrotasks so the (real)
+    // IndexedDB blocked event can fire, then the fallback timeout.
+    for (let i = 0; i < 10; i++) {
+        await advanceTime(500);
+    }
+
+    // Degraded: the read resolves (cache miss) instead of hanging, and
+    // subsequent operations short-circuit to the no-db path.
+    expect(await readPromise).toBe(undefined);
+    expect(wrapper._degraded).toBe(true);
+    await wrapper.write("mytable", "k", "ignored");
+    expect(await wrapper.read("mytable", "k")).toBe(undefined);
+    expect.verifySteps(["warn:IndexedDB upgrade blocked"]);
+
+    // Cleanup: release the blocker so the DB can be deleted.
+    blocker.close();
+    await new Promise((resolve) => {
+        const request = indexedDB.deleteDatabase(BLOCKED_DB_NAME);
+        request.onsuccess = resolve;
+        request.onerror = resolve;
+    });
+});
+
+// _read/_invalidate abort handling
+//
+// An aborted IndexedDB transaction (e.g. quota exceeded) fires ``onabort``,
+// NOT ``onerror``: without an abort arm the wrapping promise never settles
+// and every later operation wedges behind it on the instance mutex.
+// ``_write``/``_invalidateByModel`` already rejected; these pin the same
+// contract on ``_read`` and ``_invalidate``. A real abort is not forcible
+// from script on these transactions, so a minimal fake ``db`` drives the
+// handler wiring directly.
+
+test("_read rejects when the transaction aborts", async () => {
+    const idb = new IndexedDB(CACHE_NAME, 1);
+    idb._degraded = true; // keep the constructor's open away from real IDB
+
+    const abortError = new DOMException("Quota exceeded", "QuotaExceededError");
+    /** @type {any} */
+    const fakeTransaction = {
+        error: null,
+        objectStore: () => ({ get: () => ({}) }),
+    };
+    const fakeDb = /** @type {any} */ ({ transaction: () => fakeTransaction });
+
+    const promise = idb._read(fakeDb, "mytable", "k");
+    fakeTransaction.error = abortError;
+    fakeTransaction.onabort();
+    await expect(promise).rejects.toThrow(abortError);
+});
+
+test("_invalidate rejects when the transaction aborts", async () => {
+    const idb = new IndexedDB(CACHE_NAME, 1);
+    idb._degraded = true; // keep the constructor's open away from real IDB
+
+    const abortError = new DOMException("Quota exceeded", "QuotaExceededError");
+    /** @type {any} */
+    const fakeTransaction = {
+        error: null,
+        objectStore: () => ({ clear: () => ({}) }),
+        commit: () => {},
+    };
+    const fakeDb = /** @type {any} */ ({
+        objectStoreNames: ["mytable"],
+        transaction: () => fakeTransaction,
+    });
+
+    const promise = idb._invalidate(fakeDb, ["mytable"]);
+    fakeTransaction.error = abortError;
+    fakeTransaction.onabort();
+    await expect(promise).rejects.toThrow(abortError);
+});
+
 test("blocked database deletion degrades to no-cache instead of hanging", async () => {
     const BLOCKED_DB_NAME = "unit_test_blocked_delete";
     patchWithCleanup(console, {

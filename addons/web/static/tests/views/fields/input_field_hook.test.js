@@ -208,6 +208,59 @@ describe("blur/Tab no-write on parse-equal re-entry", () => {
         expect.verifySteps([]);
     });
 
+    test("blur: a parse-equal re-entry re-emits FIELD_IS_DIRTY(false) and clears the save indicator", async () => {
+        // Spy on the model bus: `record.update` is never called on this path,
+        // so the only dirty signal is the FIELD_IS_DIRTY event itself.
+        const dirtyEvents = [];
+        class DirtySpy extends Component {
+            static template = xml`<span class="o_dirty_spy"/>`;
+            static props = { ...standardFieldProps };
+            setup() {
+                useBus(this.props.record.model.bus, "FIELD_IS_DIRTY", (ev) =>
+                    dirtyEvents.push(ev.detail),
+                );
+            }
+        }
+        registry
+            .category("fields")
+            .add("dirty_spy_parse_equal", { component: DirtySpy });
+
+        onRpc("res.partner", "web_save", () => expect.step("web_save"));
+        await mountView({
+            type: "form",
+            resModel: "res.partner",
+            resId: 1,
+            arch: `<form>
+                <field name="int_field"/>
+                <field name="foo" widget="dirty_spy_parse_equal"/>
+            </form>`,
+        });
+
+        expect(".o_form_status_indicator_buttons").toHaveClass("invisible", {
+            message: "pristine form: save/discard indicator hidden",
+        });
+
+        // " 10 " is dirty raw text (onInput emits FIELD_IS_DIRTY:true) but
+        // parses back to the stored 10, so the blur commit takes the
+        // "unchanged" branch: no record.update, input resynced to "10".
+        await fieldInput("int_field").edit(" 10 ");
+        await animationFrame();
+
+        expect(".o_field_widget[name=int_field] input").toHaveValue("10");
+        expect.verifySteps([]);
+        expect(dirtyEvents.length > 0).toBe(true, {
+            message: "typing must have emitted FIELD_IS_DIRTY events",
+        });
+        expect(dirtyEvents.at(-1)).toBe(false, {
+            message:
+                "the parse-equal commit must re-emit FIELD_IS_DIRTY(false); otherwise the indicator stays stuck on unsaved",
+        });
+        expect(".o_form_status_indicator_buttons").toHaveClass("invisible", {
+            message:
+                "nothing was committed, so the save/discard indicator must be hidden again",
+        });
+    });
+
     test("Tab: a dirty-but-parse-equal integer re-entry commits nothing (same as blur)", async () => {
         onRpc("res.partner", "web_save", () => expect.step("web_save"));
         await mountView({

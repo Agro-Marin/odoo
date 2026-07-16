@@ -4,6 +4,7 @@ import { describe, expect, test } from "@odoo/hoot";
 import { mockFetch } from "@odoo/hoot-mock";
 import {
     ConnectionLostError,
+    InvalidResponseError,
     NetworkError,
     RequestEntityTooLargeError,
 } from "@web/core/network/rpc";
@@ -35,6 +36,37 @@ test("check status 413", async () => {
     mockFetch(() => new Response("{}", { status: 413 }));
 
     await expect(get("/custom_route")).rejects.toThrow(RequestEntityTooLargeError);
+});
+
+test("a 200 HTML body (session-expired login redirect) is an InvalidResponseError", async () => {
+    // fetch follows redirects, so a session-expired request lands on the
+    // HTML login page with a 200. Pre-classification, response.json() died
+    // on it with a raw SyntaxError (ClientErrorDialog); InvalidResponseError
+    // routes it to the session-expired flow, like rpc.js.
+    mockFetch(
+        () =>
+            new Response("<!DOCTYPE html><html><body>login</body></html>", {
+                status: 200,
+                headers: { "Content-Type": "text/html; charset=utf-8" },
+            }),
+    );
+
+    await expect(get("/custom_route")).rejects.toThrow(InvalidResponseError);
+    await expect(post("/custom_route")).rejects.toThrow(InvalidResponseError);
+});
+
+test("an explicit non-json readMethod still reads HTML bodies", async () => {
+    // The HTML sniff only applies when the caller asked for JSON: fetching
+    // an HTML page as text is a legitimate use.
+    mockFetch(
+        () =>
+            new Response("<html>ok</html>", {
+                status: 200,
+                headers: { "Content-Type": "text/html" },
+            }),
+    );
+
+    expect(await get("/custom_route", "text")).toBe("<html>ok</html>");
 });
 
 test("other non-ok statuses raise a NetworkError with status and url", async () => {

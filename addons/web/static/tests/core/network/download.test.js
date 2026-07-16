@@ -4,7 +4,11 @@ import { after, describe, expect, test } from "@odoo/hoot";
 import { Deferred, mockFetch } from "@odoo/hoot-mock";
 import { allowTranslations } from "@web/../tests/web_test_helpers";
 import { download } from "@web/core/network/download";
-import { ConnectionLostError, RPCError } from "@web/core/network/rpc";
+import {
+    ConnectionLostError,
+    InvalidResponseError,
+    RPCError,
+} from "@web/core/network/rpc";
 
 describe.current.tags("headless");
 
@@ -62,10 +66,15 @@ test("handles business error from server", async () => {
     expect(error.data).toEqual(serverError.data);
 });
 
-test("handles arbitrary error", async () => {
-    const serverError = /* xml */ `<html><body><div>HTML error message</div></body></html>`;
+test("classifies a 200 HTML page (session-expired login redirect) as InvalidResponseError", async () => {
+    // The XHR follows the session-expired redirect and lands on the HTML
+    // login page with a 200 whose body is NOT a serialized Python error.
+    // Pre-classification this popped a fake "Arbitrary Uncaught Python
+    // Exception" dialog; InvalidResponseError matches rpc.js and routes it
+    // to the session-expired flow.
+    const loginPage = /* xml */ `<html><body><div>HTML error message</div></body></html>`;
 
-    mockFetch(() => new Blob([JSON.stringify(serverError)], { type: "text/html" }));
+    mockFetch(() => new Blob([JSON.stringify(loginPage)], { type: "text/html" }));
 
     let error = null;
     try {
@@ -77,9 +86,9 @@ test("handles arbitrary error", async () => {
         error = e;
     }
 
-    expect(error).toBeInstanceOf(RPCError);
-    expect(error.message).toBe("Arbitrary Uncaught Python Exception");
-    expect(error.data.debug.trim()).toBe("200\nHTML error message");
+    expect(error).toBeInstanceOf(InvalidResponseError);
+    expect(error.status).toBe(200);
+    expect(error.message).toMatch(/invalid \(non JSON-RPC\) response/);
 });
 
 test("handles success download", async () => {

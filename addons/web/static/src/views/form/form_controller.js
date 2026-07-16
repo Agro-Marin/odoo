@@ -555,8 +555,16 @@ export class FormController extends Component {
         if (forceLeave) {
             return;
         }
+        if (!(await this.model.root.isDirty())) {
+            // Nothing to save. Hoisted out of the coordinator (instead of
+            // ``checkDirty: true``) because that short-circuit resolves
+            // ``true`` and would fire ``props.onSave`` below: embedders hang
+            // "record persisted" side effects on it (e.g. stock_barcode
+            // closes its line-edit pane), which must not run on a clean
+            // leave.
+            return true;
+        }
         const saved = await this.saveCoordinator.requestSave({
-            checkDirty: true,
             reload: false,
             saveOverride: this.props.saveRecord,
         });
@@ -706,10 +714,17 @@ export class FormController extends Component {
         if (clickParams.special !== "cancel") {
             let saved;
             if (clickParams.special === "save" && this.props.saveRecord) {
-                // Direct delegation to the embedder's saveRecord — no
-                // coordinator dispatch.  The embedder owns the entire
-                // lifecycle for special="save" buttons.
-                saved = await this.props.saveRecord(record, clickParams);
+                // The embedder's saveRecord owns the save itself for
+                // special="save" buttons, but the dispatch still goes through
+                // the coordinator so ``status`` / ``lastError`` reflect the
+                // dialog's Save like every other entry point. With a
+                // saveOverride the coordinator injects no onError and
+                // rethrows any escaped error (see ``requestSave``), matching
+                // the historical direct-call semantics.
+                saved = await this.saveCoordinator.requestSave({
+                    saveOverride: (r) => this.props.saveRecord(r, clickParams),
+                    errorMode: "rethrow",
+                });
             } else {
                 // Plain save, no dirty pre-check, no error dialog (the caller
                 // handles errors via ``useViewButtons``): errors must propagate

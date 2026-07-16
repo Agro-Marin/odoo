@@ -95,92 +95,110 @@ export async function fillSearchViewItemsProperty(searchModel) {
 
     // One PropertiesGroupByItem component exists per properties field, and each
     // calls this (unscoped) routine once on first open. Without a cross-call
-    // guard, N components x N fields => N^2 property-definition RPCs. Memoize the
-    // set of already-materialized properties fields on the SearchModel instance
-    // so each field is fetched and turned into search items at most once,
-    // regardless of how many components trigger the fill.
-    const filledPropertyFields = (searchModel._filledPropertyFields ??= new Set());
+    // guard, N components x N fields => N^2 property-definition RPCs. Memoize
+    // the in-flight/settled fill promise per properties field on the SearchModel
+    // instance so each field is fetched and turned into search items at most
+    // once, regardless of how many components trigger the fill — and so a
+    // caller that arrives while a fill is still in flight awaits the SAME load
+    // instead of returning early with zero items (which would latch an empty
+    // Properties group-by for the session). A failed fill is evicted from the
+    // memo so a later open can retry.
+    /** @type {Map<string, Promise<void>>} */
+    const filledPropertyFields = (searchModel._filledPropertyFields ??= new Map());
 
+    const proms = [];
     for (const field of fields) {
         if (field.type !== "properties") {
             continue;
         }
-        if (filledPropertyFields.has(field.name)) {
-            continue;
-        }
-        filledPropertyFields.add(field.name);
-
-        const result = await searchModel._fetchPropertiesDefinition(
-            searchModel.resModel,
-            field.name,
-        );
-
-        const searchItemsNames = Object.values(searchModel.searchItems)
-            .filter(
-                (item) =>
-                    item.isProperty && ["groupBy", "dateGroupBy"].includes(item.type),
-            )
-            .map((item) => item.fieldName);
-
-        for (const {
-            definitionRecordId,
-            definitionRecordName,
-            definitions,
-        } of result) {
-            // some properties might have been deleted
-            const groupNames = definitions.map(
-                (definition) => `group_by_${field.name}.${definition.name}`,
-            );
-            Object.values(searchModel.searchItems).forEach((searchItem) => {
-                if (
-                    searchItem.isProperty &&
-                    searchItem.definitionRecordId === definitionRecordId &&
-                    ["groupBy", "dateGroupBy"].includes(searchItem.type) &&
-                    !groupNames.includes(searchItem.name)
-                ) {
-                    // Can't just remove the element (index doubles as id); retype
-                    // it instead so it's hidden everywhere until the user refreshes.
-                    searchItem.type = "group_by_property_deleted";
+        let prom = filledPropertyFields.get(field.name);
+        if (!prom) {
+            prom = fillPropertyFieldSearchItems(searchModel, field);
+            prom.catch(() => {
+                if (filledPropertyFields.get(field.name) === prom) {
+                    filledPropertyFields.delete(field.name);
                 }
             });
+            filledPropertyFields.set(field.name, prom);
+        }
+        proms.push(prom);
+    }
+    await Promise.all(proms);
+}
 
-            for (const definition of definitions) {
-                // Register a fake "field" definition in searchViewFields (type,
-                // string, etc.) keyed as "<properties field name>.<property name>".
-                const fullName = `${field.name}.${definition.name}`;
-                searchModel.searchViewFields[fullName] = {
-                    name: fullName,
-                    readonly: false,
-                    relation: definition.comodel,
-                    required: false,
-                    searchable: false,
-                    selection: definition.selection,
-                    sortable: true,
-                    store: true,
-                    string: definition.string,
-                    type: definition.type,
-                    relatedPropertyField: field,
+/**
+ * Fetch one properties field's definitions and materialize its group-by
+ * search items (single-flight body of {@link fillSearchViewItemsProperty}).
+ *
+ * @param {SearchModel} searchModel - the SearchModel instance
+ * @param {Object} field - a searchViewFields entry with type "properties"
+ */
+async function fillPropertyFieldSearchItems(searchModel, field) {
+    const result = await searchModel._fetchPropertiesDefinition(
+        searchModel.resModel,
+        field.name,
+    );
+
+    const searchItemsNames = Object.values(searchModel.searchItems)
+        .filter(
+            (item) => item.isProperty && ["groupBy", "dateGroupBy"].includes(item.type),
+        )
+        .map((item) => item.fieldName);
+
+    for (const { definitionRecordId, definitionRecordName, definitions } of result) {
+        // some properties might have been deleted
+        const groupNames = definitions.map(
+            (definition) => `group_by_${field.name}.${definition.name}`,
+        );
+        Object.values(searchModel.searchItems).forEach((searchItem) => {
+            if (
+                searchItem.isProperty &&
+                searchItem.definitionRecordId === definitionRecordId &&
+                ["groupBy", "dateGroupBy"].includes(searchItem.type) &&
+                !groupNames.includes(searchItem.name)
+            ) {
+                // Can't just remove the element (index doubles as id); retype
+                // it instead so it's hidden everywhere until the user refreshes.
+                searchItem.type = "group_by_property_deleted";
+            }
+        });
+
+        for (const definition of definitions) {
+            // Register a fake "field" definition in searchViewFields (type,
+            // string, etc.) keyed as "<properties field name>.<property name>".
+            const fullName = `${field.name}.${definition.name}`;
+            searchModel.searchViewFields[fullName] = {
+                name: fullName,
+                readonly: false,
+                relation: definition.comodel,
+                required: false,
+                searchable: false,
+                selection: definition.selection,
+                sortable: true,
+                store: true,
+                string: definition.string,
+                type: definition.type,
+                relatedPropertyField: field,
+            };
+
+            if (
+                !searchItemsNames.includes(fullName) &&
+                !["html", "separator"].includes(definition.type)
+            ) {
+                const groupByItem = {
+                    description: definition.string,
+                    definitionRecordId,
+                    definitionRecordName,
+                    fieldName: fullName,
+                    fieldType: definition.type,
+                    isProperty: true,
+                    name: `group_by_${field.name}.${definition.name}`,
+                    propertyFieldName: field.name,
+                    type: ["datetime", "date"].includes(definition.type)
+                        ? "dateGroupBy"
+                        : "groupBy",
                 };
-
-                if (
-                    !searchItemsNames.includes(fullName) &&
-                    !["html", "separator"].includes(definition.type)
-                ) {
-                    const groupByItem = {
-                        description: definition.string,
-                        definitionRecordId,
-                        definitionRecordName,
-                        fieldName: fullName,
-                        fieldType: definition.type,
-                        isProperty: true,
-                        name: `group_by_${field.name}.${definition.name}`,
-                        propertyFieldName: field.name,
-                        type: ["datetime", "date"].includes(definition.type)
-                            ? "dateGroupBy"
-                            : "groupBy",
-                    };
-                    searchModel._createGroupOfSearchItems([groupByItem]);
-                }
+                searchModel._createGroupOfSearchItems([groupByItem]);
             }
         }
     }

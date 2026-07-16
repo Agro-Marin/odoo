@@ -728,4 +728,15 @@ describe("construction validation", () => {
             /minute must be in 0\.\.59/,
         );
     });
+
+    test("datetime()/time() reject non-integer time components", () => {
+        // CPython raises TypeError on a float hour; without an integer check
+        // the value flowed into strftime yielding garbage like "5.5:00:00".
+        expect(() => evaluateExpr("datetime.datetime(2020, 1, 1, 5.5)")).toThrow(
+            /hour must be an integer/,
+        );
+        expect(() => evaluateExpr("datetime.time(1, 2.5)")).toThrow(
+            /minute must be an integer/,
+        );
+    });
 });

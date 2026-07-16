@@ -67,6 +67,9 @@ import {
  * @typedef {"edit" | "readonly"} Mode
  */
 
+/** Shared no-op returned by ``_applyChanges`` when the caller opts out of undo. */
+const NO_UNDO = () => {};
+
 export class RelationalRecord extends DataPoint {
     static type = "Record";
 
@@ -111,6 +114,10 @@ export class RelationalRecord extends DataPoint {
         // reads it to skip the tab-close beacon when the same changes are
         // already being persisted.
         this._saveInFlight = false;
+        // Raised by the tab-close beacon (``record_save``, sendBeacon success)
+        // and consumed by a normal save parked at its onWillSaveRecord hook,
+        // so the resumed save doesn't re-send the already-persisted change set.
+        this._urgentBeaconFired = false;
 
         const parentRecord = this._parentRecord;
         if (parentRecord) {
@@ -614,64 +621,74 @@ export class RelationalRecord extends DataPoint {
         addSavePoint(this);
     }
 
-    _applyChanges(changes, serverChanges = {}) {
-        // We need to generate the undo function before applying the changes
-        const initialTextValues = { ...this._textValues };
-        const initialChanges = { ...this._changes };
-        const initialData = { ...toRaw(this.data) };
-        const initialDirty = this.dirty;
-        const invalidFields = [...toRaw(this._invalidFields)];
-        // x2many onchange values are command lists that ``parseServerValues``
-        // replays into the EXISTING StaticList IN PLACE (``_applyCommands``),
-        // so the shallow ``initialData`` snapshot restores the SAME, already
-        // mutated list reference — the staged commands would survive the undo
-        // and ship on the next web_save. Snapshot each such list's command
-        // state here (deep-copying the tuples like ``_addSavePoint`` does) and
-        // restore it in ``undoChanges``. Done WITHOUT the list's ``_savePoint``
-        // slot on purpose: that slot belongs to the record-level discard flow
-        // (e.g. an open x2many sub-dialog), so touching it here could clobber a
-        // live savepoint.
-        const listSnapshots = [];
-        for (const fieldName of new Set([
-            ...Object.keys(changes),
-            ...Object.keys(serverChanges),
-        ])) {
-            const value = toRaw(this.data)[fieldName];
-            if (isX2Many(this.fields[fieldName]) && value?._commands) {
-                listSnapshots.push({
-                    list: value,
-                    _commands: value._commands.map((c) =>
-                        c.map((el) => (Array.isArray(el) ? [...el] : el)),
-                    ),
-                    _currentIds: [...value._currentIds],
-                    count: value.count,
-                });
+    _applyChanges(changes, serverChanges = {}, { undoable = false } = {}) {
+        // The undo snapshot is only consumed on error/render-force paths
+        // (``_update``'s catch, ``_onchange``'s onError); the hot paths that
+        // ignore the return — x2many command replay
+        // (``static_list_command_engine``) and ``_applyDefaultValues`` — run
+        // this per row per onchange wave, so building four shallow copies plus
+        // deep x2many command snapshots there is pure churn. Opt in only when
+        // a caller will actually undo.
+        let undoChanges = NO_UNDO;
+        if (undoable) {
+            // We need to generate the undo function before applying the changes
+            const initialTextValues = { ...this._textValues };
+            const initialChanges = { ...this._changes };
+            const initialData = { ...toRaw(this.data) };
+            const initialDirty = this.dirty;
+            const invalidFields = [...toRaw(this._invalidFields)];
+            // x2many onchange values are command lists that ``parseServerValues``
+            // replays into the EXISTING StaticList IN PLACE (``_applyCommands``),
+            // so the shallow ``initialData`` snapshot restores the SAME, already
+            // mutated list reference — the staged commands would survive the undo
+            // and ship on the next web_save. Snapshot each such list's command
+            // state here (deep-copying the tuples like ``_addSavePoint`` does) and
+            // restore it in ``undoChanges``. Done WITHOUT the list's ``_savePoint``
+            // slot on purpose: that slot belongs to the record-level discard flow
+            // (e.g. an open x2many sub-dialog), so touching it here could clobber a
+            // live savepoint.
+            const listSnapshots = [];
+            for (const fieldName of new Set([
+                ...Object.keys(changes),
+                ...Object.keys(serverChanges),
+            ])) {
+                const value = toRaw(this.data)[fieldName];
+                if (isX2Many(this.fields[fieldName]) && value?._commands) {
+                    listSnapshots.push({
+                        list: value,
+                        _commands: value._commands.map((c) =>
+                            c.map((el) => (Array.isArray(el) ? [...el] : el)),
+                        ),
+                        _currentIds: [...value._currentIds],
+                        count: value.count,
+                    });
+                }
             }
+            undoChanges = () => {
+                for (const fieldName of invalidFields) {
+                    // Flag-only restore: the async setInvalidField re-takes the
+                    // mutex through discard() in multi-edit, and these flags
+                    // already passed the lifecycle hook when first raised.
+                    this._setInvalidFieldFlag(fieldName);
+                }
+                Object.assign(this.data, initialData);
+                for (const snap of listSnapshots) {
+                    // Mirror ``StaticList._discard``'s savepoint branch: restore the
+                    // command log + membership, then rebuild the displayed window
+                    // from ``_currentIds`` (records are derived, not snapshotted).
+                    snap.list._commands = snap._commands;
+                    snap.list._currentIds = snap._currentIds;
+                    snap.list.count = snap.count;
+                    snap.list.records = snap.list._currentIds
+                        .slice(snap.list.offset, snap.list.offset + snap.list.limit)
+                        .map((resId) => snap.list._cache[resId]);
+                }
+                this._changes = markRaw(initialChanges);
+                Object.assign(this._textValues, initialTextValues);
+                this.dirty = initialDirty;
+                this._setEvalContext();
+            };
         }
-        const undoChanges = () => {
-            for (const fieldName of invalidFields) {
-                // Flag-only restore: the async setInvalidField re-takes the
-                // mutex through discard() in multi-edit, and these flags
-                // already passed the lifecycle hook when first raised.
-                this._setInvalidFieldFlag(fieldName);
-            }
-            Object.assign(this.data, initialData);
-            for (const snap of listSnapshots) {
-                // Mirror ``StaticList._discard``'s savepoint branch: restore the
-                // command log + membership, then rebuild the displayed window
-                // from ``_currentIds`` (records are derived, not snapshotted).
-                snap.list._commands = snap._commands;
-                snap.list._currentIds = snap._currentIds;
-                snap.list.count = snap.count;
-                snap.list.records = snap.list._currentIds
-                    .slice(snap.list.offset, snap.list.offset + snap.list.limit)
-                    .map((resId) => snap.list._cache[resId]);
-            }
-            this._changes = markRaw(initialChanges);
-            Object.assign(this._textValues, initialTextValues);
-            this.dirty = initialDirty;
-            this._setEvalContext();
-        };
 
         for (const fieldName of Object.keys(changes)) {
             let change = changes[fieldName];
@@ -1084,7 +1101,13 @@ export class RelationalRecord extends DataPoint {
             evalContext: toRaw(this.evalContext),
             onError: (e) => {
                 // We apply changes and revert them after to force a render of the Field components
-                const undoChanges = this._applyChanges(changes);
+                const undoChanges = this._applyChanges(
+                    changes,
+                    {},
+                    {
+                        undoable: true,
+                    },
+                );
                 undoChanges();
                 throw e;
             },
@@ -1202,7 +1225,9 @@ export class RelationalRecord extends DataPoint {
                 }
             }
         }
-        const undoChanges = this._applyChanges(effectiveChanges, onchangeServerValues);
+        const undoChanges = this._applyChanges(effectiveChanges, onchangeServerValues, {
+            undoable: true,
+        });
         if (
             Object.keys(effectiveChanges).length > 0 ||
             Object.keys(onchangeServerValues).length > 0

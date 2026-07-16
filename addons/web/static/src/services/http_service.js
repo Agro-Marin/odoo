@@ -6,6 +6,7 @@
 import { browser } from "@web/core/browser/browser";
 import {
     ConnectionLostError,
+    InvalidResponseError,
     NetworkError,
     RequestEntityTooLargeError,
 } from "@web/core/network/rpc";
@@ -16,10 +17,25 @@ import { registry } from "@web/core/registry";
  * can branch on it) for non-ok statuses instead of falling through to an
  * opaque body-parse failure on HTML error pages.
  *
+ * A 2xx response with an HTML content-type is classified too (when the
+ * caller asked for JSON): ``fetch`` follows redirects, so a session-expired
+ * request lands on the HTML login page with a 200. Pre-classification,
+ * ``response.json()`` died on it with a raw ``SyntaxError``
+ * (ClientErrorDialog); ``InvalidResponseError`` matches rpc.js's handling of
+ * the same response, so the connection-lost handler routes it to the
+ * session-expired flow instead.
+ *
  * @param {Response} response
+ * @param {string} [readMethod] the body-read method the caller will use
  */
-function checkResponseStatus(response) {
+function checkResponseStatus(response, readMethod) {
     if (response.ok) {
+        if (readMethod === "json") {
+            const contentType = response.headers.get("content-type") || "";
+            if (/text\/html/i.test(contentType)) {
+                throw new InvalidResponseError(response.url, response.status);
+            }
+        }
         return;
     }
     const { status, url } = response;
@@ -44,7 +60,7 @@ function checkResponseStatus(response) {
  */
 export async function get(route, readMethod = "json") {
     const response = await browser.fetch(route, { method: "GET" });
-    checkResponseStatus(response);
+    checkResponseStatus(response, readMethod);
     return /** @type {any} */ (response)[readMethod]();
 }
 
@@ -74,7 +90,7 @@ export async function post(route, params = {}, readMethod = "json") {
         body: /** @type {any} */ (formData),
         method: "POST",
     });
-    checkResponseStatus(response);
+    checkResponseStatus(response, readMethod);
     return /** @type {any} */ (response)[readMethod]();
 }
 

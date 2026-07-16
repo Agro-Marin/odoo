@@ -37,7 +37,11 @@ export class FloatField extends NumericInputFieldBase {
         trailingZeros: true,
     };
 
-    /** @param {string} value @returns {number} */
+    /**
+     * @param {string} value
+     * @returns {number | import("@web/model/relational_model/operation").Operation}
+     *     an Operation when the input is a multi-edit expression ("+= 5", ...)
+     */
     parse(value) {
         // type=number can yield NaN or ±Infinity ("1e999" is valid input text);
         // parseNumericInput falls back to the locale parser so invalid input

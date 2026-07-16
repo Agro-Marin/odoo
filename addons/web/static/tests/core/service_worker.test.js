@@ -92,11 +92,8 @@ describe("restoreSessionInfo", () => {
 });
 
 describe("isStaleWhileRevalidateURL", () => {
-    test("translations and content-hashed asset bundles match", async () => {
+    test("content-hashed asset bundles match", async () => {
         const { isStaleWhileRevalidateURL } = await loadServiceWorkerHooks();
-        expect(
-            isStaleWhileRevalidateURL(url("/web/webclient/translations/abc123")),
-        ).toBe(true);
         // Content-addressed asset URLs (hex hash in the path) are safe to
         // serve stale-first — the hash changes when the content does.
         expect(
@@ -109,6 +106,27 @@ describe("isStaleWhileRevalidateURL", () => {
                 url("/web/assets/esm/d3796119d3095207/web.assets_web.esm.js"),
             ),
         ).toBe(true);
+    });
+
+    test("translations are NOT served stale", async () => {
+        const { isStaleWhileRevalidateURL } = await loadServiceWorkerHooks();
+        // The translations URL is not content-addressed (the hash query param
+        // identifies the CLIENT's cached version, not the response) and the
+        // localization service already caches translations in IndexedDB with
+        // a `cache: "no-store"` revalidation fetch. A SW cache layer replayed
+        // stale "unchanged" bodies and pre-deploy payloads — it must never
+        // intercept this route (see STATIC_PATH_RE in service_worker.js).
+        expect(isStaleWhileRevalidateURL(url("/web/webclient/translations"))).toBe(
+            false,
+        );
+        expect(
+            isStaleWhileRevalidateURL(
+                url("/web/webclient/translations?hash=abc123&lang=fr_FR"),
+            ),
+        ).toBe(false);
+        expect(
+            isStaleWhileRevalidateURL(url("/web/webclient/translations/abc123")),
+        ).toBe(false);
     });
 
     test("mutable asset URLs (debug/any/%) are NOT served stale", async () => {

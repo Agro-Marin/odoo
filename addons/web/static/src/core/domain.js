@@ -75,7 +75,8 @@ export class Domain {
             value.push({ type: ASTType.String, value: op });
             value.push(...nonEmpty[i].ast.value);
         }
-        value.push(...nonEmpty.at(-1).ast.value);
+        // nonEmpty.length >= 2 here, so at(-1) can't be undefined.
+        value.push(.../** @type {Domain} */ (nonEmpty.at(-1)).ast.value);
         const result = new Domain([]);
         result.ast = { type: ASTType.List, value };
         return result;
@@ -174,7 +175,7 @@ export class Domain {
         function isFullyRemoved(elements, idx) {
             const node = elements[idx];
             if (isDomainLeaf(node)) {
-                return keysToRemove.includes(/** @type {any} */ (node.value[0]).value);
+                return keysToRemove.includes(/** @type {any} */ (node).value[0].value);
             }
             if (node.type === ASTType.String) {
                 if (node.value === "!") {
@@ -214,7 +215,7 @@ export class Domain {
         function processLeaf(elements, idx, operatorCtx, newDomain) {
             const leaf = elements[idx];
             if (isDomainLeaf(leaf)) {
-                if (keysToRemove.includes(/** @type {any} */ (leaf.value[0]).value)) {
+                if (keysToRemove.includes(/** @type {any} */ (leaf).value[0].value)) {
                     pushNeutral(operatorCtx, newDomain);
                 } else {
                     newDomain.ast.value.push(leaf);

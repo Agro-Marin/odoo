@@ -26,7 +26,7 @@
 import { expect, test } from "@odoo/hoot";
 import { queryAll, queryFirst } from "@odoo/hoot-dom";
 import { animationFrame } from "@odoo/hoot-mock";
-import { useState } from "@odoo/owl";
+import { status, useState } from "@odoo/owl";
 import {
     contains,
     defineModels,
@@ -173,6 +173,58 @@ test("late renderer field assignment warns in debug mode (C6)", async () => {
 
     expect(warnings.filter((msg) => msg.includes("lateAssignedFlag"))).toHaveLength(1);
     expect(queryFirst(".o_data_row").dataset.highlight).toBe("on");
+});
+
+test.tags("desktop");
+test("destroyed row: shadow subscriptions are inert and caches are cleared", async () => {
+    // OWL only clears its own render callback's reactive subscriptions on
+    // destroy — the row's custom ``_shadowRender`` callback (C3 subscriptions
+    // to delegated renderer state) stays registered in the reactivity maps.
+    // The WeakRef + status guard must make such a leaked subscription inert
+    // (no re-render of a destroyed row), and ``onWillDestroy`` must clear the
+    // delegation caches so the destroyed row stops referencing renderer state.
+    /** @type {any[]} */
+    const rowInstances = [];
+    patchWithCleanup(ListRecordRow.prototype, {
+        setup() {
+            super.setup();
+            rowInstances.push(this);
+        },
+    });
+    const captured = setupCustomRowList();
+    await mountView({
+        resModel: "foo",
+        type: "list",
+        arch: `<list js_class="custom_row_list" expand="1"><field name="name"/></list>`,
+        groupBy: ["name"],
+    });
+    expect(queryAll(".o_data_row")).toHaveLength(3);
+    expect(rowInstances).toHaveLength(3);
+
+    // Fold the first group: its row component is destroyed.
+    await contains(".o_group_header").click();
+    await animationFrame();
+    const destroyed = rowInstances.filter((row) => status(row) === "destroyed");
+    expect(destroyed.length).toBeGreaterThan(0);
+
+    let renders = 0;
+    for (const row of destroyed) {
+        // onWillDestroy cleared the delegation caches.
+        expect(row._dualCache.size).toBe(0);
+        expect(row._boundFns.size).toBe(0);
+        row.render = () => renders++;
+        // A leaked shadow subscription firing after destroy is a no-op.
+        row._shadowRender();
+    }
+    // Mutating the renderer state the rows subscribed to (C3) must not
+    // re-render destroyed rows either…
+    captured.renderer.rowState.highlight = true;
+    await animationFrame();
+    expect(renders).toBe(0);
+    // …while live rows still react.
+    expect(queryAll(".o_data_row").every((row) => row.dataset.highlight === "on")).toBe(
+        true,
+    );
 });
 
 test("row.group resolves the flat parentGroup even when virtualization is active", () => {

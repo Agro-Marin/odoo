@@ -275,7 +275,10 @@ export class ActionManager {
                     }
                 }
             } else {
-                action = JSON.parse(currentController.action._originalAction);
+                // _originalAction is unset when the action wasn't serializable
+                // (see action_loader.js): fall back to null instead of letting
+                // JSON.parse(undefined) throw.
+                action = JSON.parse(currentController.action._originalAction || "null");
             }
         }
         return action;
@@ -518,7 +521,7 @@ export class ActionManager {
             controller.displayName = displayName;
             if (controller === this._getCurrentController()) {
                 // if not mounted yet, will be done in "mounted"
-                // eslint-disable-next-line no-restricted-syntax -- actionService is a service, not a component; useService() is unavailable here
+                // eslint-disable-next-line no-restricted-syntax -- service-internal code: useService is component-only, and `title` is a declared dependency (started before us)
                 this.env.services.title.setParts({ action: controller.displayName });
             }
             if (action.target !== "new") {
@@ -585,7 +588,7 @@ export class ActionManager {
         // fires no user callback.
         const onClose = this.nextDialog?.stolenOnClose ?? this.dialog?.onClose;
         delete this.dialog?.onClose;
-        // eslint-disable-next-line no-restricted-syntax -- actionService is a service, not a component; useService() is unavailable here
+        // eslint-disable-next-line no-restricted-syntax -- service-internal code: useService is component-only, and `dialog` is a declared dependency (started before us)
         const removeDialogFn = (removeDialogRef.current = this.env.services.dialog.add(
             ActionDialog,
             actionDialogProps,
@@ -713,7 +716,7 @@ export class ActionManager {
             Component: this.ControllerComponent,
             componentProps: { ...controller.props, _context: controllerContext },
         };
-        // eslint-disable-next-line no-restricted-syntax -- actionService is a service, not a component; useService() is unavailable here
+        // eslint-disable-next-line no-restricted-syntax -- service-internal code: useService is component-only, and `dialog` is a declared dependency (started before us)
         this.env.services.dialog.closeAll({ noReload: true });
         this.env.bus.trigger(AppEvent.ACTION_MANAGER_UPDATE, controller.__info__);
         await currentActionProm;

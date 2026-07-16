@@ -602,6 +602,23 @@ class ProgressBarState {
     }
 
     /**
+     * Schedule a single debounced ``_updateProgressBar`` retry after a fetch
+     * was discarded because the group set changed while its RPC was in
+     * flight (see the membership bail in ``_updateProgressBar``). Debounced
+     * so a burst of membership changes (several quick group adds/removals)
+     * coalesces into one trailing re-fetch; epochs still guard against
+     * out-of-order resolutions.
+     */
+    _scheduleMembershipRetry() {
+        if (!this._membershipRetryDebounced) {
+            this._membershipRetryDebounced = debounce(() => {
+                this._updateProgressBar().catch((error) => console.error(error));
+            }, MOVE_RECONCILE_DELAY);
+        }
+        this._membershipRetryDebounced();
+    }
+
+    /**
      * Re-fetch aggregates for a group if it has an active bar selection.
      * @param {Group} group - The group to update.
      */
@@ -665,6 +682,11 @@ class ProgressBarState {
                 currentIds.length !== groupIds.size ||
                 currentIds.some((id) => !groupIds.has(id))
             ) {
+                // Membership changed during the RPC: the fetched counts
+                // describe a stale group set. Discarding alone would leave
+                // the bars stale until the next data event — schedule one
+                // debounced re-fetch against the new set instead.
+                this._scheduleMembershipRetry();
                 return;
             }
             this._pbCounts = res;
@@ -880,7 +902,10 @@ export function useProgressBar(progressAttributes, model, aggregateFields, activ
             console.error(error),
         );
     };
-    onWillDestroy(() => progressBarState._moveReconcileDebounced?.cancel());
+    onWillDestroy(() => {
+        progressBarState._moveReconcileDebounced?.cancel();
+        progressBarState._membershipRetryDebounced?.cancel();
+    });
 
     return progressBarState;
 }

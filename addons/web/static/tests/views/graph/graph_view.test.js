@@ -1244,6 +1244,56 @@ test("switching mode", async () => {
     checkModeIs(view, "pie");
 });
 
+test("chart is updated in place when the chart type is unchanged", async () => {
+    // Regression: every data/config change destroyed and recreated the
+    // Chart.js instance, replaying the full entry animation. When the
+    // computed type is unchanged the instance must be kept and updated.
+    const view = await mountView({
+        type: "graph",
+        resModel: "foo",
+        arch: /* xml */ `
+            <graph>
+                <field name="bar" />
+            </graph>
+        `,
+    });
+    const chart = getChart(view);
+    checkLegend(view, "Count");
+
+    // Toggling a measure reloads the data but keeps the chart type: same
+    // instance, updated data/options. (Compare identities as booleans: hoot's
+    // human-readable formatter cannot print a whole Chart instance.)
+    await toggleMenu("Measures");
+    await toggleMenuItem("Foo");
+    expect(getChart(view) === chart).toBe(true, {
+        message: "measure toggle should update the chart in place",
+    });
+    checkLegend(view, "Foo");
+    expect(getYAxisLabel(view)).toBe("Foo");
+
+    // bar → line changes the chart type: the chart is recreated.
+    await selectMode("line");
+    expect(getChart(view) === chart).toBe(false, {
+        message: "mode change should recreate the chart",
+    });
+    checkModeIs(view, "line");
+
+    const lineChart = getChart(view);
+
+    // scatter mode is rendered as a "line"-type chart too: same instance.
+    await selectMode("scatter");
+    expect(getChart(view) === lineChart).toBe(true, {
+        message: "line → scatter should update the chart in place",
+    });
+    expect(getGraphModelMetaData(view).mode).toBe("scatter");
+
+    await selectMode("pie");
+    expect(getChart(view) === lineChart).toBe(false, {
+        message: "scatter → pie should recreate the chart",
+    });
+    checkModeIs(view, "pie");
+});
+
 test("switching measure", async () => {
     const checkMeasure = (measure) => {
         const yAxe = getChart(view).config.options.scales.y;

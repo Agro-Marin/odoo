@@ -558,6 +558,7 @@ describe("urgentSave in-flight guard", () => {
         rec.data = {};
         rec.dirty = true;
         rec._saveInFlight = false;
+        rec._urgentBeaconFired = false;
         rec._values = markRaw({ name: "orig" });
         rec._checkValidity = () => true;
         rec._getChanges = () => ({ name: "X" });
@@ -605,7 +606,7 @@ describe("urgentSave in-flight guard", () => {
         expect(webSaveCalls).toBe(1);
     });
 
-    test("urgentSave skips the beacon while a save is parked in onWillSaveRecord", async () => {
+    test("urgentSave fires the beacon while a save is parked in onWillSaveRecord; the resumed save does not double-write", async () => {
         let beaconCalls = 0;
         mockSendBeacon(() => {
             beaconCalls++;
@@ -627,22 +628,27 @@ describe("urgentSave in-flight guard", () => {
 
         const saveProm = save(rec, { reload: false });
         await animationFrame();
-        // Parked in the hook: no RPC yet, but the in-flight marker is up.
+        // Parked in the hook: no RPC yet, and the in-flight marker is NOT up
+        // — a parked webSave cannot land after a real unload, so the beacon
+        // must stay available here or the user's work is lost on tab close.
         expect(webSaveCalls).toBe(0);
-        expect(rec._saveInFlight).toBe(true);
+        expect(rec._saveInFlight).toBe(false);
 
-        // Tab closes while the save is parked: the beacon must be skipped —
-        // the beacon + the parked webSave used to double-write the same
-        // changes (duplicate x2many CREATEs the server cannot reject).
+        // Tab closes while the save is parked: the beacon fires and persists
+        // the change set.
         const urgentResult = await rec.urgentSave();
         expect(urgentResult).toBe(true);
-        expect(beaconCalls).toBe(0);
+        expect(beaconCalls).toBe(1);
         expect(webSaveCalls).toBe(0);
 
+        // The unload was canceled and the parked save resumes: it must NOT
+        // re-send the beacon-persisted changes (duplicate x2many CREATEs the
+        // server cannot reject).
         hookDef.resolve();
-        await saveProm;
+        expect(await saveProm).toBe(true);
         expect(rec._saveInFlight).toBe(false);
-        expect(webSaveCalls).toBe(1);
+        expect(webSaveCalls).toBe(0);
+        expect(rec._urgentBeaconFired).toBe(false);
     });
 
     test("urgentSave still fires when no save is in flight", async () => {

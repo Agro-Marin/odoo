@@ -138,10 +138,10 @@ export class DateTimeField extends Component {
                 onToggleRange,
             };
             if (this.props.maxDate) {
-                pickerProps.maxDate = this.parseLimitDate(this.props.maxDate);
+                pickerProps.maxDate = this.parseLimitDate(this.props.maxDate, "max");
             }
             if (this.props.minDate) {
-                pickerProps.minDate = this.parseLimitDate(this.props.minDate);
+                pickerProps.minDate = this.parseLimitDate(this.props.minDate, "min");
             }
             if (!isNaN(/** @type {any} */ (this.props.rounding))) {
                 pickerProps.rounding = this.props.rounding;
@@ -392,14 +392,27 @@ export class DateTimeField extends Component {
 
     /**
      * @param {string} value
+     * @param {"min" | "max"} [boundary] which picker bound the value feeds;
+     *  only relevant for bare-date strings on datetime fields.
      */
-    parseLimitDate(value) {
+    parseLimitDate(value, boundary) {
         if (value === "today") {
             return value;
         }
-        return this.field.type === "date"
-            ? deserializeDate(value)
-            : deserializeDateTime(value);
+        if (this.field.type === "date") {
+            return deserializeDate(value);
+        }
+        // Bare-date min_date/max_date on a datetime field: the option means a
+        // calendar day in the *user's* timezone, covering the whole local day
+        // (start of day for min, end of day for max). deserializeDateTime
+        // would read it as UTC midnight, shifting the bound by the tz offset
+        // (e.g. UTC-6: max "2017-02-10" would become Feb 9 18:00 local,
+        // wrongly excluding most of Feb 10).
+        if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+            const day = deserializeDate(value);
+            return boundary === "max" ? day.endOf("day") : day.startOf("day");
+        }
+        return deserializeDateTime(value);
     }
 
     /**

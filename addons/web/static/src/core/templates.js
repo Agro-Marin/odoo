@@ -294,12 +294,16 @@ export class TemplateRegistry {
             delete this.templates[name];
             delete this.info[name];
             delete this.parsedTemplates[name];
+            // Evict the parsed-extension CACHE only: it is derived state,
+            // lazily rebuilt from `templateExtensions` on the next
+            // _getTemplate, so dropping it can't lose anyone's registration.
+            // The raw `templateExtensions[name]` descriptors are NOT touched:
+            // they belong to whoever called registerTemplateExtension (each
+            // registration has its own unregister callback), and this registry
+            // is a globalThis-shared singleton — deleting them here would
+            // silently clobber other owners' extensions when one owner
+            // unregisters its primary template.
             delete this.parsedTemplateExtensions[name];
-            // Drop leftover blockId entries in templateExtensions too, or
-            // they'd be iterated as orphans by _getTemplate if `name` is
-            // re-registered later (e.g. between tests), leaking stale
-            // parsed-extension state.
-            delete this.templateExtensions[name];
             this.processedTemplates.delete(name);
             this.registered.delete(key);
         };

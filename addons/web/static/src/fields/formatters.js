@@ -144,13 +144,13 @@ export function formatFloat(value, options = {}) {
     if (value === false) {
         return "";
     }
-    if (!options.digits && options.field) {
-        options.digits = options.field.digits;
-    }
-    if (!options.minDigits && options.field) {
-        options.minDigits = options.field.min_display_digits;
-    }
-    return formatFloatNumber(value, options);
+    // Derive locally instead of writing the fallbacks back into `options`:
+    // callers may share/cache one options object across fields (e.g.
+    // view_utils' per-column cache), and mutating it would leak the first
+    // field's digits onto every later call.
+    const digits = options.digits || options.field?.digits;
+    const minDigits = options.minDigits || options.field?.min_display_digits;
+    return formatFloatNumber(value, { ...options, digits, minDigits });
 }
 formatFloat.extractOptions = ({ attrs, options }) => ({
     decimals: options.decimals || 0,
@@ -173,10 +173,9 @@ export function formatFloatFactor(value, options = {}) {
         return "";
     }
     const factor = options.factor || 1;
-    if (!options.digits && options.field) {
-        options.digits = options.field.digits;
-    }
-    return formatFloatNumber(value * factor, options);
+    // Same as formatFloat: never mutate the caller's (possibly shared) options.
+    const digits = options.digits || options.field?.digits;
+    return formatFloatNumber(value * factor, { ...options, digits });
 }
 formatFloatFactor.extractOptions = ({ attrs, options }) => ({
     ...formatFloat.extractOptions({ attrs, options }),
@@ -357,10 +356,14 @@ export function formatPercentage(value, options = {}) {
         // `false` (unset) renders empty like formatFloat, not as "0%".
         return "";
     }
-    options = Object.assign({ trailingZeros: false, thousandsSep: "" }, options);
-    if (!options.digits && options.field) {
-        options.digits = options.field.digits;
-    }
+    // Local copy (never mutate the caller's options) + digits fallback,
+    // consistent with formatFloat.
+    options = {
+        trailingZeros: false,
+        thousandsSep: "",
+        ...options,
+        digits: options.digits || options.field?.digits,
+    };
     const formatted = formatFloatNumber(/** @type {any} */ (value) * 100, options);
     return `${formatted}${options.noSymbol ? "" : "%"}`;
 }

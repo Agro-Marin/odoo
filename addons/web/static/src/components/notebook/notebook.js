@@ -150,7 +150,10 @@ export class Notebook extends Component {
             this.state.currentPage !== pageIndex
         ) {
             const prom = (async () => this.props.onWillActivatePage(pageIndex))();
-            const canProceed = await this.keepLastPageTransition.add(prom);
+            // Always set in setup(), before any page can be activated.
+            const canProceed = await /** @type {KeepLast} */ (
+                this.keepLastPageTransition
+            ).add(prom);
             if (canProceed !== false) {
                 this.activePane.el?.classList.remove("show");
                 this.state.currentPage = pageIndex;

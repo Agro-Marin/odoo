@@ -111,6 +111,12 @@ class ResConfigInviteUsers extends Component {
 
     /** Send invitation for valid and unique email addresses. @private */
     async sendInvite() {
+        if (this.state.status === "inviting") {
+            // Re-entrancy guard: a second Enter/click while the RPC is in
+            // flight would re-send the not-yet-refreshed pending_users list,
+            // creating the same invitations twice.
+            return;
+        }
         try {
             this.validate();
         } catch (e) {

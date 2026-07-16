@@ -202,9 +202,13 @@ function getConsumer(scriptUrl) {
     if (!promise) {
         promise = (async () => {
             const scriptText = await (await fetch(scriptUrl)).text();
-            // Last directive wins (matches browser behavior); scan the tail
-            // only — esbuild puts the directive on the final line.
-            const tail = scriptText.slice(-1024);
+            // Last directive wins (matches browser behavior). Scan from the
+            // LAST occurrence of the directive marker rather than a
+            // fixed-size tail: an inline ``data:`` sourcemap makes the final
+            // line arbitrarily long (base64 of the whole map), so any byte
+            // cap would cut the directive off.
+            const directiveIndex = scriptText.lastIndexOf("//# sourceMappingURL=");
+            const tail = directiveIndex === -1 ? "" : scriptText.slice(directiveIndex);
             const match = SOURCE_MAPPING_URL_RE.exec(tail);
             if (!match) {
                 return null;

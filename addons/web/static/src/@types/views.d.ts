@@ -206,7 +206,8 @@ declare module "@web/views/view_utils" {
     };
 
     export function computeArchiveEnabled(
-        fields: Record<string, any>,
+        readonlySource: Record<string, any>,
+        presenceSource?: Record<string, any>,
     ): boolean;
 
     export function buildActionMenuItems(
@@ -580,6 +581,10 @@ declare module "@web/views/view_compiler" {
     export function getModifier(el: Element, modifierName: string): string | null;
     export function isComponentNode(el: Element): boolean;
     export function isTextNode(node: Node): boolean;
+    export function makeIsVisibleExpr(
+        invisible: string | null | undefined,
+        recordExpr?: string,
+    ): string;
     export function makeSeparator(title: string | null): Element;
     export function resetViewCompilerCache(): void;
 

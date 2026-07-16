@@ -482,6 +482,10 @@ export class DynamicList extends DataPoint {
             invalidRecords.forEach((record) => record._discard());
 
         if (!validRecords.length) {
+            // Deliberately do NOT store the returned closer: the multi-edit
+            // "all records invalid" toast must persist past the
+            // discardInvalidRecords() below (whose discard() would otherwise
+            // dismiss it), so the user sees why the edit was rejected.
             editedRecord._displayInvalidFieldNotification();
             discardInvalidRecords();
             return false;

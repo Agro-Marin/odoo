@@ -154,3 +154,27 @@ test("action with html help returned by a server action", async () => {
 
     expect(".o_kanban_view .o_nocontent_help p").toHaveText("I am not a helper");
 });
+
+test("cyclic server action chains hit the recursion limit", async () => {
+    defineActions([
+        {
+            id: 2,
+            type: "ir.actions.server",
+        },
+    ]);
+    let runCount = 0;
+    onRpc("/web/action/run", async () => {
+        runCount++;
+        // The server action returns itself as follow-up: without the depth
+        // guard this would loop doAction -> /web/action/run forever.
+        return { type: "ir.actions.server", id: 2 };
+    });
+
+    await mountWithCleanup(WebClient);
+    await expect(getService("action").doAction(2)).rejects.toThrow(
+        "Action recursion limit exceeded (max 20)",
+    );
+    // Executor invocation k runs the RPC then checks depth k: the cap (> 20)
+    // trips on the 21st follow-up, so exactly 21 RPCs went out.
+    expect(runCount).toBe(21);
+});

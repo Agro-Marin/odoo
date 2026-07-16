@@ -7,8 +7,8 @@ const offLineURL = `${homepageURL}/offline`;
 
 // Separate cache for long-lived static responses.  Distinct from
 // ``cacheName`` above so a ``caches.delete`` on logout purges user-scoped
-// data without nuking the offline page.  Holds translations, asset
-// bundles, and cache-busted ``/web/image/`` responses.
+// data without nuking the offline page.  Holds asset bundles and
+// cache-busted ``/web/image/`` responses.
 const staticCacheName = "odoo-static-cache";
 
 // URL patterns eligible for stale-while-revalidate.  Only CONTENT-ADDRESSED
@@ -18,10 +18,20 @@ const staticCacheName = "odoo-static-cache";
 // asset URLs where the "unique" segment is `debug`, `any`, or `%`
 // (controllers/binary.py); requiring a hex-hash segment (>=7 hex chars)
 // excludes those, so a developer in `?debug=assets` no longer gets the
-// previous build served stale on every reload.  Translations are versioned
-// by the same hash round-trip and match their own route.
-const STATIC_PATH_RE =
-    /^\/web\/(webclient\/translations(\/|$)|assets\/(esm\/)?[0-9a-f]{7,}\/)/;
+// previous build served stale on every reload.
+//
+// ``/web/webclient/translations`` must NOT be listed here: the URL is not
+// content-addressed (the hash rides in a QUERY PARAM and identifies the
+// CLIENT's cached version, not the response).  The localization service owns
+// that route's caching — it persists translations in IndexedDB for instant
+// warm boots and revalidates them with a ``cache: "no-store"`` fetch whose
+// hash round-trip the server answers with a minimal ``{lang, hash}`` body on
+// match (services/localization_service.js:fetchTranslations,
+// controllers/webclient.py:translations).  A SW cache layer on top replayed
+// per-URL "unchanged" bodies after the server had moved to a new hash, and
+// after a deploy re-seeded the fresh IndexedDB cache from the pre-deploy
+// full payload — i.e. it served stale terms, never fresher ones.
+const STATIC_PATH_RE = /^\/web\/assets\/(esm\/)?[0-9a-f]{7,}\//;
 // ``/web/image/`` URLs are only content-addressable when the caller passed a
 // cache-busting token (``unique=`` — see ``core/utils/urls.js:imageUrl``); a
 // bare ``/web/image/<model>/<id>/<field>`` URL is mutable server-side and
@@ -72,15 +82,18 @@ self.addEventListener("activate", (event) => {
     // that only ever grows: purge them here too, bounding the static cache to
     // roughly one deploy's worth instead of accumulating every superseded
     // bundle set until browser quota eviction nukes the whole origin (which
-    // would also take the IndexedDB RPC cache with it).  Translations stay
-    // (small, re-validated by the hash round-trip).
+    // would also take the IndexedDB RPC cache with it).
     event.waitUntil(purgeSupersededStaticEntries());
 });
 
 /**
  * Deletes all ``/web/image`` and content-hashed ``/web/assets`` entries from
  * the static cache — the entries that are either mutable (images) or
- * superseded after a deploy (old asset hashes).
+ * superseded after a deploy (old asset hashes).  Also drops the
+ * ``/web/webclient/translations`` entries earlier service-worker versions
+ * cached: this version no longer intercepts that route (IndexedDB owns
+ * translation caching — see STATIC_PATH_RE), so those entries are dead
+ * weight that would otherwise linger forever.
  *
  * @returns {Promise<void>}
  */
@@ -89,7 +102,11 @@ const purgeSupersededStaticEntries = async () => {
         const cache = await caches.open(staticCacheName);
         for (const request of await cache.keys()) {
             const { pathname } = new URL(request.url);
-            if (IMAGE_PATH_RE.test(pathname) || pathname.startsWith("/web/assets/")) {
+            if (
+                IMAGE_PATH_RE.test(pathname) ||
+                pathname.startsWith("/web/assets/") ||
+                pathname.startsWith("/web/webclient/translations")
+            ) {
                 await cache.delete(request);
             }
         }
@@ -312,7 +329,7 @@ const fetchErrorMessages = [
 ];
 
 /**
- * Serve ``request`` using stale-while-revalidate: if a cached entry
+ * Serve the event's request using stale-while-revalidate: if a cached entry
  * exists, return it immediately while kicking off a background fetch
  * to refresh the cache; otherwise go to the network.  Errors during the
  * background refresh are swallowed — the already-served cached response
@@ -321,25 +338,36 @@ const fetchErrorMessages = [
  * Only GET requests with 2xx responses are stored.  Opaque responses
  * and non-OK statuses are never cached.
  *
- * @param {Request} request
+ * @param {FetchEvent} event
  * @returns {Promise<Response>}
  */
-const staleWhileRevalidate = async (request) => {
+const staleWhileRevalidate = async (event) => {
+    const request = event.request;
     const cache = await caches.open(staticCacheName);
     const cached = await cache.match(request);
     const networkPromise = fetch(request)
-        .then((response) => {
+        .then(async (response) => {
             if (response.ok) {
                 // ``response.clone()`` because putting the original would
                 // lock the body stream before we return it to the caller.
-                cache.put(request, response.clone()).catch(() => {
+                await cache.put(request, response.clone()).catch(() => {
                     // Quota exceeded or storage disabled — drop silently.
                 });
             }
             return response;
         })
         .catch(() => cached);
-    return cached || networkPromise;
+    if (cached) {
+        // Keep the worker alive until the background refresh (fetch + cache
+        // write) settles: once ``respondWith`` resolves with the cached
+        // response the browser may terminate the worker at any point, and a
+        // fire-and-forget refresh would be silently dropped — pinning the
+        // stale entry until some later request happens to complete one.
+        // ``networkPromise`` never rejects (errors resolve to ``cached``).
+        event.waitUntil(networkPromise);
+        return cached;
+    }
+    return networkPromise;
 };
 
 /**
@@ -435,7 +463,7 @@ self.addEventListener("fetch", (event) => {
         event.request.method === "GET" &&
         isStaleWhileRevalidateURL(new URL(event.request.url))
     ) {
-        event.respondWith(staleWhileRevalidate(event.request));
+        event.respondWith(staleWhileRevalidate(event));
         return;
     }
     if (
@@ -466,6 +494,17 @@ const waitingMessage = async (message) =>
     });
 
 self.addEventListener("message", (event) => {
+    if (event.data?.type === "SKIP_WAITING") {
+        // Sent by the webclient (webclient.js:watchServiceWorkerUpdates)
+        // when this worker version finished installing while an older
+        // version is still active: activate immediately instead of waiting
+        // for every tab under the scope to close.  Mid-session activation
+        // is safe — the fetch handlers are stateless (pure URL-pattern
+        // routing over persistent caches), so swapping versions between two
+        // fetches cannot corrupt in-flight state.
+        self.skipWaiting();
+        return;
+    }
     const messageNotifiers = nextMessageMap.get(event.data);
     if (messageNotifiers) {
         for (const messageNotified of messageNotifiers) {

@@ -93,6 +93,9 @@ const NON_IDEMPOTENT_METHODS = [
     "web_resequence",
     "name_create",
     "copy",
+    // Flips ``active`` on the records (odoo/orm/models/mixins/lifecycle.py):
+    // a retry after a lost response would double-flip the archive state.
+    "toggle_active",
 ];
 
 export class ORM {

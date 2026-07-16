@@ -51,9 +51,14 @@ export class CalendarYearRenderer extends Component {
         );
         this.rootRef = useRef("root");
 
-        useEffect(() => {
-            this.updateSize();
-        });
+        // Depend on the root element: dep-less, this re-ran updateSize() (a
+        // rect read + height write, i.e. a forced reflow over 12 mini
+        // calendars) on EVERY patch. Resizes are already covered by the
+        // window listener below.
+        useEffect(
+            () => this.updateSize(),
+            () => [this.rootRef.el],
+        );
 
         // v7 dropped v6's ``windowResize`` option (ResizeObserver only);
         // listen on ``window`` directly. One resize means one layout update:

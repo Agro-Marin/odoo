@@ -268,9 +268,12 @@ export function parsePercentage(value, { allowOperation = false } = {}) {
     if (value.at(-1) === "%") {
         value = value.slice(0, -1);
     }
-    const parsed = parseFloat(value, { allowOperation });
+    // parseFloat's declared return type omits the Operation it yields when
+    // allowOperation is set, hence the widening cast.
+    const parsed = /** @type {number | Operation} */ (
+        parseFloat(value, { allowOperation })
+    );
     if (parsed instanceof Operation) {
-        // @ts-expect-error returns Operation when allowOperation is true
         return parsed;
     }
     return parsed / 100;

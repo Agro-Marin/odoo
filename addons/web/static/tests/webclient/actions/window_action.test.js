@@ -739,6 +739,13 @@ test("A new form view can be reloaded after a failed one", async () => {
     expect(browser.location.pathname).toBe("/odoo/action-3/1");
     // As the previous one is deleted, we go back to the list
     await runAllTimers(); // wait for the update of the router
+    // The deleted-record recovery is async: the failed form load throws
+    // FetchRecordError, and the list is restored via a fresh ACTION_MANAGER
+    // dispatch whose final DOM update lands on the next OWL render frame —
+    // which runAllTimers() does not flush. Await that frame before asserting
+    // the list is displayed (the surrounding contains() calls already poll for
+    // it). Without this the assertion checks one render-frame too early.
+    await animationFrame();
     expect(".o_list_view").toHaveCount(1, {
         message: "should still display the list view",
     });

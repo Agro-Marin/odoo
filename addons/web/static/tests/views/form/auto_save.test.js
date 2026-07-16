@@ -2,7 +2,14 @@
 
 import { expect, test } from "@odoo/hoot";
 import { unload } from "@odoo/hoot-dom";
-import { animationFrame, Deferred, mockSendBeacon } from "@odoo/hoot-mock";
+import {
+    animationFrame,
+    Deferred,
+    mockSendBeacon,
+    runAllTimers,
+} from "@odoo/hoot-mock";
+import { Component, onWillStart, useState, xml } from "@odoo/owl";
+import { useFormViewInDialog } from "@web/views/form/form_utils";
 import { WebClient } from "@web/webclient/webclient";
 
 import {
@@ -1085,4 +1092,101 @@ test(`doesn't autosave when a x2many is in openned (visibility change) 2`, async
     await animationFrame();
     expect(`.o_form_status_indicator_buttons:not(.invisible)`).toHaveCount(0);
     expect.verifySteps(["web_save"]);
+});
+
+test(`doesn't autosave while a form dialog is still loading (visibility change)`, async () => {
+    // The dialog form registers on the form_dialog_stack in setup(), BEFORE
+    // its willStart (loadViews / loadSubViews / initial onchange). A tab-hide
+    // during that loading window must not auto-save the parent form.
+    Partner._fields.product_id = fields.Many2one({ relation: "product" });
+
+    class Product extends models.Model {
+        name = fields.Char();
+        _records = [{ id: 37, name: "xphone" }];
+    }
+    Product._views = { form: `<form><field name="name"/></form>` };
+    defineModels([Product]);
+
+    const def = new Deferred();
+    onRpc("onchange", ({ model }) => {
+        if (model === "product") {
+            // Block the dialog form's initial load (new-record onchange).
+            return def;
+        }
+    });
+    onRpc("web_save", () => expect.step("web_save"));
+    await mountView({
+        type: "form",
+        resModel: "partner",
+        arch: `<form><field name="name"/><field name="product_id"/></form>`,
+        resId: 1,
+    });
+    await fieldInput("name").edit("Mathiew Brown");
+
+    await contains(`.o_field_many2one_selection .o-autocomplete--input`).edit("ABC", {
+        confirm: false,
+    });
+    await runAllTimers(); // skip the m2o search debounce
+    await contains(`.o_m2o_dropdown_option_create_edit`).click();
+    // The dialog form is stuck in willStart: nothing mounted yet.
+    expect(`.o_dialog`).toHaveCount(0);
+
+    await hideTab();
+    expect.verifySteps([]); // parent must NOT web_save during the load window
+
+    def.resolve();
+    await animationFrame();
+    expect(`.o_dialog .o_form_view`).toHaveCount(1);
+
+    // Once the dialog is discarded, tab-hide auto-save resumes (the counter
+    // was popped exactly once).
+    await contains(`.o_dialog .o_form_button_cancel`).click();
+    expect(`.o_dialog`).toHaveCount(0);
+    await hideTab();
+    expect.verifySteps(["web_save"]);
+});
+
+test(`form-in-dialog destroyed before mount doesn't leak the dialog-stack counter`, async () => {
+    // A dialog form closed while still loading (willStart pending) is
+    // destroyed without ever mounting. The stack pop must run on destroy —
+    // an unmount-based pop would leak the counter and permanently disable
+    // tab-hide auto-save for every later form view on the page.
+    const def = new Deferred();
+
+    class BlockedDialogForm extends Component {
+        static template = xml`<div class="blocked_dialog_form"/>`;
+        static props = {};
+        setup() {
+            useFormViewInDialog();
+            onWillStart(() => def);
+        }
+    }
+
+    class Parent extends Component {
+        static template = xml`<t><BlockedDialogForm t-if="state.show"/></t>`;
+        static components = { BlockedDialogForm };
+        static props = {};
+        setup() {
+            this.state = useState({ show: false });
+        }
+    }
+
+    const parent = await mountWithCleanup(Parent);
+    const stack = getService("form_dialog_stack");
+    expect(stack.count).toBe(0);
+
+    parent.state.show = true;
+    await animationFrame();
+    // setup() ran (push), willStart still pending: the form never mounts.
+    expect(stack.count).toBe(1);
+    expect(`.blocked_dialog_form`).toHaveCount(0);
+
+    parent.state.show = false;
+    await animationFrame();
+    expect(stack.count).toBe(0); // destroyed-before-mount still popped
+
+    def.resolve(); // a late willStart resolution must not resurrect anything
+    await animationFrame();
+    expect(stack.count).toBe(0);
+    expect(`.blocked_dialog_form`).toHaveCount(0);
 });

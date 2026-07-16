@@ -9,8 +9,11 @@ import {
     models,
     mountView,
     onRpc,
+    patchWithCleanup,
     preloadFullCalendar,
 } from "@web/../tests/web_test_helpers";
+import { IANAZone, Settings } from "@web/core/l10n/luxon";
+import { getFullCalendarTimeZone } from "@web/views/calendar/hooks/full_calendar_hook";
 
 /**
  * DST-transition coverage with a real IANA zone. The rest of the calendar
@@ -19,6 +22,11 @@ import {
  * two European transitions:
  * - spring forward: 2024-03-31, 02:00 +01:00 -> 03:00 +02:00
  * - fall back:      2024-10-27, 03:00 +02:00 -> 02:00 +01:00
+ *
+ * Also pins `getFullCalendarTimeZone`'s zone classification: slash-less
+ * IANA zones with working DST (CET, EET, GB, ...) must pass through by
+ * name — hoot's `mockTimeZone` only accepts `Region/Location` strings, so
+ * those tests patch `Settings.defaultZone` directly.
  */
 
 class Event extends models.Model {
@@ -56,6 +64,13 @@ class Event extends models.Model {
             name: "after fall switch",
             start: "2024-10-27 22:30:00", // local 23:30 (+01:00)
             stop: "2024-10-27 22:45:00",
+        },
+        // Summer week in a slash-less IANA zone (CET -> CEST, +02:00)
+        {
+            id: 5,
+            name: "summer CET, crosses UTC midnight",
+            start: "2024-07-09 22:30:00", // local Jul 10th, 00:30 (CEST, +02:00)
+            stop: "2024-07-09 22:45:00",
         },
     ];
 }
@@ -182,4 +197,54 @@ test("week header labels stay aligned across the transition", async () => {
         "5",
         "6",
     ]);
+});
+
+test("getFullCalendarTimeZone passes slash-less IANA zones through by name", async () => {
+    // Zone classification must go by Luxon zone TYPE, not name shape: CET
+    // is a real IANA zone with working DST. A name-shape check (`includes("/")`)
+    // used to drop it into the fixed-offset path, freezing the January-1970
+    // offset (Etc/GMT-1) for the whole year.
+    patchWithCleanup(Settings, { defaultZone: IANAZone.create("CET") });
+    expect(getFullCalendarTimeZone()).toBe("CET");
+});
+
+test("getFullCalendarTimeZone accepts a system zone resolving to an IANA name", async () => {
+    // The system zone's name is Intl's resolved identifier — pass it through
+    // when Intl can resolve it, even without a slash. Minimal Zone-like stub:
+    // the function only reads `type` / `name` / `offset`.
+    patchWithCleanup(Settings, {
+        defaultZone: { type: "system", name: "CET", offset: () => 120, isValid: true },
+    });
+    expect(getFullCalendarTimeZone()).toBe("CET");
+});
+
+test("getFullCalendarTimeZone maps fixed offsets to inverted POSIX Etc/GMT names", async () => {
+    // `mockTimeZone(+2)` installs a FixedOffsetZone(+120') as defaultZone
+    // (see tests/_framework/patch_test_helpers.js) — not an IANA zone, so it
+    // takes the POSIX path with the sign inverted: UTC+2 -> Etc/GMT-2.
+    mockTimeZone(+2);
+    expect(getFullCalendarTimeZone()).toBe("Etc/GMT-2");
+    mockTimeZone(-7);
+    expect(getFullCalendarTimeZone()).toBe("Etc/GMT+7");
+});
+
+test.tags("desktop");
+test("summer events in a slash-less DST zone render in the local day column", async () => {
+    mockDate("2024-07-10T08:00:00");
+    // hoot's `mockTimeZone` rejects slash-less names; install IANAZone("CET")
+    // the same way the framework's onTimeZoneChange hook would.
+    patchWithCleanup(Settings, { defaultZone: IANAZone.create("CET") });
+
+    await mountView({
+        resModel: "event",
+        type: "calendar",
+        arch: `<calendar date_start="start" date_stop="stop" mode="week"/>`,
+    });
+
+    // Jul 9th 22:30Z is CEST (+02:00): local Jul 10th, 00:30. The frozen
+    // January offset (Etc/GMT-1) would render it at 23:30 in the Jul 9th
+    // column, one hour (and one day) early.
+    expect(
+        queryFirst(`.o_event[data-event-id="5"]`).closest("[data-date]"),
+    ).toHaveAttribute("data-date", "2024-07-10");
 });

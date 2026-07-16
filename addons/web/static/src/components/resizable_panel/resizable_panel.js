@@ -28,8 +28,8 @@ import {
 
 /**
  * OWL composable hook that makes a container element resizable via a drag handle.
- * Handles mouse interactions, respects RTL/LTR direction, and clamps width
- * between a minimum and the available parent width.
+ * Handles pointer interactions (mouse, touch, and pen), respects RTL/LTR
+ * direction, and clamps width between a minimum and the available parent width.
  *
  * @param {UseResizableParams} params
  */
@@ -72,7 +72,10 @@ function useResizable({
     onMounted(() => {
         if (handleRef.el) {
             resize(initialWidth);
-            handleRef.el.addEventListener("mousedown", onMouseDown);
+            handleRef.el.addEventListener("pointerdown", onPointerDown);
+            // Without this the browser claims a touch drag for scrolling and
+            // fires pointercancel, killing the resize gesture on touch.
+            handleRef.el.style.touchAction = "none";
         }
     });
 
@@ -83,42 +86,54 @@ function useResizable({
 
     onWillUnmount(() => {
         if (handleRef.el) {
-            handleRef.el.removeEventListener("mousedown", onMouseDown);
+            handleRef.el.removeEventListener("pointerdown", onPointerDown);
         }
         // Safety: end the drag if unmounted mid-drag — restores the body
         // classes and drops the document-level drag listeners.
         if (isChangingSize) {
-            onMouseUp();
+            onPointerUp();
         }
     });
 
     /**
      * Begin drag — disable pointer events and text selection on body.
      * The document-level drag listeners are only attached for the
-     * duration of the drag.
+     * duration of the drag. Pointer events (vs mouse events) make the
+     * handle usable with touch and pen too; capturing the pointer keeps
+     * the move/up stream flowing to the handle (and bubbling to the
+     * document listeners below) even when the pointer leaves it.
+     *
+     * @param {PointerEvent} ev
      */
-    function onMouseDown() {
+    function onPointerDown(ev) {
         isChangingSize = true;
         document.body.classList.add("pe-none", "user-select-none");
-        document.addEventListener("mousemove", onMouseMove);
-        document.addEventListener("mouseup", onMouseUp);
+        try {
+            handleRef.el?.setPointerCapture(ev.pointerId);
+        } catch {
+            // Synthetic events (tests) have no active pointer to capture.
+        }
+        document.addEventListener("pointermove", onPointerMove);
+        document.addEventListener("pointerup", onPointerUp);
+        document.addEventListener("pointercancel", onPointerUp);
     }
 
     /** End drag — restore pointer events and text selection on body. */
-    function onMouseUp() {
+    function onPointerUp() {
         isChangingSize = false;
         document.body.classList.remove("pe-none", "user-select-none");
-        document.removeEventListener("mousemove", onMouseMove);
-        document.removeEventListener("mouseup", onMouseUp);
+        document.removeEventListener("pointermove", onPointerMove);
+        document.removeEventListener("pointerup", onPointerUp);
+        document.removeEventListener("pointercancel", onPointerUp);
     }
 
     /**
      * Handle drag movement — compute new width from cursor position,
      * accounting for RTL/LTR direction and resize side.
      *
-     * @param {MouseEvent} ev
+     * @param {PointerEvent} ev
      */
-    function onMouseMove(ev) {
+    function onPointerMove(ev) {
         if (!isChangingSize || !containerRef.el) {
             return;
         }

@@ -1,7 +1,7 @@
 // @ts-check
 
 import { describe, expect, test } from "@odoo/hoot";
-import { mockDate, mockTimeZone } from "@odoo/hoot-mock";
+import { Deferred, mockDate, mockTimeZone, tick } from "@odoo/hoot-mock";
 import { Component, xml } from "@odoo/owl";
 import {
     defineModels,
@@ -1161,4 +1161,51 @@ test("fillSearchViewItemsProperty fetches each properties field's definitions at
     await model.fillSearchViewItemsProperty();
 
     expect(fetchedFields).toEqual(["properties"]);
+});
+
+test("concurrent fillSearchViewItemsProperty calls both see the loaded items", async () => {
+    const model = await createSearchModel({
+        searchViewArch: `
+            <search>
+                <field name="properties"/>
+            </search>
+        `,
+    });
+
+    const def = new Deferred();
+    let fetchCount = 0;
+    model._fetchPropertiesDefinition = async () => {
+        fetchCount++;
+        await def;
+        return [
+            {
+                definitionRecordId: 1,
+                definitionRecordName: "Parent",
+                definitions: [{ name: "my_char", string: "My Char", type: "char" }],
+            },
+        ];
+    };
+
+    const isPropertyGroupBy = (item) =>
+        item.isProperty && ["groupBy", "dateGroupBy"].includes(item.type);
+
+    const firstFill = model.fillSearchViewItemsProperty();
+    const secondFill = model.fillSearchViewItemsProperty();
+
+    // The second caller must await the in-flight load, not resolve early with
+    // zero items (which used to latch an empty Properties group-by menu).
+    let secondSettled = false;
+    secondFill.then(() => {
+        secondSettled = true;
+    });
+    await tick();
+    expect(secondSettled).toBe(false);
+    expect(model.getSearchItems(isPropertyGroupBy)).toHaveLength(0);
+
+    def.resolve();
+    await secondFill;
+    expect(model.getSearchItems(isPropertyGroupBy)).toHaveLength(1);
+
+    await firstFill;
+    expect(fetchCount).toBe(1);
 });

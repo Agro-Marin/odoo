@@ -22,6 +22,16 @@ function match(normalizedPattern, strs) {
 }
 
 /**
+ * Cap on the per-run score of {@link _match}. The consecutive bonus doubles
+ * the run score on every matched character (exponential growth), so without
+ * a cap a run of ~1000 characters overflows to Infinity and every long match
+ * compares as equal, degenerating the ranking. 2^50 leaves ranking untouched
+ * for any realistic input (the cap is only reached after ~44 consecutive
+ * matched characters) while keeping accumulated totals finite.
+ */
+const MAX_RUN_SCORE = 2 ** 50;
+
+/**
  * Score how well `str` contains the letters of `pattern` in order (0 = no
  * match). Consecutive letters and matches near the start score higher.
  *
@@ -42,7 +52,10 @@ function _match(pattern, str) {
     for (let i = 0; i < len; i++) {
         if (str[i] === pattern[patternIndex]) {
             patternIndex++;
-            currentScore += 100 + currentScore - i / 200;
+            currentScore = Math.min(
+                currentScore + 100 + currentScore - i / 200,
+                MAX_RUN_SCORE,
+            );
         } else {
             currentScore = 0;
         }

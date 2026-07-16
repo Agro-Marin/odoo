@@ -476,7 +476,27 @@ export class PivotModel extends Model {
             if (!(await this._expandGroup(groupId, type, config))) {
                 return; // superseded by a reload: the table was replaced
             }
-            this.metaData = metaData;
+            // Merge only THIS mutation's delta (customGroupBys + expanded
+            // groupBys) into the CURRENT metaData: while the expansion RPC was
+            // in flight, an interleaved toggleMeasure (remove path) may have
+            // replaced this.metaData and an interleaved sortRows may have
+            // mutated its sortedColumn — both run outside the expandMutex.
+            // Assigning the pre-RPC snapshot wholesale here used to resurrect
+            // the removed measure / the stale sort indicator.
+            const mergedMetaData = this._buildMetaData();
+            mergedMetaData.customGroupBys = metaData.customGroupBys;
+            mergedMetaData.expandedRowGroupBys = metaData.expandedRowGroupBys;
+            mergedMetaData.expandedColGroupBys = metaData.expandedColGroupBys;
+            if (mergedMetaData.sortedColumn) {
+                // aggregateSubdivisions re-sorted the tree with the SNAPSHOT's
+                // sortedColumn; re-apply the current one so the row order
+                // matches the indicator (idempotent when they are the same).
+                this._sortRows(mergedMetaData.sortedColumn, {
+                    metaData: mergedMetaData,
+                    data: this.data,
+                });
+            }
+            this.metaData = mergedMetaData;
             this.notify();
         });
     }

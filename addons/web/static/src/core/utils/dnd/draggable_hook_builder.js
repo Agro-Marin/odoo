@@ -857,7 +857,19 @@ export function makeDraggableHook(hookParams) {
 
                     // Delay & tolerance
                     ctx.delay = actualParams.delay;
-                    ctx.touchDelay = actualParams.delay || actualParams.touchDelay;
+                    // Touch delay resolution (documented contract: `touchDelay`
+                    // is "same as delay, but specific to touch environments"):
+                    //  1. an EXPLICIT `touchDelay` param always wins on touch;
+                    //  2. otherwise an explicit `delay` also applies to touch;
+                    //  3. otherwise the built-in touch default (300ms).
+                    // `computedParams` only holds caller-provided params, so it
+                    // distinguishes explicit values from `defaultParams`
+                    // fallbacks (the old `delay || touchDelay` let a mere
+                    // `delay` override an explicit `touchDelay`).
+                    ctx.touchDelay =
+                        computedParams.touchDelay ??
+                        computedParams.delay ??
+                        actualParams.touchDelay;
                     ctx.tolerance = actualParams.tolerance;
 
                     callBuildHandler("onComputeParams", {

@@ -12,7 +12,7 @@ import { Deferred, KeepLast, Mutex } from "@web/core/utils/concurrency";
 import { orderByToString } from "@web/core/utils/order_by";
 import { Model } from "@web/model/model";
 
-import { computeNextConfig } from "./config_transitions.js";
+import { cloneGroupTree, computeNextConfig } from "./config_transitions.js";
 import { DynamicGroupList } from "./dynamic_group_list.js";
 import { DynamicRecordList } from "./dynamic_record_list.js";
 import { FetchRecordError } from "./errors.js";
@@ -739,6 +739,14 @@ export class RelationalModel extends Model {
      */
     async _reloadWithConfig(config, patch, { commit } = {}) {
         const tmpConfig = { ...config, ...patch };
+        if (tmpConfig.groups) {
+            // Candidate isolation (same contract as ``computeNextConfig``):
+            // ``postprocessReadGroup`` mutates group sub-configs in place, so
+            // without the clone a rejected/superseded reload would leak its
+            // group mutations into the committed ``config`` this method
+            // promises to leave untouched until ``_patchConfig``.
+            tmpConfig.groups = cloneGroupTree(tmpConfig.groups);
+        }
         markRaw(tmpConfig.activeFields);
         markRaw(tmpConfig.fields);
         if (tmpConfig.isRoot) {

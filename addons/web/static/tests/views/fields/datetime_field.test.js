@@ -760,6 +760,36 @@ test("list datetime: column widths (numeric format)", async () => {
     ]);
 });
 
+test("bare-date min_date/max_date on a datetime field bound whole days in the user's timezone", async () => {
+    // UTC-6: deserializing the bare dates as UTC midnight would shift both
+    // bounds to 18:00 of the PREVIOUS local day (min "2017-02-08" -> Feb 7
+    // 18:00, max "2017-02-10" -> Feb 9 18:00), enabling Feb 7 and disabling
+    // Feb 10. The options mean whole local days: exactly Feb 8-10 selectable.
+    mockTimeZone(-6);
+
+    await mountView({
+        type: "form",
+        resModel: "partner",
+        resId: 1,
+        arch: /* xml */ `
+            <form>
+                <field name="datetime"
+                    options="{'min_date': '2017-02-08', 'max_date': '2017-02-10'}"/>
+            </form>`,
+    });
+
+    // Record value 2017-02-08 10:00:00 UTC -> Feb 8 04:00 local (in range).
+    await click(".o_field_datetime button");
+    await animationFrame();
+    expect(".o_datetime_picker").toHaveCount(1);
+
+    expect(
+        queryAllTexts(".o_datetime_picker .o_date_item_cell:not([disabled])"),
+    ).toEqual(["8", "9", "10"], {
+        message: "exactly the local days Feb 8-10 must be selectable",
+    });
+});
+
 test("clean datetime does not re-emit FIELD_IS_DIRTY on unrelated re-renders", async () => {
     Partner._fields.bar = fields.Boolean();
     /** @type {boolean[]} */

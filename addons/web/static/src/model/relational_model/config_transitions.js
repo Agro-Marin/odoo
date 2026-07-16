@@ -37,9 +37,11 @@ import { shallowEqual } from "@web/core/utils/collections/objects";
  * offset-reset on domain change so pagination doesn't strand the user on
  * an empty page).
  *
- * Mutates a shallow copy of ``currentConfig``; nested structures
- * (``groups``, ``context``) are NOT deep-cloned since the caller's
- * overwrite semantics already cover the only paths that matter.
+ * Mutates a shallow copy of ``currentConfig``. ``context`` is re-spread and
+ * the ``groups`` tree is structurally cloned (see {@link cloneGroupTree}):
+ * the result is a *candidate* config that a load may freely mutate
+ * (``postprocessReadGroup``, offset resets) without leaking into the
+ * committed config a superseded load would otherwise clobber.
  *
  * Async work (``_getPropertyDefinition``) is deliberately NOT done here —
  * that lives in {@link postprocessReadGroup}, which runs after the RPC.
@@ -105,6 +107,15 @@ export function computeNextConfig(currentConfig, params, deps) {
         // rebuild from scratch.
         if (!shallowEqual(config.groupBy || [], currentGroupBy || [])) {
             delete config.groups;
+        } else if (config.groups) {
+            // Candidate isolation: without the clone, this candidate's
+            // group entries are the COMMITTED config's entries, so a
+            // superseded load's ``postprocessReadGroup`` (which mutates
+            // group domains/context/fold/offset in place after its RPC
+            // resolves) or the offset reset below would rewrite state the
+            // winning load just committed — the next fold/pager fetch
+            // would then use a stale domain.
+            config.groups = cloneGroupTree(config.groups);
         }
         if (!config.groupBy.length) {
             // ``__count`` is a synthetic order-by introduced when grouping
@@ -134,4 +145,42 @@ export function computeNextConfig(currentConfig, params, deps) {
     }
 
     return config;
+}
+
+/**
+ * Structurally clone a ``config.groups`` tree so a candidate config owns its
+ * own mutable group containers. Copied per group: the entry object, its
+ * ``list`` sub-config, its optional ``record`` sub-config, and (recursively)
+ * the nested ``list.groups`` dict. Shared immutable references — ``fields``,
+ * ``activeFields``, ``fieldsToAggregate`` — are kept as-is; the postprocessor
+ * only ever *assigns* fresh ``domain``/``context``/``orderBy`` values onto the
+ * containers, so container-level copies are sufficient isolation.
+ *
+ * Load-bearing for concurrency: data is loaded against candidate configs
+ * (``RelationalModel.load`` / ``_reloadWithConfig``) and only committed on
+ * success. ``KeepLast`` drops a superseded load's *result* but cannot stop its
+ * continuation — ``postprocessReadGroup`` still runs when the stale RPC lands,
+ * and without this clone it would rewrite the committed groups in place.
+ *
+ * @param {Record<string, any>} groups
+ * @returns {Record<string, any>}
+ */
+export function cloneGroupTree(groups) {
+    /** @type {Record<string, any>} */
+    const cloned = {};
+    for (const [value, groupConfig] of Object.entries(groups)) {
+        cloned[value] = {
+            ...groupConfig,
+            list: {
+                ...groupConfig.list,
+                groups: groupConfig.list?.groups
+                    ? cloneGroupTree(groupConfig.list.groups)
+                    : groupConfig.list?.groups,
+            },
+        };
+        if (groupConfig.record) {
+            cloned[value].record = { ...groupConfig.record };
+        }
+    }
+    return cloned;
 }

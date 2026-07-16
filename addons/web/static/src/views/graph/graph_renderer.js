@@ -481,17 +481,33 @@ export class GraphRenderer extends Component {
         this.removeLegendTooltip();
     }
 
-    /** Instantiate a Chart.js chart from the current config. */
+    /** Instantiate or update the Chart.js chart from the current config. */
     renderChart() {
         // Tooltips are plain DOM cleaned up by the chart's own tooltip
-        // callbacks; once that chart is destroyed they would linger over the
-        // new one until the next hover.
+        // callbacks; once a chart is updated or destroyed they would linger
+        // over the new render until the next hover.
         this.removeTooltips();
-        if (this.chart) {
-            this.chart.destroy();
+        if (!this.canvasRef.el) {
+            if (this.chart) {
+                this.chart.destroy();
+                this.chart = null;
+            }
+            return;
         }
-        if (this.canvasRef.el) {
-            const config = this.getChartConfig();
+        const config = this.getChartConfig();
+        if (this.chart && this.chart.config.type === config.type) {
+            // Same chart kind: update the existing instance in place instead
+            // of destroy+recreate, which replayed the full entry animation on
+            // every data/config change (measure toggle, sort, reload...).
+            // The inline plugins are keyed on the type ("line" ⇒ [gridOnTop])
+            // so an equal type implies equal plugins.
+            this.chart.data = config.data;
+            this.chart.options = config.options;
+            this.chart.update();
+        } else {
+            if (this.chart) {
+                this.chart.destroy();
+            }
             this.chart = new Chart(this.canvasRef.el, config);
         }
     }

@@ -79,6 +79,8 @@ export class Many2ManyTagsField extends Component {
     openMany2xRecord;
     /** @type {any} */
     mutex;
+    /** @type {Function} */
+    linkRecords;
 
     setup() {
         useRenderCounter("fields.Many2ManyTagsField");
@@ -94,10 +96,12 @@ export class Many2ManyTagsField extends Component {
         this.autoCompleteRef = useRef("autoComplete");
         this.mutex = new Mutex();
 
-        const { linkRecords, removeRecord } = useX2ManyCrud(
+        const { linkRecords: maybeLinkRecords, removeRecord } = useX2ManyCrud(
             () => this.props.record.data[this.props.name],
             true,
         );
+        // isMany2Many=true, so useX2ManyCrud always provides linkRecords.
+        const linkRecords = /** @type {Function} */ (maybeLinkRecords);
         this.linkRecords = linkRecords;
 
         this.activeActions = useActiveActions({
@@ -182,7 +186,7 @@ export class Many2ManyTagsField extends Component {
 
     /**
      * @param {Object} record - A relational record from the many2many list
-     * @returns {{ id: string, resId: number, text: string, colorIndex: number|undefined, canEdit: boolean|undefined, onDelete: Function|undefined }}
+     * @returns {{ id: string, resId: number, text: string, colorIndex: number|undefined, canEdit?: boolean, onDelete: Function|undefined }}
      */
     getTagProps(record) {
         return {

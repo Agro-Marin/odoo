@@ -57,6 +57,22 @@ test("loadJS: load invalid JS lib", async () => {
     );
 });
 
+test("loadJS: inserted scripts opt out of async execution", async () => {
+    // Dynamically-inserted scripts default to async=true (completion-order
+    // execution); multi-file classic bundles rely on insertion order (e.g.
+    // web.ace_lib mode files must execute after ace.js).
+    expect.assertions(1);
+
+    mockHeadAppendChild((node) => {
+        expect(/** @type {HTMLScriptElement} */ (node).async).toBe(false, {
+            message: "scripts must execute in insertion order",
+        });
+        manuallyDispatchProgrammaticEvent(node, "load");
+    });
+
+    await loadJS("/some/ordered/file.js");
+});
+
 test("loadCSS: load invalid CSS lib", async () => {
     expect.assertions(4 * 4 + 1);
 

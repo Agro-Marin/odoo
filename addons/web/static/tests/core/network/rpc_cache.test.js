@@ -1336,6 +1336,55 @@ test("__version: fallback to jsonEqual when one side lacks the field", async () 
     expect.verifySteps(["changed=true"]);
 });
 
+test("__version: a disk round-trip of an ARRAY payload preserves the version", async () => {
+    // On array payloads (versioned envelope + list return, e.g. web_read)
+    // ``__version`` is an expando property that JSON.stringify (inside
+    // encrypt) silently drops. It is persisted out-of-band next to the
+    // ciphertext and re-attached after decrypt, so a disk-warm
+    // ``update: "always"`` read keeps the O(1) version compare.
+    const rpcCache = new RPCCache(
+        "mockRpc",
+        1,
+        "85472d41873cdb504b7c7dfecdb8993d90db142c4c03e6d94c4ae37a7771dc5b",
+    );
+    await rpcCache.read(
+        "t",
+        "karr",
+        () =>
+            Promise.resolve(
+                Object.assign([{ id: 1 }, { id: 2 }], { __version: "abc" }),
+            ),
+        { type: "disk" },
+    );
+    await tick();
+
+    // Sanity: the JSON ciphertext lost the expando (arrays serialize to
+    // "[...]"), the plaintext sidecar carries it.
+    const stored = rpcCache.indexedDB.mockIndexedDB.t.karr;
+    expect(stored.ciphertext).toBe('encrypted data:[{"id":1},{"id":2}]');
+    expect(stored.version).toBe("abc");
+
+    // simulate a reload (clear ramCache) → next read comes from disk
+    rpcCache.ramCache.invalidate();
+    expect(rpcCache.ramCache.ram).toEqual({});
+
+    // The refresh returns DIFFERENT rows but the SAME version: the version
+    // compare is authoritative, so hasChanged must be false. Without the
+    // re-attach, the disk side lacks __version and the layered compare
+    // falls through to shape/deepEqual → spurious hasChanged=true.
+    const def = new Deferred();
+    await rpcCache.read("t", "karr", () => def, {
+        type: "disk",
+        update: "always",
+        callback: (_value, hasChanged) => expect.step(`changed=${hasChanged}`),
+    });
+    def.resolve(
+        Object.assign([{ id: 1 }, { id: 2 }, { id: 999 }], { __version: "abc" }),
+    );
+    await tick();
+    expect.verifySteps(["changed=false"]);
+});
+
 // Shape fast-path (N1-A)
 //
 // Endpoints without ``__version`` (list-returning ``web_read``, template
@@ -1939,6 +1988,78 @@ test("RamCache: a read keeps its entry warm across later eviction", () => {
     expect(rc.read("t", "k0")).not.toBe(undefined); // survived (was warmed)
     expect(rc.read("t", "k1")).toBe(undefined); // evicted
     expect(rc.read("t", "k2")).toBe(undefined); // evicted
+});
+
+test("no disk secret: RAM caching still works, disk layer disabled", async () => {
+    // Only the DISK layer needs SubtleCrypto + browser_cache_secret; without
+    // them the cache degrades to RAM-only instead of disabling ALL caching
+    // (pre-fix, boot skipped rpc.setCache entirely on plain-HTTP deploys).
+    const rpcCache = new RPCCache("mockRpc", 1, null);
+    expect(rpcCache.diskEnabled).toBe(false);
+    expect(rpcCache.indexedDB).toBe(null);
+    expect(rpcCache.crypto).toBe(null);
+
+    // RAM caching: second read served from cache, no second fallback.
+    expect(
+        await rpcCache.read("table", "key", () => {
+            expect.step("fallback");
+            return Promise.resolve({ test: 123 });
+        }),
+    ).toEqual({ test: 123 });
+    expect(
+        await rpcCache.read("table", "key", () => {
+            expect.step("fallback");
+            return Promise.resolve({ test: 456 });
+        }),
+    ).toEqual({ test: 123 });
+    expect.verifySteps(["fallback"]);
+
+    // ``type: "disk"`` transparently downgrades to RAM-only.
+    expect(
+        await rpcCache.read("t2", "key", () => Promise.resolve({ disk: 1 }), {
+            type: "disk",
+        }),
+    ).toEqual({ disk: 1 });
+    await tick();
+    expect(
+        await rpcCache.read("t2", "key", () => expect.step("should not be called"), {
+            type: "disk",
+        }),
+    ).toEqual({ disk: 1 });
+
+    // Invalidation paths must not crash without a disk layer.
+    rpcCache.invalidateByModel(["t2"], "res.partner");
+    rpcCache.invalidate("table");
+    rpcCache.invalidate();
+    expect(
+        await rpcCache.read("table", "key", () => Promise.resolve({ test: 789 })),
+    ).toEqual({ test: 789 });
+});
+
+test("LRU eviction of a still-pending entry does not wedge later reads", async () => {
+    // Eviction can drop a pending entry's RAM promise while its
+    // ``pendingRequests`` slot survives (the fetch never settled). A later
+    // read of that key used to take the join branch and crash on
+    // ``ramValue.then`` (ramValue undefined); it must instead fall through
+    // to a fresh fetch.
+    const rpcCache = new RPCCache("mockRpc", 1, RAM_SECRET);
+    const hung = new Deferred();
+    rpcCache.read("t", "pending-key", () => hung); // fetch never settles
+    expect("t/pending-key" in rpcCache.pendingRequests).toBe(true);
+
+    // Enough fresh writes to evict the pending entry (it is the coldest).
+    for (let i = 0; i < RAM_CACHE_MAX_ENTRIES; i++) {
+        rpcCache.ramCache.write("t", `k${i}`, Promise.resolve(i));
+    }
+    expect(rpcCache.ramCache.ram.t["pending-key"]).toBe(undefined);
+    expect("t/pending-key" in rpcCache.pendingRequests).toBe(true);
+
+    const fresh = rpcCache.read("t", "pending-key", () => {
+        expect.step("fresh fallback");
+        return Promise.resolve("fresh");
+    });
+    expect.verifySteps(["fresh fallback"]);
+    expect(await fresh).toBe("fresh");
 });
 
 test("RamCache: eviction keeps the model reverse index consistent", () => {

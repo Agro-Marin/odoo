@@ -28,9 +28,16 @@ const ITEM_STYLE = objectToStyle({
 const CONTAINER_HEIGHT = 5 * ITEM_HEIGHT; // 5 rows
 const CONTAINER_WIDTH = 10 * ITEM_WIDTH; // 10 columns
 const CONTAINER_STYLE = objectToStyle({
-    height: `${CONTAINER_HEIGHT}px`,
-    width: `${CONTAINER_WIDTH}px`,
+    // Track the fixture size, which hoot's `resize()` drives: the hook now
+    // measures the scrollable's OWN client box (not the window), so resizing
+    // the mocked window must genuinely resize the scrollable for the resize
+    // tests to exercise the recompute.
+    height: "100%",
+    width: "100%",
     overflow: "auto",
+    // Keep clientWidth/Height exactly equal to the configured size (classic
+    // scrollbars would otherwise subtract an environment-dependent gutter).
+    "scrollbar-width": "none",
     position: "relative",
     "background-color": "lightblue",
 });
@@ -128,6 +135,35 @@ test("basic usage", async () => {
     await animationFrame();
     expect(comp.virtualGrid.rowsIndexes).toEqual([190, 199]);
     expect(comp.virtualGrid.columnsIndexes).toEqual([180, 199]);
+});
+
+test("visible span derives from the scrollable pane, not the window", async () => {
+    // Window 4x larger than the pane: the rendered window must be sized by
+    // the pane's client box. The old window-based span would return
+    // [0, 39] / [0, 79] here (~4x the needed DOM).
+    await resize({ height: CONTAINER_HEIGHT * 4, width: CONTAINER_WIDTH * 4 });
+    class C extends Component {
+        static template = xml`
+            <div class="pane" t-ref="scrollable"
+                style="height: ${CONTAINER_HEIGHT}px; width: ${CONTAINER_WIDTH}px; overflow: auto; scrollbar-width: none;">
+                <div style="height: ${ROW_COUNT * ITEM_HEIGHT}px; width: ${COLUMN_COUNT * ITEM_WIDTH}px;"/>
+            </div>
+        `;
+        static props = [];
+        setup() {
+            const scrollableRef = useRef("scrollable");
+            this.virtualGrid = useVirtualGrid({ scrollableRef });
+        }
+    }
+    const comp = await mountWithCleanup(C);
+    comp.virtualGrid.setRowsHeights(
+        Array.from({ length: ROW_COUNT }, () => ITEM_HEIGHT),
+    );
+    comp.virtualGrid.setColumnsWidths(
+        Array.from({ length: COLUMN_COUNT }, () => ITEM_WIDTH),
+    );
+    expect(comp.virtualGrid.rowsIndexes).toEqual([0, 9]);
+    expect(comp.virtualGrid.columnsIndexes).toEqual([0, 19]);
 });
 
 test("updates on resize", async () => {

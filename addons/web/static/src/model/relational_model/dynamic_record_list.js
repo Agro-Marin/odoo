@@ -77,19 +77,6 @@ export class DynamicRecordList extends DynamicList {
         return this.resequence(dataRecordId, refId);
     }
 
-    removeRecord(record) {
-        if (!record.isNew) {
-            throw new Error("removeRecord can't be called on an existing record");
-        }
-        const index = this.records.findIndex((r) => r === record);
-        if (index < 0) {
-            return;
-        }
-        this.records.splice(index, 1);
-        this.count--;
-        return record;
-    }
-
     async resequence(movedRecordId, targetRecordId) {
         return this.model.mutex.exec(
             async () =>

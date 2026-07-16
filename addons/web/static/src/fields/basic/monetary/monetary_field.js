@@ -32,9 +32,6 @@ export class MonetaryField extends NumericInputFieldBase {
         trailingZeros: true,
     };
 
-    /** @type {{ hasFocus: boolean, value?: string }} */
-    state;
-
     setup() {
         useRenderCounter("fields.MonetaryField");
         super.setup();

@@ -219,7 +219,7 @@ export function throttleForAnimation(func) {
     let handle = null;
     // Only the last pending call matters — use a single variable instead of
     // a Set + spread-to-array which allocated on every animation frame tick.
-    /** @type {{ args: any[], resolve: Function, reject: Function } | null} */
+    /** @type {{ args: any[], resolve: (value: any) => any, reject: (reason?: any) => any } | null} */
     let lastCall = null;
     const funcName = func.name
         ? `${func.name} (throttleForAnimation)`

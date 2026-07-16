@@ -64,12 +64,7 @@ import { useListVirtualization } from "./list_virtualization.js";
  * @typedef {import('@web/model/relational_model/static_list').StaticList} StaticList
  * @typedef {import("../view").ViewProps} ViewProps
  *
- * @typedef {{
- *  name: string;
- *  type: string;
- *  attrs: Record<string, string>;
- *  [key: string]: unknown;
- * }} Column
+ * @typedef {import("./list_column_utils").Column} Column
  *
  * @typedef {"up" | "down" | "left" | "right"} Direction
  *
@@ -106,6 +101,13 @@ export class ListRenderer extends Component {
         ListAggregatesRow,
     };
     static defaultProps = { allowSelectors: false, cycleOnTab: true };
+
+    /**
+     * Memoized tooltip info per column id (class field: definitely assigned,
+     * so tsc doesn't widen it to ``| undefined``). See ``makeTooltip``.
+     * @type {Record<string, string>}
+     */
+    tooltipInfoByColumn = {};
 
     static props = [
         "activeActions?",
@@ -185,7 +187,6 @@ export class ListRenderer extends Component {
         this.keyOptionalFields = `optional_fields,${key}`;
         this.keyDebugOpenView = `debug_open_view,${key}`;
         this.cellClassByColumn = {};
-        this.tooltipInfoByColumn = {};
         this.tooltipInfoDebug = this.isDebugMode;
         this.groupByButtons = this.props.archInfo.groupBy.buttons;
         useExternalListener(
@@ -391,6 +392,11 @@ export class ListRenderer extends Component {
                 return;
             }
             if (this.activeElement !== this.uiService.activeElement) {
+                // Focus is owned by another UI part (e.g. a dialog): drop any
+                // latched virtualized-focus retry, or it would survive this
+                // patch and fire at a much later, unrelated one with stale
+                // grid indexes — stealing focus.
+                /** @type {any} */ (this.nav).clearPendingVirtFocus();
                 return;
             }
             if (this.editedRecord && this.activeRowId !== this.editedRecord.id) {
@@ -403,9 +409,12 @@ export class ListRenderer extends Component {
                     this.focusCell(column, forward);
                 } else {
                     const column = this.nav.lastEditedCell?.column || this.columns[0];
+                    // Hiding every (optional) column mid-edit leaves no
+                    // column to focus — this.columns[0] is undefined then.
                     if (
-                        column.widget !== "daterange" ||
-                        !this.editedRecord.data[column.name]
+                        column &&
+                        (column.widget !== "daterange" ||
+                            !this.editedRecord.data[column.name])
                     ) {
                         this.focusCell(column);
                     }

@@ -562,6 +562,17 @@ test("retry, dedup and cache are rejected on mutating methods", async () => {
     expect(() => orm.retry(1).call("res.partner", "copy", [[3]])).toThrow(
         /mutating method "copy"/,
     );
+    // ``toggle_active`` flips the archive state: a retry after a lost
+    // response would double-flip it.
+    expect(() => orm.retry(1).call("res.partner", "toggle_active", [[3]])).toThrow(
+        /mutating method "toggle_active"/,
+    );
+    expect(() => orm.cache().call("res.partner", "toggle_active", [[3]])).toThrow(
+        /mutating method "toggle_active"/,
+    );
+    expect(() => orm.dedup.call("res.partner", "toggle_active", [[3]])).toThrow(
+        /mutating method "toggle_active"/,
+    );
     expect(() => orm.cache().call("res.partner", "copy", [[3]])).toThrow(
         /mutating method "copy"/,
     );

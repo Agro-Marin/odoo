@@ -41,8 +41,10 @@ export class SupersededError extends Error {
  * discarded — its wrapper promise never settles (back-compatible behavior: most
  * consumers just want the stale task's continuation to never run). Pass
  * ``{ rejectSuperseded: true }`` to instead REJECT a superseded task's wrapper
- * with a {@link SupersededError}, so awaiters observe the supersession (their
- * ``finally`` runs, their ``await`` throws) rather than hanging forever. This
+ * with a {@link SupersededError} — immediately at supersession time, so
+ * awaiters observe the supersession (their ``finally`` runs, their ``await``
+ * throws) rather than hanging forever, even when the stale underlying promise
+ * itself never settles (e.g. a hung network request). This
  * opt-in mode is used by the action service, whose ``doAction`` awaiters must
  * be able to release UI blocking / restore state when superseded.
  *
@@ -58,12 +60,22 @@ export class KeepLast {
     constructor({ rejectSuperseded = false } = {}) {
         this._id = 0;
         this._rejectSuperseded = rejectSuperseded;
+        /**
+         * ``rejectSuperseded`` mode only: reject callback of the currently
+         * pending wrapper, so {@link add} can reject it AT supersession time.
+         * Waiting for the stale underlying promise to settle instead would
+         * hang the superseded awaiters forever if that promise never settles.
+         *
+         * @type {((reason: unknown) => void) | null}
+         */
+        this._rejectPending = null;
     }
     /**
      * Register a new task. If a task was already pending it is superseded:
      * its wrapper promise will never resolve or reject — unless
-     * ``rejectSuperseded`` was set, in which case it rejects with a
-     * {@link SupersededError}.
+     * ``rejectSuperseded`` was set, in which case it rejects immediately
+     * with a {@link SupersededError} (even if the stale underlying promise
+     * never settles).
      *
      * @param {Promise<T>} promise
      * @returns {Promise<T>}
@@ -71,23 +83,30 @@ export class KeepLast {
     add(promise) {
         this._id++;
         const currentId = this._id;
+        if (this._rejectPending) {
+            this._rejectPending(new SupersededError());
+            this._rejectPending = null;
+        }
         return new Promise((resolve, reject) => {
+            if (this._rejectSuperseded) {
+                this._rejectPending = reject;
+            }
             promise.then(
                 (value) => {
                     if (this._id === currentId) {
+                        this._rejectPending = null;
                         resolve(value);
-                    } else if (this._rejectSuperseded) {
-                        reject(new SupersededError());
                     }
-                    // else: superseded — silently discard.
+                    // else: superseded — silently discarded (default mode) or
+                    // already rejected at supersession time (rejectSuperseded).
                 },
                 (reason) => {
                     if (this._id === currentId) {
+                        this._rejectPending = null;
                         reject(reason);
-                    } else if (this._rejectSuperseded) {
-                        reject(new SupersededError());
                     }
-                    // else: superseded — silently discard.
+                    // else: superseded — silently discarded (default mode) or
+                    // already rejected at supersession time (rejectSuperseded).
                 },
             );
         });

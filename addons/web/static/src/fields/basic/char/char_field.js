@@ -32,8 +32,6 @@ export class CharField extends TextInputFieldBase {
 
     /** @type {import("@odoo/owl").Ref<HTMLInputElement>} */
     input;
-    /** @type {any} */
-    dynamicPlaceholder;
 
     /** @returns {HTMLInputElement | null} */
     get inputEl() {

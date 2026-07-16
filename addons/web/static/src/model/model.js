@@ -399,6 +399,11 @@ export function useModelWithSampleData(ModelClass, params, options = {}) {
     });
     onWillUpdateProps((nextProps) => {
         useSampleModel = false;
+        // Fire-and-forget on purpose: onWillUpdateProps must NOT await the
+        // reload, or OWL blocks this component's patch (and its sibling
+        // control panel) on the data RPC — breaking the "search facet appears
+        // directly, before the slow data load resolves" contract. Rejections
+        // are surfaced by the load()'s own Race/error handling, not here.
         load(nextProps);
     });
 

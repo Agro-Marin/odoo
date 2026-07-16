@@ -28,7 +28,7 @@ function _constructTree(ASTs, distributeNot = false) {
     /** @type {{ tree: any, remaining: number, childNegate: boolean }[]} */
     const stack = [];
     for (;;) {
-        let negate = stack.length ? stack.at(-1).childNegate : false;
+        let negate = stack.length ? stack[stack.length - 1].childNegate : false;
         let firstAST = ASTs[pos++];
         while (
             firstAST.type === ASTType.String &&
@@ -84,11 +84,13 @@ function _constructTree(ASTs, distributeNot = false) {
         }
 
         // Attach the completed node upward, popping every connector it fills.
-        /** @type {Tree} */
+        /** @type {Tree | null} */
         let node = tree;
         while (stack.length) {
-            const frame = stack.at(-1);
-            addChild(frame.tree, node);
+            const frame = stack[stack.length - 1];
+            // node is only null right after a `break` out of this loop, so it
+            // is always a Tree here.
+            addChild(frame.tree, /** @type {Tree} */ (node));
             frame.remaining--;
             if (frame.remaining > 0) {
                 node = null;
