@@ -736,13 +736,20 @@ export const accountTaxHelpers = {
         });
 
         if (rounding_method === "round_per_line") {
+            // `raw_total_excluded`/`raw_total_included` are company-currency
+            // amounts (total / rate), so they round with the company currency's
+            // precision — mirroring `company.currency_id.round(...)` in
+            // account_tax.py, and matching the per-tax amounts rounded with
+            // `company_currency_pd` just below. `currency_pd` (document currency)
+            // diverged from Python whenever the document currency was coarser
+            // than the company currency (e.g. a JPY invoice under a USD company).
             tax_details.raw_total_excluded = roundPrecision(
                 tax_details.raw_total_excluded,
-                currency_pd
+                company_currency_pd
             );
             tax_details.raw_total_included = roundPrecision(
                 tax_details.raw_total_included,
-                currency_pd
+                company_currency_pd
             );
         }
 
@@ -974,12 +981,18 @@ export const accountTaxHelpers = {
             if (current_mode === "mixed") {
                 current_mode = "included";
                 for (const [base_line, taxes_data] of values.base_line_x_taxes_data) {
+                    // Mirror account_tax.py: a tax counts as "present" when it is
+                    // non-zero in EITHER the document or the company currency
+                    // (OR, not AND). With AND, a tax that rounds to zero in the
+                    // company currency but not the document currency was dropped,
+                    // flipping the group to "included" and shifting the rounded
+                    // base by one minor unit versus the server.
                     const not_zero_taxes_data = taxes_data.filter(
                         (tax_data) =>
                             !floatIsZero(
                                 tax_data.tax_amount_currency,
                                 base_line.currency_id.decimal_places
-                            ) &&
+                            ) ||
                             !floatIsZero(tax_data.tax_amount, company.currency_id.decimal_places)
                     );
                     if (not_zero_taxes_data.some((tax_data) => !tax_data.price_include)) {

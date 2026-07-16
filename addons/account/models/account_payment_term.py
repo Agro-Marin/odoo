@@ -103,21 +103,29 @@ class AccountPaymentTerm(models.Model):
                 discount_amount_currency = (total_amount - untaxed_amount) * percentage
             else:
                 discount_amount_currency = total_amount * percentage
-            amount_due = self.currency_id.round(total_amount - discount_amount_currency)
+            # `total_amount`/`untaxed_amount` are expressed in the document's
+            # currency when invoked from a move (see the account.move branch
+            # below), otherwise in the term's own (company) currency for the
+            # preview. Round in that same currency: rounding a foreign-currency
+            # amount with `self.currency_id` (always the company currency) gives
+            # impossible sub-unit precision, e.g. 9800.00 on a ¥ invoice.
+            move = None
             if self.env.context.get("active_model") == "account.move" and (
                 active_id := self.env.context.get("active_id")
             ):
-                move = self.env["account.move"].browse(active_id)
-                cash_rounding = move.invoice_cash_rounding_id
-                currency = move.currency_id
-                if cash_rounding:
-                    cash_rounding_difference = cash_rounding.compute_difference(
+                move = self.env["account.move"].browse(active_id).exists()
+            currency = (
+                move.currency_id if move else self.currency_id
+            ) or self.currency_id
+            amount_due = currency.round(total_amount - discount_amount_currency)
+            if move and move.invoice_cash_rounding_id:
+                cash_rounding_difference = (
+                    move.invoice_cash_rounding_id.compute_difference(
                         currency, amount_due
                     )
-                    if not currency.is_zero(cash_rounding_difference):
-                        amount_due = self.currency_id.round(
-                            amount_due + cash_rounding_difference
-                        )
+                )
+                if not currency.is_zero(cash_rounding_difference):
+                    amount_due = currency.round(amount_due + cash_rounding_difference)
             return amount_due
         return total_amount
 
@@ -509,7 +517,11 @@ class AccountPaymentTermLine(models.Model):
     @api.constrains("days_next_month")
     def _check_valid_char_value(self):
         for record in self:
-            if record.days_next_month and record.days_next_month.isnumeric():
+            # `isdecimal()` (not `isnumeric()`): the latter accepts Unicode
+            # forms like "²"/"½" that `int()` then rejects with ValueError,
+            # turning this guard into an uncaught traceback instead of a clean
+            # ValidationError.
+            if record.days_next_month and record.days_next_month.isdecimal():
                 if not (0 <= int(record.days_next_month) <= 31):
                     raise ValidationError(_("The days added must be between 0 and 31."))
             else:

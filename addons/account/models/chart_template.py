@@ -536,12 +536,19 @@ class AccountChartTemplate(models.AbstractModel):
                         uniq_key = unique_tax_name_key(
                             oldtax[0] if len(oldtax) > 1 else oldtax
                         )
+                        # `uniq_key[0]` is a user-provided tax name and must be
+                        # escaped: names with regex metacharacters (e.g. the
+                        # parentheses/percent in "IVA (16%)") would otherwise
+                        # either raise `re.error` and abort the whole CoA reload,
+                        # or silently fail to match themselves and miscount the
+                        # "[old…]" rename indices.
                         matching_names = len(
                             list(
                                 filter(
                                     lambda t: (
                                         re.match(
-                                            rf"^(?:\[old\d*\] |){uniq_key[0]}$", t[0]
+                                            rf"^(?:\[old\d*\] |){re.escape(str(uniq_key[0]))}$",
+                                            t[0],
                                         )
                                         and t[1:] == uniq_key[1:]
                                     ),
@@ -1349,10 +1356,12 @@ class AccountChartTemplate(models.AbstractModel):
             company.account_sale_tax_id + company.account_purchase_tax_id
         )
         chart_template_code = self._guess_chart_template(country=country)
-        tax_group_data = self._get_chart_template_data(chart_template_code)[
-            "account.tax.group"
-        ]
-        tax_data = self._get_chart_template_data(chart_template_code)["account.tax"]
+        # `_get_chart_template_data` walks the whole template register and
+        # re-parses every localization CSV, so call it once and index both keys
+        # rather than paying that cost twice.
+        chart_template_data = self._get_chart_template_data(chart_template_code)
+        tax_group_data = chart_template_data["account.tax.group"]
+        tax_data = chart_template_data["account.tax"]
 
         # Populate foreign accounts mapping
         # Try to create tax group accounts if not mapped
