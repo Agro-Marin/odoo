@@ -1065,6 +1065,38 @@ test("record.toData() returns flat data", async () => {
     });
 });
 
+test("record.toData() field filter respects field-name boundaries", async () => {
+    (class Person extends Record {
+        static id = "id";
+        id;
+        team = fields.One("Team");
+        // sibling relation whose name has "team" as a plain string prefix
+        team_lead = fields.One("Person");
+    }).register(localRegistry);
+    (class Team extends Record {
+        static id = "id";
+        id;
+        name;
+    }).register(localRegistry);
+    const store = await start();
+    store.Person.insert({
+        id: 1,
+        team: { id: 1, name: "Discuss" },
+        team_lead: { id: 2 },
+    });
+    const p = store.Person.get(1);
+    // Only "team_lead" is requested: the sibling "team" relation must NOT be
+    // expanded merely because "team_lead".startsWith("team") — that would leak
+    // the Team record into the payload.
+    const data = p.toData(["team_lead"]);
+    expect(data.Team).toBe(undefined, {
+        message: "sibling relation `team` must not be expanded for `team_lead`",
+    });
+    expect(data.Person.map((r) => r.id).sort()).toEqual([1, 2], {
+        message: "the requested `team_lead` relation should be expanded",
+    });
+});
+
 test("Methods are bound to records", async () => {
     // Allows to simply `t-on-click="record.method"`
     (class Persona extends Record {

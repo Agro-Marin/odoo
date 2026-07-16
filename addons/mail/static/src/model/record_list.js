@@ -115,17 +115,22 @@ export class RecordListInternal {
             const oldRecords = recordList._proxyInternal.slice
                 .call(recordList._proxy)
                 .map((recordProxy) => toRaw(recordProxy)._raw);
+            // Membership via localId Sets so reassigning a large relation is
+            // O(n), not O(n²) (mirrors the Set-based fast path in add()).
+            // Records held by a RecordList always carry a localId.
+            const oldLocalIdSet = new Set(oldRecords.map((record) => record.localId));
             const newRecords = vals.map((val) =>
                 self.insert(recordList, val, function recordListAssignInsert(record) {
-                    if (record.notIn(oldRecords)) {
+                    if (!oldLocalIdSet.has(record.localId)) {
                         record._.uses.add(recordList);
                         store._.ADD_QUEUE("onAdd", self.owner, self.name, record);
                     }
                 }),
             );
+            const newLocalIdSet = new Set(newRecords.map((record) => record.localId));
             const inverse = getInverse(recordList);
             for (const oldRecord of oldRecords) {
-                if (oldRecord.notIn(newRecords)) {
+                if (!newLocalIdSet.has(oldRecord.localId)) {
                     oldRecord._.uses.delete(recordList);
                     store._.ADD_QUEUE("onDelete", self.owner, self.name, oldRecord);
                     if (inverse) {

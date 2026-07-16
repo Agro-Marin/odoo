@@ -167,6 +167,12 @@ export class RecordInternal {
         }
     }
     onUpdate(record, fieldName) {
+        if (record[IS_DELETED_SYM]) {
+            // Consistent with requestCompute/requestSort: never run a user hook
+            // on a tombstoned record (a late dependency change could otherwise
+            // fire onUpdate after the record was deleted).
+            return;
+        }
         const store = record._rawStore;
         const Model = record.Model;
         if (!Model._.fieldsOnUpdate.get(fieldName)) {
