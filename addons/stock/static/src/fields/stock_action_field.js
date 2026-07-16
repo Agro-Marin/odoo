@@ -86,7 +86,10 @@ const stockActionField = {
         },
     ],
     extractProps: (...args) => {
-        const [{ context, fieldType, options }] = args;
+        // The field descriptor exposes the ORM type under `type`, not `fieldType`
+        // — destructuring the wrong key left both branches below dead, silently
+        // dropping the child field's props (currency_field, digits, …).
+        const [{ context, type: fieldType, options }] = args;
         const action_props = {
             actionName: options.action_name,
             disabled: options.disabled,

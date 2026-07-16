@@ -54,7 +54,9 @@ export class TraceabilityReport extends Component {
             this.props.action.context;
         this.controllerUrl = url;
 
-        this.context = context || {};
+        // Shallow-copy: the following Object.assign must not mutate the live
+        // action.context object shared with the framework.
+        this.context = { ...(context || {}) };
         Object.assign(this.context, {
             active_id: active_id || this.props.action.params.active_id,
             auto_unfold: auto_unfold || false,
@@ -132,6 +134,12 @@ export class TraceabilityReport extends Component {
     }
 
     onClickPrint() {
+        if (!this.controllerUrl) {
+            // No print URL in the action context (e.g. a programmatic launch of
+            // stock_report_generic): nothing to print, so bail instead of throwing
+            // on .replace of undefined.
+            return;
+        }
         const data = JSON.stringify(extractPrintData(this.state.lines));
         const url = this.controllerUrl
             .replace(":active_id", this.context.active_id)
@@ -151,7 +159,7 @@ export class TraceabilityReport extends Component {
                 await this.orm.call("stock.traceability.report", "get_lines", [line.id], {
                     model_id: line.model_id,
                     model_name: line.model,
-                    level: line.level + 30 || 1,
+                    level: (line.level ?? 0) + 30,
                 })
             ).map(processLine);
         }

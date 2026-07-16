@@ -27,11 +27,15 @@ export class InventoryReportListModel extends RelationalModel {
         }
 
         const justCreated = reloadedRecord.id === this._lastCreatedRecordId;
-        // One-shot: only the reload immediately following the create should be
-        // inspected. Clearing it here prevents a later legitimate edit of the
-        // same datapoint (whose id is unchanged, but now write_date > create_date)
-        // from re-firing the "already exists" notification.
-        this._lastCreatedRecordId = null;
+        if (justCreated) {
+            // One-shot: only the reload immediately following the create consumes
+            // the token. Clearing it *only on match* (not on every reload) keeps an
+            // unrelated interleaved reload from swallowing the token before the real
+            // create-reload arrives; and prevents a later legitimate edit of the
+            // same datapoint (id unchanged, but write_date > create_date) from
+            // re-firing the "already exists" notification.
+            this._lastCreatedRecordId = null;
+        }
         if (justCreated && serverValues.create_date !== serverValues.write_date) {
             this.env.services.notification.add(
                 _t(
@@ -53,7 +57,7 @@ export class InventoryReportListModel extends RelationalModel {
                 }
             }
         } else {
-            super._updateSimilarRecords(...arguments)
+            super._updateSimilarRecords(...arguments);
         }
     }
 }

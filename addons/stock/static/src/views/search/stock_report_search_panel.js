@@ -1,11 +1,14 @@
 /** @odoo-module native */
 import { SearchPanel } from "@web/search/search_panel/search_panel";
+import { useState } from "@odoo/owl";
 
 export class StockReportSearchPanel extends SearchPanel {
     static template = "stock.StockReportSearchPanel";
     setup() {
         super.setup(...arguments);
-        this.selectedWarehouse = false;
+        // Self-driven reactive highlight state (mirrors StockOrderpointSearchPanel)
+        // instead of relying on a searchModel._notify() side-effect to re-render.
+        this.selectedWarehouse = useState({ value: false });
     }
 
     //---------------------------------------------------------------------
@@ -18,11 +21,11 @@ export class StockReportSearchPanel extends SearchPanel {
 
     clearWarehouseContext() {
         this.env.searchModel.clearWarehouseContext();
-        this.selectedWarehouse = null;
+        this.selectedWarehouse.value = null;
     }
 
     applyWarehouseContext(warehouse_id) {
         this.env.searchModel.applyWarehouseContext(warehouse_id);
-        this.selectedWarehouse = warehouse_id;
+        this.selectedWarehouse.value = warehouse_id;
     }
 }

@@ -6,6 +6,7 @@ import {
     assignMoves,
     collectAssignedLabels,
     buildLabelAction,
+    isLineAssignable,
 } from "../reception_report_utils.js";
 import { Component } from "@odoo/owl";
 
@@ -66,11 +67,10 @@ export class ReceptionReportTable extends Component {
     }
 
     get isAssignAllDisabled() {
-        // Disabled when no line is actually assignable — mirror the skip
-        // condition in onClickAssignAll (assigned OR not qty-assignable),
-        // otherwise a table of non-assignable lines shows an enabled button
-        // that assigns nothing.
-        return this.props.lines.every(line => line.is_assigned || !line.is_qty_assignable);
+        // Disabled when no line is actually assignable — shares the predicate with
+        // collectAssignable/onClickAssignAll so the button state and what the click
+        // actually assigns stay in lockstep.
+        return this.props.lines.every(line => !isLineAssignable(line));
     }
 
     get isPrintLabelDisabled() {

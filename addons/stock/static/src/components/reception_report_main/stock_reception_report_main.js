@@ -8,6 +8,7 @@ import {
     assignMoves,
     collectAssignedLabels,
     buildLabelAction,
+    isLineAssignable,
 } from "../reception_report_utils.js";
 import { Component, onWillStart, useState } from "@odoo/owl";
 import { standardActionServiceProps } from "@web/webclient/actions/action_service";
@@ -85,6 +86,9 @@ export class ReceptionReportMain extends Component {
     async onClickAssignAll() {
         const lines = Object.values(this.state.sourcesToLines).flat();
         const { moveIds, quantities, inIds } = collectAssignable(lines);
+        if (!moveIds.length) {
+            return;
+        }
         await assignMoves(this.ormService, moveIds, quantities, inIds);
         this._changeAssignedState({ isAssigned: true });
     }
@@ -119,13 +123,22 @@ export class ReceptionReportMain extends Component {
 
     _changeAssignedState(options) {
         const { isAssigned, tableIndex, lineIndex } = options;
+        const isBulk = isNaN(lineIndex);
 
         for (const [tabIndex, lines] of Object.entries(this.state.sourcesToLines)) {
             if (tableIndex && tableIndex != tabIndex) continue;
             lines.forEach(line => {
-                if (isNaN(lineIndex) || lineIndex == line.index) {
-                    line.is_assigned = isAssigned;
+                if (!isBulk && lineIndex != line.index) {
+                    return;
                 }
+                // Bulk assign only flips lines that were actually assignable, so
+                // the UI never marks a non-qty-assignable line as assigned (which
+                // would make Print Labels emit labels for unassigned moves). A
+                // targeted lineIndex (single assign/unassign) always applies.
+                if (isBulk && isAssigned && !isLineAssignable(line)) {
+                    return;
+                }
+                line.is_assigned = isAssigned;
             });
         }
     }
@@ -141,7 +154,9 @@ export class ReceptionReportMain extends Component {
     }
 
     get isAssignAllDisabled() {
-        return Object.values(this.state.sourcesToLines).every(lines => lines.every(line => line.is_assigned || !line.is_qty_assignable));
+        return Object.values(this.state.sourcesToLines).every(
+            lines => lines.every(line => !isLineAssignable(line))
+        );
     }
 
     get isPrintLabelDisabled() {

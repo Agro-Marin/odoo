@@ -3,6 +3,21 @@
 const RECEPTION_MODEL = "report.stock.report_reception";
 
 /**
+ * Single source of truth for "can this line be assigned right now": not yet
+ * assigned, and carrying an assignable quantity (an "expected" draft line with
+ * no incoming moves to link is not). Every consumer — the collect payload, the
+ * bulk state flip, and the disabled-button getters — must agree, else the UI
+ * state and the server truth drift apart (e.g. Print Labels requesting labels
+ * for moves that were never actually assigned).
+ *
+ * @param {Object} line
+ * @returns {boolean}
+ */
+export function isLineAssignable(line) {
+    return !line.is_assigned && !!line.is_qty_assignable;
+}
+
+/**
  * Accumulate the assign payload from `lines`, skipping lines with nothing to
  * assign (already assigned, or "expected" draft lines carrying no incoming
  * moves to link).
@@ -15,7 +30,7 @@ export function collectAssignable(lines) {
     const quantities = [];
     const inIds = [];
     for (const line of lines) {
-        if (line.is_assigned || !line.is_qty_assignable) {
+        if (!isLineAssignable(line)) {
             continue;
         }
         moveIds.push(line.move_out_id);

@@ -10,7 +10,7 @@ export class StockActionHelper extends Component {
     static props = ["noContentHelp"];
     setup() {
         const resModel = "searchModel" in this.env ? this.env.searchModel.resModel : undefined;
-        this.handler = useActionLinks(resModel);
+        this.handler = useActionLinks({ resModel });
     }
 }
 

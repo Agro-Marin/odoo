@@ -28,19 +28,28 @@ export class StockForecasted extends Component {
         this.action = useService("action");
 
         this.context = useState(this.props.action.context);
-        this.productId = this.context.active_id;
         this.resModel = this.context.active_model;
         this.title = this.props.action.name || _t("Forecasted Report");
         if(!this.context.active_id){
             this.context.active_id = this.props.action.params.active_id;
+            // A replaceCurrentAction reload is in flight; this instance is about to
+            // be superseded, so skip its own report RPC (which would run with an
+            // undefined product id).
+            this._reloading = true;
             this.reloadReport();
         }
+        // Capture the product id *after* the history-restore fallback above has
+        // populated context.active_id — otherwise it stays undefined on that path.
+        this.productId = this.context.active_id;
         this.warehouses = useState([]);
 
         onWillStart(this._getReportValues);
     }
 
     async _getReportValues() {
+        if (this._reloading) {
+            return;
+        }
         await this._getResModel();
         const isTemplate = !this.resModel || this.resModel === 'product.template';
         this.reportModelName = `stock.forecasted_product_${isTemplate ? "template" : "product"}`;
@@ -55,7 +64,9 @@ export class StockForecasted extends Component {
         });
         this.docs = {
             ...reportValues.docs,
-            ...reportValues.precision,
+            // precision is a scalar int (decimal.precision "Product Unit"); spreading
+            // it added nothing. Assign it so the formatters can read a real value.
+            precision: reportValues.precision,
             lead_horizon_date: this.context.lead_horizon_date,
             qty_to_order: this.context.qty_to_order,
         };
@@ -74,11 +85,22 @@ export class StockForecasted extends Component {
                 }
                 this.resModel = resModel;
             } else if (this.props.action._originalAction) {
-                const originalContextAction = JSON.parse(this.props.action._originalAction).context;
-                if (typeof originalContextAction === "string") {
-                    this.resModel = JSON.parse(originalContextAction.replace(/'/g, '"')).active_model;
-                } else if (originalContextAction) {
-                    this.resModel = originalContextAction.active_model;
+                // Best-effort history-restore path off a private framework field.
+                // Guarded so a shape/format change can't crash the whole report.
+                try {
+                    const originalContext = JSON.parse(this.props.action._originalAction).context;
+                    if (typeof originalContext === "string") {
+                        // Python-repr context: extract active_model directly instead of
+                        // coercing the whole repr to JSON (a blanket ' -> " replace breaks
+                        // on any other value containing quotes / True / False / None).
+                        this.resModel = originalContext.match(
+                            /active_model['"]?\s*:\s*['"]([\w.]+)['"]/
+                        )?.[1];
+                    } else if (originalContext) {
+                        this.resModel = originalContext.active_model;
+                    }
+                } catch {
+                    // leave resModel unresolved; _getReportValues falls back to template
                 }
             }
             this.context.active_model = this.resModel;

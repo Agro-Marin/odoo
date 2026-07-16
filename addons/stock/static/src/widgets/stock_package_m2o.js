@@ -15,20 +15,29 @@ class PackageFormDialog extends FormViewDialog {}
 
 class Many2XStockPackageAutocomplete extends Many2XAutocomplete {
     get createDialog() {
-        const packageFormDialog = PackageFormDialog;
-        packageFormDialog.defaultProps = {
-            ...packageFormDialog.defaultProps,
-            onRecordSave: async (record) => {
-                // We need to reload to get the name computed from the backend.
-                const saved = await record.save({ reload: true });
-                if (saved && this.props.update) {
-                    // Without this, the package is named 'Unnamed' in the UI until the record is saved.
-                    this.props.update([{ ...record.data, id: record.resId }]);
-                }
-                return saved;
-            },
-        };
-        return packageFormDialog;
+        // Memoize a per-instance dialog subclass instead of mutating the shared
+        // PackageFormDialog.defaultProps on every access — the old form bound
+        // onRecordSave to whichever autocomplete last read this getter (last
+        // writer wins on a module-level static).
+        if (!this._createDialog) {
+            const self = this;
+            this._createDialog = class extends PackageFormDialog {
+                static defaultProps = {
+                    ...PackageFormDialog.defaultProps,
+                    onRecordSave: async (record) => {
+                        // We need to reload to get the name computed from the backend.
+                        const saved = await record.save({ reload: true });
+                        if (saved && self.props.update) {
+                            // Without this, the package is named 'Unnamed' in the UI
+                            // until the record is saved.
+                            self.props.update([{ ...record.data, id: record.resId }]);
+                        }
+                        return saved;
+                    },
+                };
+            };
+        }
+        return this._createDialog;
     }
 }
 

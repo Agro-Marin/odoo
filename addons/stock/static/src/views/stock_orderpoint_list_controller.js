@@ -21,14 +21,18 @@ export class StockOrderpointListController extends ListController {
         if (action) {
             await this.actionService.doAction(action);
         }
-        return this.actionService.doAction({type: 'ir.actions.client', tag: 'reload'});
+        // Soft in-place reload instead of a full-webclient `reload` client action:
+        // the latter hard-reloads the browser (losing scroll/search facets) and
+        // destroys the action_replenish notification — which carries the link to
+        // the generated picking — before the user can click it.
+        await this.model.load();
     }
 
     async onClickSnooze() {
         const resIds = await this.model.root.getResIds(true);
         return this.actionService.doAction('stock.action_orderpoint_snooze', {
             additionalContext: { default_orderpoint_ids: resIds },
-            onClose: () => { this.actionService.doAction({type: 'ir.actions.client', tag: 'reload'}); },
+            onClose: () => this.model.load(),
         });
     }
 }

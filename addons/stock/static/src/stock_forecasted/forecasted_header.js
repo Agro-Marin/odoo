@@ -11,7 +11,8 @@ export class ForecastedHeader extends Component {
         this.orm = useService("orm");
         this.action = useService("action");
 
-        this._formatFloat = (num) => formatFloat(num, { digits: this.props.docs.precision });
+        this._formatFloat = (num) =>
+            formatFloat(num, { digits: [false, this.props.docs.precision] });
         // Computed once; leadTime is read several times per render and previously
         // rebuilt dates and mutated the report data on every access.
         this.leadTimeData = this._computeLeadTime();
