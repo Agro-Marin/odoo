@@ -14,11 +14,21 @@
                 <field name="recorded_at" />
                 <field name="url" />
                 <field name="user_id" optional="show" />
-                <field name="lcp" decoration-success="lcp &gt; 0 and lcp &lt; 2500" decoration-warning="lcp &gt;= 2500 and lcp &lt; 4000" decoration-danger="lcp &gt;= 4000" optional="show" />
-                <field name="fcp" decoration-success="fcp &gt; 0 and fcp &lt; 1800" decoration-warning="fcp &gt;= 1800 and fcp &lt; 3000" decoration-danger="fcp &gt;= 3000" optional="show" />
-                <field name="cls" decoration-success="cls &lt; 0.1" decoration-warning="cls &gt;= 0.1 and cls &lt; 0.25" decoration-danger="cls &gt;= 0.25" optional="show" />
-                <field name="ttfb" decoration-success="ttfb &gt; 0 and ttfb &lt; 800" decoration-warning="ttfb &gt;= 800 and ttfb &lt; 1800" decoration-danger="ttfb &gt;= 1800" optional="show" />
-                <field name="inp" decoration-success="inp &gt; 0 and inp &lt; 200" decoration-warning="inp &gt;= 200 and inp &lt; 500" decoration-danger="inp &gt;= 500" optional="show" />
+                <field name="lcp" decoration-success="lcp &gt; 0 and lcp &lt; 2500"
+                    decoration-warning="lcp &gt;= 2500 and lcp &lt; 4000"
+                    decoration-danger="lcp &gt;= 4000" optional="show" />
+                <field name="fcp" decoration-success="fcp &gt; 0 and fcp &lt; 1800"
+                    decoration-warning="fcp &gt;= 1800 and fcp &lt; 3000"
+                    decoration-danger="fcp &gt;= 3000" optional="show" />
+                <field name="cls" decoration-success="cls &lt; 0.1"
+                    decoration-warning="cls &gt;= 0.1 and cls &lt; 0.25"
+                    decoration-danger="cls &gt;= 0.25" optional="show" />
+                <field name="ttfb" decoration-success="ttfb &gt; 0 and ttfb &lt; 800"
+                    decoration-warning="ttfb &gt;= 800 and ttfb &lt; 1800"
+                    decoration-danger="ttfb &gt;= 1800" optional="show" />
+                <field name="inp" decoration-success="inp &gt; 0 and inp &lt; 200"
+                    decoration-warning="inp &gt;= 200 and inp &lt; 500"
+                    decoration-danger="inp &gt;= 500" optional="show" />
                 <field name="user_agent" optional="hide" />
             </list>
         </field>
@@ -69,20 +79,31 @@
             <search string="Core Web Vitals">
                 <field name="url" />
                 <field name="user_id" />
-                <filter name="last_hour" string="Last Hour" domain="[('recorded_at', '&gt;=', (datetime.datetime.now() - datetime.timedelta(hours=1)).strftime('%Y-%m-%d %H:%M:%S'))]" />
-                <filter name="last_day" string="Last 24h" domain="[('recorded_at', '&gt;=', (datetime.datetime.now() - datetime.timedelta(days=1)).strftime('%Y-%m-%d %H:%M:%S'))]" />
-                <filter name="last_week" string="Last 7 Days" domain="[('recorded_at', '&gt;=', (datetime.datetime.now() - datetime.timedelta(days=7)).strftime('%Y-%m-%d %H:%M:%S'))]" />
+                <filter name="last_hour" string="Last Hour"
+                    domain="[('recorded_at', '&gt;=', (datetime.datetime.now() - datetime.timedelta(hours=1)).strftime('%Y-%m-%d %H:%M:%S'))]" />
+                <filter name="last_day" string="Last 24h"
+                    domain="[('recorded_at', '&gt;=', (datetime.datetime.now() - datetime.timedelta(days=1)).strftime('%Y-%m-%d %H:%M:%S'))]" />
+                <filter name="last_week" string="Last 7 Days"
+                    domain="[('recorded_at', '&gt;=', (datetime.datetime.now() - datetime.timedelta(days=7)).strftime('%Y-%m-%d %H:%M:%S'))]" />
                 <separator />
-                <filter name="poor_lcp" string="Poor LCP (&gt; 4s)" domain="[('lcp', '&gt;=', 4000)]" />
-                <filter name="poor_cls" string="Poor CLS (&gt; 0.25)" domain="[('cls', '&gt;=', 0.25)]" />
-                <filter name="poor_ttfb" string="Poor TTFB (&gt; 1.8s)" domain="[('ttfb', '&gt;=', 1800)]" />
-                <filter name="poor_inp" string="Poor INP (&gt; 500ms)" domain="[('inp', '&gt;=', 500)]" />
+                <filter name="poor_lcp" string="Poor LCP (&gt; 4s)"
+                    domain="[('lcp', '&gt;=', 4000)]" />
+                <filter name="poor_cls" string="Poor CLS (&gt; 0.25)"
+                    domain="[('cls', '&gt;=', 0.25)]" />
+                <filter name="poor_ttfb" string="Poor TTFB (&gt; 1.8s)"
+                    domain="[('ttfb', '&gt;=', 1800)]" />
+                <filter name="poor_inp" string="Poor INP (&gt; 500ms)"
+                    domain="[('inp', '&gt;=', 500)]" />
                 <separator />
-                <filter name="anonymous" string="Anonymous Traffic" domain="[('user_id', '=', False)]" />
+                <filter name="anonymous" string="Anonymous Traffic"
+                    domain="[('user_id', '=', False)]" />
                 <group>
-                    <filter name="group_by_url" string="URL" domain="[]" context="{'group_by': 'url'}" />
-                    <filter name="group_by_user" string="User" domain="[]" context="{'group_by': 'user_id'}" />
-                    <filter name="group_by_day" string="Day" domain="[]" context="{'group_by': 'recorded_at:day'}" />
+                    <filter name="group_by_url" string="URL" domain="[]"
+                        context="{'group_by': 'url'}" />
+                    <filter name="group_by_user" string="User" domain="[]"
+                        context="{'group_by': 'user_id'}" />
+                    <filter name="group_by_day" string="Day" domain="[]"
+                        context="{'group_by': 'recorded_at:day'}" />
                 </group>
             </search>
         </field>
@@ -101,26 +122,10 @@
             <p class="o_view_nocontent_smiling_face">
                 No Core Web Vitals beacons yet.
             </p>
-            <p>
-                Beacons are emitted by every browser session via the
-                <code>web_vitals</code> service and persisted on
-                <code>pagehide</code>.  If this view stays empty, check
-                the server log for <code>[cwv]</code> entries.
-            </p>
+            <p> Beacons are emitted by every browser session via the <code>web_vitals</code> service
+                and persisted on <code>pagehide</code>. If this view stays empty, check the server
+                log for <code>[cwv]</code> entries. </p>
         </field>
     </record>
-
-    <!--
-        Menu — Settings → Technical → Performance → Core Web Vitals.
-        Lives under base.menu_administration to match the audit-style
-        admin tools (profiling, etc.).
-    -->
-    <menuitem
-        id="menu_web_cwv_metric"
-        name="Core Web Vitals"
-        parent="base.menu_administration"
-        action="action_web_cwv_metric"
-        sequence="70"
-        groups="base.group_system" />
 
 </odoo>

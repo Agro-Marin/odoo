@@ -18,12 +18,13 @@
         <field name="binding_model_id" ref="model_res_partner" />
         <field name="binding_view_types">form,list,kanban</field>
         <field name="state">code</field>
-        <field
-            name="code">action = {
-                'type': 'ir.actions.act_url',
-                'url': '/web/partner/vcard?partner_ids=' + ','.join(map(str, records.ids)),
-                'target': 'download',
-            }</field>
+        <field name="code">
+action = {
+    'type': 'ir.actions.act_url',
+    'url': '/web/partner/vcard?partner_ids=' + ','.join(map(str, records.ids)),
+    'target': 'download',
+}
+        </field>
     </record>
 
 </odoo>
