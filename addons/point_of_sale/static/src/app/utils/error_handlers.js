@@ -31,19 +31,25 @@ function rpcErrorHandler(env, error, originalError) {
 }
 registry.category("error_handlers").add("pos-rpcErrorHandler", rpcErrorHandler);
 
+// Shows the "operating with limited functionality" warning once per offline
+// episode (reset when connectivity is restored). Shared so both the global
+// offline error handler and the order-validation flow surface the same dialog.
+export function showLimitedFunctionalityWarning(pos) {
+    if (!pos.data.network.warningTriggered) {
+        pos.dialog.add(AlertDialog, {
+            title: _t("Connection Lost"),
+            body: _t(
+                "Until the connection is reestablished, Odoo Point of Sale will operate with limited functionality.",
+            ),
+            confirmLabel: _t("Continue with limited functionality"),
+        });
+        pos.data.network.warningTriggered = true;
+    }
+}
+
 export function offlineErrorHandler(env, error, originalError) {
     if (originalError instanceof ConnectionLostError) {
-        if (!env.services.pos.data.network.warningTriggered) {
-            env.services.dialog.add(AlertDialog, {
-                title: _t("Connection Lost"),
-                body: _t(
-                    "Until the connection is reestablished, Odoo Point of Sale will operate with limited functionality.",
-                ),
-                confirmLabel: _t("Continue with limited functionality"),
-            });
-            env.services.pos.data.network.warningTriggered = true;
-        }
-
+        showLimitedFunctionalityWarning(env.services.pos);
         return true;
     }
 }
