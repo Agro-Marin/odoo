@@ -47,7 +47,7 @@ def check_access_token(access_token, *values):
     :rtype: bool
     """
     authentic_token = generate_access_token(*values)
-    return access_token and consteq(access_token, authentic_token)
+    return bool(access_token) and consteq(access_token, authentic_token)
 
 
 # Availability report.
@@ -146,7 +146,7 @@ def to_major_currency_units(minor_amount, currency, arbitrary_decimal_number=Non
     :param recordset currency: The currency of the amount, as a `res.currency` record
     :param int arbitrary_decimal_number: The number of decimals to use instead of that of ISO 4217
     :return: The amount in major units of its currency
-    :rtype: int
+    :rtype: float
     """
     if arbitrary_decimal_number is None:
         currency.ensure_one()

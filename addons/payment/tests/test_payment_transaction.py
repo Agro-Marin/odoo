@@ -21,6 +21,33 @@ class TestPaymentTransaction(PaymentCommon):
         tx = self._create_transaction("redirect")
         self.assertFalse(tx.is_live)
 
+    def test_create_multi_generates_unique_references_for_same_prefix(self):
+        """Test that creating several transactions at once without an explicit reference yields
+        unique references.
+
+        All three share the same time-based prefix (created within the same second), so without
+        accounting for the in-batch siblings they would collide on the `reference` unique
+        constraint.
+        """
+        common_values = {
+            "payment_method_id": self.payment_method_id,
+            "amount": self.amount,
+            "currency_id": self.currency.id,
+            "provider_id": self.provider.id,
+            "partner_id": self.partner.id,
+            "operation": "online_direct",
+        }
+        txs = self.env["payment.transaction"].create(
+            [dict(common_values) for _ in range(3)]
+        )
+        self.env.flush_all()
+        references = txs.mapped("reference")
+        self.assertEqual(
+            len(set(references)),
+            3,
+            msg="Transactions created together must be given unique references.",
+        )
+
     def test_capture_allowed_for_authorized_users(self):
         """Test that users who have access to a transaction can capture it."""
         if not self.env.ref("account.group_account_invoice", raise_if_not_found=False):
@@ -262,6 +289,46 @@ class TestPaymentTransaction(PaymentCommon):
         ):
             tx._validate_amount({})
         self.assertNotEqual(tx.state, "error")
+
+    def test_view_refunds_opens_the_refund_not_another_child(self):
+        """Test that `action_view_refunds` opens the refund transaction even when a non-refund
+        child (e.g. a partial capture) has a higher id than the refund.
+
+        Without an `operation` filter, the default `id desc` order would open the most recent child
+        of any operation instead of the refund.
+        """
+        self.provider.support_manual_capture = "partial"
+        self.provider.support_refund = "partial"
+        source_tx = self._create_transaction("direct", state="done")
+        refund_tx = source_tx._create_child_transaction(30.0, is_refund=True)
+        refund_tx.state = "done"
+        # A non-refund child created *after* the refund therefore has a higher id.
+        later_capture_tx = source_tx._create_child_transaction(10.0)
+        later_capture_tx.state = "done"
+
+        self.assertEqual(source_tx.refunds_count, 1)
+        action = source_tx.action_view_refunds()
+        self.assertEqual(
+            action.get("res_id"),
+            refund_tx.id,
+            msg="The action should open the refund transaction, not another child transaction.",
+        )
+
+    def test_validate_amount_skips_when_no_amount_data_extracted(self):
+        """Test that amount validation is skipped (and does not crash) when no amount data is
+        extracted.
+
+        Providers that opt out of the amount check return `None`, and the base implementation used
+        when no provider claims the payment data returns `None` too. `_validate_amount` must treat
+        both as "skip" rather than raising a `KeyError` while indexing the missing data.
+        """
+        tx = self._create_transaction("direct")  # Uses the base `_extract_amount_data`.
+        tx._validate_amount({})
+        self.assertNotEqual(
+            tx.state,
+            "error",
+            msg="The amount validation should be skipped when no amount data is extracted.",
+        )
 
     def test_processing_applies_updates_to_error_txs_with_valid_amount_data(self):
         tx = self._create_transaction("redirect", state="error")

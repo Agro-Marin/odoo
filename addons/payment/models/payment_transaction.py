@@ -228,16 +228,31 @@ class PaymentTransaction(models.Model):
 
     @api.model_create_multi
     def create(self, vals_list):
-        for values in vals_list:
-            provider = self.env["payment.provider"].browse(values["provider_id"])
+        # Browse the providers and partners of the whole batch at once so that reading their fields
+        # below prefetches across all transactions instead of issuing one query per transaction.
+        providers = self.env["payment.provider"].browse(
+            [values["provider_id"] for values in vals_list]
+        )
+        partners = self.env["res.partner"].browse(
+            [values["partner_id"] for values in vals_list]
+        )
 
+        # Track the references assigned within this batch so that two transactions created together
+        # with the same computed prefix don't collide on the `reference` unique constraint (their
+        # siblings are not yet persisted and would otherwise be invisible to `_compute_reference`).
+        references_in_use = set()
+        for values, provider, partner in zip(
+            vals_list, providers, partners, strict=True
+        ):
             if not values.get("reference"):
-                values["reference"] = self._compute_reference(provider.code, **values)
+                values["reference"] = self._compute_reference(
+                    provider.code, references_in_use=references_in_use, **values
+                )
+            references_in_use.add(values["reference"])
 
             values["is_live"] = provider.state == "enabled"
 
             # Duplicate partner values.
-            partner = self.env["res.partner"].browse(values["partner_id"])
             partner_emails = email_normalize_all(partner.email)
             values.update(
                 {
@@ -306,11 +321,13 @@ class PaymentTransaction(models.Model):
             "type": "ir.actions.act_window",
         }
         if self.refunds_count == 1:
+            # Filter on the `refund` operation: a source transaction can also have capture/void
+            # children, and relying on the default `id desc` order would otherwise open one of those
+            # instead of the refund.
             refund_tx = self.env["payment.transaction"].search(
-                [
-                    ("source_transaction_id", "=", self.id),
-                ]
-            )[0]
+                [("source_transaction_id", "=", self.id), ("operation", "=", "refund")],
+                limit=1,
+            )
             action["res_id"] = refund_tx.id
             action["view_mode"] = "form"
         else:
@@ -442,7 +459,9 @@ class PaymentTransaction(models.Model):
     # === BUSINESS METHODS - PRE-PROCESSING === #
 
     @api.model
-    def _compute_reference(self, provider_code, prefix=None, separator="-", **kwargs):
+    def _compute_reference(
+        self, provider_code, prefix=None, separator="-", references_in_use=None, **kwargs
+    ):
         """Compute a unique reference for the transaction.
 
         The reference corresponds to the prefix if no other transaction with that prefix already
@@ -474,11 +493,16 @@ class PaymentTransaction(models.Model):
         :param str provider_code: The code of the provider handling the transaction.
         :param str prefix: The custom prefix used to compute the full reference.
         :param str separator: The custom separator used to separate the prefix from the suffix.
+        :param set references_in_use: References already assigned to sibling transactions in the
+                                      same create batch and not yet persisted; treated as existing
+                                      to avoid collisions.
         :param dict kwargs: Optional values passed to :meth:`_compute_reference_prefix` if no custom
                             prefix is provided.
         :return: The unique reference for the transaction.
         :rtype: str
         """
+        references_in_use = references_in_use or set()
+
         # Compute the prefix.
         if prefix:
             # Replace special characters by their ASCII alternative (é -> e ; ä -> a ; ...)
@@ -498,7 +522,7 @@ class PaymentTransaction(models.Model):
 
         # Compute the sequence number.
         reference = prefix  # The first reference of a sequence has no sequence number.
-        if self.sudo().search_count(
+        if prefix in references_in_use or self.sudo().search_count(
             [("reference", "=", prefix)], limit=1
         ):  # The reference already has a match
             # We now execute a second search on `payment.transaction` to fetch all the references
@@ -507,12 +531,19 @@ class PaymentTransaction(models.Model):
             # whether the sequence for a given prefix is already started or not, usually not. An SQL
             # query wouldn't help either as the selector is arbitrary and doing that would be an
             # open-door to SQL injections.
-            same_prefix_references = (
+            same_prefix_references = set(
                 self.sudo()
                 .search([("reference", "=like", f"{prefix}{separator}%")])
                 .with_context(prefetch_fields=False)
                 .mapped("reference")
             )
+            # Account for references already assigned earlier in the same create batch; they are not
+            # persisted yet and would otherwise be invisible to the search above.
+            same_prefix_references |= {
+                ref
+                for ref in references_in_use
+                if ref.startswith(f"{prefix}{separator}")
+            }
 
             # A final regex search is necessary to figure out the next sequence number. The previous
             # search could not rely on alphabetically sorting the reference to infer the largest
@@ -521,7 +552,9 @@ class PaymentTransaction(models.Model):
             # For instance, the prefix 'example' is a valid match for the existing references
             # 'example', 'example-1' and 'example-ref', in that order. Trusting the order to infer
             # the sequence number would lead to a collision with 'example-1'.
-            search_pattern = re.compile(rf"^{re.escape(prefix)}{separator}(\d+)$")
+            search_pattern = re.compile(
+                rf"^{re.escape(prefix)}{re.escape(separator)}(\d+)$"
+            )
             max_sequence_number = (
                 0  # If no match is found, start the sequence with this reference.
             )
@@ -916,8 +949,10 @@ class PaymentTransaction(models.Model):
             return  # Skip validation for $0-auth transactions.
 
         amount_data = self._extract_amount_data(payment_data)
-        if amount_data is None:
-            return  # Skip validation for transactions where the provider opts out of amount check.
+        if not amount_data:
+            # Skip validation for transactions where the provider opts out of the amount check
+            # (returns `None`) or where no provider claims the payment data (base returns `{}`).
+            return
 
         amount = amount_data["amount"]
         currency_code = amount_data["currency_code"]
@@ -962,7 +997,7 @@ class PaymentTransaction(models.Model):
 
         :param dict payment_data: The payment data sent by the provider.
         :return: The amount data, in the {amount: float, currency_code: str, precision_digits: int}
-                 format.
+                 format, or `None`/an empty dict to skip the amount validation.
         :rtype: dict|None
         """
         return {}
@@ -1197,11 +1232,13 @@ class PaymentTransaction(models.Model):
                     and tx.operation == child_tx.operation
                 )
             )
-            processed_amount = round(
-                sum(tx.amount for tx in sibling_txs),
-                child_tx.currency_id.decimal_places,
-            )
-            if child_tx.source_transaction_id.amount == processed_amount:
+            processed_amount = sum(tx.amount for tx in sibling_txs)
+            if (
+                child_tx.currency_id.compare_amounts(
+                    child_tx.source_transaction_id.amount, processed_amount
+                )
+                == 0
+            ):
                 fully_voided = all(tx.state == "cancel" for tx in sibling_txs)
                 target_state = "cancel" if fully_voided else "done"
                 # Call `_update_state` directly instead of `_set_authorized` to avoid looping.
