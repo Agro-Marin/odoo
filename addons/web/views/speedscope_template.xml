@@ -15,9 +15,10 @@
             <body>
                 <script t-attf-src="{{cdn}}speedscope.026f36b0.js" crossorigin="anonymous"
                     integrity="sha256-CvDqAOMjq0Sv/D59O5JSbzzXoClZ3rptt6ts8D/6CWw=" />
-                <script> const b64 = '<t t-esc="speedscope_base64" />';
-document.addEventListener("DOMContentLoaded", () =&gt; {
-speedscope.loadFileFromBase64('Profile', b64); }); </script>
+                <script>
+const b64 = '<t t-esc="speedscope_base64" />';
+document.addEventListener("DOMContentLoaded", () =&gt; {speedscope.loadFileFromBase64('Profile', b64); });
+                </script>
             </body>
         </html>
     </template>

@@ -13,15 +13,6 @@ This module provides the core of the Odoo Web Client.
     "depends": [
         "base",
     ],
-    # NB: ``vobject`` is deliberately NOT declared here. ``web`` is a
-    # bootstrap/auto-installed core module, and anything under
-    # ``external_dependencies["python"]`` is a HARD requirement
-    # (odoo/modules/module.py:check_python_external_dependency raises
-    # MissingDependencyError when absent) — declaring vobject would make the
-    # whole server refuse to boot without it. vobject is optional: only the
-    # vCard export controller (controllers/vcard.py) needs it, guarded on
-    # importlib.find_spec, and res_partner.py imports it lazily, so web loads
-    # fine without it and the vCard route raises a clean UserError instead.
     "data": [
         "security/ir.model.access.csv",
         "security/web_security.xml",

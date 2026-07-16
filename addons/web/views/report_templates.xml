@@ -251,9 +251,11 @@
         </t>
     </template>
 
-    <template id="minimal_layout"> &lt;!DOCTYPE html&gt; <!-- lang enables hyphens:auto, language-correct casing/quotes and the
-             PDF /Lang entry; it is the record's language (context lang), set
-             per article by _prepare_weasyprint_html. BCP 47 wants a hyphen. -->
+    <template id="minimal_layout">
+        &lt;!DOCTYPE html&gt; <!-- lang enables hyphens:auto,
+        language-correct casing/quotes and the PDF /Lang entry;
+        it is the record's language (context lang), set
+        per article by _prepare_weasyprint_html. BCP 47 wants a hyphen. -->
         <html
             t-att-lang="(lang or env.user.lang or 'en_US').replace('_', '-')">
             <head>
@@ -836,9 +838,9 @@
         </t>
     </template>
 
-    <template id="styles_company_report"> // Contrast utility: returns black or white for legible
-        text on $background. // TODO: Replace with native CSS color-contrast() once WeasyPrint gains
-        support. @function co-color-contrast($background) { @if (lightness($background) &gt; 50) {
+    <template id="styles_company_report"> /* Contrast utility: returns black or white for legible
+        text on $background. TODO: Replace with native CSS color-contrast() once WeasyPrint gains
+        support. */ @function co-color-contrast($background) { @if (lightness($background) &gt; 50) {
         @return black; } @else { @return white; } } <t t-foreach="company_ids" t-as="company"
             t-translation="off">
             <t t-set="primary" t-value="company.primary_color or '#212529'" />
@@ -852,12 +854,12 @@
         from the report.theme. */ <t
                 t-out="company.report_theme_id._report_css_vars(primary, secondary, company.font or 'Lato')" />
             <t
-                t-if="layout == 'web.external_layout_boxed'"> // Boxed: total row uses primary as
-        background; text must contrast. &amp;.o_report_layout_boxed #total .o_total td strong {
+                t-if="layout == 'web.external_layout_boxed'"> /* Boxed: total row uses primary as
+        background; text must contrast. */ &amp;.o_report_layout_boxed #total .o_total td strong {
         color: co-color-contrast(<t t-out="primary" />); } </t>
             <t
-                t-elif="layout == 'web.external_layout_bubble'"> // Bubble: table headers and total
-        cells use primary as background. &amp;.o_report_layout_bubble { thead th, #total .o_total td
+                t-elif="layout == 'web.external_layout_bubble'"> /* Bubble: table headers and total
+        cells use primary as background. */ &amp;.o_report_layout_bubble { thead th, #total .o_total td
         { color: co-color-contrast(<t t-out="primary" />); } } </t> } </t>
     </template>
 

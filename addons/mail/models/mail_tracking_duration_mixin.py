@@ -8,6 +8,9 @@ from odoo.tools import SQL
 
 
 class MailTrackingDurationMixin(models.AbstractModel):
+    # The rotting feature enables resources to mark themselves as stale if enough time has passed
+    # since their stage was last updated.
+    # Consult _is_rotting_feature_enabled() documentation for configuration instructions
     _name = "mail.tracking.duration.mixin"
     _description = "Mixin to compute the time a record has spent in each value a many2one field can take"
     _inherit = ["mail.thread"]
@@ -17,17 +20,15 @@ class MailTrackingDurationMixin(models.AbstractModel):
         compute="_compute_duration_tracking",
         help="JSON that maps ids from a many2one field to seconds spent",
     )
-
-    # The rotting feature enables resources to mark themselves as stale if enough time has passed
-    # since their stage was last updated.
-    # Consult _is_rotting_feature_enabled() documentation for configuration instructions
     rotting_days = fields.Integer(
         "Days Rotting",
-        help="Day count since this resource was last updated",
         compute="_compute_rotting",
+        help="Day count since this resource was last updated",
     )
     is_rotting = fields.Boolean(
-        "Rotting", compute="_compute_rotting", search="_search_is_rotting"
+        "Rotting",
+        compute="_compute_rotting",
+        search="_search_is_rotting",
     )
 
     def _compute_duration_tracking(self):
@@ -108,110 +109,6 @@ class MailTrackingDurationMixin(models.AbstractModel):
             record.duration_tracking = record._get_duration_from_tracking(
                 trackings_by_res[record._origin.id]
             )
-
-    def _get_duration_from_tracking(self, trackings):
-        """
-        Calculates the duration spent in each value based on the provided list of trackings.
-        It adds a "fake" tracking at the end of the trackings list to account for the time spent in the current value.
-
-        Args:
-            trackings (list): A list of dictionaries representing the trackings with:
-                - 'create_date': The date and time of the tracking.
-                - 'old_value_integer': The ID of the previous value.
-
-        Returns:
-            dict: A dictionary where the keys are the IDs of the values, and the values are the durations in seconds
-        """
-        self.ensure_one()
-        json = defaultdict(lambda: 0)
-        previous_date = self.create_date or self.env.cr.now()
-
-        # If there is a tracking value to be created, but still in the
-        # precommit values, create a fake one to take it into account.
-        # Otherwise, the duration_tracking value will add time spent on
-        # previous tracked field value to the time spent in the new value
-        # (after writing the stage on the record)
-        if f"mail.tracking.{self._name}" in self.env.cr.precommit.data:
-            if data := self.env.cr.precommit.data.get(
-                f"mail.tracking.{self._name}", {}
-            ).get(self._origin.id):
-                new_id = data.get(self._track_duration_field, self.env[self._name]).id
-                if new_id and new_id != self[self._track_duration_field].id:
-                    trackings.append(
-                        {
-                            "create_date": self.env.cr.now(),
-                            "old_value_integer": data[self._track_duration_field].id,
-                        }
-                    )
-
-        # add "fake" tracking for time spent in the current value
-        trackings.append(
-            {
-                "create_date": self.env.cr.now(),
-                "old_value_integer": self[self._track_duration_field].id,
-            }
-        )
-
-        for tracking in trackings:
-            json[tracking["old_value_integer"]] += int(
-                (tracking["create_date"] - previous_date).total_seconds()
-            )
-            previous_date = tracking["create_date"]
-
-        return json
-
-    def _is_rotting_feature_enabled(self):
-        """
-        To enable the rotting behavior, the following must be present:
-
-        * Stage-like model (linked by '_track_duration_field') must have a 'rotting_threshold_days' integer field
-            modeling the number of days before a record rots
-
-        * Model inheriting from duration mixin must have a 'date_last_stage_update' field tracking the last stage change
-
-
-        Also consider overriding _get_rotting_depends_fields() and _get_rotting_domain().
-
-        Certain views have access to widgets to display rotting status:
-            'rotting' for kanbans, 'rotting_statusbar_duration' for forms, 'badge_rotting' for lists.
-
-        :return: bool: whether the rotting feature has been configured for this model
-        """
-        return (
-            "rotting_threshold_days" in self[self._track_duration_field]
-            and "date_last_stage_update" in self
-            and (
-                not self  # api.model call
-                or any(
-                    stage.rotting_threshold_days
-                    for stage in self[self._track_duration_field]
-                )
-            )
-        )
-
-    def _get_rotting_depends_fields(self):
-        """
-        fields added to this method through override should likely also be returned by _get_rotting_domain() override
-
-        :return: the array of fields that can affect the ability of a resource to rot
-        """
-        if (
-            hasattr(self, "_track_duration_field")
-            and "rotting_threshold_days" in self[self._track_duration_field]
-        ):
-            return [
-                "date_last_stage_update",
-                f"{self._track_duration_field}.rotting_threshold_days",
-            ]
-        return []
-
-    def _get_rotting_domain(self):
-        """
-        fields added to this method through override should likely also be returned by _get_rotting_depends_fields() override
-
-        :return: domain: conditions that must be met so that the field can be considered rotting
-        """
-        return Domain(f"{self._track_duration_field}.rotting_threshold_days", "!=", 0)
 
     @api.depends(lambda self: self._get_rotting_depends_fields())
     def _compute_rotting(self):
@@ -327,3 +224,107 @@ class MailTrackingDurationMixin(models.AbstractModel):
         )
         rows = self.env.cr.dictfetchall()
         return [("id", operator, [r["id"] for r in rows])]
+
+    def _get_duration_from_tracking(self, trackings):
+        """
+        Calculates the duration spent in each value based on the provided list of trackings.
+        It adds a "fake" tracking at the end of the trackings list to account for the time spent in the current value.
+
+        Args:
+            trackings (list): A list of dictionaries representing the trackings with:
+                - 'create_date': The date and time of the tracking.
+                - 'old_value_integer': The ID of the previous value.
+
+        Returns:
+            dict: A dictionary where the keys are the IDs of the values, and the values are the durations in seconds
+        """
+        self.ensure_one()
+        json = defaultdict(lambda: 0)
+        previous_date = self.create_date or self.env.cr.now()
+
+        # If there is a tracking value to be created, but still in the
+        # precommit values, create a fake one to take it into account.
+        # Otherwise, the duration_tracking value will add time spent on
+        # previous tracked field value to the time spent in the new value
+        # (after writing the stage on the record)
+        if f"mail.tracking.{self._name}" in self.env.cr.precommit.data:
+            if data := self.env.cr.precommit.data.get(
+                f"mail.tracking.{self._name}", {}
+            ).get(self._origin.id):
+                new_id = data.get(self._track_duration_field, self.env[self._name]).id
+                if new_id and new_id != self[self._track_duration_field].id:
+                    trackings.append(
+                        {
+                            "create_date": self.env.cr.now(),
+                            "old_value_integer": data[self._track_duration_field].id,
+                        }
+                    )
+
+        # add "fake" tracking for time spent in the current value
+        trackings.append(
+            {
+                "create_date": self.env.cr.now(),
+                "old_value_integer": self[self._track_duration_field].id,
+            }
+        )
+
+        for tracking in trackings:
+            json[tracking["old_value_integer"]] += int(
+                (tracking["create_date"] - previous_date).total_seconds()
+            )
+            previous_date = tracking["create_date"]
+
+        return json
+
+    def _get_rotting_depends_fields(self):
+        """
+        fields added to this method through override should likely also be returned by _get_rotting_domain() override
+
+        :return: the array of fields that can affect the ability of a resource to rot
+        """
+        if (
+            hasattr(self, "_track_duration_field")
+            and "rotting_threshold_days" in self[self._track_duration_field]
+        ):
+            return [
+                "date_last_stage_update",
+                f"{self._track_duration_field}.rotting_threshold_days",
+            ]
+        return []
+
+    def _get_rotting_domain(self):
+        """
+        fields added to this method through override should likely also be returned by _get_rotting_depends_fields() override
+
+        :return: domain: conditions that must be met so that the field can be considered rotting
+        """
+        return Domain(f"{self._track_duration_field}.rotting_threshold_days", "!=", 0)
+
+    def _is_rotting_feature_enabled(self):
+        """
+        To enable the rotting behavior, the following must be present:
+
+        * Stage-like model (linked by '_track_duration_field') must have a 'rotting_threshold_days' integer field
+            modeling the number of days before a record rots
+
+        * Model inheriting from duration mixin must have a 'date_last_stage_update' field tracking the last stage change
+
+
+        Also consider overriding _get_rotting_depends_fields() and _get_rotting_domain().
+
+        Certain views have access to widgets to display rotting status:
+            'rotting' for kanbans, 'rotting_statusbar_duration' for forms, 'badge_rotting' for lists.
+
+        :return: bool: whether the rotting feature has been configured for this model
+        """
+        return (
+            "rotting_threshold_days" in self[self._track_duration_field]
+            and "date_last_stage_update" in self
+            and (
+                not self  # api.model call
+                or any(
+                    stage.rotting_threshold_days
+                    for stage in self[self._track_duration_field]
+                )
+            )
+        )

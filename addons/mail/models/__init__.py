@@ -1,7 +1,7 @@
 # core models (required for mixins)
 from . import mail_alias
 from . import mail_alias_domain
-from . import models
+from . import base
 
 # mixin
 from . import mail_activity_mixin
