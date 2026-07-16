@@ -56,6 +56,79 @@ class TestPage(common.TransactionCase):
             }
         )
 
+    def test_inverse_is_homepage_keeps_other_page(self):
+        """Setting ``is_homepage=False`` on a page that is NOT the current
+        homepage must not clear the website's homepage designation of another
+        page."""
+        website = self.env["website"].browse(1)
+        website.homepage_url = "/page_1"
+
+        props = self.env["website.page.properties"].new(
+            {
+                "website_id": website.id,
+                "url": "/some_other_page",
+                "is_homepage": False,
+            }
+        )
+        props._inverse_is_homepage()
+        self.assertEqual(
+            website.homepage_url,
+            "/page_1",
+            "Editing a non-homepage page must not wipe the real homepage.",
+        )
+
+        # Clearing on the actual homepage page still works.
+        props_home = self.env["website.page.properties"].new(
+            {
+                "website_id": website.id,
+                "url": "/page_1",
+                "is_homepage": False,
+            }
+        )
+        props_home._inverse_is_homepage()
+        self.assertFalse(website.homepage_url)
+
+    def test_controller_page_write_preserves_custom_menu_label(self):
+        """Writing an unrelated field on a ``website.controller.page`` must not
+        reset a customised related-menu label back to the page name."""
+        view = self.env["ir.ui.view"].create(
+            {
+                "name": "Listing",
+                "type": "qweb",
+                "arch": "<div/>",
+                "key": "test.listing_ctrl_view",
+            }
+        )
+        page = self.env["website.controller.page"].create(
+            {
+                "name": "Widgets",
+                "view_id": view.id,
+                "model_id": self.env["ir.model"]._get_id("res.partner"),
+            }
+        )
+        menu = self.env["website.menu"].create(
+            {
+                "name": "Custom Label",
+                "controller_page_id": page.id,
+                "url": "/model/widgets",
+                "website_id": 1,
+            }
+        )
+        menu.name = "MY CUSTOM MENU LABEL"
+
+        # An unrelated write must leave the custom label untouched.
+        page.write({"is_published": not page.is_published})
+        self.assertEqual(
+            menu.name,
+            "MY CUSTOM MENU LABEL",
+            "Unrelated page write must not clobber the custom menu label.",
+        )
+
+        # Renaming the page still re-syncs the menu (label + slugged url).
+        page.write({"name": "Gadgets"})
+        self.assertEqual(menu.name, "Gadgets")
+        self.assertEqual(menu.url, f"/model/{page.name_slugified}")
+
     def test_copy_page(self):
         View = self.env["ir.ui.view"]
         Page = self.env["website.page"]

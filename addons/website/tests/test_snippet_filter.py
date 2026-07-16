@@ -95,3 +95,22 @@ class TestSnippetFilterSecurity(TransactionCase):
                 search_domain=[("not_a_field", "=", 1)],
                 res_model="res.partner",
             )
+
+    def test_public_search_domain_rejects_relational_traversal(self):
+        """A client-supplied domain may only reference *direct* fields. Dotted
+        paths (e.g. ``create_uid.login``) passed the old ``split('.')[0]`` check
+        and let a public visitor filter on related — possibly unpublished —
+        records, turning the published result set into a boolean oracle."""
+        for dotted in ("create_uid.login", "parent_id.vat", "company_id.name"):
+            with self.assertRaises(ValueError, msg=f"{dotted} must be rejected"):
+                self.snippet_filter._prepare_values(
+                    limit=16,
+                    search_domain=[(dotted, "ilike", "x")],
+                    res_model="res.partner",
+                )
+        # A direct field is still accepted (no false positive on the fix).
+        self.snippet_filter._prepare_values(
+            limit=16,
+            search_domain=[("name", "ilike", "PUBLIC")],
+            res_model="res.partner",
+        )

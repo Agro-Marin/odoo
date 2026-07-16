@@ -117,13 +117,19 @@ class WebsiteControllerPage(models.Model):
 
     def write(self, vals):
         res = super().write(vals)
-        for rec in self:
-            rec.menu_ids.write(
-                {
-                    "url": f"/model/{rec.name_slugified}",
-                    "name": rec.name,
-                }
-            )
+        # Only re-sync the related menus when the page name (hence its slug and
+        # route) actually changed. Doing it on *every* write reset a menu's
+        # custom label back to the page name on any unrelated edit (e.g.
+        # toggling ``is_published``) and issued a redundant write — which itself
+        # flushes the template cache — on each menu row.
+        if "name" in vals or "name_slugified" in vals:
+            for rec in self:
+                rec.menu_ids.write(
+                    {
+                        "url": f"/model/{rec.name_slugified}",
+                        "name": rec.name,
+                    }
+                )
         if "model_id" in vals:
             self._check_user_has_model_access()
         return res

@@ -17,6 +17,8 @@ from odoo.tools import plaintext2html
 from odoo.tools.misc import consteq, hmac
 from odoo.tools.translate import LazyTranslate, _
 
+from ..tools import website_form_signature_payload
+
 _lt = LazyTranslate(__name__)
 
 
@@ -103,21 +105,23 @@ class WebsiteForm(http.Controller):
                 if model_name == "mail.mail":
                     # The signature is generated at render time by
                     # ``tools.add_form_signature`` and binds the (builder-set)
-                    # ``email_to`` recipient so a public visitor cannot turn the
-                    # endpoint into an open mail relay. Missing signature must be
-                    # treated as an authentication failure, never a KeyError, and
-                    # the check must run unconditionally: gating it on
-                    # ``email_to`` being present let an attacker skip validation
-                    # entirely by POSTing with only ``email_cc``/``email_bcc``.
+                    # recipients so a public visitor cannot turn the endpoint
+                    # into an open mail relay. It covers not just ``email_to``
+                    # but the *values* of any ``email_cc``/``email_bcc`` fields:
+                    # the previous version only signed a Cc/Bcc *presence*
+                    # marker, so a replayed signature let a visitor inject
+                    # arbitrary Cc recipients. Missing signature must be treated
+                    # as an authentication failure, never a KeyError, and the
+                    # check must run unconditionally so it cannot be skipped by
+                    # POSTing without ``email_to``.
                     signature = kwargs.get("website_form_signature", "")
-                    form_has_email_cc = {
-                        "email_cc",
-                        "email_bcc",
-                    } & kwargs.keys() or "email_cc" in signature
-                    # remove the ":email_cc" marker appended to the signature
-                    signature = signature.split(":")[0]
-                    value = (kwargs.get("email_to") or "") + (
-                        ":email_cc" if form_has_email_cc else ""
+                    extra_recipients = {
+                        name: kwargs.get(name) or ""
+                        for name in ("email_cc", "email_bcc")
+                        if name in kwargs
+                    }
+                    value = website_form_signature_payload(
+                        kwargs.get("email_to"), extra_recipients
                     )
                     hash_value = hmac(model_record.env, "website_form_signature", value)
                     if not consteq(signature, hash_value):

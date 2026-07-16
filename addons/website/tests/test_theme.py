@@ -1,8 +1,21 @@
+import werkzeug.exceptions
+
 from odoo.tests import common, tagged
 
 
 @tagged("-at_install", "post_install")
 class TestTheme(common.TransactionCase):
+    def test_theme_upgrade_upstream_rejects_non_theme(self):
+        """``_theme_upgrade_upstream`` runs the install/upgrade machinery under
+        ``sudo()`` for a restricted-editor user, so it must refuse a target that
+        is not a theme module (which would otherwise be draggable into a sudo
+        install)."""
+        editor = self.env.ref("base.user_admin")  # has the editor group
+        non_theme = self.env["ir.module.module"].search([("name", "=", "base")])
+        self.assertTrue(non_theme)
+        with self.assertRaises(werkzeug.exceptions.Forbidden):
+            non_theme.with_user(editor)._theme_upgrade_upstream()
+
     def test_theme_remove_working(self):
         """This test ensure theme can be removed.
         Theme removal is also the first step during theme installation.

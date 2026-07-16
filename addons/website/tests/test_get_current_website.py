@@ -100,6 +100,35 @@ class TestGetCurrentWebsite(HttpCaseWithUserDemo):
         )
         self.assertEqual(Website._get_current_website_id("düsseldorf.com"), website2.id)
 
+    def test_01b_current_website_cache_invalidated_on_create_unlink(self):
+        """``create()`` and ``unlink()`` must invalidate the
+        ``_get_current_website_id`` ormcache. Otherwise a newly created domain
+        keeps resolving to the old fallback, and a deleted website keeps being
+        returned as a dangling id that ``get_current_website()`` would browse."""
+        Website = self.env["website"]
+        self.website.domain = "primary.example"
+
+        # Prime the cache with a "no match" answer for a domain that does not
+        # exist yet.
+        self.assertFalse(
+            Website._get_current_website_id("cache-site.example", fallback=False)
+        )
+
+        # Creating the matching website must drop that stale cache entry.
+        w2 = Website.create({"name": "Cache Site", "domain": "cache-site.example"})
+        self.assertEqual(
+            Website._get_current_website_id("cache-site.example", fallback=False),
+            w2.id,
+            "create() must invalidate the stale 'no match' website-id cache.",
+        )
+
+        # Deleting it must stop the cache from returning the now-dangling id.
+        w2.unlink()
+        self.assertFalse(
+            Website._get_current_website_id("cache-site.example", fallback=False),
+            "unlink() must invalidate the stale website-id cache.",
+        )
+
     def test_02_signup_user_website_id(self):
         website = self.website
         website.specific_user_account = True

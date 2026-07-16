@@ -162,14 +162,17 @@ class WebsiteSnippetFilter(models.Model):
                 domain &= Domain("is_published", "=", True)
             if search_domain:
                 search_domain = Domain(search_domain)
-                # ``search_domain`` is client-supplied on the public route;
-                # only allow leaves that reference real fields of the target
-                # model (mirrors the editor route's validation).
+                # ``search_domain`` is client-supplied on the public route.
+                # Only allow leaves that reference a *direct* field of the
+                # target model. A dotted path (e.g. ``create_uid.login``) passed
+                # the old ``split(".")[0]`` check and let a public visitor filter
+                # on fields of related — possibly unpublished — records, turning
+                # the published result set into a boolean oracle over them.
                 for condition in search_domain.iter_conditions():
-                    if condition.field_expr.split(".")[0] not in model._fields:
+                    field_expr = condition.field_expr
+                    if "." in field_expr or field_expr not in model._fields:
                         raise ValueError(
-                            _("Invalid field %r in search domain")
-                            % condition.field_expr
+                            _("Invalid field %r in search domain") % field_expr
                         )
                 domain &= search_domain
             try:

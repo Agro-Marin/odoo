@@ -1,6 +1,7 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-from odoo.exceptions import AccessDenied, ValidationError
+from odoo import SUPERUSER_ID
+from odoo.exceptions import AccessDenied, AccessError, ValidationError
 from odoo.http import request
 from odoo.tests.common import TransactionCase, tagged
 from odoo.tools.misc import hmac
@@ -249,3 +250,93 @@ class TestWebsiteForm(TransactionCase):
             before + 1,
             "A validly signed submission should create the mail.",
         )
+
+    def test_get_authorized_fields_requires_editor(self):
+        """``ir.model.get_authorized_fields`` is RPC-reachable and leaks field
+        metadata + SUPERUSER defaults, so it must require the website-editor
+        group like its form-builder siblings. The internal submission path
+        (which calls it via SUPERUSER) must still work."""
+        IrModel = self.env["ir.model"]
+        public = self.env.ref("base.public_user")
+        with self.assertRaises(AccessError):
+            IrModel.with_user(public).get_authorized_fields("res.partner", {})
+
+        # SUPERUSER (internal submission path) is allowed.
+        fields = IrModel.with_user(SUPERUSER_ID).get_authorized_fields(
+            "res.partner", {}
+        )
+        self.assertIn("name", fields)
+
+    def test_mail_form_signature_binds_cc_recipients(self):
+        """The signature must bind the Cc/Bcc *values*, not merely their
+        presence. A signature issued for a form without extra recipients cannot
+        be replayed to inject an ``email_cc``, and a signature issued for one Cc
+        value cannot be reused to relay to a different Cc (open-relay via Cc)."""
+        from odoo.addons.website.tools import website_form_signature_payload
+
+        website = self.env["website"].browse(1)
+        self.env["ir.model"].search(
+            [("model", "=", "mail.mail")]
+        ).website_form_access = True
+        controller = WebsiteForm()
+        good_to = "company@company.example"
+        before = self.env["mail.mail"].search_count([])
+
+        with MockRequest(self.env, website=website):
+            # (1) Signature bound to email_to only must NOT authorize a Cc.
+            sig_no_cc = hmac(
+                self.env,
+                "website_form_signature",
+                website_form_signature_payload(good_to, {}),
+            )
+            with self.assertRaises(AccessDenied):
+                controller._handle_website_form(
+                    "mail.mail",
+                    email_to=good_to,
+                    email_cc="victim@evil.example",
+                    subject="spam",
+                    body="spam",
+                    website_form_signature=sig_no_cc,
+                )
+            # (2) Signature bound to a specific Cc must reject a different Cc.
+            sig_copy = hmac(
+                self.env,
+                "website_form_signature",
+                website_form_signature_payload(
+                    good_to, {"email_cc": "copy@company.example"}
+                ),
+            )
+            with self.assertRaises(AccessDenied):
+                controller._handle_website_form(
+                    "mail.mail",
+                    email_to=good_to,
+                    email_cc="victim@evil.example",
+                    subject="spam",
+                    body="spam",
+                    website_form_signature=sig_copy,
+                )
+
+        self.assertEqual(
+            self.env["mail.mail"].search_count([]),
+            before,
+            "No relay mail must be created by a rejected Cc injection.",
+        )
+
+        # A correctly signed Cc submission (value matches) is accepted.
+        with MockRequest(self.env, website=website):
+            sig_copy = hmac(
+                self.env,
+                "website_form_signature",
+                website_form_signature_payload(
+                    good_to, {"email_cc": "copy@company.example"}
+                ),
+            )
+            controller._handle_website_form(
+                "mail.mail",
+                email_to=good_to,
+                email_cc="copy@company.example",
+                subject="hello",
+                body="hello",
+                website_form_signature=sig_copy,
+            )
+        self.assertEqual(self.env["mail.mail"].search_count([]), before + 1)

@@ -113,6 +113,35 @@ def get_base_domain(url, strip_www=False):
     return url
 
 
+def website_form_signature_payload(email_to, extra_recipients):
+    """Build the exact string protected by ``website_form_signature``.
+
+    The signature is what stops a public visitor from turning a ``mail.mail``
+    web form into an open relay. It must bind the *values* of every recipient
+    field the form exposes — not just ``email_to`` and not merely the
+    *presence* of Cc/Bcc — otherwise a replayed signature lets the visitor
+    inject arbitrary ``email_cc``/``email_bcc`` recipients.
+
+    Both the renderer (:func:`add_form_signature`) and the submission handler
+    (``website/controllers/form.py``) must build the payload through this
+    single helper so the two sides can never drift.
+
+    :param str email_to: the builder-set primary recipient.
+    :param dict extra_recipients: mapping of the Cc/Bcc recipient fields present
+        on the form (``email_cc`` / ``email_bcc``) to their values.
+    :return: the string to feed to ``hmac``.
+    """
+    parts = [email_to or ""]
+    parts.extend(
+        "%s=%s" % (name, extra_recipients[name] or "")
+        for name in ("email_cc", "email_bcc")
+        if name in extra_recipients
+    )
+    # NUL separator: it cannot appear in an email header value, so distinct
+    # field sets cannot collide into the same payload.
+    return "\x00".join(parts)
+
+
 def add_form_signature(html_fragment, env_sudo):
     for form in html_fragment.iter("form"):
         if "/website/form/" not in form.attrib.get("action", ""):
@@ -141,11 +170,13 @@ def add_form_signature(html_fragment, env_sudo):
             # which is the company email.
             email_to_value = env_sudo.company.email or ""
 
-        has_cc = {"email_cc", "email_bcc"} & form_values.keys()
-        value = email_to_value + (":email_cc" if has_cc else "")
+        extra_recipients = {
+            name: form_values[name].attrib.get("value") or ""
+            for name in ("email_cc", "email_bcc")
+            if name in form_values
+        }
+        value = website_form_signature_payload(email_to_value, extra_recipients)
         hash_value = hmac(env_sudo, "website_form_signature", value)
-        if has_cc:
-            hash_value += ":email_cc"
         hash_node = etree.Element(
             "input",
             attrib={

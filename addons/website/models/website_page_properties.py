@@ -98,7 +98,11 @@ class WebsitePagePropertiesBase(models.TransientModel):
         if self.is_homepage:
             if url and url != "/":
                 self.website_id.homepage_url = url
-        else:
+        elif self.website_id.homepage_url == url:
+            # Only clear the website homepage when *this* page is the one
+            # currently designated. Clearing unconditionally destroyed the
+            # homepage designation of a different page when the properties
+            # dialog wrote ``is_homepage=False`` for a non-homepage page.
             self.website_id.homepage_url = False
 
     @api.depends("target_model_id")

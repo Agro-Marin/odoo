@@ -5,7 +5,7 @@ from ast import literal_eval
 from lxml import etree
 
 from odoo import SUPERUSER_ID, _, api, fields, models
-from odoo.exceptions import ValidationError
+from odoo.exceptions import AccessError, ValidationError
 from odoo.fields import Domain
 from odoo.http import request
 
@@ -82,6 +82,15 @@ class IrModel(models.Model):
     @api.model
     def get_authorized_fields(self, model_name, property_origins):
         """Return the fields of the given model name as a mapping like method `fields_get`."""
+        # RPC-reachable and leaks field metadata + SUPERUSER default values for
+        # an arbitrary model, so gate it like its form-builder siblings
+        # (``get_compatible_form_models`` / ``formbuilder_whitelist``). The
+        # internal submission path calls this via ``with_user(SUPERUSER_ID)``,
+        # which satisfies the check.
+        if not self.env.user.has_group("website.group_website_restricted_editor"):
+            raise AccessError(
+                _("Only website editors can introspect form model fields.")
+            )
         model = self.env[model_name]
         fields_get = model.fields_get()
 
