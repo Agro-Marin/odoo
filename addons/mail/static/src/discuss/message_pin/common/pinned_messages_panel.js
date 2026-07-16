@@ -30,9 +30,14 @@ export class PinnedMessagesPanel extends Component {
     }
 
     /**
-     * Get the message to display when nothing is pinned on this thread.
+     * Get the message to display when the pinned-message list is empty.
      */
     get emptyText() {
+        if (this.props.thread.pinnedMessagesState === "error") {
+            // distinct from "no pinned messages": a fetch failure used to be
+            // indistinguishable from a genuinely empty channel
+            return _t("Pinned messages could not be loaded.");
+        }
         if (this.props.thread.channel_type === "channel") {
             return _t("This channel doesn't have any pinned messages.");
         } else {

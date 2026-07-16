@@ -11,8 +11,15 @@ const attachmentPatch = {
         return !this.voice && super.isViewable;
     },
     delete() {
-        if (this.voice && this.id > 0) {
-            this.store.env.services["discuss.voice_message"].activePlayer = null;
+        // only clear when the ACTIVE player's own attachment is deleted:
+        // clearing for any voice attachment broke cross-player exclusivity
+        // (deleting a non-playing voice message left activePlayer null, so
+        // the next play no longer paused the one still playing). Deleting
+        // the playing attachment unmounts its VoicePlayer, whose pause()
+        // already clears activePlayer.
+        const voiceService = this.store.env.services["discuss.voice_message"];
+        if (this.voice && voiceService.activePlayer?.props.attachment.eq(this)) {
+            voiceService.activePlayer = null;
         }
         super.delete(...arguments);
     },

@@ -12,9 +12,14 @@ import { Mp3Encoder } from "@mail/discuss/voice_message/common/mp3_encoder";
 import { loadLamejs } from "@mail/discuss/voice_message/common/voice_message_service";
 import { VoicePlayer } from "@mail/discuss/voice_message/common/voice_player";
 import { patchable } from "@mail/discuss/voice_message/common/voice_recorder";
-import { describe, globals, test } from "@odoo/hoot";
+import { describe, expect, globals, test } from "@odoo/hoot";
 import { Deferred, mockDate } from "@odoo/hoot-mock";
-import { Command, patchWithCleanup, serverState } from "@web/../tests/web_test_helpers";
+import {
+    Command,
+    getService,
+    patchWithCleanup,
+    serverState,
+} from "@web/../tests/web_test_helpers";
 
 describe.current.tags("desktop");
 defineMailModels();
@@ -93,4 +98,26 @@ test("make voice message in chat", async () => {
     await click(".o-mail-Composer button[title='More Actions']");
     await contains(".dropdown-item:contains('Attach Files')"); // check menu loaded
     await contains(".dropdown-item:contains('Voice Message')", { count: 0 }); // only 1 voice message at a time
+});
+
+test("deleting a non-playing voice message keeps cross-player exclusivity", async () => {
+    await startServer();
+    await start();
+    const store = getService("mail.store");
+    const voiceService = getService("discuss.voice_message");
+    // two voice attachments (voice_ids present => `voice` getter true)
+    const metaA = store["discuss.voice.metadata"].insert({ id: 1 });
+    const metaB = store["discuss.voice.metadata"].insert({ id: 2 });
+    const attachmentA = store["ir.attachment"].insert({ id: 10, voice_ids: [metaA] });
+    const attachmentB = store["ir.attachment"].insert({ id: 11, voice_ids: [metaB] });
+    // A is the active player
+    voiceService.activePlayer = { props: { attachment: attachmentA } };
+    // deleting B (a different voice message) must NOT clear the active player,
+    // otherwise the next play would not pause A -> simultaneous playback
+    attachmentB.delete();
+    expect(voiceService.activePlayer).not.toBe(null);
+    expect(voiceService.activePlayer.props.attachment.eq(attachmentA)).toBe(true);
+    // deleting the active attachment does clear it
+    attachmentA.delete();
+    expect(voiceService.activePlayer).toBe(null);
 });
