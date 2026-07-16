@@ -6,6 +6,7 @@
 import { Domain } from "@web/core/domain";
 import { _t } from "@web/core/l10n/translation";
 
+import { computeActiveItemDomains } from "./search_domain.js";
 import { SPECIAL } from "./search_state.js";
 import { INTERVAL_OPTIONS } from "./utils/dates.js";
 import { FACET_COLORS, FACET_ICONS } from "./utils/misc.js";
@@ -37,16 +38,15 @@ export function buildFacets({
 }) {
     const facets = [];
     for (const group of groups) {
-        const groupActiveItemDomains = [];
+        const groupActiveItemDomains = computeActiveItemDomains(
+            group,
+            getSearchItemDomain,
+        );
         const values = [];
         let title;
         let type;
         let tooltip;
         for (const activeItem of group.activeItems) {
-            const domain = getSearchItemDomain(activeItem);
-            if (domain) {
-                groupActiveItemDomains.push(domain);
-            }
             const searchItem = searchItems[activeItem.searchItemId];
             // ||=: keep the first tooltip found in the group — a later item
             // without one (e.g. OR'd split filters) must not erase it.

@@ -77,3 +77,34 @@ export function buildConcurrencyBaseline(record, fieldNames) {
     }
     return baseline;
 }
+
+/**
+ * Build the mass-edit ``kwargs`` carrying a per-record optimistic-locking
+ * baseline. Each saved record with a resId gets its ``buildConcurrencyBaseline``
+ * over ``fieldNames``; records with a non-empty baseline are keyed by resId
+ * under ``known_values``. Returns ``kwargs`` unchanged when no record
+ * contributed a baseline, so a plain save carries no extra key. Shared by both
+ * ``_multiSave`` paths (relative Operation and absolute mass-edit) so the
+ * ``known_values`` shape can't drift between them.
+ *
+ * @param {import("./record").RelationalRecord[]} records records being saved
+ * @param {Iterable<string>} fieldNames the fields being written
+ * @param {Record<string, any>} kwargs base kwargs to extend
+ * @returns {Record<string, any>}
+ */
+export function buildKnownValuesKwargs(records, fieldNames, kwargs) {
+    /** @type {Record<string, any>} */
+    const knownValues = {};
+    for (const record of records) {
+        if (!record.resId) {
+            continue;
+        }
+        const baseline = buildConcurrencyBaseline(record, fieldNames);
+        if (Object.keys(baseline).length) {
+            knownValues[record.resId] = baseline;
+        }
+    }
+    return Object.keys(knownValues).length
+        ? { ...kwargs, known_values: knownValues }
+        : kwargs;
+}

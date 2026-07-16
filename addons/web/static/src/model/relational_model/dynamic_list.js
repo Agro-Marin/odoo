@@ -7,7 +7,7 @@ import { _t } from "@web/core/l10n/translation";
 import { unique } from "@web/core/utils/collections/arrays";
 
 import { x2ManyCommands } from "./commands.js";
-import { buildConcurrencyBaseline } from "./concurrency_baseline.js";
+import { buildKnownValuesKwargs } from "./concurrency_baseline.js";
 import { DataPoint } from "./datapoint.js";
 import { isX2Many } from "./field_context.js";
 import { getFieldsSpec } from "./field_spec.js";
@@ -513,20 +513,11 @@ export class DynamicList extends DataPoint {
             // (the originally-loaded value the increment was computed from). If
             // another user moved a record's value since load, that record's
             // recomputed result is stale and the server rejects just that one.
-            const fieldNames = Object.keys(changes);
-            const knownValues = {};
-            for (const record of validRecords) {
-                if (!record.resId) {
-                    continue;
-                }
-                const baseline = buildConcurrencyBaseline(record, fieldNames);
-                if (Object.keys(baseline).length) {
-                    knownValues[record.resId] = baseline;
-                }
-            }
-            const multiKwargs = Object.keys(knownValues).length
-                ? { ...kwargs, known_values: knownValues }
-                : kwargs;
+            const multiKwargs = buildKnownValuesKwargs(
+                validRecords,
+                Object.keys(changes),
+                kwargs,
+            );
             save = () =>
                 this.model.orm.webSaveMulti(
                     this.resModel,
@@ -544,19 +535,11 @@ export class DynamicList extends DataPoint {
             // was previously the only save path with no concurrency guard.
             // Uses the same shared builder as single-save, so the exclusion
             // rules can't drift; the server fails open per record.
-            const knownValues = {};
-            for (const record of validRecords) {
-                if (!record.resId) {
-                    continue;
-                }
-                const baseline = buildConcurrencyBaseline(record, Object.keys(vals));
-                if (Object.keys(baseline).length) {
-                    knownValues[record.resId] = baseline;
-                }
-            }
-            const saveKwargs = Object.keys(knownValues).length
-                ? { ...kwargs, known_values: knownValues }
-                : kwargs;
+            const saveKwargs = buildKnownValuesKwargs(
+                validRecords,
+                Object.keys(vals),
+                kwargs,
+            );
             save = () =>
                 this.model.orm.webSave(this.resModel, resIds, vals, saveKwargs);
         }
