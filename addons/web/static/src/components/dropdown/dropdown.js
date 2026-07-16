@@ -486,7 +486,14 @@ export class Dropdown extends Component {
             this.target.ariaExpanded = "true";
             this.target.classList.add("show");
         }
-
+        // Observe the menu for DOM mutations (e.g. an accordion item expanding
+        // to reveal sub-items) and re-scan the navigable set. This looks
+        // redundant with useNavigation's own MutationObserver, but it is NOT:
+        // useNavigation attaches its observer in a useEffect keyed on
+        // menuRef.el, and the menu is popover-hosted — menuRef.el is still null
+        // when the Dropdown patches, and a ref assignment does not re-run the
+        // effect, so that observer never attaches here. This imperative one,
+        // set up at open time when menuRef.el is live, is the only effective one.
         this.observer = new MutationObserver(() => this.navigation.update());
         this.observer.observe(this.menuRef.el, {
             childList: true,
