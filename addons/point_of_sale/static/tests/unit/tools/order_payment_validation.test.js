@@ -20,6 +20,33 @@ test("validateOrder", async () => {
     expect(order.state).toBe("paid");
     expect(order.amount_paid).toBe(17.85);
 });
+test("validation is refused while a terminal payment is in flight", async () => {
+    const store = await setupPosEnv();
+    const order = await getFilledOrder(store);
+    const cashMethod = store.models["pos.payment.method"].find(
+        (pm) => pm.is_cash_count,
+    );
+    // Simulate an electronic line the terminal is still processing, covered by
+    // a cash line for the full amount (the exact state that used to validate
+    // and silently delete the live terminal transaction). Lines are created
+    // before the "waiting" status is set because addPaymentline itself refuses
+    // to add lines while an electronic payment is in progress.
+    const terminalLine = order.addPaymentline(cashMethod).data;
+    const cashLine = order.addPaymentline(cashMethod).data;
+    terminalLine.setAmount(0);
+    cashLine.setAmount(order.totalDue);
+    terminalLine.setPaymentStatus("waiting");
+
+    const validation = new OrderPaymentValidation({
+        pos: store,
+        orderUuid: order.uuid,
+    });
+    expect(await validation.isOrderValid(false)).toBe(false);
+    // Once the terminal transaction completes, validation may proceed.
+    terminalLine.setPaymentStatus("done");
+    expect(await validation.isOrderValid(false)).toBe(true);
+});
+
 test("isOrderValid", async () => {
     const store = await setupPosEnv();
     const order = store.addNewOrder();

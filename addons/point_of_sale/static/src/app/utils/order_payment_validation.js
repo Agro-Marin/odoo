@@ -305,6 +305,28 @@ export default class OrderPaymentValidation {
             return false;
         }
 
+        // Never validate while a payment terminal transaction is live: the
+        // pending-payment cleanup in validateOrder() deletes any not-done line
+        // *without* a terminal cancel, so the terminal could still capture
+        // funds with no local record of the payment. "pending" (never sent)
+        // and "retry" (failed) lines are safe to clean up; anything else
+        // (waiting, waitingCard, waitingCancel, ...) is in flight.
+        const inFlightPayment = this.order.payment_ids.find(
+            (p) =>
+                p.isElectronic() &&
+                !p.isDone() &&
+                !["pending", "retry"].includes(p.getPaymentStatus()),
+        );
+        if (this.pos.paymentTerminalInProgress || inFlightPayment) {
+            this.pos.dialog.add(AlertDialog, {
+                title: _t("Electronic payment in progress"),
+                body: _t(
+                    "The order cannot be validated while a payment terminal transaction is in progress. Wait for the transaction to finish or cancel it on the payment screen first.",
+                ),
+            });
+            return false;
+        }
+
         if (this.order.getOrderlines().length === 0 && this.order.isToInvoice()) {
             this.pos.dialog.add(AlertDialog, {
                 title: _t("Empty Order"),
