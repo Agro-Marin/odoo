@@ -67,6 +67,10 @@ export class DiscussClientAction extends Component {
      * @param {Props} props
      */
     async restoreDiscussThread(props) {
+        // deliberately un-awaited by its callers (rendering must not block
+        // on the fetch): two in-flight runs can resolve out of order, so
+        // only the latest may apply its result
+        const token = (this._restoreToken = (this._restoreToken ?? 0) + 1);
         const rawActiveId = this.getActiveId(props);
         const parsedActiveId = this.parseActiveId(rawActiveId);
         if (!parsedActiveId) {
@@ -81,6 +85,11 @@ export class DiscussClientAction extends Component {
         }
         const [model, id] = parsedActiveId;
         const activeThread = await this.store.Thread.getOrFetch({ model, id });
+        if (token !== this._restoreToken) {
+            // superseded by a newer restore: applying this stale result
+            // would set the PREVIOUS thread as the active discuss thread
+            return;
+        }
         if (activeThread && activeThread.notEq(this.store.discuss.thread)) {
             const highlight_message_id =
                 props.action?.params?.highlight_message_id ||

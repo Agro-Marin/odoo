@@ -565,19 +565,6 @@ export class Store extends BaseStore {
         );
     }
 
-    async startMeeting() {
-        const thread = await this.createGroupChat({
-            default_display_mode: "video_full_screen",
-            partners_to: [this.self.id],
-        });
-        await this.store.chatHub.initPromise;
-        this.ChatWindow.get(thread)?.update({ autofocus: 0 });
-        await this.env.services["discuss.rtc"].toggleCall(thread, { camera: true });
-        if (this.rtc.selfSession) {
-            this.rtc.enterFullscreen({ autoOpenAction: "invite-people" });
-        }
-    }
-
     /**
      * @param {'chat' | 'group'} tab
      * @returns Thread types matching the given tab.
@@ -846,7 +833,13 @@ export class Store extends BaseStore {
                 const [userId] = await this.env.services.orm.silent.search(
                     "res.users",
                     [["partner_id", "=", partnerId]],
-                    { context: { active_test: false } },
+                    {
+                        context: { active_test: false },
+                        // deterministic pick for multi-user partners: prefer
+                        // active over archived, internal over portal —
+                        // unordered search chatted at an arbitrary one
+                        order: "active desc, share asc, id asc",
+                    },
                 );
                 if (!userId) {
                     this.env.services.notification.add(

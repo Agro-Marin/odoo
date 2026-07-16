@@ -616,13 +616,17 @@ export function decorateEmojis(content) {
         const span = document.createElement("span");
         setElementContent(
             span,
-            htmlReplaceAll(node.textContent, loader.loaded.emojiRegex, (codepoints) =>
-                markup(
-                    `<span class="o-mail-emoji" title="${htmlFormatList(
+            htmlReplaceAll(
+                node.textContent,
+                loader.loaded.emojiRegex,
+                (codepoints) =>
+                    // tagged template: interpolations are auto-escaped, unlike
+                    // the previous markup(`...`) plain-literal call which relied
+                    // on every interpolation being pre-escaped
+                    markup`<span class="o-mail-emoji" title="${htmlFormatList(
                         loader.loaded.emojiValueToShortcodes[codepoints],
                         { style: "unit-narrow" },
-                    )}">${htmlEscape(codepoints)}</span>`,
-                ),
+                    )}">${codepoints}</span>`,
             ),
         );
         node.replaceWith(...span.childNodes);

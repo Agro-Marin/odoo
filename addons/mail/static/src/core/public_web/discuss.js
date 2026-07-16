@@ -68,9 +68,18 @@ export class Discuss extends Component {
                         return;
                     }
                     if (isSmall) {
-                        this.thread
+                        const promise = (this._openChatWindowPromise = this.thread
                             .openChatWindow({ focus: true })
-                            .then((chatWindow) => (this.chatWindow = chatWindow));
+                            .then((chatWindow) => {
+                                if (this._openChatWindowPromise === promise) {
+                                    this.chatWindow = chatWindow;
+                                } else {
+                                    // superseded while in flight: only the
+                                    // latest window is tracked, an untracked
+                                    // one could never be closed
+                                    chatWindow?.close();
+                                }
+                            }));
                     } else {
                         this.chatWindow?.close();
                     }

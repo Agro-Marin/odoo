@@ -50,6 +50,24 @@ const StorePatch = {
         super.onStarted(...arguments);
         this.rtc.start();
     },
+    /**
+     * Moved here from core/common: every dependency (createGroupChat from
+     * the discuss layer, this.rtc / discuss.rtc from the call layer) lives
+     * above core — in a bundle without the call layer the method could only
+     * crash.
+     */
+    async startMeeting() {
+        const thread = await this.createGroupChat({
+            default_display_mode: "video_full_screen",
+            partners_to: [this.self.id],
+        });
+        await this.store.chatHub.initPromise;
+        this.ChatWindow.get(thread)?.update({ autofocus: 0 });
+        await this.env.services["discuss.rtc"].toggleCall(thread, { camera: true });
+        if (this.rtc.selfSession) {
+            this.rtc.enterFullscreen({ autoOpenAction: "invite-people" });
+        }
+    },
     sortMembers(m1, m2) {
         const m1HasRtc = Boolean(m1.rtcSession);
         const m2HasRtc = Boolean(m2.rtcSession);

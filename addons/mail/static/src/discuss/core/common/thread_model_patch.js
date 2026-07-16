@@ -48,6 +48,16 @@ const threadStaticPatch = {
         if (thread?.fetchChannelInfoState === "fetched") {
             return Promise.resolve(thread);
         }
+        if (thread?.channel_type && thread.self_member_id) {
+            // fully delivered by another channel payload (channels_as_member,
+            // the sidebar fetch, delivers everything fetchChannel would):
+            // without this, the FIRST bus message of every such channel
+            // triggered one redundant full channel fetch, and all the
+            // new-message side effects (counters, mark-as-fetched) waited
+            // on it
+            thread.fetchChannelInfoState = "fetched";
+            return Promise.resolve(thread);
+        }
         const fetchChannelInfoDeferred = this.store.channelIdsFetchingDeferred.get(
             data.id,
         );
