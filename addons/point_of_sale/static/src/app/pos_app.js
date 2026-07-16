@@ -52,6 +52,9 @@ export class Chrome extends Component {
 
         onWillStart(this.pos._loadFonts);
         onMounted(this.props.disableLoader);
+        // One adapter for the component's lifetime: a new instance per
+        // mutation leaked a BroadcastChannel each time.
+        this.customerDisplayAdapter = new CustomerDisplayPosAdapter();
         effect(
             batched(({ selectedOrder, scale }) => {
                 if (selectedOrder) {
@@ -66,6 +69,11 @@ export class Chrome extends Component {
                           }
                         : null;
                     this.sendOrderToCustomerDisplay(selectedOrder, scaleData);
+                } else {
+                    // Reset the display, otherwise it keeps showing the last
+                    // order after it was closed/deleted.
+                    this.customerDisplayAdapter.formatEmpty();
+                    this.customerDisplayAdapter.dispatch(this.pos);
                 }
             }),
             [this.pos],
@@ -73,7 +81,7 @@ export class Chrome extends Component {
     }
 
     sendOrderToCustomerDisplay(selectedOrder, scaleData) {
-        const adapter = new CustomerDisplayPosAdapter();
+        const adapter = this.customerDisplayAdapter;
         adapter.formatOrderData(selectedOrder);
         adapter.data.scaleData = scaleData;
         adapter.dispatch(this.pos);

@@ -22,11 +22,20 @@ export class CustomerDisplayPosAdapter {
 
     dispatch(pos) {
         this.channel.postMessage(JSON.parse(JSON.stringify(this.data)));
+        // The server call only re-notifies the bus channel
+        // "UPDATE_CUSTOMER_DISPLAY-<device_uuid>". The uuid is created when a
+        // remote display is provisioned from this device's navbar; without it
+        // no display can be listening, so the RPC (per order mutation!) would
+        // be pure overhead.
+        const deviceUuid = localStorage.getItem("device_uuid");
+        if (!deviceUuid) {
+            return;
+        }
         pos.data
             .call("pos.config", "update_customer_display", [
                 [pos.config.id],
                 this.data,
-                localStorage.getItem("device_uuid"),
+                deviceUuid,
             ])
             .catch((error) => {
                 logPosMessage(
@@ -37,6 +46,22 @@ export class CustomerDisplayPosAdapter {
                     [error],
                 );
             });
+    }
+
+    formatEmpty() {
+        // Payload shown when no order is selected: without it the display
+        // kept rendering the previous order after it was closed/deleted.
+        this.data = {
+            finalized: false,
+            general_customer_note: "",
+            amount: false,
+            subtotal: false,
+            amountTaxes: false,
+            change: false,
+            paymentLines: [],
+            lines: [],
+            qrPaymentData: null,
+        };
     }
 
     formatOrderData(order) {

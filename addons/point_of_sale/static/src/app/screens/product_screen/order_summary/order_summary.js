@@ -159,6 +159,13 @@ export class OrderSummary extends Component {
     async updateSelectedOrderline({ buffer, key }) {
         const order = this.pos.getOrder();
         const selectedLine = order.getSelectedOrderline();
+        if (!selectedLine) {
+            // No line selected (the default state right after entering the
+            // screen): there is nothing to update, and the `-0` branch below
+            // dereferences the line.
+            this.numberBuffer.reset();
+            return;
+        }
         // Handling negation of value on first input
         if (buffer === "-0" && key === "-") {
             if (

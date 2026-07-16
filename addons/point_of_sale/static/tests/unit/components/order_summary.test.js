@@ -36,3 +36,15 @@ test("Display tax include/exclude subtotal label", async () => {
     expect(total2.innerHTML).toBe("$&nbsp;17.85");
     expect(subtotal2.innerHTML).toBe("$&nbsp;15.00");
 });
+
+test("+/- with no selected line does not crash", async () => {
+    const store = await setupPosEnv();
+    const order = await getFilledOrder(store);
+    const orderSummary = await mountWithCleanup(OrderSummary, {});
+    order.deselectOrderline();
+    // The "-0" negation branch used to dereference the selected line before
+    // any null check — the numpad +/- key crashed the screen right after
+    // entering it (deselection is the default state).
+    await orderSummary.updateSelectedOrderline({ buffer: "-0", key: "-" });
+    expect(order.getSelectedOrderline()).toBe(undefined);
+});

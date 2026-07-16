@@ -51,6 +51,12 @@ export class PosData extends SignalStore {
             deadSyncData: [],
         };
 
+        // UUIDs of paid orders not yet confirmed durable (IndexedDB) nor
+        // synced to the server. Consumed by the beforeunload guard in main.js
+        // to prevent data loss on accidental page close/reload (adapted from
+        // upstream 8070239c9a3).
+        this.localUnsyncedPaidOrderUuids = new Set();
+
         if (!navigator.onLine) {
             await this.checkConnectivity();
         }
@@ -195,6 +201,27 @@ export class PosData extends SignalStore {
 
             if (put.length) {
                 await this.indexedDB.create(model, put);
+            }
+
+            if (model === "pos.order") {
+                // Release the beforeunload guard for paid orders that are now
+                // durable in IndexedDB (safe on reload) or synced to the
+                // server; warn loudly for a tracked order that vanished.
+                const writtenByUuid = new Map(put.map((r) => [r.uuid, r]));
+                for (const trackedUuid of [...this.localUnsyncedPaidOrderUuids]) {
+                    const written = writtenByUuid.get(trackedUuid);
+                    const localRecord = this.models[model].getBy("uuid", trackedUuid);
+                    if (written?.state === "paid" || !localRecord?.isUnsyncedPaid) {
+                        this.localUnsyncedPaidOrderUuids.delete(trackedUuid);
+                    } else if (!written) {
+                        logPosMessage(
+                            "DataService",
+                            "synchronizeLocalDataInIndexedDB",
+                            `Paid order ${trackedUuid} is flagged unsynced but was not persisted — potential data loss`,
+                            CONSOLE_COLOR,
+                        );
+                    }
+                }
             }
         }
 

@@ -54,3 +54,23 @@ test("orderline_note_button.js", async () => {
     expect(order.lines[0].note).toBe('[{"1":"Test","colorIndex":0}]');
     expect(order.lines[3].note).toBe('[{"2":"Test","colorIndex":0}]');
 });
+
+test("dismissing the note dialog keeps the existing note", async () => {
+    const store = await setupPosEnv();
+    const order = store.addNewOrder();
+    await store.addLineToCurrentOrder({
+        product_tmpl_id: store.models["product.template"].get(14),
+        qty: 1,
+    });
+    const line = order.getSelectedOrderline();
+    const existingNote = '[{"text":"keep me","colorIndex":0}]';
+    line.setNote(existingNote);
+
+    const comp = await mountWithCleanup(InternalNoteButton, { props: { label: "" } });
+    // Simulate the user dismissing the dialog (Escape / close): makeAwaitable
+    // resolves undefined. This used to erase the note by writing "[]".
+    comp.openTextInput = async () => undefined;
+    const res = await comp.onClick();
+    expect(res.confirmed).toBe(false);
+    expect(line.getNote()).toBe(existingNote);
+});
