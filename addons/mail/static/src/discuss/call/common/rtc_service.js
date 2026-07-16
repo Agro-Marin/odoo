@@ -1012,6 +1012,7 @@ export class Rtc extends Record {
         if (!this.store.settings.logRtc && !important) {
             return;
         }
+        // eslint-disable-next-line no-console -- opt-in WebRTC call diagnostics logging
         console.debug(
             `%c${new Date().toLocaleString()} - [${entry}]`,
             "color: #e36f17; font-weight: bold;",

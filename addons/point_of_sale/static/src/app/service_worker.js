@@ -20,7 +20,7 @@ const cacheResources = async (event) => {
         const cache = await caches.open(cacheName);
         await cache.add(url);
     } catch (error) {
-        console.info("Failed to cache resource", url, error);
+        console.warn("Failed to cache resource", url, error);
     }
 };
 

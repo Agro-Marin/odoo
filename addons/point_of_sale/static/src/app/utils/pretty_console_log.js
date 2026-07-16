@@ -1,4 +1,5 @@
 /** @odoo-module native */
+/* eslint-disable no-console -- dedicated styled console logger; console is its output */
 import { Logger } from "@bus/workers/bus_worker_utils";
 import { luxon } from "@web/core/l10n/luxon";
 import { downloadFile } from "@web/core/network/download";

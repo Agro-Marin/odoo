@@ -29,7 +29,8 @@ patch(StockValuationReport.prototype, {
             target: "current",
         };
         if (line?.id) {
-            ((action.views = [[false, "form"]]), (action.res_id = line.id));
+            action.views = [[false, "form"]];
+            action.res_id = line.id;
         } else {
             action.domain = [["id", "in", this.saleOrderIds]];
         }

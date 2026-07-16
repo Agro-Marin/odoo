@@ -88,6 +88,7 @@
                 globalThis.localStorage?.getItem?.("debug.assets") ||
                 globalThis.__ODOO_ASSET_TRACE__;
             if (on) {
+                // eslint-disable-next-line no-console -- opt-in asset-loader trace diagnostics
                 console.debug("[asset.loader]", ...parts);
             }
         } catch {

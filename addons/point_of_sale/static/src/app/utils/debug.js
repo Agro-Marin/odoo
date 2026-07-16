@@ -1,4 +1,5 @@
 /** @odoo-module native */
+/* eslint-disable no-console -- developer debug utility */
 /**
  * Builds a simplified representation of an object, managing complex structures and circular references up to a defined maximum depth.
  * This function is useful for visualizing objects that would otherwise cause errors when converting to a string, such as using `JSON.stringify`

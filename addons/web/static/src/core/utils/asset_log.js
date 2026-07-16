@@ -1,5 +1,6 @@
 // @ts-check
 /** @odoo-module native */
+/* eslint-disable no-console -- dedicated asset logging utility; console is its output */
 
 /** @module @web/core/utils/asset_log - Debug-gated namespaced logger (asset/rpc/action/model) */
 

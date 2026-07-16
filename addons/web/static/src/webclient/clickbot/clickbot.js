@@ -1,5 +1,6 @@
 // @ts-check
 /** @odoo-module native */
+/* eslint-disable no-console -- QA automation bot; progress/results output to console is its purpose */
 
 /** @module @web/webclient/clickbot/clickbot - Automated UI testing bot that clicks through all apps, views, and filters to verify stability */
 

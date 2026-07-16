@@ -1585,7 +1585,7 @@ export function getCSSRules(doc) {
         try {
             rules = sheet.rules || sheet.cssRules;
         } catch (e) {
-            console.log("Can't read the css rules of: " + sheet.href, e);
+            console.warn("Can't read the css rules of: " + sheet.href, e);
             continue;
         }
         _collectCSSRules(rules || [], cssRules, []);
