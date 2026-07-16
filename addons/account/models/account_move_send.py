@@ -590,11 +590,22 @@ class AccountMoveSend(models.AbstractModel):
                         if render_options[invoice]
                         else None,
                     )
-                    content_by_id.update(
-                        self.env["ir.actions.report"]._get_splitted_report(
-                            pdf_report.report_name, content, report_type
+                    splitted_report = self.env[
+                        "ir.actions.report"
+                    ]._get_splitted_report(pdf_report.report_name, content, report_type)
+                    # Mirror the guard on the batched branch below: if the
+                    # splitter couldn't tie the PDF back to this invoice it keys
+                    # the content under ``False``, and the ``content_by_id[...]``
+                    # lookup afterwards would raise an opaque KeyError instead of
+                    # this actionable error.
+                    if invoice.id not in splitted_report:
+                        raise ValidationError(
+                            _(
+                                "Cannot identify the invoices in the generated PDF: %s",
+                                invoice.ids,
+                            )
                         )
-                    )
+                    content_by_id.update(splitted_report)
             else:
                 content, report_type = Report._pre_render_qweb_pdf(
                     pdf_report.report_name, res_ids=ids
@@ -720,7 +731,7 @@ class AccountMoveSend(models.AbstractModel):
                 "email", move, **move_data
             ):
                 to_send_mail[move] = move_data
-        self._send_mails(to_send_mail)
+        self._send_mails(to_send_mail, from_cron=from_cron)
         self._send_notifications_to_partners(group_by_partner)
 
         # Notify subscribers.
@@ -866,58 +877,91 @@ class AccountMoveSend(models.AbstractModel):
         return params
 
     @api.model
-    def _generate_dynamic_reports(self, moves_data):
+    def _generate_dynamic_reports(self, moves_data, from_cron=False):
+        """Generate the per-move dynamic mail reports.
+
+        Returns the moves whose report generation failed (only possible when
+        ``from_cron`` — see below); the caller must skip sending those.
+
+        In a cron run the whole batch shares one transaction, so an unguarded
+        raise here (e.g. a QWeb error on one move) would roll back every move in
+        the batch — including their ``sending_data = False`` reset — and the same
+        batch would be re-fetched and fail again on the next tick (a permanent
+        stall). Isolate each move so one bad report can't poison the batch;
+        outside a cron the error still propagates to the caller/UI as before.
+        """
+        failed = self.env["account.move"]
         for move, move_data in moves_data.items():
-            mail_attachments_widget = move_data.get("mail_attachments_widget", [])
-
-            dynamic_reports = [
-                attachment_widget
-                for attachment_widget in mail_attachments_widget
-                if attachment_widget.get("dynamic_report")
-                and not attachment_widget.get("skip")
-            ]
-
-            attachments_to_create = []
-            for dynamic_report in dynamic_reports:
-                content, _report_format = (
-                    self.env["ir.actions.report"]
-                    .with_company(move.company_id)
-                    .with_context(from_account_move_send=True)
-                    ._render(dynamic_report["dynamic_report"], move.ids)
+            try:
+                self._generate_dynamic_reports_for_move(move, move_data)
+            except Exception:
+                if not from_cron:
+                    raise
+                _logger.exception(
+                    "Failed generating dynamic mail reports for move %s", move.id
                 )
-
-                attachments_to_create.append(
-                    {
-                        "raw": content,
-                        "name": dynamic_report["name"],
-                        "mimetype": "application/pdf",
-                        "res_model": move._name,
-                        "res_id": move.id,
-                    }
+                move.message_post(
+                    body=self.env._(
+                        "The document could not be generated, so this invoice was "
+                        "not sent by email. Review and resend it manually."
+                    )
                 )
-
-            attachments = self.env["ir.attachment"].create(attachments_to_create)
-            mail_attachments_widget += [
-                {
-                    "id": attachment.id,
-                    "name": attachment.name,
-                    "mimetype": "application/pdf",
-                    "placeholder": False,
-                    "protect_from_deletion": True,
-                }
-                for attachment in attachments
-            ]
+                failed |= move
+        return failed
 
     @api.model
-    def _send_mails(self, moves_data):
+    def _generate_dynamic_reports_for_move(self, move, move_data):
+        mail_attachments_widget = move_data.get("mail_attachments_widget", [])
+
+        dynamic_reports = [
+            attachment_widget
+            for attachment_widget in mail_attachments_widget
+            if attachment_widget.get("dynamic_report")
+            and not attachment_widget.get("skip")
+        ]
+
+        attachments_to_create = []
+        for dynamic_report in dynamic_reports:
+            content, _report_format = (
+                self.env["ir.actions.report"]
+                .with_company(move.company_id)
+                .with_context(from_account_move_send=True)
+                ._render(dynamic_report["dynamic_report"], move.ids)
+            )
+
+            attachments_to_create.append(
+                {
+                    "raw": content,
+                    "name": dynamic_report["name"],
+                    "mimetype": "application/pdf",
+                    "res_model": move._name,
+                    "res_id": move.id,
+                }
+            )
+
+        attachments = self.env["ir.attachment"].create(attachments_to_create)
+        mail_attachments_widget += [
+            {
+                "id": attachment.id,
+                "name": attachment.name,
+                "mimetype": "application/pdf",
+                "placeholder": False,
+                "protect_from_deletion": True,
+            }
+            for attachment in attachments
+        ]
+
+    @api.model
+    def _send_mails(self, moves_data, from_cron=False):
         subtype = self.env.ref("mail.mt_comment")
 
-        self._generate_dynamic_reports(moves_data)
+        failed = self._generate_dynamic_reports(moves_data, from_cron=from_cron)
 
         for move, move_data in [
             (move, move_data)
             for move, move_data in moves_data.items()
-            if move.partner_id.email or move_data.get("mail_partner_ids")
+            if move not in failed
+            and (move.partner_id.email or move_data.get("mail_partner_ids"))
         ]:
             mail_template = move_data["mail_template"]
             mail_lang = move_data["mail_lang"]
@@ -941,16 +985,30 @@ class AccountMoveSend(models.AbstractModel):
                 )
             model_description = move.with_context(lang=mail_lang).type_name
 
-            self._send_mail(
-                move,
-                mail_template,
-                author_id=author_id,
-                subtype_id=subtype.id,
-                model_description=model_description,
-                notify_author_mention=True,
-                email_from=email_from,
-                **mail_params,
-            )
+            try:
+                self._send_mail(
+                    move,
+                    mail_template,
+                    author_id=author_id,
+                    subtype_id=subtype.id,
+                    model_description=model_description,
+                    notify_author_mention=True,
+                    email_from=email_from,
+                    **mail_params,
+                )
+            except Exception:
+                # Same rationale as `_generate_dynamic_reports`: in a cron run a
+                # single failed send must not roll back the whole batch. Outside
+                # a cron, let it propagate to the caller/UI.
+                if not from_cron:
+                    raise
+                _logger.exception("Failed sending the email for move %s", move.id)
+                move.message_post(
+                    body=self.env._(
+                        "The invoice could not be sent by email. Review and "
+                        "resend it manually."
+                    )
+                )
 
     @api.model
     def _can_commit(self):
