@@ -239,9 +239,13 @@ export class PosOrderAccounting extends Base {
      */
     _constructPriceData(opts = {}) {
         const data = this._computeAllPrices(opts);
+        // baseLineOpts must be MERGED: the unit-price dataset passes
+        // { baseLineOpts: { quantity: 1 } }, and a plain spread would replace
+        // the discount override entirely — every no_discount_* unit price was
+        // computed WITH the discount.
         const noDiscount = this._computeAllPrices({
-            baseLineOpts: { discount: 0.0 },
             ...opts,
+            baseLineOpts: { ...(opts.baseLineOpts || {}), discount: 0.0 },
         });
         const currency = this.currency;
 
@@ -295,9 +299,10 @@ export class PosOrderAccounting extends Base {
         accountTaxHelpers.add_tax_details_in_base_lines(baseLines, company);
         accountTaxHelpers.round_base_lines_tax_details(baseLines, company);
 
-        // Cash rounding is added only if the document needs to be globaly rounded.
-        // See cash_rounding and only_round_cash_method config fields.
-        const cashRounding = this.config.cash_rounding
+        // Cash rounding is added only if the document needs to be globally
+        // rounded (mirrors python _compute_prices: with only_round_cash_method
+        // the rounding applies per cash payment, never to the tax summary).
+        const cashRounding = this.config.hasGlobalRounding
             ? this.config.rounding_method
             : null;
         const data = accountTaxHelpers.get_tax_totals_summary(

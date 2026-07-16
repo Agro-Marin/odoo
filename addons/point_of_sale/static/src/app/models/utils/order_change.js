@@ -101,30 +101,33 @@ export const getOrderChanges = (order, orderPreparationCategories) => {
             };
 
             if (quantityDiff) {
-                // if note update with qty add
                 changes[lineKey] = lineDetails;
                 changesCount += quantityDiff;
                 changeAbsCount += Math.abs(quantityDiff);
                 if (noteChange) {
-                    lineDetails.quantity = oldChanges[relatedKey].quantity || 0;
-                    noteUpdate[lineKey] = lineDetails;
+                    // The note-update entry must be a COPY: mutating the
+                    // shared lineDetails here retroactively overwrote the NEW
+                    // quantity in changes[lineKey] with the previously-sent
+                    // one, so the kitchen ticket printed the old quantity
+                    // whenever qty and note changed together.
+                    noteUpdate[lineKey] = {
+                        ...lineDetails,
+                        quantity: oldChanges[relatedKey].quantity || 0,
+                    };
                 }
 
                 orderline.setHasChange(true);
+            } else if (noteChange) {
+                // Only the note was updated. Counted in changeAbsCount too so
+                // consumers gating on nbrOfChanges (order button, floor plan
+                // badges) see the pending note-update ticket.
+                lineDetails.quantity = orderline.qty;
+                noteUpdate[lineKey] = lineDetails;
+                orderline.setHasChange(true);
+                changesCount += 1;
+                changeAbsCount += 1;
             } else {
-                if (quantityDiff) {
-                    orderline.setHasChange(false);
-                } else {
-                    // If only note updated
-                    if (noteChange) {
-                        lineDetails.quantity = orderline.qty;
-                        noteUpdate[lineKey] = lineDetails;
-                        orderline.setHasChange(true);
-                        changesCount += 1;
-                    } else {
-                        orderline.setHasChange(false);
-                    }
-                }
+                orderline.setHasChange(false);
             }
         } else {
             orderline.setHasChange(false);

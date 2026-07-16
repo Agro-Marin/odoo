@@ -45,3 +45,17 @@ test("Taxes object should contain no discount values", async () => {
     expect(line2.no_discount_taxes_data[1].tax_amount).toBe(25);
     expect(line2.no_discount_taxes_data[1].tax.amount).toBe(25);
 });
+
+test("no_discount unit prices exclude the line discount", async () => {
+    const store = await setupPosEnv();
+    const order = await getFilledOrderForPriceCheck(store);
+    const line = order.lines[0]; // 1000, 25% tax
+    line.setDiscount(10);
+
+    expect(line.unitPrices.total_included).toBe(1125);
+    // The no-discount unit dataset used to be computed WITH the discount: the
+    // unit-price opts spread replaced the { discount: 0 } override entirely,
+    // so no_discount_total_included always equalled total_included.
+    expect(line.unitPrices.no_discount_total_included).toBe(1250);
+    expect(line.unitPrices.no_discount_total_excluded).toBe(1000);
+});
