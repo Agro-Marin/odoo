@@ -14,6 +14,20 @@ describe("Basic Properties", () => {
         expect(new Domain([]).toList()).toEqual([]);
     });
 
+    test("constructing from an existing Domain reuses its AST (no string round-trip, no source corruption)", () => {
+        const src = new Domain(`["|", ("a", "=", 1), ("b", "!=", false)]`);
+        const copy = new Domain(src);
+        // Same semantics as the source (the constructor no longer round-trips
+        // through toString()+parseExpr).
+        expect(copy.toString()).toBe(src.toString());
+        expect(copy.toList({})).toEqual(src.toList({}));
+        // The copy owns its AST value array: a mutating derivation (not() does
+        // an in-place unshift on `new Domain(src)`) must not corrupt the source.
+        const before = src.toString();
+        Domain.not(src);
+        expect(src.toString()).toBe(before);
+    });
+
     test("undefined domain", () => {
         expect(new Domain(undefined).contains({})).toBe(true);
         expect(new Domain(undefined).toString()).toBe("[]");

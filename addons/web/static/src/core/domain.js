@@ -279,7 +279,13 @@ export class Domain {
      */
     constructor(descr = []) {
         if (descr instanceof Domain) {
-            return new Domain(descr.toString());
+            // ``descr.ast`` is already a normalized List AST — reuse it instead
+            // of round-tripping through toString()+parseExpr (formatAST
+            // serialize + re-parse), the very cost ``combine()`` documents and
+            // sidesteps. Shallow-copy the ``value`` array so this instance owns
+            // one that ``not()``/``removeDomainLeaves`` can mutate; leaves are
+            // treated as immutable and shared (same pattern as ``combine``).
+            this.ast = { type: descr.ast.type, value: [...descr.ast.value] };
         } else {
             let rawAST;
             try {
