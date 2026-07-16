@@ -1895,9 +1895,10 @@ class Website(models.Model):
         # '/' already has a http.route & is in the routing_map so it will already have an entry in the xml
         domain = [("view_id", "!=", False), ("url", "!=", "/")]
         if not force:
-            domain += [("website_indexed", "=", True), ("visibility", "=", False)]
-            # is_visible
+            # Publicly visible, indexed pages only (``visibility`` was listed
+            # twice in the original domain — harmless but redundant).
             domain += [
+                ("website_indexed", "=", True),
                 ("website_published", "=", True),
                 ("visibility", "=", False),
                 "|",
