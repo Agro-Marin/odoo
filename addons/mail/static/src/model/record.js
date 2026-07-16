@@ -450,7 +450,12 @@ export class Record {
         const data = this.Model._retrieveIdFromData(this);
         if (
             ongoing.depth ||
-            ongoing.fields?.some((field) => field.startsWith(prefix))
+            // Match the exact field or a nested path under it, never a sibling
+            // that merely shares a string prefix (e.g. prefix "a.author" must
+            // not match requested "a.author_id").
+            ongoing.fields?.some(
+                (field) => field === prefix || field.startsWith(`${prefix}.`),
+            )
         ) {
             this._toData(ongoing, prefix);
         }

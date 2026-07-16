@@ -84,8 +84,12 @@ export class Store extends Record {
         } finally {
             this._.UPDATE--;
         }
-        const deletingRecordsByLocalId = new Map();
         if (this._.UPDATE === 0) {
+            // Only the outermost (flushing) call needs this map; MAKE_UPDATE is
+            // the hottest function in the layer and most calls are nested, so
+            // allocating it here rather than per-call avoids a throwaway Map on
+            // every field write.
+            const deletingRecordsByLocalId = new Map();
             // pretend an increased update cycle so that nothing in queue creates many small update cycles
             this._.UPDATE++;
             // The finally below is load-bearing: if any flush step throws, the
