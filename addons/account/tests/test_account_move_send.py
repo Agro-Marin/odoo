@@ -1376,6 +1376,58 @@ class TestAccountMoveSend(TestAccountMoveSendCommon):
         self.assertTrue(all(invoice.invoice_pdf_report_id for invoice in invoices))
         self.assertTrue(all(not invoice.sending_data for invoice in invoices))
 
+    def test_cron_send_isolates_failing_move(self):
+        """A single move whose email send fails during the cron must not roll
+        back the whole batch: the other moves are still processed to completion,
+        and the failing move is flagged on its chatter instead of poisoning the
+        run (which would re-fetch and re-fail the same batch forever)."""
+        invoice_ok = self.init_invoice(
+            "out_invoice",
+            amounts=[1000],
+            post=True,
+            company=self.company_data["company"],
+        )
+        invoice_ko = self.init_invoice(
+            "out_invoice",
+            amounts=[1000],
+            post=True,
+            company=self.company_data["company"],
+        )
+        wizard = self.create_send_and_print(invoice_ok + invoice_ko)
+        wizard.action_send_and_print()
+
+        invoices = (invoice_ok + invoice_ko).sudo()
+        self.assertTrue(all(invoice.sending_data for invoice in invoices))
+
+        AccountMoveSend = type(self.env["account.move.send"])
+        real_send_mail = AccountMoveSend._send_mail
+
+        def _send_mail_maybe_fail(self, move, *args, **kwargs):
+            if move.id == invoice_ko.id:
+                raise ValueError("boom")
+            return real_send_mail(self, move, *args, **kwargs)
+
+        with (
+            self.enter_registry_test_mode(),
+            patch.object(AccountMoveSend, "_send_mail", _send_mail_maybe_fail),
+        ):
+            self.env.ref(
+                "account.ir_cron_account_move_send"
+            ).method_direct_trigger()
+
+        # Batch was not rolled back: both moves were processed to completion
+        # (PDF generated and sending_data cleared), despite one send failing.
+        self.assertTrue(invoice_ok.invoice_pdf_report_id)
+        self.assertTrue(invoice_ko.invoice_pdf_report_id)
+        self.assertFalse(invoice_ok.sending_data)
+        self.assertFalse(invoice_ko.sending_data)
+        # The failing move is flagged for manual follow-up on its chatter.
+        self.assertTrue(
+            invoice_ko.message_ids.filtered(
+                lambda m: "resend it manually" in (m.body or "")
+            )
+        )
+
     def test_cron_notifications(self):
         invoices_success = self.init_invoice(
             "out_invoice", amounts=[1000], post=True
