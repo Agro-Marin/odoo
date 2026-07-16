@@ -1243,3 +1243,49 @@ describe("repr string escaping", () => {
         expect(evaluateExpr(`'%r' % 'plain'`)).toBe(`'plain'`);
     });
 });
+
+describe("CPython-alignment regressions", () => {
+    test("sequence repetition by a non-int raises (no silent truncation)", () => {
+        expect(() => evaluateExpr("'x' * 2.5")).toThrow(/multiply sequence/);
+        expect(() => evaluateExpr("[1] * 1.9")).toThrow(/multiply sequence/);
+        // Integer / bool counts still work.
+        expect(evaluateExpr("'x' * 3")).toBe("xxx");
+        expect(evaluateExpr("[1, 2] * 2")).toEqual([1, 2, 1, 2]);
+        expect(evaluateExpr("'x' * True")).toBe("x");
+    });
+
+    test("printf sign/space/alt flags and non-number guard", () => {
+        expect(evaluateExpr("'%+d' % 5")).toBe("+5");
+        expect(evaluateExpr("'% d' % 5")).toBe(" 5");
+        expect(evaluateExpr("'%#x' % 255")).toBe("0xff");
+        expect(evaluateExpr("'%#o' % 8")).toBe("0o10");
+        expect(() => evaluateExpr("'%d' % 'x'")).toThrow(/a number is required/);
+        // Plain numeric conversions are unchanged.
+        expect(evaluateExpr("'%d' % 5")).toBe("5");
+        expect(evaluateExpr("'%05d' % -3")).toBe("-0003");
+    });
+
+    test("str.format cannot mix automatic and manual field numbering", () => {
+        expect(() => evaluateExpr("'{}{0}'.format('a')")).toThrow(/cannot switch/);
+        expect(() => evaluateExpr("'{0}{}'.format('a', 'b')")).toThrow(/cannot switch/);
+        // Pure-auto and pure-manual still work.
+        expect(evaluateExpr("'{} {}'.format('a', 'b')")).toBe("a b");
+        expect(evaluateExpr("'{0} {1} {0}'.format('a', 'b')")).toBe("a b a");
+    });
+
+    test("str.replace with a non-int count raises (no over-replacement)", () => {
+        expect(() => evaluateExpr("'aaa'.replace('a', 'b', 2.5)")).toThrow(
+            /count must be an integer/,
+        );
+        expect(evaluateExpr("'aaa'.replace('a', 'b', 2)")).toBe("bba");
+        expect(evaluateExpr("'aaa'.replace('a', 'b')")).toBe("bbb");
+    });
+
+    test("float() parses inf/nan like Infinity", () => {
+        expect(evaluateExpr("float('inf')")).toBe(Infinity);
+        expect(evaluateExpr("float('-inf')")).toBe(-Infinity);
+        expect(evaluateExpr("float('Infinity')")).toBe(Infinity);
+        expect(Number.isNaN(evaluateExpr("float('nan')"))).toBe(true);
+        expect(evaluateExpr("float('3.5')")).toBe(3.5);
+    });
+});

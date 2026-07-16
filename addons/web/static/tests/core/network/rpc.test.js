@@ -1,6 +1,14 @@
 // @ts-check
 
-import { after, describe, expect, runAllTimers, test, tick } from "@odoo/hoot";
+import {
+    after,
+    Deferred,
+    describe,
+    expect,
+    runAllTimers,
+    test,
+    tick,
+} from "@odoo/hoot";
 import { on } from "@odoo/hoot-dom";
 import { mockFetch } from "@odoo/hoot-mock";
 import {
@@ -748,4 +756,65 @@ describe("CLEAR-CACHES bus handling", () => {
         rpcBus.dispatchEvent(new CustomEvent("CLEAR-CACHES", { detail: "web_read" }));
         expect(calls.invalidate).toEqual(["web_read"]);
     });
+});
+
+const RPC_CACHE_SECRET =
+    "85472d41873cdb504b7c7dfecdb8993d90db142c4c03e6d94c4ae37a7771dc5b";
+
+test("Cache: aborting a cache joiner rejects only that caller", async () => {
+    // Regression: a 2nd concurrent identical cached call is a joiner that shares
+    // the initiator's in-flight fetch. Its abort(true) must reject ITS OWN
+    // promise (ConnectionAbortedError) rather than silently resolving with the
+    // shared value after the caller has torn down — and must NOT abort the
+    // initiator's shared fetch.
+    rpc.setCache(new RPCCache("mockRpc", 1, RPC_CACHE_SECRET));
+    after(() => rpc.setCache(undefined));
+
+    const fetchDef = new Deferred();
+    let fetchCount = 0;
+    mockFetch(() => {
+        fetchCount++;
+        return fetchDef;
+    });
+
+    const initiator = rpc("/test/", {}, { cache: true });
+    const joiner = rpc("/test/", {}, { cache: true });
+
+    // Track settlement so an unfixed (no-op) joiner abort fails fast on the
+    // state assertion below rather than hanging until the test timeout.
+    let initiatorState = "pending";
+    initiator.then(
+        () => (initiatorState = "resolved"),
+        () => (initiatorState = "rejected"),
+    );
+    let joinerState = "pending";
+    joiner.then(
+        () => (joinerState = "resolved"),
+        (/** @type {Error} */ e) => (joinerState = e.constructor.name),
+    );
+
+    await tick();
+    // Only the initiator issued a fetch; the joiner shares it.
+    expect(fetchCount).toBe(1);
+
+    // The joiner's abort(true) rejects only the joiner...
+    joiner.abort(true);
+    await tick();
+    expect(joinerState).toBe("ConnectionAbortedError");
+    // ...and leaves the initiator's shared fetch untouched (still pending).
+    expect(initiatorState).toBe("pending");
+
+    // When the shared fetch completes, the initiator resolves normally.
+    fetchDef.resolve({ result: { ok: 1 } });
+    expect(await initiator).toEqual({ ok: 1 });
+});
+
+test("Cache: aborting the initiator rejects it (control)", async () => {
+    rpc.setCache(new RPCCache("mockRpc", 1, RPC_CACHE_SECRET));
+    after(() => rpc.setCache(undefined));
+    mockFetch(() => new Promise(() => {}));
+
+    const initiator = rpc("/test/", {}, { cache: true });
+    initiator.abort(true);
+    await expect(initiator).rejects.toThrow(new ConnectionAbortedError());
 });
