@@ -421,6 +421,19 @@ export const BUILTINS = {
         if (typeof value === "string" && !value.trim()) {
             throw new EvaluationError(`could not convert string to float: '${value}'`);
         }
+        if (typeof value === "string") {
+            // CPython accepts "inf"/"infinity"/"nan" (case-insensitive, optional
+            // sign); ``Number()`` only understands "Infinity", so float("inf")
+            // was wrongly raising while float("Infinity") worked.
+            const trimmed = value.trim();
+            const magnitude = trimmed.replace(/^[+-]/, "").toLowerCase();
+            if (magnitude === "inf" || magnitude === "infinity") {
+                return trimmed[0] === "-" ? -Infinity : Infinity;
+            }
+            if (magnitude === "nan") {
+                return NaN;
+            }
+        }
         const n = Number(value);
         if (Number.isNaN(n)) {
             throw new EvaluationError(`could not convert string to float: '${value}'`);

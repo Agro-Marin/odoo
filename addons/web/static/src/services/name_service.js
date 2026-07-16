@@ -15,6 +15,28 @@ export const ERROR_INACCESSIBLE_OR_MISSING = Symbol(
 );
 
 /**
+ * Max number of display-name entries kept across ALL models before the
+ * least-recently-used one is evicted. The cache is otherwise only cleared
+ * wholesale on the two visibility events, so without a cap a long-lived action
+ * that scrolls large lists / m2o autocompletes accumulates one entry per unique
+ * id for the whole time it is displayed. Eviction only ever forces a re-fetch
+ * (never serves stale data), so it is safe alongside the miss-cache invariant.
+ */
+export const NAME_CACHE_LIMIT = 20000;
+
+/**
+ * Flat cache key for a (model, id) pair. ``\x00`` cannot appear in a model
+ * technical name, and template coercion makes numeric and string ids collide on
+ * the same key (as the previous nested plain-object cache did).
+ * @param {string} resModel
+ * @param {number|string} resId
+ * @returns {string}
+ */
+function cacheKey(resModel, resId) {
+    return `${resModel}\x00${resId}`;
+}
+
+/**
  * Check whether a value is a valid Odoo record ID (positive integer).
  * @param {any} val
  * @returns {boolean}
@@ -40,8 +62,42 @@ export const nameService = {
      * @returns {{ addDisplayNames: Function, clearCache: Function, loadDisplayNames: Function }}
      */
     start(env, { orm }) {
-        /** @type {Record<string, Record<string, import("@web/core/utils/concurrency").Deferred>>} */
-        let cache = Object.create(null);
+        // Flat, insertion-ordered LRU: key ``cacheKey(model, id)`` → Deferred.
+        // A Map preserves insertion order, so the first key is always the
+        // coldest; ``cacheGet``/``cacheSet`` re-insert on touch and evict the
+        // cold end past ``NAME_CACHE_LIMIT``.
+        /** @type {Map<string, import("@web/core/utils/concurrency").Deferred>} */
+        let cache = new Map();
+
+        /**
+         * LRU read: return the entry (if any), moving it to the warm end.
+         * @param {string} key
+         * @returns {import("@web/core/utils/concurrency").Deferred | undefined}
+         */
+        function cacheGet(key) {
+            const deferred = cache.get(key);
+            if (deferred !== undefined) {
+                cache.delete(key);
+                cache.set(key, deferred);
+            }
+            return deferred;
+        }
+
+        /**
+         * LRU write: insert/refresh ``key`` at the warm end, evicting the
+         * coldest entry once the cache exceeds ``NAME_CACHE_LIMIT``. Eviction
+         * only drops an entry, forcing a later re-fetch — it never serves stale
+         * data, so the miss-cache invariant below is unaffected.
+         * @param {string} key
+         * @param {import("@web/core/utils/concurrency").Deferred} deferred
+         */
+        function cacheSet(key, deferred) {
+            cache.delete(key); // re-insert so the key moves to the warm end
+            cache.set(key, deferred);
+            if (cache.size > NAME_CACHE_LIMIT) {
+                cache.delete(cache.keys().next().value);
+            }
+        }
         /**
          * Pending fetches per model, each entry owning its Deferred (not read
          * through `cache`): `clearCache` may swap the cache mid-flight, and this
@@ -57,7 +113,7 @@ export const nameService = {
          * callers, while the swapped cache forces post-clear callers to re-fetch.
          */
         function clearCache() {
-            cache = Object.create(null);
+            cache = new Map();
         }
 
         // INVARIANT — miss-cache correctness depends on EXACTLY these two
@@ -82,33 +138,22 @@ export const nameService = {
         userBus.addEventListener(UserEvent.ACTIVE_COMPANIES_CHANGED, clearCache);
 
         /**
-         * Get or create the id→Deferred mapping for a model.
-         * @param {string} resModel
-         * @returns {Record<string, import("@web/core/utils/concurrency").Deferred>}
-         */
-        function getMapping(resModel) {
-            if (!cache[resModel]) {
-                cache[resModel] = Object.create(null);
-            }
-            return cache[resModel];
-        }
-
-        /**
          * @param {string} resModel valid resModel name
          * @param {DisplayNames} displayNames
          */
         function addDisplayNames(resModel, displayNames) {
-            const mapping = getMapping(resModel);
             for (const resId of Object.keys(displayNames)) {
+                const key = cacheKey(resModel, resId);
                 // Settle any in-flight Deferred so concurrent loadDisplayNames
                 // callers get the value (a no-op if it already resolved), then
                 // swap in a freshly-settled entry: resolving a settled promise
                 // is a no-op, so reusing it would silently drop a newer name
-                // (e.g. a record renamed since its first resolution).
-                mapping[resId]?.resolve(displayNames[resId]);
+                // (e.g. a record renamed since its first resolution). Plain
+                // ``get`` (no LRU touch) — ``cacheSet`` below does the touch.
+                cache.get(key)?.resolve(displayNames[resId]);
                 const entry = new Deferred();
                 entry.resolve(displayNames[resId]);
-                mapping[resId] = entry;
+                cacheSet(key, entry);
             }
         }
 
@@ -127,18 +172,18 @@ export const nameService = {
          * @param {import("@web/core/utils/concurrency").Deferred} deferred
          */
         function evict(resModel, resId, deferred) {
-            if (cache[resModel]?.[resId] === deferred) {
-                delete cache[resModel][resId];
+            const key = cacheKey(resModel, resId);
+            if (cache.get(key) === deferred) {
+                cache.delete(key);
             }
         }
 
         async function loadDisplayNames(resModel, resIds) {
-            const mapping = getMapping(resModel);
             const proms = [];
             /** @type {{ resId: number, deferred: import("@web/core/utils/concurrency").Deferred }[]} */
             const entriesToFetch = [];
             const uniqueIds = unique(resIds);
-            // Validate BEFORE mutating the shared mapping: throwing mid-loop
+            // Validate BEFORE mutating the shared cache: throwing mid-loop
             // would leave pending Deferreds nobody ever resolves — every
             // later load of those valid ids would join an orphan and hang.
             for (const resId of uniqueIds) {
@@ -147,11 +192,14 @@ export const nameService = {
                 }
             }
             for (const resId of uniqueIds) {
-                if (!(resId in mapping)) {
-                    mapping[resId] = new Deferred();
-                    entriesToFetch.push({ resId, deferred: mapping[resId] });
+                const key = cacheKey(resModel, resId);
+                let deferred = cacheGet(key);
+                if (deferred === undefined) {
+                    deferred = new Deferred();
+                    cacheSet(key, deferred);
+                    entriesToFetch.push({ resId, deferred });
                 }
-                proms.push(mapping[resId]);
+                proms.push(deferred);
             }
             if (entriesToFetch.length) {
                 if (batches[resModel]) {

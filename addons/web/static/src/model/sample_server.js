@@ -494,7 +494,13 @@ export class SampleServer {
                     data[groupByValue][key] = 0;
                 }
             }
-            data[groupByValue][group[progressBar.field]] += group.__count;
+            // Only accumulate into a known progress-bar bucket: a generated
+            // field value outside ``progress_bar.colors`` would otherwise do
+            // ``undefined += count`` → a NaN bucket (and a stray string key).
+            const bucket = group[progressBar.field];
+            if (bucket in data[groupByValue]) {
+                data[groupByValue][bucket] += group.__count;
+            }
         }
         return data;
     }

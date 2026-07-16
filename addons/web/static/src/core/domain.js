@@ -9,6 +9,7 @@ import { escapeRegExp } from "@web/core/utils/format/strings";
 import { ASTType } from "./py_js/ast_type.js";
 import { evaluate, formatAST, parseExpr } from "./py_js/py.js";
 import { EvaluationError } from "./py_js/py_builtin.js";
+import { isEqual, isIn } from "./py_js/py_compare.js";
 import { toPyValue } from "./py_js/py_utils.js";
 
 /**
@@ -582,7 +583,10 @@ function matchCondition(record, condition) {
                 // whose relation is empty.
                 return fieldValue.length === 0;
             }
-            return fieldValue === value;
+            // Use the interpreter's equality kernel so client-side matching
+            // agrees with ``evaluateExpr`` / the server: bool≡int (True == 1)
+            // and deep value equality, not JS strict ``===``.
+            return isEqual(fieldValue, value);
         case "!=":
         case "<>":
             return !matchCondition(record, [field, "=", value]);
@@ -612,7 +616,10 @@ function matchCondition(record, condition) {
         case "not in": {
             const val = Array.isArray(value) ? value : [value];
             const fieldVal = Array.isArray(fieldValue) ? fieldValue : [fieldValue];
-            return Boolean(fieldVal.some((fv) => val.includes(fv))) !== isNot;
+            // ``isIn`` deep-compares with ``==`` semantics (bool≡int, nested
+            // lists) so membership agrees with the interpreter, instead of JS
+            // strict ``Array.includes``.
+            return Boolean(fieldVal.some((fv) => isIn(fv, val))) !== isNot;
         }
         case "like":
         case "not like": {

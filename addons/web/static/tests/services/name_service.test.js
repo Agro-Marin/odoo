@@ -11,7 +11,10 @@ import {
     onRpc,
 } from "@web/../tests/web_test_helpers";
 import { rpcBus } from "@web/core/network/rpc";
-import { ERROR_INACCESSIBLE_OR_MISSING } from "@web/services/name_service";
+import {
+    ERROR_INACCESSIBLE_OR_MISSING,
+    NAME_CACHE_LIMIT,
+} from "@web/services/name_service";
 
 class Dev extends models.Model {
     _name = "dev";
@@ -255,4 +258,63 @@ test("clearCache during an in-flight batch: RPC failure rejects all callers", as
     await expect(loadPromise1).rejects.toThrow("boom");
     await expect(loadPromise2).rejects.toThrow("boom");
     expect.verifySteps(["web_search_read"]);
+});
+
+test("cache is bounded: cold entries evict past NAME_CACHE_LIMIT", async () => {
+    await makeMockEnv();
+    onRpc(({ model, method, kwargs }) => {
+        expect.step(`${model}:${method}:${kwargs.domain[0][2]}`);
+    });
+    const nameService = getService("name");
+
+    // Fill the cache past the cap without any RPC (addDisplayNames populates
+    // the cache directly). Ids are inserted 1..LIMIT+2, so the two coldest
+    // (1 and 2) are evicted, leaving the cache at exactly NAME_CACHE_LIMIT.
+    const many = {};
+    for (let id = 1; id <= NAME_CACHE_LIMIT + 2; id++) {
+        many[id] = `Name ${id}`;
+    }
+    nameService.addDisplayNames("dev", many);
+
+    // A coldest, evicted id is no longer cached -> the lookup re-fetches.
+    await nameService.loadDisplayNames("dev", [1]);
+    expect.verifySteps(["dev:web_search_read:1"]);
+
+    // A recently-added (warm) id is still cached -> no RPC.
+    await nameService.loadDisplayNames("dev", [NAME_CACHE_LIMIT + 2]);
+    expect.verifySteps([]);
+});
+
+test("a recent lookup keeps its entry warm across later eviction", async () => {
+    await makeMockEnv();
+    onRpc(({ model, method, kwargs }) => {
+        expect.step(`${model}:${method}:${kwargs.domain[0][2]}`);
+    });
+    const nameService = getService("name");
+
+    // Fill to exactly the cap (ids 1..LIMIT); id 1 is the coldest.
+    const many = {};
+    for (let id = 1; id <= NAME_CACHE_LIMIT; id++) {
+        many[id] = `Name ${id}`;
+    }
+    nameService.addDisplayNames("dev", many);
+
+    // Touch id 1 (a cache hit, no RPC): it becomes the WARMEST entry.
+    await nameService.loadDisplayNames("dev", [1]);
+    expect.verifySteps([]);
+
+    // Two fresh ids push the size over the cap twice -> the two current
+    // coldest (2 and 3) evict; the just-touched id 1 survives.
+    nameService.addDisplayNames("dev", {
+        [NAME_CACHE_LIMIT + 1]: "extra a",
+        [NAME_CACHE_LIMIT + 2]: "extra b",
+    });
+
+    // id 1 survived (was warm) -> served from cache, no RPC.
+    await nameService.loadDisplayNames("dev", [1]);
+    expect.verifySteps([]);
+
+    // id 2 was evicted -> re-fetched.
+    await nameService.loadDisplayNames("dev", [2]);
+    expect.verifySteps(["dev:web_search_read:2"]);
 });
