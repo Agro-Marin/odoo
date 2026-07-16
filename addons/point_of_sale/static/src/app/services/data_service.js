@@ -517,6 +517,18 @@ export class PosData extends SignalStore {
                 "update",
                 this.debouncedSynchronizeLocalDataInIndexedDB.bind(this),
             );
+
+            // Prune the row when the record is deleted: the local sync only
+            // iterates records still in the store, so rows of deleted lines /
+            // payments were never removed — unbounded growth plus phantom
+            // records recreated on every reload.
+            const keyName = this.opts.databaseTable[dynamicModel].key;
+            this.models[dynamicModel].addEventListener("delete", (params) => {
+                const key = params.key ?? params[keyName];
+                if (key) {
+                    this.indexedDB.delete(dynamicModel, [key]);
+                }
+            });
         }
 
         const ignore = Object.keys(this.opts.databaseTable);
@@ -852,6 +864,16 @@ export class PosData extends SignalStore {
                 try {
                     await this.execute({ ...data.args[0], uuid: data.uuid });
                     this.network.unsyncData.shift();
+                    // Notify other devices now that the queued write landed
+                    // (ormWrite skips the dispatch for queued entries).
+                    const params = data.args[0];
+                    if (params?.type === "write" && this.deviceSync?.dispatch) {
+                        Promise.resolve(
+                            this.deviceSync.dispatch({
+                                [params.model]: params.ids.map((id) => ({ id })),
+                            }),
+                        ).catch(() => {});
+                    }
                 } catch (error) {
                     if (error instanceof ConnectionLostError) {
                         // Still offline: keep the entry and stop draining; the
@@ -889,8 +911,13 @@ export class PosData extends SignalStore {
         const session = this.models["pos.session"].get(odoo.pos_session_id);
         const orders = result["pos.order"] || [];
         for (const order of orders) {
-            // Clear commands
-            order.serializeForORM();
+            // Consume stale commands for orders the server just handed back —
+            // but never for a locally-dirty order: its pending unlink/delete
+            // commands are exactly the edits the next sync must still send
+            // (serializeForORM's clearing side effect would discard them).
+            if (!order.isDirty()) {
+                order.serializeForORM();
+            }
             order.config_id = config;
             order.session_id = session;
         }
@@ -1048,8 +1075,15 @@ export class PosData extends SignalStore {
             values,
             queue,
         });
-        this.deviceSync?.dispatch &&
-            this.deviceSync.dispatch({ [model]: ids.map((id) => ({ id })) });
+        // execute() returns undefined when the write was queued offline: the
+        // dispatch is replayed from syncData instead — calling it here threw
+        // an unhandled ConnectionLostError per offline write and other devices
+        // were never notified when the queued write finally landed.
+        if (result !== undefined && this.deviceSync?.dispatch) {
+            Promise.resolve(
+                this.deviceSync.dispatch({ [model]: ids.map((id) => ({ id })) }),
+            ).catch(() => {});
+        }
         return result;
     }
 

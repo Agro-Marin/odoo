@@ -111,8 +111,14 @@ export class EpsonPrinter extends BasePrinter {
         const pixels = imageData.data;
         const width = imageData.width;
         const height = imageData.height;
+        // Each raster row must be padded to a byte boundary: the ePOS <image>
+        // format expects ceil(width / 8) bytes per row, and encodeRaster
+        // chunks the whole stream by 8 — a width that is not a multiple of 8
+        // (a restyled receipt, or html-to-image's 16384px clamp rescaling the
+        // width) produced diagonally-sheared prints.
+        const paddedWidth = Math.ceil(width / 8) * 8;
         const errors = Array.from(Array(width), (_) => Array(height).fill(0));
-        const rasterData = new Array(width * height).fill(0);
+        const rasterData = new Array(paddedWidth * height).fill(0);
 
         for (let y = 0; y < height; y++) {
             for (let x = 0; x < width; x++) {
@@ -134,11 +140,11 @@ export class EpsonPrinter extends BasePrinter {
                 if (oldColor < 128) {
                     // This pixel should be black
                     newColor = 0;
-                    rasterData[y * width + x] = 1;
+                    rasterData[y * paddedWidth + x] = 1;
                 } else {
                     // This pixel should be white
                     newColor = 255;
-                    rasterData[y * width + x] = 0;
+                    rasterData[y * paddedWidth + x] = 0;
                 }
 
                 // Propagate the error to the following pixels, based on

@@ -47,8 +47,25 @@ export default class IndexedDB {
                 CONSOLE_COLOR,
             );
         };
+        dbInstance.onblocked = () => {
+            // A versioned reopen (schema upgrade) is blocked by another tab
+            // holding the database open. Without this handler the open request
+            // waited forever and the whole POS hung on a blank loader.
+            logPosMessage(
+                "IndexedDB",
+                "databaseEventListener",
+                "IndexedDB upgrade blocked by another open POS tab — close other tabs of this POS.",
+                CONSOLE_COLOR,
+            );
+        };
         dbInstance.onsuccess = (event) => {
             this.db = event.target.result;
+            // Yield to schema upgrades initiated by another (newer) tab, so a
+            // versioned reopen there is never blocked by this connection.
+            this.db.onversionchange = () => {
+                this.db?.close();
+                this.db = null;
+            };
 
             const actualStoreNames = this.db.objectStoreNames;
             let needsUpgrade = false;
@@ -115,7 +132,12 @@ export default class IndexedDB {
             const transaction = this.getNewTransaction([storeName], "readwrite");
 
             if (!transaction) {
-                results.push(Promise.reject("Transaction could not be created"));
+                // A raw rejected Promise in the results array is never awaited
+                // by any caller — it only produced an unhandledrejection.
+                results.push({
+                    status: "rejected",
+                    reason: "Transaction could not be created",
+                });
                 continue;
             }
 
@@ -296,15 +318,18 @@ export default class IndexedDB {
         return this.promises(storeName, arrData, "put");
     }
 
-    readAll(store = [], retry = 0) {
+    readAll(store = []) {
         const storeNames =
             store.length > 0 ? store : this.dbStores.map((store) => store[1]);
         const transaction = this.getNewTransaction(storeNames, "readonly");
 
-        if (!transaction && retry < 5) {
-            return this.readAll(store, retry + 1);
-        } else if (!transaction) {
-            return new Promise((reject) => reject(false));
+        if (!transaction) {
+            // NB: the synchronous 5x retry that used to sit here was a no-op
+            // (nothing changes between two synchronous attempts), and
+            // `new Promise((reject) => reject(false))` actually RESOLVED with
+            // false — callers survived by accident. Keep that contract
+            // explicitly.
+            return Promise.resolve(false);
         }
 
         const removeTransaction = () => {

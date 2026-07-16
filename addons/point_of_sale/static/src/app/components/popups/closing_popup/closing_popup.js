@@ -83,7 +83,13 @@ export class ClosePosPopup extends Component {
         ).length;
     }
     async cashMove() {
-        await this.pos.cashMove();
+        const moveMade = await this.pos.cashMove();
+        if (!moveMade) {
+            // Cancelled: keep this popup and everything the cashier already
+            // counted — it used to be discarded unconditionally, forcing a
+            // full recount for a dialog that was dismissed.
+            return;
+        }
         this.dialog.closeAll();
         this.pos.closeSession();
     }

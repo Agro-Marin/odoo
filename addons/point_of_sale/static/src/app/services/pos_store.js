@@ -491,6 +491,11 @@ export class PosStore extends WithLazyGetterTrap {
         return makeAwaitable(this.dialog, CashMovePopup);
     }
     async closeSession() {
+        // Push unsynced orders BEFORE fetching the closing figures: the
+        // popup's expected amounts, difference math and manager-authorization
+        // gate were computed against a pre-sync snapshot whenever unsynced
+        // orders were only pushed later inside the popup itself.
+        await this.pushOrdersWithClosingPopup();
         const info = await this.getClosePosInfo();
 
         if (info) {
