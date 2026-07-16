@@ -18,9 +18,7 @@ export class SMLX2ManyField extends X2ManyField {
             onCreateEdit: () => this.createOpenRecord(),
         });
 
-        this.selectCreate = (params) => {
-            return selectCreate(params);
-        };
+        this.selectCreate = selectCreate;
         this.openQuantRecord = useOpenMany2XRecord({
             resModel: "stock.quant",
             activeActions: this.activeActions,

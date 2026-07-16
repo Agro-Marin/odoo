@@ -13,7 +13,10 @@ export class StockPickFrom extends Component {
         const props = computeM2OProps(this.props);
         return {
             ...props,
-            value: props.value || { id: 0, display_name: this._quant_display_name() },
+            // id: false (not 0) for the synthetic value — the base Many2One treats
+            // false as non-linkable (quick-create convention), so it never renders
+            // an external link to a nonexistent record/0 if `no_open` is dropped.
+            value: props.value || { id: false, display_name: this._quant_display_name() },
         };
     }
 

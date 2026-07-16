@@ -54,6 +54,9 @@ export class PickingTypeDashboardGraphField extends JournalDashboardGraphField {
                         return;
                     }
                     const columnIndex = elements[0].index;
+                    // Prefer the server-provided category slug on the clicked bar;
+                    // fall back to the positional map only for older cached graph
+                    // data that predates the `category` key.
                     const dateCategories = {
                         0: "before",
                         1: "yesterday",
@@ -62,7 +65,12 @@ export class PickingTypeDashboardGraphField extends JournalDashboardGraphField {
                         4: "day_2",
                         5: "after",
                     };
-                    const dateCategory = dateCategories[columnIndex];
+                    const dateCategory =
+                        this.data[0].values?.[columnIndex]?.category ??
+                        dateCategories[columnIndex];
+                    if (!dateCategory) {
+                        return;
+                    }
                     const additionalContext = {
                         picking_type_id: pickingTypeId,
                         search_default_picking_type_id: [pickingTypeId],

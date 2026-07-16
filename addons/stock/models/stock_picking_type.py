@@ -806,6 +806,10 @@ class StockPickingType(models.Model):
                             v,
                             value=picking_type_summary[k],
                             type="sample" if empty else v["type"],
+                            # Carry the date-category slug so the kanban graph's
+                            # click handler filters by it directly, instead of
+                            # reconstructing it from the bar's positional index.
+                            category=k.removeprefix("total_"),
                         )
                         for k, v in data_category_mapping.items()
                     ],

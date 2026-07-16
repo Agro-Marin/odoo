@@ -2,15 +2,12 @@
 import { registry } from "@web/core/registry";
 import { listView } from "@web/views/list/list_view";
 import { ListRenderer } from "@web/views/list/list_renderer";
-import { useOwnedDialogs, useService } from "@web/core/utils/hooks";
-import { openSelectPackagesDialog } from "@stock/views/select_packages_dialog";
+import { useMovePackageDialog } from "@stock/views/select_packages_dialog";
 
 export class AddPackageListRenderer extends ListRenderer {
     setup() {
         super.setup();
-        this.orm = useService("orm");
-        this.actionService = useService("action");
-        this.addDialog = useOwnedDialogs();
+        this.openPackageDialog = useMovePackageDialog();
         this.pickingId = this.props.list.context.picking_ids?.length
             ? this.props.list.context.picking_ids[0]
             : 0;
@@ -27,13 +24,7 @@ export class AddPackageListRenderer extends ListRenderer {
     }
 
     async onClickAdd() {
-        openSelectPackagesDialog({
-            addDialog: this.addDialog,
-            orm: this.orm,
-            actionService: this.actionService,
-            pickingId: this.pickingId,
-            locationId: this.locationId,
-        });
+        this.openPackageDialog(this.pickingId, this.locationId);
     }
 }
 

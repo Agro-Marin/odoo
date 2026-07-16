@@ -1,6 +1,7 @@
 /** @odoo-module native */
 import { SelectCreateDialog } from "@web/views/view_dialogs/select_create_dialog";
 import { _t } from "@web/core/l10n/translation";
+import { useOwnedDialogs, useService } from "@web/core/utils/hooks";
 
 /**
  * Open the "Select Packages to Move" dialog and, on confirmation, add the chosen
@@ -49,4 +50,18 @@ export function openSelectPackagesDialog({ addDialog, orm, actionService, pickin
             }
         },
     });
+}
+
+/**
+ * Hook wiring the services `openSelectPackagesDialog` needs (owned dialogs, orm,
+ * action). Returns `open(pickingId, locationId)`. Must be called from a
+ * component setup(). Lets each renderer keep only how it derives the ids rather
+ * than re-wiring the same three services and re-building the same param object.
+ */
+export function useMovePackageDialog() {
+    const addDialog = useOwnedDialogs();
+    const orm = useService("orm");
+    const actionService = useService("action");
+    return (pickingId, locationId) =>
+        openSelectPackagesDialog({ addDialog, orm, actionService, pickingId, locationId });
 }
