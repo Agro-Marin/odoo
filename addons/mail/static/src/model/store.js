@@ -62,6 +62,19 @@ export class Store extends Record {
     }
 
     handleError(err) {
+        if (this._.UPDATE === 0) {
+            // No update cycle is running to drain the queue (computes, sorts
+            // and onChange callbacks triggered by a direct assignment execute
+            // AFTER the assignment's own flush — OWL notifies observers after
+            // Reflect.set returns). Parking the error here left it for the
+            // NEXT unrelated MAKE_UPDATE to throw at an innocent caller,
+            // masking that cycle's own failures. Report it now instead.
+            if (this.warnErrors) {
+                console.warn(err);
+                return;
+            }
+            throw err;
+        }
         this._.ERRORS.push(err);
     }
 

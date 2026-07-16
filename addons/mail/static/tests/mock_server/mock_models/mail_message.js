@@ -476,7 +476,11 @@ export class MailMessage extends models.ServerModel {
         );
         if (reactions.length === 0) {
             reaction_group = [
-                ["DELETE", { message: this.browse(id), content: content }],
+                // plain id, matching the real server payload
+                // (mail_message.py: {"message": self.id, "content": content});
+                // a browse() recordset serialized here as an array-wrapped raw
+                // row, which Record.get() cannot resolve
+                ["DELETE", { message: id, content: content }],
             ];
         }
         store.add(this.browse(id), { reactions: reaction_group });

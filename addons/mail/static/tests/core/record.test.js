@@ -1487,6 +1487,130 @@ test("error in nested update propagates and store still works afterwards", async
     expect.verifySteps(["BODY_CHANGED"]);
 });
 
+test("nullish values in relation writes are no-ops, not phantom records", async () => {
+    (class Thread extends Record {
+        static id = "name";
+        name;
+        messages = fields.Many("Message", { inverse: "thread" });
+    }).register(localRegistry);
+    (class Message extends Record {
+        static id = "id";
+        id;
+        thread = fields.One("Thread", { inverse: "messages" });
+    }).register(localRegistry);
+    const store = await start();
+    const thread = store.Thread.insert("General");
+    // add(undefined) used to materialize a "Message,undefined" phantom
+    thread.messages.add(undefined);
+    expect(thread.messages.length).toBe(0);
+    // nullish entries inside an assigned array are skipped
+    thread.messages = [{ id: 1 }, null, { id: 2 }, false, undefined];
+    expect(thread.messages.map((m) => m.id)).toEqual([1, 2]);
+    expect(Object.keys(store.Message.records)).toHaveLength(2);
+    // deleting plain data of a record that was never loaded must not create
+    // it (a detached ghost registered forever) just to not-remove it
+    thread.messages.delete({ id: 42 });
+    expect(store.Message.get(42)).toBe(undefined);
+    // index assignment of nullish is refused loudly instead of creating a
+    // phantom (use delete()/splice() to remove)
+    expect(() => (thread.messages[0] = undefined)).toThrow("use delete()");
+    expect(thread.messages.map((m) => m.id)).toEqual([1, 2]);
+});
+
+test("assigning duplicate entries keeps a single occurrence", async () => {
+    (class Thread extends Record {
+        static id = "name";
+        name;
+        messages = fields.Many("Message", { inverse: "thread" });
+    }).register(localRegistry);
+    (class Message extends Record {
+        static id = "id";
+        id;
+        thread = fields.One("Thread", { inverse: "messages" });
+    }).register(localRegistry);
+    const store = await start();
+    const thread = store.Thread.insert("General");
+    thread.messages = [{ id: 1 }, { id: 1 }];
+    expect(thread.messages.length).toBe(1);
+    const message = store.Message.get(1);
+    // duplicate localIds in data desynced both sides: a delete removed one
+    // occurrence from the owner but fully unlinked the inverse
+    thread.messages.delete(message);
+    expect(thread.messages.length).toBe(0);
+    expectRecord(message).not.toBeIn(thread.messages);
+    expect(message.thread).toBe(undefined);
+});
+
+test("deleting a non-member does not fire onDelete hooks", async () => {
+    (class Thread extends Record {
+        static id = "name";
+        name;
+        messages = fields.Many("Message", {
+            inverse: "thread",
+            onAdd: (r) => expect.step(`onAdd(${r.id})`),
+            onDelete: (r) => expect.step(`onDelete(${r.id})`),
+        });
+    }).register(localRegistry);
+    (class Message extends Record {
+        static id = "id";
+        id;
+        thread = fields.One("Thread", { inverse: "messages" });
+    }).register(localRegistry);
+    const store = await start();
+    const thread = store.Thread.insert("General");
+    const message = store.Message.insert(1);
+    // unconditional deletes of non-members are common (e.g. chat window
+    // fold bookkeeping): they must not fire hooks like (r) => r.delete()
+    // with a record that was never in the relation
+    thread.messages.delete(message);
+    expect.verifySteps([]);
+    thread.messages.add(message);
+    expect.verifySteps(["onAdd(1)"]);
+    thread.messages.delete(message);
+    expect.verifySteps(["onDelete(1)"]);
+});
+
+test("single-argument splice removes to the end like Array#splice", async () => {
+    (class Thread extends Record {
+        static id = "name";
+        name;
+        messages = fields.Many("Message");
+    }).register(localRegistry);
+    (class Message extends Record {
+        static id = "id";
+        id;
+    }).register(localRegistry);
+    const store = await start();
+    const thread = store.Thread.insert("General");
+    thread.messages = [{ id: 1 }, { id: 2 }, { id: 3 }];
+    // the undefined deleteCount silently removed NOTHING before
+    thread.messages.splice(1);
+    expect(thread.messages.map((m) => m.id)).toEqual([1]);
+});
+
+test("errors from direct-assignment hooks are reported immediately", async () => {
+    (class Message extends Record {
+        static id = "id";
+        id;
+        body;
+    }).register(localRegistry);
+    const store = await start();
+    store.warnErrors = false;
+    const message = store.Message.insert(1);
+    Record.onChange(message, "body", () => {
+        throw new Error("boom");
+    });
+    // hooks fired by a direct assignment run after the assignment's own
+    // flush: the error used to be PARKED and thrown by the next unrelated
+    // update cycle at an innocent caller
+    expect(() => {
+        message.body = "x";
+    }).toThrow("boom");
+    // the next cycle is not poisoned by a stale parked error
+    store.MAKE_UPDATE(() => {});
+    expect(store.Message.get(1).exists()).toBe(true);
+});
+
 test("throwing compute preserves the previous value instead of clearing it", async () => {
     (class Thread extends Record {
         static id = "name";

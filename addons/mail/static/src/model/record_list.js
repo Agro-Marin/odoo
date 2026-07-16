@@ -40,11 +40,13 @@ export class RecordListInternal {
             if (isRecord(last) && last.in(recordList)) {
                 return;
             }
+            let changed = false;
             const record = self.insert(
                 recordList,
                 last,
                 function recordList_AddNoInvOneInsert(record) {
                     if (record.localId !== recordList.data[0]) {
+                        changed = true;
                         const old = recordList._proxy.at(-1);
                         recordList._proxy.data.pop();
                         old?._.uses.delete(recordList);
@@ -80,13 +82,18 @@ export class RecordListInternal {
                 },
                 { inv: false },
             );
-            store._.ADD_QUEUE("onAdd", self.owner, self.name, record);
+            if (changed) {
+                // only on actual membership change: a spurious onAdd would
+                // schedule sorts and fire hooks for a no-op write
+                store._.ADD_QUEUE("onAdd", self.owner, self.name, record);
+            }
             return;
         }
         for (const val of records) {
             if (isRecord(val) && val.in(recordList)) {
                 continue;
             }
+            let added = false;
             const record = self.insert(
                 recordList,
                 val,
@@ -95,11 +102,14 @@ export class RecordListInternal {
                         recordList._proxy.data.push(record.localId);
                         self.syncLength(recordList);
                         record._.uses.add(recordList);
+                        added = true;
                     }
                 },
                 { inv: false },
             );
-            store._.ADD_QUEUE("onAdd", self.owner, self.name, record);
+            if (added) {
+                store._.ADD_QUEUE("onAdd", self.owner, self.name, record);
+            }
         }
     }
     /** @param {R[]|any[]} data */
@@ -111,7 +121,9 @@ export class RecordListInternal {
             const collection = isRecord(data) ? [data] : data;
             // data and collection could be same record list,
             // save before clear to not push mutated recordlist that is empty
-            const vals = [...collection];
+            const vals = [...collection].filter(
+                (val) => val !== undefined && val !== null && val !== false,
+            );
             const oldRecords = recordList._proxyInternal.slice
                 .call(recordList._proxy)
                 .map((recordProxy) => toRaw(recordProxy)._raw);
@@ -119,15 +131,33 @@ export class RecordListInternal {
             // O(n), not O(n²) (mirrors the Set-based fast path in add()).
             // Records held by a RecordList always carry a localId.
             const oldLocalIdSet = new Set(oldRecords.map((record) => record.localId));
-            const newRecords = vals.map((val) =>
-                self.insert(recordList, val, function recordListAssignInsert(record) {
-                    if (!oldLocalIdSet.has(record.localId)) {
-                        record._.uses.add(recordList);
-                        store._.ADD_QUEUE("onAdd", self.owner, self.name, record);
-                    }
-                }),
-            );
-            const newLocalIdSet = new Set(newRecords.map((record) => record.localId));
+            // dedupe while mapping (add() dedupes, assign() didn't): a
+            // payload containing the same record twice put duplicate
+            // localIds in data, double-counted uses, and a later delete()
+            // removed one occurrence while fully unlinking the inverse —
+            // bidirectional state diverged
+            const newLocalIdSet = new Set();
+            const newRecords = [];
+            for (const val of vals) {
+                const record = self.insert(
+                    recordList,
+                    val,
+                    function recordListAssignInsert(record) {
+                        if (
+                            !oldLocalIdSet.has(record.localId) &&
+                            !newLocalIdSet.has(record.localId)
+                        ) {
+                            record._.uses.add(recordList);
+                            store._.ADD_QUEUE("onAdd", self.owner, self.name, record);
+                        }
+                    },
+                );
+                if (!record || newLocalIdSet.has(record.localId)) {
+                    continue;
+                }
+                newLocalIdSet.add(record.localId);
+                newRecords.push(record);
+            }
             const inverse = getInverse(recordList);
             for (const oldRecord of oldRecords) {
                 if (!newLocalIdSet.has(oldRecord.localId)) {
@@ -162,6 +192,7 @@ export class RecordListInternal {
         const self = this;
         const store = recordList._store;
         for (const val of records) {
+            let removed = false;
             const record = this.insert(
                 recordList,
                 val,
@@ -170,11 +201,18 @@ export class RecordListInternal {
                     if (index !== -1) {
                         recordList.splice.call(recordList._proxy, index, 1);
                         self.syncLength(recordList);
+                        removed = true;
                     }
                 },
                 { inv: false },
             );
-            store._.ADD_QUEUE("onDelete", self.owner, self.name, record);
+            if (removed) {
+                // only on actual membership change: this path runs for EVERY
+                // delete(x) via the inverse command, including when x was not
+                // in the relation — a spurious onDelete would fire hooks
+                // (e.g. (r) => r.delete()) with a record that was never there
+                store._.ADD_QUEUE("onDelete", self.owner, self.name, record);
+            }
         }
     }
     /**
@@ -203,6 +241,14 @@ export class RecordListInternal {
      *   comes from deletion, we want to "DELETE".
      */
     insert(recordList, val, fn, { inv = true, mode = "ADD" } = {}) {
+        if (val === undefined || val === null || val === false) {
+            // nullish entries materialized phantom records ("Model,undefined",
+            // "Model,null") registered in the store forever. Whole-value
+            // clears are handled upstream (updateRelationOne/Many): a nullish
+            // ENTRY in a relation write is a no-op. Callers must tolerate the
+            // undefined return.
+            return undefined;
+        }
         const inverse = getInverse(recordList);
         const targetModel = getTargetModel(recordList);
         if (typeof val !== "object") {
@@ -326,6 +372,13 @@ export class RecordList extends Array {
                                 `Cannot assign index ${index} on record list "${recordList._.owner.Model.getName()}/${
                                     recordList._.name
                                 }": out of range (length: ${recordList.data.length})`,
+                            );
+                        }
+                        if (val === undefined || val === null || val === false) {
+                            throw new Error(
+                                `Cannot assign "${val}" at index ${index} on record list "${recordList._.owner.Model.getName()}/${
+                                    recordList._.name
+                                }": use delete()/splice() to remove records`,
                             );
                         }
                         recordList._.insert(
@@ -516,6 +569,11 @@ export class RecordList extends Array {
         const recordList = toRaw(this)._raw;
         const recordListFullProxy = recordList._.downgradeProxy(recordList, this);
         const store = recordList._store;
+        if (deleteCount === undefined) {
+            // Array.prototype.splice(start) removes to the end; the
+            // undefined count silently removed NOTHING here (NaN slice)
+            deleteCount = recordList.data.length - start;
+        }
         return store.MAKE_UPDATE(function recordListSplice() {
             const oldRecordLocalIds = recordList.data.slice(start, start + deleteCount);
             const oldRecords = oldRecordLocalIds.map(
@@ -644,9 +702,24 @@ export class RecordList extends Array {
         const store = recordList._store;
         return store.MAKE_UPDATE(function recordListDelete() {
             for (const val of records) {
+                let target = val;
+                if (val === undefined || val === null || val === false) {
+                    continue;
+                }
+                if (!isRecord(val)) {
+                    // resolve WITHOUT creating: a DELETE for a record the
+                    // client never loaded (reachable in production via server
+                    // ("DELETE", {...}) commands, e.g. deleting a reaction
+                    // that was never fetched) used to fully insert a
+                    // detached ghost record just to not-remove it
+                    target = recordList._store[getTargetModel(recordList)].get(val);
+                    if (!target) {
+                        continue;
+                    }
+                }
                 recordList._.insert(
                     recordList,
-                    val,
+                    target,
                     function recordListDelete_Insert(record) {
                         const index = recordList.data.indexOf(record.localId);
                         if (index !== -1) {
