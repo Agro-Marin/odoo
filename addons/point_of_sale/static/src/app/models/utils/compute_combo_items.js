@@ -52,7 +52,12 @@ export const computeComboItems = (
         remainingTotal -= (priceUnit * conf.qty) / parentCoef;
 
         if (conf === childLineConf[childLineConf.length - 1]) {
-            priceUnit += remainingTotal;
+            // Scale the residual so the TOTAL absorbs exactly remainingTotal:
+            // the last conf is not always a single unit (the qty-split above
+            // only runs in the creation flow, parentQty === 1) — adding the
+            // raw remainder to a multi-qty line's unit price multiplied the
+            // correction by its quantity.
+            priceUnit += (remainingTotal * parentCoef) / conf.qty;
             remainingTotal = 0;
         }
         const attribute_value_ids = conf.configuration?.attribute_value_ids?.map(

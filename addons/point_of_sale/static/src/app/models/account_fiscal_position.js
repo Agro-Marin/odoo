@@ -26,7 +26,19 @@ export class AccountFiscalPosition extends Base {
             }
         }
 
-        return this.models["account.tax"].filter((tax) => newTaxIds.includes(tax.id));
+        // Resolve by id (readMany) instead of scanning every tax, and warn
+        // loudly when a mapped destination tax is not loaded in this POS: it
+        // used to vanish silently, under-taxing the line in the frontend
+        // while backend invoicing applied it — a JS/python total mismatch at
+        // invoice time.
+        const resolved = this.models["account.tax"].readMany(newTaxIds);
+        const missingIdx = resolved.findIndex((tax) => !tax);
+        if (missingIdx !== -1) {
+            console.warn(
+                `Fiscal position '${this.name}' maps to tax id ${newTaxIds[missingIdx]} which is not loaded in this POS; the tax is ignored.`,
+            );
+        }
+        return resolved.filter(Boolean);
     }
 }
 
