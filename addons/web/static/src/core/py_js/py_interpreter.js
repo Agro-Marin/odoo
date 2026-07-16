@@ -822,6 +822,17 @@ function _applyBinaryOp(ast, recurse) {
                 );
             }
             return Math.floor(left / right);
+        // KNOWN LIMITATION (Python 3 divergence): integer arithmetic (``+``,
+        // ``-``, ``*``, ``**``) is done with JS doubles, which are exact only up
+        // to 2**53. Python 3 ints are arbitrary precision, so large results lose
+        // accuracy silently — ``2 ** 60`` → 1152921504606847000 (Python:
+        // ...6976), ``999999999999 * 999999999999`` → a float. Note the
+        // inconsistency with the bitwise ops below (``|``/``&``/``<<``/…), which
+        // already do the maths in BigInt and RAISE on overflow. A proper fix
+        // carries integer operands as BigInt through arithmetic too — deferred
+        // because the result type would change (Number → BigInt) and every
+        // downstream consumer (JSON, comparisons, field values) expects Number;
+        // that is a focused, cross-cutting change. Rarely hit in domains/context.
         case "**": {
             assertNumericOperands("**", left, right);
             if (Number(left) === 0 && Number(right) < 0) {
@@ -861,6 +872,14 @@ function _applyBinaryOp(ast, recurse) {
             return isIn(left, right);
         case "not in":
             return !isIn(left, right);
+        // KNOWN LIMITATION (Python 3 divergence): ``is``/``is not`` are
+        // implemented as JS ``===``/``!==``. Python's ``is`` tests object
+        // identity with small-int interning, so ``1 is 1.0`` is False (int vs
+        // float) and ``1000 is 1000`` is not guaranteed True — here both return
+        // true. The common real-world uses (``x is None``, ``x is False``,
+        // ``x is True``) are correct; only numeric identity is wrong, and that
+        // essentially never appears in domains/modifiers. Not fixed because JS
+        // cannot replicate CPython interning and there is no practical payoff.
         case "is":
             return left === null ? right === null : left === right;
         case "is not":
@@ -1087,6 +1106,13 @@ export function evaluate(ast, context = {}) {
                         // use ``.at`` which counts from the end.
                         return dict.at(key);
                     }
+                    // KNOWN LIMITATION (Python 3 divergence): a Python dict is a
+                    // plain JS object, so numeric and string keys collide —
+                    // ``{1: 'a'}[1]`` and ``{'1': 'a'}[1]`` both return 'a'
+                    // (Python distinguishes int 1 from str '1'). Same root cause
+                    // as the dict-membership note in py_compare.js:isIn; a proper
+                    // fix backs dicts with a real ``Map``. Rare in practice
+                    // (domains/context dicts are string-keyed).
                     return dict[key];
                 }
                 case ASTType.If: {

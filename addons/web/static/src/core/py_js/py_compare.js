@@ -13,6 +13,19 @@ import { NotSupportedError, PyDate, PyDateTime, PyTime } from "./py_date.js";
  * @param {any} val
  * @returns {number} index type
  */
+// KNOWN LIMITATION (Python 3 divergence): this cross-type ordering is Python-2
+// semantics. Python 3 raises ``TypeError`` for ``<``/``>``/``<=``/``>=`` between
+// incompatible types (``1 < 'a'``, ``None < 1``, ``False < 'x'`` all raise),
+// whereas ``isLess`` returns a boolean by ranking types
+// (None < number < dict < string < list). This is reachable in the wild because
+// an UNSET field reads as ``false``: a view modifier such as
+// ``invisible="code < 'Z'"`` on an empty ``code`` evaluates ``false < 'Z'``.
+// NOT fixed here on purpose: aligning to Python 3 would turn code that silently
+// succeeds today into a thrown error during modifier/domain evaluation (a
+// per-render, view-breaking change), so it needs a focused pass with an audit
+// of existing modifiers + the browser test suite, not a blind flip. A proper
+// fix raises ``TypeError`` from the cross-index branch below (and from the
+// mixed-temporal guard) once callers are known safe.
 function pytypeIndex(val) {
     switch (typeof val) {
         case "object":
@@ -192,6 +205,11 @@ export function isIn(left, right) {
     if (typeof right === "string" && typeof left === "string") {
         return right.includes(left);
     }
+    // KNOWN LIMITATION (Python 3 divergence): ``<non-string> in <string>`` (e.g.
+    // ``1 in 'abc'``) raises ``TypeError`` in Python 3; here it falls through to
+    // ``return false`` below. Low impact (such an expression is almost always a
+    // mistake). A proper fix raises when ``right`` is a string and ``left`` is
+    // not.
     if (right instanceof Set) {
         for (const x of right) {
             if (isEqual(left, x)) {
@@ -201,6 +219,14 @@ export function isIn(left, right) {
         return false;
     }
     if (right != null && typeof right === "object") {
+        // KNOWN LIMITATION (Python 3 divergence): a Python dict is represented as
+        // a plain JS object whose keys are ALWAYS strings, so an integer key and
+        // the equal string key collide — ``5 in {'5': 1}`` returns true (Python:
+        // False) and ``'1' in {1: 2}`` likewise. Only bites dicts that mix int
+        // and string keys (rare in domains/context, which are string-keyed). A
+        // proper fix backs dicts with a real ``Map`` and keeps key types
+        // distinct end to end (see the matching subscript note in
+        // py_interpreter.js). Same root cause as the ``dict[key]`` lookup there.
         return Object.hasOwn(right, left);
     }
     return false;
