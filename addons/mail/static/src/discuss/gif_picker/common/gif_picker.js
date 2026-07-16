@@ -86,7 +86,6 @@ export class GifPicker extends Component {
             favorites: {
                 /** @type {TenorGif[]} */
                 gifs: [],
-                offset: 0,
             },
             searchTerm: "",
             showCategories: true,
@@ -195,6 +194,7 @@ export class GifPicker extends Component {
             if (!region && language === "sr") {
                 region = "RS";
             }
+            const term = this.searchTerm;
             const res = await this.sequential(async () => {
                 // build params inside the sequential callback so a queued call
                 // uses the up-to-date pagination token, not the one captured
@@ -216,7 +216,11 @@ export class GifPicker extends Component {
                     this.state.loadingGif = false;
                 }
             });
-            if (res) {
+            if (res && term === this.searchTerm) {
+                // a keystroke while this call was in flight ran clear() and
+                // queued a new search: processing the stale response would
+                // repollute the cleared columns AND poison `next` with a
+                // token bound to the previous query
                 const { next, results } = res;
                 this.next = next;
                 for (const gif of results) {
@@ -316,6 +320,15 @@ export class GifPicker extends Component {
             );
             this.offset += results.length;
             this.state.favorites.gifs.push(...results);
+            if (this.showFavorite) {
+                // the favorites view renders from the evenGif/oddGif columns:
+                // without this, pages after the first are fetched (the offset
+                // advances) but never displayed until the category is
+                // reopened
+                for (const gif of results) {
+                    this.pushGif(gif);
+                }
+            }
             if (results.length < GIF_FAVORITES_LIMIT) {
                 // Short (or empty) page => end of list; stop paginating so
                 // bottom-scrolling doesn't fire endless empty RPCs.

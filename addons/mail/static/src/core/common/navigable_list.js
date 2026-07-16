@@ -223,5 +223,10 @@ export class NavigableList extends Component {
         ev.preventDefault();
     }
 
-    onOptionMouseEnter(index) {}
+    onOptionMouseEnter(index) {
+        // keep pointer and keyboard coherent: Enter inserts the active
+        // option, so hovering must move the active index — otherwise the
+        // hover styling suggests one option while Enter inserts another
+        this.state.activeIndex = index;
+    }
 }

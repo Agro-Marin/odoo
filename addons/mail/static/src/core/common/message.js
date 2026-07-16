@@ -151,59 +151,26 @@ export class Message extends Component {
             message: this.props.message,
             alignedRight: this.isAlignedRight,
         });
-        onMounted(() => {
-            if (this.shadowBody.el) {
-                this.shadowRoot = this.shadowBody.el.attachShadow({ mode: "open" });
-                const color = this.store.isOdooWhiteTheme ? "dark" : "white";
-                loadCssFromBundle(this.shadowRoot, "mail.assets_message_email");
-                const shadowStyle = document.createElement("style");
-                shadowStyle.textContent = `
-                    * {
-                        background-color: transparent !important;
-                        color: ${color} !important;
-                    }
-                    a, a * {
-                        color: ${this.constructor.SHADOW_LINK_COLOR} !important;
-                    }
-                    a:hover, a *:hover {
-                        color: ${this.constructor.SHADOW_LINK_HOVER_COLOR} !important;
-                    }
-                    .o-mail-Message-searchHighlight {
-                        background: ${this.constructor.SHADOW_HIGHLIGHT_COLOR} !important;
-                    }
-                `;
-                if (!this.store.isOdooWhiteTheme) {
-                    this.shadowRoot.appendChild(shadowStyle);
-                }
-                const ellipsisStyle = document.createElement("style");
-                ellipsisStyle.textContent = `
-                    .o-mail-ellipsis {
-                        min-width: 2.7ch;
-                        background-color: ButtonFace;
-                        border-radius: 50rem;
-                        border: 0;
-                        display: block;
-                        font: -moz-button;
-                        font-size: .75rem;
-                        font-weight: 500;
-                        line-height: 1.1;
-                        cursor: pointer;
-                        padding: 0 4px;
-                        vertical-align: top;
-                        color: #ffffff;
-                        text-decoration: none;
-                        text-align: center;
-                        &:hover {
-                            background-color: -moz-buttonhoverface;
-                        }
-                    }
-                `;
-                this.shadowRoot.appendChild(ellipsisStyle);
-            }
-        });
         useEffect(
             () => {
-                if (this.shadowBody.el) {
+                const el = this.shadowBody.el;
+                if (el) {
+                    // The shadowBody node is conditional (t-if branches in the
+                    // template): (re)attach against the CURRENT element. A
+                    // root created against a previous element would be
+                    // detached (email body silently blank), and a node
+                    // appearing only after mount would have no root at all.
+                    if (!this.shadowRoot || this.shadowRoot.host !== el) {
+                        if (el.shadowRoot) {
+                            // same element re-entering the effect: root and
+                            // styles are already in place
+                            this.shadowRoot = el.shadowRoot;
+                        } else {
+                            this.shadowRoot = el.attachShadow({ mode: "open" });
+                            this.setupShadowStyles(this.shadowRoot);
+                        }
+                    }
+                    const shadowRoot = this.shadowRoot;
                     const bodyEl = createElementWithContent(
                         "span",
                         this.message.showTranslation
@@ -213,13 +180,14 @@ export class Message extends Component {
                               ) ?? this.message.richBody),
                     );
                     this.prepareMessageBody(bodyEl);
-                    this.shadowRoot.appendChild(bodyEl);
+                    shadowRoot.appendChild(bodyEl);
                     return () => {
-                        this.shadowRoot.removeChild(bodyEl);
+                        shadowRoot.removeChild(bodyEl);
                     };
                 }
             },
             () => [
+                this.shadowBody.el,
                 this.message.showTranslation,
                 this.message.richTranslationValue,
                 this.props.messageSearch?.searchTerm,
@@ -233,8 +201,72 @@ export class Message extends Component {
                     this.prepareMessageBody(this.messageBody.el);
                 }
             },
-            () => [this.isEditing, this.message.richBody],
+            // the body is re-rendered (t-out) when the search term or the
+            // translation toggles: the post-processing ("(edited)" chip,
+            // mention decoration, redirect handlers) must re-run then too,
+            // not only on body/edit changes
+            () => [
+                this.isEditing,
+                this.message.richBody,
+                this.props.messageSearch?.searchTerm,
+                this.message.showTranslation,
+                this.message.richTranslationValue,
+            ],
         );
+    }
+
+    /**
+     * Injects the email-message styles into the given shadow root (once per
+     * root; the root lives and dies with its host element).
+     *
+     * @param {ShadowRoot} shadowRoot
+     */
+    setupShadowStyles(shadowRoot) {
+        const color = this.store.isOdooWhiteTheme ? "dark" : "white";
+        loadCssFromBundle(shadowRoot, "mail.assets_message_email");
+        const shadowStyle = document.createElement("style");
+        shadowStyle.textContent = `
+            * {
+                background-color: transparent !important;
+                color: ${color} !important;
+            }
+            a, a * {
+                color: ${this.constructor.SHADOW_LINK_COLOR} !important;
+            }
+            a:hover, a *:hover {
+                color: ${this.constructor.SHADOW_LINK_HOVER_COLOR} !important;
+            }
+            .o-mail-Message-searchHighlight {
+                background: ${this.constructor.SHADOW_HIGHLIGHT_COLOR} !important;
+            }
+        `;
+        if (!this.store.isOdooWhiteTheme) {
+            shadowRoot.appendChild(shadowStyle);
+        }
+        const ellipsisStyle = document.createElement("style");
+        ellipsisStyle.textContent = `
+            .o-mail-ellipsis {
+                min-width: 2.7ch;
+                background-color: ButtonFace;
+                border-radius: 50rem;
+                border: 0;
+                display: block;
+                font: -moz-button;
+                font-size: .75rem;
+                font-weight: 500;
+                line-height: 1.1;
+                cursor: pointer;
+                padding: 0 4px;
+                vertical-align: top;
+                color: #ffffff;
+                text-decoration: none;
+                text-align: center;
+                &:hover {
+                    background-color: -moz-buttonhoverface;
+                }
+            }
+        `;
+        shadowRoot.appendChild(ellipsisStyle);
     }
 
     computeActions() {

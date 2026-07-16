@@ -125,7 +125,9 @@ export class MessagingMenu extends Component {
                 if (this.state.activeIndex === null) {
                     return;
                 }
-                this.notificationItems[this.state.activeIndex].click();
+                // optional chain: the list can shrink (mark as read) while
+                // activeIndex still points past the end
+                this.notificationItems[this.state.activeIndex]?.click();
                 break;
             case "tab":
                 this.navigate(this.state.activeIndex === null ? "first" : "next");

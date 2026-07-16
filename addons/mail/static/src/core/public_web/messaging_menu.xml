@@ -10,10 +10,15 @@
         <t name="before-content"/>
         <DiscussContent t-if="['inbox', 'starred'].includes(store.discuss.activeTab) and ui.isSmall"/>
         <div t-else="" class="o-mail-MessagingMenu-list d-flex flex-column overflow-auto o-scrollbar-thin flex-grow-1 list-group list-group-flush o-scrollbar-thin" t-ref="notification-list">
-            <t t-set="itemIndex" t-value="0"/>
+            <!-- keyboard indices: a t-set inside a t-foreach body does not
+                 survive the loop (each iteration gets a sub-context), so a
+                 hand-incremented counter restarts at 0 in the second loop and
+                 the highlighted item desyncs from the one Enter activates
+                 (a global DOM index). Derive the flat index from the loops'
+                 own *_index variables instead. -->
             <t t-foreach="visibleStandaloneMessages" name="standaloneInboxMessages" t-as="message" t-key="message.id">
                 <NotificationItem
-                    isActive="state.activeIndex === itemIndex"
+                    isActive="state.activeIndex === message_index"
                     datetime="message?.datetime"
                     iconSrc="store.DEFAULT_AVATAR"
                     important="true"
@@ -31,12 +36,11 @@
                         <span t-out="message?.previewText" t-att-class="{ 'opacity-75': message?.isEmpty }"/>
                     </t>
                 </NotificationItem>
-                <t t-set="itemIndex" t-value="itemIndex + 1"/>
             </t>
             <t t-foreach="threads" name="threads" t-as="thread" t-key="thread.localId">
                 <t t-set="message" t-value="thread.isChatChannel or (thread.channel_type === 'channel' and thread.needactionMessages.length === 0) ? thread.newestPersistentOfAllMessage : thread.needactionMessages.at(-1)"/>
                 <NotificationItem
-                    isActive="state.activeIndex === itemIndex"
+                    isActive="state.activeIndex === visibleStandaloneMessages.length + thread_index"
                     counter="thread.needactionCounter"
                     datetime="message?.datetime"
                     iconSrc="thread.avatarUrl"
@@ -75,7 +79,6 @@
                         </t>
                     </t>
                 </NotificationItem>
-                <t t-set="itemIndex" t-value="itemIndex + 1"/>
             </t>
             <t t-if="store.channels.status === 'fetching'">
                 <div class="d-flex align-items-center justify-content-center gap-2 py-4 px-2"><span class="o-visible-short-delay"><i class="fa-solid fa-circle-notch fa-spin me-1"/> Loading…</span></div>

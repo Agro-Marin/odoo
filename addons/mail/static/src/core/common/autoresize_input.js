@@ -29,7 +29,9 @@ export class AutoresizeInput extends Component {
         });
         this.inputRef = useRef("input");
         onWillUpdateProps((nextProps) => {
-            if (this.props.value !== nextProps.value) {
+            // don't clobber a focused input: a bus-driven rename arriving
+            // while the user is editing would destroy their keystrokes
+            if (this.props.value !== nextProps.value && !this.state.isFocused) {
                 this.state.value = nextProps.value;
             }
         });

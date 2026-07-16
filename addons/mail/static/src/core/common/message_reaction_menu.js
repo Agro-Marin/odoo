@@ -30,12 +30,18 @@ export class MessageReactionMenu extends Component {
         onExternalClick("root", () => this.props.close());
         useEffect(
             () => {
-                const activeReaction = this.props.message.reactions.find(
-                    ({ content }) => content === this.state.reaction.content,
-                );
+                // length check first: with no reaction left, state.reaction
+                // can be undefined (last reaction removed between the action
+                // click and the dialog mount) and reading .content would
+                // throw before the dialog closes itself
                 if (this.props.message.reactions.length === 0) {
                     this.props.close();
-                } else if (!activeReaction) {
+                    return;
+                }
+                const activeReaction = this.props.message.reactions.find(
+                    ({ content }) => content === this.state.reaction?.content,
+                );
+                if (!activeReaction) {
                     this.state.reaction = this.props.message.reactions[0];
                 }
             },
