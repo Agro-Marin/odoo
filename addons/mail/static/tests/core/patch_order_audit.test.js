@@ -33,31 +33,6 @@ describe.current.tags("headless");
  * and may be present in the bundle; entries for patches that are not loaded
  * in the current bundle are harmless (subset assertion).
  */
-const AUDITED_TARGETS = new Set([
-    "Activity.prototype",
-    "ActivityMenu.prototype",
-    "AttachmentUploadService.prototype",
-    "ChatWindow.prototype",
-    "Chatter.prototype",
-    "Composer",
-    "Composer.prototype",
-    "Discuss.prototype",
-    "DiscussApp.prototype",
-    "DiscussClientAction.prototype",
-    "DiscussSidebarCategory.prototype",
-    "DiscussSidebarChannel.prototype",
-    "MailGuest.prototype",
-    "Message.prototype",
-    "MessagingMenu.prototype",
-    "OutOfFocusService.prototype",
-    "ResPartner.prototype",
-    "Store.prototype",
-    "SuggestionService.prototype",
-    "Thread",
-    "Thread.prototype",
-    "ThreadAction.prototype",
-]);
-
 const KNOWN_DOUBLE_PATCHES = new Set([
     "Activity.prototype :: markAsDone",
     "Activity.prototype :: setup",
@@ -162,14 +137,37 @@ const KNOWN_DOUBLE_PATCHES = new Set([
     "ThreadAction.prototype :: _condition",
 ]);
 
-test("double patches of mail-surface methods are consciously allowlisted", () => {
-    const found = getDoublePatchedPairs().filter((pair) =>
-        AUDITED_TARGETS.has(pair.split(" :: ")[0]),
-    );
-    const unknown = found.filter((pair) => !KNOWN_DOUBLE_PATCHES.has(pair));
+test("every live double-patch is consciously allowlisted", () => {
+    const live = new Set(getDoublePatchedPairs());
+    // Exhaustive gate (t23783 defect a): audit EVERY live double-patched pair,
+    // not just those on a curated target allowlist. A previous version filtered
+    // `found` by a hard-coded set of mail-surface targets, so a new double-patch
+    // on any unlisted target (a web service, a field, a component we had not
+    // pre-listed) passed silently even though bundle order still decided its
+    // `super` chain. Any pair not explicitly allowlisted below now fails.
+    const unknown = [...live].filter((pair) => !KNOWN_DOUBLE_PATCHES.has(pair));
     expect(unknown).toEqual([], {
         message:
             "new double-patched (target, method) pairs — bundle order now defines their" +
-            " `super` chain; review and allowlist them in patch_order_audit.test.js",
+            " `super` chain; review and allowlist them in KNOWN_DOUBLE_PATCHES" +
+            " (patch_order_audit.test.js)",
     });
+
+    // Rot report (t23783 defect b): surface allowlist entries that are no longer
+    // double-patched so the list can be pruned. This is intentionally NOT a hard
+    // failure: an entry can be dormant simply because its second patcher lives in
+    // a bundle not loaded by this suite (e.g. enterprise whatsapp/voip/knowledge
+    // absent from the community bundle), and asserting on those would be a false
+    // positive. Definitive stale detection needs a bundle that loads every
+    // patcher — runtime knowledge this headless suite does not have — so here we
+    // only warn, leaving the prune/keep decision to a human review.
+    const staleCandidates = [...KNOWN_DOUBLE_PATCHES].filter((pair) => !live.has(pair));
+    if (staleCandidates.length) {
+        console.warn(
+            `[patch-order-audit] ${staleCandidates.length} allowlist entries are not` +
+                ` double-patched in this bundle. Prune the ones whose patch was removed;` +
+                ` keep the ones whose second patcher is in an addon not loaded here:\n` +
+                staleCandidates.join("\n"),
+        );
+    }
 });
