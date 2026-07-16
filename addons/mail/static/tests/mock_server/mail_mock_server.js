@@ -350,7 +350,10 @@ async function discuss_channel_messages(request) {
     const res = MailMessage._message_fetch([], channel, makeKwArgs(fetch_params));
     const { messages } = res;
     delete res.messages;
-    if (!fetch_params.around) {
+    // faithful to the controller: `if not request.env.user._is_public()` —
+    // unconditional on `around` (the previous mock skipped around-fetches,
+    // so server and tests disagreed on when messages get marked done)
+    if (!this.env["res.users"]._is_public(this.env.uid)) {
         MailMessage.set_message_done(messages.map((message) => message.id));
     }
     return {
@@ -619,11 +622,34 @@ async function discuss_inbox_messages(request) {
     const res = MailMessage._message_fetch(domain, makeKwArgs(fetch_params));
     const { messages } = res;
     delete res.messages;
+    // faithful to the controller: the real route attaches the thread's
+    // needaction counter plus the bus id it was read at (extra_fields on the
+    // message's thread) — without them, counter-bus-id reconciliation on
+    // inbox fetch was untestable against the mock
+    const busLastId = this.env["bus.bus"].lastBusNotificationId;
     return {
         ...res,
         data: new mailDataHelpers.Store(
             MailMessage.browse(messages.map((message) => message.id)),
-            makeKwArgs({ for_current_user: true, add_followers: true }),
+            makeKwArgs({
+                for_current_user: true,
+                add_followers: true,
+                extra_fields: [
+                    mailDataHelpers.Store.one(
+                        "thread",
+                        [
+                            "message_needaction_counter",
+                            new StoreAttr(
+                                makeKwArgs({
+                                    name: "message_needaction_counter_bus_id",
+                                    value: busLastId,
+                                }),
+                            ),
+                        ],
+                        makeKwArgs({ as_thread: true }),
+                    ),
+                ],
+            }),
         ).get_result(),
         messages: messages.map((message) => message.id),
     };
@@ -1001,7 +1027,9 @@ async function mail_thread_messages(request) {
     const res = MailMessage._message_fetch([], thread, makeKwArgs(fetch_params));
     const { messages } = res;
     delete res.messages;
-    MailMessage.set_message_done(messages.map((message) => message.id));
+    if (!this.env["res.users"]._is_public(this.env.uid)) {
+        MailMessage.set_message_done(messages.map((message) => message.id));
+    }
     return {
         ...res,
         data: new mailDataHelpers.Store(
