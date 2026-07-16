@@ -10,7 +10,13 @@ export const CustomerDisplayDataService = {
     async start(env, { bus_service, notification }) {
         const data = reactive({});
         if (session.proxy_ip) {
-            const intervalId = setInterval(async () => {
+            // Transient failures (IoT box rebooting, momentary congestion)
+            // must not kill the poll: one failed fetch used to clearInterval,
+            // freezing the display on the last order forever. Warn only after
+            // several consecutive failures and recover silently on success.
+            let consecutiveFailures = 0;
+            let warned = false;
+            setInterval(async () => {
                 try {
                     const response = await fetch(
                         `http://localhost:8069/hw_proxy/customer_facing_display`,
@@ -29,21 +35,26 @@ export const CustomerDisplayDataService = {
                     );
                     const payload = await response.json();
                     Object.assign(data, payload.result?.data || payload.result);
+                    consecutiveFailures = 0;
+                    warned = false;
                 } catch (error) {
-                    notification.add(
-                        _t(
-                            "Make sure there is an IoT Box subscription associated with your Odoo database, then restart the IoT Box.",
-                        ),
-                        {
-                            title: _t("IoT Customer Display Error"),
-                            type: "danger",
-                        },
-                    );
-                    console.error(
-                        "Error fetching data for the IoT customer display: %s",
-                        error,
-                    );
-                    clearInterval(intervalId);
+                    consecutiveFailures++;
+                    if (consecutiveFailures >= 5 && !warned) {
+                        warned = true;
+                        notification.add(
+                            _t(
+                                "Make sure there is an IoT Box subscription associated with your Odoo database, then restart the IoT Box.",
+                            ),
+                            {
+                                title: _t("IoT Customer Display Error"),
+                                type: "danger",
+                            },
+                        );
+                        console.error(
+                            "Error fetching data for the IoT customer display: %s",
+                            error,
+                        );
+                    }
                 }
             }, 1000);
         } else {

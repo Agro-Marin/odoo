@@ -21,6 +21,16 @@ export class BasePrinter {
      * @returns {{ successful: boolean; message?: { title: string; body?: string }}}
      */
     async printReceipt(receipt) {
+        // Serialize jobs per printer: two overlapping calls used to drain the
+        // same shared queue — one caller printed (or, on failure, discarded)
+        // the other's receipt and returned the other job's result.
+        const run = () => this._printReceiptImpl(receipt);
+        const result = (this._jobLock ?? Promise.resolve()).then(run, run);
+        this._jobLock = result.catch(() => {});
+        return result;
+    }
+
+    async _printReceiptImpl(receipt) {
         if (receipt) {
             this.receiptQueue.push(receipt);
         }
