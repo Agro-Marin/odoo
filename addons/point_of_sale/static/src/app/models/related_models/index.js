@@ -52,6 +52,12 @@ export function createRelatedModels(modelDefs, modelClasses = {}, opts = {}) {
             // Ensures reactivity by accessing the recordStore directly from the instance
             this[STORE_SYMBOL] = store;
             this.records = store.getRecordsMap(this.name); // Used by some modules...
+            // Reactive per-backLink-key version counters. The backLink cache
+            // is a plain Map invisible to OWL reactivity; the version is read
+            // through `record.model` (a non-symbol path, so it carries the
+            // caller's reactive binding) on every backLink call, giving
+            // warm-cache reads a subscription that invalidation can bump.
+            this.backlinkVersions = {};
         }
 
         get models() {
@@ -233,7 +239,12 @@ export function createRelatedModels(modelDefs, modelClasses = {}, opts = {}) {
                 return;
             }
 
-            for (const callback of callbacks[this.name][event].values()) {
+            // Iterate a snapshot: a Map iterator is live, so a listener that
+            // (indirectly) registers another listener for the same event —
+            // e.g. a backLink cleanup whose version bump makes a reactive
+            // consumer rebuild the index — would be visited within the same
+            // dispatch, looping forever.
+            for (const callback of [...callbacks[this.name][event].values()]) {
                 callback(data);
             }
         }
@@ -405,8 +416,24 @@ export function createRelatedModels(modelDefs, modelClasses = {}, opts = {}) {
 
         _update(record, vals, opts = {}) {
             const ownFields = getFields(this.name);
-            let reIndexRecord = false;
             const aggregatedUpdates = new AggregatedUpdates();
+
+            // Re-indexing must operate on the OLD raw values: the record is
+            // removed from the store indexes BEFORE the mutation and re-added
+            // after. Removing after the mutation walked the NEW values —
+            // deleting the new key (evicting another record that legitimately
+            // owned it, e.g. a shared barcode) while the old key stayed
+            // pointing at this record forever.
+            const reIndexRecord = Object.keys(vals).some(
+                (name) =>
+                    name !== "id" &&
+                    !(name === "uuid" && ownFields[name]) &&
+                    ownFields[name] &&
+                    this[STORE_SYMBOL].hasIndex(this.name, name),
+            );
+            if (reIndexRecord) {
+                this[STORE_SYMBOL].remove(record);
+            }
 
             for (const name in vals) {
                 if (name === "id" || (name === "uuid" && ownFields[name])) {
@@ -427,9 +454,6 @@ export function createRelatedModels(modelDefs, modelClasses = {}, opts = {}) {
                 const coModel = this.models[coModelName];
                 if (field.dummy) {
                     throw new Error(`The field '${field.name}' cannot be updated`);
-                }
-                if (this[STORE_SYMBOL].hasIndex(this.name, field.name)) {
-                    reIndexRecord = true;
                 }
                 if (coModel) {
                     if (X2MANY_TYPES.has(field.type)) {
@@ -550,7 +574,6 @@ export function createRelatedModels(modelDefs, modelClasses = {}, opts = {}) {
             }
 
             if (reIndexRecord) {
-                this[STORE_SYMBOL].remove(record);
                 this[STORE_SYMBOL].add(record);
             }
 
@@ -626,6 +649,17 @@ export function createRelatedModels(modelDefs, modelClasses = {}, opts = {}) {
             const relation = field.relation;
             const inverseField = field.inverse_name;
             const backLinkKey = this.name + field.name;
+            // Subscribe on EVERY call (warm or cold): without this, only the
+            // caller that built the index tracked anything reactive — every
+            // other lazy getter / render composing backLink() read the warm
+            // cache with zero subscriptions and went permanently stale.
+            // `this` is reached through `record.model`, so it carries the
+            // caller's reactive binding (symbol-keyed paths do not).
+            void this.backlinkVersions[backLinkKey];
+            const bumpVersion = () => {
+                this.backlinkVersions[backLinkKey] =
+                    (this.backlinkVersions[backLinkKey] || 0) + 1;
+            };
             if (!backlinkIndexes.has(backLinkKey)) {
                 const recordsMap = record[STORE_SYMBOL].getRecordsMap(relation, "id");
 
@@ -650,6 +684,7 @@ export function createRelatedModels(modelDefs, modelClasses = {}, opts = {}) {
                 unsubscribers.push(
                     record.model.addEventListener("delete", (data) => {
                         index.delete(data.id);
+                        bumpVersion();
                     }),
                 );
 
@@ -659,6 +694,7 @@ export function createRelatedModels(modelDefs, modelClasses = {}, opts = {}) {
                         unsubscribe?.();
                     }
                     unsubscribers.length = 0;
+                    bumpVersion();
                 };
 
                 const relationModel = record.models[relation];
@@ -741,6 +777,12 @@ export function createRelatedModels(modelDefs, modelClasses = {}, opts = {}) {
 
         _loadData(rawData, modelsToLoad = [], opts = {}) {
             this._loadingData = true;
+            // Phase-2 update/create events are deferred until _loadingData is
+            // reset: listeners commonly react by mutating records (e.g.
+            // setPricelist on a new pricelist item), and _markDirty is a no-op
+            // while the flag is up — their changes were silently never marked
+            // dirty, so the next sync skipped them.
+            const deferredEvents = [];
             try {
                 const results = {};
                 const { serverData = true, connectRecords = true } = opts;
@@ -811,18 +853,30 @@ export function createRelatedModels(modelDefs, modelClasses = {}, opts = {}) {
                         if (!isUpdate) {
                             createdIds.push(record.id);
                         } else {
-                            modelEvents.triggerEvents("update", {
-                                id: record.id,
-                                fields: Object.keys(vals),
-                            });
+                            deferredEvents.push([
+                                modelEvents,
+                                "update",
+                                { id: record.id, fields: Object.keys(vals) },
+                            ]);
                         }
                         resultsArray.push(record);
                     }
-                    modelEvents.triggerEvents("create", { ids: createdIds });
+                    // Upstream guard restored: an update-only load must not
+                    // fire a bogus create event with empty ids.
+                    if (createdIds.length) {
+                        deferredEvents.push([
+                            modelEvents,
+                            "create",
+                            { ids: createdIds },
+                        ]);
+                    }
                 }
                 return finalResults;
             } finally {
                 this._loadingData = false;
+                for (const [target, type, payload] of deferredEvents) {
+                    target.triggerEvents(type, payload);
+                }
             }
         }
 
