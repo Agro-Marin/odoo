@@ -1,3 +1,5 @@
+import { addBusServiceListeners } from "@bus/../tests/bus_test_helpers";
+import { WEBSOCKET_CLOSE_CODES } from "@bus/workers/websocket_worker_constants";
 import { defineMailModels, start, startServer } from "@mail/../tests/mail_test_helpers";
 import { AWAY_DELAY } from "@mail/core/common/im_status_service";
 import { beforeEach, describe, expect, test } from "@odoo/hoot";
@@ -5,6 +7,7 @@ import { advanceTime, freezeTime } from "@odoo/hoot-dom";
 import {
     asyncStep,
     makeMockEnv,
+    MockServer,
     mockService,
     patchWithCleanup,
     restoreRegistry,
@@ -108,6 +111,65 @@ test("update presence when user status changes to away", async () => {
     await waitForSteps([0]);
     await advanceTime(AWAY_DELAY);
     await waitForSteps([AWAY_DELAY]);
+});
+
+test("interactions while online do not re-send update_presence", async () => {
+    mockService("bus_service", {
+        send: (type) => {
+            if (type === "update_presence") {
+                asyncStep(type);
+            }
+        },
+    });
+    localStorage.setItem("presence.lastPresence", Date.now());
+    const pyEnv = await startServer();
+    pyEnv["res.partner"].write(serverState.partnerId, { im_status: "online" });
+    await start();
+    await waitForSteps(["update_presence"]);
+    // The first send captured an inactivity period of exactly 0. Further
+    // interactions while online must not re-send: treating that 0 as "never
+    // sent" caused one update_presence per throttled interaction (1/s) for
+    // the whole session.
+    await advanceTime(2000);
+    localStorage.setItem("presence.lastPresence", Date.now());
+    await advanceTime(2000);
+    localStorage.setItem("presence.lastPresence", Date.now());
+    await waitForSteps([]);
+});
+
+test("presence is re-sent after the bus reconnects", async () => {
+    addBusServiceListeners(["BUS:DISCONNECT", () => asyncStep("BUS:DISCONNECT")]);
+    mockService("bus_service", {
+        send: (type, payload) => {
+            if (type === "update_presence") {
+                // distinguish the reconnect re-send (still online, small
+                // inactivity) from the away timer's send (= AWAY_DELAY)
+                asyncStep(
+                    payload.inactivity_period < AWAY_DELAY
+                        ? "presence-online"
+                        : "presence-away",
+                );
+            }
+        },
+    });
+    localStorage.setItem("presence.lastPresence", Date.now());
+    const pyEnv = await startServer();
+    pyEnv["res.partner"].write(serverState.partnerId, { im_status: "online" });
+    await start();
+    await waitForSteps(["presence-online"]);
+    // after a websocket drop the server forgot our presence: reconnection
+    // must re-send it while the user is still online — without it, a
+    // present-but-idle user (reading) appears offline to others until their
+    // next interaction, and the only send left is the away timer's
+    MockServer.env["bus.bus"]._simulateDisconnection(
+        WEBSOCKET_CLOSE_CODES.ABNORMAL_CLOSURE,
+    );
+    await waitForSteps(["BUS:DISCONNECT"]);
+    // the first reconnect attempt fires at exactly INITIAL_RECONNECT_DELAY
+    // (1s): advance past it but nowhere near AWAY_DELAY, so only the
+    // reconnection (not the away timer) can produce the re-send
+    await advanceTime(5000);
+    await waitForSteps(["presence-online"]);
 });
 
 test("new tab update presence when user comes back from away", async () => {

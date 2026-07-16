@@ -42,9 +42,11 @@ export const imStatusService = {
                 );
             }
         };
-        bus_service.addEventListener("BUS:CONNECT", () => updateBusPresence(), {
-            once: true,
-        });
+        // on every (re)connection: after a websocket drop the server forgot our
+        // presence, so a present-but-idle user (reading) would appear offline
+        // until their next interaction or the away timeout
+        bus_service.addEventListener("BUS:CONNECT", () => updateBusPresence());
+        bus_service.addEventListener("BUS:RECONNECT", () => updateBusPresence());
         bus_service.subscribe(
             "bus.bus/im_status_updated",
             async ({
@@ -79,7 +81,12 @@ export const imStatusService = {
             },
         );
         presence.bus.addEventListener("presence", () => {
-            if (!lastSentInactivity || lastSentInactivity >= AWAY_DELAY) {
+            // re-send only when nothing was ever sent or the server last saw
+            // us "away". `lastSentInactivity` is captured in the same tick as
+            // the presence event, so it is exactly 0 here: a falsy check would
+            // treat it as "never sent" and re-send update_presence on every
+            // (1/s-throttled) interaction for the rest of the session.
+            if (lastSentInactivity === undefined || lastSentInactivity >= AWAY_DELAY) {
                 updateBusPresence();
             }
             startAwayTimeout();
