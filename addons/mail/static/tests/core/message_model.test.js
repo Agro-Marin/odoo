@@ -45,3 +45,22 @@ test("Message model properties", async () => {
     expect(message.author_id.id).toBe(5);
     expect(message.author_id.name).toBe("Demo");
 });
+
+test("extra_body_attachment_ids excludes attachments inlined in the body", async () => {
+    await start();
+    const store = getService("mail.store");
+    store["ir.attachment"].insert([
+        { id: 750, mimetype: "image/png", name: "inlined.png" },
+        { id: 751, mimetype: "application/pdf", name: "doc.pdf" },
+    ]);
+    const message = store["mail.message"].insert({
+        id: 4100,
+        attachment_ids: [750, 751],
+        body: markup`<p>hi</p><img data-attachment-id="750">`,
+        model: "res.partner",
+        res_id: serverState.partnerId,
+    });
+    // 750 is rendered inline in the body, so only 751 is an "extra" attachment.
+    expect(message.extra_body_attachment_ids.length).toBe(1);
+    expect(message.extra_body_attachment_ids[0].id).toBe(751);
+});
