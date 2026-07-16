@@ -720,6 +720,11 @@ class AccountMove(models.Model):
                 to_create.append(
                     {
                         "move_id": move.id,
+                        # Set partner explicitly: `_compute_partner_id`
+                        # deliberately does NOT depend on `move_id`, so when a
+                        # line is recycled (written) across moves below its
+                        # partner would otherwise stay that of the previous move.
+                        "partner_id": move.commercial_partner_id.id,
                         "account_id": line.account_id.id,
                         "display_type": "non_deductible_product",
                         "name": line.name,
@@ -739,6 +744,9 @@ class AccountMove(models.Model):
             to_create.append(
                 {
                     "move_id": move.id,
+                    # See the note above: recycling can move this line to another
+                    # move, and `partner_id` won't recompute, so pin it here.
+                    "partner_id": move.commercial_partner_id.id,
                     "account_id": (
                         move.journal_id.non_deductible_account_id
                         or move.journal_id.default_account_id
