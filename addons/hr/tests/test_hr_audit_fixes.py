@@ -412,3 +412,44 @@ class TestHrAuditRound2(TestHrCommon):
             versions_before.filtered("contract_date_end"),
             "no version should have gained a contract end date",
         )
+
+    def test_open_ended_version_no_overflow_in_utc_negative_tz(self):
+        """An open-ended contract version must not overflow the attendance
+        interval computation for an employee in a UTC-negative timezone.
+
+        Regression: the round-2 audit rewrote the open-ended sentinel to
+        ``_combine_tz(version.date_end or date.max, time.max, tz)``.
+        ``_combine_tz`` localizes with pytz, whose ``normalize`` does
+        ``dt - offset``; for a negative offset (America/Mexico_City, UTC-6)
+        that pushes ``date.max`` (9999-12-31) past ``datetime.max`` and raises
+        ``OverflowError``, crashing the Attendance Gantt progress bar
+        (web_gantt -> _gantt_compute_max_work_hours_within_interval ->
+        _employee_attendance_intervals -> _get_expected_attendances).
+        """
+        emp = self._new_employee("MX Open Ended", tz="America/Mexico_City")
+        # Open-ended contract overlapping the query window (no date_end).
+        emp.create_version(
+            {"date_version": "2026-01-01", "contract_date_start": "2026-01-01"}
+        )
+        self.assertFalse(
+            emp.version_id.date_end, "the current version must be open-ended"
+        )
+
+        utc = timezone("UTC")
+        start = utc.localize(datetime(2026, 7, 1))
+        stop = utc.localize(datetime(2026, 7, 31, 23, 59, 59))
+
+        # Guard: the open-ended version must actually overlap the window,
+        # otherwise the early return skips the overflow path and the test
+        # would pass vacuously.
+        self.assertTrue(
+            emp.sudo()._get_versions_with_contract_overlap_with_period(
+                start.date(), stop.date()
+            ),
+            "open-ended version must overlap the window to exercise the bug",
+        )
+
+        # None of the three fixed call sites may raise OverflowError.
+        emp._employee_attendance_intervals(start, stop)  # _get_expected_attendances
+        emp._employee_attendance_intervals(start, stop, lunch=True)
+        emp._get_calendar_attendances(start, stop)
