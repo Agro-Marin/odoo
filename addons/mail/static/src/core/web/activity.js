@@ -46,10 +46,12 @@ export class Activity extends Component {
 
     updateDelayAtNight() {
         browser.clearTimeout(this.updateDelayMidnightTimeout);
-        this.updateDelayMidnightTimeout = browser.setTimeout(
-            () => this.render(),
-            getMsToTomorrow() + 100,
-        ); // Make sure there is no race condition
+        this.updateDelayMidnightTimeout = browser.setTimeout(() => {
+            this.render();
+            // re-arm: without this the "delay" label stopped updating after
+            // the first midnight for a panel left open across days
+            this.updateDelayAtNight();
+        }, getMsToTomorrow() + 100); // Make sure there is no race condition
     }
 
     get delay() {

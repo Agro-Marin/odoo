@@ -177,10 +177,10 @@ export class RecipientsInput extends Component {
     getTagsFromMailThread() {
         const tags = [];
         const createTagForRecipient = (recipient, recipientField) => {
-            const title = `${recipient.name || recipient.display_name || _t("Unnamed")} ${
-                recipient.email ? "<" + recipient.email + ">" : ""
-            }`;
-            title.trim();
+            const title =
+                `${recipient.name || recipient.display_name || _t("Unnamed")} ${
+                    recipient.email ? "<" + recipient.email + ">" : ""
+                }`.trim();
             tags.push({
                 id: uniqueId("tag_"),
                 resId: recipient.partner_id,
@@ -265,8 +265,13 @@ export class RecipientsInput extends Component {
      * @returns {boolean}
      */
     hasRecipient(recipient) {
-        return this.getAllMailThreadRecipients().some(
-            (current) => current.email === recipient.email,
+        return this.getAllMailThreadRecipients().some((current) =>
+            // match by partner_id when both have one, so two distinct
+            // partners that both lack an email are not treated as the same
+            // recipient (email-only compared undefined === undefined => true)
+            current.partner_id && recipient.partner_id
+                ? current.partner_id === recipient.partner_id
+                : Boolean(current.email) && current.email === recipient.email,
         );
     }
 

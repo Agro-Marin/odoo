@@ -133,12 +133,14 @@ patch(MessagingMenu.prototype, {
     /** @param {import("models").Failure} failure */
     onClickFailure(failure) {
         const threadIds = new Set(
-            failure.notifications.map(
-                ({ mail_message_id: message }) => message.thread.id,
-            ),
+            failure.notifications
+                .map(({ mail_message_id: message }) => message.thread?.id)
+                .filter((id) => id !== undefined),
         );
         if (threadIds.size === 1) {
-            const message = failure.notifications[0].mail_message_id;
+            const message = failure.notifications.find(
+                (n) => n.mail_message_id?.thread,
+            )?.mail_message_id;
             this.openThread(message.thread);
         } else {
             this.openFailureView(failure);
