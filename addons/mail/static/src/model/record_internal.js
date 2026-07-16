@@ -131,6 +131,10 @@ export class RecordInternal {
                 .call(this.fieldsComputeProxy2.get(fieldName));
         } catch (err) {
             store.handleError(err);
+            // keep the previous value (like sort()): writing the undefined
+            // computedValue would clear attrs and clear() relations, firing
+            // onDelete hooks and cascading one bad compute into deletions
+            return;
         }
         store._.updateFields(record, {
             [fieldName]: computedValue,

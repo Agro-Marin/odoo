@@ -1487,6 +1487,62 @@ test("error in nested update propagates and store still works afterwards", async
     expect.verifySteps(["BODY_CHANGED"]);
 });
 
+test("throwing compute preserves the previous value instead of clearing it", async () => {
+    (class Thread extends Record {
+        static id = "name";
+        name;
+        explode = false;
+        title = fields.Attr(undefined, {
+            compute() {
+                if (this.explode) {
+                    throw new Error("compute boom");
+                }
+                return `title of ${this.name}`;
+            },
+        });
+        members = fields.Many("Member", {
+            compute() {
+                if (this.explode) {
+                    throw new Error("compute boom");
+                }
+                return [{ name: "alice" }];
+            },
+            onDelete: (member) => {
+                expect.step(`onDelete(${member.name})`);
+                member.delete();
+            },
+        });
+    }).register(localRegistry);
+    (class Member extends Record {
+        static id = "name";
+        name;
+    }).register(localRegistry);
+    const store = await start();
+    store.warnErrors = false;
+    const thread = store.Thread.insert("General");
+    expect(thread.title).toBe("title of General");
+    expect(thread.members.length).toBe(1);
+    // the dependency change makes both computes throw: the error propagates...
+    expect(() =>
+        store.MAKE_UPDATE(() => {
+            thread.explode = true;
+        }),
+    ).toThrow("compute boom");
+    // ...but the previously computed values are preserved: writing the
+    // undefined computedValue would wipe the attr and clear() the relation,
+    // cascading the compute error into record deletions via onDelete
+    expect(thread.title).toBe("title of General");
+    expect(thread.members.length).toBe(1);
+    expect(store.Member.get("alice").exists()).toBe(true);
+    expect.verifySteps([]);
+    // the store recovers once the compute stops throwing
+    store.MAKE_UPDATE(() => {
+        thread.explode = false;
+    });
+    expect(thread.title).toBe("title of General");
+    expect(thread.members.length).toBe(1);
+});
+
 test("record list index assignment", async () => {
     (class Thread extends Record {
         static id = "name";
