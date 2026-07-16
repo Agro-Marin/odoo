@@ -159,6 +159,11 @@ class UomUom(models.Model):
             (`self` and `to_unit` have no common reference unit):
             - if true, raise a UserError,
             - otherwise, return the initial quantity unconverted
+
+        Call-sites that must degrade instead of raising use the named
+        wrappers below (`_compute_quantity_report` / `_compute_quantity_estimate`
+        / `_compute_quantity_reconcile`) — see the comment block above them
+        for the decision rule.
         """
         if not self or not qty:
             return qty
@@ -184,6 +189,38 @@ class UomUom(models.Model):
             amount = float_round(amount, precision_rounding=to_unit.rounding, rounding_method=rounding_method)
 
         return amount
+
+    # --- Degrade-on-failure wrappers ------------------------------------
+    # `_compute_quantity` raises when the units share no common reference.
+    # Call-sites that must degrade instead (return the quantity unconverted,
+    # visibly wrong but non-blocking) use one of the named wrappers below so
+    # the intent stays greppable per bucket. Pick by what the value feeds:
+    # - _compute_quantity_report: a screen, PDF or aggregate display.
+    # - _compute_quantity_estimate: a forecast/planning/pricing estimate
+    #   that guides but does not size a record.
+    # - _compute_quantity_reconcile: a stored reconciliation compute
+    #   (qty_transferred/qty_invoiced family) matching moves or invoice
+    #   lines back to order lines; not a financial posting.
+    # Anything that creates or sizes a real record (moves, MOs, order or
+    # invoice lines, valuation/COGS) stays on the strict base method. The
+    # opt-out is forced: a caller-passed `raise_if_failure` is discarded.
+
+    def _compute_quantity_lenient(self, qty: float, to_unit: Self, **kwargs) -> float:
+        """Shared body of the degrade wrappers; call those, not this."""
+        kwargs.pop('raise_if_failure', None)
+        return self._compute_quantity(qty, to_unit, raise_if_failure=False, **kwargs)
+
+    def _compute_quantity_report(self, qty: float, to_unit: Self, **kwargs) -> float:
+        """Convert for a display/report value; degrades on incompatible units."""
+        return self._compute_quantity_lenient(qty, to_unit, **kwargs)
+
+    def _compute_quantity_estimate(self, qty: float, to_unit: Self, **kwargs) -> float:
+        """Convert for a planning/pricing estimate; degrades on incompatible units."""
+        return self._compute_quantity_lenient(qty, to_unit, **kwargs)
+
+    def _compute_quantity_reconcile(self, qty: float, to_unit: Self, **kwargs) -> float:
+        """Convert for a stored reconciliation compute; degrades on incompatible units."""
+        return self._compute_quantity_lenient(qty, to_unit, **kwargs)
 
     def _check_qty(self, product_qty, uom, rounding_method="HALF-UP"):
         """Round `product_qty` (expressed in `uom`) to a whole multiple of the

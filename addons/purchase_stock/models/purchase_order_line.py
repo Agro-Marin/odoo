@@ -152,7 +152,7 @@ class PurchaseOrderLine(models.Model):
             for move in line._get_stock_moves():
                 if move._is_purchase_return():
                     if not move.origin_returned_move_id or move.to_refund:
-                        qty_transferred -= move.product_uom_id._compute_quantity(
+                        qty_transferred -= move.product_uom_id._compute_quantity_reconcile(
                             move.quantity,
                             line.product_uom_id,
                             rounding_method="HALF-UP",
@@ -174,7 +174,7 @@ class PurchaseOrderLine(models.Model):
                 ):
                     pass
                 else:
-                    qty_transferred += move.product_uom_id._compute_quantity(
+                    qty_transferred += move.product_uom_id._compute_quantity_reconcile(
                         move.quantity,
                         line.product_uom_id,
                         rounding_method="HALF-UP",
@@ -499,7 +499,7 @@ class PurchaseOrderLine(models.Model):
                     if move.state == "done":
                         if move._is_purchase_return():
                             if not move.origin_returned_move_id or move.to_refund:
-                                total -= move.product_uom_id._compute_quantity(
+                                total -= move.product_uom_id._compute_quantity_reconcile(
                                     move.quantity,
                                     line.product_uom_id,
                                     rounding_method="HALF-UP",
@@ -521,7 +521,7 @@ class PurchaseOrderLine(models.Model):
                         ):
                             pass
                         else:
-                            total += move.product_uom_id._compute_quantity(
+                            total += move.product_uom_id._compute_quantity_reconcile(
                                 move.quantity,
                                 line.product_uom_id,
                                 rounding_method="HALF-UP",

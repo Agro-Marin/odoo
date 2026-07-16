@@ -254,7 +254,7 @@ class ReportMrpReport_Mo_Overview(models.AbstractModel):
                 continue
             # As UoMs can vary, we use the default UoM of each product
             quantities_by_product[bp_move.product_id] += (
-                bp_move.product_uom_id._compute_quantity(
+                bp_move.product_uom_id._compute_quantity_report(
                     bp_move.quantity,
                     bp_move.product_id.uom_id,
                     rounding_method="HALF-UP",
@@ -374,12 +374,12 @@ class ReportMrpReport_Mo_Overview(models.AbstractModel):
             "uom_precision": self._get_uom_precision(
                 production.product_uom_id.rounding or 0.01
             ),
-            "quantity_free": product.uom_id._compute_quantity(
+            "quantity_free": product.uom_id._compute_quantity_report(
                 max(product.qty_free, 0), production.product_uom_id
             )
             if product.is_storable
             else False,
-            "quantity_on_hand": product.uom_id._compute_quantity(
+            "quantity_on_hand": product.uom_id._compute_quantity_report(
                 product.qty_available, production.product_uom_id
             )
             if product.is_storable
@@ -436,13 +436,13 @@ class ReportMrpReport_Mo_Overview(models.AbstractModel):
             if not product.is_storable:
                 continue
             uom = component["uom"]
-            components_qty_to_produce[product] += uom._compute_quantity(
+            components_qty_to_produce[product] += uom._compute_quantity_report(
                 component["quantity"], product.uom_id
             )
-            components_qty_reserved[product] += uom._compute_quantity(
+            components_qty_reserved[product] += uom._compute_quantity_report(
                 component["quantity_reserved"], product.uom_id
             )
-            components_qty_free[product] = uom._compute_quantity(
+            components_qty_free[product] = uom._compute_quantity_report(
                 component["quantity_free"], product.uom_id
             )
         producible_qty = record.product_qty
@@ -860,7 +860,7 @@ class ReportMrpReport_Mo_Overview(models.AbstractModel):
         )
         if production.bom_id:
             if move_raw.bom_line_id:
-                qty_in_bom_uom = production.product_uom_id._compute_quantity(
+                qty_in_bom_uom = production.product_uom_id._compute_quantity_report(
                     production.product_qty, production.bom_id.product_uom_id
                 )
                 bom_cost = currency.round(
@@ -902,12 +902,12 @@ class ReportMrpReport_Mo_Overview(models.AbstractModel):
             "uom": move_raw.product_uom_id,
             "uom_name": move_raw.product_uom_id.display_name,
             "uom_precision": self._get_uom_precision(move_raw.product_uom_id.rounding),
-            "quantity_free": product.uom_id._compute_quantity(
+            "quantity_free": product.uom_id._compute_quantity_report(
                 max(product.qty_free, 0), move_raw.product_uom_id
             )
             if product.is_storable
             else False,
-            "quantity_on_hand": product.uom_id._compute_quantity(
+            "quantity_on_hand": product.uom_id._compute_quantity_report(
                 product.qty_available, move_raw.product_uom_id
             )
             if product.is_storable
@@ -982,7 +982,7 @@ class ReportMrpReport_Mo_Overview(models.AbstractModel):
         )
         reserved_quantity = self._get_reserved_qty(move, warehouse, replenish_data)
         missing_quantity = move.product_uom_qty - reserved_quantity
-        qty_free = product.uom_id._compute_quantity(
+        qty_free = product.uom_id._compute_quantity_report(
             product.qty_free, move.product_uom_id
         )
         if move.product_uom_id.compare(missing_quantity, 0.0) <= 0 or (
@@ -1048,7 +1048,7 @@ class ReportMrpReport_Mo_Overview(models.AbstractModel):
             forecast_uom_id = forecast_line["uom_id"]
             line_quantity = min(
                 quantity,
-                forecast_uom_id._compute_quantity(
+                forecast_uom_id._compute_quantity_report(
                     forecast_line["quantity"], move_raw.product_uom_id
                 ),
             )  # Avoid over-rounding
@@ -1057,7 +1057,7 @@ class ReportMrpReport_Mo_Overview(models.AbstractModel):
             # and divide by the BoM batch size, otherwise a batch BoM
             # (product_qty > 1) inflates bom_cost by that factor.
             if production.bom_id and move_raw.bom_line_id:
-                qty_in_bom_uom = production.product_uom_id._compute_quantity(
+                qty_in_bom_uom = production.product_uom_id._compute_quantity_report(
                     production.product_qty, production.bom_id.product_uom_id
                 )
                 full_bom_demand = (
@@ -1183,12 +1183,12 @@ class ReportMrpReport_Mo_Overview(models.AbstractModel):
         # Avoid creating a "to_order" line to compensate for missing stock (i.e. negative qty_free).
         qty_free = max(
             0,
-            product.uom_id._compute_quantity(product.qty_free, move_raw.product_uom_id),
+            product.uom_id._compute_quantity_report(product.qty_free, move_raw.product_uom_id),
         )
         available_qty = reserved_quantity + qty_free + total_ordered
         missing_quantity = quantity - available_qty
         if production.bom_id and move_raw.bom_line_id:
-            qty_in_bom_uom = production.product_uom_id._compute_quantity(
+            qty_in_bom_uom = production.product_uom_id._compute_quantity_report(
                 production.product_qty, production.bom_id.product_uom_id
             )
             # Divide by the BoM batch size (see _format_component_move): without
@@ -1232,7 +1232,7 @@ class ReportMrpReport_Mo_Overview(models.AbstractModel):
                     "product_model": product._name,
                     "product_id": product.id,
                     "quantity": missing_quantity,
-                    "replenish_quantity": move_raw.product_uom_id._compute_quantity(
+                    "replenish_quantity": move_raw.product_uom_id._compute_quantity_report(
                         missing_quantity, product.uom_id
                     ),
                     "uom_name": move_raw.product_uom_id.display_name,
@@ -1241,7 +1241,7 @@ class ReportMrpReport_Mo_Overview(models.AbstractModel):
                     ),
                     "real_cost": currency.round(
                         product.standard_price
-                        * move_raw.product_uom_id._compute_quantity(
+                        * move_raw.product_uom_id._compute_quantity_report(
                             available_qty, product.uom_id
                         )
                     ),
@@ -1271,7 +1271,7 @@ class ReportMrpReport_Mo_Overview(models.AbstractModel):
             else:
                 to_order_line["summary"]["mo_cost"] = currency.round(
                     product.standard_price
-                    * move_raw.product_uom_id._compute_quantity(
+                    * move_raw.product_uom_id._compute_quantity_report(
                         missing_quantity, product.uom_id
                     )
                 )
@@ -1351,7 +1351,7 @@ class ReportMrpReport_Mo_Overview(models.AbstractModel):
             if production.bom_id
             else False
         )
-        real_cost = product.standard_price * in_transit["uom_id"]._compute_quantity(
+        real_cost = product.standard_price * in_transit["uom_id"]._compute_quantity_report(
             in_transit["quantity"], product.uom_id
         )
         if self._is_production_started(production) or not production.bom_id:
@@ -1372,7 +1372,7 @@ class ReportMrpReport_Mo_Overview(models.AbstractModel):
                 "product_id": product.id,
                 "quantity": min(
                     move_raw.product_uom_qty,
-                    in_transit["uom_id"]._compute_quantity(
+                    in_transit["uom_id"]._compute_quantity_report(
                         in_transit["quantity"], move_raw.product_uom_id
                     ),
                 ),  # Avoid over-rounding
@@ -1400,7 +1400,7 @@ class ReportMrpReport_Mo_Overview(models.AbstractModel):
         self, product, quantity, uom_id, currency, move_in=False
     ):
         return currency.round(
-            product.standard_price * uom_id._compute_quantity(quantity, product.uom_id)
+            product.standard_price * uom_id._compute_quantity_report(quantity, product.uom_id)
         )
 
     def _is_doc_in_done(self, doc_in):
@@ -1525,7 +1525,7 @@ class ReportMrpReport_Mo_Overview(models.AbstractModel):
             ):
                 doc_origin = self._get_origin(move_origin)
                 if doc_origin:
-                    to_uom_qty = move_origin.product_uom_id._compute_quantity(
+                    to_uom_qty = move_origin.product_uom_id._compute_quantity_report(
                         move_origin.product_uom_qty, component_move.product_uom_id
                     )
                     used_qty = min(required_qty, to_uom_qty)
@@ -1579,7 +1579,7 @@ class ReportMrpReport_Mo_Overview(models.AbstractModel):
             ),
             forecast_lines,
         ):
-            move_out_qty = line["move_out"].product_uom_id._compute_quantity(
+            move_out_qty = line["move_out"].product_uom_id._compute_quantity_report(
                 line["move_out"].product_uom_qty, line["uom_id"]
             )
             for move_origin in self.env["stock.move"].browse(
@@ -1589,7 +1589,7 @@ class ReportMrpReport_Mo_Overview(models.AbstractModel):
                 if doc_origin:
                     # Remove 'in_transit' for MTO replenishments
                     line["in_transit"] = False
-                    move_origin_qty = move_origin.product_uom_id._compute_quantity(
+                    move_origin_qty = move_origin.product_uom_id._compute_quantity_report(
                         move_origin.product_uom_qty, line["uom_id"]
                     )
                     # Move quantity matches forecast, can add origin to the line
@@ -1665,11 +1665,11 @@ class ReportMrpReport_Mo_Overview(models.AbstractModel):
                     continue
                 if "init_quantity" not in extra:
                     extra["init_quantity"] = extra["quantity"]
-                converted_qty = extra["uom"]._compute_quantity(
+                converted_qty = extra["uom"]._compute_quantity_report(
                     extra["quantity"], forecast_line["uom_id"]
                 )
                 taken_from_extra = min(line_qty, converted_qty)
-                ratio = taken_from_extra / extra["uom"]._compute_quantity(
+                ratio = taken_from_extra / extra["uom"]._compute_quantity_report(
                     extra["init_quantity"], forecast_line["uom_id"]
                 )
                 line_qty -= taken_from_extra
@@ -1683,7 +1683,7 @@ class ReportMrpReport_Mo_Overview(models.AbstractModel):
                 }
                 new_extra_line["cost"] = extra["cost"] * ratio
                 lines_with_extras.append(new_extra_line)
-                extra["quantity"] -= forecast_line["uom_id"]._compute_quantity(
+                extra["quantity"] -= forecast_line["uom_id"]._compute_quantity_report(
                     taken_from_extra, extra["uom"]
                 )
                 if (
@@ -1722,7 +1722,7 @@ class ReportMrpReport_Mo_Overview(models.AbstractModel):
             return {
                 "delay": related_bom.produce_delay + rules_delay,
                 "cost": product.standard_price
-                * uom_id._compute_quantity(quantity, product.uom_id),
+                * uom_id._compute_quantity_report(quantity, product.uom_id),
                 "currency": (production.company_id or self.env.company).currency_id,
             }
         return False
@@ -1753,13 +1753,13 @@ class ReportMrpReport_Mo_Overview(models.AbstractModel):
                 if move.state not in ("partially_available", "assigned"):
                     continue
                 # count reserved stock in move_raw's uom
-                reserved = move.product_uom_id._compute_quantity(
+                reserved = move.product_uom_id._compute_quantity_report(
                     move.quantity, move_raw.product_uom_id
                 )
                 # check if the move reserved qty was counted before (happens if multiple outs share pick/pack)
                 reserved = min(
                     reserved
-                    - move.product_uom_id._compute_quantity(
+                    - move.product_uom_id._compute_quantity_report(
                         replenish_data["qty_already_reserved"][move],
                         move_raw.product_uom_id,
                     ),
@@ -1767,7 +1767,7 @@ class ReportMrpReport_Mo_Overview(models.AbstractModel):
                 )
                 total_reserved += reserved
                 replenish_data["qty_already_reserved"][move] += (
-                    move_raw.product_uom_id._compute_quantity(
+                    move_raw.product_uom_id._compute_quantity_report(
                         reserved, move.product_uom_id
                     )
                 )

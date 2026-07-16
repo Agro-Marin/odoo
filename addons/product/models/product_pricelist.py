@@ -185,8 +185,8 @@ class ProductPricelist(models.Model):
             # Compute quantity in product uom because pricelist rules are specified
             # w.r.t product default UoM (min_quantity, price_surchage, ...)
             if target_uom != product_uom_id:
-                qty_in_product_uom = target_uom._compute_quantity(
-                    quantity, product_uom_id, raise_if_failure=False
+                qty_in_product_uom = target_uom._compute_quantity_estimate(
+                    quantity, product_uom_id
                 )
             else:
                 qty_in_product_uom = quantity

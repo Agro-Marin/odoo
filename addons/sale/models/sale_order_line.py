@@ -1695,7 +1695,7 @@ class SaleOrderLine(models.Model):
                 qty = unit_amount_sum / count
             else:
                 qty = unit_amount_sum
-            qty = uom._compute_quantity(
+            qty = uom._compute_quantity_reconcile(
                 qty,
                 line.product_uom_id,
                 rounding_method="HALF-UP",

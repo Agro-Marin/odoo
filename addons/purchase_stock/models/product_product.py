@@ -320,7 +320,7 @@ class ProductProduct(models.Model):
                 location = location_final
             else:
                 location = order.picking_type_id.default_location_dest_id
-            product_qty = uom._compute_quantity(
+            product_qty = uom._compute_quantity_estimate(
                 product_qty_sum,
                 product.uom_id,
                 round=False,

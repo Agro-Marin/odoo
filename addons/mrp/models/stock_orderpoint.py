@@ -230,8 +230,8 @@ class StockWarehouseOrderpoint(models.Model):
                 ):
                     continue
                 uom_qty_per_kit = bom_line_data["qty"] / bom_line_data["original_qty"]
-                qty_per_kit = bom_line.product_uom_id._compute_quantity(
-                    uom_qty_per_kit, bom_line.product_id.uom_id, raise_if_failure=False
+                qty_per_kit = bom_line.product_uom_id._compute_quantity_estimate(
+                    uom_qty_per_kit, bom_line.product_id.uom_id
                 )
                 if not qty_per_kit:
                     continue
@@ -247,7 +247,7 @@ class StockWarehouseOrderpoint(models.Model):
             # For a kit, the quantity in progress is :
             #  (the quantity if we have received all in-progress components) - (the quantity using only available components)
             product_qty = min(ratios_total or [0]) - min(ratios_qty_available or [0])
-            res[orderpoint.id] = orderpoint.product_id.uom_id._compute_quantity(
+            res[orderpoint.id] = orderpoint.product_id.uom_id._compute_quantity_estimate(
                 product_qty, orderpoint.product_uom_id, round=False
             )
 
@@ -266,7 +266,7 @@ class StockWarehouseOrderpoint(models.Model):
             ["product_qty:sum"],
         )
         for orderpoint, uom, product_qty_sum in productions_group:
-            res[orderpoint.id] += uom._compute_quantity(
+            res[orderpoint.id] += uom._compute_quantity_estimate(
                 product_qty_sum, orderpoint.product_uom_id, round=False
             )
 
@@ -287,7 +287,7 @@ class StockWarehouseOrderpoint(models.Model):
             )
             lead_horizon_date = datetime.combine(orderpoint.lead_horizon_date, time.max)
             if date_start <= lead_horizon_date < date_end:
-                res[orderpoint.id] += prod.product_uom_id._compute_quantity(
+                res[orderpoint.id] += prod.product_uom_id._compute_quantity_estimate(
                     prod.product_qty, orderpoint.product_uom_id, round=False
                 )
         return res

@@ -383,7 +383,7 @@ class ProductProduct(models.Model):
         mapped_data = collections.defaultdict(float)
         for product, uom, qty in read_group_res:
             if uom != product.uom_id:
-                qty = uom._compute_quantity(qty, product.uom_id)
+                qty = uom._compute_quantity_estimate(qty, product.uom_id)
             mapped_data[product.id] += qty
         for product in self:
             if not product.id:
@@ -456,11 +456,10 @@ class ProductProduct(models.Model):
                     uom_qty_per_kit = (
                         bom_line_data["qty"] / bom_line_data["original_qty"]
                     )
-                    qty_per_kit += bom_line.product_uom_id._compute_quantity(
+                    qty_per_kit += bom_line.product_uom_id._compute_quantity_estimate(
                         uom_qty_per_kit,
                         bom_line.product_id.uom_id,
                         round=False,
-                        raise_if_failure=False,
                     )
                 if not qty_per_kit:
                     continue

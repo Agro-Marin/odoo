@@ -4600,7 +4600,7 @@ class AccountMoveLine(models.Model):
     def _get_invoiced_qty_per_product(self):
         qties = defaultdict(float)
         for aml in self:
-            qty = aml.product_uom_id._compute_quantity(
+            qty = aml.product_uom_id._compute_quantity_reconcile(
                 aml.quantity, aml.product_id.uom_id
             )
             if aml.move_id.move_type == "out_invoice":
@@ -4899,7 +4899,7 @@ class AccountMoveLine(models.Model):
                 **self[0].move_id._get_product_price_and_data(self[0].product_id),
                 "quantity": sum(
                     self.mapped(
-                        lambda line: line.product_uom_id._compute_quantity(
+                        lambda line: line.product_uom_id._compute_quantity_report(
                             qty=line.quantity,
                             to_unit=line.product_id.uom_id,
                         )
