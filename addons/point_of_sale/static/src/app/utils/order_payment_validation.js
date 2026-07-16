@@ -4,7 +4,7 @@ import { serializeDateTime } from "@web/core/l10n/dates";
 import { _t } from "@web/core/l10n/translation";
 import { ConnectionLostError, RPCError } from "@web/core/network/rpc";
 import { AlertDialog, ConfirmationDialog } from "@web/ui/dialog/confirmation_dialog";
-import { handleRPCError } from "./error_handlers.js";
+import { handleRPCError, showLimitedFunctionalityWarning } from "./error_handlers.js";
 import { ask } from "./make_awaitable_dialog.js";
 
 /**
@@ -237,8 +237,13 @@ export default class OrderPaymentValidation {
 
     handleValidationError(error) {
         if (error instanceof ConnectionLostError) {
+            // Offline: the order is validated locally, so still show its receipt
+            // (returning normally lets the ReceiptScreen navigation proceed;
+            // rejecting here would skip it) and surface the limited-functionality
+            // warning explicitly.
             this.afterOrderValidation();
-            return Promise.reject(error);
+            showLimitedFunctionalityWarning(this.pos);
+            return error;
         } else if (error instanceof RPCError) {
             this.order.state = "draft";
             handleRPCError(error, this.pos.dialog);
