@@ -677,7 +677,26 @@ export function classToStyle(element, cssRules) {
         // `_getMatchedCSSRules`.)
         style = style
             .split(";")
-            .filter((declaration) => !declaration.includes("flex"))
+            .filter((declaration) => {
+                // Outlook doesn't support flexbox: drop flex-* properties and
+                // flex values (mirrors the property/value scan in
+                // `_getMatchedCSSRules`). Split on ":" and match the parsed
+                // property/value instead of a naive substring test, so an
+                // unrelated token like `content:"flexible"` is not dropped.
+                const separator = declaration.indexOf(":");
+                const name = (
+                    separator === -1 ? declaration : declaration.slice(0, separator)
+                ).trim();
+                const value =
+                    separator === -1 ? "" : declaration.slice(separator + 1).trim();
+                const isFlex =
+                    name === "flex" ||
+                    name.startsWith("flex-") ||
+                    value === "flex" ||
+                    value === "inline-flex" ||
+                    value.startsWith("flex-");
+                return !isFlex;
+            })
             .join(";");
         styleProbe.style.cssText = style;
         for (const [key, value] of Object.entries(css)) {
