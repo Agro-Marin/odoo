@@ -60,9 +60,11 @@ export class PaymentScreen extends Component {
     onMounted() {
         const order = this.pos.getOrder();
 
-        for (const payment of order.payment_ids) {
-            const pmid = payment.payment_method_id.id;
-            if (!this.pos.config.payment_method_ids.map((pm) => pm.id).includes(pmid)) {
+        // Iterate a copy: delete() splices the live payment_ids array, so a
+        // direct iteration skipped every second stale line.
+        const configPmIds = new Set(this.pos.config.payment_method_ids.map((pm) => pm.id));
+        for (const payment of [...order.payment_ids]) {
+            if (!configPmIds.has(payment.payment_method_id.id)) {
                 payment.delete({ backend: true });
             }
         }
@@ -184,8 +186,17 @@ export class PaymentScreen extends Component {
             }
         }
         // disable changing amount on paymentlines with running or done payments on a payment terminal
+        // NB: this guard must run BEFORE the max-amount clamp — the clamp used
+        // to zero a DONE terminal payment (money already captured) before the
+        // guard returned, leaving the line at 0.
         const payment_terminal =
             this.selectedPaymentLine.payment_method_id.payment_terminal;
+        if (
+            payment_terminal &&
+            !["pending", "retry"].includes(this.selectedPaymentLine.getPaymentStatus())
+        ) {
+            return;
+        }
         const hasCashPaymentMethod = this.payment_methods_from_config.some(
             (method) => method.type === "cash",
         );
@@ -197,12 +208,6 @@ export class PaymentScreen extends Component {
             this.numberBuffer.set(this.currentOrder.remainingDue.toString());
             amount = this.currentOrder.remainingDue;
             this.showMaxValueError();
-        }
-        if (
-            payment_terminal &&
-            !["pending", "retry"].includes(this.selectedPaymentLine.getPaymentStatus())
-        ) {
-            return;
         }
         if (amount === null) {
             this.deletePaymentLine(this.selectedPaymentLine.uuid);
@@ -247,12 +252,16 @@ export class PaymentScreen extends Component {
                 ? this.selectedPaymentLine
                 : false;
 
-        if (!pLine || newTip === tip) {
-            this.notification.add(
-                _t(
-                    "The tip has been added to the order. However,the selected payment line does not allow tips to be added.",
-                ),
-            );
+        // newTip is the popup's string; compare numerically (string === number
+        // was always false, so the unchanged-tip case fell through).
+        if (!pLine || this.pos.currency.isZero(parseFloat(newTip) - tip)) {
+            if (!pLine) {
+                this.notification.add(
+                    _t(
+                        "The tip has been added to the order. However, the selected payment line does not allow tips to be added.",
+                    ),
+                );
+            }
             return;
         }
         const tipDifference = parseFloat(newTip) - (tip || 0);
@@ -329,17 +338,23 @@ export class PaymentScreen extends Component {
             line.can_be_reversed = false;
         });
 
-        let isPaymentSuccessful;
-        if (line.payment_method_id.payment_method_type === "qr_code") {
-            const resp = await this.pos.showQR(line);
-            isPaymentSuccessful = line.handlePaymentResponse(resp);
-        } else {
-            isPaymentSuccessful = await line.pay();
+        let isPaymentSuccessful = false;
+        try {
+            if (line.payment_method_id.payment_method_type === "qr_code") {
+                const resp = await this.pos.showQR(line);
+                isPaymentSuccessful = line.handlePaymentResponse(resp);
+            } else {
+                isPaymentSuccessful = await line.pay();
+            }
+        } finally {
+            // A throwing terminal implementation must not leave the flag
+            // stuck: it permanently blocked addNewPaymentLine for terminal
+            // methods on every order until reload.
+            this.pos.paymentTerminalInProgress = false;
         }
 
         // Automatically validate the order when after an electronic payment,
         // the current order is fully paid and due is zero.
-        this.pos.paymentTerminalInProgress = false;
         const config = this.pos.config;
         const currentOrder = line.pos_order_id;
         if (

@@ -32,9 +32,11 @@ export default class OrderPaymentValidation {
         this.payment_methods_from_config = this.pos.config.payment_method_ids
             .slice()
             .sort((a, b) => a.sequence - b.sequence);
-        if (vals.fastPaymentMethod) {
-            this.order.addPaymentline(vals.fastPaymentMethod);
-        }
+        // The fast payment line is added by validateOrder, not here: adding it
+        // at construction left the order carrying an unconfirmed full-amount
+        // payment line whenever validation bailed on a precondition (and a
+        // second attempt piled on another line).
+        this.fastPaymentMethod = vals.fastPaymentMethod || null;
     }
 
     get order() {
@@ -88,8 +90,27 @@ export default class OrderPaymentValidation {
     async shouldHideValidationBehindFeedbackScreen() {
         const nextPage = this.nextPage;
         if (nextPage.page === "FeedbackScreen") {
+            // The FeedbackScreen inspects the settled value: it must not show
+            // a success screen and auto-advance when the background
+            // finalization actually failed (RPC rejection resets the order to
+            // draft). The promise never rejects — a rejection here used to be
+            // unhandled.
             const waitForFn = async () => {
-                await this.finalizeValidation();
+                try {
+                    const response = await this.finalizeValidation();
+                    return {
+                        ok: !(response instanceof RPCError) && response !== false,
+                    };
+                } catch (error) {
+                    logPosMessage(
+                        "OrderPaymentValidation",
+                        "shouldHideValidationBehindFeedbackScreen",
+                        "Background finalization failed",
+                        undefined,
+                        [error],
+                    );
+                    return { ok: false, error };
+                }
             };
             nextPage.params.waitFor = waitForFn();
         } else {
@@ -108,14 +129,30 @@ export default class OrderPaymentValidation {
     }
 
     async validateOrder(isForceValidate) {
+        let fastPaymentLine = null;
+        if (this.fastPaymentMethod) {
+            const res = this.order.addPaymentline(this.fastPaymentMethod);
+            fastPaymentLine = res?.data || null;
+            this.fastPaymentMethod = null;
+        }
+        // Roll the fast payment line back on every failed precondition — the
+        // customer never confirmed it.
+        const rollbackFastPayment = () => {
+            if (fastPaymentLine) {
+                this.order.removePaymentline(fastPaymentLine);
+            }
+        };
         if ((await this.askBeforeValidation()) === false) {
+            rollbackFastPayment();
             return false;
         }
         if ((await this._askForCustomerIfRequired()) === false) {
+            rollbackFastPayment();
             return false;
         }
         this.pos.numberBuffer.capture();
         if (!this.checkCashRoundingHasBeenWellApplied()) {
+            rollbackFastPayment();
             return false;
         }
         const linesToRemove = this.order.lines.filter((line) => line.canBeRemoved);
@@ -139,6 +176,7 @@ export default class OrderPaymentValidation {
             return true;
         }
 
+        rollbackFastPayment();
         return false;
     }
 
