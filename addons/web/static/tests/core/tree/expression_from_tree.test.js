@@ -145,6 +145,30 @@ test("expressionFromTree", () => {
     }
 });
 
+test("expressionFromTree: a negated connector is not collapsed into if/else", () => {
+    const options = {
+        getFieldDef: (name) => (["foo", "bar"].includes(name) ? { type: "any" } : null),
+    };
+    // A NON-negated "|" of two "&" whose conditions form a C / not-C pair is
+    // rendered with the ternary shortcut.
+    const ifElseShape = () =>
+        connector("|", [
+            connector("&", [condition("foo", "=", false), condition("bar", "=", 1)]),
+            connector("&", [condition("foo", "!=", false), condition("bar", "=", 2)]),
+        ]);
+    expect(expressionFromTree(ifElseShape(), options)).toBe(
+        "bar == 1 if not foo else bar == 2",
+    );
+    // Regression: a NEGATED "|" must go through the general path so the wrapping
+    // "not (...)" is emitted. The shortcut used to fire regardless of `negate`,
+    // silently dropping the negation and corrupting the round-trip.
+    const negated = ifElseShape();
+    negated.negate = true;
+    expect(expressionFromTree(negated, options)).toBe(
+        "not ( ( not foo and bar == 1 ) or ( foo and bar == 2 ) )",
+    );
+});
+
 test("expressionFromTree: constant condition leaves", () => {
     expect(expressionFromTree(condition(1, "=", 1))).toBe("True");
     expect(expressionFromTree(condition(0, "=", 1))).toBe("False");

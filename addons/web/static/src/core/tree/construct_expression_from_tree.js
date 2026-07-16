@@ -60,11 +60,21 @@ function isX2Many(ast, options) {
  * @returns {string}
  */
 function _constructExpressionFromTree(tree, options, isRoot = false) {
-    if (tree.type === "connector" && tree.value === "|" && tree.children.length === 2) {
+    if (
+        tree.type === "connector" &&
+        tree.value === "|" &&
+        // A NEGATED "|" must go through the general path below, which emits the
+        // wrapping ``not (...)``; the if/else shortcut drops it (round-trip
+        // corruption, e.g. ``not (b and x) or (not b and y)`` → ``x if b else y``).
+        !tree.negate &&
+        tree.children.length === 2
+    ) {
         // check if we have an "if else"
         const isSimpleAnd = (/** @type {Tree} */ tree) =>
             tree.type === "connector" &&
             tree.value === "&" &&
+            // A negated "&" child likewise loses its negation in the shortcut.
+            !tree.negate &&
             tree.children.length === 2;
         if (tree.children.every((/** @type {Tree} */ c) => isSimpleAnd(c))) {
             const [c1, c2] = tree.children;
