@@ -6,6 +6,7 @@ from binascii import Error as binascii_error
 from collections import defaultdict
 
 from lxml import html
+from psycopg import IntegrityError
 
 from odoo import _, api, fields, models, modules, tools
 from odoo.exceptions import AccessError, MissingError
@@ -456,8 +457,12 @@ class MailMessage(models.Model):
         if not self.env.user._is_internal():
             domain = self._get_search_domain_share() & Domain(domain)
 
-        # make the search query with the default rules
-        query = super()._search(domain, offset, limit, order, **kwargs)
+        # Make the search query with the default rules but WITHOUT the caller's
+        # offset/limit: the custom accessibility filter below runs in Python, so
+        # applying LIMIT/OFFSET in SQL first would truncate the candidate set
+        # before filtering and return short, skipped or duplicated pages. The
+        # caller's offset/limit is re-applied after filtering (see below).
+        query = super()._search(domain, order=order, **kwargs)
 
         # retrieve matching records and determine which ones are truly accessible
         self.flush_model(
@@ -525,7 +530,13 @@ class MailMessage(models.Model):
                 model_ids[model][res_id].add(id_)
 
         allowed_ids.update(self._find_allowed_doc_ids(model_ids))
+        # `ids` preserves the SQL order; keep the accessible ones in that order
+        # and only now apply the caller's pagination so a limited page is filled
+        # with accessible records.
         allowed = self.browse(id_ for id_ in ids if id_ in allowed_ids)
+        if offset or limit is not None:
+            stop = (offset + limit) if limit is not None else None
+            allowed = allowed[offset:stop]
         return allowed._as_query(order)
 
     def _get_search_domain_share(self):
@@ -1338,7 +1349,10 @@ class MailMessage(models.Model):
             ("content", "=", content),
         ]
         reaction = self.env["mail.message.reaction"].search(domain)
-        # create/unlink reaction if necessary
+        # create/unlink reaction if necessary. Adding/removing the same reaction
+        # concurrently (double-click, two tabs) races the search against the
+        # (message, content, partner|guest) unique index, so treat "already
+        # there" / "already gone" as success instead of surfacing a 500.
         if action == "add" and not reaction:
             create_values = {
                 "message_id": self.id,
@@ -1346,7 +1360,12 @@ class MailMessage(models.Model):
                 "partner_id": partner.id,
                 "guest_id": guest.id,
             }
-            self.env["mail.message.reaction"].create(create_values)
+            try:
+                with self.env.cr.savepoint():
+                    self.env["mail.message.reaction"].create(create_values)
+            except IntegrityError:
+                # a concurrent request already created the identical reaction
+                pass
         if action == "remove" and reaction:
             reaction.unlink()
         if store:

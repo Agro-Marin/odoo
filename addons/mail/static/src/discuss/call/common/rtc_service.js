@@ -1388,7 +1388,25 @@ export class Rtc extends Record {
     buildSnapshot() {
         const server = {};
         if (this.state.connectionType === CONNECTION_TYPES.SERVER) {
-            server.info = toRaw(this.serverInfo);
+            // Never serialize call credentials into the log snapshot: it is
+            // persisted to IndexedDB and lands in the user-downloadable RTC log
+            // bundle. The SFU jsonWebToken is a replayable channel credential
+            // and TURN iceServers entries carry secrets; keep only whether they
+            // were present for debugging.
+            const { jsonWebToken, iceServers, ...safeInfo } =
+                toRaw(this.serverInfo) ?? {};
+            server.info = {
+                ...safeInfo,
+                hasJsonWebToken: Boolean(jsonWebToken),
+                ...(iceServers
+                    ? {
+                          iceServers: iceServers.map(({ credential, ...rest }) => ({
+                              ...rest,
+                              hasCredential: Boolean(credential),
+                          })),
+                      }
+                    : {}),
+            };
             server.state = this.sfuClient?.state;
             server.errors = this.sfuClient?.errors.map((error) => error.message);
         }

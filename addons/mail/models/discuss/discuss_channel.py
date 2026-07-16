@@ -313,8 +313,16 @@ class DiscussChannel(models.Model):
     @api.depends("channel_type", "is_member", "group_public_id")
     @api.depends_context("uid")
     def _compute_is_editable(self):
+        # Batch the write-access check (one query for the whole recordset)
+        # instead of one `has_access` per channel. Editing a channel's
+        # configuration also requires membership (see `write`), so a non-member
+        # who can merely see a public channel is not offered the edit UI.
+        editable = self._filtered_access("write")
+        is_admin = self.env.is_admin()
         for channel in self:
-            channel.is_editable = channel.has_access("write")
+            channel.is_editable = channel in editable and (
+                is_admin or channel.is_member
+            )
 
     @api.depends("channel_type", "image_128", "uuid")
     def _compute_avatar_128(self):
@@ -567,7 +575,40 @@ class DiscussChannel(models.Model):
         for channel in self:
             channel._bus_send("discuss.channel/delete", {"id": channel.id})
 
+    # Configuration fields whose modification is reserved to channel members
+    # (or administrators). The record rule granting access to public channels
+    # does not enforce membership, so without this guard any internal user
+    # could rename, archive, re-authorize or deface a channel they never
+    # joined. Runtime fields touched by the messaging flow (last_interest_dt,
+    # member/message relations, ...) are intentionally excluded and continue to
+    # be written through sudo() by the framework.
+    _STRUCTURAL_WRITE_FIELDS = frozenset(
+        {
+            "name",
+            "description",
+            "image_128",
+            "group_public_id",
+            "group_ids",
+            "active",
+            "uuid",
+            "default_display_mode",
+            "allow_public_upload",
+            "channel_type",
+            "from_message_id",
+            "parent_channel_id",
+        }
+    )
+
     def write(self, vals):
+        if not self.env.is_admin() and self._STRUCTURAL_WRITE_FIELDS & vals.keys():
+            if non_member := self.filtered(lambda channel: not channel.self_member_id):
+                raise AccessError(
+                    _(
+                        "You must be a member of %(channels)s to modify its "
+                        "configuration.",
+                        channels=", ".join(non_member.mapped("name")),
+                    )
+                )
         if "channel_type" in vals:
             failing_channels = self.filtered(
                 lambda channel: channel.channel_type != vals.get("channel_type")

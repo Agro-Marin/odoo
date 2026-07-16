@@ -1176,7 +1176,9 @@ class TestChannelInternals(MailCommon, HttpCase):
     def test_channel_command_help_in_channel(self):
         """Ensures the command '/help' works in a channel"""
         channel = self.env["discuss.channel"].browse(self.test_channel.ids)
-        channel.name = "<strong>R&D</strong>"
+        # sudo: renaming is just test setup here; the employee is not a member
+        # of this channel and reconfiguring it now requires membership.
+        channel.sudo().name = "<strong>R&D</strong>"
         with self.assertBus(
             [(self.env.cr.dbname, "res.partner", self.env.user.partner_id.id)],
             [

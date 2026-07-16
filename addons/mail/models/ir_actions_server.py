@@ -492,11 +492,15 @@ class IrActionsServer(models.Model):
                 user = self.activity_user_id
             elif self.activity_user_type == "generic" and self.activity_user_field_name:
                 user = record.mapped(self.activity_user_field_name)
+            # Per-record copy: a stale user_id must not leak from one record to
+            # the next when the "generic" user field resolves empty for some
+            # records (they should fall back to activity_schedule's default).
+            record_vals = dict(vals)
             if user:
                 # if x2m field, assign to the first user found
                 # (same behavior as Field.traverse_related)
-                vals["user_id"] = user.ids[0]
-            record.activity_schedule(**vals)
+                record_vals["user_id"] = user.ids[0]
+            record.activity_schedule(**record_vals)
         return False
 
     @api.model

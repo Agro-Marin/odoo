@@ -69,30 +69,39 @@ class MailPushDevice(models.Model):
         search_endpoint = (
             kw.get("previousEndpoint") or kw.get("previous_endpoint") or endpoint
         )
-        mail_push_device = self.sudo().search([("endpoint", "=", search_endpoint)])
+        # These methods are @api.model + sudo(), so the group_system ACL on
+        # mail.push.device does not gate the caller; ownership must be enforced
+        # here. Only ever touch the *caller's* own subscription rows so that
+        # knowing another user's endpoint can neither reassign (hijack) nor
+        # overwrite their device. A subscription always belongs to the session
+        # that created it, so scoping by partner is correct for the legitimate
+        # endpoint-rotation path too.
+        partner = self.env.user.partner_id
+        mail_push_device = self.sudo().search(
+            [("endpoint", "=", search_endpoint), ("partner_id", "=", partner.id)]
+        )
         if mail_push_device:
-            # Always refresh the subscription payload: this is also the
-            # endpoint-rotation path (the previous endpoint located the old
-            # row, new endpoint/keys supplied), so skipping the write when the
-            # owner is unchanged would leave the row pointing at the dead
-            # endpoint until a delivery failure GCs the device and the user
-            # silently loses web push. Only reassign the owner when it changed.
-            vals = {
-                "endpoint": endpoint,
-                "expiration_time": kw.get("expirationTime"),
-                "keys": json.dumps(browser_keys),
-            }
-            if mail_push_device.partner_id != self.env.user.partner_id:
-                vals["partner_id"] = self.env.user.partner_id
-            mail_push_device.write(vals)
-        else:
+            # Endpoint-rotation path: the previous endpoint located the caller's
+            # row and new endpoint/keys are supplied. Always refresh so the row
+            # does not keep pointing at a dead endpoint (which would silently
+            # drop web push until a delivery failure GCs the device).
+            mail_push_device.write(
+                {
+                    "endpoint": endpoint,
+                    "expiration_time": kw.get("expirationTime"),
+                    "keys": json.dumps(browser_keys),
+                }
+            )
+        elif not self.sudo().search_count([("endpoint", "=", endpoint)], limit=1):
+            # Do not create when the endpoint already belongs to someone else:
+            # skip silently rather than raise on _endpoint_unique or steal it.
             self.sudo().create(
                 [
                     {
                         "endpoint": endpoint,
                         "expiration_time": kw.get("expirationTime"),
                         "keys": json.dumps(browser_keys),
-                        "partner_id": self.env.user.partner_id.id,
+                        "partner_id": partner.id,
                     }
                 ]
             )
@@ -102,7 +111,14 @@ class MailPushDevice(models.Model):
         endpoint = kw.get("endpoint")
         if not endpoint:
             return
-        mail_push_device = self.sudo().search([("endpoint", "=", endpoint)])
+        # Scope to the caller's own device so a leaked endpoint cannot be used
+        # to unregister (deny notifications to) another user's subscription.
+        mail_push_device = self.sudo().search(
+            [
+                ("endpoint", "=", endpoint),
+                ("partner_id", "=", self.env.user.partner_id.id),
+            ]
+        )
         if mail_push_device:
             mail_push_device.unlink()
 
