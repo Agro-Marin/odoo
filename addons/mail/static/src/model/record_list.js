@@ -466,6 +466,11 @@ export class RecordList extends Array {
                         record._.uses.add(recordList);
                     },
                 );
+                if (!record) {
+                    // nullish entry: a no-op, like add()/assign() (insert()
+                    // returns undefined instead of materializing a phantom)
+                    continue;
+                }
                 store._.ADD_QUEUE(
                     "onAdd",
                     recordList._.owner,
@@ -540,6 +545,10 @@ export class RecordList extends Array {
                     recordList._.syncLength(recordList);
                     record._.uses.add(recordList);
                 });
+                if (!record) {
+                    // nullish entry: a no-op, like push()/add()/assign()
+                    continue;
+                }
                 store._.ADD_QUEUE(
                     "onAdd",
                     recordList._.owner,
