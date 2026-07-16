@@ -210,6 +210,51 @@ const threadPatch = {
                 );
             },
         });
+        // Thread-level maxima (excluding the self member), maintained once
+        // per member seen/fetched change, so the per-message seen indicators
+        // resolve in O(1) instead of each scanning channel_member_ids — the
+        // scan was O(messages × members) per receipt in large groups.
+        this.maxSeenMessageIdByOthers = fields.Attr(0, {
+            /** @this {import("models").Thread} */
+            compute() {
+                if (!this.hasSeenFeature) {
+                    return 0;
+                }
+                let max = 0;
+                for (const member of this.channel_member_ids) {
+                    // persona check mirrors hasSomeoneSeen: a member whose
+                    // persona is not inserted yet cannot count
+                    if (
+                        member.notEq(this.self_member_id) &&
+                        member.persona &&
+                        member.seen_message_id
+                    ) {
+                        max = Math.max(max, member.seen_message_id.id);
+                    }
+                }
+                return max;
+            },
+        });
+        this.maxFetchedMessageIdByOthers = fields.Attr(0, {
+            /** @this {import("models").Thread} */
+            compute() {
+                if (!this.hasSeenFeature) {
+                    return 0;
+                }
+                let max = 0;
+                for (const member of this.channel_member_ids) {
+                    // persona check mirrors hasSomeoneFetched
+                    if (
+                        member.notEq(this.self_member_id) &&
+                        member.persona &&
+                        member.fetched_message_id
+                    ) {
+                        max = Math.max(max, member.fetched_message_id.id);
+                    }
+                }
+                return max;
+            },
+        });
         this.lastSelfMessageSeenByEveryone = fields.One("mail.message", {
             compute() {
                 if (!this.lastMessageSeenByAllId) {
