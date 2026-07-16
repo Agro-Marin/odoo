@@ -35,6 +35,12 @@ export class Gif extends Component {
             image.crossOrigin = "anonymous";
         }
         image.src = src;
+        image.onerror = () => {
+            // resolve with no snapshot (don't memoize a forever-pending
+            // deferred): the gif then simply keeps animating instead of the
+            // pause feature silently wedging for this src
+            deferred.resolve(null);
+        };
         image.onload = () => {
             const canvas = document.createElement("canvas");
             canvas.width = image.width;

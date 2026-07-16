@@ -40,9 +40,6 @@ export class Record {
     /** @type {import("models").Store} */
     static store;
     /** @param {() => any} fn */
-    static MAKE_UPDATE(fn) {
-        return this.store.MAKE_UPDATE(...arguments);
-    }
     static onChange(record, name, cb) {
         // route through the record's own store, not the last-created one
         return toRaw(record)._raw._rawStore.onChange(record, name, cb);

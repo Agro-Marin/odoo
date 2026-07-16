@@ -99,7 +99,6 @@ export class Message extends Component {
         "messageSearch?",
         "className?",
         "showDates?",
-        "isFirstMessage?",
         "isReadOnly?",
     ];
     static template = "mail.Message";

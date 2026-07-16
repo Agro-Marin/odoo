@@ -1,35 +1,11 @@
 /** @odoo-module native */
 import { Thread } from "@mail/core/common/thread";
 import { markThreadAsReadIfAtBottom } from "@mail/utils/common/thread_read";
-import { toRaw, useEffect } from "@odoo/owl";
+import { toRaw } from "@odoo/owl";
 import { _t } from "@web/core/l10n/translation";
 import { patch } from "@web/core/utils/patch";
 /** @type {Thread} */
 const threadPatch = {
-    setup() {
-        super.setup(...arguments);
-        useEffect(
-            (loadNewer, mountedAndLoaded) => {
-                if (
-                    loadNewer ||
-                    !mountedAndLoaded ||
-                    !this.props.thread.self_member_id ||
-                    !this.scrollableRef.el
-                ) {
-                    return;
-                }
-                const el = this.scrollableRef.el;
-                if (Math.abs(el.scrollTop + el.clientHeight - el.scrollHeight) <= 1) {
-                    this.props.thread.self_member_id.hideUnreadBanner = true;
-                }
-            },
-            () => [
-                this.props.thread.loadNewer,
-                this.state.mountedAndLoaded,
-                this.state.scrollTop,
-            ],
-        );
-    },
     /** @override */
     applyScrollContextually(thread) {
         if (thread.self_member_id && thread.scrollUnread) {

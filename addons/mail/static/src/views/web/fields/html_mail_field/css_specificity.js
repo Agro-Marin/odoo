@@ -71,7 +71,7 @@ export function splitSelectorAroundCommasOutsideParentheses(selector) {
  * @param {string} selector
  * @returns {number}
  */
-export function _computeSpecificity(selector) {
+function _computeSpecificity(selector) {
     let a = 0;
     let b = 0;
     let c = 0;
@@ -152,7 +152,7 @@ export function _getRightmostSelectorTokens(selector) {
  * @param {CSSStyleDeclaration} style
  * @returns {Object<string, string>}
  */
-export function _normalizeStyle(style) {
+function _normalizeStyle(style) {
     const normalizedStyle = {};
     for (const styleName of style) {
         const value = style[styleName];
