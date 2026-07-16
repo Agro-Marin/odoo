@@ -41,10 +41,10 @@ patch(Thread.prototype, {
                 channel_id: this.id,
             });
         } catch {
-            // Surface the failure via the reactive state (the panel renders an
-            // error/retry UI from `pinnedMessagesState`). Both callers invoke
-            // this fire-and-forget, so re-throwing only produced an unhandled
-            // rejection and never reached a handler.
+            // Surface the failure via the reactive state: the panel's
+            // emptyText distinguishes "error" from a genuinely empty channel.
+            // Both callers invoke this fire-and-forget, so re-throwing only
+            // produced an unhandled rejection and never reached a handler.
             this.pinnedMessagesState = "error";
             return;
         }

@@ -132,7 +132,11 @@ export function useVoiceRecorder() {
                 if (elapsedSeconds > 55 && elapsedSeconds < 60) {
                     state.limitWarning = true;
                 }
-                if (elapsedSeconds === 60) {
+                if (elapsedSeconds >= 60) {
+                    // >=, not ===: elapsedSeconds derives from worklet message
+                    // timestamps, so a stall (throttled/suspended tab) can jump
+                    // 59 -> 61 and skip an exact 60, leaving the recording
+                    // uncapped. The early-return still guards re-entry.
                     notification.add(
                         _t("The duration of voice messages is limited to 1 minute."),
                         {
@@ -215,6 +219,12 @@ export function useVoiceRecorder() {
         startTimeStamp = false;
         microphone?.getTracks().forEach((track) => track.stop());
         microphone = null;
+        // reset so the `!encoder` guard in stopRecording reflects the CURRENT
+        // recording: without this it stayed pointing at the finished encoder,
+        // and a Stop clicked during a later recording's async-init window
+        // flushed the previous (empty) encoder instead of taking the
+        // init-in-progress branch.
+        encoder = null;
         state.recording = false;
         state.limitWarning = false;
     }
