@@ -1024,3 +1024,30 @@ describe("x2many emptiness", () => {
         );
     });
 });
+
+describe("contains: = / in use the py_compare kernel (bool==int, deep eq)", () => {
+    test("scalar = matches like the interpreter (True == 1)", () => {
+        expect(new Domain([["x", "=", 1]]).contains({ x: true })).toBe(true);
+        expect(new Domain([["x", "=", true]]).contains({ x: 1 })).toBe(true);
+        // Ordinary equality is unchanged.
+        expect(new Domain([["x", "=", 5]]).contains({ x: 5 })).toBe(true);
+        expect(new Domain([["x", "=", 5]]).contains({ x: 6 })).toBe(false);
+        expect(new Domain([["x", "=", "abc"]]).contains({ x: "abc" })).toBe(true);
+    });
+
+    test("in uses == membership (bool==int, deep list eq)", () => {
+        expect(new Domain([["x", "in", [1, 2]]]).contains({ x: true })).toBe(true);
+        expect(new Domain([["x", "in", [1, 2, 3]]]).contains({ x: 2 })).toBe(true);
+        expect(new Domain([["x", "in", [1, 2, 3]]]).contains({ x: 9 })).toBe(false);
+        expect(new Domain([["x", "not in", [1, 2]]]).contains({ x: 9 })).toBe(true);
+    });
+
+    test("x2many empty and overlap semantics are preserved", () => {
+        // ('x2many', '=', False) still matches an empty relation.
+        expect(new Domain([["x", "=", false]]).contains({ x: [] })).toBe(true);
+        expect(new Domain([["x", "=", false]]).contains({ x: [1] })).toBe(false);
+        // An array field value is treated as x2many ids (overlap), so it is NOT
+        // equal to a single list value.
+        expect(new Domain([["x", "in", [[1, 2]]]]).contains({ x: [1, 2] })).toBe(false);
+    });
+});
