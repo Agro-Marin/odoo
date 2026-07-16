@@ -2567,12 +2567,15 @@ class ProjectTask(models.Model):
         elif "project_id" in vals:
             # Re-homing a task into another project drops it onto that project's
             # default *non-folded* step (_compute_step_id → step_find fold=False).
-            # State follows step in this model, so a closed state in an open step
-            # is an invalid combination: reopen every non-blocked task —
-            # done/canceled included — and clear its now-stale closure date so
-            # deadline_met/_compute_elapsed don't read an undone completion.
+            # Reopen active tasks so their state matches the open step, but keep
+            # closed states sticky (same contract as _compute_state): a done or
+            # canceled task moved during a project reorganization must keep its
+            # state and date_closed, or lead/cycle/throughput metrics lose the
+            # closure history irreversibly.
             # _compute_state keeps genuinely predecessor-blocked tasks blocked.
-            reopened = self.filtered(lambda t: t.state != "blocked")
+            reopened = self.filtered(
+                lambda t: t.state != "blocked" and t.state not in CLOSED_STATES
+            )
             reopened.state = "in_progress"
             reopened.filtered("date_closed").date_closed = False
 
