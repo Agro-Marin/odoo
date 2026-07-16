@@ -7,7 +7,14 @@ import { Base } from "../related_models/index.js";
 const CONSOLE_COLOR = "#4EFF4D";
 
 export class PosOrderAccounting extends Base {
-    static accountingFields = new Set(["pricelist_id", "fiscal_position_id"]);
+    // is_refund is accounting-relevant: the cached order_sign in the price
+    // memo flips every serialized amount, so flipping the flag after lines
+    // exist must trigger a recompute.
+    static accountingFields = new Set([
+        "pricelist_id",
+        "fiscal_position_id",
+        "is_refund",
+    ]);
 
     setup(vals) {
         super.setup(vals);
@@ -172,7 +179,9 @@ export class PosOrderAccounting extends Base {
         );
     }
     get orderSign() {
-        return this.prices.taxDetails.order_sign;
+        // Pure function of the flag — never read the cached copy in the price
+        // memo, which could lag a just-flipped is_refund.
+        return this.isRefund ? -1 : 1;
     }
 
     /**

@@ -274,22 +274,20 @@ export function createRelatedModels(modelDefs, modelClasses = {}, opts = {}) {
                         `'${fieldName}' field is required when creating '${this.name}' record.`,
                     );
                 }
+                // When updating an existing record, a field that is absent
+                // from `vals` means "unchanged" — never "clear". Without this
+                // guard an omitted x2many was turned into `[["clear"]]`, an
+                // omitted many2one into a `_disconnect`, and an omitted SCALAR
+                // was wiped to undefined (`_loadData` wholesale-replaces the
+                // record's raw store with this `rawData`), silently resetting
+                // e.g. a paid order's state on partial payloads. loadData
+                // payloads are merge-patches.
+                if (existingRecord && !(fieldName in vals)) {
+                    rawData[fieldName] = existingRecord[RAW_SYMBOL][fieldName];
+                    continue;
+                }
                 if (RELATION_TYPES.has(field.type)) {
                     if (field.dummy) {
-                        continue;
-                    }
-                    // When updating an existing record, a relational field that is
-                    // absent from `vals` means "unchanged" — never "clear". Without
-                    // this guard an omitted x2many was turned into `[["clear"]]` and
-                    // an omitted many2one into a `_disconnect`, silently erasing
-                    // relations on partial server payloads (the reason callers had to
-                    // manually re-attach `config_id`/`session_id` after connect).
-                    // Carry the current raw value over: `_loadData` wholesale-replaces
-                    // the record's raw store with this `rawData`, so dropping the field
-                    // would leave the relation undefined (e.g. an x2many Set becoming
-                    // `undefined`, which then crashes `_addItem` on the next connect).
-                    if (existingRecord && !(fieldName in vals)) {
-                        rawData[fieldName] = existingRecord[RAW_SYMBOL][fieldName];
                         continue;
                     }
                     const isX2Many = X2MANY_TYPES.has(field.type);

@@ -114,7 +114,9 @@ export class PosPreset extends Base {
             const attToday = this.attendance_ids.filter(
                 (a) => a.dayofweek === dayOfWeek,
             );
-            slots[date] = [];
+            // A plain object, not an Array: string-keyed expandos on an Array
+            // serialized to [] (losing every slot) and confused consumers.
+            slots[date] = {};
 
             for (const attendance of attToday) {
                 const dateOpening = getDateTime(attendance.hour_from);
@@ -126,9 +128,12 @@ export class PosPreset extends Base {
                         const sqlDatetime = start.toFormat("yyyy-MM-dd HH:mm:ss");
 
                         if (slots[date][sqlDatetime]) {
-                            slots[date][sqlDatetime].order_ids.add(
-                                ...(usage[sqlDatetime] || []),
-                            );
+                            // Set.add takes ONE value — spreading several ids
+                            // silently dropped all but the first, undercounting
+                            // slot occupancy (a full slot could be oversold).
+                            for (const id of usage[sqlDatetime] || []) {
+                                slots[date][sqlDatetime].order_ids.add(id);
+                            }
                         } else {
                             slots[date][sqlDatetime] = {
                                 periode: attendance.day_period,

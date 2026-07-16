@@ -8,10 +8,12 @@ definePosModels();
 test("generateSlots", async () => {
     const store = await setupPosEnv();
     const presetIn = store.models["pos.preset"].get(1);
-    // expect all presetIn.availabilities to be empty arrays
+    // expect all presetIn.availabilities to be empty slot maps (plain objects:
+    // the previous Array-with-string-keys shape serialized to [] and lost
+    // every slot)
     for (const key in presetIn.availabilities) {
-        expect(Array.isArray(presetIn.availabilities[key])).toBe(true);
-        expect(presetIn.availabilities[key].length).toBe(0);
+        expect(Array.isArray(presetIn.availabilities[key])).toBe(false);
+        expect(Object.keys(presetIn.availabilities[key]).length).toBe(0);
     }
     // expect days of week of presetOut.availabilities to contains slots
     const presetOut = store.models["pos.preset"].get(2);

@@ -19,15 +19,20 @@ export class PosOrder extends PosOrderAccounting {
             this.session_id = this.session;
         }
 
-        // Data present in python model
-        this.name = vals.name || "/";
-        this.nb_print = vals.nb_print || 0;
-        this.to_invoice = vals.to_invoice || false;
-        this.setShippingDate(vals.shipping_date);
-        this.state = vals.state || "draft";
+        // Data present in python model. setup() re-runs on every update of an
+        // existing record: defaults only apply when neither the payload nor
+        // the record has a value — a partial payload must not reset the state
+        // to draft or erase what was already sent to the kitchen.
+        this.name = vals.name || this.name || "/";
+        this.nb_print = vals.nb_print ?? this.nb_print ?? 0;
+        this.to_invoice = vals.to_invoice ?? this.to_invoice ?? false;
+        if (vals.shipping_date !== undefined || !this.shipping_date) {
+            this.setShippingDate(vals.shipping_date);
+        }
+        this.state = vals.state || this.state || "draft";
 
         if (!vals.last_order_preparation_change) {
-            this.last_order_preparation_change = {
+            this.last_order_preparation_change = this.last_order_preparation_change || {
                 lines: {},
                 metadata: {},
                 general_customer_note: "",
@@ -41,8 +46,9 @@ export class PosOrder extends PosOrderAccounting {
                     : JSON.parse(vals.last_order_preparation_change);
         }
 
-        this.general_customer_note = vals.general_customer_note || "";
-        this.internal_note = vals.internal_note || "";
+        this.general_customer_note =
+            vals.general_customer_note || this.general_customer_note || "";
+        this.internal_note = vals.internal_note || this.internal_note || "";
 
         if (!this.date_order) {
             this.date_order = DateTime.now();
@@ -377,13 +383,25 @@ export class PosOrder extends PosOrderAccounting {
                 this.config_id.currency_id,
             );
         }
+        // Only reprice children whose PARENT was repriced above: filtering the
+        // children on their own price_type crashed when the parent line had a
+        // manual price (attributes_prices has no entry for it) — reachable by
+        // simply selecting a customer after a numpad price override.
         const combo_children_lines = this.lines.filter(
-            (line) => line.price_type === "original" && line.combo_parent_id,
+            (line) => line.combo_parent_id && attributes_prices[line.combo_parent_id.id],
         );
         combo_children_lines.forEach((line) => {
             const currentItem = attributes_prices[line.combo_parent_id.id].find(
                 (item) => item.combo_item_id.id === line.combo_item_id.id,
             );
+            if (!currentItem) {
+                logPosMessage(
+                    "PosOrder",
+                    "setPricelist",
+                    `No combo item price found for line ${line.uuid}; skipping reprice`,
+                );
+                return;
+            }
             line.setUnitPrice(currentItem.price_unit);
             // Removing to be able to have extras that are the same as free products
             attributes_prices[line.combo_parent_id.id].splice(

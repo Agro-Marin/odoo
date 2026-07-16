@@ -271,8 +271,12 @@ export class PosOrderline extends PosOrderlineAccounting {
 
         if (this.refunded_orderline_id?.uuid in allLineToRefundUuids) {
             const refundDetails = allLineToRefundUuids[this.refunded_orderline_id.uuid];
+            // refundedQty includes THIS draft line's current quantity; the new
+            // quantity replaces that contribution rather than adding to it, so
+            // add it back — otherwise raising an existing draft refund line to
+            // a perfectly refundable quantity was rejected.
             const maxQtyToRefund =
-                refundDetails.line.qty - refundDetails.line.refundedQty;
+                refundDetails.line.qty - refundDetails.line.refundedQty - this.qty;
             if (quant > 0) {
                 return {
                     title: _t("Positive quantity not allowed"),
