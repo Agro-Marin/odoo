@@ -25,6 +25,12 @@ patch(FormController.prototype, {
     },
     onWillLoadRoot(nextConfiguration) {
         super.onWillLoadRoot(...arguments);
+        // Both mechanisms are load-bearing despite fetching messages twice on
+        // a same-record save: the flags cover renders that follow the reload,
+        // while the bus event reaches the already-mounted Thread regardless
+        // of render timing. Suppressing either breaks post-save refresh in
+        // real flows (e.g. tracking messages posted BY the save) — see the
+        // tracking_value suite.
         this.env.chatter.fetchThreadData = true;
         this.env.chatter.fetchMessages = true;
         const isSameThread =
@@ -33,10 +39,6 @@ patch(FormController.prototype, {
         if (isSameThread) {
             // not first load
             const { resModel, resId } = this.model.root;
-            // the bus event refreshes the messages immediately; leaving the
-            // flag raised made the Thread component fetch them a SECOND time
-            // on the following render — two identical RPCs per form save
-            this.env.chatter.fetchMessages = false;
             this.env.bus.trigger("MAIL:RELOAD-THREAD", { model: resModel, id: resId });
         }
     },
