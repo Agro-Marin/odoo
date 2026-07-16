@@ -321,7 +321,6 @@ class AccountTax(models.Model):
                     )
                 )
 
-
     @api.constrains(
         "invoice_repartition_line_ids",
         "refund_repartition_line_ids",

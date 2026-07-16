@@ -81,7 +81,7 @@ class ProductSupplierinfo(models.Model):
         self.ensure_one()
         orderpoint_id = self.env.context.get("orderpoint_id")
         if not orderpoint_id:
-            return
+            return None
         orderpoint = self.env["stock.warehouse.orderpoint"].browse(orderpoint_id)
         if "buy" not in orderpoint.route_id.rule_ids.mapped("action"):
             domain = Domain.AND(
@@ -103,8 +103,7 @@ class ProductSupplierinfo(models.Model):
             self.min_qty,
             orderpoint.product_id.uom_id,
         )
-        if orderpoint.qty_to_order < supplier_min_qty:
-            orderpoint.qty_to_order = supplier_min_qty
+        orderpoint.qty_to_order = max(orderpoint.qty_to_order, supplier_min_qty)
         if self.env.context.get("replenish_id"):
             replenish = self.env["product.replenish"].browse(
                 self.env.context.get("replenish_id"),

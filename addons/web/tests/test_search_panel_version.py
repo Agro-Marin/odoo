@@ -34,15 +34,19 @@ class TestSearchPanelVersion(TransactionCase):
         super().setUp()
         # Two partners with parent-child so the panel call returns
         # something non-empty and exercises the values-list path.
-        self.parent = self.env["res.partner"].create({
-            "name": "Plan-C Parent",
-            "is_company": True,
-        })
-        self.child = self.env["res.partner"].create({
-            "name": "Plan-C Child",
-            "is_company": False,
-            "parent_id": self.parent.id,
-        })
+        self.parent = self.env["res.partner"].create(
+            {
+                "name": "Plan-C Parent",
+                "is_company": True,
+            }
+        )
+        self.child = self.env["res.partner"].create(
+            {
+                "name": "Plan-C Child",
+                "is_company": False,
+                "parent_id": self.parent.id,
+            }
+        )
 
     def _call_select_range(self):
         return self.env["res.partner"].search_panel_select_range(
@@ -61,14 +65,18 @@ class TestSearchPanelVersion(TransactionCase):
     def test_select_range_same_query_same_version(self):
         v1 = self._call_select_range()["__version"]
         v2 = self._call_select_range()["__version"]
-        self.assertEqual(v1, v2, "Identical queries must produce identical version stamps")
+        self.assertEqual(
+            v1, v2, "Identical queries must produce identical version stamps"
+        )
 
     def test_select_range_record_change_changes_version(self):
         v1 = self._call_select_range()["__version"]
         # Rename a record so the panel's `display_name` changes.
         self.parent.name = "Plan-C Parent (renamed)"
         v2 = self._call_select_range()["__version"]
-        self.assertNotEqual(v1, v2, "Record mutation must produce a different version stamp")
+        self.assertNotEqual(
+            v1, v2, "Record mutation must produce a different version stamp"
+        )
 
     def test_select_multi_range_returns_version(self):
         result = self.env["res.partner"].search_panel_select_multi_range(
@@ -99,10 +107,12 @@ class TestWebSearchReadVersion(TransactionCase):
 
     def setUp(self):
         super().setUp()
-        self.partners = self.env["res.partner"].create([
-            {"name": "Plan-C WSR A", "is_company": True},
-            {"name": "Plan-C WSR B", "is_company": False},
-        ])
+        self.partners = self.env["res.partner"].create(
+            [
+                {"name": "Plan-C WSR A", "is_company": True},
+                {"name": "Plan-C WSR B", "is_company": False},
+            ]
+        )
 
     def _call(self):
         return self.env["res.partner"].web_search_read(
@@ -158,26 +168,32 @@ class TestWebReadEnvelopeVersion(HttpCase):
 
     def setUp(self):
         super().setUp()
-        self.partner = self.env["res.partner"].create({
-            "name": "Plan-C Envelope Partner",
-            "is_company": True,
-        })
+        self.partner = self.env["res.partner"].create(
+            {
+                "name": "Plan-C Envelope Partner",
+                "is_company": True,
+            }
+        )
 
     def _call_web_read(self):
         """POST a real call_kw against /web/dataset/call_kw and decode the envelope."""
         self.authenticate("admin", "admin")
         response = self.url_open(
             "/web/dataset/call_kw/res.partner/web_read",
-            data=json.dumps({
-                "jsonrpc": "2.0",
-                "method": "call",
-                "params": {
-                    "model": "res.partner",
-                    "method": "web_read",
-                    "args": [[self.partner.id]],
-                    "kwargs": {"specification": {"display_name": {}, "is_company": {}}},
-                },
-            }),
+            data=json.dumps(
+                {
+                    "jsonrpc": "2.0",
+                    "method": "call",
+                    "params": {
+                        "model": "res.partner",
+                        "method": "web_read",
+                        "args": [[self.partner.id]],
+                        "kwargs": {
+                            "specification": {"display_name": {}, "is_company": {}}
+                        },
+                    },
+                }
+            ),
             headers={"Content-Type": "application/json"},
         )
         self.assertEqual(response.status_code, 200)
@@ -212,11 +228,13 @@ class TestWebReadGroupVersion(TransactionCase):
 
     def setUp(self):
         super().setUp()
-        self.env["res.partner"].create([
-            {"name": "Plan-C RG A1", "is_company": True},
-            {"name": "Plan-C RG A2", "is_company": True},
-            {"name": "Plan-C RG B1", "is_company": False},
-        ])
+        self.env["res.partner"].create(
+            [
+                {"name": "Plan-C RG A1", "is_company": True},
+                {"name": "Plan-C RG A2", "is_company": True},
+                {"name": "Plan-C RG B1", "is_company": False},
+            ]
+        )
 
     def _call(self):
         return self.env["res.partner"].web_read_group(
@@ -239,9 +257,11 @@ class TestWebReadGroupVersion(TransactionCase):
     def test_group_change_changes_version(self):
         v1 = self._call()["__version"]
         # Add a new record so a count flips.
-        self.env["res.partner"].create({
-            "name": "Plan-C RG A3",
-            "is_company": True,
-        })
+        self.env["res.partner"].create(
+            {
+                "name": "Plan-C RG A3",
+                "is_company": True,
+            }
+        )
         v2 = self._call()["__version"]
         self.assertNotEqual(v1, v2)

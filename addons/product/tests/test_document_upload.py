@@ -48,8 +48,10 @@ class TestProductDocumentUpload(HttpCase):
         return json.loads(response.content)
 
     def _documents_of(self, record):
-        return self.env["product.document"].sudo().search(
-            [("res_model", "=", record._name), ("res_id", "=", record.id)]
+        return (
+            self.env["product.document"]
+            .sudo()
+            .search([("res_model", "=", record._name), ("res_id", "=", record.id)])
         )
 
     def test_upload_own_company_product(self):

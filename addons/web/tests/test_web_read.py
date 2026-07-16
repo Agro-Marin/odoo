@@ -11,24 +11,37 @@ from odoo.tests import common
 
 @common.tagged("post_install", "-at_install", "web_unit", "web_read")
 class TestWebReadRelational(common.TransactionCase):
-
     def test_many2one_subfield_resolution(self):
-        parent = self.env["res.partner"].create({"name": "Parent Co", "is_company": True})
-        child = self.env["res.partner"].create({"name": "Child", "parent_id": parent.id})
-        res = child.web_read({"name": {}, "parent_id": {"fields": {"display_name": {}}}})
+        parent = self.env["res.partner"].create(
+            {"name": "Parent Co", "is_company": True}
+        )
+        child = self.env["res.partner"].create(
+            {"name": "Child", "parent_id": parent.id}
+        )
+        res = child.web_read(
+            {"name": {}, "parent_id": {"fields": {"display_name": {}}}}
+        )
         self.assertEqual(len(res), 1)
         self.assertEqual(res[0]["name"], "Child")
         self.assertIsInstance(res[0]["parent_id"], dict)
         self.assertEqual(res[0]["parent_id"]["display_name"], "Parent Co")
 
     def test_many2one_to_deleted_target_is_false(self):
-        parent = self.env["res.partner"].create({"name": "ToDelete", "is_company": True})
-        child = self.env["res.partner"].create({"name": "Orphan", "parent_id": parent.id})
+        parent = self.env["res.partner"].create(
+            {"name": "ToDelete", "is_company": True}
+        )
+        child = self.env["res.partner"].create(
+            {"name": "Orphan", "parent_id": parent.id}
+        )
         self.env.flush_all()
         parent.unlink()  # parent_id ondelete='set null'
         child.invalidate_recordset()
-        res = child.web_read({"name": {}, "parent_id": {"fields": {"display_name": {}}}})
-        self.assertFalse(res[0]["parent_id"], "deleted m2o target must resolve to False")
+        res = child.web_read(
+            {"name": {}, "parent_id": {"fields": {"display_name": {}}}}
+        )
+        self.assertFalse(
+            res[0]["parent_id"], "deleted m2o target must resolve to False"
+        )
 
     def test_x2many_limit_resolves_fields_but_returns_all_ids(self):
         """Documented contract (web_read.py): the FULL id list is returned,
@@ -38,14 +51,18 @@ class TestWebReadRelational(common.TransactionCase):
         for i in range(5):
             self.env["res.partner"].create({"name": f"C{i}", "parent_id": parent.id})
         self.env.flush_all()
-        res = parent.web_read({
-            "child_ids": {"fields": {"name": {}}, "limit": 2, "order": "name desc"},
-        })
+        res = parent.web_read(
+            {
+                "child_ids": {"fields": {"name": {}}, "limit": 2, "order": "name desc"},
+            }
+        )
         child_ids = res[0]["child_ids"]
         self.assertEqual(len(child_ids), 5, "all related ids must be returned")
         resolved = [c for c in child_ids if "name" in c]
         stubs = [c for c in child_ids if "name" not in c]
-        self.assertEqual(len(resolved), 2, "only `limit` co-records get fields resolved")
+        self.assertEqual(
+            len(resolved), 2, "only `limit` co-records get fields resolved"
+        )
         self.assertEqual(len(stubs), 3, "the rest are {id} stubs")
         # the resolved records are the first `limit` of the desc-sorted full list
         first_two = [c["name"] for c in child_ids[:2]]
@@ -65,24 +82,30 @@ class TestWebReadRelational(common.TransactionCase):
         ok1 = Partner.create({"name": "VisibleChild1"})
         secret = Partner.create({"name": "ZZSECRET child"})
         ok2 = Partner.create({"name": "VisibleChild2"})
-        parent = Partner.create({
-            "name": "AccessParent",
-            "child_ids": [(6, 0, (ok1 + secret + ok2).ids)],
-        })
+        parent = Partner.create(
+            {
+                "name": "AccessParent",
+                "child_ids": [(6, 0, (ok1 + secret + ok2).ids)],
+            }
+        )
         self.env.flush_all()
 
         # Global record rule hiding ZZSECRET* partners from every non-superuser.
-        self.env["ir.rule"].create({
-            "name": "test hide secret partners",
-            "model_id": self.env["ir.model"]._get("res.partner").id,
-            "domain_force": "[('name', 'not ilike', 'ZZSECRET')]",
-            "groups": [],
-        })
-        user = self.env["res.users"].create({
-            "name": "x2m access tester",
-            "login": "x2m_access_tester",
-            "group_ids": [(6, 0, [self.env.ref("base.group_user").id])],
-        })
+        self.env["ir.rule"].create(
+            {
+                "name": "test hide secret partners",
+                "model_id": self.env["ir.model"]._get("res.partner").id,
+                "domain_force": "[('name', 'not ilike', 'ZZSECRET')]",
+                "groups": [],
+            }
+        )
+        user = self.env["res.users"].create(
+            {
+                "name": "x2m access tester",
+                "login": "x2m_access_tester",
+                "group_ids": [(6, 0, [self.env.ref("base.group_user").id])],
+            }
+        )
         # Sanity: the user genuinely cannot see the secret co-record.
         self.assertNotIn(secret.id, Partner.with_user(user).search([]).ids)
 
@@ -91,7 +114,10 @@ class TestWebReadRelational(common.TransactionCase):
 
         returned_ids = [c["id"] for c in res[0]["child_ids"]]
         self.assertEqual(
-            returned_ids, [ok1.id, ok2.id],
+            returned_ids,
+            [ok1.id, ok2.id],
             "rule-hidden co-record must be filtered out, not raise AccessError",
         )
-        self.assertNotIn(secret.id, returned_ids, "inaccessible co-record id must not leak")
+        self.assertNotIn(
+            secret.id, returned_ids, "inaccessible co-record id must not leak"
+        )

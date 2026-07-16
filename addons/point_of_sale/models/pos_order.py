@@ -11,7 +11,7 @@ from uuid import uuid4
 
 from markupsafe import Markup
 
-from odoo import _, api, fields, models, tools
+from odoo import _, api, fields, models
 from odoo.exceptions import UserError, ValidationError
 from odoo.fields import Command, Domain
 from odoo.tools import float_compare, float_is_zero, float_repr, float_round, formatLang
@@ -178,16 +178,16 @@ class PosOrder(models.Model):
                         records = self.env[params.comodel_name].search(
                             [("uuid", "in", uuids)]
                         )
-                        owner_records.filtered(lambda r: r.uuid == uuid).write(
-                            {name: [Command.link(r.id) for r in records]}
-                        )
+                        owner_records.filtered(
+                            lambda r, uuid=uuid: r.uuid == uuid
+                        ).write({name: [Command.link(r.id) for r in records]})
                     else:
                         record = self.env[params.comodel_name].search(
                             [("uuid", "=", uuids)]
                         )
-                        owner_records.filtered(lambda r: r.uuid == uuid).write(
-                            {name: record.id}
-                        )
+                        owner_records.filtered(
+                            lambda r, uuid=uuid: r.uuid == uuid
+                        ).write({name: record.id})
 
         self = self.with_company(pos_order.company_id)
         self._process_payment_lines(order, pos_order, pos_session, draft)
@@ -2248,7 +2248,8 @@ class PosOrder(models.Model):
         # orders that are not up-to-date.
         # The date of their last modification is either the last time one of its orderline has changed,
         # or the last time a refunded orderline related to it has changed.
-        orders_info = defaultdict(lambda: datetime.min)
+        # naive sentinel: compared against Odoo's naive ORM write_date values below
+        orders_info = defaultdict(lambda: datetime.min)  # noqa: DTZ901
         for orderline in orderlines:
             key_order = (
                 orderline.order_id.id
@@ -2694,7 +2695,7 @@ class PosOrderLine(models.Model):
                 for product_id, lines in lines_by_tracked_product:
                     lines = self.env["pos.order.line"].concat(*lines)
                     moves = pickings_to_confirm.move_ids.filtered(
-                        lambda m: m.product_id.id == product_id
+                        lambda m, product_id=product_id: m.product_id.id == product_id
                     )
                     moves.move_line_ids.unlink()
                     moves._add_mls_related_to_order(lines, are_qties_done=False)

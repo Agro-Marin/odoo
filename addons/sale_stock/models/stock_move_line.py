@@ -19,10 +19,16 @@ class StockMoveLine(models.Model):
             res = super()._should_show_lot_in_invoice()
         except AttributeError:
             res = False
-        return res or "customer" in {
-            self.location_id.usage,
-            self.location_dest_id.usage,
-        } or self.env.ref("stock.stock_location_inter_company") in (
-            self.location_id,
-            self.location_dest_id,
+        return (
+            res
+            or "customer"
+            in {
+                self.location_id.usage,
+                self.location_dest_id.usage,
+            }
+            or self.env.ref("stock.stock_location_inter_company")
+            in (
+                self.location_id,
+                self.location_dest_id,
+            )
         )

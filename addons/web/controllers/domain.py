@@ -6,7 +6,6 @@ from odoo.tools.misc import mute_logger
 
 
 class Domain(Controller):
-
     @http.route("/web/domain/validate", type="jsonrpc", auth="user", readonly=True)
     def validate(self, model: str, domain: list) -> bool:
         """Parse `domain` and verify that it can be used to search on `model`

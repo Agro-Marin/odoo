@@ -47,3 +47,4 @@ class ProductUom(models.Model):
             record.display_name = (
                 f"{record.barcode} for: {record.product_id.display_name}"
             )
+        return None

@@ -81,7 +81,7 @@ class ProductCatalogMixin(models.AbstractModel):
             product.id: {
                 "productType": product.type,
                 "uomDisplayName": product.uom_id.display_name,
-                "code": product.code if product.code else "",
+                "code": product.code or "",
             }
             for product in products
         }
@@ -115,7 +115,7 @@ class ProductCatalogMixin(models.AbstractModel):
                     parent_record=self, **kwargs
                 ),
                 "productType": product.type,
-                "code": product.code if product.code else "",
+                "code": product.code or "",
             }
             if not order_line_info[product.id].get("uomDisplayName"):
                 order_line_info[product.id]["uomDisplayName"] = (

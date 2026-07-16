@@ -131,17 +131,15 @@ class IrModelAccessTest(TransactionCase):
         IrModel = self.env["ir.model"]
 
         # Internal user with read access: gets the definition.
-        result = (
-            IrModel.with_user(self.spreadsheet_user)._get_definitions(["res.company"])
+        result = IrModel.with_user(self.spreadsheet_user)._get_definitions(
+            ["res.company"]
         )
         self.assertIn("res.company", result)
         self.assertIn("fields", result["res.company"])
 
         # Portal user (has perm_read on res.company but is not internal): the
         # schema is withheld entirely — previously it leaked to any user.
-        result = (
-            IrModel.with_user(self.portal_user)._get_definitions(["res.company"])
-        )
+        result = IrModel.with_user(self.portal_user)._get_definitions(["res.company"])
         self.assertEqual(result, {})
 
         # Public user: same withholding.

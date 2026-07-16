@@ -113,7 +113,9 @@ class Home(http.Controller):
             # page, which is Cache-Control: no-store (see below).
             # Reuses the session-token fields so the secret rotates whenever a security
             # event (password/2FA change) invalidates the session token too.
-            hmac_payload = request.env.user._session_token_get_values()  # order is stable, needed for a reproducible hmac
+            hmac_payload = (
+                request.env.user._session_token_get_values()
+            )  # order is stable, needed for a reproducible hmac
             session_info = context.get("session_info")
             session_info["browser_cache_secret"] = hmac(
                 request.env(su=True), "browser_cache_key", hmac_payload

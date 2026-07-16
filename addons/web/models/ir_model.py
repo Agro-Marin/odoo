@@ -97,7 +97,9 @@ class IrModel(models.Model):
         # cross-references below stay confined to this access-filtered set, so
         # no inaccessible model leaks through a relation.
         model_names = [
-            name for name in model_names if self._is_valid_for_schema_introspection(name)
+            name
+            for name in model_names
+            if self._is_valid_for_schema_introspection(name)
         ]
         model_definitions = {}
         for model_name in model_names:

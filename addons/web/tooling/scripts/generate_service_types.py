@@ -119,8 +119,7 @@ _DIRECT_CHAIN = r'registry\s*\.\s*category\s*\(\s*"services"\s*\)'
 # identifier on the LHS.  Captured group becomes a per-file alias for
 # the services registry.
 _ALIAS_DECL_RE = re.compile(
-    r'(?:const|let|var)\s+([A-Za-z_][A-Za-z0-9_]*)\s*=\s*'
-    + _DIRECT_CHAIN,
+    r"(?:const|let|var)\s+([A-Za-z_][A-Za-z0-9_]*)\s*=\s*" + _DIRECT_CHAIN,
 )
 
 # JSDoc cast wrapper: ``/** @type {X} */ (name)`` → ``name``.
@@ -196,10 +195,7 @@ def _top_level_dir(file: Path) -> str:
 
 def _find_export(text: str, var_name: str) -> bool:
     """True iff the file declares ``export const <var_name> = ...``."""
-    for match in _EXPORT_CONST_RE.finditer(text):
-        if match.group(1) == var_name:
-            return True
-    return False
+    return any(match.group(1) == var_name for match in _EXPORT_CONST_RE.finditer(text))
 
 
 def _strip_jsdoc_casts(text: str) -> str:
@@ -223,8 +219,7 @@ def _build_registration_re(aliases: set[str]) -> re.Pattern[str]:
     ``services`` inside ``serviceRegistry``.
     """
     alts = [_DIRECT_CHAIN]
-    for alias in sorted(aliases):
-        alts.append(rf"\b{re.escape(alias)}\b")
+    alts.extend(rf"\b{re.escape(alias)}\b" for alias in sorted(aliases))
     chain = "(?:" + "|".join(alts) + ")"
     return re.compile(
         chain
@@ -260,7 +255,8 @@ def discover(src_root: Path = WEB_SRC_ROOT) -> list[Registration]:
             # JS source must be UTF-8 in this codebase; surface the
             # offender rather than emit a broken types file.
             print(
-                f"  ✗ {js_file}: not UTF-8, skipping", file=sys.stderr,
+                f"  ✗ {js_file}: not UTF-8, skipping",
+                file=sys.stderr,
             )
             continue
         text = _strip_jsdoc_casts(raw_text)
@@ -359,11 +355,10 @@ def render(registrations: list[Registration]) -> str:
             out.append("\n")
             out.append(f"    // {label}\n")
             last_label = label
-        for reg in sorted(items, key=lambda r: r.factory_var):
-            out.append(
-                f"    import {{ {reg.factory_var} }} "
-                f'from "{reg.import_path}";\n'
-            )
+        out.extend(
+            f'    import {{ {reg.factory_var} }} from "{reg.import_path}";\n'
+            for reg in sorted(items, key=lambda r: r.factory_var)
+        )
 
     # Any directory not in _CATEGORY_ORDER goes under a generic
     # "Other services" header so unexpected layouts still surface.
@@ -374,26 +369,25 @@ def render(registrations: list[Registration]) -> str:
             other.extend(items)
     if other:
         out.append("\n    // Other services\n")
-        for reg in sorted(other, key=lambda r: r.factory_var):
-            out.append(
-                f"    import {{ {reg.factory_var} }} "
-                f'from "{reg.import_path}";\n'
-            )
+        out.extend(
+            f'    import {{ {reg.factory_var} }} from "{reg.import_path}";\n'
+            for reg in sorted(other, key=lambda r: r.factory_var)
+        )
 
     out.append("\n")
     out.append(
         "    type ExtractServiceFactory<T extends ServicesRegistryShape>"
-        " = Awaited<ReturnType<T[\"start\"]>>;\n"
+        ' = Awaited<ReturnType<T["start"]>>;\n'
     )
     out.append("    export type ServiceFactories = {\n")
     out.append("        [P in keyof Services]: ExtractServiceFactory<Services[P]>;\n")
     out.append("    };\n")
     out.append("\n")
     out.append("    export interface Services {\n")
-    for reg in registrations:
-        out.append(
-            f"        {_quote_if_needed(reg.key)}: typeof {reg.factory_var};\n"
-        )
+    out.extend(
+        f"        {_quote_if_needed(reg.key)}: typeof {reg.factory_var};\n"
+        for reg in registrations
+    )
     out.append("    }\n")
     out.append("}\n")
     return "".join(out)
@@ -428,8 +422,7 @@ def main() -> int:
             current = output_path.read_text(encoding="utf-8")
         except FileNotFoundError:
             print(
-                f"✗ {output_path} does not exist. "
-                "Run without --check to generate.",
+                f"✗ {output_path} does not exist. Run without --check to generate.",
                 file=sys.stderr,
             )
             return 1
@@ -453,9 +446,7 @@ def main() -> int:
             # tests). Fall back to the absolute path so the user still
             # sees where the file landed.
             rel = output_path
-        print(
-            f"✓ Wrote {len(registrations)} services to {rel}"
-        )
+        print(f"✓ Wrote {len(registrations)} services to {rel}")
     return 0
 
 

@@ -21,7 +21,9 @@ from odoo.models import check_object_name
 from odoo.tools.safe_eval import safe_eval
 
 
-def get_view_id_and_type(action, view_type: str | None) -> tuple[int | Literal[False], str]:
+def get_view_id_and_type(
+    action, view_type: str | None
+) -> tuple[int | Literal[False], str]:
     """Extract the view id and type from *action*."""
     if action._name != "ir.actions.act_window":
         msg = f"Expected ir.actions.act_window, got {action._name}"

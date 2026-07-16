@@ -154,10 +154,7 @@ class ProductSupplierinfo(models.Model):
     @api.constrains("product_id", "product_tmpl_id")
     def _check_product_variant_consistency(self):
         for rec in self:
-            if (
-                rec.product_id
-                and rec.product_id.product_tmpl_id != rec.product_tmpl_id
-            ):
+            if rec.product_id and rec.product_id.product_tmpl_id != rec.product_tmpl_id:
                 raise ValidationError(
                     self.env._(
                         "The product variant %(variant)s does not belong to the"
@@ -216,9 +213,11 @@ class ProductSupplierinfo(models.Model):
 
     def _get_filtered_supplier(self, company_id, product_id, params=False):
         return self.filtered(
-            lambda s: (not s.company_id or s.company_id.id == company_id.id)
-            and (
-                s.partner_id.sudo().active
-                and (not s.product_id or s.product_id == product_id)
+            lambda s: (
+                (not s.company_id or s.company_id.id == company_id.id)
+                and (
+                    s.partner_id.sudo().active
+                    and (not s.product_id or s.product_id == product_id)
+                )
             )
         )

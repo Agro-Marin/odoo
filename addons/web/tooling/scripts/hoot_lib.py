@@ -124,7 +124,9 @@ PG_USER = os.environ.get("PGUSER") or getpass.getuser()
 def _psql(sql: str) -> str:
     out = subprocess.run(
         ["psql", "-U", PG_USER, "-d", "postgres", "-tAc", sql],
-        capture_output=True, text=True, check=False,
+        capture_output=True,
+        text=True,
+        check=False,
     )
     return out.stdout.strip()
 
@@ -135,9 +137,18 @@ def db_exists(db: str) -> bool:
 
 def drop_db(db: str) -> None:
     subprocess.run(
-        ["psql", "-U", PG_USER, "-d", "postgres", "-c",
-         f'DROP DATABASE IF EXISTS "{db}" WITH (FORCE)'],
-        capture_output=True, text=True, check=False,
+        [
+            "psql",
+            "-U",
+            PG_USER,
+            "-d",
+            "postgres",
+            "-c",
+            f'DROP DATABASE IF EXISTS "{db}" WITH (FORCE)',
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
     )
 
 
@@ -155,8 +166,9 @@ def _http_alive(port: int) -> bool:
     try:
         import requests
 
-        resp = requests.get(f"http://{HOST}:{port}/web/login",
-                            timeout=2, allow_redirects=False)
+        resp = requests.get(
+            f"http://{HOST}:{port}/web/login", timeout=2, allow_redirects=False
+        )
         return resp.status_code < 500
     except Exception:
         return False
@@ -244,23 +256,43 @@ def installed_modules(db: str) -> set[str]:
     if not db_exists(db):
         return set()
     out = subprocess.run(
-        ["psql", "-U", PG_USER, "-d", db, "-tAc",
-         "SELECT name FROM ir_module_module WHERE state='installed'"],
-        capture_output=True, text=True, check=False,
+        [
+            "psql",
+            "-U",
+            PG_USER,
+            "-d",
+            db,
+            "-tAc",
+            "SELECT name FROM ir_module_module WHERE state='installed'",
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
     )
     return set(out.stdout.split())
 
 
 def _odoo_install(db: str, modules: tuple[str, ...], log_path: Path) -> None:
     cmd = [
-        str(VENV_PY), str(ODOO_BIN), "-c", str(CONF), "-d", db,
-        "-i", ",".join(("base", *modules)), "--stop-after-init", "--no-http",
+        str(VENV_PY),
+        str(ODOO_BIN),
+        "-c",
+        str(CONF),
+        "-d",
+        db,
+        "-i",
+        ",".join(("base", *modules)),
+        "--stop-after-init",
+        "--no-http",
         "--max-cron-threads=0",
     ]
     with log_path.open("wb") as fh:
         proc = subprocess.run(
-            cmd, stdout=fh, stderr=subprocess.STDOUT,
-            cwd=str(ODOO_ROOT), check=False,
+            cmd,
+            stdout=fh,
+            stderr=subprocess.STDOUT,
+            cwd=str(ODOO_ROOT),
+            check=False,
         )
     if proc.returncode != 0 or not db_exists(db):
         raise RuntimeError(
@@ -268,27 +300,33 @@ def _odoo_install(db: str, modules: tuple[str, ...], log_path: Path) -> None:
         )
 
 
-def ensure_db(db: str, modules: tuple[str, ...] = ALWAYS_MODULES,
-              verbose: bool = False) -> None:
+def ensure_db(
+    db: str, modules: tuple[str, ...] = ALWAYS_MODULES, verbose: bool = False
+) -> None:
     """Create ``db`` with ``modules`` installed; top up a DB that exists but
     is missing some of them (that path requires the DB's warm server, if any,
     to be stopped first — ``ensure_server`` handles that ordering)."""
     LOG_DIR.mkdir(exist_ok=True)
     log_path = LOG_DIR / f"init_{db}.log"
     if not db_exists(db):
-        _log.info("Creating database %s and installing %s (one-time)...",
-                  db, ",".join(modules))
+        _log.info(
+            "Creating database %s and installing %s (one-time)...",
+            db,
+            ",".join(modules),
+        )
         _odoo_install(db, modules, log_path)
         return
     missing = set(modules) - installed_modules(db)
     if missing:
-        _log.info("Installing missing modules into %s: %s",
-                  db, ",".join(sorted(missing)))
+        _log.info(
+            "Installing missing modules into %s: %s", db, ",".join(sorted(missing))
+        )
         _odoo_install(db, tuple(sorted(missing)), log_path)
 
 
-def boot_server(db: str, modules: tuple[str, ...] = ALWAYS_MODULES,
-                verbose: bool = False) -> dict:
+def boot_server(
+    db: str, modules: tuple[str, ...] = ALWAYS_MODULES, verbose: bool = False
+) -> dict:
     """Boot ONE persistent threaded dev server on a free 8085-8089 port."""
     ensure_db(db, modules, verbose=verbose)
     port = next((p for p in PORT_RANGE if port_is_free(p)), None)
@@ -298,9 +336,18 @@ def boot_server(db: str, modules: tuple[str, ...] = ALWAYS_MODULES,
     LOG_DIR.mkdir(exist_ok=True)
     log_path = LOG_DIR / f"server_{port}.log"
     cmd = [
-        str(VENV_PY), str(ODOO_BIN), "-c", str(CONF), "-d", db,
-        "-p", str(port), "--http-interface", HOST,
-        f"--db-filter=^{db}$", "--max-cron-threads=0",
+        str(VENV_PY),
+        str(ODOO_BIN),
+        "-c",
+        str(CONF),
+        "-d",
+        db,
+        "-p",
+        str(port),
+        "--http-interface",
+        HOST,
+        f"--db-filter=^{db}$",
+        "--max-cron-threads=0",
         # dev_mode makes the assets pipeline re-check source mtimes per request,
         # so a JS edit is picked up by the warm server on the next run without a
         # restart or an ir_attachment flush (the edit/run loop's whole point).
@@ -310,7 +357,10 @@ def boot_server(db: str, modules: tuple[str, ...] = ALWAYS_MODULES,
     _log.info("Booting warm server: db=%s port=%s (log: %s)", db, port, log_path)
     log_fh = log_path.open("wb")
     proc = subprocess.Popen(
-        cmd, stdout=log_fh, stderr=subprocess.STDOUT, cwd=str(ODOO_ROOT),
+        cmd,
+        stdout=log_fh,
+        stderr=subprocess.STDOUT,
+        cwd=str(ODOO_ROOT),
         start_new_session=True,
     )
     # Wait for HTTP readiness.
@@ -327,14 +377,20 @@ def boot_server(db: str, modules: tuple[str, ...] = ALWAYS_MODULES,
         proc.terminate()
         raise RuntimeError(f"Server did not become ready; see {log_path}")
 
-    state = {"pid": proc.pid, "port": port, "db": db, "log": str(log_path),
-             "started": time.time()}
+    state = {
+        "pid": proc.pid,
+        "port": port,
+        "db": db,
+        "log": str(log_path),
+        "started": time.time(),
+    }
     write_state(state)
     return state
 
 
-def ensure_server(db: str | None, modules: tuple[str, ...] = ALWAYS_MODULES,
-                  verbose: bool = False) -> tuple[dict, bool]:
+def ensure_server(
+    db: str | None, modules: tuple[str, ...] = ALWAYS_MODULES, verbose: bool = False
+) -> tuple[dict, bool]:
     """Return (state, booted). Reuse this DB's warm server if it is alive
     and already has every required module installed."""
     db = db or db_for_modules(modules)
@@ -344,8 +400,11 @@ def ensure_server(db: str | None, modules: tuple[str, ...] = ALWAYS_MODULES,
         if not missing:
             return state, False
         # Installing into a live DB from a second process is unsafe; recycle.
-        _log.info("Warm server on %s lacks modules %s - recycling",
-                  db, ",".join(sorted(missing)))
+        _log.info(
+            "Warm server on %s lacks modules %s - recycling",
+            db,
+            ",".join(sorted(missing)),
+        )
         stop_server(db)
     state = boot_server(db, modules, verbose=verbose)
     return state, True
@@ -408,8 +467,9 @@ class _ShimCase:
     verbatim by ChromeBrowser itself, so they hit the real warm server.
     """
 
-    def __init__(self, logger: logging.Logger, browser_size: str,
-                 touch_enabled: bool) -> None:
+    def __init__(
+        self, logger: logging.Logger, browser_size: str, touch_enabled: bool
+    ) -> None:
         self._logger = logger
         self.browser_size = browser_size
         self.touch_enabled = touch_enabled
@@ -438,8 +498,10 @@ def _authenticate(port: int, db: str) -> str:
 
     resp = requests.post(
         f"http://{HOST}:{port}/web/session/authenticate",
-        json={"jsonrpc": "2.0", "params": {
-            "db": db, "login": "admin", "password": "admin"}},
+        json={
+            "jsonrpc": "2.0",
+            "params": {"db": db, "login": "admin", "password": "admin"},
+        },
         timeout=30,
     )
     resp.raise_for_status()
@@ -521,15 +583,13 @@ def run_suites(
     browser = None
     try:
         sid = _authenticate(port, db)
-        browser = ChromeBrowser(shim, success_signal=SUCCESS_SIGNAL,
-                               headless=True)
+        browser = ChromeBrowser(shim, success_signal=SUCCESS_SIGNAL, headless=True)
         browser.set_cookie("session_id", sid, "/", HOST, http_only=True)
         _log.info("Navigating: %s", url)
         browser.navigate_to(url, wait_stop=True)
         if not browser._wait_ready(""):
             raise RuntimeError("Page ready code was always falsy")
-        browser._wait_code_ok("", wall_timeout_s,
-                             error_checker=unit_test_error_checker)
+        browser._wait_code_ok("", wall_timeout_s, error_checker=unit_test_error_checker)
         result.ok = True
     except ChromeBrowserException as exc:
         text = str(exc)
@@ -611,7 +671,7 @@ def file_to_specifier(path: Path) -> str | None:
     parts = path.parts
     i = parts.index("static")
     kind = parts[i + 1]  # src | tests | lib
-    rel = "/".join(parts[i + 2:])
+    rel = "/".join(parts[i + 2 :])
     rel = re.sub(r"\.js$", "", rel)
     if kind == "src":
         return f"@{addon}/{rel}"
@@ -666,7 +726,9 @@ def changed_web_js(paths: list[str] | None = None) -> list[Path]:
         return [Path(p).resolve() for p in paths]
     out = subprocess.run(
         ["git", "-C", str(ODOO_ROOT), "diff", "--name-only", "HEAD"],
-        capture_output=True, text=True, check=False,
+        capture_output=True,
+        text=True,
+        check=False,
     )
     names = out.stdout.splitlines()
     return [

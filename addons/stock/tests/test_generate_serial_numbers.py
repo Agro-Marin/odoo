@@ -12,8 +12,7 @@ class TestGenerateLotNames(TransactionCase):
 
     def _names(self, base, count):
         return [
-            d["lot_name"]
-            for d in self.env["stock.lot"].generate_lot_names(base, count)
+            d["lot_name"] for d in self.env["stock.lot"].generate_lot_names(base, count)
         ]
 
     def test_basic_increment(self):
@@ -25,17 +24,11 @@ class TestGenerateLotNames(TransactionCase):
     def test_padding_grows_on_overflow(self):
         # padding=2; once the counter needs 3 digits, zfill(2) is a no-op and the
         # width grows naturally rather than truncating.
-        self.assertEqual(
-            self._names("sn98", 4), ["sn98", "sn99", "sn100", "sn101"]
-        )
-        self.assertEqual(
-            self._names("098", 5), ["098", "099", "100", "101", "102"]
-        )
+        self.assertEqual(self._names("sn98", 4), ["sn98", "sn99", "sn100", "sn101"])
+        self.assertEqual(self._names("098", 5), ["098", "099", "100", "101", "102"])
 
     def test_suffix_after_number_is_kept(self):
-        self.assertEqual(
-            self._names("SN0001-A", 2), ["SN0001-A", "SN0002-A"]
-        )
+        self.assertEqual(self._names("SN0001-A", 2), ["SN0001-A", "SN0002-A"])
 
     def test_only_last_number_group_increments(self):
         # BAV023B00001S00001: several digit groups; only the trailing one is the

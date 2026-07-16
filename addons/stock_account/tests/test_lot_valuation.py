@@ -18,27 +18,30 @@ class TestLotValuationCommon(TestStockValuationCommon):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        cls.category_avco.property_cost_method = 'average'
-        cls.product1 = cls.env['product.product'].create({
-            'name': 'Lot AVCO Product',
-            'is_storable': True,
-            'tracking': 'lot',
-            'categ_id': cls.category_avco.id,
-            'standard_price': 0.0,
-        })
+        cls.category_avco.property_cost_method = "average"
+        cls.product1 = cls.env["product.product"].create(
+            {
+                "name": "Lot AVCO Product",
+                "is_storable": True,
+                "tracking": "lot",
+                "categ_id": cls.category_avco.id,
+                "standard_price": 0.0,
+            }
+        )
         cls.product1.product_tmpl_id.lot_valuated = True
-        cls.lot1, cls.lot2, cls.lot3 = cls.env['stock.lot'].create([
-            {'name': 'lot1', 'product_id': cls.product1.id},
-            {'name': 'lot2', 'product_id': cls.product1.id},
-            {'name': 'lot3', 'product_id': cls.product1.id},
-        ])
+        cls.lot1, cls.lot2, cls.lot3 = cls.env["stock.lot"].create(
+            [
+                {"name": "lot1", "product_id": cls.product1.id},
+                {"name": "lot2", "product_id": cls.product1.id},
+                {"name": "lot3", "product_id": cls.product1.id},
+            ]
+        )
 
     def _internal_quant(self, lot):
-        return lot.quant_ids.filtered(lambda q: q.location_id.usage == 'internal')
+        return lot.quant_ids.filtered(lambda q: q.location_id.usage == "internal")
 
 
 class TestLotValuation(TestLotValuationCommon):
-
     def test_lot_normal_1(self):
         """Each lot carries its own cost; an out move on a cheaper lot recomputes
         the product's average cost."""
@@ -136,26 +139,34 @@ class TestLotValuation(TestLotValuationCommon):
 
     def test_enforce_lot_inventory(self):
         """A lot/serial number is mandatory when valuing an inventory adjustment."""
-        inventory_quant = self.env['stock.quant'].create({
-            'location_id': self.stock_location.id,
-            'product_id': self.product1.id,
-            'inventory_quantity': 10,
-        })
+        inventory_quant = self.env["stock.quant"].create(
+            {
+                "location_id": self.stock_location.id,
+                "product_id": self.product1.id,
+                "inventory_quantity": 10,
+            }
+        )
         with self.assertRaises(UserError):
             inventory_quant.action_apply_inventory()
 
     def test_inventory_adjustment_takes_lot_cost(self):
         """An inventory adjustment on an existing lot is valued at that lot's cost."""
         self._make_in_move(self.product1, 10, 5, lot_ids=[self.lot1])
-        shelf = self.env['stock.location'].create({
-            'name': 'Shelf 1', 'usage': 'internal', 'location_id': self.stock_location.id,
-        })
-        inventory_quant = self.env['stock.quant'].create({
-            'location_id': shelf.id,
-            'product_id': self.product1.id,
-            'lot_id': self.lot1.id,
-            'inventory_quantity': 1,
-        })
+        shelf = self.env["stock.location"].create(
+            {
+                "name": "Shelf 1",
+                "usage": "internal",
+                "location_id": self.stock_location.id,
+            }
+        )
+        inventory_quant = self.env["stock.quant"].create(
+            {
+                "location_id": shelf.id,
+                "product_id": self.product1.id,
+                "lot_id": self.lot1.id,
+                "inventory_quantity": 1,
+            }
+        )
         inventory_quant.action_apply_inventory()
         self.assertEqual(self.lot1.standard_price, 5)
         self.assertEqual(self.lot1.product_qty, 11)
@@ -166,27 +177,34 @@ class TestLotValuation(TestLotValuationCommon):
         self._make_in_move(self.product1, 10, 5, lot_ids=[self.lot1])
         self._make_in_move(self.product1, 10, 9, lot_ids=[self.lot2])
         self.assertAlmostEqual(self.product1.standard_price, 7)
-        lot4 = self.env['stock.lot'].create({'name': 'lot4', 'product_id': self.product1.id})
-        shelf = self.env['stock.location'].create({
-            'name': 'Shelf 1', 'usage': 'internal', 'location_id': self.stock_location.id,
-        })
-        inventory_quant = self.env['stock.quant'].create({
-            'location_id': shelf.id,
-            'product_id': self.product1.id,
-            'lot_id': lot4.id,
-            'inventory_quantity': 1,
-        })
+        lot4 = self.env["stock.lot"].create(
+            {"name": "lot4", "product_id": self.product1.id}
+        )
+        shelf = self.env["stock.location"].create(
+            {
+                "name": "Shelf 1",
+                "usage": "internal",
+                "location_id": self.stock_location.id,
+            }
+        )
+        inventory_quant = self.env["stock.quant"].create(
+            {
+                "location_id": shelf.id,
+                "product_id": self.product1.id,
+                "lot_id": lot4.id,
+                "inventory_quantity": 1,
+            }
+        )
         inventory_quant.action_apply_inventory()
         self.assertEqual(lot4.standard_price, 7)
         self.assertEqual(lot4.total_value, 7)
 
 
 class TestLotValuationRealTime(TestLotValuationCommon):
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        cls.product1.categ_id.property_valuation = 'real_time'
+        cls.product1.categ_id.property_valuation = "real_time"
 
     def test_realtime_valuation_is_consistent(self):
         """Switching a lot-valuated product to perpetual valuation must not change the
@@ -212,28 +230,34 @@ class TestLotStandardPriceHistory(TestStockValuationCommon):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        cls.category_avco.property_cost_method = 'average'
-        cls.lot_product = cls.env['product.product'].create({
-            'name': 'Lot Valued Product',
-            'is_storable': True,
-            'tracking': 'lot',
-            'categ_id': cls.category_avco.id,
-            'standard_price': 10.0,
-        })
+        cls.category_avco.property_cost_method = "average"
+        cls.lot_product = cls.env["product.product"].create(
+            {
+                "name": "Lot Valued Product",
+                "is_storable": True,
+                "tracking": "lot",
+                "categ_id": cls.category_avco.id,
+                "standard_price": 10.0,
+            }
+        )
         cls.lot_product.product_tmpl_id.lot_valuated = True
-        cls.lot = cls.env['stock.lot'].create({
-            'name': 'LOT-REG', 'product_id': cls.lot_product.id,
-        })
+        cls.lot = cls.env["stock.lot"].create(
+            {
+                "name": "LOT-REG",
+                "product_id": cls.lot_product.id,
+            }
+        )
 
     def _lot_value_rows(self):
-        return self.env['product.value'].search([('lot_id', '=', self.lot.id)])
+        return self.env["product.value"].search([("lot_id", "=", self.lot.id)])
 
     def test_noop_price_write_creates_no_history(self):
         """Writing the same standard price must not create a product.value row."""
         before = len(self._lot_value_rows())
         self.lot.standard_price = self.lot.standard_price
         self.assertEqual(
-            len(self._lot_value_rows()), before,
+            len(self._lot_value_rows()),
+            before,
             "A no-op standard_price write must not record a price-history row.",
         )
 
@@ -243,8 +267,8 @@ class TestLotStandardPriceHistory(TestStockValuationCommon):
         self.lot.standard_price = 25.0
         rows = self._lot_value_rows()
         self.assertEqual(len(rows), before + 1)
-        latest = rows.sorted('id')[-1]
+        latest = rows.sorted("id")[-1]
         self.assertEqual(latest.value, 25.0)
         # The old price must be rendered as a number, never a recordset/dict repr.
-        self.assertIn('from 10.0 to 25.0', latest.description)
-        self.assertNotIn('stock.lot(', latest.description)
+        self.assertIn("from 10.0 to 25.0", latest.description)
+        self.assertNotIn("stock.lot(", latest.description)

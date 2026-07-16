@@ -4,7 +4,6 @@ from odoo.tools.translate import _
 
 
 class View(Controller):
-
     @route("/web/view/edit_custom", type="jsonrpc", auth="user")
     def edit_custom(self, custom_id: int, arch: str) -> dict[str, bool]:
         """Overwrite the arch of a custom view owned by the current user.

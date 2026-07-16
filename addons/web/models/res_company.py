@@ -34,7 +34,9 @@ class ResCompany(models.Model):
     def create(self, vals_list: list[ValuesType]) -> Self:
         """Regenerate the report style asset when style fields change."""
         companies = super().create(vals_list)
-        if any(not self._REPORT_STYLE_FIELDS.isdisjoint(values) for values in vals_list):
+        if any(
+            not self._REPORT_STYLE_FIELDS.isdisjoint(values) for values in vals_list
+        ):
             self._update_asset_style()
         return companies
 

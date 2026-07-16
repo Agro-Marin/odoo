@@ -1242,7 +1242,7 @@ class TestPoSCommon(ValuationReconciliationTestCommon):
                 # This predicate is used to match the pos_payment's journal entry to the
                 # list of payments specified in the 'payments' field of the `_run_test`
                 # args.
-                def predicate(args):
+                def predicate(args, pos_payment=pos_payment):
                     payment_method, amount = args
                     first = payment_method == pos_payment.payment_method_id
                     second = tools.float_is_zero(
@@ -1276,7 +1276,7 @@ class TestPoSCommon(ValuationReconciliationTestCommon):
         # check expected cash journal entries
         for statement_line in pos_session.statement_line_ids:
 
-            def statement_line_predicate(args):
+            def statement_line_predicate(args, statement_line=statement_line):
                 return tools.float_is_zero(
                     statement_line.amount - args[0],
                     precision_rounding=currency_rounding,
@@ -1292,7 +1292,7 @@ class TestPoSCommon(ValuationReconciliationTestCommon):
         # check expected bank payments
         for bank_payment in pos_session.bank_payment_ids:
 
-            def bank_payment_predicate(args):
+            def bank_payment_predicate(args, bank_payment=bank_payment):
                 return tools.float_is_zero(
                     bank_payment.amount - args[0], precision_rounding=currency_rounding
                 )

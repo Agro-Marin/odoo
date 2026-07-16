@@ -57,15 +57,13 @@ from __future__ import annotations
 
 import argparse
 import json
-import re
 import sys
 from dataclasses import dataclass
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[6]
 DEFAULT_BASELINE_PATH = (
-    REPO_ROOT
-    / "addons/odoo/addons/web/tooling/scripts/doc_link_baseline.json"
+    REPO_ROOT / "addons/odoo/addons/web/tooling/scripts/doc_link_baseline.json"
 )
 
 # Authoritative surfaces — broken refs here are most damaging because
@@ -79,9 +77,7 @@ AUTHORITATIVE_PATHS = (
     "addons/odoo/addons/web/CLAUDE.md",
 )
 
-KNOWLEDGE_PATHS = (
-    "knowledge/",
-)
+KNOWLEDGE_PATHS = ("knowledge/",)
 
 
 @dataclass(frozen=True)
@@ -157,9 +153,7 @@ def score_files(baseline: dict, *, include_knowledge: bool = True) -> list[FileS
 
     scores: list[FileScore] = []
     for sf, refs in by_file.items():
-        if not include_knowledge and any(
-            sf.startswith(p) for p in KNOWLEDGE_PATHS
-        ):
+        if not include_knowledge and any(sf.startswith(p) for p in KNOWLEDGE_PATHS):
             continue
         total = len(refs)
         avg_ease = sum(e for _, e in refs) / total
@@ -193,15 +187,12 @@ def _print_table(rows: list[FileScore], limit: int) -> None:
     name_w = max(len(r.source_file) for r in rows[:limit])
     name_w = min(name_w, 80)  # cap width for narrow terminals
     print(f"{'#':>2}  {'score':>6}  {'refs':>4}  {'ease':>4}  source_file")
-    print(f"{'─'*2}  {'─'*6}  {'─'*4}  {'─'*4}  {'─' * name_w}")
+    print(f"{'─' * 2}  {'─' * 6}  {'─' * 4}  {'─' * 4}  {'─' * name_w}")
     for i, r in enumerate(rows[:limit], 1):
         sf = r.source_file
         if len(sf) > name_w:
-            sf = "…" + sf[-(name_w - 1):]
-        print(
-            f"{i:>2}  {r.score:>6.1f}  {r.total_refs:>4}  "
-            f"{r.avg_ease:>4.2f}  {sf}"
-        )
+            sf = "…" + sf[-(name_w - 1) :]
+        print(f"{i:>2}  {r.score:>6.1f}  {r.total_refs:>4}  {r.avg_ease:>4.2f}  {sf}")
         for rp in r.sample_paths[:2]:
             print(f"      · `{rp}`")
 

@@ -260,15 +260,15 @@ class ProductTemplateAttributeLine(models.Model):
             remaining_pav = (
                 self.env["product.attribute.value"].sudo().browse(sorted(remaining_pav))
             )
-            for pav in remaining_pav:
-                # create values that didn't exist yet
-                ptav_to_create.append(
-                    {
-                        "product_attribute_value_id": pav.id,
-                        "attribute_line_id": ptal.id,
-                        "price_extra": pav.default_extra_price,
-                    }
-                )
+            # create values that didn't exist yet
+            ptav_to_create.extend(
+                {
+                    "product_attribute_value_id": pav.id,
+                    "attribute_line_id": ptal.id,
+                    "price_extra": pav.default_extra_price,
+                }
+                for pav in remaining_pav
+            )
             # Handle active at each step in case a following line might want to
             # re-use a value that was archived at a previous step.
             ptav_to_activate.write({"ptav_active": True})

@@ -152,7 +152,10 @@ class TestPivotNegativeInputs(HttpCase):
         }
         response = self.url_open(
             "/web/pivot/export_xlsx",
-            data={"data": json_dumps(jdata), "csrf_token": http.Request.csrf_token(self)},
+            data={
+                "data": json_dumps(jdata),
+                "csrf_token": http.Request.csrf_token(self),
+            },
         )
         self.assertEqual(response.status_code, HTTPStatus.OK)
 
@@ -171,7 +174,10 @@ class TestPivotNegativeInputs(HttpCase):
         }
         response = self.url_open(
             "/web/pivot/export_xlsx",
-            data={"data": json_dumps(jdata), "csrf_token": http.Request.csrf_token(self)},
+            data={
+                "data": json_dumps(jdata),
+                "csrf_token": http.Request.csrf_token(self),
+            },
         )
         self.assertEqual(response.status_code, HTTPStatus.OK)
 
@@ -227,7 +233,6 @@ class TestCompanyLogoFallback(TransactionCase):
         )
 
 
-
 @tagged("web_http", "web_controllers_audit")
 class TestDatabaseRestoreLogging(HttpCase):
     """database.py restore() previously swallowed exceptions without logging."""
@@ -244,7 +249,9 @@ class TestDatabaseRestoreLogging(HttpCase):
                 "odoo.service.db.restore_db",
                 side_effect=Exception("simulated restore error"),
             ),
-            self.assertLogs("odoo.addons.web.controllers.database", level="ERROR") as log_cm,
+            self.assertLogs(
+                "odoo.addons.web.controllers.database", level="ERROR"
+            ) as log_cm,
         ):
             response = self.url_open(
                 "/web/database/restore",
@@ -283,14 +290,16 @@ class TestExportGroupbyValidation(HttpCase):
         and wrapped into the standard InternalServerError JSON payload.
         """
         self.authenticate("admin", "admin")
-        data = json_dumps({
-            "model": "res.partner",
-            "fields": [{"name": "name", "label": "Name"}],
-            "ids": [],
-            "domain": [],
-            "import_compat": False,
-            "groupby": ["totally_nonexistent_xyz"],
-        })
+        data = json_dumps(
+            {
+                "model": "res.partner",
+                "fields": [{"name": "name", "label": "Name"}],
+                "ids": [],
+                "domain": [],
+                "import_compat": False,
+                "groupby": ["totally_nonexistent_xyz"],
+            }
+        )
         response = self.url_open(
             "/web/export/xlsx",
             data={"data": data, "csrf_token": http.Request.csrf_token(self)},
@@ -308,6 +317,7 @@ class TestIsLocalUrl(BaseCase):
     def setUpClass(cls):
         super().setUpClass()
         from odoo.addons.web.controllers.utils import _is_local_url
+
         cls._is_local_url = staticmethod(_is_local_url)
 
     def test_local_paths_accepted(self):
@@ -350,7 +360,9 @@ class TestJsonHelpers(TransactionCase):
         """
         from odoo.addons.web.controllers.json_helpers import get_groupby
 
-        tree = etree.fromstring('<kanban default_group_by="partner_id"><templates/></kanban>')
+        tree = etree.fromstring(
+            '<kanban default_group_by="partner_id"><templates/></kanban>'
+        )
         groupby, fields = get_groupby(tree)
         self.assertIsNone(groupby)
         self.assertEqual(fields, ["partner_id"])
@@ -359,7 +371,7 @@ class TestJsonHelpers(TransactionCase):
         """get_groupby returns (None, None) for a view without default_group_by."""
         from odoo.addons.web.controllers.json_helpers import get_groupby
 
-        tree = etree.fromstring('<kanban><templates/></kanban>')
+        tree = etree.fromstring("<kanban><templates/></kanban>")
         groupby, fields = get_groupby(tree)
         self.assertIsNone(groupby)
         self.assertIsNone(fields)
@@ -368,7 +380,9 @@ class TestJsonHelpers(TransactionCase):
         """Explicit groupby param takes precedence over view definition."""
         from odoo.addons.web.controllers.json_helpers import get_groupby
 
-        tree = etree.fromstring('<kanban default_group_by="stage_id"><templates/></kanban>')
+        tree = etree.fromstring(
+            '<kanban default_group_by="stage_id"><templates/></kanban>'
+        )
         groupby, fields = get_groupby(tree, groupby="partner_id,user_id")
         self.assertEqual(groupby, ["partner_id", "user_id"])
         self.assertIsNone(fields)
@@ -381,11 +395,15 @@ class TestJsonHelpers(TransactionCase):
         """
         from odoo.addons.web.controllers.json_helpers import get_view_id_and_type
 
-        action = self.env["ir.actions.act_window"].create({
-            "name": "_AuditTest",
-            "res_model": "res.partner",
-            "view_mode": "list,form",
-        })
+        action = self.env["ir.actions.act_window"].create(
+            {
+                "name": "_AuditTest",
+                "res_model": "res.partner",
+                "view_mode": "list,form",
+            }
+        )
         view_id, view_type = get_view_id_and_type(action, "list")
-        self.assertIs(view_id, False, "Must be False (Odoo 'no ID' convention), not None")
+        self.assertIs(
+            view_id, False, "Must be False (Odoo 'no ID' convention), not None"
+        )
         self.assertEqual(view_type, "list")

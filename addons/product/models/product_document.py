@@ -68,7 +68,7 @@ class ProductDocument(models.Model):
             ir_default = {
                 field: default[field] for field in default if field in ir_fields
             }
-        for document, vals in zip(self, vals_list):
+        for document, vals in zip(self, vals_list, strict=False):
             vals["ir_attachment_id"] = (
                 document.ir_attachment_id.with_context(
                     no_document=True,

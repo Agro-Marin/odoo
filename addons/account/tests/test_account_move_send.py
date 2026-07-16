@@ -1411,9 +1411,7 @@ class TestAccountMoveSend(TestAccountMoveSendCommon):
             self.enter_registry_test_mode(),
             patch.object(AccountMoveSend, "_send_mail", _send_mail_maybe_fail),
         ):
-            self.env.ref(
-                "account.ir_cron_account_move_send"
-            ).method_direct_trigger()
+            self.env.ref("account.ir_cron_account_move_send").method_direct_trigger()
 
         # Batch was not rolled back: both moves were processed to completion
         # (PDF generated and sending_data cleared), despite one send failing.

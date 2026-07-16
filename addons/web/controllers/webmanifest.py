@@ -35,7 +35,9 @@ class WebManifest(http.Controller):
         )
         shortcuts = []
         for module in module_ids:
-            data = menu_data_records.filtered(lambda res, m=module: res.module == m.name)
+            data = menu_data_records.filtered(
+                lambda res, m=module: res.module == m.name
+            )
             if data:
                 shortcuts.append(
                     {

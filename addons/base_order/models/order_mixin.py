@@ -1040,9 +1040,12 @@ class OrderMixin(models.AbstractModel):
         target_state = vals.get("state")
         for order in self:
             relevant_states = {order.state, target_state} - {None}
-            frozen = set().union(
-                *(frozen_map.get(state, set()) for state in relevant_states),
-            ) & changed
+            frozen = (
+                set().union(
+                    *(frozen_map.get(state, set()) for state in relevant_states),
+                )
+                & changed
+            )
             if frozen:
                 raise UserError(
                     _(

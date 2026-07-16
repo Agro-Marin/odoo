@@ -325,7 +325,7 @@ ignore = [
 "setup/**" = ["D", "ANN"]
 "tools/**" = ["T201", "D", "ANN"]  # FA4 migration scripts: print() is user-facing output
 "doc/**/*.py" = ["T201"]           # CLA stats script: print() is user-facing output
-"tooling/**" = ["T201", "D", "ANN"]  # architecture/dev tooling: print() is user-facing output
+"**/tooling/**" = ["T201", "D", "ANN"]  # architecture/dev tooling (root + per-addon, e.g. addons/web/tooling): print() is user-facing output
 
 # Security-critical path validation — os.path is intentional
 "**/tools/files.py" = ["PTH"]

@@ -211,7 +211,11 @@ class TestResUsersSettings(TransactionCase):
         able to smuggle identity keys (e.g. ``user_setting_id``) into ``vals``
         to re-point its config row onto another user's settings."""
         other_user = self.env["res.users"].create(
-            {"name": "Mallory", "login": "mallory@mail.com", "password": "mallory@mail.com"}
+            {
+                "name": "Mallory",
+                "login": "mallory@mail.com",
+                "password": "mallory@mail.com",
+            }
         )
         other_settings = self.env["res.users.settings"]._find_or_create_for_user(
             other_user

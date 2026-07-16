@@ -52,6 +52,7 @@ class TestWebController(HttpCase):
 
     def test_readyz_db_fail(self):
         """DB unreachability returns 503 (not 500) per Kubernetes convention."""
+
         def _raise_psycopg_error(*args):
             raise psycopg.Error("boom")
 

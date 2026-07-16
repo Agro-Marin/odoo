@@ -88,9 +88,7 @@ class TestNeedactionFlush(MailCommon):
                 "notification_status": "exception",
             }
         )
-        record.invalidate_recordset(
-            ["message_has_error_counter", "message_has_error"]
-        )
+        record.invalidate_recordset(["message_has_error_counter", "message_has_error"])
         self.assertEqual(record.message_has_error_counter, 1)
         self.assertTrue(record.message_has_error)
 
@@ -129,7 +127,7 @@ class TestBounceEmailNormalized(MailCommon):
             b"From: MAILER-DAEMON@example.com\r\n"
             b"To: bounce@example.com\r\n"
             b"Subject: Delivery Status Notification (Failure)\r\n"
-            b'Content-Type: multipart/report; report-type=delivery-status;'
+            b"Content-Type: multipart/report; report-type=delivery-status;"
             b' boundary="b"\r\n'
             b"MIME-Version: 1.0\r\n"
             b"\r\n"
@@ -189,8 +187,12 @@ class TestRecordByMessageUnknownModel(MailCommon):
         (rows are not cascade-cleaned) must not KeyError the store/notification
         render: the record-resolution helpers skip unknown models.
         """
-        message = self.env["res.partner"].create({"name": "Host"}).message_post(
-            body="orphan", message_type="comment", subtype_xmlid="mail.mt_note"
+        message = (
+            self.env["res.partner"]
+            .create({"name": "Host"})
+            .message_post(
+                body="orphan", message_type="comment", subtype_xmlid="mail.mt_note"
+            )
         )
         # ORM create refuses an unknown model (``_get_reply_to`` resolves it),
         # so simulate the leftover row of an uninstalled addon directly in SQL.

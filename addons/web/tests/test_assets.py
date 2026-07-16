@@ -58,7 +58,7 @@ class TestAssetsGenerateTimeCommon(odoo.tests.TransactionCase):
                             f"{bundle_name}.{assets_type}",
                             time.time() - start_t,
                         )
-                    except (ValueError, SassCompileError):
+                    except ValueError, SassCompileError:
                         _logger.info(
                             "Error detected while generating bundle %r %s",
                             bundle_name,

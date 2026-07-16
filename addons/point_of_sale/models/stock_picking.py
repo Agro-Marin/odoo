@@ -6,7 +6,6 @@ from itertools import groupby
 
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError, ValidationError
-from odoo.tools import float_is_zero
 
 _logger = logging.getLogger(__name__)
 
@@ -146,12 +145,8 @@ class StockPicking(models.Model):
                     (move_line.product_id.id, move_line.owner_id.id or 0)
                 ] = move_line.quantity
             for move in self.move_line_ids:
-                for keys in returnable_qty_by_product:
-                    if (
-                        move.product_id.id == keys[0]
-                        and keys[1]
-                        and returnable_qty_by_product[keys] > 0
-                    ):
+                for keys, qty in returnable_qty_by_product.items():
+                    if move.product_id.id == keys[0] and keys[1] and qty > 0:
                         move.write({"owner_id": keys[1]})
                         returnable_qty_by_product[keys] -= move.quantity
                         break

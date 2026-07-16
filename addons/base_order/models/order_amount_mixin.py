@@ -195,4 +195,3 @@ class OrderAmountMixin(models.AbstractModel):
                     order.sudo(),  # ensure access to `credit` & `credit_limit` fields
                     current_amount=(order.amount_total / (order.currency_rate or 1.0)),
                 )
-

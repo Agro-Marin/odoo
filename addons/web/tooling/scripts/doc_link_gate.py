@@ -66,10 +66,8 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 import re
-import sys
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 
 # Path math: /home/marin/Odoo/addons/odoo/addons/web/tooling/scripts/<this>
@@ -78,8 +76,7 @@ from pathlib import Path
 #   parents[6] = Odoo/        ← the workspace root we want.
 REPO_ROOT = Path(__file__).resolve().parents[6]
 DEFAULT_BASELINE_PATH = (
-    REPO_ROOT
-    / "addons/odoo/addons/web/tooling/scripts/doc_link_baseline.json"
+    REPO_ROOT / "addons/odoo/addons/web/tooling/scripts/doc_link_baseline.json"
 )
 
 # Source-file globs scanned by default.  Edits to this list belong with
@@ -128,15 +125,15 @@ REF_PATTERNS = [
 # to describe naming conventions; flagging these as broken is noise,
 # not signal.
 PLACEHOLDER_MARKERS = (
-    "~",          # ~/Odoo/CLAUDE.md style — home-relative, not repo-relative
-    "<",          # <role>.md, <INITIALS>, etc.
-    "$",          # $PROJECT, $INITIALS environment-variable substitutions
-    "YYYY",       # YYYY-MM-DD-... date placeholders
-    "tXXXXX",     # task-id placeholders
-    "txxxxx",     # case variant
-    "{",          # {var} template substitutions
-    "*",          # *.md glob patterns (e.g. ".claude/agents/*.md") — these
-                  # are documentation about file shapes, not real paths
+    "~",  # ~/Odoo/CLAUDE.md style — home-relative, not repo-relative
+    "<",  # <role>.md, <INITIALS>, etc.
+    "$",  # $PROJECT, $INITIALS environment-variable substitutions
+    "YYYY",  # YYYY-MM-DD-... date placeholders
+    "tXXXXX",  # task-id placeholders
+    "txxxxx",  # case variant
+    "{",  # {var} template substitutions
+    "*",  # *.md glob patterns (e.g. ".claude/agents/*.md") — these
+    # are documentation about file shapes, not real paths
 )
 
 
@@ -181,8 +178,10 @@ def _extract_refs(content: str) -> list[tuple[int, str]]:
         return bisect_right(line_starts, offset)
 
     for pattern in REF_PATTERNS:
-        for match in pattern.finditer(content):
-            refs.append((_line_of(match.start()), match.group(1)))
+        refs.extend(
+            (_line_of(match.start()), match.group(1))
+            for match in pattern.finditer(content)
+        )
     return refs
 
 
@@ -287,7 +286,7 @@ def scan(
     for source_file in files:
         try:
             content = source_file.read_text(encoding="utf-8")
-        except (OSError, UnicodeDecodeError):
+        except OSError, UnicodeDecodeError:
             continue
         for line, raw_path in _extract_refs(content):
             # Skip documentation pseudo-syntax: ``YYYY-MM-DD-...``,
@@ -347,10 +346,7 @@ def load_baseline(path: Path) -> set[tuple[str, str]]:
     if not path.exists():
         return set()
     data = json.loads(path.read_text())
-    return {
-        (v["source_file"], v["raw_path"])
-        for v in data.get("violations", [])
-    }
+    return {(v["source_file"], v["raw_path"]) for v in data.get("violations", [])}
 
 
 def write_baseline(path: Path, violations: list[Violation]) -> dict:
@@ -360,9 +356,7 @@ def write_baseline(path: Path, violations: list[Violation]) -> dict:
         "_generated_at": _today_iso(),
         "_total_violations": len(keys),
         "_generator": str(Path(__file__).relative_to(REPO_ROOT)),
-        "violations": [
-            {"source_file": sf, "raw_path": rp} for sf, rp in keys
-        ],
+        "violations": [{"source_file": sf, "raw_path": rp} for sf, rp in keys],
     }
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(data, indent=2) + "\n")
@@ -432,9 +426,7 @@ def _main() -> int:
 
     if args.update_baseline:
         data = write_baseline(args.baseline, violations)
-        print(
-            f"✓ Baseline updated: {data['_total_violations']} violations"
-        )
+        print(f"✓ Baseline updated: {data['_total_violations']} violations")
         print(f"  Written to {args.baseline.relative_to(REPO_ROOT)}")
         return 0
 
@@ -471,12 +463,9 @@ def _main() -> int:
             print(f"  {sf}: `{rp}`")
         if len(removed) > 10:
             print(f"  ...and {len(removed) - 10} more")
-        print(f"  Run with --update-baseline to tighten.")
+        print("  Run with --update-baseline to tighten.")
     else:
-        print(
-            f"✓ No new violations.  "
-            f"{len(violations)} match baseline."
-        )
+        print(f"✓ No new violations.  {len(violations)} match baseline.")
     return 0
 
 

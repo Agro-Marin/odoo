@@ -25,7 +25,11 @@ class TestWebCwvMetric(TransactionCase):
         return rec
 
     def _assert_rejected(self, vals):
-        with self.assertRaises(CheckViolation), mute_logger("odoo.sql_db", "odoo.db"), self.cr.savepoint():
+        with (
+            self.assertRaises(CheckViolation),
+            mute_logger("odoo.sql_db", "odoo.db"),
+            self.cr.savepoint(),
+        ):
             self._create(vals)
 
     def test_valid_metric_is_accepted(self):
@@ -69,7 +73,9 @@ class TestWebCwvMetric(TransactionCase):
         from odoo.addons.web.controllers.observability import _clamp_cls, _clamp_latency
 
         for bad in (float("nan"), float("inf"), float("-inf"), -1.0, True):
-            self.assertIsNone(_clamp_latency(bad), f"_clamp_latency({bad!r}) must be None")
+            self.assertIsNone(
+                _clamp_latency(bad), f"_clamp_latency({bad!r}) must be None"
+            )
             self.assertIsNone(_clamp_cls(bad), f"_clamp_cls({bad!r}) must be None")
         self.assertEqual(_clamp_latency(1200), 1200.0)
         self.assertEqual(_clamp_cls(0.05), 0.05)

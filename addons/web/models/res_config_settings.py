@@ -108,10 +108,14 @@ class ResConfigSettings(models.TransientModel):
         if not default_group:
             # Creating res.groups and ir.model.data requires admin rights;
             # the settings manager group may not have them, so use sudo().
-            default_group = self.env["res.groups"].sudo().create(
-                {
-                    "name": _("Default access for new users"),
-                }
+            default_group = (
+                self.env["res.groups"]
+                .sudo()
+                .create(
+                    {
+                        "name": _("Default access for new users"),
+                    }
+                )
             )
             self.env["ir.model.data"].sudo().create(
                 {

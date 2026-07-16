@@ -98,7 +98,7 @@ class ResPartner(models.Model):
         moves = moves.filtered(
             lambda m: m.date.date() <= m.purchase_line_id.date_planned.date(),
         )
-        for move, quantity in zip(moves, moves.mapped("quantity")):
+        for move, quantity in zip(moves, moves.mapped("quantity"), strict=False):
             lines_quantity[move.purchase_line_id.id] += quantity
         partner_dict = {}
         for line in order_lines:

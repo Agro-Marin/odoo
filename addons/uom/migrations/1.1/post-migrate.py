@@ -11,10 +11,12 @@ def migrate(cr, version):
     if not version:
         return
     env = api.Environment(cr, api.SUPERUSER_ID, {})
-    minute = env.ref('uom.product_uom_minute', raise_if_not_found=False)
+    minute = env.ref("uom.product_uom_minute", raise_if_not_found=False)
     if (
         minute
-        and minute.relative_factor != 1.0 / 60.0
+        # exact compare is deliberate: skip the write when already exactly 1/60
+        # (the fuzzy "meant to be 1/60" match is the abs(...) < 1e-3 test below)
+        and minute.relative_factor != 1.0 / 60.0  # noqa: RUF069
         # only values meant to be 1/60 (0.0166667 or a float8->numeric
         # truncation of it); a deliberate user customization is preserved
         and abs(minute.relative_factor * 60.0 - 1.0) < 1e-3

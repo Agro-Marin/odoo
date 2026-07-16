@@ -251,7 +251,10 @@ class PurchaseBillLineMatch(models.Model):
                         or self.env.company.currency_id
                     )
                     for aml in list(remaining_aml):
-                        if currency.compare_amounts(aml.price_unit, pol.price_unit) == 0:
+                        if (
+                            currency.compare_amounts(aml.price_unit, pol.price_unit)
+                            == 0
+                        ):
                             aml.purchase_line_ids = [Command.link(pol.id)]
                             residual_purchase_order_lines -= pol
                             residual_account_move_lines -= aml

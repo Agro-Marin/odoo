@@ -70,10 +70,12 @@ class AccountMove(models.Model):
             return res
 
         current_invoice_amls = self.invoice_line_ids.filtered(
-            lambda aml: aml.display_type == "product"
-            and aml.product_id
-            and aml.product_id.type == "consu"
-            and aml.quantity,
+            lambda aml: (
+                aml.display_type == "product"
+                and aml.product_id
+                and aml.product_id.type == "consu"
+                and aml.quantity
+            ),
         )
         all_invoices_amls = (
             current_invoice_amls.sale_line_ids.invoice_line_ids.filtered(
@@ -113,7 +115,6 @@ class AccountMove(models.Model):
             ).sorted(lambda sml: (sml.date, sml.id))
         )
         for sml in stock_move_lines:
-
             if (
                 sml.product_id not in invoiced_products
                 or not sml._should_show_lot_in_invoice()
@@ -122,7 +123,9 @@ class AccountMove(models.Model):
 
             product = sml.product_id
             product_uom_id = product.uom_id
-            quantity = sml.product_uom_id._compute_quantity(sml.quantity, product_uom_id)
+            quantity = sml.product_uom_id._compute_quantity(
+                sml.quantity, product_uom_id
+            )
 
             # is it a stock return considering the document type (should it be it thought of as positively or negatively?)
             # dropship returns use 'supplier' locations instead of 'internal', so both are accepted.
@@ -148,7 +151,9 @@ class AccountMove(models.Model):
             # try to reach the previous_qty_invoiced
             if (
                 product_uom_id.compare(quantity, 0) < 0
-                or product_uom_id.compare(previous_qty_transferred, previous_qty_invoiced)
+                or product_uom_id.compare(
+                    previous_qty_transferred, previous_qty_invoiced
+                )
                 < 0
             ):
                 previously_done = (
@@ -206,7 +211,6 @@ class AccountMove(models.Model):
         Returns the stock moves associated to this invoice."""
         rslt = super()._stock_account_get_last_step_stock_moves()
         for invoice in self:
-
             if invoice.move_type not in ["out_invoice", "out_refund"]:
                 continue
 
@@ -217,8 +221,9 @@ class AccountMove(models.Model):
                 rslt += invoice.mapped(
                     "invoice_line_ids.sale_line_ids.move_ids",
                 ).filtered(
-                    lambda x: x.state == "done"
-                    and x.location_dest_id.usage == "customer",
+                    lambda x: (
+                        x.state == "done" and x.location_dest_id.usage == "customer"
+                    ),
                 )
             else:
                 rslt += invoice.mapped(

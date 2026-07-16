@@ -407,7 +407,8 @@ class TestStockQuantImprovements(TestStockCommon):
         self.Quant._update_available_quantity(covered, other_loc, 3.0)
         self.env.cr.flush()
         child_cache = self.Quant._get_quants_by_products_locations(
-            covered, self.env["stock.location"].browse()  # empty -> nothing covered
+            covered,
+            self.env["stock.location"].browse(),  # empty -> nothing covered
         )
         self.assertFalse(child_cache.covers(covered, other_loc))
         res2 = self.Quant.with_context(quants_cache=child_cache)._gather(

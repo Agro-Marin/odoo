@@ -47,3 +47,4 @@ class StockForecasted_Product_Product(models.AbstractModel):
                 [("product_tmpl_id", "in", product_template_ids)]
             )
             return [("product_id", "in", subquery_products)]
+        return None

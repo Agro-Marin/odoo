@@ -1,29 +1,29 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 {
-    'name': 'Units of measure',
-    'version': '1.1',
-    'category': 'Sales/Sales',
-    'depends': ['base'],
-    'description': """
+    "name": "Units of measure",
+    "version": "1.1",
+    "category": "Sales/Sales",
+    "depends": ["base"],
+    "description": """
 This is the base module for managing Units of measure.
 ========================================================================
     """,
-    'data': [
-        'data/uom_data.xml',
-        'security/uom_security.xml',
-        'security/ir.model.access.csv',
-        'views/uom_uom_views.xml',
+    "data": [
+        "data/uom_data.xml",
+        "security/uom_security.xml",
+        "security/ir.model.access.csv",
+        "views/uom_uom_views.xml",
     ],
-    'installable': True,
-    'assets': {
-        'web.assets_backend': [
-            'uom/static/src/components/**/*',
+    "installable": True,
+    "assets": {
+        "web.assets_backend": [
+            "uom/static/src/components/**/*",
         ],
-        'web.assets_unit_tests': [
-            'uom/static/tests/**/*',
+        "web.assets_unit_tests": [
+            "uom/static/tests/**/*",
         ],
     },
-    'author': 'Odoo S.A.',
-    'license': 'LGPL-3',
+    "author": "Odoo S.A.",
+    "license": "LGPL-3",
 }

@@ -111,11 +111,14 @@ class TestFeatureFlagsResolver(TransactionCase):
         self._set("e", "1.5")
         self._set("f", "hello world")
         result = self.ir_http._resolve_feature_flags(self.ICP)
-        self.assertEqual(result, {
-            "a": True,
-            "b": False,
-            "c": None,
-            "d": 0,
-            "e": 1.5,
-            "f": "hello world",
-        })
+        self.assertEqual(
+            result,
+            {
+                "a": True,
+                "b": False,
+                "c": None,
+                "d": 0,
+                "e": 1.5,
+                "f": "hello world",
+            },
+        )

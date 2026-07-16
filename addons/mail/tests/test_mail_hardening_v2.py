@@ -130,9 +130,7 @@ class TestMailHardeningV2(MailCommon):
         zero ttl with an exception (not a bare ``assert`` stripped under -O)."""
         key = "c2VjcmV0LWtleS1mb3ItdGVzdGluZw"  # urlsafe base64, no padding
         claims = {"sub": "user-42"}
-        token = jwt_tool.sign(
-            claims, key, ttl=60, algorithm=jwt_tool.Algorithm.HS256
-        )
+        token = jwt_tool.sign(claims, key, ttl=60, algorithm=jwt_tool.Algorithm.HS256)
         self.assertEqual(len(token.split(".")), 3, "well-formed JWT")
         self.assertNotIn("exp", claims, "caller's claims dict must be untouched")
         with self.assertRaises(ValueError):
@@ -173,13 +171,19 @@ class TestMailHardeningV2(MailCommon):
         ``report-type`` parameter, which ``get_content_type()`` strips."""
         thread = self.env["mail.thread"]
         dsn = email.message_from_string(
-            "Content-Type: multipart/report; report-type=delivery-status\n"
-            "\n"
-            "body"
+            "Content-Type: multipart/report; report-type=delivery-status\n\nbody"
         )
-        self.assertTrue(thread._detect_is_bounce(dsn, {"to": "inbox@example.com", "email_from": "a@b.com"}))
+        self.assertTrue(
+            thread._detect_is_bounce(
+                dsn, {"to": "inbox@example.com", "email_from": "a@b.com"}
+            )
+        )
         plain = email.message_from_string("Content-Type: text/plain\n\nhi")
-        self.assertFalse(thread._detect_is_bounce(plain, {"to": "inbox@example.com", "email_from": "a@b.com"}))
+        self.assertFalse(
+            thread._detect_is_bounce(
+                plain, {"to": "inbox@example.com", "email_from": "a@b.com"}
+            )
+        )
         # the mailer-daemon localpart heuristic still fires
         self.assertTrue(
             thread._detect_is_bounce(

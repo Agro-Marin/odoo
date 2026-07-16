@@ -30,14 +30,13 @@ def _is_loopback(addr: str | None) -> bool:
     including ``None`` — is treated as non-loopback (fail closed)."""
     try:
         ip = ipaddress.ip_address(addr)
-    except (ValueError, TypeError):
+    except ValueError, TypeError:
         return False
     mapped = getattr(ip, "ipv4_mapped", None)
     return (mapped or ip).is_loopback
 
 
 class Database(http.Controller):
-
     def _handle_insecure_password(self, master_pwd: str) -> None:
         """Upgrade the admin password if it is still the insecure default
         'admin' — but ONLY for loopback callers.
@@ -249,7 +248,9 @@ class Database(http.Controller):
         self._handle_insecure_password(master_pwd)
         try:
             if backup_format not in {"zip", "dump"}:
-                raise ValueError(f"Invalid backup format {backup_format!r}; expected 'zip' or 'dump'")
+                raise ValueError(
+                    f"Invalid backup format {backup_format!r}; expected 'zip' or 'dump'"
+                )
             odoo.service.db.check_super(master_pwd)
             if name not in http.db_list():
                 raise ValueError(f"Database {name!r} is not known")

@@ -1,9 +1,9 @@
 from dateutil.relativedelta import relativedelta
 
 from odoo import api, fields, models
+from odoo.api import SUPERUSER_ID
 from odoo.exceptions import UserError
 from odoo.fields import Command
-from odoo.api import SUPERUSER_ID
 from odoo.libs.numbers.float_utils import float_compare, float_round
 from odoo.tools.translate import _
 
@@ -82,11 +82,13 @@ class PurchaseOrderLine(models.Model):
 
         if "product_qty" in vals:
             lines = lines.filtered(
-                lambda l: l.product_uom_id.compare(
-                    previous_product_qty[l.id],
-                    l.product_qty,
-                )
-                != 0,
+                lambda l: (
+                    l.product_uom_id.compare(
+                        previous_product_qty[l.id],
+                        l.product_qty,
+                    )
+                    != 0
+                ),
             )
             lines.with_context(
                 previous_product_qty=previous_product_uom_qty,
@@ -96,7 +98,10 @@ class PurchaseOrderLine(models.Model):
             for line in lines:
                 # Avoid updating kit components' stock.move
                 moves = line.move_ids.filtered(
-                    lambda s: s.state not in ("cancel", "done") and s.product_id == line.product_id,
+                    lambda s, line=line: (
+                        s.state not in ("cancel", "done")
+                        and s.product_id == line.product_id
+                    ),
                 )
                 moves.write({"price_unit": line._get_price_unit()})
 
@@ -228,8 +233,7 @@ class PurchaseOrderLine(models.Model):
         values = []
 
         for line in self.filtered(lambda l: not l.display_type):
-            for val in line._prepare_stock_move_vals_list(picking):
-                values.append(val)
+            values.extend(line._prepare_stock_move_vals_list(picking))
 
         return self.env["stock.move"].create(values)
 
@@ -254,13 +258,19 @@ class PurchaseOrderLine(models.Model):
             description_picking = values["product_description_variants"]
 
         lines = self.filtered(
-            lambda l: l.propagate_cancel == values["propagate_cancel"]
-            and (
-                l.orderpoint_id in [values["orderpoint_id"], False]
-                if values["orderpoint_id"] and not values["move_dest_ids"]
-                else True
-            )
-            and (l.product_uom_id == product_uom_id if values.get("force_uom") else True),
+            lambda l: (
+                l.propagate_cancel == values["propagate_cancel"]
+                and (
+                    l.orderpoint_id in [values["orderpoint_id"], False]
+                    if values["orderpoint_id"] and not values["move_dest_ids"]
+                    else True
+                )
+                and (
+                    l.product_uom_id == product_uom_id
+                    if values.get("force_uom")
+                    else True
+                )
+            ),
         )
 
         # In case 'product_description_variants' is in the values, we also filter on the PO line
@@ -278,14 +288,18 @@ class PurchaseOrderLine(models.Model):
                 name += "\n" + product_lang.description_purchase
 
             lines = lines.filtered(
-                lambda l: (l.name == name + "\n" + description_picking)
-                or (
-                    values.get("product_description_variants")
-                    in (product_lang.name, product_id.with_user(SUPERUSER_ID).name)
-                    and l.name == name
+                lambda l: (
+                    (l.name == name + "\n" + description_picking)
+                    or (
+                        values.get("product_description_variants")
+                        in (product_lang.name, product_id.with_user(SUPERUSER_ID).name)
+                        and l.name == name
+                    )
                 ),
             )
-        return (lines and lines.sorted(lambda l: l.orderpoint_id)[0]) or self.env["purchase.order.line"]
+        return (lines and lines.sorted(lambda l: l.orderpoint_id)[0]) or self.env[
+            "purchase.order.line"
+        ]
 
     def _get_price_unit(self):
         self.ensure_one()
@@ -310,7 +324,10 @@ class PurchaseOrderLine(models.Model):
             price_unit *= self.product_id.uom_id.factor
 
         if order.currency_id != order.company_id.currency_id:
-            conversion_date = self.env.context.get("conversion_date", self.date_order) or fields.Date.today()
+            conversion_date = (
+                self.env.context.get("conversion_date", self.date_order)
+                or fields.Date.today()
+            )
             price_unit = order.currency_id._convert(
                 price_unit,
                 order.company_id.currency_id,
@@ -327,7 +344,9 @@ class PurchaseOrderLine(models.Model):
         outgoing_moves, incoming_moves = self._get_stock_moves_outgoing_incoming()
 
         for move in outgoing_moves:
-            qty_to_compute = move.quantity if move.state == "done" else move.product_uom_qty
+            qty_to_compute = (
+                move.quantity if move.state == "done" else move.product_uom_qty
+            )
             qty -= move.product_uom_id._compute_quantity(
                 qty_to_compute,
                 self.product_uom_id,
@@ -335,7 +354,9 @@ class PurchaseOrderLine(models.Model):
             )
 
         for move in incoming_moves:
-            qty_to_compute = move.quantity if move.state == "done" else move.product_uom_qty
+            qty_to_compute = (
+                move.quantity if move.state == "done" else move.product_uom_qty
+            )
             qty += move.product_uom_id._compute_quantity(
                 qty_to_compute,
                 self.product_uom_id,
@@ -348,7 +369,9 @@ class PurchaseOrderLine(models.Model):
         return self.product_id.uom_id._compute_quantity(
             sum(
                 move_dests.filtered(
-                    lambda m: m.state != "cancel" and m.location_dest_id.usage != "supplier",
+                    lambda m: (
+                        m.state != "cancel" and m.location_dest_id.usage != "supplier"
+                    ),
                 ).mapped("product_qty"),
             ),
             self.product_uom_id,
@@ -359,14 +382,22 @@ class PurchaseOrderLine(models.Model):
         outgoing_moves = self.env["stock.move"]
         incoming_moves = self.env["stock.move"]
         moves = self.move_ids.filtered(
-            lambda m: m.state != "cancel" and m.location_dest_usage != "inventory" and m.product_id == self.product_id,
+            lambda m: (
+                m.state != "cancel"
+                and m.location_dest_usage != "inventory"
+                and m.product_id == self.product_id
+            ),
         )
 
         for move in moves:
-            if move._is_purchase_return() and (move.to_refund or not move.origin_returned_move_id):
+            if move._is_purchase_return() and (
+                move.to_refund or not move.origin_returned_move_id
+            ):
                 outgoing_moves |= move
             elif move.location_dest_id.usage != "supplier":
-                if not move.origin_returned_move_id or (move.origin_returned_move_id and move.to_refund):
+                if not move.origin_returned_move_id or (
+                    move.origin_returned_move_id and move.to_refund
+                ):
                     incoming_moves |= move
 
         return outgoing_moves, incoming_moves
@@ -398,7 +429,6 @@ class PurchaseOrderLine(models.Model):
         self.move_dest_ids += rfq_line.move_dest_ids
 
     def _prepare_aml_vals(self, **optional_values):
-        move = optional_values.get("move", False)
         res = super()._prepare_aml_vals(**optional_values)
 
         if "balance" not in res:
@@ -465,7 +495,9 @@ class PurchaseOrderLine(models.Model):
         # The date must be day before or equal at the supplier target day
 
         if po.partner_id.group_rfq == "week" and po.partner_id.group_on != "default":
-            delta_days = (7 + int(po.partner_id.group_on) - res["date_planned"].isoweekday()) % 7
+            delta_days = (
+                7 + int(po.partner_id.group_on) - res["date_planned"].isoweekday()
+            ) % 7
             res["date_planned"] = res["date_planned"] + relativedelta(days=delta_days)
 
             if not po.date_planned or po.date_planned >= res["date_planned"]:
@@ -475,9 +507,13 @@ class PurchaseOrderLine(models.Model):
                     po.date_order,
                 ) + relativedelta(days=delta_days)
 
-        res["move_dest_ids"] = [Command.link(x.id) for x in values.get("move_dest_ids", [])]
+        res["move_dest_ids"] = [
+            Command.link(x.id) for x in values.get("move_dest_ids", [])
+        ]
         res["location_final_id"] = location_dest_id.id
-        res["orderpoint_id"] = values.get("orderpoint_id", False) and values.get("orderpoint_id").id
+        res["orderpoint_id"] = (
+            values.get("orderpoint_id", False) and values.get("orderpoint_id").id
+        )
         res["propagate_cancel"] = values.get("propagate_cancel")
         res["product_description_variants"] = values.get("product_description_variants")
         res["product_no_variant_attribute_value_ids"] = values.get(
@@ -489,7 +525,9 @@ class PurchaseOrderLine(models.Model):
         from_stock_lines = self.filtered(
             lambda order_line: order_line.qty_transferred_method == "stock_move",
         )
-        received_qties = super(PurchaseOrderLine, self - from_stock_lines)._prepare_qty_transferred()
+        received_qties = super(
+            PurchaseOrderLine, self - from_stock_lines
+        )._prepare_qty_transferred()
         for line in self:
             if line.qty_transferred_method == "stock_move":
                 total = 0.0
@@ -558,9 +596,11 @@ class PurchaseOrderLine(models.Model):
 
         if self.product_uom_id.compare(qty_to_attach, 0.0) > 0:
             qty_to_push = self.product_qty - move_dests_initial_demand
-            product_uom_qty, product_uom_id = self.product_uom_id._adjust_uom_quantities(
-                qty_to_attach,
-                self.product_id.uom_id,
+            product_uom_qty, product_uom_id = (
+                self.product_uom_id._adjust_uom_quantities(
+                    qty_to_attach,
+                    self.product_id.uom_id,
+                )
             )
             res.append(
                 self._prepare_stock_move_vals(
@@ -572,9 +612,11 @@ class PurchaseOrderLine(models.Model):
             )
 
         if not self.product_uom_id.is_zero(qty_to_push):
-            product_uom_qty, product_uom_id = self.product_uom_id._adjust_uom_quantities(
-                qty_to_push,
-                self.product_id.uom_id,
+            product_uom_qty, product_uom_id = (
+                self.product_uom_id._adjust_uom_quantities(
+                    qty_to_push,
+                    self.product_id.uom_id,
+                )
             )
             extra_move_vals = self._prepare_stock_move_vals(
                 picking,
@@ -596,13 +638,12 @@ class PurchaseOrderLine(models.Model):
     ):
         self.ensure_one()
         self._check_orderpoint_picking_type()
-        product = self.product_id.with_context(
-            lang=self.order_id.dest_address_id.lang or self.env.user.lang,
-        )
         location_dest = self.env["stock.location"].browse(
             self.order_id._get_location_destination(),
         )
-        location_final = self.location_final_id or self.order_id._get_location_final_record()
+        location_final = (
+            self.location_final_id or self.order_id._get_location_final_record()
+        )
 
         if location_final and location_final._child_of(location_dest):
             location_dest = location_final
@@ -672,20 +713,27 @@ class PurchaseOrderLine(models.Model):
             # If the user increased quantity of existing line or created a new line
             # Give priority to the pickings related to the line
             moves_to_assign = line.order_id.picking_ids.move_ids.filtered(
-                lambda m: not m.purchase_line_id and line.product_id == m.product_id,
+                lambda m, line=line: (
+                    not m.purchase_line_id and line.product_id == m.product_id
+                ),
             )
             moves_to_assign.purchase_line_id = line.id
             line_pickings = line.move_ids.picking_id.filtered(
-                lambda p: p.state not in ("done", "cancel")
-                and p.location_dest_id.usage in ("internal", "transit", "customer"),
+                lambda p: (
+                    p.state not in ("done", "cancel")
+                    and p.location_dest_id.usage in ("internal", "transit", "customer")
+                ),
             )
 
             if line_pickings:
                 picking = line_pickings[0]
             else:
                 pickings = line.order_id.picking_ids.filtered(
-                    lambda x: x.state not in ("done", "cancel")
-                    and x.location_dest_id.usage in ("internal", "transit", "customer"),
+                    lambda x: (
+                        x.state not in ("done", "cancel")
+                        and x.location_dest_id.usage
+                        in ("internal", "transit", "customer")
+                    ),
                 )
                 picking = (pickings and pickings[0]) or False
 

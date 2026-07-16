@@ -4,12 +4,12 @@
 # product.category, res.company and stock.quant so their labels cannot drift apart.
 
 COST_METHOD_SELECTION = [
-    ('standard', "Standard Price"),
-    ('fifo', "First In First Out (FIFO)"),
-    ('average', "Average Cost (AVCO)"),
+    ("standard", "Standard Price"),
+    ("fifo", "First In First Out (FIFO)"),
+    ("average", "Average Cost (AVCO)"),
 ]
 
 VALUATION_SELECTION = [
-    ('periodic', "Periodic (at closing)"),
-    ('real_time', "Perpetual (at invoicing)"),
+    ("periodic", "Periodic (at closing)"),
+    ("real_time", "Perpetual (at invoicing)"),
 ]

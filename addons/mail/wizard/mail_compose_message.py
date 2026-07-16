@@ -949,9 +949,7 @@ class MailComposeMessage(models.TransientModel):
             wizard = wizard.with_context(clean_context(wizard.env.context))
             res_ids = wizard._evaluate_res_ids()
             if not res_ids:
-                raise UserError(
-                    _("A scheduled message needs a target record.")
-                )
+                raise UserError(_("A scheduled message needs a target record."))
             res_id = res_ids[0]
             post_values = wizard._manage_mail_values(
                 wizard._prepare_mail_values([res_id])

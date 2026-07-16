@@ -156,7 +156,9 @@ class TestWebReadGroup(TransactionCase):
     def test_read_group_count_edge_cases(self):
         """Empty query => 0 groups; no groupby => exactly one implicit row."""
         Partner = self.env["res.partner"]
-        self.assertEqual(Partner._read_group_count([("id", "in", [])], ["is_company"]), 0)
+        self.assertEqual(
+            Partner._read_group_count([("id", "in", [])], ["is_company"]), 0
+        )
         self.assertEqual(Partner._read_group_count(self.domain, []), 1)
 
     def test_get_read_group_order_aggregator_fallback_and_no_duplicate(self):
@@ -170,10 +172,16 @@ class TestWebReadGroup(TransactionCase):
         """
         Model = self.env["res.partner"]
         agg_field = next(
-            (n for n, f in Model._fields.items() if getattr(f, "aggregator", None) and f.store),
+            (
+                n
+                for n, f in Model._fields.items()
+                if getattr(f, "aggregator", None) and f.store
+            ),
             None,
         )
-        self.assertIsNotNone(agg_field, "expected a stored aggregatable field on res.partner")
+        self.assertIsNotNone(
+            agg_field, "expected a stored aggregatable field on res.partner"
+        )
         aggregator = Model._fields[agg_field].aggregator
 
         # (a) aggregator fallback: not in groupby/aggregates -> sort by aggregate.
@@ -181,7 +189,8 @@ class TestWebReadGroup(TransactionCase):
             {agg_field: "desc"}, groupby=["country_id"], aggregates=[]
         )
         self.assertIn(
-            f"{agg_field}:{aggregator} desc", order,
+            f"{agg_field}:{aggregator} desc",
+            order,
             "ordering by an aggregatable field must fall back to its aggregator, not be dropped",
         )
 

@@ -494,7 +494,7 @@ class ProductTemplate(models.Model):
         company = config.company_id
         while not tax_to_use and company:
             tax_to_use = self.taxes_id.filtered(
-                lambda tax: tax.company_id.id == company.id
+                lambda tax, company=company: tax.company_id.id == company.id
             )
             if not tax_to_use:
                 company = company.sudo().parent_id

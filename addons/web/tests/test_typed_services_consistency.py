@@ -112,12 +112,14 @@ class TestTypedServicesConsistency(BaseCase):
         # matching due to a refactor.
         for required in ("orm", "notification", "dialog", "ui"):
             self.assertIn(
-                required, registered,
+                required,
+                registered,
                 f"Sanity check: {required!r} not found in registrations — "
                 "the registration regex may have drifted.",
             )
             self.assertIn(
-                required, typed,
+                required,
+                typed,
                 f"Sanity check: {required!r} not found in typed manifest — "
                 "the interface-body regex may have drifted.",
             )
@@ -150,7 +152,7 @@ class TestTypedServicesConsistency(BaseCase):
         self.assertFalse(
             orphans,
             f"These keys are typed in {SERVICES_DTS.relative_to(WEB_ROOT)} "
-            "but no `registry.category(\"services\").add(K, ...)` call was "
+            'but no `registry.category("services").add(K, ...)` call was '
             "found for them under web/static/src:\n"
             + "\n".join(f"  - {k}" for k in sorted(orphans))
             + "\n\nEither the service was deleted (drop the type entry) or "

@@ -1,7 +1,6 @@
 from odoo import models
 
 
-
 class StockRoute(models.Model):
     _inherit = "stock.route"
 
