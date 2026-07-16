@@ -59,6 +59,7 @@ export const scssErrorNotificationService = {
                         sticky: true,
                         type: "danger",
                     });
+                    // eslint-disable-next-line no-console -- dumps the failing SCSS rule for the developer to diagnose
                     console.debug(
                         /** @type {CSSStyleRule} */ (lastRule).style.content
                             .replaceAll("\\a", "\n")

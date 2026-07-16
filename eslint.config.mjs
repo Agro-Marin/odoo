@@ -324,6 +324,40 @@ export default [
     },
 
     // =========================================================================
+    // no-console — incremental rollout
+    //
+    // Keeps stray console.log/debug/info out of shipped code (warn/error are
+    // allowed for genuine diagnostics). Enforced only on the modules cleaned so
+    // far; add module globs here as each one is scrubbed, the same way modules
+    // are onboarded to ESLint above. The test-file and tooling-scripts blocks
+    // below turn this back off for those trees (they run later, so they win).
+    // Dedicated logging/debug/QA utilities opt out with a file-level disable.
+    // =========================================================================
+    {
+        files: [
+            "addons/web/**/*.js",
+            "addons/mail/**/*.js",
+            "addons/point_of_sale/**/*.js",
+            "addons/purchase/**/*.js",
+            "addons/bus/**/*.js",
+            "addons/account/**/*.js",
+            "addons/base_tax/**/*.js",
+            "addons/analytic/**/*.js",
+            "addons/product/**/*.js",
+            "addons/uom/**/*.js",
+            "addons/stock/**/*.js",
+            "addons/stock_account/**/*.js",
+            "addons/sale/**/*.js",
+            "addons/sale_stock/**/*.js",
+            "addons/mrp/**/*.js",
+            "addons/purchase_stock/**/*.js",
+        ],
+        rules: {
+            "no-console": ["error", { allow: ["warn", "error"] }],
+        },
+    },
+
+    // =========================================================================
     // Test files (Hoot environment) — all modules, whitelisted or not
     //
     // Hoot's primitives (test/expect/describe…) are IMPORTED from "@odoo/hoot",
@@ -347,6 +381,8 @@ export default [
             },
         },
         rules: {
+            // Debug logging in tests is fine.
+            "no-console": "off",
             // Under native ESM, module identity is keyed by resolved URL, so a
             // relative `../src/...` import and the canonical `@addon/...` bare
             // specifier for the same file resolve to TWO distinct module
@@ -411,6 +447,10 @@ export default [
             globals: {
                 ...globals.node,
             },
+        },
+        rules: {
+            // CLI tooling prints to stdout/stderr — console is its output.
+            "no-console": "off",
         },
     },
 

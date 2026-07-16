@@ -1,4 +1,5 @@
 /** @odoo-module native */
+/* eslint-disable no-console -- dedicated bus debug-logging service; console is its output */
 import { reactive } from "@odoo/owl";
 import { luxon } from "@web/core/l10n/luxon";
 import { registry } from "@web/core/registry";
