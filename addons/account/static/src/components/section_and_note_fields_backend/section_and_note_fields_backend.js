@@ -19,7 +19,7 @@ import {
     isSectionType,
     isSubSectionType,
     isTopSectionType,
-} from "./section_and_note_helpers";
+} from "./section_and_note_helpers.js";
 
 // Re-exported for external consumers (e.g. sale_management's order line field).
 export { getSectionRecords };

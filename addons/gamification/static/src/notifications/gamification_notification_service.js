@@ -1,7 +1,7 @@
 /** @odoo-module native */
 import { markup } from "@odoo/owl";
 import { registry } from "@web/core/registry";
-import { getNotificationIcon } from "../dashboard/gamification_dashboard_utils";
+import { getNotificationIcon } from "../dashboard/gamification_dashboard_utils.js";
 
 export const gamificationNotificationService = {
     dependencies: ["bus_service", "notification"],

@@ -10,7 +10,7 @@ import {
     getRarityBadgeClass,
     getStreakIcon,
     getTrendIcon,
-} from "./gamification_dashboard_utils";
+} from "./gamification_dashboard_utils.js";
 
 class GamificationDashboard extends Component {
     static template = "gamification.Dashboard";
