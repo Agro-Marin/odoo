@@ -1824,18 +1824,39 @@ class MrpProduction(models.Model):
             # Remove from `move_finished_ids` the by-product moves and then move `move_byproduct_ids`
             # into `move_finished_ids` to avoid duplicate and inconsistency.
             if vals.get("move_finished_ids") and vals.get("move_byproduct_ids"):
-                # Keep only the finished move for the MO's product; by-products are
-                # supplied via move_byproduct_ids. Guard against non-CREATE commands
-                # (e.g. LINK/SET, whose [2] is not a values dict) and a missing
-                # product_id (precomputed product), which the old raw indexing assumed.
+                # Guard against non-CREATE commands (e.g. LINK/SET, whose [2]
+                # is not a values dict), which the old raw indexing assumed.
                 main_product_id = vals.get("product_id")
-                vals["move_finished_ids"] = [
-                    command
-                    for command in vals["move_finished_ids"]
-                    if command[0] != Command.CREATE
-                    or not main_product_id
-                    or command[2].get("product_id") == main_product_id
-                ] + vals["move_byproduct_ids"]
+                if main_product_id:
+                    # Keep only the finished move for the MO's product;
+                    # by-products are supplied via move_byproduct_ids.
+                    kept = [
+                        command
+                        for command in vals["move_finished_ids"]
+                        if command[0] != Command.CREATE
+                        or command[2].get("product_id") == main_product_id
+                    ]
+                else:
+                    # No product_id (precomputed product): the main finished
+                    # move cannot be singled out, so instead drop the
+                    # by-product subset already present in move_finished_ids —
+                    # appending move_byproduct_ids on top of it would silently
+                    # duplicate every by-product move. A CREATE without
+                    # product_id identifies nothing and must never match (it
+                    # could be the main move itself), hence the truthy filter.
+                    byproduct_product_ids = {
+                        command[2].get("product_id")
+                        for command in vals["move_byproduct_ids"]
+                        if command[0] == Command.CREATE
+                        and command[2].get("product_id")
+                    }
+                    kept = [
+                        command
+                        for command in vals["move_finished_ids"]
+                        if command[0] != Command.CREATE
+                        or command[2].get("product_id") not in byproduct_product_ids
+                    ]
+                vals["move_finished_ids"] = kept + vals["move_byproduct_ids"]
                 del vals["move_byproduct_ids"]
             if not vals.get("name", False) or vals["name"] == _("New"):
                 picking_type_id = vals.get("picking_type_id")

@@ -219,7 +219,12 @@ class GamificationGoal(models.Model):
                         )
 
             elif definition.computation_mode in ("count", "sum"):  # count or sum
-                Obj = self.env[definition.model_id.model]
+                # sudo: a count/sum goal measures an objective metric; under
+                # the caller's record rules the stored value would depend on
+                # who triggered the refresh (and pair badly with the sudo
+                # write below). Scoping still comes from the goal's own
+                # domain/batch_user_expression, not from the acting user.
+                Obj = self.env[definition.model_id.model].sudo()
 
                 field_date_name = definition.field_date_id.name
                 if definition.batch_mode:
@@ -327,7 +332,11 @@ class GamificationGoal(models.Model):
                     continue
                 key = frozenset(values.items())
                 by_values.setdefault(key, []).append(goal.id)
-            Goal = self.env["gamification.goal"]
+            # The values above are computed server-side, never user-supplied,
+            # so write as sudo: the refresh button must keep working for
+            # non-manager users without tripping the automatic-goal write
+            # guard, which only targets direct user writes of current/state.
+            Goal = self.env["gamification.goal"].sudo()
             for vals_key, goal_ids in by_values.items():
                 Goal.browse(goal_ids).write(dict(vals_key))
             if self.env.context.get("commit_gamification"):
