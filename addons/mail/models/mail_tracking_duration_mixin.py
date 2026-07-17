@@ -15,6 +15,12 @@ class MailTrackingDurationMixin(models.AbstractModel):
     _description = "Mixin to compute the time a record has spent in each value a many2one field can take"
     _inherit = ["mail.thread"]
 
+    # Name of the datetime field holding the last time the tracked value
+    # changed, used by the rotting feature. Subclasses that rename it (e.g.
+    # project.task -> "date_last_status_change") only override this attribute
+    # instead of re-implementing every rotting method.
+    _track_duration_last_update_field = "date_last_stage_update"
+
     duration_tracking = fields.Json(
         string="Status time",
         compute="_compute_duration_tracking",
@@ -125,13 +131,14 @@ class MailTrackingDurationMixin(models.AbstractModel):
             self.rotting_days = 0
             return
         now = self.env.cr.now()
+        last_update_field = self._track_duration_last_update_field
         rot_enabled = self.filtered_domain(self._get_rotting_domain())
         others = self - rot_enabled
         for stage, records in rot_enabled.grouped(self._track_duration_field).items():
             rotting = records.filtered(
                 lambda record: (
                     (
-                        record.date_last_stage_update
+                        record[last_update_field]
                         or record.create_date
                         or fields.Datetime.now()
                     )
@@ -142,7 +149,7 @@ class MailTrackingDurationMixin(models.AbstractModel):
             for record in rotting:
                 record.is_rotting = True
                 record.rotting_days = (
-                    now - (record.date_last_stage_update or record.create_date)
+                    now - (record[last_update_field] or record.create_date)
                 ).days
             others += records - rotting
         others.is_rotting = False
@@ -196,12 +203,12 @@ class MailTrackingDurationMixin(models.AbstractModel):
             WITH perishables AS (
                 SELECT  %(table)s.id AS id,
                         (
-                            %(table)s.date_last_stage_update + %(stage_table_alias_name)s.rotting_threshold_days * interval '1 day'
+                            %(table)s.%(last_update_field)s + %(stage_table_alias_name)s.rotting_threshold_days * interval '1 day'
                         ) AS date_rot
                 FROM %(from_clause)s
                     {from_add_join}
                 WHERE
-                    %(table)s.date_last_stage_update > %(today)s - INTERVAL '%(max_rotting_months)s months'
+                    %(table)s.%(last_update_field)s > %(today)s - INTERVAL '%(max_rotting_months)s months'
                     AND %(where_clause)s
             )
             SELECT id
@@ -213,6 +220,7 @@ class MailTrackingDurationMixin(models.AbstractModel):
             SQL(
                 query,
                 table=SQL.identifier(self._table),
+                last_update_field=SQL.identifier(self._track_duration_last_update_field),
                 stage_table=SQL.identifier(self[self._track_duration_field]._table),
                 stage_table_alias_name=SQL.identifier(stage_table_alias_name),
                 stage_field=SQL.identifier(self._track_duration_field),
@@ -287,7 +295,7 @@ class MailTrackingDurationMixin(models.AbstractModel):
             and "rotting_threshold_days" in self[self._track_duration_field]
         ):
             return [
-                "date_last_stage_update",
+                self._track_duration_last_update_field,
                 f"{self._track_duration_field}.rotting_threshold_days",
             ]
         return []
@@ -319,7 +327,7 @@ class MailTrackingDurationMixin(models.AbstractModel):
         """
         return (
             "rotting_threshold_days" in self[self._track_duration_field]
-            and "date_last_stage_update" in self
+            and self._track_duration_last_update_field in self
             and (
                 not self  # api.model call
                 or any(
