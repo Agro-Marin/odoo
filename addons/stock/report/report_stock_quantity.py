@@ -202,4 +202,9 @@ GROUP BY product_id, product_tmpl_id, state, date, company_id, warehouse_id
             .sudo()
             .get_param("stock.report_stock_quantity_period", default="3")
         )
-        self.env.cr.execute(query, {"report_period": int(report_period)})
+        try:
+            report_period = int(report_period)
+        except ValueError:
+            # A malformed system parameter must not break registry loading.
+            report_period = 3
+        self.env.cr.execute(query, {"report_period": report_period})

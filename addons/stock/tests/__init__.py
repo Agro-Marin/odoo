@@ -32,3 +32,6 @@ from . import test_old_rules
 from . import test_overview_graph
 from . import test_picking_refactor
 from . import test_migrations
+from . import test_orderpoint_scheduler
+from . import test_location_package_fixes
+from . import test_report_wizard_fixes

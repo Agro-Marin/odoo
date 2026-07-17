@@ -295,16 +295,40 @@ class StockTraceabilityReport(models.TransientModel):
             )
         return final_vals
 
+    @api.model
+    def _get_pdf_line_allowed_models(self):
+        """Models the client may reference in printed traceability lines.
+
+        ``get_pdf_lines`` dereferences client-supplied ``model_name`` values;
+        restrict them to the models the report actually renders (every row
+        built by ``_make_dict_move`` is a ``stock.move.line``). Extension
+        modules that legitimately print other models must extend this set.
+        """
+        return {"stock.move.line"}
+
     def get_pdf_lines(self, line_data=None):
         final_vals = []
+        allowed_models = self._get_pdf_line_allowed_models()
         for line in line_data or []:
-            move_line = self.env[line["model_name"]].browse(line["model_id"])
+            # The payload comes straight from the client: coerce and validate
+            # each entry, silently skipping anything malformed or referencing
+            # a model this report does not render.
+            try:
+                model_name = line["model_name"]
+                model_id = int(line["model_id"])
+                level = int(line["level"])
+                parent_id = int(line["id"])
+            except KeyError, TypeError, ValueError:
+                continue
+            if model_name not in allowed_models:
+                continue
+            move_line = self.env[model_name].browse(model_id)
             final_vals.append(
                 self._make_dict_move(
-                    line["level"],
-                    parent_id=line["id"],
+                    level,
+                    parent_id=parent_id,
                     move_line=move_line,
-                    unfoldable=line.get("unfoldable", False),
+                    unfoldable=bool(line.get("unfoldable", False)),
                 )
             )
         return self._final_vals_to_lines(final_vals)

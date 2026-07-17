@@ -20,8 +20,12 @@ class ReportStockLabel_Product_Product_View(models.AbstractModel):
                 _("Product model not defined, Please contact your administrator.")
             )
 
+        # NOTE: the Markup-wrapped values below (barcode, display_name,
+        # default_code) only suppress escaping for the ZPL text templates in
+        # `report/product_templates.xml`. They are NOT HTML-safe and must
+        # never be rendered by an HTML report template.
         quantity_by_product = defaultdict(list)
-        for p, q in data.get("quantity_by_product").items():
+        for p, q in (data.get("quantity_by_product") or {}).items():
             product = Product.browse(int(p))
             default_code_markup = (
                 markupsafe.Markup(product.default_code) if product.default_code else ""
@@ -72,6 +76,8 @@ class ReportStockLabel_Lot_Template_View(models.AbstractModel):
     _description = "Lot Label Report"
 
     def _get_report_values(self, docids, data):
+        # Same caveat as the product labels above: the Markup values are for
+        # ZPL output only and are not HTML-safe.
         lots = self.env["stock.lot"].browse(docids)
         lot_list = [
             {

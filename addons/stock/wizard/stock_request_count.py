@@ -66,21 +66,20 @@ class StockRequestCount(models.TransientModel):
             return quants_to_count
         # Also count sibling quants (other lots) sharing product+location, since
         # tracked products are counted as a whole per location.
-        if tracked_quants:
-            domain = {
+        domain = Domain.OR(
+            {
                 Domain("product_id", "=", quant.product_id.id)
                 & Domain("location_id", "=", quant.location_id.id)
                 for quant in tracked_quants
             }
-            domain = Domain.OR(domain)
-            sibling_quants = self.env["stock.quant"].search(domain)
-            quants_to_count |= sibling_quants
-        return quants_to_count
+        )
+        sibling_quants = self.env["stock.quant"].search(domain)
+        return quants_to_count | sibling_quants
 
     def _get_values_to_write(self):
         values = {
             "inventory_date": self.inventory_date,
         }
         if self.user_id:
-            values["user_id"] = (self.user_id.id,)
+            values["user_id"] = self.user_id.id
         return values

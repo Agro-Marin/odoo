@@ -19,6 +19,19 @@ class StockReportController(http.Controller):
         if output_format != "pdf":
             raise BadRequest(f"Unsupported output format: {output_format!r}")
 
+        # Validate client input before the try block: client errors must
+        # surface as 400s, not be swallowed by the generic handler below and
+        # re-raised as a misleading 500 "Odoo Server Error".
+        raw_data = kw.get("data")
+        active_id = kw.get("active_id")
+        active_model = kw.get("active_model")
+        if not raw_data or not active_id or not active_model:
+            raise BadRequest("Missing required parameters: data/active_id/active_model")
+        try:
+            line_data = json.loads(raw_data)
+        except ValueError as e:
+            raise BadRequest("Invalid JSON payload in 'data'") from e
+
         uid = request.session.uid
         domain = [("create_uid", "=", uid)]
         stock_traceability = (
@@ -27,17 +40,6 @@ class StockReportController(http.Controller):
             .search(domain, limit=1)
         )
         try:
-            # Parse/validate client input inside the handler so malformed or
-            # missing params surface as the structured error envelope below
-            # rather than a raw HTTP 500 traceback.
-            raw_data = kw.get("data")
-            active_id = kw.get("active_id")
-            active_model = kw.get("active_model")
-            if not raw_data or not active_id or not active_model:
-                raise BadRequest(
-                    "Missing required parameters: data/active_id/active_model"
-                )
-            line_data = json.loads(raw_data)
             return request.make_response(
                 stock_traceability.with_context(
                     active_id=active_id, active_model=active_model
