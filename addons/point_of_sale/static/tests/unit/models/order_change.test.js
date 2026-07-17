@@ -1,10 +1,34 @@
 import { expect, test } from "@odoo/hoot";
-import { getOrderChanges } from "@point_of_sale/app/models/utils/order_change";
+import {
+    changesToOrder,
+    getOrderChanges,
+} from "@point_of_sale/app/models/utils/order_change";
 
 import { definePosModels } from "../data/generate_model_definitions.js";
 import { getFilledOrder, setupPosEnv } from "../utils.js";
 
 definePosModels();
+
+test("changesToOrder(cancelled) does not mutate the persisted prep-change lines", async () => {
+    const store = await setupPosEnv();
+    const order = await getFilledOrder(store);
+    const categIds = new Set(order.lines[0].product_id.parentPosCategIds);
+
+    order.updateLastOrderChange();
+    const persisted = order.last_order_preparation_change.lines;
+    const persistedEntries = Object.values(persisted);
+    const quantitiesBefore = persistedEntries.map((l) => l.quantity);
+    expect(persistedEntries.length).toBeGreaterThan(0);
+
+    const result = changesToOrder(order, categIds, true);
+
+    // The cancelled items must be COPIES, not aliases of the persisted entries —
+    // Math.abs() used to be written through and corrupt subsequent diffs.
+    for (const item of result.cancelled) {
+        expect(persistedEntries.includes(item)).toBe(false);
+    }
+    expect(Object.values(persisted).map((l) => l.quantity)).toEqual(quantitiesBefore);
+});
 
 test("qty + note changed together keeps the qty delta on the ticket", async () => {
     const store = await setupPosEnv();

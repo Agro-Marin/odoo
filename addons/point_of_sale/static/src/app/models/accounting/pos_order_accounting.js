@@ -205,8 +205,12 @@ export class PosOrderAccounting extends Base {
      * @returns A monetary value.
      */
     getDefaultAmountDueToPayIn(paymentMethod) {
+        // Use `this.config` (the always-loaded session config) like every other
+        // rounding site here, not `this.config_id`: an order from a trusted
+        // shared config may reference a rounding_method record that isn't loaded,
+        // which threw `Cannot read 'round' of undefined`.
         const amount = this.shouldRound(paymentMethod)
-            ? this.config_id.rounding_method.round(this.remainingDue)
+            ? this.config.rounding_method.round(this.remainingDue)
             : this.remainingDue;
         return amount || this.change;
     }
