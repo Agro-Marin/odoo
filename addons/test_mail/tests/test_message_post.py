@@ -1861,6 +1861,45 @@ class TestMessagePost(TestMessagePostCommon, CronMixinCase):
         )
         self.assertEqual(ooo_b.partner_ids, self.partner_employee_c2)
 
+    def test_post_with_out_of_office_share_author_no_crash(self):
+        """A share/portal author posting a comment that notifies an out-of-office
+        internal user must not crash. The OOO auto-reply is system-generated and
+        passes 'mail_headers', a parameter ``_get_notify_valid_parameters``
+        forbids to share users — so it must post under sudo, not as the (share)
+        poster. Regression: it used to raise ``ValueError`` (param not supported)
+        and 500 the whole portal comment.
+        """
+        # a portal user can only post to a model whose _mail_post_access='read'
+        container = self.env['mail.test.container'].create({'name': 'OOO share probe'})
+        self.env['ir.model.access'].sudo().create({
+            'name': 'portal read container (test)',
+            'model_id': self.env['ir.model']._get('mail.test.container').id,
+            'group_id': self.env.ref('base.group_portal').id,
+            'perm_read': True,
+        })
+        container.message_subscribe(self.user_portal.partner_id.ids)
+        self._setup_out_of_office(self.user_employee_c2)
+        self.assertTrue(self.user_portal.share)
+        self.assertTrue(self.user_employee_c2.is_out_of_office)
+
+        with self.mock_mail_gateway(), self.mock_mail_app():
+            message = container.with_user(self.user_portal).message_post(
+                body="portal ping to an out-of-office teammate",
+                message_type='comment',
+                partner_ids=self.user_employee_c2.partner_id.ids,
+                subtype_id=self.env.ref('mail.mt_comment').id,
+            )
+        self.assertTrue(message, "the portal comment itself must succeed")
+        ooo = self.env['mail.message'].sudo().search([
+            ('model', '=', 'mail.test.container'),
+            ('res_id', '=', container.id),
+            ('message_type', '=', 'out_of_office'),
+        ])
+        self.assertEqual(
+            ooo.author_id, self.user_employee_c2.partner_id,
+            "the absent internal user's OOO auto-reply must still be generated",
+        )
+
 
 @tagged('mail_post')
 class TestMessagePostHelpers(TestMessagePostCommon):

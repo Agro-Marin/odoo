@@ -438,6 +438,27 @@ class TestWebPushNotification(SMSCommon):
             'Tracking changes should be included in push notif payload'
         )
 
+    def test_tracking_message_non_char_field(self):
+        """Regression: a push tracking message must render float / monetary /
+        date changes with their real value. They live in *_value_float /
+        *_value_datetime, so reading only *_value_char / *_value_integer used to
+        render every such change as '0' (e.g. a 10.5 -> 20.0 price -> 'Revenue: 0').
+        """
+        record = self.env['mail.test.track.monetary'].create({})
+        field = self.env['ir.model.fields']._get('mail.test.track.monetary', 'revenue')
+        message = self.env['mail.message'].create({
+            'model': 'mail.test.track.monetary', 'res_id': record.id,
+            'message_type': 'notification', 'subtype_id': self.env.ref('mail.mt_note').id,
+        })
+        self.env['mail.tracking.value'].create({
+            'mail_message_id': message.id, 'field_id': field.id,
+            'old_value_float': 10.5, 'new_value_float': 20.0,
+        })
+        message.invalidate_recordset(['tracking_value_ids'])
+        body = self.env['mail.thread']._generate_tracking_message(message)
+        self.assertIn('Revenue: 10.5 → 20.0', body)
+        self.assertNotIn('Revenue: 0', body)
+
     @patch.object(odoo.addons.mail.models.mail_push, 'push_to_end_point')
     def test_push_notifications_cron(self, push_to_end_point):
         # Add 4 more devices to force sending via cron queue

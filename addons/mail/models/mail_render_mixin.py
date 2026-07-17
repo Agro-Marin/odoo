@@ -563,10 +563,14 @@ class MailRenderMixin(models.AbstractModel):
                     template_label = _("Template name not identified")
                     is_identified = False
 
-                # Truncation of the source to prevent log bloat
+                # Truncation of the source to prevent log bloat. The truncated
+                # form is the only one ever shown in the user-facing UserError:
+                # when the template cannot be named we still log its full source
+                # (to locate it), but never leak it to whoever triggered the render.
                 truncated_src = template_src
-                if len(template_src) > 1000 and is_identified:
+                if len(template_src) > 1000:
                     truncated_src = f"{template_src[:500]}\n[...] (content truncated) [...]\n{template_src[-500:]}"
+                log_src = template_src if not is_identified else truncated_src
 
                 lang_context = self.env.context.get(
                     "lang", _("No language detected in context")
@@ -577,7 +581,7 @@ class MailRenderMixin(models.AbstractModel):
                     lang_context,
                     model,
                     error_details,
-                    truncated_src,
+                    log_src,
                 )
                 # Log the full technical traceback for the sysadmin/developer
                 _logger.debug(

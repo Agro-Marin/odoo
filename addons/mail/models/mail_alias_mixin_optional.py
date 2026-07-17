@@ -164,7 +164,11 @@ class MailAliasMixinOptional(models.AbstractModel):
             for record, alias_domain_id in alias_domain_values.items():
                 record.sudo().alias_domain_id = alias_domain_id.id
 
-        if alias_vals and (record_vals or self.browse().has_access("write")):
+        # self.browse() is an EMPTY recordset, so has_access() only evaluated the
+        # model-level ACL and never the record rules — an alias-only write (no
+        # record_vals) by a user a record rule forbids from writing these records
+        # still went through. Check access on the real records.
+        if alias_vals and (record_vals or self.has_access("write")):
             self.mapped("alias_id").sudo().write(alias_vals)
 
         return True

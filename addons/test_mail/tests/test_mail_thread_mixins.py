@@ -2,6 +2,7 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 from datetime import datetime
+from dateutil.relativedelta import relativedelta
 from odoo import exceptions, tools
 from odoo.addons.mail.tests.common import MailCommon
 from odoo.addons.mail.tests.common_tracking import MailTrackingDurationMixinCase
@@ -178,6 +179,50 @@ class TestMailThreadRottingMixin(MailTrackingDurationMixinCase):
                     item.is_rotting,
                     'Items that are not done, won, or in a disabled rotting stage are not rotting',
                 )
+
+    def test_resource_rotting_search_max_months_window(self):
+        """``_search_is_rotting`` must honor the configured max-months window.
+
+        Regression: the ``INTERVAL '%(max_rotting_months)s months'`` placeholder
+        sat inside a SQL string literal, so under psycopg3's server-side binding
+        the bound value was ignored and the window silently collapsed to the
+        placeholder's positional ordinal (~2 months) -- hiding the *most* rotten
+        records (those last touched long ago) from every 'Rotting' filter while
+        the kanban badge still showed them rotting.
+        """
+        base = datetime(2025, 1, 1)
+        with self.mock_datetime_and_now(base):
+            rec = self.env['mail.test.rotting.resource'].create({
+                'name': 'old_rotting',
+                'stage_id': self.stage_new.id,  # rotting_threshold_days = 3
+            })
+            rec.flush_recordset(['date_last_stage_update'])
+
+        # Configure an explicit, non-default window so the test proves the *value*
+        # is bound (the old bug ignored it entirely, whatever it was set to).
+        self.env['ir.config_parameter'].sudo().set_param('crm.lead.rot.max.months', 6)
+
+        # 4 months later: last stage move was 4 months ago (>> 3d threshold) so the
+        # record is rotting, and 4 < 6 => it must be returned by the search.
+        with self.mock_datetime_and_now(base + relativedelta(months=4)):
+            rec.invalidate_recordset(['is_rotting'])
+            self.assertTrue(rec.is_rotting)
+            found = self.env['mail.test.rotting.resource'].search([('is_rotting', '=', True)])
+            self.assertIn(
+                rec, found,
+                'a 4-month-old rotting record is inside the 6-month window and must be found',
+            )
+
+        # 8 months later: still rotting by compute, but 8 > 6 => excluded by the
+        # window (confirms the cutoff is a real, honored bound, not a no-op).
+        with self.mock_datetime_and_now(base + relativedelta(months=8)):
+            rec.invalidate_recordset(['is_rotting'])
+            self.assertTrue(rec.is_rotting)
+            found = self.env['mail.test.rotting.resource'].search([('is_rotting', '=', True)])
+            self.assertNotIn(
+                rec, found,
+                'an 8-month-old record is outside the 6-month window',
+            )
 
 
 @tagged('mail_thread', 'mail_blacklist')

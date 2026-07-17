@@ -167,16 +167,21 @@ class MailActivitySchedule(models.TransientModel):
         for scheduler in self:
             errors = set()
             warnings = set()
+            # Bind once per iteration: applied_on used to be assigned only inside
+            # the `res_model` branch yet read in the `plan_id` branch, so a plan
+            # scheduler with no res_model raised UnboundLocalError (and, mid-batch,
+            # leaked the previous scheduler's records). None when there is no model.
+            applied_on = scheduler._get_applied_on_records()
             if scheduler.res_model:
-                applied_on = scheduler._get_applied_on_records()
                 if applied_on and (
                     "company_id" in scheduler.env[applied_on._name]._fields
                     and len(applied_on.mapped("company_id")) > 1
                 ):
                     errors.add(_("The records must belong to the same company."))
             if scheduler.plan_id:
-                errors |= set(scheduler._check_plan_templates_error(applied_on))
-                warnings |= set(scheduler._check_plan_templates_warning(applied_on))
+                if applied_on:
+                    errors |= set(scheduler._check_plan_templates_error(applied_on))
+                    warnings |= set(scheduler._check_plan_templates_warning(applied_on))
                 if not scheduler.res_ids:
                     errors.add(_("Can't launch a plan without a record."))
             if not scheduler.res_ids and not scheduler.activity_user_id:
