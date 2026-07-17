@@ -103,7 +103,9 @@ export class CashMovePopup extends Component {
         this.props.close();
         this.notification.add(
             _t("Successfully made a cash %s of %s.", type, formattedAmount),
-            3000,
+            // Second arg is an options object; a bare `3000` was spread into
+            // nothing, so the intended 3s auto-close never applied.
+            { autocloseDelay: 3000 },
         );
     }
     onClickButton(type) {

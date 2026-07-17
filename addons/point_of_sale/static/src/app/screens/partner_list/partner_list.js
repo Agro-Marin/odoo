@@ -145,7 +145,11 @@ export class PartnerList extends Component {
         );
 
         const availablePartners = searchWord
-            ? partners.filter((p) => regex.test(normalize(p.searchString)))
+            ? // Cap rendered lines during search: with thousands of cached
+              // partners a broad pattern could match them all and mount an
+              // equal number of PartnerLine components, freezing/crashing the
+              // browser. The first 50 matches are enough to pick from.
+              partners.filter((p) => regex.test(normalize(p.searchString))).slice(0, 50)
             : partners
                   .slice(0, 1000)
                   .toSorted((a, b) =>
