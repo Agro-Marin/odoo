@@ -1,10 +1,10 @@
 import { test, expect } from "@odoo/hoot";
 import { setupPosEnv } from "@point_of_sale/../tests/unit/utils";
-import { definePosModels } from "@point_of_sale/../tests/unit/data/generate_model_definitions";
+import { definePosLoyaltyModels } from "@pos_loyalty/../tests/unit/data/generate_model_definitions";
 import { addProductLineToOrder } from "@pos_loyalty/../tests/unit/utils";
 import OrderPaymentValidation from "@point_of_sale/app/utils/order_payment_validation";
 
-definePosModels();
+definePosLoyaltyModels();
 
 test("validateOrder", async () => {
     const store = await setupPosEnv();
