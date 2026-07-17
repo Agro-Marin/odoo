@@ -10022,3 +10022,40 @@ class TestStockMove(TestStockCommon):
         # All the move lines are also picked
         for move_line in delivery.move_ids.move_line_ids:
             self.assertTrue(move_line.picked)
+
+    def _weight_move(self):
+        return self.env["stock.move"].create(
+            {
+                "product_id": self.kgB.id,
+                "product_uom_qty": 5.0,
+                "product_uom_id": self.uom_kg.id,
+                "location_id": self.stock_location.id,
+                "location_dest_id": self.customer_location.id,
+            },
+        )
+
+    def test_quantity_packaging_uom_degrades_on_cross_category(self):
+        """A stored `packaging_uom_id` left cross-category by legacy data (a
+        Weight product carrying a Units packaging UoM) must not raise when
+        `quantity_packaging_uom` recomputes. Before the fix the recompute called
+        `uom._compute_quantity` with `raise_if_failure=True` and blocked whole
+        flushes in production (e.g. picking `CDG/SHIP/26/07/0787`).
+        """
+        move = self._weight_move()
+        self.assertFalse(self.uom_kg._has_common_reference(self.uom_unit))
+
+        # Simulate the legacy state: packaging UoM stored cross-category. The
+        # recompute must degrade to the product quantity, not raise.
+        move.packaging_uom_id = self.uom_unit
+
+        self.assertEqual(move.quantity_packaging_uom, move.product_uom_qty)
+
+    def test_quantity_packaging_uom_still_converts_when_compatible(self):
+        """Same-reference packaging UoM must still convert exactly — the degrade
+        guard only changes behavior for cross-category UoMs.
+        """
+        move = self._weight_move()
+        move.packaging_uom_id = self.uom_gm
+
+        # 5 kg == 5000 g (the Weight category reference is the gram).
+        self.assertEqual(move.quantity_packaging_uom, 5000.0)
