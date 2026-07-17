@@ -127,6 +127,11 @@ export class DebugWidget extends Component {
                 } orders in the browser. You will lose all the data. This operation cannot be undone.`,
             ),
             confirm: () => {
+                // Clear the persisted mirror too, or the queue resurrects on
+                // the next reload.
+                for (const entry of this.pos.data.network.unsyncData) {
+                    this.pos.data._unpersistQueueEntry(entry.uuid);
+                }
                 this.pos.data.network.unsyncData = [];
                 const orders = this.pos.models["pos.order"].filter(
                     (order) => order.finalized === paid,

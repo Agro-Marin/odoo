@@ -767,10 +767,36 @@ export function createRelatedModels(modelDefs, modelClasses = {}, opts = {}) {
          * @returns {Array<Base>} - The list of loaded records.
          */
         connectNewData(data, serverData = true) {
+            // Snapshot ingestion (device sync, loadServerOrders, callRelated):
+            // never authoritative over local uncommitted edits, unlike
+            // loadConnectedData (the sync-response path, which carries id
+            // remaps and must apply).
             return disabler.call((...args) => this._loadData(...args), data, [], {
                 connectRecords: true,
                 serverData: serverData,
+                preserveDirty: true,
             });
+        }
+
+        // True when `id` (a server id of `modelName`) is referenced by a
+        // pending unlink/delete command — i.e. it was deleted locally and the
+        // deletion has not been acknowledged by the server yet.
+        _isPendingDeletion(modelName, key, id) {
+            for (const parentModel in commands) {
+                const parentFields = getFields(parentModel);
+                const modelCommands = commands[parentModel];
+                for (const map of [modelCommands.unlink, modelCommands.delete]) {
+                    for (const [fieldName, list] of map.entries()) {
+                        if (parentFields[fieldName]?.relation !== modelName) {
+                            continue;
+                        }
+                        if (list.some((cmd) => cmd.id === id || cmd.id === key)) {
+                            return true;
+                        }
+                    }
+                }
+            }
+            return false;
         }
 
         _loadData(rawData, modelsToLoad = [], opts = {}) {
@@ -803,7 +829,45 @@ export function createRelatedModels(modelDefs, modelClasses = {}, opts = {}) {
                         let record,
                             uiState,
                             isUpdate = false;
+                        if (opts.preserveDirty && !existingRecord) {
+                            // A record deleted locally (pending unlink/delete
+                            // command) must not be resurrected by an incoming
+                            // snapshot — the deletion has not reached the
+                            // server yet.
+                            if (this._isPendingDeletion(model, vals[modelKey], vals.id)) {
+                                continue;
+                            }
+                        }
                         if (existingRecord) {
+                            if (
+                                opts.preserveDirty &&
+                                dynamicModels.includes(model) &&
+                                existingRecord.isSynced &&
+                                existingRecord.isDirty?.()
+                            ) {
+                                // Dynamic models only: the client owns edits
+                                // to pos.order & co. and syncs them back —
+                                // static models (products, categories…) are
+                                // never synced, so their dirty flag must not
+                                // block server refreshes.
+                                // Snapshot ingestion (connectNewData): local
+                                // uncommitted edits to a SYNCED record win —
+                                // clobbering the raw discarded scalar edits
+                                // and deletions whenever another device
+                                // touched the order. (Unsynced records still
+                                // accept the payload: connectNewData is also
+                                // the uuid → server-id remap path.) The record
+                                // stays queued for sync; the server state
+                                // reconciles after.
+                                results[model].push({
+                                    record: existingRecord,
+                                    vals,
+                                    uiState: undefined,
+                                    isUpdate: true,
+                                    skip: true,
+                                });
+                                continue;
+                            }
                             const {
                                 rawData,
                                 uiState: newUiState,
@@ -846,7 +910,13 @@ export function createRelatedModels(modelDefs, modelClasses = {}, opts = {}) {
                     finalResults[model] = resultsArray;
                     const modelEvents = this[model];
                     for (let i = 0; i < entries.length; i++) {
-                        const { record, vals, uiState, isUpdate } = entries[i];
+                        const { record, vals, uiState, isUpdate, skip } = entries[i];
+                        if (skip) {
+                            // Dirty record preserved as-is: no setup re-run,
+                            // no update event.
+                            resultsArray.push(record);
+                            continue;
+                        }
                         setupRecord(record, vals, uiState, isUpdate);
                         if (!isUpdate) {
                             createdIds.push(record.id);
