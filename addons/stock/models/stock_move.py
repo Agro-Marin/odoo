@@ -1117,6 +1117,11 @@ class StockMove(models.Model):
                 days = move.picking_type_id.reservation_days_before
                 if move.priority == "1":
                     days = move.picking_type_id.reservation_days_before_priority
+                # UTC frame: `move.date` is naive UTC, and so is
+                # `fields.Date.today()` at every comparison site — the
+                # framework pins the process clock to UTC
+                # (odoo/_monkeypatches: os.environ["TZ"] = "UTC"), per the
+                # backend-computes-in-UTC policy.
                 move.date_reservation = fields.Date.to_date(move.date) - timedelta(
                     days=days,
                 )
