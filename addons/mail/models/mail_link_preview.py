@@ -78,8 +78,10 @@ class MailLinkPreview(models.Model):
                 len(message_link_previews_ok)
                 + len(message_link_previews_values)
                 + len(link_previews_values)
-                > 5
+                >= 5
             ):
+                # cap at 5: the check runs after appending this iteration's
+                # preview, so ``> 5`` let a 6th through before stopping.
                 break
         new_link_preview_by_url = {
             link_preview.source_url: link_preview
@@ -122,8 +124,17 @@ class MailLinkPreview(models.Model):
         date_interval = fields.Datetime.to_string(
             datetime.now() - relativedelta(seconds=10)
         )
-        call_counter = self.env["mail.link.preview"].search_count(
-            [("source_url", "ilike", domain), ("create_date", ">", date_interval)]
+        # Count recent previews for the SAME host. Matching source_url with
+        # ``ilike domain`` was a substring test: it defeated the source_url index
+        # (sequential scan on every preview) and conflated hosts — an unrelated
+        # URL carrying the domain in its path/query inflated the per-host counter
+        # (over-throttling the real host) while a look-alike host slipped through.
+        # Scan the create_date-indexed window and compare the parsed netloc.
+        recent_urls = self.env["mail.link.preview"].search_read(
+            [("create_date", ">", date_interval)], ["source_url"]
+        )
+        call_counter = sum(
+            1 for row in recent_urls if urlparse(row["source_url"]).netloc == domain
         )
         link_preview_throttle = int(
             self.env["ir.config_parameter"]

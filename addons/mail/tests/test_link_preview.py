@@ -278,6 +278,39 @@ class TestLinkPreview(MailCommon):
             with self.assertBus(get_params=get_bus_params):
                 self.env["mail.link.preview"]._create_from_message_and_notify(message)
 
+    def test_link_preview_throttle_is_per_host(self):
+        """The per-domain throttle must count previews of the SAME host only.
+        Regression: ``source_url ilike domain`` was a substring match, so an
+        unrelated URL merely containing the domain (query param / look-alike
+        host) tripped the throttle for a host with no previews of its own."""
+        LP = self.env["mail.link.preview"]
+        self.env["ir.config_parameter"].sudo().set_param(
+            "mail.link_preview_throttle", 1
+        )
+        LP.create(
+            [
+                {"source_url": "https://foo.com/page?ref=evil.com"},
+                {"source_url": "https://notevil.com.attacker.net/x"},
+            ]
+        )
+        LP.flush_model()
+        self.assertFalse(
+            LP._is_domain_thottled("https://evil.com/target"),
+            "an unrelated substring match must not throttle a host with 0 previews",
+        )
+        # but two recent previews of the SAME host do exceed a throttle of 1
+        LP.create(
+            [
+                {"source_url": "https://real.com/a"},
+                {"source_url": "https://real.com/b"},
+            ]
+        )
+        LP.flush_model()
+        self.assertTrue(
+            LP._is_domain_thottled("https://real.com/c"),
+            "two recent previews of the same host exceed a throttle of 1",
+        )
+
     def test_link_preview_no_content_type(self):
         with patch.object(
             requests.Session, "request", self._patch_with_no_content_type
