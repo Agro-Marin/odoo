@@ -199,3 +199,75 @@ class TestReviewCompoundingFixes(TestStockCommon):
         self.env.flush_all()
         self.assertEqual(lot1.location_id, loc_c)
         self.assertEqual(lot2.location_id, loc_c)
+
+    def test_serial_prefix_does_not_hijack_foreign_sequence(self):
+        """product_template: a serial prefix matching a foreign document sequence must
+        not repoint lot generation at that sequence (M10)."""
+        foreign = self.env["ir.sequence"].create(
+            {"name": "Foreign", "code": "sale.order", "prefix": "ZZHIJACK/", "padding": 5}
+        )
+        tmpl = self.env["product.template"].create(
+            {"name": "M10_prod", "is_storable": True, "tracking": "serial"}
+        )
+        tmpl.serial_prefix_format = "ZZHIJACK/"
+        self.assertNotEqual(
+            tmpl.lot_sequence_id, foreign, "must not hijack the sale.order sequence"
+        )
+        self.assertEqual(tmpl.lot_sequence_id.code, "stock.lot.serial")
+
+    def test_contained_quant_search_negative_operator(self):
+        """stock_package: a package that DOES contain a quant must not match a
+        'not in [that quant]' search (M11)."""
+        prod = self.env["product.product"].create(
+            {"name": "M11_prod", "type": "consu", "is_storable": True}
+        )
+        pkg = self.env["stock.package"].create({"name": "M11-PKG"})
+        self.env["stock.quant"]._update_available_quantity(
+            prod, self.stock_location, 4.0, package_id=pkg
+        )
+        self.env.flush_all()
+        quant = pkg.quant_ids
+        self.assertTrue(quant)
+        # Positive: the package contains the quant.
+        self.assertIn(
+            pkg, self.env["stock.package"].search([("contained_quant_ids", "in", quant.ids)])
+        )
+        # Negative: it must therefore NOT match "not in [that quant]".
+        self.assertNotIn(
+            pkg,
+            self.env["stock.package"].search([("contained_quant_ids", "not in", quant.ids)]),
+        )
+
+    def test_reception_assign_rejects_done_out(self):
+        """report_stock_reception: action_assign must refuse a non-assignable (done)
+        out move instead of mutating it (M3)."""
+        report = self.env["report.stock.report_reception"]
+        prod = self.env["product.product"].create(
+            {"name": "M3_prod", "type": "consu", "is_storable": True}
+        )
+        self.env["stock.quant"]._update_available_quantity(prod, self.stock_location, 10.0)
+        # A validated (done) delivery: not an assignable candidate.
+        out_pick = self.env["stock.picking"].create(
+            {"picking_type_id": self.warehouse_1.out_type_id.id,
+             "location_id": self.stock_location.id,
+             "location_dest_id": self.customer_location.id}
+        )
+        out_move = self.env["stock.move"].create(
+            {"product_id": prod.id, "product_uom_qty": 5.0, "product_uom_id": prod.uom_id.id,
+             "picking_id": out_pick.id, "location_id": self.stock_location.id,
+             "location_dest_id": self.customer_location.id}
+        )
+        out_pick.action_confirm()
+        out_move.quantity = 5.0
+        out_move.picked = True
+        out_pick.button_validate()
+        self.assertEqual(out_move.state, "done")
+        in_move = self.env["stock.move"].create(
+            {"product_id": prod.id, "product_uom_qty": 5.0, "product_uom_id": prod.uom_id.id,
+             "location_id": self.supplier_location.id,
+             "location_dest_id": self.stock_location.id,
+             "picking_type_id": self.warehouse_1.in_type_id.id}
+        )
+        in_move._action_confirm()
+        with self.assertRaises(UserError):
+            report.action_assign([out_move.id], [5.0], [[in_move.id]])

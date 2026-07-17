@@ -469,12 +469,20 @@ class StockPackage(models.Model):
     # ------------------------------------------------------------
 
     def _search_all_children_package_ids(self, operator, value):
+        if operator in Domain.NEGATIVE_OPERATORS:
+            # Let the ORM derive the negation from the positive domain: wrapping a
+            # negative operator's matches with parent_of composes wrongly (a package
+            # that DOES contain the target would match "not in", because its child
+            # matched the negated inner search).
+            return NotImplemented
         packages = self.search_fetch(
             domain=[("id", operator, value)], field_names=["id"]
         )
         return [("id", "parent_of", packages.ids)]
 
     def _search_contained_quant_ids(self, operator, value):
+        if operator in Domain.NEGATIVE_OPERATORS:
+            return NotImplemented
         packages = self.search([("quant_ids", operator, value)])
         if packages:
             return [("id", "parent_of", packages.ids)]

@@ -352,6 +352,31 @@ class ReportStockReport_Reception(models.AbstractModel):
         ]
         if not assignments:
             return
+        # Re-validate the client-supplied payload server-side. This RPC turns moves
+        # into make-to-order and re-parents reserved quants, so a crafted request (or
+        # a stale report tab) must not link an out that is not an assignable candidate,
+        # re-link an already-linked out, or cross a company boundary -- the report's
+        # own candidate search (`_search_candidate_outs`) enforces the same invariants.
+        allowed_out_states = {"confirmed", "partially_available", "waiting", "assigned"}
+        for out_id, _qty, ins in assignments:
+            out = self.env["stock.move"].browse(out_id)
+            if out.state not in allowed_out_states:
+                raise UserError(
+                    _("Cannot assign transfer %s in state %s.", out.display_name, out.state)
+                )
+            if out.move_orig_ids:
+                raise UserError(
+                    _("Transfer %s is already linked to a source.", out.display_name)
+                )
+            for in_move in self.env["stock.move"].browse(ins):
+                if in_move.company_id != out.company_id:
+                    raise UserError(
+                        _(
+                            "Cannot link transfers across companies (%(out)s / %(inc)s).",
+                            out=out.display_name,
+                            inc=in_move.display_name,
+                        )
+                    )
         out_ids = [out_id for out_id, _qty, _ins in assignments]
         outs = self.env["stock.move"].browse(out_ids)
 
@@ -382,7 +407,15 @@ class ReportStockReport_Reception(models.AbstractModel):
                     # let's assume if 1 of the potential_ins isn't done, then none of them are => we are only assigning the not-reserved
                     # qty and the new move should have all existing reserved quants (i.e. move lines) assigned to it
                     out.move_line_ids.move_id = new_out
-                elif potential_ins[0].state == "done" and out.quantity > qty_to_link:
+                elif potential_ins[0].state == "done" and out.product_id.uom_id.compare(
+                    # out.quantity is in the move's UoM; qty_to_link is in the product's
+                    # reference UoM (as is product_qty). Convert before comparing, or a
+                    # non-unit move UoM (e.g. dozens) silently mis-compares.
+                    out.product_uom_id._compute_quantity(
+                        out.quantity, out.product_id.uom_id
+                    ),
+                    qty_to_link,
+                ) > 0:
                     # let's assume if 1 of the potential_ins is done, then all of them are => we can link them to already reserved moves, but we
                     # need to make sure the reserved qtys still match the demand amount the move (we're assigning).
                     out.move_line_ids.move_id = new_out
@@ -483,9 +516,18 @@ class ReportStockReport_Reception(models.AbstractModel):
                 new_out.write({"state": "confirmed"})
                 out.move_line_ids.move_id = new_out
                 (out | new_out)._compute_quantity()
-                if new_out.quantity > new_out.product_qty:
+                # new_out.quantity is in the move UoM; product_qty and the move lines'
+                # quantity_product_uom below are in the product reference UoM. Work in
+                # reference UoM throughout so a non-unit move UoM does not mis-compute
+                # the extra reserved amount.
+                new_out_qty_ref = new_out.product_uom_id._compute_quantity(
+                    new_out.quantity, new_out.product_id.uom_id
+                )
+                if new_out.product_id.uom_id.compare(
+                    new_out_qty_ref, new_out.product_qty
+                ) > 0:
                     # extra reserved amount goes to no longer linked out
-                    reserved_amount_to_remain = new_out.quantity - new_out.product_qty
+                    reserved_amount_to_remain = new_out_qty_ref - new_out.product_qty
                     for move_line_id in new_out.move_line_ids:
                         if reserved_amount_to_remain <= 0:
                             break
