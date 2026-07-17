@@ -215,18 +215,33 @@ class StockForecasted_Product_Product(models.AbstractModel):
         }
 
     def _get_warehouse(self):
-        return self.env["stock.warehouse"].browse(
+        warehouse = self.env["stock.warehouse"].browse(
             self.env.context.get("warehouse_id", False)
-        ) or self.env["stock.warehouse"].search([("active", "=", True)], limit=1)
+        )
+        if warehouse:
+            return warehouse
+        # Without an explicit warehouse, prefer the current company's first
+        # warehouse over the first one of any allowed company.
+        Warehouse = self.env["stock.warehouse"]
+        return Warehouse.search(
+            [
+                *Warehouse._check_company_domain(self.env.company),
+                ("active", "=", True),
+            ],
+            limit=1,
+        ) or Warehouse.search([("active", "=", True)], limit=1)
 
     def _get_report_data(self, product_template_ids=False, product_ids=False):
         assert product_template_ids or product_ids
         res = {}
 
         warehouse = self._get_warehouse()
-        # Must stay a materialised id list: it is used in `not in` domains,
-        # which only get the implicit `OR field IS NULL` clause for a list, not
-        # for a subquery — a Query here silently changes which moves match.
+        # Materialised id list for the header/lines helpers. A Query would be
+        # equally correct in the domains (`_get_forecast_availability_outgoing`
+        # passes one to `_get_report_lines`): the `not in` clauses do not rely
+        # on the implicit NULL handling of id lists because `location_id` and
+        # `location_dest_id` are required fields and `location_final_id` is
+        # guarded by an explicit `!= False` in `_move_domain`.
         wh_location_ids = (
             self.env["stock.location"]
             .search([("id", "child_of", warehouse.view_location_id.id)])
@@ -376,8 +391,15 @@ class StockForecasted_Product_Product(models.AbstractModel):
             reserved = move.product_uom_id._compute_quantity_report(
                 move.quantity, move.product_id.uom_id
             )
-            # check if the move reserved qty was counted before (happens if multiple outs share pick/pack)
-            reserved = min(reserved - used_reserved_moves[move], out.product_qty)
+            # Cap by the demand still unreserved, not the full demand: with the
+            # full-demand cap, several linked moves could together push
+            # ``reserved_out`` past ``out.product_qty`` and over-decrement the
+            # on-hand ledger. Also skip quantities counted before (happens if
+            # multiple outs share pick/pack).
+            reserved = min(
+                reserved - used_reserved_moves[move],
+                out.product_qty - reserved_out,
+            )
             if reserved and not reserved_move:
                 reserved_move = move
             reserved_out += reserved

@@ -4,14 +4,6 @@ from collections import defaultdict
 from odoo import api, fields, models
 from odoo.tools.misc import file_open
 
-# Format table expressed as width x height in inch.
-ZPL_FORMAT_SIZE = {
-    "normal": (2.25, 1.25),
-    "small": (1.25, 1.00),
-    "alternative": (2.00, 1.00),
-    "jewelry": (2.20, 0.50),
-}
-
 
 class ProductLabelLayout(models.TransientModel):
     _inherit = "product.label.layout"

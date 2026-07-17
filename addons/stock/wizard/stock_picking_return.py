@@ -154,7 +154,9 @@ class StockReturnPicking(models.TransientModel):
                     wizard._prepare_stock_return_picking_line_vals_from_move(move)
                 )
                 product_return_moves.append(Command.create(product_return_moves_data))
-            if not product_return_moves:
+            # The list always holds the leading Command.clear() sentinel: only
+            # a length of 1 means no returnable move was found.
+            if len(product_return_moves) == 1:
                 raise UserError(
                     _(
                         "No products to return (only lines in Done state and not fully returned yet can be returned)."

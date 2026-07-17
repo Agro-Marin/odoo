@@ -1,6 +1,7 @@
 from collections import defaultdict
 
 from odoo import _, api, models
+from odoo.exceptions import UserError
 from odoo.tools import format_date
 
 
@@ -226,15 +227,18 @@ class ReportStockReport_Reception(models.AbstractModel):
         """Append the already-assigned (chained) lines to `sources_to_lines`."""
         for product, (assigned_qty, move_in_ids) in total_assigned.items():
             moves_in = self.env["stock.move"].browse(move_in_ids)
+            # Allocate the assigned pool FIFO across the destination moves so
+            # the displayed total never exceeds the received quantity. Which
+            # outs the batch's in moves actually cover is still a guess, but a
+            # quantity-conserving one.
             for out_move in moves_in.move_dest_ids:
                 if out_move.product_id.uom_id.is_zero(assigned_qty):
-                    # it is possible there are different in moves linked to the same out moves due to batch
-                    # => we guess as to which outs correspond to this report...
                     continue
                 source = self._get_report_source(out_move)
                 if not source:
                     continue
                 qty_assigned = min(assigned_qty, out_move.product_qty)
+                assigned_qty -= qty_assigned
                 sources_to_lines[source].append(
                     self._prepare_report_line(
                         qty_assigned,
@@ -321,14 +325,29 @@ class ReportStockReport_Reception(models.AbstractModel):
         """Assign picking move(s) [i.e. link] to other moves (i.e. make them MTO)
         :param move_ids ids: the ids of the moves to make MTO
         :param qtys list: the quantities that are being assigned to the move_ids (in same order as move_ids)
-        :param in_ids ids: the ids of the moves that are to be assigned to move_ids
+        :param in_ids: one list of incoming move ids per entry of ``move_ids``.
+            Two historical flat shapes are also accepted: all incoming ids for
+            a single out move, or one incoming id per out move (positionally
+            aligned). The old zip-based parsing silently truncated both.
         """
+        if in_ids and all(isinstance(in_id, int) for in_id in in_ids):
+            if len(move_ids) == 1:
+                in_ids = [in_ids]
+            else:
+                in_ids = [[in_id] for in_id in in_ids]
+        if not (len(move_ids) == len(qtys) == len(in_ids)):
+            raise UserError(
+                _(
+                    "Invalid assignment request: the moves, quantities and incoming"
+                    " moves lists must have the same length."
+                )
+            )
         # Drop lines with no incoming moves to link (e.g. the "expected" draft-only
         # lines "Assign all" also sends): nothing to make-to-order, and processing
         # them would wrongly split the out move (and browse(False)[0] would raise).
         assignments = [
             (out_id, qty, ins)
-            for out_id, qty, ins in zip(move_ids, qtys, in_ids, strict=False)
+            for out_id, qty, ins in zip(move_ids, qtys, in_ids, strict=True)
             if ins
         ]
         if not assignments:
@@ -412,10 +431,12 @@ class ReportStockReport_Reception(models.AbstractModel):
                     or in_move.product_id.uom_id.compare(0, quantity_remaining) >= 0
                 ):
                     # in move is already completely linked (e.g. during another assign click) => don't count it again
-                    potential_ins = potential_ins[1:]
                     continue
 
-                linked_qty = min(move_quantity, qty_to_link)
+                # Only the still-unclaimed part of the in move can cover this
+                # out: counting its full quantity would decrement qty_to_link
+                # too much and leave the out silently under-covered.
+                linked_qty = min(quantity_remaining, qty_to_link)
                 in_move.move_dest_ids |= out
                 self._action_assign(in_move, out)
                 out.procure_method = "make_to_order"
