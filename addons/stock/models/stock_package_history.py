@@ -78,11 +78,17 @@ class StockPackageHistory(models.Model):
     # ------------------------------------------------------------
 
     def _get_complete_dest_name_except_outermost(self):
+        """Return the frozen destination chain minus its outermost container.
+
+        ``package_name`` snapshots the package's *destination* chain
+        (``dest_complete_name``) at validation time -- taken before
+        ``_apply_dest_to_package`` re-parents the packages and clears
+        ``package_dest_id`` -- so dropping the first (outermost) segment yields
+        the containers the package sits in below the outermost one. When the
+        direct destination container *is* the outermost, that is just the
+        package's own (frozen) name.
+        """
         self.ensure_one()
         if not self.parent_dest_id:
             return ""
-        elif self.parent_dest_id == self.outermost_dest_id:
-            return self.package_id.name
-
-        # Complete name without the first (outermost) package name
         return " > ".join(self.package_name.split(" > ")[1:])

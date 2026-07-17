@@ -1,4 +1,7 @@
+from unittest.mock import patch
+
 from odoo.exceptions import UserError
+from odoo.fields import Domain
 from odoo.tests import TransactionCase, tagged
 
 from odoo.addons.stock.models.stock_quant import (
@@ -143,6 +146,13 @@ class TestDistributeReservation(TransactionCase):
         cands = [self._cand("a", 10, 4), self._cand("b", 10, 4)]
         res = _distribute_reservation(cands, -6, 8, self.DIGITS)
         self.assertEqual(res, [("a", -4), ("b", -2)])
+
+    def test_unreserve_skips_zero_reserved_candidates(self):
+        """Candidates with nothing reserved must be skipped, not emitted as
+        zero-delta `(handle, -0.0)` pairs for the caller to apply as no-ops."""
+        cands = [self._cand("a", 10, 0), self._cand("b", 10, 4)]
+        res = _distribute_reservation(cands, -4, 4, self.DIGITS)
+        self.assertEqual(res, [("b", -4)])
 
 
 @tagged("post_install", "-at_install")
@@ -812,3 +822,338 @@ class TestStockQuantImprovements(TestStockCommon):
             quant._reservation_key(),
             (quant.location_id, quant.lot_id, quant.package_id, quant.owner_id),
         )
+
+    # ---- release racing a row lock must still net aggregate reserved --------
+    def test_release_lock_miss_persists_negative_reserved(self):
+        """A release whose matching quant cannot be locked (concurrently held,
+        SKIP LOCKED returns nothing) lands on the create branch. It must persist
+        the raw negative reserved_quantity so the *aggregate* reserved of the
+        group nets to the released total immediately -- clamping to 0 would drop
+        the release and leave a phantom reservation until _clean_reservations.
+        _merge_quants then folds the rows, its GREATEST(0, SUM(...)) absorbing
+        any spurious double-release."""
+        product = self.env["product.product"].create(
+            {"name": "qimp-release", "is_storable": True}
+        )
+        self.Quant._update_available_quantity(product, self.loc, 10.0)
+        self.Quant._update_reserved_quantity(product, self.loc, 6.0)
+        self.env.cr.flush()
+        domain = [
+            ("product_id", "=", product.id),
+            ("location_id", "=", self.loc.id),
+        ]
+
+        def lock_nothing(records, **kwargs):
+            return records.browse()
+
+        # patch.object on the registry class shadows the method exactly where an
+        # _inherit override would sit, and restores the MRO cleanly on exit.
+        with patch.object(type(self.Quant), "try_lock_for_update", lock_nothing):
+            self.Quant._update_reserved_quantity(product, self.loc, -6.0)
+
+        quants = self.Quant.search(domain)
+        self.assertEqual(
+            len(quants),
+            2,
+            "an un-lockable release must be recorded on a sibling row",
+        )
+        self.assertEqual(
+            sum(quants.mapped("reserved_quantity")),
+            0.0,
+            "aggregate reserved must net to zero right after the release",
+        )
+        self.assertEqual(
+            self.Quant._get_available_quantity(product, self.loc),
+            10.0,
+            "availability must reflect the release before any merge/clean runs",
+        )
+        quants._merge_quants()
+        merged = self.Quant.search(domain)
+        self.assertEqual(len(merged), 1)
+        self.assertEqual(merged.reserved_quantity, 0.0)
+        self.assertEqual(merged.quantity, 10.0)
+
+    # ---- recordset _quant_tasks must survive the merge deleting members -----
+    def test_quant_tasks_recordset_survives_merge_dupes(self):
+        """_merge_quants (raw SQL) deletes duplicate rows that may be members of
+        the recordset _quant_tasks was called on; the follow-up scoped steps must
+        read their scope off the survivors instead of raising MissingError --
+        the dupe case is exactly the one the merge exists to repair (e.g.
+        stock.package.unpack's clean-up call)."""
+        product = self.env["product.product"].create(
+            {"name": "qimp-dupes", "is_storable": True}
+        )
+        dupes = self.Quant.create(
+            [
+                {
+                    "product_id": product.id,
+                    "location_id": self.loc.id,
+                    "quantity": 5.0,
+                },
+                {
+                    "product_id": product.id,
+                    "location_id": self.loc.id,
+                    "quantity": 7.0,
+                },
+            ]
+        )
+        self.env.cr.flush()
+        dupes._quant_tasks()  # raised MissingError before the exists() guards
+        remaining = self.Quant.search(
+            [("product_id", "=", product.id), ("location_id", "=", self.loc.id)]
+        )
+        self.assertEqual(len(remaining), 1, "the duplicate rows must be merged")
+        self.assertEqual(remaining.quantity, 12.0)
+
+    # ---- recordset _quant_tasks scopes _clean_reservations too --------------
+    def test_clean_reservations_scoped_to_recordset(self):
+        """A recordset-scoped _quant_tasks must realign reservations only for the
+        touched product/location pairs (like its _merge_quants and
+        _unlink_zero_quants siblings); the model-level call stays global."""
+        product = self.env["product.product"].create(
+            {"name": "qimp-clean", "is_storable": True}
+        )
+        loc_b = self.env["stock.location"].create(
+            {"name": "qimp-clean-b", "usage": "internal", "location_id": self.loc.id}
+        )
+        # Phantom reservation (no move line backs it) out of the scoped location.
+        phantom = self.Quant.create(
+            {
+                "product_id": product.id,
+                "location_id": loc_b.id,
+                "quantity": 5.0,
+                "reserved_quantity": 5.0,
+            }
+        )
+        in_scope = self.Quant.create(
+            {"product_id": product.id, "location_id": self.loc.id, "quantity": 3.0}
+        )
+        self.env.cr.flush()
+        in_scope._quant_tasks()
+        self.assertEqual(
+            phantom.reserved_quantity,
+            5.0,
+            "a scoped clean-up must not touch quants outside its locations",
+        )
+        self.Quant._clean_reservations()
+        self.assertEqual(
+            phantom.reserved_quantity,
+            0.0,
+            "the model-level clean-up must stay global",
+        )
+
+    # ---- cache fast path parity with _get_gather_domain overrides -----------
+    def test_gather_cache_bypassed_for_extended_domain(self):
+        """When a `_get_gather_domain` override injects extra conditions, the
+        quants_cache fast path (which replicates only the base semantics) must be
+        bypassed so the conditions actually apply."""
+        product = self.env["product.product"].create(
+            {"name": "qimp-extdom", "is_storable": True}
+        )
+        self.Quant.create(
+            [
+                {
+                    "product_id": product.id,
+                    "location_id": self.loc.id,
+                    "quantity": 2.0,
+                },
+                {
+                    "product_id": product.id,
+                    "location_id": self.loc.id,
+                    "quantity": 9.0,
+                },
+            ]
+        )
+        self.env.cr.flush()
+        cache = self.Quant._get_quants_by_products_locations(product, self.loc)
+        gather = self.Quant.with_context(quants_cache=cache)._gather
+
+        # Control: with the base domain, the cache serves both rows.
+        self.assertEqual(len(gather(product, self.loc, strict=True)), 2)
+
+        # Shadow the method on the *registry* class, exactly where an _inherit
+        # override sits in the MRO: the parity guard compares against the base
+        # (definition-class) implementation, which must stay untouched.
+        registry_cls = type(self.Quant)
+        orig = registry_cls._get_gather_domain
+
+        def extended(records, *args, **kwargs):
+            return orig(records, *args, **kwargs) & Domain("quantity", ">", 6.0)
+
+        with patch.object(registry_cls, "_get_gather_domain", extended):
+            res = gather(product, self.loc, strict=True)
+        self.assertEqual(
+            res.mapped("quantity"),
+            [9.0],
+            "an override-extended gather domain must fall back to the search "
+            "path instead of serving unfiltered quants from the cache",
+        )
+
+    # ---- cache fast path parity with extended removal strategies ------------
+    def test_gather_cache_bypassed_for_unknown_strategy_order(self):
+        """A removal strategy whose SQL ordering has no registered Python sort key
+        (`_get_removal_strategy_sort_key` returns None -- the default for
+        module-added strategies) must bypass the cache so both paths return the
+        SQL order rather than the cache's arbitrary one."""
+        product = self.env["product.product"].create(
+            {"name": "qimp-custstrat", "is_storable": True}
+        )
+        # Two un-merged rows with the *earlier* in_date on the *higher* id so
+        # id-order and in_date-order genuinely diverge.
+        self.Quant.create(
+            [
+                {
+                    "product_id": product.id,
+                    "location_id": self.loc.id,
+                    "quantity": 5.0,
+                    "in_date": "2024-01-01 00:00:00",
+                },
+                {
+                    "product_id": product.id,
+                    "location_id": self.loc.id,
+                    "quantity": 5.0,
+                    "in_date": "2020-01-01 00:00:00",
+                },
+            ]
+        )
+        self.env.cr.flush()
+
+        self.assertIsNone(
+            self.Quant._get_removal_strategy_sort_key("qimp_custom"),
+            "unknown strategies must have no sort key by default",
+        )
+
+        registry_cls = type(self.Quant)
+        orig_order = registry_cls._get_removal_strategy_order
+
+        def custom_strategy(records, product_id, location_id):
+            return "qimp_custom"
+
+        def custom_order(records, removal_strategy):
+            if removal_strategy == "qimp_custom":
+                return "id DESC"
+            return orig_order(records, removal_strategy)
+
+        with (
+            patch.object(registry_cls, "_get_removal_strategy", custom_strategy),
+            patch.object(registry_cls, "_get_removal_strategy_order", custom_order),
+        ):
+            search_ids = self.Quant._gather(product, self.loc, strict=True).ids
+            cache = self.Quant._get_quants_by_products_locations(product, self.loc)
+            cache_ids = (
+                self.Quant.with_context(quants_cache=cache)
+                ._gather(product, self.loc, strict=True)
+                .ids
+            )
+
+        self.assertEqual(
+            search_ids,
+            sorted(search_ids, reverse=True),
+            "control: the custom strategy's SQL order must be id DESC",
+        )
+        self.assertEqual(
+            cache_ids,
+            search_ids,
+            "a strategy without a Python sort key must bypass the cache and "
+            "match the search-path order",
+        )
+
+
+@tagged("post_install", "-at_install")
+class TestStockMoveLineImprovements(TestStockCommon):
+    """Regression tests for the stock.move.line hardening (move-less-line-safe
+    reservation bypass, package-history destination-chain snapshot)."""
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.Quant = cls.env["stock.quant"]
+        cls.loc = cls.stock_location
+
+    def test_move_less_line_write_and_unlink_reservation(self):
+        """`_reserve_new_move_lines` explicitly supports lines without a move, but
+        the write/unlink paths called `move_id._should_bypass_reservation()`
+        unguarded, so editing such a line raised `Expected singleton` and
+        unlinking it leaked its reservation. Both must be symmetric with create."""
+        product = self.env["product.product"].create(
+            {"name": "qimp-moveless", "is_storable": True}
+        )
+        self.Quant._update_available_quantity(product, self.loc, 10.0)
+
+        def reserved():
+            return sum(
+                self.Quant.search(
+                    [
+                        ("product_id", "=", product.id),
+                        ("location_id", "=", self.loc.id),
+                    ]
+                ).mapped("reserved_quantity")
+            )
+
+        ml = self.env["stock.move.line"].create(
+            {
+                "product_id": product.id,
+                "location_id": self.loc.id,
+                "location_dest_id": self.shelf_1.id,
+                "company_id": self.env.company.id,
+                "quantity": 2.0,
+            }
+        )
+        self.assertFalse(ml.move_id)
+        self.assertEqual(reserved(), 2.0, "create must reserve for move-less lines")
+        ml.quantity = 3.0  # raised "Expected singleton" before the fix
+        self.assertEqual(reserved(), 3.0, "write must re-sync the reservation")
+        ml.unlink()
+        self.assertEqual(
+            reserved(),
+            0.0,
+            "unlink must release the reservation create took (previously leaked)",
+        )
+
+    def test_package_history_freezes_destination_chain(self):
+        """`_prepare_package_history_vals` runs before `_apply_dest_to_package`
+        re-parents packages and clears `package_dest_id`. `package_name` must
+        snapshot the pending *destination* chain (`dest_complete_name`) -- the
+        origin `complete_name` is what the delivery-slip helper
+        `_get_complete_dest_name_except_outermost` would misread."""
+        product = self.env["product.product"].create(
+            {"name": "qimp-pkg-hist", "is_storable": True}
+        )
+        self.Quant._update_available_quantity(product, self.loc, 5.0)
+        outer = self.env["stock.package"].create({"name": "QIMP-OUTER"})
+        inner = self.env["stock.package"].create({"name": "QIMP-INNER"})
+        move = self.env["stock.move"].create(
+            {
+                "product_id": product.id,
+                "product_uom_qty": 5.0,
+                "location_id": self.loc.id,
+                "location_dest_id": self.shelf_1.id,
+            }
+        )
+        move._action_confirm()
+        move._action_assign()
+        ml = move.move_line_ids
+        ml.result_package_id = inner
+        inner.package_dest_id = outer
+        ml.picked = True
+        move._action_done()
+
+        history = self.env["stock.package.history"].search(
+            [("package_id", "=", inner.id)]
+        )
+        self.assertEqual(len(history), 1)
+        self.assertEqual(
+            history.package_name,
+            "QIMP-OUTER > QIMP-INNER",
+            "package_name must freeze the destination chain, not the origin one",
+        )
+        self.assertEqual(history.parent_dest_id, outer)
+        self.assertEqual(
+            history._get_complete_dest_name_except_outermost(), "QIMP-INNER"
+        )
+        # The container itself: no pending destination parent.
+        outer_history = self.env["stock.package.history"].search(
+            [("package_id", "=", outer.id)]
+        )
+        self.assertEqual(outer_history.package_name, "QIMP-OUTER")
+        self.assertEqual(outer_history._get_complete_dest_name_except_outermost(), "")
