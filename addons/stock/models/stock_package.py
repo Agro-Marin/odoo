@@ -181,11 +181,13 @@ class StockPackage(models.Model):
                 package.name = package_type._get_next_name_by_sequence()
             del vals["name"]
         if "location_id" in vals:
-            is_pack_empty = any(not pack.contained_quant_ids for pack in self)
-            if not vals["location_id"] and not is_pack_empty:
+            # Per-record guards: a batch mixing empty and non-empty packages must
+            # neither clear the location of a non-empty one nor move an empty one.
+            empty_packs = self.filtered(lambda pack: not pack.contained_quant_ids)
+            if not vals["location_id"] and self - empty_packs:
                 raise UserError(_("Cannot remove the location of a non empty package"))
             if vals["location_id"]:
-                if is_pack_empty:
+                if empty_packs:
                     raise UserError(_("Cannot move an empty package"))
                 location_dest_id = self.env["stock.location"].browse(
                     vals["location_id"]
@@ -380,7 +382,17 @@ class StockPackage(models.Model):
             move_line_ids.update(move_lines_by_package.get(package.id, []))
             package.move_line_ids = [Command.set(list(move_line_ids))]
 
-    @api.depends("child_package_ids", "child_package_ids.location_id", "quant_ids")
+    @api.depends(
+        "child_package_ids",
+        "child_package_ids.location_id",
+        "quant_ids",
+        # An in-place quant update (e.g. an inventory adjustment zeroing a
+        # quantity, or a relocation rewriting location_id) changes the outcome
+        # without changing the quant_ids set, so it must trigger too.
+        "quant_ids.quantity",
+        "quant_ids.location_id",
+        "quant_ids.company_id",
+    )
     def _compute_package_info(self):
         for package in self:
             package.location_id = False
@@ -390,7 +402,9 @@ class StockPackage(models.Model):
             )
             if quants:
                 package.location_id = quants[0].location_id
-                if all(q.company_id == quants[0].company_id for q in package.quant_ids):
+                # Company homogeneity only over the positive quants: a stale
+                # zero-quantity quant left in another company must not blank it.
+                if all(q.company_id == quants[0].company_id for q in quants):
                     package.company_id = quants[0].company_id
             elif package.child_package_ids:
                 package.location_id = package.child_package_ids[0].location_id
@@ -866,9 +880,7 @@ class StockPackage(models.Model):
 
     def _check_move_lines_map_quant(self, move_lines):
         """Checks that self's contained quants and move_lines carry matching quantities per product and lot."""
-        precision_digits = self.env["decimal.precision"].precision_get(
-            "Product Unit of Measure"
-        )
+        precision_digits = self.env["decimal.precision"].precision_get("Product Unit")
 
         def _keys_groupby(record):
             return record.product_id, record.lot_id

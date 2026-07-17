@@ -5,6 +5,7 @@ from datetime import timedelta
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError, ValidationError
 from odoo.fields import Domain
+from odoo.libs.numbers.float_utils import float_compare
 
 
 class StockLocation(models.Model):
@@ -190,7 +191,11 @@ class StockLocation(models.Model):
         # their subtrees overlap and orderpoints would double-count. Siblings
         # (disjoint subtrees) are fine. Fetch all replenish locations once and
         # compare parent_path, instead of a child_of search per record.
-        replenish_locations = self.search([("replenish_location", "=", True)])
+        # Archived replenish locations are included: unarchiving one later would
+        # silently reintroduce the overlap the constraint exists to prevent.
+        replenish_locations = self.with_context(active_test=False).search(
+            [("replenish_location", "=", True)]
+        )
         for loc in self:
             if not loc.replenish_location or not loc.parent_path:
                 continue
@@ -484,6 +489,12 @@ class StockLocation(models.Model):
     def _propagate_active(self, active):
         """Cascade (de)activation to the whole subtree, guarding a deactivation
         against locations that back a warehouse or still hold stock."""
+        # No-op for records already at the target value: a redundant
+        # write({"active": True}) must not resurrect deliberately archived
+        # descendants (mirrors the guard in product.product.write).
+        self = self.filtered(lambda location: location.active != bool(active))
+        if not self:
+            return
         if not active:
             # One query for the whole set instead of a search per location.
             blocking_warehouse = self.env["stock.warehouse"].search(
@@ -674,6 +685,10 @@ class StockLocation(models.Model):
                 ("id", "not in", exclude_sml_ids),
                 ("result_package_id.package_type_id", "=", package_type.id),
                 ("state", "not in", ["draft", "done", "cancel"]),
+                # Only the candidate locations are consulted downstream; without
+                # this filter the aggregate scans every pending move line of the
+                # package type in the database.
+                ("location_dest_id", "in", locations.ids),
             ],
             ["location_dest_id"],
             ["result_package_id:count_distinct"],
@@ -866,8 +881,12 @@ class StockLocation(models.Model):
         if policy == "empty":
             return not positive_quant
         # policy == "same": the location may hold a single product only.
-        # For a package, `product` isn't set, so fall back to the context products.
-        product = product or self.env.context.get("products")
+        # For a package, `product` isn't set, so fall back to the context
+        # products; default to an empty recordset so a caller that sets
+        # neither still gets a policy answer instead of a TypeError below.
+        product = (
+            product or self.env.context.get("products") or self.env["product.product"]
+        )
         if (positive_quant and positive_quant.product_id != product) or len(
             product
         ) > 1:
@@ -879,6 +898,24 @@ class StockLocation(models.Model):
                 ("location_dest_id", "=", self.id),
             ],
             limit=1,
+        )
+
+    def _check_max_weight(self, added_weight, forecast_weight):
+        """Whether the storage category's max weight allows ``added_weight`` on
+        top of ``forecast_weight``. A max weight of 0 means no weight limit.
+        Rounding-aware: aggregated float weights carry accumulation noise."""
+        self.ensure_one()
+        max_weight = self.storage_category_id.max_weight
+        if not max_weight:
+            return True
+        weight_precision = self.env["decimal.precision"].precision_get("Stock Weight")
+        return (
+            float_compare(
+                forecast_weight + added_weight,
+                max_weight,
+                precision_digits=weight_precision,
+            )
+            <= 0
         )
 
     def _check_package_capacity(self, package, location_qty, forecast_weight):
@@ -897,30 +934,45 @@ class StockLocation(models.Model):
                 lambda sml: sml.quantity_product_uom * sml.product_id.weight,
             ),
         )
-        if storage_category.max_weight < forecast_weight + package_weight:
+        if not self._check_max_weight(package_weight, forecast_weight):
             return False
         package_capacity = storage_category.package_capacity_ids.filtered(
             lambda pc: pc.package_type_id == package.package_type_id
         )
-        return not (package_capacity and location_qty >= package_capacity.quantity)
+        if not package_capacity:
+            return True
+        qty_precision = self.env["decimal.precision"].precision_get("Product Unit")
+        return (
+            float_compare(
+                location_qty,
+                package_capacity.quantity,
+                precision_digits=qty_precision,
+            )
+            < 0
+        )
 
     def _check_product_capacity(self, product, quantity, location_qty, forecast_weight):
         """Enforce the storage category's max weight and per-product capacity for
         a bare-product move into this location (True = fits)."""
         self.ensure_one()
         storage_category = self.storage_category_id
-        if storage_category.max_weight < forecast_weight + product.weight * quantity:
+        if not self._check_max_weight(product.weight * quantity, forecast_weight):
             return False
         product_capacity = storage_category.product_capacity_ids.filtered(
             lambda pc: pc.product_id == product,
         )
         if not product_capacity:
             return True
+        # Rounding-aware comparisons: location_qty aggregates quant/move-line
+        # floats, so exact boundary cases must not flip on accumulation noise.
         # Reject a location already at capacity even if quantity is 0 (e.g. a new,
         # not yet filled-in move line), and any move that would exceed it.
-        if location_qty >= product_capacity.quantity:
+        if product.uom_id.compare(location_qty, product_capacity.quantity) >= 0:
             return False
-        return quantity + location_qty <= product_capacity.quantity
+        return (
+            product.uom_id.compare(quantity + location_qty, product_capacity.quantity)
+            <= 0
+        )
 
     def _check_company_not_changed(self, company_id):
         """A location's company is immutable once set; archive and recreate

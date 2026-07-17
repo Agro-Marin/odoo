@@ -377,32 +377,48 @@ class ProductProduct(models.Model):
         """
         if self.env.context.get("skip_qty_available_update", False):
             return
+        products_to_update = self.filtered(
+            lambda p: p.type == "consu" and p.is_storable
+        )
+        if not products_to_update:
+            return
+        for product in products_to_update:
+            if (
+                float_compare(
+                    product.qty_available,
+                    0.0,
+                    precision_rounding=product.uom_id.rounding,
+                )
+                < 0
+            ):
+                raise UserError(
+                    _(
+                        "The quantity on hand of %(product)s cannot be set to a negative value.",
+                        product=product.display_name,
+                    ),
+                )
         # The target warehouse only depends on the current company, so resolve it once
         # instead of searching per product.
         warehouse = self.env["stock.warehouse"].search(
             [("company_id", "=", self.env.company.id)],
             limit=1,
         )
-        for product in self:
-            if (
-                product.type == "consu"
-                and product.is_storable
-                and float_compare(
-                    product.qty_available,
-                    0.0,
-                    precision_rounding=product.uom_id.rounding,
-                )
-                >= 0
-            ):
-                self.env["stock.quant"].with_context(
-                    inventory_mode=True, from_inverse_qty=True
-                ).create(
-                    {
-                        "product_id": product.id,
-                        "location_id": warehouse.lot_stock_id.id,
-                        "inventory_quantity": product.qty_available,
-                    }
-                )._apply_inventory()
+        if not warehouse:
+            # Raises a redirect to the warehouse configuration; falls through
+            # only during module installation (registry not ready), where the
+            # adjustment is skipped rather than crashing on a False location.
+            self.env["stock.warehouse"]._warehouse_redirect_warning()
+            return
+        for product in products_to_update:
+            self.env["stock.quant"].with_context(
+                inventory_mode=True, from_inverse_qty=True
+            ).create(
+                {
+                    "product_id": product.id,
+                    "location_id": warehouse.lot_stock_id.id,
+                    "inventory_quantity": product.qty_available,
+                }
+            )._apply_inventory()
 
     # ------------------------------------------------------------
     # SEARCH METHODS
@@ -413,6 +429,14 @@ class ProductProduct(models.Model):
         # so use the faster quant-only '_search_qty_available_new' instead of
         # '_search_product_quantity'.
         if not ({"from_date", "to_date"} & self.env.context.keys()):
+            op = PY_OPERATORS.get(operator)
+            if op is not None and op(0.0, value):
+                # 0 matches the criterion, so the result is "every product except
+                # a finite set". '_search_product_quantity' expresses that as a
+                # negative domain over its candidate set, while the quant-only
+                # path below would materialize the id of every product in the
+                # database to build a positive one.
+                return self._search_product_quantity(operator, value, "qty_available")
             product_ids = self._search_qty_available_new(
                 operator,
                 value,
@@ -427,15 +451,12 @@ class ProductProduct(models.Model):
         return self._search_product_quantity(operator, value, "qty_available")
 
     def _search_virtual_available(self, operator, value):
-        # TDE FIXME: should probably clean the search methods
         return self._search_product_quantity(operator, value, "qty_available_virtual")
 
     def _search_incoming_qty(self, operator, value):
-        # TDE FIXME: should probably clean the search methods
         return self._search_product_quantity(operator, value, "qty_incoming")
 
     def _search_outgoing_qty(self, operator, value):
-        # TDE FIXME: should probably clean the search methods
         return self._search_product_quantity(operator, value, "qty_outgoing")
 
     def _search_free_qty(self, operator, value):
