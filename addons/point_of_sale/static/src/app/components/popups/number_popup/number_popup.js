@@ -33,6 +33,9 @@ export class NumberPopup extends Component {
         this.numberBuffer = useService("number_buffer");
         this.numberBuffer.use({
             triggerAtInput: ({ buffer }) => (this.state.buffer = buffer),
+            // This popup is itself an overlay: it must keep receiving global
+            // keyboard input while it is open.
+            captureWithOverlay: true,
         });
         useHotkey("enter", () => this.confirm());
         useHotkey("escape", () => this.cancel());
