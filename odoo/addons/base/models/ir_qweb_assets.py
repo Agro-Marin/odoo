@@ -32,7 +32,10 @@ from odoo.libs.constants import (
 )
 from odoo.modules import module as _module
 from odoo.tools.assets.esbuild import EsbuildCompiler, EsbuildResult
-from odoo.tools.assets.esm_graph import _parse_odoo_module_header
+from odoo.tools.assets.esm_graph import (
+    _parse_odoo_module_header,
+    discover_transitive_import_specifiers,
+)
 from odoo.tools.assets.esm_registry import esm_registry
 from odoo.tools.misc import file_path, str2bool
 
@@ -1291,6 +1294,7 @@ class IrQweb(models.AbstractModel):
                 import_map,
                 discovered,
                 drop_unresolved=True,
+                bundle=include_name,
             )
         return include_names
 
@@ -1425,6 +1429,7 @@ class IrQweb(models.AbstractModel):
         discovered: Iterable[str],
         *,
         drop_unresolved: bool,
+        bundle: str = "",
     ) -> dict[str, str]:
         """Resolve *discovered* bridge specifiers to DIRECT URLs in *import_map*
         (in place) — the debug-mode bridge policy.
@@ -1437,6 +1442,19 @@ class IrQweb(models.AbstractModel):
         ``drop_unresolved=True`` also removes their stale bridge/data mapping so
         the browser gets a clean "module not found".
 
+        Every specifier resolved here points at RAW source the browser fetches
+        directly, so its own bare imports must resolve through the import map
+        too — transitively. The one-level bundle scan cannot see them when the
+        imported chain lives outside the bundle (``web.report_assets_common``
+        ships only ``@web/libs/bootstrap``, whose dependency chain reaches
+        ``@web/core/browser/browser`` two hops out — unmapped, every
+        ``/report/html`` page on the fallback path failed pre-boot with
+        "Failed to resolve module specifier"). The closure walk
+        (``discover_transitive_import_specifiers``) maps the rest of the
+        reachable graph the same way; specifiers already in *import_map* are
+        never overridden or re-walked.
+
+        :param bundle: rendered bundle name, for log attribution only.
         :return: the ``{specifier: url}`` mappings applied.
         """
         resolved_map = {}
@@ -1454,6 +1472,27 @@ class IrQweb(models.AbstractModel):
                 resolved_map[spec] = resolved
             elif current and drop_unresolved:
                 del import_map[spec]
+        # Seed the closure walk with the NEWLY resolved specifiers only: a
+        # specifier that already had a direct URL got it from a native/child/
+        # include merge whose own one-level discovery scans its source, so
+        # re-reading those here (hundreds on the unit-test include path) would
+        # only re-derive known entries. Any spec the walk uncovers is by
+        # definition un-mapped and un-scanned — map it and keep walking.
+        if resolved_map:
+            extra = discover_transitive_import_specifiers(
+                resolved_map,
+                known_specifiers=set(import_map),
+                ext_libs=self._ODOO_EXTERNAL_LIBS,
+                lib_candidates=EsbuildCompiler._LIB_CANDIDATES,
+                bundle_name=bundle,
+            )
+            for spec in sorted(extra):
+                resolved = self._ODOO_EXTERNAL_LIBS.get(
+                    spec
+                ) or self._specifier_to_static_url(spec)
+                if resolved:
+                    import_map[spec] = resolved
+                    resolved_map[spec] = resolved
         return resolved_map
 
     def _esm_prod_nodes(
@@ -1813,6 +1852,7 @@ class IrQweb(models.AbstractModel):
             import_map,
             discovered,
             drop_unresolved=False,
+            bundle=bundle,
         )
 
         # Has a previous ESM bundle on this page already rendered an import map?

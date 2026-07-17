@@ -29,9 +29,14 @@ from psycopg.errors import ReadOnlySqlTransaction
 import odoo
 from odoo.db import db_connect
 from odoo.libs.asset_log import ASSET_ROOT, get_asset_logger, log_event
+from odoo.libs.constants import ODOO_EXTERNAL_LIBS
 from odoo.tests.common import TransactionCase, tagged
 from odoo.tools.assets.esbuild import EsbuildCompiler, EsbuildResult
-from odoo.tools.assets.esm_graph import _BridgeExportResolver
+from odoo.tools.assets.esm_graph import (
+    _BridgeExportResolver,
+    _scan_import_specifiers,
+    discover_transitive_import_specifiers,
+)
 
 from odoo.addons.base.models.assetsbundle import AssetsBundle, _parse_odoo_module_header
 from odoo.addons.base.models.ir_qweb_assets import _EsmFallbackError
@@ -1314,6 +1319,92 @@ class TestBridgeHelpers(TransactionCase):
         )
         self.assertFalse(star)
         self.assertIn("export default _d;", shim)
+
+
+@tagged("web_unit", "web_assets")
+class TestTransitiveImportClosure(TransactionCase):
+    """Debug-mode import maps must cover the TRANSITIVE out-of-bundle graph.
+
+    Every specifier the debug/fallback path resolves to a direct URL is
+    fetched as RAW source, so its own bare imports must resolve through the
+    import map too.  The one-level ``_discover_bridge_specifiers`` scan only
+    covers the bundle's own modules; ``discover_transitive_import_specifiers``
+    walks the rest.  Regression anchor: ``web.report_assets_common`` ships
+    ONE native module (``@web/libs/bootstrap``) whose chain reaches
+    ``@web/core/browser/browser`` two hops out of the bundle — unmapped, every
+    ``/report/html`` page rendered through the fallback path (readonly test
+    cursor, esbuild circuit open, ``?debug=assets``) failed pre-boot with
+    ``Failed to resolve module specifier "@web/core/browser/browser"``
+    (caught by ``TestStockReportTour.test_stock_route_diagram_report``).
+    """
+
+    def test_walk_finds_two_hop_specifier(self):
+        """The real bootstrap chain yields the two-hop browser specifier."""
+        res = discover_transitive_import_specifiers(
+            # The two direct out-of-bundle imports of @web/libs/bootstrap.
+            [
+                "@web/../lib/bootstrap/bootstrap.esm.js",
+                "@web/core/utils/dom/scrolling",
+            ],
+            {"@web/libs/bootstrap"},
+            ODOO_EXTERNAL_LIBS,
+            EsbuildCompiler._LIB_CANDIDATES,
+            "test.report.closure",
+        )
+        self.assertIn("@web/core/browser/browser", res)
+        # @popperjs/core (imported by bootstrap.esm.js) is an external lib —
+        # already mapped, must NOT be re-discovered.
+        self.assertNotIn("@popperjs/core", res)
+        # Known specifiers are never re-added.
+        self.assertNotIn("@web/libs/bootstrap", res)
+
+    def test_scan_covers_reexport_and_relative_shapes(self):
+        """The per-file scan sees import, side-effect, and re-export forms."""
+        specs = _scan_import_specifiers(
+            'import { a } from "@web/named";\n'
+            'import "@web/side_effect";\n'
+            'import "./relative";\n'
+            'export { b } from "@web/list_from";\n'
+            'export * from "@web/star_from";\n'
+            'export * as ns from "@web/ns_from";\n'
+            'const url = import("@web/dynamic_only");\n'
+        )
+        self.assertLessEqual(
+            {
+                "@web/named",
+                "@web/side_effect",
+                "./relative",
+                "@web/list_from",
+                "@web/star_from",
+                "@web/ns_from",
+            },
+            specs,
+        )
+        # Dynamic import() is resolved at runtime through the map the page
+        # already has; the static walk must not chase it.
+        self.assertNotIn("@web/dynamic_only", specs)
+
+    def test_report_bundle_debug_importmap_is_transitively_complete(self):
+        """The report bundle's debug nodes map the whole reachable graph."""
+        nodes, _post = self.env["ir.qweb"]._get_native_module_nodes(
+            "web.report_assets_common",
+            debug="assets",
+        )
+        importmaps = [
+            attrs
+            for tag, attrs in nodes
+            if tag == "script" and attrs.get("type") == "importmap"
+        ]
+        self.assertEqual(len(importmaps), 1)
+        imports = json.loads(importmaps[0]["text"])["imports"]
+        for spec in (
+            "@web/libs/bootstrap",
+            "@web/../lib/bootstrap/bootstrap.esm.js",
+            "@web/core/utils/dom/scrolling",
+            "@web/core/browser/browser",  # the two-hop regression specifier
+            "@popperjs/core",
+        ):
+            self.assertIn(spec, imports, msg=f"{spec} missing from import map")
 
 
 @tagged("web_unit", "web_assets")
