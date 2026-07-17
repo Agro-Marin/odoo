@@ -536,8 +536,16 @@ class ProductTemplate(models.Model):
     # ------------------------------------------------------------
 
     def _inverse_serial_prefix_format(self):
+        # Restrict to the lot-serial sequence pool (the same code new sequences are
+        # created with below). Without the code filter, a prefix that collides with
+        # another document type's sequence (e.g. "SO/", "WH/OUT/") would be hijacked:
+        # lot creation would then draw numbers from that foreign sequence, gapping its
+        # numbering and shaping lot names like the other document.
         valid_sequences = self.env["ir.sequence"].search(
-            [("prefix", "in", self.mapped("serial_prefix_format"))],
+            [
+                ("code", "=", "stock.lot.serial"),
+                ("prefix", "in", self.mapped("serial_prefix_format")),
+            ],
         )
         sequences_by_prefix = {seq.prefix: seq for seq in valid_sequences}
         for template in self:

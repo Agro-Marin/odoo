@@ -571,6 +571,12 @@ class StockLot(models.Model):
             domain_move_out_loc &= Domain("owner_id", "=", owner_id)
         if package_id is not None:
             domain_quant &= Domain("package_id", "=", package_id)
+            # Keep the past-date move adjustments below scoped to the same package as
+            # the quant baseline, or later movements of OTHER packages of the product
+            # would corrupt the reconstructed historical quantity. Incoming lines land
+            # in result_package_id; outgoing lines leave from package_id.
+            domain_move_in_loc &= Domain("result_package_id", "=", package_id)
+            domain_move_out_loc &= Domain("package_id", "=", package_id)
         qty_by_lot = dict(
             self.env["stock.quant"]._read_group(
                 domain_quant, ["lot_id"], ["quantity:sum"]
