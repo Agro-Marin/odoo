@@ -67,6 +67,14 @@
 
             'web/static/src/core/utils/transitions.scss',
             'web/static/src/core/**/*',
+            # The fork split web/static/src/core into components/, ui/ and
+            # services/: without them the bundle misses their modules and
+            # templates (e.g. web.Dialog, web.DropdownItem, web.TagsList) and
+            # the subcontracting portal client dies at template setup.
+            'web/static/src/components/**/*',
+            ('remove', 'web/static/src/components/emoji_picker/emoji_data.js'),
+            'web/static/src/ui/**/*',
+            'web/static/src/services/**/*',
             'web/static/src/search/**/*',
             'web/static/src/views/*.js',
             'web/static/src/views/*.xml',
