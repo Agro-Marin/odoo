@@ -202,6 +202,10 @@ For more specific needs, you may also assign custom-defined actions
         "web.assets_unit_tests": [
             "mail/static/tests/**/*",
             ("remove", "mail/static/tests/tours/**/*"),
+            # Pure service-worker helpers: not shipped in an app bundle (the
+            # worker is served as raw text), but exposed to hoot so their logic
+            # is unit-tested. See service_worker_utils.js.
+            "mail/static/src/service_worker_utils.js",
         ],
         "web.assets_tests": [
             "mail/static/tests/tours/**/*",
