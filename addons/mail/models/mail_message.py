@@ -425,6 +425,13 @@ class MailMessage(models.Model):
     # CRUD / ORM
     # ------------------------------------------------------
 
+    # Candidate-scan chunk sizes for the accessibility-filtered _search below.
+    # MIN keeps a small page (e.g. the 30-message chatter fetch) to one query in
+    # the common all-accessible case; the chunk grows geometrically up to MAX
+    # when access filtering rejects enough rows to under-fill a page.
+    _SEARCH_ACCESS_CHUNK_MIN = 30
+    _SEARCH_ACCESS_CHUNK_MAX = 8192
+
     @api.model
     def _search(
         self, domain, offset=0, limit=None, order=None, *, bypass_access=False, **kwargs
@@ -457,87 +464,117 @@ class MailMessage(models.Model):
         if not self.env.user._is_internal():
             domain = self._get_search_domain_share() & Domain(domain)
 
-        # Make the search query with the default rules but WITHOUT the caller's
-        # offset/limit: the custom accessibility filter below runs in Python, so
-        # applying LIMIT/OFFSET in SQL first would truncate the candidate set
-        # before filtering and return short, skipped or duplicated pages. The
-        # caller's offset/limit is re-applied after filtering (see below).
-        query = super()._search(domain, order=order, **kwargs)
-
-        # retrieve matching records and determine which ones are truly accessible
+        # The accessibility filter below runs in Python, so the caller's
+        # LIMIT/OFFSET cannot be pushed into SQL directly (it would truncate the
+        # candidate set before filtering and return short / skipped pages). But
+        # materializing every candidate row just to return one page made a page
+        # fetch O(thread size) — a 200k-message chatter/channel pulled 200k rows
+        # for 30 accessible ones. Instead scan candidates in growing chunks in
+        # SQL order, filter each by access, and stop as soon as the requested
+        # window (offset+limit accessible rows) is filled. For an unbounded
+        # search (limit is None) a single scan is still cheapest (every row is
+        # needed), so the loop runs once with no SQL limit.
         self.flush_model(
             ["model", "res_id", "author_id", "message_type", "partner_ids"]
         )
         self.env["mail.notification"].flush_model(["mail_message_id", "res_partner_id"])
 
         pid = self.env.user.partner_id.id
-        ids = []
-        allowed_ids = set()
-        model_ids = defaultdict(lambda: defaultdict(set))
+        base_search = super()._search
+        # A total order is required so OFFSET-based chunk boundaries cannot
+        # duplicate or skip rows sharing a sort key. The model default ("id
+        # desc", used when order is falsy) already is total; append a unique id
+        # tie-break for any custom order that lacks one (deterministic where it
+        # was previously arbitrary).
+        scan_order = order
+        if order and not any(
+            term.strip().split()[0] == "id" for term in order.split(",")
+        ):
+            scan_order = f"{order}, id desc"
 
-        rel_alias = query.make_alias(self._table, "partner_ids")
-        query.add_join(
-            "LEFT JOIN",
-            rel_alias,
-            "mail_message_res_partner_rel",
-            SQL(
-                "%s = %s AND %s = %s",
-                SQL.identifier(self._table, "id"),
-                SQL.identifier(rel_alias, "mail_message_id"),
-                SQL.identifier(rel_alias, "res_partner_id"),
-                pid,
-            ),
-        )
-        notif_alias = query.make_alias(self._table, "notification_ids")
-        query.add_join(
-            "LEFT JOIN",
-            notif_alias,
-            "mail_notification",
-            SQL(
-                "%s = %s AND %s = %s",
-                SQL.identifier(self._table, "id"),
-                SQL.identifier(notif_alias, "mail_message_id"),
-                SQL.identifier(notif_alias, "res_partner_id"),
-                pid,
-            ),
-        )
-        self.env.cr.execute(
-            query.select(
-                SQL.identifier(self._table, "id"),
-                SQL.identifier(self._table, "model"),
-                SQL.identifier(self._table, "res_id"),
-                SQL.identifier(self._table, "author_id"),
-                SQL.identifier(self._table, "message_type"),
-                SQL(
-                    "COALESCE(%s, %s)",
-                    SQL.identifier(rel_alias, "res_partner_id"),
-                    SQL.identifier(notif_alias, "res_partner_id"),
-                ),
+        target = None if limit is None else offset + limit
+        chunk = (
+            None
+            if target is None
+            else min(
+                max(target, self._SEARCH_ACCESS_CHUNK_MIN),
+                self._SEARCH_ACCESS_CHUNK_MAX,
             )
         )
-        for (
-            id_,
-            model,
-            res_id,
-            author_id,
-            message_type,
-            partner_id,
-        ) in self.env.cr.fetchall():
-            ids.append(id_)
-            if pid in (author_id, partner_id):
-                allowed_ids.add(id_)
-            elif model and res_id and message_type != "user_notification":
-                model_ids[model][res_id].add(id_)
+        allowed_ordered = []  # accessible ids in scan order
+        allowed_seen = set()
+        sql_offset = 0
+        while True:
+            query = base_search(
+                domain, offset=sql_offset, limit=chunk, order=scan_order, **kwargs
+            )
+            rel_alias = query.make_alias(self._table, "partner_ids")
+            query.add_join(
+                "LEFT JOIN",
+                rel_alias,
+                "mail_message_res_partner_rel",
+                SQL(
+                    "%s = %s AND %s = %s",
+                    SQL.identifier(self._table, "id"),
+                    SQL.identifier(rel_alias, "mail_message_id"),
+                    SQL.identifier(rel_alias, "res_partner_id"),
+                    pid,
+                ),
+            )
+            notif_alias = query.make_alias(self._table, "notification_ids")
+            query.add_join(
+                "LEFT JOIN",
+                notif_alias,
+                "mail_notification",
+                SQL(
+                    "%s = %s AND %s = %s",
+                    SQL.identifier(self._table, "id"),
+                    SQL.identifier(notif_alias, "mail_message_id"),
+                    SQL.identifier(notif_alias, "res_partner_id"),
+                    pid,
+                ),
+            )
+            self.env.cr.execute(
+                query.select(
+                    SQL.identifier(self._table, "id"),
+                    SQL.identifier(self._table, "model"),
+                    SQL.identifier(self._table, "res_id"),
+                    SQL.identifier(self._table, "author_id"),
+                    SQL.identifier(self._table, "message_type"),
+                    SQL(
+                        "COALESCE(%s, %s)",
+                        SQL.identifier(rel_alias, "res_partner_id"),
+                        SQL.identifier(notif_alias, "res_partner_id"),
+                    ),
+                )
+            )
+            rows = self.env.cr.fetchall()
 
-        allowed_ids.update(self._find_allowed_doc_ids(model_ids))
-        # `ids` preserves the SQL order; keep the accessible ones in that order
-        # and only now apply the caller's pagination so a limited page is filled
-        # with accessible records.
-        allowed = self.browse(id_ for id_ in ids if id_ in allowed_ids)
-        if offset or limit is not None:
-            stop = (offset + limit) if limit is not None else None
-            allowed = allowed[offset:stop]
-        return allowed._as_query(order)
+            chunk_ids = []
+            direct_allowed = set()
+            model_ids = defaultdict(lambda: defaultdict(set))
+            for id_, model, res_id, author_id, message_type, partner_id in rows:
+                chunk_ids.append(id_)
+                if pid in (author_id, partner_id):
+                    direct_allowed.add(id_)
+                elif model and res_id and message_type != "user_notification":
+                    model_ids[model][res_id].add(id_)
+            chunk_allowed = direct_allowed | self._find_allowed_doc_ids(model_ids)
+            for id_ in chunk_ids:
+                if id_ in chunk_allowed and id_ not in allowed_seen:
+                    allowed_seen.add(id_)
+                    allowed_ordered.append(id_)
+
+            got = len(rows)
+            sql_offset += got
+            if target is None or len(allowed_ordered) >= target or got < chunk:
+                # unbounded (single pass), window filled, or candidates exhausted
+                break
+            chunk = min(chunk * 2, self._SEARCH_ACCESS_CHUNK_MAX)
+
+        stop = None if target is None else target
+        window = allowed_ordered[offset:stop]
+        return self.browse(window)._as_query(order)
 
     def _get_search_domain_share(self):
         return Domain(
