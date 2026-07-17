@@ -272,3 +272,36 @@ class TestUrlRewrite(TestUrlCommon):
         self.assertEqual(path, "/loop/b")
         self.assertFalse(func)
         self.assertIn("Redirect loop", capture.output[0])
+
+    def test_redirect_loop_does_not_poison_sibling_cache(self):
+        # Regression for the mid-cycle memoization bug: resolving one node of a
+        # cycle must not cache a value computed mid-recursion for another node.
+        # For /a <-> /b, a fresh top-level url_rewrite reports the *first*
+        # redirect target as the rewritten path: url_rewrite("/a") -> "/b" and
+        # url_rewrite("/b") -> "/a". When the recursion went through the cached
+        # url_rewrite, resolving "/a" first stored the mid-cycle value for "/b"
+        # (which returns early on the _visited check) under "/b"'s plain key,
+        # so a later url_rewrite("/b") wrongly reported "/b" instead of "/a".
+        targets = {"/loop/a": "/loop/b", "/loop/b": "/loop/a"}
+
+        def fake_match(path, method=None):
+            raise werkzeug.routing.RequestRedirect("http://x" + targets[path])
+
+        router = MagicMock()
+        router.return_value.bind.return_value.match.side_effect = fake_match
+        with (
+            MockRequest(self.env, mock_router=False),
+            patch("odoo.http.root.get_db_router", router),
+            self.assertLogs(
+                "odoo.addons.http_routing.models.ir_http", level="WARNING"
+            ),
+        ):
+            # Resolve /a first; this is what poisoned /b's cache pre-fix.
+            path_a, func_a = self.env["ir.http"].url_rewrite("/loop/a")
+            # /b must still report its own fresh result, not a memoized value
+            # produced while resolving /a.
+            path_b, func_b = self.env["ir.http"].url_rewrite("/loop/b")
+        self.assertEqual(path_a, "/loop/b")
+        self.assertFalse(func_a)
+        self.assertEqual(path_b, "/loop/a")
+        self.assertFalse(func_b)
