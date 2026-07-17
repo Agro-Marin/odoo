@@ -180,7 +180,8 @@ export class PosStore extends WithLazyGetterTrap {
         this.loadingOrderState = false; // used to prevent orders fetched to be put in the update set during the reactive change
         this.screenState = {
             ticketScreen: {
-                offsetByDomain: {},
+                // Server ids of the currently displayed SYNCED page.
+                syncedPageOrderIds: [],
                 totalCount: 0,
             },
             partnerList: {

@@ -120,13 +120,19 @@ export class TicketScreen extends Component {
             }
         }
     }
-    onPresetSelected(preset) {
+    async onPresetSelected(preset) {
         if (this.state.selectedPreset === preset) {
             this.state.selectedPreset = null;
         } else {
             this.state.selectedPreset = preset;
+        }
+        if (this.state.filter == "SYNCED") {
+            // The preset filter is part of the server domain.
+            this.state.page = 1;
+            await this._fetchSyncedOrders();
+        }
+        if (this.state.selectedPreset) {
             const firstFilteredOrder = this.getFilteredOrderList()[0];
-
             if (firstFilteredOrder) {
                 this.onClickOrder(firstFilteredOrder);
             }
@@ -137,8 +143,9 @@ export class TicketScreen extends Component {
     }
     async onFilterSelected(selectedFilter) {
         this.state.filter = selectedFilter;
+        this.state.page = 1;
         this.pos.screenState.ticketScreen.totalCount = 0;
-        this.pos.screenState.ticketScreen.offsetByDomain = {};
+        this.pos.screenState.ticketScreen.syncedPageOrderIds = [];
 
         if (this.state.filter === "SYNCED") {
             await this._fetchSyncedOrders();
@@ -499,6 +506,14 @@ export class TicketScreen extends Component {
     }
 
     getFilteredOrderList() {
+        if (this.state.filter === "SYNCED") {
+            // Server-paged: show exactly the fetched page (filters are part of
+            // the server domain). Records may still be loading into the cache
+            // right after a fetch — readMany + Boolean-filter tolerates that.
+            return this.pos.models["pos.order"]
+                .readMany(this.pos.screenState.ticketScreen.syncedPageOrderIds || [])
+                .filter(Boolean);
+        }
         return this._getFilteredOrders().slice(
             (this.state.page - 1) * this.state.nbrByPage,
             this.state.page * this.state.nbrByPage,
@@ -838,36 +853,33 @@ export class TicketScreen extends Component {
     }
     //#region SEARCH SYNCED ORDERS
     _computeSyncedOrdersDomain() {
-        let { fieldName, searchTerm } = this.state.search;
-        if (!searchTerm) {
-            return [];
+        // Every filter the SYNCED list applies must be part of the server
+        // domain — the pages and totalCount come from the server, so a filter
+        // applied only locally desynchronizes the pager from the rows
+        // (partner-only and preset filters used to be local-only).
+        const domain = [];
+        if (this.state.search.partnerId && this.state.search.fieldName === "PARTNER") {
+            domain.push(["partner_id.id", "in", [this.state.search.partnerId]]);
         }
+        if (this.state.selectedPreset) {
+            domain.push(["preset_id", "=", this.state.selectedPreset.id]);
+        }
+        let { fieldName, searchTerm } = this.state.search;
         const searchField = this._getSearchFields()[fieldName];
-        if (
-            searchField &&
-            searchField.modelFields &&
-            searchField.modelFields.length > 0
-        ) {
+        if (searchTerm && searchField?.modelFields?.length > 0) {
             if (searchField.formatSearch) {
                 searchTerm = searchField.formatSearch(searchTerm);
             }
-            const domain = [];
+            const orChain = [];
             for (const modelField of searchField.modelFields) {
-                domain.unshift([modelField, "ilike", `%${searchTerm}%`]);
-                if (domain.length > 1) {
-                    domain.unshift("|");
+                orChain.unshift([modelField, "ilike", `%${searchTerm}%`]);
+                if (orChain.length > 1) {
+                    orChain.unshift("|");
                 }
             }
-            if (
-                this.state.search.partnerId &&
-                this.state.search.fieldName === "PARTNER"
-            ) {
-                domain.unshift(["partner_id.id", "in", [this.state.search.partnerId]]);
-            }
-            return domain;
-        } else {
-            return [];
+            domain.push(...orChain);
         }
+        return domain;
     }
     /**
      * Fetches the done orders from the backend that needs to be shown.
@@ -877,7 +889,12 @@ export class TicketScreen extends Component {
     async _fetchSyncedOrders() {
         const screenState = this.pos.screenState.ticketScreen;
         const domain = this._computeSyncedOrdersDomain();
-        const offset = screenState.offsetByDomain[JSON.stringify(domain)] || 0;
+        // Deterministic paging: fetch exactly the page being displayed. The
+        // old per-domain accumulator (offset += fetched) diverged from
+        // state.page — prev-page navigations fetched rows ahead of anything
+        // displayed, and page-size changes kept offsets accumulated under the
+        // old size.
+        const offset = (this.state.page - 1) * this.state.nbrByPage;
         const config_id = this.pos.config.id;
         const { ordersInfo, totalCount } = await this.pos.data.call(
             "pos.order",
@@ -891,11 +908,12 @@ export class TicketScreen extends Component {
             },
         );
 
-        if (!screenState.offsetByDomain[JSON.stringify(domain)]) {
-            screenState.offsetByDomain[JSON.stringify(domain)] = 0;
-        }
-        screenState.offsetByDomain[JSON.stringify(domain)] += ordersInfo.length;
         screenState.totalCount = totalCount;
+        // The display list is built from this page's ids (server order) —
+        // never by slicing the whole local cache, which also contains
+        // finalized orders cached by other flows (QR scans, refund lookups)
+        // that would shift the slice out of alignment with the server pages.
+        screenState.syncedPageOrderIds = ordersInfo.map((info) => info[0]);
 
         const idsNotInCacheOrOutdated = ordersInfo
             .filter((orderInfo) => {
