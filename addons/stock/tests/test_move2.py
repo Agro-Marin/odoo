@@ -3701,6 +3701,12 @@ class TestStockUOM(TestStockCommon):
             {
                 "name": "T_TEST",
                 "is_storable": True,
+                # The reference unit must share the moves' T-LBS/T-GT root:
+                # this fork's strict `_compute_quantity` raises on cross-root
+                # conversions that upstream silently mis-computes (T-LBS is a
+                # root with factor 1, so all quantities stay numerically
+                # identical to upstream's expectations).
+                "uom_id": T_LBS.id,
                 "uom_ids": [Command.link(T_LBS.id)],
                 "tracking": "lot",
             }

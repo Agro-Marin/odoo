@@ -551,7 +551,13 @@ class StockMove(models.Model):
     def unlink(self):
         # With the non plannified picking, draft moves could have some move lines.
         self.with_context(prefetch_fields=False).mapped("move_line_ids").unlink()
-        return super().unlink()
+        # Collect the impacted orderpoints before the moves disappear: deleting
+        # e.g. a confirmed receipt move changes the forecast, so `qty_to_order`
+        # must be refreshed once the deletion is applied.
+        orderpoints = self._get_orderpoints_to_update()
+        res = super().unlink()
+        self._update_orderpoints(orderpoints)
+        return res
 
     @api.ondelete(at_uninstall=False)
     def _unlink_if_draft_or_cancel(self):
@@ -695,8 +701,10 @@ class StockMove(models.Model):
 
     @api.depends(
         "move_line_ids",
+        "move_line_ids.package_history_id",
         "move_line_ids.result_package_id",
         "move_line_ids.result_package_id.outermost_package_id",
+        "state",
     )
     def _compute_package_ids(self):
         for move in self:
@@ -794,6 +802,9 @@ class StockMove(models.Model):
         "location_dest_usage",
         "is_inventory",
         "inventory_name",
+        # The inventory fallback label below switches on `quantity`; without
+        # this dependency the stored reference froze at its first computation.
+        "quantity",
     )
     def _compute_reference(self):
         for move in self:
@@ -983,18 +994,18 @@ class StockMove(models.Model):
             # unreachable.
             if move._is_consuming():
                 if move.state == "draft":
-                    qty_free = virtual_qty(key, move.product_id.id, 0)
+                    virtual_available = virtual_qty(key, move.product_id.id, 0)
                     if (
                         float_compare(
-                            qty_free,
+                            virtual_available,
                             move.product_qty,
                             precision_rounding=move.product_id.uom_id.rounding,
                         )
                         >= 0
                     ):
-                        move.forecast_availability = qty_free
+                        move.forecast_availability = virtual_available
                         continue
-                    move.forecast_availability = qty_free - move.product_qty
+                    move.forecast_availability = virtual_available - move.product_qty
                 elif move.state in ("waiting", "confirmed", "partially_available"):
                     outgoing_unreserved_moves_per_warehouse[
                         move.location_id.warehouse_id
@@ -1122,7 +1133,10 @@ class StockMove(models.Model):
         for move in self:
             move.packaging_uom_id = move.product_uom_id
 
-    @api.depends("product_uom_qty", "packaging_uom_id")
+    # `product_uom_id` matters on its own: overrides pinning `packaging_uom_id`
+    # to an order line's unit (sale_stock, purchase_stock) leave it unchanged
+    # when the move's unit changes, yet the conversion base below did change.
+    @api.depends("product_uom_qty", "product_uom_id", "packaging_uom_id")
     def _compute_quantity_packaging_uom(self):
         for move in self:
             if move.packaging_uom_id:
@@ -1616,10 +1630,12 @@ Please change the quantity done or the rounding precision in your settings.""",
                 default_vals["picking_type_id"],
             )
             if picking_type.use_existing_lots or context_data.get("force_lot_m2o"):
+                # `default_company_id` is not guaranteed by every client context
+                # (RPC boundary); the callee accepts a falsy company.
                 self._create_lot_ids_from_move_line_vals(
                     vals_list,
                     default_vals["product_id"],
-                    default_vals["company_id"],
+                    default_vals.get("company_id", False),
                 )
         # format many2one values for webclient, id + display_name
         MoveLine = self.env["stock.move.line"]
@@ -2005,6 +2021,9 @@ Please change the quantity done or the rounding precision in your settings.""",
                 ml_ids_to_unlink |= move.move_line_ids.filtered(
                     lambda ml: not ml.picked,
                 ).ids
+            # `quantity` is cache-rounded at the "Product Unit" decimal
+            # precision (see `_compute_quantity`), so a bare comparison with 0
+            # cannot be thrown off by float residue.
             if (move.quantity <= 0 or not move.picked) and not move.is_inventory:
                 if (
                     move.product_uom_id.compare(move.product_uom_qty, 0.0) == 0
@@ -2397,7 +2416,17 @@ Please change the quantity done or the rounding precision in your settings.""",
                         move_line.owner_id,
                     ] -= move_line.quantity_product_uom
 
-            taken_quantities = {}
+            # Snapshot the reserved quantity once. `_update_reserved_quantity_vals`
+            # increases matching existing lines in place, so re-reading the lines
+            # inside the loop while also subtracting the returned takes counted
+            # the update-path share twice (silently under-reserving the next
+            # keys), and an update-only take never reached the state bookkeeping
+            # (leaving a fully reserved move written back as partially
+            # available).
+            initial_reserved_qty = sum(
+                self.move_line_ids.mapped("quantity_product_uom"),
+            )
+            taken_qty_total = 0.0
             all_move_line_vals = []
             for (
                 location_id,
@@ -2405,11 +2434,9 @@ Please change the quantity done or the rounding precision in your settings.""",
                 package_id,
                 owner_id,
             ), quantity in available_move_lines.items():
-                need = (
-                    self.product_qty
-                    - sum(self.move_line_ids.mapped("quantity_product_uom"))
-                    - sum(taken_quantities.values())
-                )
+                need = self.product_qty - initial_reserved_qty - taken_qty_total
+                if float_compare(need, 0, precision_rounding=rounding) <= 0:
+                    break
                 move_line_vals, taken_quantity = self._update_reserved_quantity_vals(
                     min(quantity, need),
                     location_id,
@@ -2419,40 +2446,31 @@ Please change the quantity done or the rounding precision in your settings.""",
                     strict=True,
                 )
                 all_move_line_vals += move_line_vals
-                if move_line_vals:  # Only subtract for new lines (updates are already reflected in sum(move_line_ids))
-                    taken_quantities[
-                        need,
-                        location_id,
-                        lot_id,
-                        package_id,
-                        owner_id,
-                    ] = taken_quantity
+                # `taken_quantity` covers both the lines updated in place and the
+                # new lines created below: count each take exactly once.
+                taken_qty_total += taken_quantity
             if all_move_line_vals:
                 self.env["stock.move.line"].create(all_move_line_vals)
 
-            for (
-                need,
-                _location_id,
-                _lot_id,
-                _package_id,
-                _owner_id,
-            ), taken_quantity in taken_quantities.items():
-                # `quantity` is what is brought by chained done move lines. We double check
-                # here this quantity is available on the quants themselves. If not, this
-                # could be the result of an inventory adjustment that removed all or part
-                # of `quantity`. When this happens, we choose to reserve the maximum still
-                # available. This situation cannot happen on a MTS move, since in that case
-                # `quantity` is directly the quantity on the quants themselves.
-                if float_is_zero(taken_quantity, precision_rounding=rounding):
-                    continue
+            # The takes were double-checked against the quants themselves inside
+            # `_update_reserved_quantity_vals`: what the chained done moves
+            # brought may no longer be fully available (e.g. after an inventory
+            # adjustment), in which case the maximum still available was
+            # reserved. This cannot happen on an MTS move, whose need is
+            # measured on the quants directly.
+            if not float_is_zero(taken_qty_total, precision_rounding=rounding):
                 moves_to_redirect.add(self.id)
-                if float_is_zero(
-                    need - taken_quantity,
-                    precision_rounding=rounding,
+                if (
+                    float_compare(
+                        self.product_qty - initial_reserved_qty - taken_qty_total,
+                        0,
+                        precision_rounding=rounding,
+                    )
+                    <= 0
                 ):
                     assigned_moves_ids.add(self.id)
-                    break
-                partially_available_moves_ids.add(self.id)
+                else:
+                    partially_available_moves_ids.add(self.id)
         return True
 
     def _reverse_negative_moves(self):
@@ -2664,8 +2682,10 @@ Please change the quantity done or the rounding precision in your settings.""",
         moves_not_to_recompute = self.env["stock.move"].browse(moves_not_to_recompute)
 
         ml_to_unlink.unlink()
-        # `write` on `stock.move.line` doesn't call `_recompute_state` (unlike to `unlink`),
-        # so it must be called for each move where no move line has been deleted.
+        # Unlinking the lines above already recomputed the state of their moves;
+        # run it explicitly for the remaining ones (e.g. moves without any move
+        # line, which the unlink never saw), skipping the moves whose picked
+        # lines were deliberately kept.
         (moves_to_unreserve - moves_not_to_recompute)._recompute_state()
         return True
 
@@ -3076,11 +3096,16 @@ Please change the quantity done or the rounding precision in your settings.""",
 
     def _key_assign_picking(self):
         self.ensure_one()
+        # `company_id` keeps each group mono-company: shared locations and
+        # picking types (company_id unset) would otherwise let moves of several
+        # companies share one picking, and `_get_new_picking_values` reads
+        # `self.company_id.id` on the whole group.
         keys = (
             self.reference_ids,
             self.location_id,
             self.location_dest_id,
             self.picking_type_id,
+            self.company_id,
         )
         if self.move_orig_ids.picking_id and not self.reference_ids:
             keys += (self.move_orig_ids.picking_id,)
@@ -3284,7 +3309,6 @@ Please change the quantity done or the rounding precision in your settings.""",
 
     def _merge_moves_fields(self):
         """Return a dict of stock move values merging all the moves in `self`."""
-        merge_extra = self.env.context.get("merge_extra")
         state = self._get_relevant_state_among_moves()
         # `dict.fromkeys` dedupes while preserving order: a plain `set` iterates in
         # a hash-seed-dependent order, making the merged `origin` non-reproducible
@@ -3294,11 +3318,7 @@ Please change the quantity done or the rounding precision in your settings.""",
             dict.fromkeys(self.filtered(lambda m: m.origin).mapped("origin")),
         )
         return {
-            "product_uom_qty": (
-                sum(self.mapped("product_uom_qty"))
-                if not merge_extra
-                else self[0].product_uom_qty
-            ),
+            "product_uom_qty": sum(self.mapped("product_uom_qty")),
             "date": (
                 min(self.mapped("date"))
                 if all(p.move_type == "direct" for p in self.picking_id)
@@ -3397,7 +3417,6 @@ Please change the quantity done or the rounding precision in your settings.""",
             candidate_moves_set,
             distinct_fields,
             neg_qty_moves,
-            merge_into,
             neg_key,
         )
         # Phase 2: let the surviving positive moves absorb the negative ones.
@@ -3425,7 +3444,6 @@ Please change the quantity done or the rounding precision in your settings.""",
         candidate_moves_set,
         distinct_fields,
         neg_qty_moves,
-        merge_into,
         neg_key,
     ):
         """First merge phase: within each candidate group, fold every set of
@@ -3457,14 +3475,7 @@ Please change the quantity done or the rounding precision in your settings.""",
                 if len(moves) > 1:
                     # Link all move lines to record 0 (the one we will keep).
                     moves.mapped("move_line_ids").write({"move_id": moves[0].id})
-                    merge_extra = self.env.context.get("merge_extra") and bool(
-                        merge_into,
-                    )
-                    moves[0].write(
-                        moves.with_context(
-                            merge_extra=merge_extra,
-                        )._merge_moves_fields(),
-                    )
+                    moves[0].write(moves._merge_moves_fields())
                     moves_to_unlink |= moves[1:]
                     merged_moves |= moves[0]
                 # Index the resulting single positive move by its negative-move merge key
@@ -3824,8 +3835,6 @@ Please change the quantity done or the rounding precision in your settings.""",
             .get_param("stock.merge_only_same_date")
         ):
             fields.append("date")
-        if self.env.context.get("merge_extra"):
-            fields.pop(fields.index("procure_method"))
         if (
             not self.env["ir.config_parameter"]
             .sudo()
@@ -4230,14 +4239,27 @@ Please change the quantity done or the rounding precision in your settings.""",
         return new_move_vals
 
     def _set_date_deadline(self, new_deadline):
-        """Propagate the new deadline to linked moves upstream and downstream."""
-        already_propagate_ids = self.env.context.get(
-            "date_deadline_propagate_ids",
-            set(),
-        )
-        already_propagate_ids.update(self.ids)
-        self = self.with_context(date_deadline_propagate_ids=already_propagate_ids)
-        for move in self:
+        """Propagate the new deadline to linked moves upstream and downstream.
+
+        Entry point called from `write`: it resolves the set of already-visited
+        move ids (threaded across the nested writes through the context) and
+        delegates the actual propagation.
+        """
+        visited = self.env.context.get("date_deadline_propagate_ids")
+        if visited is None:
+            visited = set()
+        self._propagate_date_deadline(new_deadline, visited)
+
+    def _propagate_date_deadline(self, new_deadline, visited):
+        """Shift the deadline of the moves linked to `self` by the same delta.
+
+        :param visited: set of move ids already handled, updated in place. The
+            writes below re-enter `_set_date_deadline` (via `write`) carrying
+            the same set through the context, so every move of the chain is
+            visited exactly once even across sibling branches.
+        """
+        visited.update(self.ids)
+        for move in self.with_context(date_deadline_propagate_ids=visited):
             moves_to_update = move.move_dest_ids | move.move_orig_ids
             if move.date_deadline:
                 delta = move.date_deadline - fields.Datetime.to_datetime(new_deadline)
@@ -4246,7 +4268,7 @@ Please change the quantity done or the rounding precision in your settings.""",
             for move_update in moves_to_update:
                 if move_update.state in ("done", "cancel"):
                     continue
-                if move_update.id in already_propagate_ids:
+                if move_update.id in visited:
                     continue
                 if move_update.date_deadline and delta:
                     move_update.date_deadline -= delta
@@ -4405,19 +4427,33 @@ Please change the quantity done or the rounding precision in your settings.""",
 
         # One search for every move at once instead of one `search(limit=1)`
         # per move; the per-move winner (first candidate in the model's
-        # default order) is then picked in Python.
-        candidate_domains = [
-            Domain(
-                [
-                    ("product_id", "=", move.product_id.id),
-                    ("location_id", "parent_of", move.location_id.id),
-                    ("company_id", "=", move.company_id.id),
-                    "!",
-                    ("location_id", "parent_of", move.location_dest_id.id),
-                ],
+        # default order) is then picked in Python. Deduplicate the OR
+        # branches: big batches repeat the same (product, company, locations)
+        # combination many times, and one branch per move can exhaust
+        # PostgreSQL's expression memory.
+        seen_domain_keys = set()
+        candidate_domains = []
+        for move in self:
+            domain_key = (
+                move.product_id.id,
+                move.company_id.id,
+                move.location_id.id,
+                move.location_dest_id.id,
             )
-            for move in self
-        ]
+            if domain_key in seen_domain_keys:
+                continue
+            seen_domain_keys.add(domain_key)
+            candidate_domains.append(
+                Domain(
+                    [
+                        ("product_id", "=", move.product_id.id),
+                        ("location_id", "parent_of", move.location_id.id),
+                        ("company_id", "=", move.company_id.id),
+                        "!",
+                        ("location_id", "parent_of", move.location_dest_id.id),
+                    ],
+                ),
+            )
         candidates = self.env["stock.warehouse.orderpoint"].search(
             Domain("trigger", "=", "auto") & Domain.OR(candidate_domains),
         )
@@ -4473,12 +4509,15 @@ Please change the quantity done or the rounding precision in your settings.""",
         ):
             return
 
+        # Group per destination location instead of emitting one OR branch per
+        # move: the per-move form exhausted PostgreSQL's expression memory on
+        # large batches (upstream 0ebb89ba47f).
         product_domains = Domain.OR(
             [
-                ("product_id", "=", move.product_id.id),
-                ("location_id", "parent_of", move.location_dest_id.id),
+                ("product_id", "in", moves.product_id.ids),
+                ("location_id", "parent_of", location_dest.id),
             ]
-            for move in self
+            for location_dest, moves in self.grouped("location_dest_id").items()
         )
         static_domain = [
             ("state", "in", ["confirmed", "partially_available"]),
@@ -4502,13 +4541,10 @@ Please change the quantity done or the rounding precision in your settings.""",
         for picking in self.mapped("picking_id"):
             candidate_moves_set.add(picking.move_ids)
 
-    def _update_orderpoints(self):
-        """Manually mark the relevant orderpoints for re-computation.
-        This allows us to only recompute the qty_to_order for the orderpoints in the relevant warehouse(s),
-        instead of all the orderpoints linked to the product.
-        """
+    def _get_orderpoints_to_update(self):
+        """Return the orderpoints whose forecast the moves in `self` impact."""
         if not self:
-            return
+            return self.env["stock.warehouse.orderpoint"]
         # Deduplicate (product, warehouses) pairs: large batches usually
         # repeat a few products and would otherwise emit one OR branch per move.
         seen = set()
@@ -4530,11 +4566,22 @@ Please change the quantity done or the rounding precision in your settings.""",
             if wh_ids:
                 domain_for_move &= Domain("warehouse_id", "in", list(wh_ids))
             domains.append(domain_for_move)
-        orderpoints = (
+        return (
             self.env["stock.warehouse.orderpoint"]
             .sudo()
             .search(Domain.OR(domains), order="id")
         )
+
+    def _update_orderpoints(self, orderpoints=None):
+        """Manually mark the relevant orderpoints for re-computation.
+        This allows us to only recompute the qty_to_order for the orderpoints in the relevant warehouse(s),
+        instead of all the orderpoints linked to the product.
+
+        :param orderpoints: optional pre-collected orderpoints; `unlink` passes
+            them because they must be gathered before the moves are deleted.
+        """
+        if orderpoints is None:
+            orderpoints = self._get_orderpoints_to_update()
         orderpoints.invalidate_recordset(["qty_to_order", "qty_forecast"])
         self.env.add_to_compute(
             self.env["stock.warehouse.orderpoint"]._fields["qty_to_order_computed"],
@@ -4651,9 +4698,7 @@ Please change the quantity done or the rounding precision in your settings.""",
                     to_update.product_uom_id,
                 )
             if uom_quantity is not None:
-                to_update.with_context(
-                    reserved_quant=reserved_quant,
-                ).quantity += uom_quantity
+                to_update.quantity += uom_quantity
             elif self.product_id.tracking == "serial" and (
                 self.picking_type_id.use_create_lots
                 or self.picking_type_id.use_existing_lots
