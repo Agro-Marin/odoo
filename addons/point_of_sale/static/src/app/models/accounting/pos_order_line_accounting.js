@@ -42,31 +42,39 @@ export class PosOrderlineAccounting extends Base {
     /**
      * Display price depending on the tax configuration (included or excluded).
      */
+    // A combo parent's shown price is the total of its child lines. Compute it
+    // the SAME way the order total is computed — a single GLOBAL tax summary
+    // over the combo's child lines (via the order's own price machinery) —
+    // instead of summing each child's already-rounded price. Line-by-line
+    // rounding accumulated a per-cent drift, so the parent could show e.g.
+    // 151.97 while the order charged the globally-rounded 151.98.
+    _comboGlobalTotal({ noDiscount = false } = {}) {
+        const opts = { lines: this.combo_line_ids };
+        if (noDiscount) {
+            opts.baseLineOpts = { discount: 0.0 };
+        }
+        const details = this.order_id.getPriceWithOptions(opts).taxDetails;
+        const raw =
+            this.config.iface_tax_included === "total"
+                ? details.total_amount_no_rounding
+                : details.base_amount;
+        return this.currency.round(raw);
+    }
     get displayPrice() {
-        return !this.combo_line_ids.length
-            ? this.config.iface_tax_included === "total"
-                ? this.priceIncl
-                : this.priceExcl
-            : this.combo_line_ids.reduce((total, cl) => {
-                  const price =
-                      this.config.iface_tax_included === "total"
-                          ? cl.priceIncl
-                          : cl.priceExcl;
-                  return total + price;
-              }, 0);
+        if (this.combo_line_ids.length) {
+            return this._comboGlobalTotal();
+        }
+        return this.config.iface_tax_included === "total"
+            ? this.priceIncl
+            : this.priceExcl;
     }
     get displayPriceNoDiscount() {
-        return !this.combo_line_ids.length
-            ? this.config.iface_tax_included === "total"
-                ? this.priceInclNoDiscount
-                : this.priceExclNoDiscount
-            : this.combo_line_ids.reduce((total, cl) => {
-                  const price =
-                      this.config.iface_tax_included === "total"
-                          ? cl.priceInclNoDiscount
-                          : cl.priceExclNoDiscount;
-                  return total + price;
-              }, 0);
+        if (this.combo_line_ids.length) {
+            return this._comboGlobalTotal({ noDiscount: true });
+        }
+        return this.config.iface_tax_included === "total"
+            ? this.priceInclNoDiscount
+            : this.priceExclNoDiscount;
     }
     get displayPriceUnit() {
         return this.config.iface_tax_included === "total"
