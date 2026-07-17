@@ -69,14 +69,20 @@ export function useFullComposer() {
                         thread_id: comp.thread.id,
                         emails: recipientEmails,
                     });
-                    for (const index in partners) {
-                        const partnerData = partners[index];
+                    for (const partnerData of partners) {
                         const partner = comp.store["res.partner"].insert(partnerData);
-                        const email = recipientEmails[index];
+                        // Match on the input email echoed by the server
+                        // (source_email): the returned list is deduped and
+                        // reordered, so pairing by position assigned partners to
+                        // the wrong recipients (or threw on a missing index).
+                        const sourceEmail =
+                            partnerData.source_email ?? partnerData.email;
                         const recipient = allRecipients.find(
-                            (recipient) => recipient.email === email,
+                            (recipient) => recipient.email === sourceEmail,
                         );
-                        recipient.partner_id = partner.id;
+                        if (recipient) {
+                            recipient.partner_id = partner.id;
+                        }
                     }
                 }
             }

@@ -1,10 +1,42 @@
+from datetime import timedelta
+
 import babel
 import requests
 
+from odoo import fields
 from odoo.http import Controller, request, route
+
+# Per-user cap on the number of NEW translations (each = a paid Google API
+# round-trip) created within a rolling 24h window. 0 disables the cap.
+TRANSLATION_DAILY_LIMIT_PARAM = "mail.translation.daily_limit"
+TRANSLATION_DAILY_LIMIT_DEFAULT = 1000
 
 
 class GoogleTranslateController(Controller):
+    def _translation_rate_limited(self):
+        """Whether the current user has hit the daily new-translation cap.
+
+        Cached translations are free (served without an external call), so only
+        creations count. Bounds a caller from iterating distinct message ids to
+        burn Google Translate quota/billing.
+        """
+        cap = int(
+            request.env["ir.config_parameter"]
+            .sudo()
+            .get_param(TRANSLATION_DAILY_LIMIT_PARAM, TRANSLATION_DAILY_LIMIT_DEFAULT)
+        )
+        if cap <= 0:
+            return False
+        since = fields.Datetime.now() - timedelta(days=1)
+        count = (
+            request.env["mail.message.translation"]
+            .sudo()
+            .search_count(
+                [("create_uid", "=", request.env.uid), ("create_date", ">=", since)]
+            )
+        )
+        return count >= cap
+
     @route("/mail/message/translate", type="jsonrpc", auth="user")
     def translate(self, message_id):
         message = request.env["mail.message"].search([("id", "=", message_id)])
@@ -17,6 +49,12 @@ class GoogleTranslateController(Controller):
         # sudo: mail.message.translation - searching translations of a message that can be read with standard ACL
         translation = request.env["mail.message.translation"].sudo().search(domain)
         if not translation:
+            if self._translation_rate_limited():
+                return {
+                    "error": request.env._(
+                        "Translation rate limit reached, please retry later."
+                    )
+                }
             try:
                 source_lang = self._detect_source_lang(message)
                 target_lang = request.env.user.lang.split("_")[0]
