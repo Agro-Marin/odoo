@@ -444,6 +444,10 @@ class ProductTemplate(models.Model):
         "to_date",
         "location",
         "warehouse_id",
+        # See product_product._compute_quantities: the search views inject these
+        # aliases and _get_domain_locations consumes them, so they must key the cache.
+        "search_location",
+        "search_warehouse",
         "allowed_company_ids",
         "is_storable",
     )
@@ -683,7 +687,8 @@ class ProductTemplate(models.Model):
                 "location_id",
                 "any",
                 self.env["stock.location"]._check_company_domain(
-                    self.env.context["allowed_company_ids"]
+                    self.env.context.get("allowed_company_ids")
+                    or self.env.companies.ids
                 ),
             ),
         ]

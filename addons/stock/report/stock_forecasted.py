@@ -454,11 +454,18 @@ class StockForecasted_Product_Product(models.AbstractModel):
                     out.product_id.id, move.location_id.id
                 ]
             # count taken from stock, but avoid taking more than what's in stock in case of move origs,
-            # this can happen if a stock adjustment is done after the orig moves are done
-            taken_from_stock = min(
-                demand,
-                move_available_qty,
-                ctx.currents[out.product_id.id, move.location_id.id],
+            # this can happen if a stock adjustment is done after the orig moves are done.
+            # Floor at 0: move_available_qty (move_in - move_out - reserved) can go
+            # negative when siblings over-consume the origin, and a negative
+            # taken_from_stock would otherwise INFLATE demand_out at the tail below,
+            # making later linked lines over-decrement free/transit stock.
+            taken_from_stock = max(
+                0.0,
+                min(
+                    demand,
+                    move_available_qty,
+                    ctx.currents[out.product_id.id, move.location_id.id],
+                ),
             )
             if taken_from_stock > 0:
                 # any sublocation qties needs to be removed to the main stock location qty as well

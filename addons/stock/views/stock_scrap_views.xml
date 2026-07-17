@@ -198,7 +198,7 @@
                 </group>
                 <footer>
                     <button name="action_validate" string="Scrap Products" type="object"
-                        class="btn-primary" data-hotkey="q" />
+                        class="btn-primary" data-hotkey="q" invisible="state != 'draft'" />
                     <button string="Discard" class="btn-secondary" special="cancel" data-hotkey="x" />
                 </footer>
             </form>

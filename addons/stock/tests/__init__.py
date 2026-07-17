@@ -13,6 +13,7 @@ from . import test_move
 from . import test_move_reservation
 from . import test_move_show_details
 from . import test_stock_move_review_fixes
+from . import test_review_compounding_fixes
 from . import test_move2
 from . import test_move_lines
 from . import test_multicompany
