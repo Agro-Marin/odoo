@@ -135,7 +135,7 @@ registry.category("web_tour.tours").add("test_forecast_replenishment", {
         },
         {
             trigger:
-                ".o_notification:contains(The following replenishment order have been generated)",
+                ".o_notification:contains(The following replenishment order has been generated)",
         },
     ],
 });

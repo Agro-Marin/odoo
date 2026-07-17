@@ -27,10 +27,9 @@ export class StockPickFrom extends Component {
     }
 
     _quant_display_name() {
-        const name_parts = [];
-        // if location group is activated
         const data = this.props.record.data;
-        name_parts.push(data.location_id?.display_name);
+        // location display_name is absent when the location group is disabled
+        const name_parts = [data.location_id?.display_name];
         if (data.lot_id) {
             name_parts.push(data.lot_id?.display_name || data.lot_name);
         }
@@ -44,7 +43,9 @@ export class StockPickFrom extends Component {
         if (data.owner_id) {
             name_parts.push(data.owner_id?.display_name);
         }
-        return name_parts.join(" - ");
+        // Filter the falsy parts so a missing component never renders as a
+        // dangling " - " separator.
+        return name_parts.filter(Boolean).join(" - ");
     }
 }
 

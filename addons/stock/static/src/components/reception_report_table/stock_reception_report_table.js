@@ -18,7 +18,9 @@ export class ReceptionReportTable extends Component {
     };
     static props = {
         index: String,
-        scheduledDate: { type: String, optional: true },
+        // Boolean: the server sends `false` for sources without a scheduled
+        // date (see _get_formatted_scheduled_date and its overrides).
+        scheduledDate: { type: [String, Boolean], optional: true },
         lines: Array,
         source: Array,
         labelReport: Object,

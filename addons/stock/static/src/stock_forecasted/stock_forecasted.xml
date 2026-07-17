@@ -11,11 +11,17 @@
                 </div>
             </t>
         </ControlPanel>
-        <div class="o-content pt-3 container-fluid overflow-auto o_stock_forecasted_page">
+        <!-- `docs` is undefined when this instance is being superseded by the
+             history-restore reloadReport() (see StockForecasted setup); the
+             header/details components dereference it in their own setup, so
+             render the report body only once the values are loaded. -->
+        <div t-if="docs" class="o-content pt-3 container-fluid overflow-auto o_stock_forecasted_page">
             <ForecastedHeader docs="docs" openView.bind="openView"/>
             <t t-if="context.warehouse_id">
+                <!-- No explicit viewId: report.stock.quantity's only graph view
+                     (stock.stock_report_view_graph, js_class="stock_forecasted_graph")
+                     is resolved as the model's default graph view. -->
                 <View type="'graph'"
-                viewId="stock_report_view_graph"
                 resModel="'report.stock.quantity'"
                 domain="graphDomain"
                 display="{controlPanel: false}"

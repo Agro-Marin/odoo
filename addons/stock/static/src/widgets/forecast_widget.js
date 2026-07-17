@@ -22,8 +22,9 @@ export class ForecastWidgetField extends FloatField {
     }
 
     get forecastExpectedDate() {
-        const { data, fields } = this.props.record;
-        return formatDate(data.date_planned_forecast, fields.date_planned_forecast);
+        // formatDate's second argument is an options object ({ format }); the
+        // localization default date format is what we want here.
+        return formatDate(this.props.record.data.date_planned_forecast);
     }
 
     get forecastIsLate() {

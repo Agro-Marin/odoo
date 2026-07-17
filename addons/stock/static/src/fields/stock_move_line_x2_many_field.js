@@ -28,6 +28,12 @@ export class SMLX2ManyField extends X2ManyField {
             onRecordSaved: (record) => this.selectRecord([record.resId]),
             fieldString: this.props.string,
             is2Many: true,
+            // `onClose` is a hook-config option (not a per-call one): restore
+            // the focus captured by createOpenRecord() when the dialog closes.
+            onClose: () => {
+                this._activeElementOnDialogOpen?.focus();
+                this._activeElementOnDialogOpen = null;
+            },
         });
     }
 
@@ -184,19 +190,19 @@ export class SMLX2ManyField extends X2ManyField {
     }
 
     createOpenRecord() {
-        const activeElement = document.activeElement;
-        this.openQuantRecord({
-            context: {
-                ...this.props.context,
-                form_view_ref: "stock.view_stock_quant_form",
+        this._activeElementOnDialogOpen = document.activeElement;
+        // `immediate` is the second positional argument of the open function
+        // returned by useOpenMany2XRecord (passing it inside the first object,
+        // as before, silently ignored it).
+        this.openQuantRecord(
+            {
+                context: {
+                    ...this.props.context,
+                    form_view_ref: "stock.view_stock_quant_form",
+                },
             },
-            immediate: true,
-            onClose: () => {
-                if (activeElement) {
-                    activeElement.focus();
-                }
-            },
-        });
+            true,
+        );
     }
 
     get _move_line_ids() {

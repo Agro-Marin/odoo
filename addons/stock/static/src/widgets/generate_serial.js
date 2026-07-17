@@ -58,22 +58,36 @@ export class GenerateDialog extends Component {
                 ["lot_sequence_id"],
             )
         )[0];
-        this.sequence = product.lot_sequence_id;
-        if (product.lot_sequence_id) {
-            this.sequence = (
-                await this.orm.searchRead(
-                    "ir.sequence",
-                    [["id", "=", this.sequence[0]]],
-                    ["number_next_actual"],
-                )
-            )[0];
-            this.nextCustomSerialNumber = await this.orm.call(
+        if (!product.lot_sequence_id) {
+            return;
+        }
+        const sequence = (
+            await this.orm.searchRead(
+                "ir.sequence",
+                [["id", "=", product.lot_sequence_id[0]]],
+                ["prefix", "suffix", "padding", "number_next_actual"],
+            )
+        )[0];
+        const prefix = sequence.prefix || "";
+        const suffix = sequence.suffix || "";
+        if (prefix.includes("%") || suffix.includes("%")) {
+            // Legend placeholders (e.g. %(year)s) are interpolated server-side
+            // and have no client equivalent, so a faithful preview requires
+            // next_by_id — which permanently consumes one sequence number even
+            // if the dialog is then discarded. Accepted only for this case.
+            this.nextSerial.el.value = await this.orm.call(
                 "ir.sequence",
                 "next_by_id",
-                [this.sequence.id],
+                [sequence.id],
             );
-            this.nextSerial.el.value = this.nextCustomSerialNumber;
+            return;
         }
+        // Plain prefix/suffix: format the preview locally so previewing (or
+        // discarding the dialog) never consumes the sequence.
+        this.nextSerial.el.value =
+            prefix +
+            String(sequence.number_next_actual).padStart(sequence.padding, "0") +
+            suffix;
     }
     async _onGenerate() {
         let count;

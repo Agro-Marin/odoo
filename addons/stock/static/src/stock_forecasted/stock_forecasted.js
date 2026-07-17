@@ -61,7 +61,10 @@ export class StockForecasted extends Component {
                 ["id", "name", "code"],
             )),
         );
-        if (!this.context.warehouse_id) {
+        // `warehouses` can be empty (e.g. a multi-company user whose current
+        // companies expose no warehouse); the report then computes without a
+        // warehouse filter instead of crashing on warehouses[0].
+        if (!this.context.warehouse_id && this.warehouses.length) {
             this.updateWarehouse(this.warehouses[0].id);
         }
         const reportValues = await this.orm.call(

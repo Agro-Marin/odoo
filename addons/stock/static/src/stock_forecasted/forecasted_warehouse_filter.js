@@ -29,9 +29,12 @@ export class ForecastedWarehouseFilter extends Component {
     }
 
     get activeWarehouse() {
-        return this.context.warehouse_id
-            ? this.warehouses.find((w) => w.id === this.context.warehouse_id)
-            : this.warehouses[0];
+        // Fall back to the first warehouse when the context id is stale (e.g.
+        // deleted warehouse or leftover context from another company).
+        const active =
+            this.context.warehouse_id &&
+            this.warehouses.find((w) => w.id === this.context.warehouse_id);
+        return active || this.warehouses[0];
     }
 
     get warehousesItems() {
