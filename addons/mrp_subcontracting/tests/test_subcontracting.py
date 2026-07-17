@@ -1630,3 +1630,76 @@ class TestSubcontractingSerialMassReceipt(TransactionCase):
             {'name': '03-02-0000002'},
         ])
         self.assertEqual(self.finished.next_serial, '0000003')
+
+
+@tagged('post_install', '-at_install')
+class TestSubcontractingBomReport(TransactionCase):
+
+    def test_bom_subcontracting_dynamic_attribute_buy_route(self):
+        """
+            The BoM report of a subcontracted product whose dynamic-attribute
+            template has no variant yet must not crash when the route
+            resolution yields a Buy rule for the empty variant recordset.
+
+            The empty product carries no seller and no BoM, so every selectable
+            warehouse route is filtered out and the resolver falls back to the
+            raw warehouse route bucket, where the Buy rule wins once
+            manufacture resupply is disabled and no other selectable route is
+            left. ``_format_route_info`` must then skip seller resolution
+            instead of calling ``_select_seller`` on an empty recordset
+            (``ValueError: Expected singleton: product.product()``).
+        """
+        warehouse = self.env['stock.warehouse'].search([('company_id', '=', self.env.company.id)], limit=1)
+        if 'buy_to_resupply' not in warehouse._fields:
+            self.skipTest('purchase_stock is not installed: no Buy route/rule')
+        subcontractor = self.env['res.partner'].create({'name': 'Subcontractor'})
+        component = self.env['product.product'].create({
+            'name': 'Component',
+            'is_storable': True,
+        })
+        dynamic_attribute = self.env['product.attribute'].create({
+            'name': 'colour',
+            'create_variant': 'dynamic',
+            'value_ids': [Command.create({'name': 'Red'}), Command.create({'name': 'Blue'})],
+        })
+        product_template = self.env['product.template'].create({
+            'name': 'Configurable Cake',
+            'is_storable': True,
+            'attribute_line_ids': [Command.create({
+                'attribute_id': dynamic_attribute.id,
+                'value_ids': [Command.set(dynamic_attribute.value_ids.ids)],
+            })],
+        })
+        bom = self.env['mrp.bom'].create({
+            'product_tmpl_id': product_template.id,
+            'type': 'subcontract',
+            'subcontractor_ids': [Command.set([subcontractor.id])],
+            'bom_line_ids': [
+                Command.create({'product_id': component.id, 'product_qty': 1}),
+            ],
+        })
+        # Seller left on the template for the subcontractor (the record the
+        # order-dependent leakage created).
+        self.env['product.supplierinfo'].create({
+            'product_tmpl_id': product_template.id,
+            'partner_id': subcontractor.id,
+            'price': 5,
+        })
+        # Reduce the warehouse selectable routes to the Buy route so the empty
+        # variant resolves to the Buy rule.
+        warehouse.buy_to_resupply = True
+        warehouse.manufacture_to_resupply = False
+        other_routes = warehouse.route_ids.filtered(
+            lambda route: not any(rule.action == 'buy' for rule in route.rule_ids)
+        )
+        other_routes.write({'warehouse_ids': [Command.unlink(warehouse.id)]})
+
+        empty_variant = product_template.product_variant_id
+        self.assertFalse(empty_variant, 'The dynamic template should have no variant')
+        rules = empty_variant._get_rules_from_location(warehouse.lot_stock_id)
+        self.assertTrue(
+            any(rule.action == 'buy' for rule in rules),
+            'The empty variant should resolve to a Buy rule for this test to be relevant',
+        )
+        report_values = self.env['report.mrp.report_bom_structure']._get_report_data(bom_id=bom.id, searchVariant=False)
+        self.assertTrue(report_values)
