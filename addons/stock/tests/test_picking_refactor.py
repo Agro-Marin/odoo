@@ -1,3 +1,10 @@
+import os
+import time
+from datetime import date, datetime, timedelta
+
+from freezegun import freeze_time
+
+from odoo import fields
 from odoo.exceptions import UserError
 
 from odoo.addons.stock.tests.common import TestStockCommon
@@ -94,8 +101,6 @@ class TestPickingRefactor(TestStockCommon):
 
     def test_has_deadline_issue_reflects_dates(self):
         """`has_deadline_issue` is True only when a deadline precedes the scheduled date."""
-        from datetime import datetime
-
         picking = self._new_picking(self.picking_type_out)
         move = self.MoveObj.create(
             {
@@ -676,4 +681,296 @@ class TestPickingRefactor(TestStockCommon):
             as_false,
             incoming,
             "an incoming picking must be found by the False availability search",
+        )
+
+    @freeze_time("2024-06-06 11:00")
+    def test_calculate_date_category_naive_utc_on_non_utc_server(self):
+        """Stored datetimes are naive UTC: `calculate_date_category` must classify
+        them independently of the server's OS timezone (a naive `astimezone` used
+        to reinterpret them in the OS zone), and must agree with the bucket built
+        by `date_category_to_domain`.
+        """
+        self.env.user.tz = "UTC"
+        dt = datetime(2024, 6, 6, 2, 0)  # 02:00 UTC -> "today" for a UTC user
+        old_tz = os.environ.get("TZ")
+        # UTC+6 server: the old code shifted 02:00 to 2024-06-05 20:00 UTC
+        # ("yesterday").
+        os.environ["TZ"] = "Etc/GMT-6"
+        time.tzset()
+        try:
+            self.assertEqual(
+                self.PickingObj.calculate_date_category(dt),
+                "today",
+                "naive UTC datetimes must not be reinterpreted in the OS timezone",
+            )
+            (_f1, _op1, low), (_f2, _op2, high) = (
+                self.PickingObj.date_category_to_domain(
+                    "date_planned",
+                    "today",
+                )
+            )
+            self.assertTrue(
+                low <= dt < high,
+                "the classifier and the search domain must agree on the bucket",
+            )
+        finally:
+            if old_tz is None:
+                os.environ.pop("TZ", None)
+            else:
+                os.environ["TZ"] = old_tz
+            time.tzset()
+
+    def test_inverse_date_planned_keeps_done_move_dates(self):
+        """Rescheduling a picking must not rewrite the effective date of its done
+        moves (e.g. a scrap validated from the picking): `stock.move.write`
+        cascades `date` to done move lines, corrupting inventory history.
+        """
+        picking = self._new_picking(self.picking_type_int)
+        open_move = self._internal_move(picking, self.shelf_1)
+        scrap_move = self._internal_move(picking, self.scrap_location, demand=2)
+        picking.action_confirm()
+        scrap_move.quantity = 2
+        scrap_move.picked = True
+        scrap_move.with_context(is_scrap=True)._action_done()
+        self.assertEqual(scrap_move.state, "done")
+        self.assertNotEqual(picking.state, "done")
+
+        done_date = scrap_move.date
+        new_date = fields.Datetime.now() + timedelta(days=5)
+        picking.date_planned = new_date
+        self.assertEqual(
+            open_move.date,
+            new_date,
+            "open moves must follow the new scheduled date",
+        )
+        self.assertEqual(
+            scrap_move.date,
+            done_date,
+            "done moves must keep their effective date when the picking is rescheduled",
+        )
+
+    def test_show_allocation_excludes_sibling_pickings(self):
+        """Per-picking `show_allocation` counts demand from any other picking, but
+        the batch-level `_get_show_allocation` must not count demand held by a
+        sibling picking of the same evaluated set (upstream `not in self.ids`
+        semantics).
+        """
+        product = self.ProductObj.create({"name": "SiblingDemand", "is_storable": True})
+
+        def make_internal(dest):
+            picking = self._new_picking(self.picking_type_int)
+            self.MoveObj.create(
+                {
+                    "product_id": product.id,
+                    "product_uom_qty": 4,
+                    "product_uom_id": product.uom_id.id,
+                    "picking_id": picking.id,
+                    "location_id": self.stock_location.id,
+                    "location_dest_id": dest.id,
+                },
+            )
+            picking.action_confirm()
+            return picking
+
+        picking_a = make_internal(self.shelf_1)
+        picking_b = make_internal(self.shelf_2)
+        pair = picking_a | picking_b
+
+        # Per-picking semantics (field + singleton fast path): the sibling's open
+        # move is allocatable demand.
+        self.assertTrue(pair._get_show_allocation_map()[picking_a])
+        self.assertTrue(picking_a._get_show_allocation_map()[picking_a])
+        # Excluding the whole set removes the sibling demand — on both the
+        # singleton fast path and the batched path.
+        self.assertFalse(
+            picking_a._get_show_allocation_map(excluded_pickings=pair)[picking_a],
+        )
+        self.assertFalse(
+            pair._get_show_allocation(picking_a.picking_type_id),
+            "demand inside the evaluated set must not trigger the batch-level "
+            "allocation button",
+        )
+
+    def test_sanity_check_multi_flags_zero_quantity_picking(self):
+        """Validating several transfers at once must flag the ones without any
+        quantity set (they used to slip through the multi-transfer branch and get
+        stamped with a `date_done` while staying open). Draft pickings are exempt:
+        `button_validate` backfills their quantities after confirming them.
+        """
+        product = self.ProductObj.create({"name": "MultiZero", "is_storable": True})
+
+        def make_delivery(confirm):
+            picking = self._new_picking(self.picking_type_out)
+            self.MoveObj.create(
+                {
+                    "product_id": product.id,
+                    "product_uom_qty": 5,
+                    "product_uom_id": product.uom_id.id,
+                    "picking_id": picking.id,
+                    "location_id": self.stock_location.id,
+                    "location_dest_id": self.customer_location.id,
+                },
+            )
+            if confirm:
+                picking.action_confirm()  # no stock -> stays confirmed, quantity 0
+            return picking
+
+        zero_picking = make_delivery(confirm=True)
+        ok_picking = make_delivery(confirm=True)
+        ok_picking.move_ids.quantity = 5
+
+        with self.assertRaises(UserError) as error_catcher:
+            (zero_picking | ok_picking)._sanity_check()
+        self.assertIn(zero_picking.name, str(error_catcher.exception))
+
+        draft_picking = make_delivery(confirm=False)
+        self.assertEqual(draft_picking.state, "draft")
+        # Must not raise: the draft picking's quantities are backfilled later by
+        # `button_validate` (and the batch flow checks before confirmation).
+        (draft_picking | ok_picking)._sanity_check()
+
+    def test_search_date_category_ignores_unknown_values(self):
+        """Unknown date categories (possible through raw RPC domains) must match
+        nothing instead of crashing, and must not swallow valid values passed
+        alongside them.
+        """
+        picking = self._new_picking(self.picking_type_out)  # scheduled now: "today"
+        self.assertFalse(
+            self.PickingObj.search([("search_date_category", "in", ["bogus"])]),
+        )
+        found = self.PickingObj.search(
+            [("search_date_category", "in", ["today", "bogus"])],
+        )
+        self.assertIn(picking, found)
+
+    @freeze_time("2024-06-06 14:00")
+    def test_count_picking_late_uses_user_day_boundary(self):
+        """The "Late" dashboard count shares the graph's day boundary (start of
+        today in the user's timezone), not the server's UTC calendar date. For an
+        Auckland user at 2024-06-07 02:00 local, a picking scheduled 2024-06-06
+        11:00 UTC (23:00 local, yesterday) is late; the old UTC-date cutoff
+        (2024-06-06 00:00) missed it.
+        """
+        self.env.user.tz = "Pacific/Auckland"  # UTC+12 in June
+        picking_type = self.picking_type_out
+        count_before = picking_type.count_picking_late
+
+        picking = self._new_picking(picking_type)
+        self.MoveObj.create(
+            {
+                "product_id": self.product_2.id,
+                "product_uom_qty": 3,
+                "product_uom_id": self.product_2.uom_id.id,
+                "picking_id": picking.id,
+                "location_id": self.stock_location.id,
+                "location_dest_id": self.customer_location.id,
+                "date": datetime(2024, 6, 6, 11, 0),
+            },
+        )
+        picking.action_confirm()
+        self.assertEqual(picking.date_planned, datetime(2024, 6, 6, 11, 0))
+        self.assertFalse(picking.has_deadline_issue)
+
+        picking_type.invalidate_recordset(["count_picking_late"])
+        self.assertEqual(
+            picking_type.count_picking_late,
+            count_before + 1,
+            "a picking scheduled before the user's start-of-today must count as late",
+        )
+
+    def test_state_recomputes_on_bypass_location_change(self):
+        """`_compute_state` reads the source location's reservation bypass; moving
+        a confirmed picking to a bypass location (e.g. supplier) must re-derive
+        its state to assigned without waiting for a move-state write.
+        """
+        product = self.ProductObj.create({"name": "BypassProbe", "is_storable": True})
+        picking = self._new_picking(self.picking_type_int)
+        self.MoveObj.create(
+            {
+                "product_id": product.id,
+                "product_uom_qty": 10,
+                "product_uom_id": product.uom_id.id,
+                "picking_id": picking.id,
+                "location_id": self.stock_location.id,
+                "location_dest_id": self.shelf_1.id,
+            },
+        )
+        picking.action_confirm()  # no stock -> confirmed
+        self.assertEqual(picking.state, "confirmed")
+        picking.location_id = self.supplier_location
+        self.assertEqual(
+            picking.state,
+            "assigned",
+            "a bypass-reservation source location must re-derive the state",
+        )
+
+    def test_reservation_days_explicit_zero_and_days_only_refresh(self):
+        """`date_reservation` maintenance in `stock.picking.type.write`: an
+        explicit 0 in the same write must win over the stored day count, and
+        changing only the day count on an already-by_date type must refresh the
+        open moves.
+        """
+        picking_type = self.picking_type_out
+        picking_type.reservation_method = "manual"
+        picking_type.reservation_days_before = 7
+
+        product = self.ProductObj.create({"name": "ByDateProbe", "is_storable": True})
+        picking = self._new_picking(picking_type)
+        move = self.MoveObj.create(
+            {
+                "product_id": product.id,
+                "product_uom_qty": 3,
+                "product_uom_id": product.uom_id.id,
+                "picking_id": picking.id,
+                "location_id": self.stock_location.id,
+                "location_dest_id": self.customer_location.id,
+                "date": datetime(2024, 6, 10, 9, 0),
+            },
+        )
+        picking.action_confirm()
+        self.assertEqual(move.state, "confirmed")
+
+        picking_type.write(
+            {"reservation_method": "by_date", "reservation_days_before": 0},
+        )
+        self.assertEqual(
+            move.date_reservation,
+            date(2024, 6, 10),
+            "an explicit 0 days in the same write must win over the stored 7",
+        )
+
+        picking_type.write({"reservation_days_before": 3})
+        self.assertEqual(
+            move.date_reservation,
+            date(2024, 6, 7),
+            "changing only the day count on a by_date type must refresh open moves",
+        )
+
+    def test_reference_picking_ids_follow_move_reassignment(self):
+        """`stock.reference.picking_ids` must follow `move_ids.picking_id` through
+        `@api.depends` — no stale cache after a move is reassigned to another
+        picking in the same transaction.
+        """
+        picking_a = self._new_picking(self.picking_type_out)
+        picking_b = self._new_picking(self.picking_type_out)
+        move = self.MoveObj.create(
+            {
+                "product_id": self.product_2.id,
+                "product_uom_qty": 1,
+                "product_uom_id": self.product_2.uom_id.id,
+                "picking_id": picking_a.id,
+                "location_id": self.stock_location.id,
+                "location_dest_id": self.customer_location.id,
+            },
+        )
+        reference = self.env["stock.reference"].create(
+            {"name": "REF-DEP", "move_ids": [(4, move.id)]},
+        )
+        self.assertEqual(reference.picking_ids, picking_a)
+        move.picking_id = picking_b
+        self.assertEqual(
+            reference.picking_ids,
+            picking_b,
+            "picking_ids must follow the move reassignment without manual cache "
+            "invalidation",
         )

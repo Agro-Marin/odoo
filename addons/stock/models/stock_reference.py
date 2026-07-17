@@ -1,4 +1,4 @@
-from odoo import fields, models
+from odoo import api, fields, models
 
 
 class StockReference(models.Model):
@@ -24,6 +24,7 @@ class StockReference(models.Model):
         readonly=True,
     )
 
+    @api.depends("move_ids.picking_id")
     def _compute_picking_ids(self):
         for reference in self:
             reference.picking_ids = reference.move_ids.picking_id
