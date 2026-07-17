@@ -93,6 +93,9 @@ class StockScrap(models.Model):
         readonly=False,
         check_company=True,
         domain="[('usage', '=', 'inventory')]",
+        help="Inventory-loss location the scrapped goods are moved to. Any"
+        " inventory-loss location qualifies; a company location named 'Scrap'"
+        " is preferred by default when one exists.",
     )
     scrap_qty = fields.Float(
         string="Quantity",
@@ -170,14 +173,25 @@ class StockScrap(models.Model):
 
     @api.depends("company_id")
     def _compute_scrap_location_id(self):
-        groups = self.env["stock.location"]._read_group(
+        # Flagless default (upstream 53181c7ac4d dropped the scrap_location
+        # flag: any inventory-loss location qualifies). This fork also does
+        # not provision a per-company "Scrap" location; still prefer one so
+        # named (what upstream provisioning creates and pre-fork databases
+        # carry) over the arbitrary lowest id, keeping scrap losses
+        # separable from inventory adjustments wherever a dedicated
+        # location exists.
+        locations = self.env["stock.location"].search_fetch(
             [("company_id", "in", self.company_id.ids), ("usage", "=", "inventory")],
-            ["company_id"],
-            ["id:min"],
+            ["company_id", "name"],
+            order="id",
         )
-        locations_per_company = {
-            company.id: stock_warehouse_id for company, stock_warehouse_id in groups
-        }
+        locations_per_company = {}
+        for location in locations:
+            current = locations_per_company.get(location.company_id.id)
+            if current is None or (
+                location.name == "Scrap" and current.name != "Scrap"
+            ):
+                locations_per_company[location.company_id.id] = location
         for scrap in self:
             if scrap.company_id:
                 scrap.scrap_location_id = locations_per_company.get(
