@@ -6,6 +6,7 @@
 import {
     Component,
     onWillDestroy,
+    onWillRender,
     onWillUpdateProps,
     useEffect,
     useRef,
@@ -37,6 +38,24 @@ export class PdfViewerField extends Component {
             objectUrl: "",
         });
         this.iframeViewerPdfRef = useRef("iframeViewerPdf");
+        // The component instance is reused across form pager navigation. A blob
+        // URL captured from an upload on one record must not leak into the next:
+        // `urlFile` prefers `state.objectUrl` over the server URL, so without
+        // this record B would show record A's uploaded PDF. The validity latch
+        // must reset too, or a load failure on one record blanks every record
+        // paged to on this reused instance.
+        let lastResId = this.props.record.resId;
+        onWillRender(() => {
+            const resId = this.props.record.resId;
+            // Clear a stale blob only when navigating between distinct records
+            // (a truthy previous resId that changed). A brand-new record being
+            // saved (resId false -> real id) must keep its freshly-uploaded blob.
+            if (lastResId && resId !== lastResId) {
+                this.setObjectUrl("");
+                this.state.isValid = true;
+            }
+            lastResId = resId;
+        });
         onWillUpdateProps((nextProps) => {
             if (nextProps.readonly) {
                 this.setObjectUrl("");

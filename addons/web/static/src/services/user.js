@@ -325,9 +325,13 @@ export function _makeUser(session) {
             { includeChildCompanies = true, reload = true } = {},
         ) {
             // Fall back to the current primary company when no ids are given
-            // (guard against the degenerate no-company case).
+            // (guard against the degenerate no-company case). Copy the caller's
+            // array: ``addCompanies`` below pushes child-company ids onto it, and
+            // aliasing ``companyIds`` would mutate the caller's own data (e.g. a
+            // tax-unit record's ``company_ids``) — silently corrupting it on any
+            // ``reload: false`` path.
             const newCompanyIds = companyIds.length
-                ? companyIds
+                ? [...companyIds]
                 : activeCompanies[0]
                   ? [activeCompanies[0].id]
                   : [];

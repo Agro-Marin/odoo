@@ -295,8 +295,8 @@ export class RelationalRecord extends DataPoint {
     // Public
     // -------------------------------------------------------------------------
 
-    archive() {
-        return this.model.mutex.exec(() => archive(this));
+    archive(reload) {
+        return this.model.mutex.exec(() => archive(this, reload));
     }
 
     /** @param {{ displayNotification?: boolean }} [options] */
@@ -402,8 +402,8 @@ export class RelationalRecord extends DataPoint {
         });
     }
 
-    unarchive() {
-        return this.model.mutex.exec(() => unarchive(this));
+    unarchive(reload) {
+        return this.model.mutex.exec(() => unarchive(this, reload));
     }
 
     /** @param {Object} changes @param {{ save?: boolean }} [options] */

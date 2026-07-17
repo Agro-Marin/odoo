@@ -12,7 +12,9 @@ import {
     mountView,
     mountViewInDialog,
     onRpc,
+    patchWithCleanup,
 } from "@web/../tests/web_test_helpers";
+import { ReferenceField } from "@web/fields/relational/reference/reference_field";
 
 class Partner extends models.Model {
     name = fields.Char();
@@ -1040,4 +1042,33 @@ test("reference char with list view pager navigation", async () => {
     await click(".o_pager_next");
     await animationFrame();
     expect(".o_field_reference").toHaveText("xpad");
+});
+
+test("reference write uses the picker's model, not a stale currentRelation", async () => {
+    // Mismatch state: the model select was touched (currentRelation) to one
+    // model while the value still points at another (e.g. an onchange kept it),
+    // so getRelation() — which the autocomplete searches with — returns the
+    // value's model. updateM2O must record the picked id against THAT model,
+    // otherwise it persists "modelA,<id-from-modelB>" — a pair that never
+    // co-existed.
+    let ref;
+    patchWithCleanup(ReferenceField.prototype, {
+        setup() {
+            super.setup();
+            ref = this;
+        },
+    });
+    onRpc("web_save", ({ args }) => expect.step(args[1].reference));
+    await mountView({
+        type: "form",
+        resModel: "partner",
+        resId: 1, // reference: "product,37"
+        arch: /* xml */ `<form><field name="reference"/></form>`,
+    });
+    // The autocomplete searched getRelation() === "product" (the value's model),
+    // but currentRelation drifted to "partner".
+    ref.state.currentRelation = "partner";
+    await ref.updateM2O({ id: 41, display_name: "xpad" });
+    await clickSave();
+    expect.verifySteps(["product,41"]);
 });

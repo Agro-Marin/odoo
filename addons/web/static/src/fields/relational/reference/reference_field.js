@@ -147,8 +147,15 @@ export class ReferenceField extends Component {
 
     /** @param {{ id: number, display_name: string }|false} value */
     updateM2O(value) {
-        const resModel =
-            /** @type {any} */ (this.state).currentRelation || this.getRelation();
+        // Record the id against the SAME model the picker searched — the
+        // autocomplete's `relation` is `getRelation()` (see the template and
+        // setup). Preferring `currentRelation` here instead would, once an
+        // onchange/reload has repopulated the value with another model (so
+        // `getRelation()` returns that model), persist "modelA,<id-from-modelB>"
+        // — a reference pair that never co-existed. When the model select was
+        // just changed, the value is cleared and `getRelation()` already returns
+        // `currentRelation`, so this stays correct in that case too.
+        const resModel = this.getRelation();
         if (this._isCharField(this.props)) {
             // A char-backed reference stores the wire format "model,id" string
             // (or false when cleared), NOT the {resModel, resId, displayName}

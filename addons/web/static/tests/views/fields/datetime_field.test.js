@@ -822,3 +822,44 @@ test("clean datetime does not re-emit FIELD_IS_DIRTY on unrelated re-renders", a
     await animationFrame();
     expect(emissions).toEqual([false]);
 });
+
+test("empty datetime touched then left must not dirty the record", async () => {
+    // Regression: parseDateTime returns null for empty input while the model's
+    // unset sentinel is false; areDatesEqual must treat both as "no date" so a
+    // field the user typed-into-then-cleared (or opened the picker on and
+    // confirmed empty) returns to a clean state instead of showing phantom
+    // unsaved changes and firing a spurious onchange/web_save.
+    Partner._records[0].datetime = false;
+    onRpc("onchange", () => expect.step("onchange"));
+    onRpc("web_save", () => expect.step("web_save"));
+
+    await mountView({
+        type: "form",
+        resModel: "partner",
+        resId: 1,
+        arch: /* xml */ '<form><field name="datetime"/></form>',
+    });
+
+    // (a) type a value then clear it back to empty
+    await click(".o_field_datetime input");
+    await animationFrame();
+    await edit("01/01/2020 00:00:00", { confirm: false });
+    await animationFrame();
+    await edit("", { confirm: false });
+    await animationFrame();
+    await click(document.body);
+    await animationFrame();
+
+    // (b) open the picker on the (still empty) field and confirm empty
+    await click(".o_field_datetime input");
+    await animationFrame();
+    await edit("", { confirm: "Enter" });
+    await animationFrame();
+    await click(document.body);
+    await animationFrame();
+
+    expect.verifySteps([]);
+    expect(".o_form_status_indicator .fa-cloud-upload, .o_form_dirty").toHaveCount(0, {
+        message: "an untouched-valued empty field must stay clean",
+    });
+});

@@ -3412,3 +3412,28 @@ test("monetary chart rendering with multiple currencies", async () => {
         1,
     );
 });
+
+test("empty (false) aggregate group must not flip integer formatting chart-wide", async () => {
+    // The server returns `false` (not 0) for a sum over an empty group (e.g. a
+    // fill_temporal gap month). allIntegers is computed over every raw group
+    // before empty groups are filtered out of the dataset, so one such group
+    // would otherwise flip the whole chart's number formatting from "3" to "3.00".
+    onRpc("formatted_read_group", ({ parent, kwargs }) => {
+        const result = parent();
+        if (kwargs.groupby.includes("product_id") && result.length) {
+            result.push({
+                ...result[0],
+                "foo:sum": false,
+                __count: 0,
+                product_id: [999, "Empty Product"],
+            });
+        }
+        return result;
+    });
+    const view = await mountView({
+        type: "graph",
+        resModel: "foo",
+        arch: /* xml */ `<graph type="bar"><field name="product_id"/><field name="foo" type="measure"/></graph>`,
+    });
+    expect(getGraphModelMetaData(view).allIntegers).toBe(true);
+});

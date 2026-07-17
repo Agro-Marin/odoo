@@ -4,7 +4,6 @@
 /** @module @web/fields/relational/special_data - OWL hook for loading and caching special data tied to a record lifecycle */
 
 import { onWillUpdateProps, status, useComponent, useState } from "@odoo/owl";
-import { KeepLast } from "@web/core/utils/concurrency";
 import { useRecordObserver } from "@web/fields/hooks/record_observer";
 /** @import { Component } from "@odoo/owl" */
 /** @import { Services } from "services" */
@@ -23,12 +22,6 @@ export function useSpecialData(loadFn) {
     const record = component.props.record;
     const { specialDataCaches } = record.model;
     const orm = component.env.services.orm;
-    // Serialize ``result.data`` assignments across all three load paths (the
-    // record-observer effect, onWillUpdateProps, and the cache "changed"
-    // callback below): without this a slower earlier load could resolve after
-    // — and clobber — a newer one. The sibling reference_field guards the same
-    // way.
-    const keepLast = new KeepLast();
     const ormWithCache = Object.create(orm);
     ormWithCache.call = (...args) => {
         const key = JSON.stringify(args);
@@ -42,11 +35,10 @@ export function useSpecialData(loadFn) {
                     callback: (res, hasChanged) => {
                         specialDataCaches[key] = Promise.resolve(res);
                         if (status(component) !== "destroyed" && hasChanged) {
-                            keepLast
-                                .add(loadFn(ormWithCache, component.props))
-                                .then((res) => {
-                                    result.data = res;
-                                });
+                            assign(
+                                loadFn(ormWithCache, component.props),
+                                component.props.record,
+                            );
                         }
                     },
                 })
@@ -64,13 +56,30 @@ export function useSpecialData(loadFn) {
 
     /** @type {{ data: T }} */
     const result = useState(/** @type {any} */ ({ data: {} }));
+    // Guard every load against navigating away: a load fired for one record
+    // must not clobber ``result.data`` once the component has moved to another
+    // record. We deliberately do NOT serialize with ``KeepLast`` here — that
+    // makes superseded loads hang, so on a same-record change (e.g. a dynamic
+    // domain re-evaluating) only the batched record-observer assignment
+    // survives, and that lone batched write does not schedule a re-render,
+    // leaving the widget showing stale data. Assigning on each (idempotent,
+    // same-record) load keeps the render reactive.
+    const assign = async (promise, forRecord) => {
+        const data = await promise;
+        if (
+            component.props.record.id === forRecord.id &&
+            status(component) !== "destroyed"
+        ) {
+            result.data = data;
+        }
+    };
     useRecordObserver(async (record, props) => {
-        result.data = await keepLast.add(loadFn(ormWithCache, { ...props, record }));
+        await assign(loadFn(ormWithCache, { ...props, record }), record);
     });
     onWillUpdateProps(async (props) => {
         // useRecordObserver callback is not called when the record doesn't change
         if (props.record.id === component.props.record.id) {
-            result.data = await keepLast.add(loadFn(ormWithCache, props));
+            await assign(loadFn(ormWithCache, props), props.record);
         }
     });
     return result;

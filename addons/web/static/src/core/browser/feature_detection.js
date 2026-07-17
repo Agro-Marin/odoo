@@ -28,7 +28,12 @@ function _computeUAResults(ua) {
         chrome,
         firefox: /Firefox/i.test(ua),
         edge: /Edg/i.test(ua),
-        safari: !chrome && ua.includes("Safari"),
+        // Apple mandates WebKit on iOS, so iOS Chrome/Firefox/Edge/Opera all
+        // carry "Safari" in their UA and none carries "Chrome". Excluding their
+        // in-app markers keeps them from being misdetected as Safari (which
+        // drives e.g. the PWA "add to home screen" instructions).
+        safari:
+            !chrome && !/(CriOS|FxiOS|EdgiOS|OPiOS)/i.test(ua) && ua.includes("Safari"),
         android: /Android/i.test(ua),
         iosUA: /(iPad|iPhone|iPod)/i.test(ua),
         otherMobile: /(webOS|BlackBerry|Windows Phone)/i.test(ua),

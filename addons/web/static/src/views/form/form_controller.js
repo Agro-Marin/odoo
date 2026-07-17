@@ -45,6 +45,7 @@ import { useDeleteRecords } from "@web/views/view_hook";
 import {
     buildActionMenuItems,
     computeArchiveEnabled,
+    handleBeforeUnload,
     useControllerServices,
 } from "@web/views/view_utils";
 import { Widget } from "@web/views/widgets/widget";
@@ -575,37 +576,11 @@ export class FormController extends Component {
     }
 
     beforeUnload(ev) {
-        const record = this.model.root;
-        // A record is beacon-eligible only when it already exists (sendBeacon
-        // cannot return the new id for a creation), is not inside a dialog, and
-        // the model opted into sendBeacon urgent saves. Only that path reaches
-        // navigator.sendBeacon() synchronously and settles in microtasks, so a
-        // late ``ev.preventDefault()`` after awaiting is still honored.
-        const canBeacon =
-            Boolean(record.resId) &&
-            !this.env.inDialog &&
-            this.model.useSendBeaconToSaveUrgently;
-        if (!canBeacon) {
-            // Non-beaconable record (a dirty NEW/creation record, or a dialog
-            // form): the urgent save would ``await`` a real web_save macrotask,
-            // so ``ev.preventDefault()`` would land after the synchronous
-            // beforeunload dispatch has already returned — too late for the
-            // browser to honor it — while the in-flight fetch is aborted by the
-            // navigation, silently losing the user's work. Block the unload
-            // SYNCHRONOUSLY instead (preventDefault BEFORE any await) so the
-            // browser shows its native "unsaved changes" prompt while the record
-            // is still dirty and the user can save manually.
-            if (record.dirty) {
-                ev.preventDefault();
-                ev.returnValue = "Unsaved changes";
-            }
-            return;
-        }
-        return this.saveCoordinator.requestUrgentSave().then((succeeded) => {
-            if (!succeeded) {
-                ev.preventDefault();
-                ev.returnValue = "Unsaved changes";
-            }
+        return handleBeforeUnload(ev, {
+            record: this.model.root,
+            inDialog: this.env.inDialog,
+            useSendBeacon: this.model.useSendBeaconToSaveUrgently,
+            urgentSave: () => this.saveCoordinator.requestUrgentSave(),
         });
     }
 

@@ -419,15 +419,21 @@ export class KanbanRenderer extends Component {
     // ------------------------------------------------------------------------
 
     async archiveRecord(record, active) {
+        // Kanban is a multi-record view: after (un)archiving a single card the
+        // record must leave (or rejoin) its group and the counters/progressbars
+        // must refresh. The default single-datapoint reload only re-reads the
+        // record by id (which ignores the active filter), leaving a stale card —
+        // so pass a list-level reload, matching the bulk "archive all" path.
+        const reload = () => this.props.list.model.load();
         if (active) {
             this.dialog.add(ConfirmationDialog, {
                 body: _t("Are you sure that you want to archive this record?"),
                 confirmLabel: _t("Archive"),
-                confirm: () => record.archive(),
+                confirm: () => record.archive(reload),
                 cancel: () => {},
             });
         } else {
-            return record.unarchive();
+            return record.unarchive(reload);
         }
     }
 

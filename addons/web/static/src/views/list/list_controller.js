@@ -20,7 +20,7 @@ import { MultiRecordViewButton } from "@web/views/view_button/multi_record_view_
 import { ViewButton } from "@web/views/view_button/view_button";
 import { executeButtonCallback } from "@web/views/view_button/view_button_hook";
 import { SelectionBox } from "@web/views/view_components/selection_box";
-import { buildMultiRecordModelParams } from "@web/views/view_utils";
+import { buildMultiRecordModelParams, handleBeforeUnload } from "@web/views/view_utils";
 
 import { ListCogMenu } from "./list_cog_menu.js";
 import { ListConfirmationDialog } from "./list_confirmation_dialog.js";
@@ -316,40 +316,11 @@ export class ListController extends MultiRecordController {
      */
     beforeUnload(ev) {
         const record = this.editedRecord;
-        if (!record) {
-            return;
-        }
-        // Mirror ``FormController.beforeUnload``: ``ev.preventDefault()`` is only
-        // honored by the browser when it runs SYNCHRONOUSLY during the
-        // ``beforeunload`` dispatch. A record is beacon-eligible only when it
-        // already exists (sendBeacon cannot return the new id for a creation),
-        // is not inside a dialog, and the model opted into sendBeacon urgent
-        // saves. Only that path settles in microtasks, so a late
-        // ``preventDefault()`` after awaiting is still honored.
-        const canBeacon =
-            Boolean(record.resId) &&
-            !this.env.inDialog &&
-            this.model.useSendBeaconToSaveUrgently;
-        if (!canBeacon) {
-            // Non-beaconable record (a dirty NEW inline row, or a list in a
-            // dialog): ``urgentSave()`` would ``await`` a real web_save
-            // macrotask, so ``preventDefault()`` would land after the
-            // synchronous ``beforeunload`` dispatch has already returned — too
-            // late — while the in-flight fetch is aborted by the navigation,
-            // silently losing the user's edit. Block the unload SYNCHRONOUSLY
-            // instead so the browser shows its native "unsaved changes" prompt
-            // while the record is still dirty and the user can save manually.
-            if (record.dirty) {
-                ev.preventDefault();
-                ev.returnValue = "Unsaved changes";
-            }
-            return;
-        }
-        return record.urgentSave().then((isValid) => {
-            if (!isValid) {
-                ev.preventDefault();
-                ev.returnValue = "Unsaved changes";
-            }
+        return handleBeforeUnload(ev, {
+            record,
+            inDialog: this.env.inDialog,
+            useSendBeacon: this.model.useSendBeaconToSaveUrgently,
+            urgentSave: () => record.urgentSave(),
         });
     }
 
