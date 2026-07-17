@@ -152,8 +152,12 @@ class MailScheduledMessage(models.Model):
         for model, res_ids in model_ids.items():
             records = self.env[model].browse(res_ids)
             operation = getattr(records, "_mail_post_access", "write")
-            if records.has_access(operation):
-                allowed_ids[model] = set(records._filtered_access(operation)._ids)
+            # _filtered_access is fail-closed per record; filter directly rather
+            # than gating on has_access(), which returns False as soon as ONE
+            # record in the batch is inaccessible and would then drop every
+            # scheduled message of that model — including the user's own on the
+            # records they can access.
+            allowed_ids[model] = set(records._filtered_access(operation)._ids)
 
         scheduled_messages = self.browse(
             msg_id

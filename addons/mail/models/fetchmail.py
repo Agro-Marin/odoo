@@ -289,7 +289,7 @@ odoo_mailgate: "|/path/to/odoo-mailgate.py --host=localhost -u %(uid)d -p PASSWO
                         str(e),
                     )
                 ) from e
-            except (OSError, Exception) as err:
+            except Exception as err:
                 _logger.info(
                     "Failed to connect to %s server %s.",
                     server.server_type,

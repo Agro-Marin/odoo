@@ -1,4 +1,5 @@
 import logging
+from datetime import timedelta
 
 from requests import Session
 
@@ -11,6 +12,11 @@ from odoo.addons.mail.tools.web_push import (
 )
 
 _logger = logging.getLogger(__name__)
+
+# Keep retrying a transiently-unresolvable push endpoint for at most this many
+# days; past that the resolver is treated as permanently dead and the queued
+# notification is dropped so it cannot accumulate forever.
+PUSH_ENDPOINT_RETRY_DAYS = 3
 
 
 class MailPush(models.Model):
@@ -41,6 +47,7 @@ class MailPush(models.Model):
 
         session = Session()
         devices_to_unlink = set()
+        unresolvable_notif_ids = set()
 
         # process send notif
         base_url = self.get_base_url()  # constant per run; hoisted out of the loop
@@ -66,7 +73,9 @@ class MailPush(models.Model):
                 devices_to_unlink.add(device.id)
             except PushEndpointUnresolvableError:
                 # transient (DNS blip / proxy-only egress): keep the device and
-                # retry on the next cron run rather than deleting it
+                # the queued notification and retry on the next cron run rather
+                # than deleting them
+                unresolvable_notif_ids.add(web_push_notification_sudo.id)
                 _logger.info(
                     "Push endpoint temporarily unresolvable, keeping device %s",
                     device.id,
@@ -75,8 +84,20 @@ class MailPush(models.Model):
                 # Avoid blocking the whole cron just for a notification exception
                 _logger.error("An error occurred while trying to send web push: %s", e)
 
-        # clean up notif
-        web_push_notifications_sudo.unlink()
+        # clean up notif: drop everything we attempted, except notifications
+        # whose endpoint hit a transient PushEndpointUnresolvableError and are
+        # still within the retry window — those are left in place for the next
+        # cron run (matching the log above). Ones older than the window are
+        # dropped so a permanently dead resolver cannot accumulate rows.
+        retry_cutoff = fields.Datetime.now() - timedelta(days=PUSH_ENDPOINT_RETRY_DAYS)
+        notifs_to_keep = web_push_notifications_sudo.filtered(
+            lambda n: (
+                n.id in unresolvable_notif_ids
+                and n.create_date
+                and n.create_date > retry_cutoff
+            )
+        )
+        (web_push_notifications_sudo - notifs_to_keep).unlink()
 
         # clean up obsolete devices
         if devices_to_unlink:
