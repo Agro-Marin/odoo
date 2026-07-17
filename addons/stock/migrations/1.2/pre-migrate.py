@@ -20,6 +20,8 @@ never translated and never appear as JSON keys, so a whole-value text replace is
 safe and preserves the translation structure.
 """
 
+from odoo.tools.sql import table_columns
+
 # (old, new) — button/compute method names referenced by stored view buttons
 # (type="object") and by ir.actions.server code.
 _METHOD_RENAMES = (
@@ -66,9 +68,13 @@ def migrate(cr, version):
 
     # res.company.horizon_days became fields.Integer; convert the column
     # explicitly (no fractional values exist in practice, round() is exact).
-    cr.execute(
-        """
-        ALTER TABLE res_company
-        ALTER COLUMN horizon_days TYPE integer USING round(horizon_days)::integer
-        """
-    )
+    # Guarded on the current type so a re-run (or a DB already converted by a
+    # partial upgrade) skips the table rewrite instead of re-executing it.
+    horizon_days = table_columns(cr, "res_company").get("horizon_days")
+    if horizon_days is not None and horizon_days["udt_name"] != "int4":
+        cr.execute(
+            """
+            ALTER TABLE res_company
+            ALTER COLUMN horizon_days TYPE integer USING round(horizon_days)::integer
+            """
+        )
