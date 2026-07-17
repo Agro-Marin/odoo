@@ -214,13 +214,18 @@ export class PosStore extends WithLazyGetterTrap {
         // the hardware proxy should just be part of the pos service?
         this.hardwareProxy.pos = this;
         this.syncingOrders = new Set();
+        // Assigned BEFORE initServerData(): device-sync consolidation runs
+        // inside processServerData() (e.g. pos_restaurant merging duplicate
+        // table orders) and can reach removeOrder() -> syncAllOrdersDebounced()
+        // during boot. Assigning it afterwards left it undefined on exactly the
+        // sessions that had orders to repair, crashing setup().
+        this.syncAllOrdersDebounced = debounce(this.syncAllOrders, 100);
         await this.initServerData();
 
         if (this.config.useProxy) {
             await this.connectToProxy();
         }
         this.closeOtherTabs();
-        this.syncAllOrdersDebounced = debounce(this.syncAllOrders, 100);
 
         if (this.env.debug) {
             registry.category("main_components").add("DebugWidget", {

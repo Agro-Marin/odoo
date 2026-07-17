@@ -80,7 +80,7 @@ export class PaymentScreen extends Component {
         //Activate the invoice option for refund orders if the original order was invoiced.
         if (
             this.currentOrder.isRefund &&
-            this.currentOrder.lines[0].refunded_orderline_id?.order_id?.isToInvoice()
+            this.currentOrder.lines[0]?.refunded_orderline_id?.order_id?.isToInvoice()
         ) {
             this.currentOrder.setToInvoice(true);
         }

@@ -74,9 +74,15 @@ export default class IndexedDB {
             this.db = event.target.result;
             // Yield to schema upgrades initiated by another (newer) tab, so a
             // versioned reopen there is never blocked by this connection.
+            // Then reconnect: without this the connection stayed null forever
+            // (getNewTransaction's `!this.db` branch neither reconnects nor
+            // warns), so every subsequent read/write silently no-op'd and the
+            // tab traded on with local persistence permanently dead. The
+            // reconnect is deferred so the upgrading tab finishes first.
             this.db.onversionchange = () => {
                 this.db?.close();
                 this.db = null;
+                this._attemptReconnect();
             };
 
             const actualStoreNames = this.db.objectStoreNames;

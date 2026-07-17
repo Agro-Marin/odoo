@@ -18,6 +18,26 @@ test("getNewLine", async () => {
     expect(newLine.qty).toBe(0);
 });
 
+test("getNewLine reuses the paired decrease line instead of spawning new ones", async () => {
+    const store = await setupPosEnv();
+    const order = await getFilledOrder(store);
+    const orderSummary = await mountWithCleanup(OrderSummary, {});
+    const selectedLine = order.getSelectedOrderline();
+    selectedLine.uiState.savedQuantity = 5;
+    const linesBefore = order.lines.length;
+
+    const first = orderSummary.getNewLine();
+    // A fresh decrease line was created and remembered on the saved line.
+    expect(order.lines.length).toBe(linesBefore + 1);
+    expect(selectedLine.uiState.decreaseLineUuid).toBe(first.uuid);
+
+    // A second decrease of the same line must reuse that line, not create
+    // another (the old total-matching logic spawned a new one every time).
+    const second = orderSummary.getNewLine();
+    expect(second.uuid).toBe(first.uuid);
+    expect(order.lines.length).toBe(linesBefore + 1);
+});
+
 test("Display tax include/exclude subtotal label", async () => {
     const store = await setupPosEnv();
     const order = await getFilledOrder(store);

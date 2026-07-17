@@ -28,7 +28,7 @@ patch(DataServiceOptions.prototype, {
             "event.registration.answer",
         ];
     },
-    get pohibitedAutoLoadedModels() {
-        return [...super.pohibitedAutoLoadedModels, "event.registration"];
+    get prohibitedAutoLoadedModels() {
+        return [...super.prohibitedAutoLoadedModels, "event.registration"];
     },
 });

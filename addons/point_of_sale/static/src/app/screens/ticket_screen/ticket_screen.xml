@@ -167,7 +167,7 @@
  <strong t-esc="env.utils.formatProductQty(line.refundedQty)" />
  <span> Refunded</span>
  </li>
- <li t-if="!pos.isProductQtyZero(toRefundDetail?.qty)" class="info to-refund-highlight refund-note mt-1 fw-bold text-primary">
+ <li t-if="toRefundDetail and !pos.isProductQtyZero(toRefundDetail.qty)" class="info to-refund-highlight refund-note mt-1 fw-bold text-primary">
  <t t-set="_destinationOrderUid" t-value="toRefundDetail.destinationOrder?.uuid"/>
  <t t-set="refundQty" t-value="env.utils.formatProductQty(toRefundDetail.qty)"/>
  <t t-if="_destinationOrderUid">

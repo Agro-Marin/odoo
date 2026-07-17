@@ -163,26 +163,36 @@ export class TicketScreen extends Component {
         );
     }
     async onClickScanOrder(qrcode) {
-        if (qrcode) {
-            const uuid = new URL(qrcode).searchParams.get("order_uuid");
-            const orders = await this.pos.data.loadServerOrders([["uuid", "=", uuid]]);
-            const order = orders[0];
-            if (order) {
-                this.state.filter = "SYNCED";
-                this.setSelectedOrder(order);
-                this.pos.scanning = !this.pos.scanning;
-            } else {
-                this.env.services.notification.add(
-                    _t("Invalid QR Code! Please, Scan again!"),
-                    {
-                        type: "warning",
-                    },
-                );
-            }
-        } else {
+        const invalidQrCode = () =>
+            this.env.services.notification.add(
+                _t("Invalid QR Code! Please, Scan again!"),
+                { type: "warning" },
+            );
+        if (!qrcode) {
             this.env.services.notification.add(_t("Please, Scan again!"), {
                 type: "warning",
             });
+            return;
+        }
+        // `new URL()` throws on any scanned value that is not a URL (e.g. a
+        // plain product barcode captured while the camera scanner is open);
+        // this handler is the scanner's onResult callback, so an unhandled
+        // rejection surfaces as a traceback dialog instead of a friendly retry.
+        let uuid;
+        try {
+            uuid = new URL(qrcode).searchParams.get("order_uuid");
+        } catch {
+            invalidQrCode();
+            return;
+        }
+        const orders = await this.pos.data.loadServerOrders([["uuid", "=", uuid]]);
+        const order = orders[0];
+        if (order) {
+            this.state.filter = "SYNCED";
+            this.setSelectedOrder(order);
+            this.pos.scanning = false;
+        } else {
+            invalidQrCode();
         }
     }
     async onSearch(search) {
@@ -353,6 +363,17 @@ export class TicketScreen extends Component {
         }
 
         const partner = order.getPartner();
+        // `getHasItemsToRefund()` counts to-refund details WITHOUT excluding
+        // those already linked to a destination order, whereas
+        // `_getRefundableDetails` DOES exclude them. On a repeat refund of a
+        // source order whose earlier refund was abandoned (payment left without
+        // deleting the draft), the guard above passes but there is nothing left
+        // to refund — building and navigating to an empty refund order then
+        // crashes PaymentScreen on mount. Bail out before creating anything.
+        const refundableDetails = this._getRefundableDetails(partner, order);
+        if (refundableDetails.length === 0) {
+            return;
+        }
         // The order that will contain the refund orderlines.
         // We select the order if it is empty, else we create a new one.
         const destinationOrder = this._getEmptyOrder(partner);
@@ -361,7 +382,7 @@ export class TicketScreen extends Component {
         destinationOrder.pricelist_id = order.pricelist_id;
         // Add orderline for each toRefundDetail to the destinationOrder.
         const lines = [];
-        for (const refundDetail of this._getRefundableDetails(partner, order)) {
+        for (const refundDetail of refundableDetails) {
             const refundLine = refundDetail.line;
             const alreadyRefundedLots = refundLine.refund_orderline_ids
                 .filter((item) => !["cancel", "draft"].includes(item.order_id.state))

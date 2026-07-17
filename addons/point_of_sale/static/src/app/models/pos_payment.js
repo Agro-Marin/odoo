@@ -60,9 +60,20 @@ export class PosPayment extends Base {
     async pay() {
         this.setPaymentStatus("waiting");
 
-        return this.handlePaymentResponse(
-            await this.payment_method_id.payment_terminal.sendPaymentRequest(this.uuid),
-        );
+        // A terminal that throws (network/RPC failure) must not leave the line
+        // wedged in "waiting" forever: that status renders no Retry button and
+        // blocks adding another electronic payment. Reset to "retry" so the
+        // cashier can act, and re-surface the error to the caller.
+        let response;
+        try {
+            response = await this.payment_method_id.payment_terminal.sendPaymentRequest(
+                this.uuid,
+            );
+        } catch (error) {
+            this.setPaymentStatus("retry");
+            throw error;
+        }
+        return this.handlePaymentResponse(response);
     }
 
     handlePaymentResponse(isPaymentSuccessful) {

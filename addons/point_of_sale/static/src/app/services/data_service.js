@@ -225,25 +225,43 @@ export class PosData extends SignalStore {
                 await this.indexedDB.delete(model, remove);
             }
 
+            let writeResults;
             if (put.length) {
-                await this.indexedDB.create(model, put);
+                writeResults = await this.indexedDB.create(model, put);
             }
 
             if (model === "pos.order") {
-                // Release the beforeunload guard for paid orders that are now
-                // durable in IndexedDB (safe on reload) or synced to the
+                // Release the beforeunload data-loss guard for paid orders that
+                // are now durable in IndexedDB (safe on reload) or synced to the
                 // server; warn loudly for a tracked order that vanished.
+                //
+                // Durability must be judged by whether the write SUCCEEDED, not
+                // merely attempted. `create()` resolves per-batch {status}
+                // objects and never throws, so a rejected batch (transaction
+                // timeout, quota, dead connection on iOS) previously still
+                // released the guard because the order was in the `put` array —
+                // suppressing the only close-time warning for an order that was
+                // neither on the server nor in IndexedDB. Consume the result.
+                const writeSucceeded =
+                    !put.length ||
+                    (Array.isArray(writeResults) &&
+                        writeResults.every((r) => r?.status === "fulfilled"));
                 const writtenByUuid = new Map(put.map((r) => [r.uuid, r]));
                 for (const trackedUuid of [...this.localUnsyncedPaidOrderUuids]) {
                     const written = writtenByUuid.get(trackedUuid);
                     const localRecord = this.models[model].getBy("uuid", trackedUuid);
-                    if (written?.state === "paid" || !localRecord?.isUnsyncedPaid) {
+                    if (!localRecord?.isUnsyncedPaid) {
+                        // Synced to the server (or no longer paid): durable
+                        // regardless of the IndexedDB outcome.
                         this.localUnsyncedPaidOrderUuids.delete(trackedUuid);
-                    } else if (!written) {
+                    } else if (written?.state === "paid" && writeSucceeded) {
+                        // Confirmed written to IndexedDB in paid state.
+                        this.localUnsyncedPaidOrderUuids.delete(trackedUuid);
+                    } else {
                         logPosMessage(
                             "DataService",
                             "synchronizeLocalDataInIndexedDB",
-                            `Paid order ${trackedUuid} is flagged unsynced but was not persisted — potential data loss`,
+                            `Paid order ${trackedUuid} is flagged unsynced but not confirmed durable (written=${!!written}, writeOk=${writeSucceeded}) — keeping data-loss guard`,
                             CONSOLE_COLOR,
                         );
                     }
@@ -793,7 +811,7 @@ export class PosData extends SignalStore {
             );
 
             for (const [, rel] of relations) {
-                if (this.opts.pohibitedAutoLoadedModels.includes(rel.relation)) {
+                if (this.opts.prohibitedAutoLoadedModels.includes(rel.relation)) {
                     continue;
                 }
 

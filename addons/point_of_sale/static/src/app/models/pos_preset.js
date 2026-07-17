@@ -50,11 +50,21 @@ export class PosPreset extends Base {
     get slotsUsage() {
         return (
             this.orders.reduce((acc, order) => {
-                if (!acc[order.preset_time]) {
-                    acc[order.preset_time] = [];
+                if (!order.preset_time) {
+                    return acc;
                 }
-
-                acc[order.preset_time].push(order.id);
+                // Key by the SQL datetime string that generateSlots() uses for
+                // its slot keys. preset_time is a luxon DateTime; using it
+                // directly as an object key coerces to an ISO string
+                // ("...T10:30:00.000-06:00") that never matches the SQL-format
+                // slot keys ("... 10:30:00"), so locally created (unsynced)
+                // orders were silently dropped from slot occupancy — a full
+                // slot could be oversold offline.
+                const key = order.preset_time.toFormat("yyyy-MM-dd HH:mm:ss");
+                if (!acc[key]) {
+                    acc[key] = [];
+                }
+                acc[key].push(order.id);
                 return acc;
             }, {}) || {}
         );
