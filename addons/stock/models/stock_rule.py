@@ -873,11 +873,11 @@ class StockRule(models.Model):
         # If the method is called to find rules towards the Inter-company location, also add the 'Customer' location in the domain.
         # This is to avoid having to duplicate every rules that deliver to Customer to have the Inter-company part.
         if self._check_intercomp_location(locations):
-            location_ids.append(
-                self.env.ref(
-                    "stock.stock_location_customers", raise_if_not_found=False
-                ).id
+            customers_location = self.env.ref(
+                "stock.stock_location_customers", raise_if_not_found=False
             )
+            if customers_location:
+                location_ids.append(customers_location.id)
         domain = Domain("location_dest_id", "in", location_ids) & Domain(
             "action", "!=", "push"
         )
@@ -945,12 +945,21 @@ class StockRule(models.Model):
         # Refresh stored lead-time analytics from freshly completed receipts; they cannot
         # ORM-depend on the pickings they aggregate, so the scheduler owns their refresh.
         orderpoints.sudo()._compute_lead_time_stats()
+
+        if use_new_cursor:
+            # Commit — and thereby flush — the freshly recomputed stored values
+            # (`qty_to_order_computed`, `deadline_date`, lead-time stats) BEFORE
+            # procuring: `_procure_orderpoint_confirm` processes its batches in
+            # dedicated cursors whose snapshots cannot see this transaction's
+            # pending writes, so without this commit every run would procure
+            # with the quantities committed by the *previous* run — and the late
+            # flush of this pre-procurement snapshot would then clobber the
+            # fresher value the batch envs commit after procuring.
+            self.env["ir.cron"]._commit_progress(1)
+
         orderpoints.sudo()._procure_orderpoint_confirm(
             use_new_cursor=use_new_cursor, company_id=company_id, raise_user_error=False
         )
-
-        if use_new_cursor:
-            self.env["ir.cron"]._commit_progress(1)
 
         # Search all confirmed stock_moves and try to assign them
         domain = self._get_moves_to_assign_domain(company_id)
