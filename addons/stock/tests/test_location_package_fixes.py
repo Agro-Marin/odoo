@@ -285,3 +285,31 @@ class TestLocationPackageFixes(TestStockCommon):
         package_type.write({"sequence_code": False})
         # No bogus "Package Type Sequence False" sequence may be created.
         self.assertFalse(package_type.sequence_id)
+
+    # ------------------------------------------------------------
+    # stock.scrap default location tiebreak
+    # ------------------------------------------------------------
+
+    def test_scrap_location_prefers_scrap_named_location(self):
+        """The flagless scrap default prefers a company inventory-loss
+        location named 'Scrap' over the arbitrary lowest id; without one it
+        falls back to the lowest-id inventory-loss location."""
+        company = self.env.company
+        adjustment = self.StockLocationObj.search(
+            [("company_id", "=", company.id), ("usage", "=", "inventory")],
+            order="id",
+            limit=1,
+        )
+        scrap_wo_named = self.env["stock.scrap"].create(
+            {"product_id": self.productA.id, "company_id": company.id}
+        )
+        self.assertEqual(scrap_wo_named.scrap_location_id, adjustment)
+
+        # A dedicated 'Scrap' location (necessarily a higher id) wins the tie.
+        scrap_location = self.StockLocationObj.create(
+            {"name": "Scrap", "usage": "inventory", "company_id": company.id}
+        )
+        scrap_w_named = self.env["stock.scrap"].create(
+            {"product_id": self.productA.id, "company_id": company.id}
+        )
+        self.assertEqual(scrap_w_named.scrap_location_id, scrap_location)
