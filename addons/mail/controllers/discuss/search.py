@@ -15,6 +15,12 @@ class SearchController(http.Controller):
     )
     @add_guest_to_context
     def search(self, term, category_id=None, limit=10):
+        # Clamp the caller-controlled page size: this is a public route and the
+        # limit flows into channel + partner searches with Store serialization.
+        try:
+            limit = max(1, min(int(limit), 100))
+        except TypeError, ValueError:
+            limit = 10
         store = Store()
         self.get_search_store(store, search_term=term, limit=limit)
         return store.get_result()

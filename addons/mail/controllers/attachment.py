@@ -112,14 +112,26 @@ class AttachmentController(ThreadController):
         attachment.sudo()._delete_and_notify(message)
 
     @http.route(["/mail/attachment/zip"], methods=["POST"], type="http", auth="public")
+    @add_guest_to_context
     def mail_attachment_get_zip(self, file_ids, zip_name, **kw):
         """route to get the zip file of the attachments.
-        :param file_ids: ids of the files to zip.
+        :param file_ids: comma-separated ids of the files to zip.
         :param zip_name: name of the zip file.
         """
-        ids_list = list(map(int, file_ids.split(",")))
-        attachments = request.env["ir.attachment"].browse(ids_list)
-        return self._make_zip(zip_name, attachments)
+        try:
+            ids_list = list(map(int, file_ids.split(",")))
+        except (TypeError, ValueError):
+            raise NotFound from None
+        attachments = request.env["ir.attachment"].browse(ids_list).exists()
+        # Filter to readable attachments up front rather than letting
+        # _get_stream_from raise AccessError mid-stream, which would yield a
+        # truncated / corrupt zip on a mix of accessible and inaccessible ids.
+        # Unreadable ids are silently skipped; a fully-inaccessible request 404s.
+        accessible = attachments.filtered(lambda a: a.has_access("read"))
+        if not accessible:
+            raise NotFound
+        # sudo: read access verified above; sudo needed to stream (e.g. guests)
+        return self._make_zip(zip_name, accessible.sudo())
 
     @http.route(
         "/mail/attachment/pdf_first_page/<int:attachment_id>",

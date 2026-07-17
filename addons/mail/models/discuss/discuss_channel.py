@@ -850,9 +850,13 @@ class DiscussChannel(models.Model):
                 }
                 for guest in guests - existing_members.guest_id
             ]
-            if channel.parent_channel_id and channel.parent_channel_id.has_access(
-                "write"
-            ):
+            # A member of a parent channel may add members to its sub-channels
+            # (threads). Test real membership via self_member_id, not
+            # has_access("write"): the latter returns True for a non-member
+            # internal/portal user on any public parent channel (the record rule
+            # is read/write-agnostic), so it would grant the sudo member-creation
+            # branch to non-members.
+            if channel.parent_channel_id and channel.parent_channel_id.self_member_id:
                 new_members = (
                     self.env["discuss.channel.member"].sudo().create(members_to_create)
                 )
@@ -933,7 +937,13 @@ class DiscussChannel(models.Model):
         :type emails: list[str]
 
         """
-        if not self.env.user._is_internal() or not self.has_access("read"):
+        # Require membership, not mere read access: this sends outbound email
+        # through the company mail server to caller-chosen addresses, so gating
+        # on has_access("read") would let any internal user relay invitations
+        # from a public channel they never joined (insider spam / enumeration).
+        if not self.env.user._is_internal() or not (
+            self.env.is_admin() or self.self_member_id
+        ):
             raise AccessError(
                 self.env._("You don't have access to invite users to this channel.")
             )
@@ -1504,6 +1514,15 @@ class DiscussChannel(models.Model):
         :param pinned: whether the message should be pinned or unpinned.
         """
         self.ensure_one()
+        # Pinning is a channel-management action performed via raw SQL (below),
+        # which bypasses mail.message ACLs; read access to the channel is not
+        # enough. Require membership (or admin), mirroring the structural-write
+        # guard in write(). Otherwise any internal/portal user who can merely
+        # read a public channel could pin/unpin arbitrary messages.
+        if not self.env.is_admin() and not self.self_member_id:
+            raise AccessError(
+                _("You must be a member of this channel to pin or unpin messages.")
+            )
         message_to_update = self.env["mail.message"].search(
             [
                 ["id", "=", message_id],

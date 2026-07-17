@@ -4,8 +4,23 @@ from werkzeug.exceptions import NotFound
 from odoo import http
 from odoo.http import request
 
+from odoo.addons.mail.controllers.thread import _to_record_id
 from odoo.addons.mail.controllers.webclient import WebclientController
 from odoo.addons.mail.tools.discuss import Store, add_guest_to_context
+
+# Upper bound for caller-controlled page sizes on the public channel endpoints:
+# without it an anonymous caller can pass an arbitrarily large ``limit`` and force
+# an unbounded search + Store serialization (cheap memory/CPU amplification).
+MAX_FETCH_LIMIT = 100
+
+
+def _clamp_limit(limit, default=30):
+    """Coerce a caller-supplied page size to a sane, bounded integer."""
+    try:
+        limit = int(limit)
+    except TypeError, ValueError:
+        return default
+    return max(1, min(limit, MAX_FETCH_LIMIT))
 
 
 class DiscussChannelWebclientController(WebclientController):
@@ -146,7 +161,7 @@ class ChannelController(http.Controller):
         )
         if not member:
             return  # ignore if the member left in the meantime
-        member._mark_as_read(last_message_id)
+        member._mark_as_read(_to_record_id(last_message_id))
 
     @http.route(
         "/discuss/channel/set_new_message_separator",
@@ -164,7 +179,7 @@ class ChannelController(http.Controller):
         )
         if not member:
             raise NotFound
-        return member._set_new_message_separator(message_id)
+        return member._set_new_message_separator(_to_record_id(message_id))
 
     @http.route(
         "/discuss/channel/notify_typing",
@@ -219,7 +234,7 @@ class ChannelController(http.Controller):
         attachments = (
             request.env["ir.attachment"]
             .sudo()
-            .search(domain, limit=limit, order="id DESC")
+            .search(domain, limit=_clamp_limit(limit), order="id DESC")
         )
         return {
             "store_data": Store().add(attachments).get_result(),
@@ -279,7 +294,7 @@ class ChannelController(http.Controller):
         if search_term:
             domain.append(("name", "ilike", search_term))
         sub_channels = request.env["discuss.channel"].search(
-            domain, order="id desc", limit=limit
+            domain, order="id desc", limit=_clamp_limit(limit)
         )
         return {
             "store_data": Store()

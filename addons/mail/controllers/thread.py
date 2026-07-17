@@ -6,6 +6,7 @@ from werkzeug.exceptions import NotFound
 from odoo import http
 from odoo.exceptions import UserError
 from odoo.http import request
+from odoo.tools.mail import email_normalize
 from odoo.tools.misc import verify_limited_field_access_token
 
 from odoo.addons.mail.tools.discuss import Store, add_guest_to_context
@@ -184,14 +185,33 @@ class ThreadController(http.Controller):
         "/mail/partner/from_email", methods=["POST"], type="jsonrpc", auth="user"
     )
     def mail_thread_partner_from_email(self, thread_model, thread_id, emails):
-        return [
-            {"id": partner.id, "name": partner.name, "email": partner.email}
-            for partner in request.env[thread_model]
+        partners = (
+            request.env[thread_model]
             .browse(thread_id)
             ._partner_find_from_emails_single(
                 emails,
                 no_create=not request.env.user.has_group("base.group_partner_manager"),
             )
+        )
+        # The returned recordset is deduped and id-ordered, so a client cannot
+        # positionally pair it with the input ``emails``. Echo the input email
+        # that produced each partner (matched on normalized address) as
+        # ``source_email`` so the client can associate results reliably.
+        source_by_normalized = {}
+        for email in emails:
+            source_by_normalized.setdefault(
+                email_normalize(email, strict=False) or email, email
+            )
+        return [
+            {
+                "id": partner.id,
+                "name": partner.name,
+                "email": partner.email,
+                "source_email": source_by_normalized.get(
+                    email_normalize(partner.email, strict=False) or partner.email
+                ),
+            }
+            for partner in partners
         ]
 
     @http.route(

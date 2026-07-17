@@ -67,6 +67,11 @@ class IrWebsocket(models.AbstractModel):
             .sudo(False)
         )
         partner, guest = self.env["res.partner"]._get_current_persona()
+        # Batch the access check (one query) instead of a has_access() per
+        # partner: a subscription to many avatars would otherwise fire N ir.rule
+        # evaluations. The token check short-circuits, so accessibility is only
+        # consulted for the token-less ids.
+        accessible_partner_ids = set(partners._filtered_access("read")._ids)
         allowed_partners = (
             partners.filtered(
                 lambda p: (
@@ -76,7 +81,7 @@ class IrWebsocket(models.AbstractModel):
                         model_ids_to_token["res.partner"][p.id],
                         scope="mail.presence",
                     )
-                    or p.has_access("read")
+                    or p.id in accessible_partner_ids
                 )
             )
             | partner
@@ -85,6 +90,7 @@ class IrWebsocket(models.AbstractModel):
         guests = (
             self.env["mail.guest"].sudo().search([("id", "in", guest_ids)]).sudo(False)
         )
+        accessible_guest_ids = set(guests._filtered_access("read")._ids)
         allowed_guests = (
             guests.filtered(
                 lambda g: (
@@ -94,7 +100,7 @@ class IrWebsocket(models.AbstractModel):
                         model_ids_to_token["mail.guest"][g.id],
                         scope="mail.presence",
                     )
-                    or g.has_access("read")
+                    or g.id in accessible_guest_ids
                 )
             )
             | guest
