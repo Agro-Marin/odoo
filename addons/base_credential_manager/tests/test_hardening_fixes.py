@@ -301,6 +301,116 @@ class TestRotationMigrationGeneralization(TestHardeningFixesBase):
         for key in ("total", "skipped", "migrated", "failed", "errors"):
             self.assertIn(key, result)
 
+    @mute_logger("odoo.addons.base_credential_manager.models.credential_credential")
+    def test_failed_row_rolls_back_orm_cache_and_is_not_counted_migrated(self):
+        """A row that raises mid-migration must roll back its ORM cache too.
+
+        ``_reencrypt_with_current_key`` writes the new-key ciphertext through
+        the ORM (``self[enc_field] = ...``), a *deferred* write that lands in
+        the ORM cache before any flush. If that row then fails, a bare
+        ``ROLLBACK TO SAVEPOINT`` (the pre-fix manual pair) undoes SQL but
+        leaves that new-key ciphertext lingering in the cache — it would flush
+        into the transaction later and corrupt a row the migration reported as
+        *failed*. The ORM-aware ``env.cr.savepoint()`` clears the cache on
+        rollback, so the stale payload never survives.
+
+        Asserts, for a row that raises after re-encryption but before its key
+        version is stamped:
+
+        * it is counted under ``failed`` (surfaced by id in ``errors``),
+          never ``migrated`` — the ``else`` clause tallies only on clean exit;
+        * its re-encrypted payload does NOT linger in the ORM cache (the
+          discriminator: the version field is raw-SQL + invalidate and rolls
+          back either way, but the deferred payload write does not);
+        * once flushed, the persisted row still decrypts under the old key —
+          i.e. the failed row was not silently corrupted;
+        * a sibling eligible row still migrates in the same run.
+        """
+        self._grant_admin()
+        Model = self.env["credential.credential"]
+        old_key = self.test_key
+        new_key = Fernet.generate_key().decode()
+
+        # Two rows encrypted under the old key (version 1).
+        doomed = Model.create(
+            {
+                "name": "Doomed Cred",
+                "category_id": self.category_api_key.id,
+                "credential_value": "keep-me-doomed",
+            }
+        )
+        healthy = Model.create(
+            {
+                "name": "Healthy Cred",
+                "category_id": self.category_api_key.id,
+                "credential_value": "keep-me-healthy",
+            }
+        )
+        self.assertEqual(doomed.encryption_key_version, 1)
+        self.assertEqual(healthy.encryption_key_version, 1)
+        doomed_id = doomed.id
+
+        # Snapshot the old-key ciphertext from a clean read, for comparison.
+        old_ciphertext = bytes(
+            doomed.with_context(bin_size=False).credential_value_encrypted
+        )
+
+        # Fail the doomed row *after* re-encryption has populated the ORM cache
+        # but before its version is stamped; the sibling stamps normally.
+        orig_stamp = type(Model)._stamp_encryption_key_version
+
+        def stamp_or_raise(self, version):
+            if doomed_id in self.ids:
+                raise RuntimeError("injected failure after re-encryption")
+            return orig_stamp(self, version)
+
+        # Rotate: new key becomes current (version 2), old key retained as V1.
+        env_vars = {
+            "ODOO_API_ENCRYPTION_KEY": new_key,
+            "ODOO_API_ENCRYPTION_KEY_V1": old_key,
+        }
+        with patch.dict(os.environ, env_vars, clear=True):
+            Model._invalidate_key_version_cache()
+            self.assertEqual(Model._get_current_encryption_key_version(), 2)
+            with patch.object(
+                type(Model), "_stamp_encryption_key_version", stamp_or_raise
+            ):
+                result = Model.action_migrate_encryption_keys()
+
+            # The doomed row is reported as failed, identified by id, and is
+            # never double-counted as migrated.
+            self.assertGreaterEqual(result["failed"], 1)
+            self.assertTrue(
+                any(f"ID: {doomed_id})" in err for err in result["errors"]),
+                "the injected failure must surface in the per-row error list",
+            )
+
+            # Discriminator: the deferred re-encryption write must NOT linger
+            # in the ORM cache. Read straight from cache (no invalidate) — the
+            # rollback should have cleared it back to the old-key ciphertext.
+            self.assertEqual(
+                bytes(doomed.with_context(bin_size=False).credential_value_encrypted),
+                old_ciphertext,
+                "failed row's re-encrypted payload must not survive in the "
+                "ORM cache after rollback",
+            )
+
+            # The sibling still migrates in the same run: each row's rollback
+            # is isolated to its own savepoint.
+            healthy.invalidate_recordset(["encryption_key_version"])
+            self.assertEqual(healthy.encryption_key_version, 2)
+            self.assertGreaterEqual(result["migrated"], 1)
+
+        # Persisted integrity: flushing must not push a stale new-key payload
+        # to the DB — the failed row still decrypts under the old key and
+        # keeps its old key version.
+        self.env.flush_all()
+        Model._invalidate_key_version_cache()
+        fresh = Model.browse(doomed_id)
+        fresh.invalidate_recordset()
+        self.assertEqual(fresh.credential_value, "keep-me-doomed")
+        self.assertEqual(fresh.encryption_key_version, 1)
+
 
 class TestEO78SudoReads(TestHardeningFixesBase):
     """t23743 (EO7.8.26): 3 reads that must not AccessError for a
