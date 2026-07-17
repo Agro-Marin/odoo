@@ -1,34 +1,20 @@
 /** @odoo-module native */
 
-/* global idbKeyval */
+/* global idbKeyval, PUSH_NOTIFICATION_ACTION, arrayBufferToBase64Url, planPushNotification, notificationTargetPath */
+// The bare-global helpers above are inlined from service_worker_utils.js by the
+// webmanifest controller (this file is served as a classic worker, not bundled).
 importScripts("/mail/static/lib/idb-keyval/idb-keyval.js");
 
 const MESSAGE_TYPE = {
     POST_RTC_LOGS: "POST_RTC_LOGS",
 };
-const PUSH_NOTIFICATION_TYPE = {
-    CALL: "CALL",
-    CANCEL: "CANCEL",
-};
-const PUSH_NOTIFICATION_ACTION = {
-    ACCEPT: "ACCEPT",
-    DECLINE: "DECLINE",
-};
+// PUSH_NOTIFICATION_TYPE, PUSH_NOTIFICATION_ACTION, arrayBufferToBase64Url,
+// planPushNotification and notificationTargetPath are provided by
+// service_worker_utils.js, inlined ahead of this file by the webmanifest
+// controller (see mail/controllers/webmanifest.py).
 
 const { Store, set, get } = idbKeyval;
 const LOG_AGE_LIMIT = 24 * 60 * 60 * 1000; // 24h
-
-// base64url (unpadded) encoding of the VAPID applicationServerKey, matching
-// WebClient._arrayBufferToBase64 so register_devices' _verify_vapid_public_key
-// accepts it.
-function arrayBufferToBase64Url(buffer) {
-    const bytes = new Uint8Array(buffer);
-    let binary = "";
-    for (let i = 0; i < bytes.byteLength; i++) {
-        binary += String.fromCharCode(bytes[i]);
-    }
-    return btoa(binary).replaceAll("+", "-").replaceAll("/", "_").replaceAll("=", "");
-}
 let db;
 let dbPromise;
 const unread_store = new Store("odoo-mail-unread-db", "odoo-mail-unread-store");
@@ -242,8 +228,7 @@ self.addEventListener("notificationclick", (event) => {
             // model can be absent (payload evolution, third-party push types
             // reusing options.data): dereferencing it would throw inside the
             // handler and swallow the click entirely
-            const modelPath = model.includes(".") ? model : `m-${model}`;
-            event.waitUntil(clients.openWindow(`/odoo/${modelPath}/${res_id}`));
+            event.waitUntil(clients.openWindow(notificationTargetPath(model, res_id)));
         }
     }
 });
@@ -254,53 +239,39 @@ self.addEventListener("push", (event) => {
     } catch {
         notification = undefined;
     }
-    if (!notification?.title) {
-        // Empty or invalid payload: still show a generic notification, as
-        // browsers may penalize the push subscription when a push event
-        // doesn't show anything.
-        event.waitUntil(self.registration.showNotification("Odoo"));
-        return;
-    }
-    switch (notification.options?.data?.type) {
-        case PUSH_NOTIFICATION_TYPE.CALL:
-            if (
-                notification.options.actions &&
-                navigator.userAgent.includes("Android")
-            ) {
-                // action "accept" is disabled on mobile until: https://issues.chromium.org/issues/40286493 is fixed.
-                notification.options.actions = notification.options.actions.filter(
-                    (a) => a.action !== PUSH_NOTIFICATION_ACTION.ACCEPT,
-                );
-            }
+    // Pure decision (unit-tested in service_worker_utils.test.js); this handler
+    // only executes the resulting plan against the ServiceWorker APIs.
+    const plan = planPushNotification(notification, {
+        isAndroid: navigator.userAgent.includes("Android"),
+    });
+    switch (plan.type) {
+        case "generic":
+            event.waitUntil(self.registration.showNotification("Odoo"));
+            return;
+        case "show":
             event.waitUntil(
-                self.registration.showNotification(
-                    notification.title,
-                    notification.options || {},
-                ),
+                self.registration.showNotification(plan.title, plan.options || {}),
             );
             return;
-        case PUSH_NOTIFICATION_TYPE.CANCEL: {
-            const tag = notification.options?.tag;
-            if (!tag) {
-                // getNotifications({ tag: undefined }) is "match everything", so
-                // a tag-less CANCEL would close every notification for this
-                // origin (unrelated calls/messages included). A CANCEL is only
-                // meaningful when scoped to a tag; ignore it otherwise.
-                return;
-            }
+        case "ignore":
+            return;
+        case "cancel":
             // waitUntil: without it the worker may be terminated before the
             // async getNotifications() resolves, leaving the notification up.
             event.waitUntil(
-                self.registration.getNotifications({ tag }).then((notifications) => {
-                    for (const toCancel of notifications) {
-                        toCancel.close();
-                    }
-                }),
+                self.registration
+                    .getNotifications({ tag: plan.tag })
+                    .then((notifications) => {
+                        for (const toCancel of notifications) {
+                            toCancel.close();
+                        }
+                    }),
             );
             return;
-        }
+        case "handshake":
+            event.waitUntil(handlePushEvent(notification));
+            return;
     }
-    event.waitUntil(handlePushEvent(notification));
 });
 
 /** @type {Map<string, Function>} string is correlationId and Function is handler */

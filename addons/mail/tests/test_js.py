@@ -61,6 +61,7 @@ MISC_SUITES = (
     # root-level test files (mail/static/tests/*.test.js)
     "@mail/mail_utils",
     "@mail/search",
+    "@mail/service_worker_utils",
 )
 # Union of every prefix some method selects — kept in sync with the methods
 # below and checked exhaustively by test_suite_filters_cover_every_test_file.

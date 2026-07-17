@@ -10,7 +10,7 @@ import json
 from unittest.mock import patch
 
 from odoo.exceptions import AccessError
-from odoo.tests.common import tagged
+from odoo.tests.common import HttpCase, tagged
 
 from odoo.addons.mail.tests.common import MailCommon
 from odoo.addons.mail.tools.discuss import Store
@@ -106,3 +106,29 @@ class TestWebPushRetry(MailCommon):
             "an unresolvable push must be kept for retry, not deleted",
         )
         self.assertTrue(device.exists(), "the device must be kept too")
+
+
+@tagged("post_install", "-at_install")
+class TestServiceWorkerAssembly(HttpCase):
+    def test_served_worker_inlines_utils_without_export(self):
+        """The served classic service worker must inline the pure helpers from
+        service_worker_utils.js (with the ESM ``export`` keyword stripped) so
+        the worker can call them as globals."""
+        self.authenticate("admin", "admin")
+        res = self.url_open("/web/service-worker.js")
+        self.assertEqual(res.status_code, 200)
+        body = res.text
+        # the extracted helpers are present...
+        for symbol in (
+            "function planPushNotification",
+            "function notificationTargetPath",
+            "function arrayBufferToBase64Url",
+            "const PUSH_NOTIFICATION_ACTION",
+        ):
+            self.assertIn(symbol, body, f"missing inlined helper: {symbol}")
+        # ...and the ESM export keyword was stripped (classic worker, no modules)
+        self.assertNotRegex(
+            body,
+            r"(?m)^\s*export\s+",
+            "a served classic worker must not contain ESM export statements",
+        )
