@@ -13,8 +13,12 @@ export class PosPayment extends Base {
         if (!this.payment_date) {
             this.payment_date = DateTime.now();
         }
-        this.amount = vals.amount || 0;
-        this.ticket = vals.ticket || "";
+        // setup() re-runs on every connectNewData update. Fall back to the
+        // current value (already merge-preserved in raw by _sanitizeRawData)
+        // when the payload omits the field — a partial push must not zero an
+        // existing payment's amount or wipe accumulated terminal receipt info.
+        this.amount = vals.amount ?? this.amount ?? 0;
+        this.ticket = vals.ticket ?? this.ticket ?? "";
     }
 
     isSelected() {
