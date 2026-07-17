@@ -105,13 +105,26 @@ export const hootPosModels = [
     BarcodeNomenclature,
 ];
 
-export const definePosModels = () => {
-    const posModelNames = hootPosModels.map(
+/**
+ * Registers the POS mock-server models for a HOOT unit suite.
+ *
+ * Dependent modules (pos_restaurant, pos_loyalty, …) compose their own model
+ * set on top of the base by passing their new model classes as `extraModels`
+ * — see each module's `data/generate_model_definitions.js`. This replaced a
+ * fragile pattern where each module's data file mutated the shared
+ * `hootPosModels` array as an import-time side effect, which only worked if
+ * the file happened to be imported before definePosModels ran.
+ *
+ * @param {Function[]} [extraModels=[]] additional mock-server model classes.
+ */
+export const definePosModels = (extraModels = []) => {
+    const allPosModels = [...hootPosModels, ...extraModels];
+    const posModelNames = allPosModels.map(
         (modelClass) => modelClass.prototype.constructor._name,
     );
     const modelsFromMail = Object.values(mailModels).filter(
         (modelClass) => !posModelNames.includes(modelClass.prototype.constructor._name),
     );
     onRpc("/pos/ping", () => {});
-    defineModels([...modelsFromMail, ...hootPosModels]);
+    defineModels([...modelsFromMail, ...allPosModels]);
 };
