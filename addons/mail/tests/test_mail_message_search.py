@@ -143,3 +143,30 @@ class TestMailMessageSearchChunking(MailCommon):
         self.assertIn(
             "LIMIT", big_scans[0].upper(), "the candidate scan must be SQL-bounded"
         )
+
+    def test_message_fetch_search_term_escapes_like_metachars(self):
+        """A literal %, _ or \\ in a search term must match literally, not as a
+        SQL LIKE wildcard. Regression: searching '50%' also matched '5000' and
+        '_' matched any single character."""
+        Msg = self.env["mail.message"].sudo()
+        common = {
+            "author_id": self.emp_partner.id,
+            "model": "res.partner",
+            "res_id": self.carrier.id,
+            "message_type": "comment",
+            "subtype_id": self.comment_subtype,
+        }
+        literal = Msg.create({**common, "body": "discount 50% today"})
+        other = Msg.create({**common, "body": "total is 5000 units"})
+        domain = [("model", "=", "res.partner"), ("res_id", "=", self.carrier.id)]
+
+        res = self.env["mail.message"]._message_fetch(domain=domain, search_term="50%")
+        ids = {m["id"] for m in res["messages"]}
+        self.assertIn(literal.id, ids)
+        self.assertNotIn(other.id, ids, "a literal '%' must not act as a wildcard")
+
+        # the intentional space -> % loose matching must still work
+        res2 = self.env["mail.message"]._message_fetch(
+            domain=domain, search_term="discount today"
+        )
+        self.assertIn(literal.id, {m["id"] for m in res2["messages"]})

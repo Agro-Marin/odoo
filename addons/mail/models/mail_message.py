@@ -1281,8 +1281,16 @@ class MailMessage(models.Model):
         elif is_notification is False:
             domain &= Domain("message_type", "!=", "notification")
         if search_term:
-            # we replace every space by a % to avoid hard spacing matching
-            search_term = search_term.replace(" ", "%")
+            # Escape the LIKE metacharacters a user may type (\, %, _) so they
+            # match literally, THEN turn spaces into % for loose word-gap
+            # matching. Without the escape a search for "50%" also matched "5000"
+            # and "_" matched any single character.
+            search_term = (
+                search_term.replace("\\", "\\\\")
+                .replace("%", "\\%")
+                .replace("_", "\\_")
+                .replace(" ", "%")
+            )
             message_domain = Domain.OR(
                 [
                     # sudo: access to attachment is allowed if you have access to the parent model

@@ -208,7 +208,7 @@ class MailTrackingDurationMixin(models.AbstractModel):
                 FROM %(from_clause)s
                     {from_add_join}
                 WHERE
-                    %(table)s.%(last_update_field)s > %(today)s - INTERVAL '%(max_rotting_months)s months'
+                    %(table)s.%(last_update_field)s > %(today)s - make_interval(months => %(max_rotting_months)s)
                     AND %(where_clause)s
             )
             SELECT id

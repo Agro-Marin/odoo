@@ -1937,6 +1937,13 @@ class MailThread(models.AbstractModel):
         )  # import XML attachments as text
         # postpone setting message_dict.partner_ids after message_post, to avoid double notifications
         original_partner_ids = message_dict.pop("partner_ids", [])
+        # Pop the filtered To/Cc once, before the per-route loop: popping inside the
+        # loop mutated the shared message_dict, so a single email routed to several
+        # aliases recorded incoming_email_to/cc on the first record only and every
+        # later record got False — losing the duplicate-notification suppression in
+        # _notify_get_recipients (each extra record re-emailed the whole To/Cc).
+        incoming_email_cc = message_dict.pop("cc_filtered", False)
+        incoming_email_to = message_dict.pop("to_filtered", False)
         thread_id = False
         for model, thread_id, custom_values, user_id, alias in routes or ():
             subtype_id = False
@@ -2011,8 +2018,8 @@ class MailThread(models.AbstractModel):
                     partner_ids = [parent_message.author_id.id]
 
             post_params = dict(
-                incoming_email_cc=message_dict.pop("cc_filtered", False),
-                incoming_email_to=message_dict.pop("to_filtered", False),
+                incoming_email_cc=incoming_email_cc,
+                incoming_email_to=incoming_email_to,
                 subtype_id=subtype_id,
                 partner_ids=partner_ids,
                 **message_dict,
@@ -2459,9 +2466,14 @@ class MailThread(models.AbstractModel):
         bounced_message = self.env["mail.message"].sudo()
         if email_part:
             if email_part.get_content_type() == "text/rfc822-headers":
-                # Convert the message body into a message itself
+                # Convert the message body into a message itself. Decode through the
+                # charset-safe helper: a bounce whose rfc822-headers part declares an
+                # unresolvable charset (unknown-8bit, x-user-defined) would otherwise
+                # raise LookupError out of message_process and lose the inbound mail
+                # (POP dele() / IMAP \Seen already ran) — the exact failure this
+                # helper guards for the main body/part paths.
                 email_payload = message_from_string(
-                    email_part.get_content(), policy=email.policy.SMTP
+                    _email_part_get_content_safe(email_part), policy=email.policy.SMTP
                 )
             else:
                 # Guard the payload index: a malformed multipart/report (or
@@ -2853,7 +2865,6 @@ class MailThread(models.AbstractModel):
 
         # classify email / company and email / record IDs
         for record, mails in records_emails.items():
-            mails = records_emails.get(record, [])
             record_company = records_company.get(record.id, self.env["res.company"])
             for mail in mails:
                 mail_normalized = email_normalize(mail, strict=False)
@@ -4297,6 +4308,7 @@ class MailThread(models.AbstractModel):
         :param set restricting_names: set of parameters restricting given
           parameter_names, parameters not belonging to this list are rejected;
         """
+        conflicting_names = set()
         if forbidden_names:
             conflicting_names = parameter_names & forbidden_names
         elif restricting_names:
@@ -5851,7 +5863,13 @@ class MailThread(models.AbstractModel):
                 minimal_qcontext=True,
                 raise_if_not_found=False,
             )
-            ooo_messages += self.message_post(
+            # sudo: the OOO reply is system-generated (its author is the absent
+            # user, not the poster). Posting as self would validate parameters
+            # against the transaction user, and a share/portal/guest poster (who
+            # legitimately triggers this when notifying an out-of-office internal
+            # user) is forbidden the 'mail_headers' param by
+            # _get_notify_valid_parameters -> ValueError -> the whole comment 500s.
+            ooo_messages += self.sudo().message_post(
                 author_id=user.partner_id.id,
                 body=body,
                 email_from=user.email_formatted,
@@ -5969,15 +5987,23 @@ class MailThread(models.AbstractModel):
                 return_line + message.subtype_id.description + return_line
             )
 
-        for tracking in message.sudo().tracking_value_ids._filter_free_field_access():
-            if tracking.field_id.ttype == "boolean":
-                old_value = str(bool(tracking.old_value_integer))
-                new_value = str(bool(tracking.new_value_integer))
-            else:
-                old_value = tracking.old_value_char or str(tracking.old_value_integer)
-                new_value = tracking.new_value_char or str(tracking.new_value_integer)
+        # Use the shared, type-aware formatter instead of poking *_value_char /
+        # *_value_integer directly: float, monetary, date and datetime changes
+        # live in *_value_float / *_value_datetime, so the old code rendered them
+        # all as "0" (e.g. a 10.5 -> 20.0 price showed "Price: 0") in the push.
+        def _fmt(value, is_bool):
+            if is_bool:
+                return str(bool(value))
+            return "" if value is None or value is False else str(value)
 
-            tracking_message += tracking.field_id.field_description + ": " + old_value
+        trackings = message.sudo().tracking_value_ids._filter_free_field_access()
+        for formatted in trackings._tracking_value_format():
+            is_bool = formatted["fieldInfo"]["fieldType"] == "boolean"
+            old_value = _fmt(formatted["oldValue"], is_bool)
+            new_value = _fmt(formatted["newValue"], is_bool)
+            tracking_message += (
+                formatted["fieldInfo"]["changedField"] + ": " + old_value
+            )
             if old_value != new_value:
                 tracking_message += " → " + new_value
             tracking_message += return_line

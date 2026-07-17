@@ -215,6 +215,17 @@ class TestActivitySchedule(ActivityScheduleCase):
         with self.assertRaises(ValidationError):
             scheduler.activity_user_id = False
 
+    def test_compute_error_plan_without_res_model(self):
+        """Regression: computing 'error' on a plan scheduler that has no
+        res_model yet (wizard opened without an active model) must not raise
+        UnboundLocalError -- 'applied_on' used to be bound only in the res_model
+        branch but read in the plan branch."""
+        scheduler = self.env['mail.activity.schedule'].with_context(
+            active_model=False, active_ids=[],
+        ).new({'plan_id': self.plan_party.id, 'res_model': False})
+        # must compute cleanly and surface the intended guidance, not crash
+        self.assertIn('without a record', scheduler.error or '')
+
     def test_plan_copy(self):
         """Test plan copy"""
         copied_plan = self.plan_onboarding.copy()
