@@ -900,6 +900,9 @@ class PurchaseOrderLine(models.Model):
     def _get_invoice_line_link_field(self):
         return "purchase_line_ids"
 
+    def _invoiced_on_transferred(self):
+        return self.product_id.bill_policy == "transferred"
+
     def _prepare_aml_vals(self, **optional_values):
         """Prepare the values to create the new invoice line for a purchase order line.
 

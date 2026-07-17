@@ -163,6 +163,38 @@ class TestUom(UomCommon):
                         src._compute_quantity(qty, dst),
                     )
 
+    def test_compute_quantity_reconcile_strict_posting_context(self):
+        """`_compute_quantity_reconcile` degrades while an order is browsed but
+        escalates to a raising conversion under the `uom_reconcile_strict`
+        context, so a delivered/received quantity is never posted unconverted.
+        Only the reconcile wrapper escalates — report/estimate stay lenient."""
+        self.assertFalse(self.uom_gram._has_common_reference(self.uom_hour))
+        # Default (browse): degrades to the unconverted quantity.
+        self.assertEqual(
+            self.uom_gram._compute_quantity_reconcile(1000, self.uom_hour), 1000,
+        )
+        # Posting boundary: escalates to strict and raises.
+        with self.assertRaises(UserError):
+            self.uom_gram.with_context(
+                uom_reconcile_strict=True
+            )._compute_quantity_reconcile(1000, self.uom_hour)
+        # A caller-passed raise_if_failure=False cannot re-open the escape hatch
+        # once the posting context asked for strictness.
+        with self.assertRaises(UserError):
+            self.uom_gram.with_context(
+                uom_reconcile_strict=True
+            )._compute_quantity_reconcile(1000, self.uom_hour, raise_if_failure=False)
+        # The escalation is reconcile-only: report/estimate still degrade.
+        for wrapper in ("_compute_quantity_report", "_compute_quantity_estimate"):
+            with self.subTest(wrapper=wrapper):
+                self.assertEqual(
+                    getattr(
+                        self.uom_gram.with_context(uom_reconcile_strict=True), wrapper
+                    )(1000, self.uom_hour),
+                    1000,
+                    "Only the reconcile wrapper escalates under posting context",
+                )
+
     def test_conversion_degenerate_recordsets(self):
         empty_uom = self.env["uom.uom"]
         self.assertEqual(empty_uom._compute_quantity(5.0, self.uom_gram), 5.0)

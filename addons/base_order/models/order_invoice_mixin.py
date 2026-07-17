@@ -828,6 +828,7 @@ class OrderLineInvoiceMixin(models.AbstractModel):
         :param optional_values: parameters added to the returned invoice lines
         :rtype: list[dict]
         """
+        self._assert_transferred_uom_convertible()
         return [self._prepare_aml_vals(**optional_values)]
 
     def _prepare_aml_vals(self, **optional_values):
