@@ -136,7 +136,12 @@ export class ProductConfiguratorPopup extends Component {
     }
 
     get product() {
-        let product = null;
+        // Undefined (not null) when there is no matching variant: the
+        // ProductInfoBanner `product` prop is an OPTIONAL Object, which accepts
+        // an absent (undefined) value but rejects null — a storable product with
+        // no variants (this getter's default) crashed the configurator on the
+        // props check. `find()` below already yields undefined on no match.
+        let product;
         const hasVariants = this.attributes.some(
             (line) => line.attribute_id.create_variant !== "no_variant",
         );
