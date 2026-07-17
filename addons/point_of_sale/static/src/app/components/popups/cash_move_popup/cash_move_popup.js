@@ -94,6 +94,12 @@ export class CashMovePopup extends Component {
             this.pos.models["pos.order"].delete(order);
         }
 
+        // Signal a successful move so an awaiting caller (the closing popup's
+        // cashMove flow) resolves truthy and refreshes its figures. Without
+        // this the awaitable resolves undefined — identical to cancel/dismiss —
+        // and the post-move closeSession refresh never runs, leaving stale
+        // expected-cash amounts in the closing popup.
+        this.props.getPayload?.(true);
         this.props.close();
         this.notification.add(
             _t("Successfully made a cash %s of %s.", type, formattedAmount),

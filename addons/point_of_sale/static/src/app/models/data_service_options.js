@@ -75,7 +75,7 @@ export class DataServiceOptions {
         return ["read", "search_read", "create"];
     }
 
-    get pohibitedAutoLoadedModels() {
+    get prohibitedAutoLoadedModels() {
         return [
             "pos.order", // Cannot be auto-loaded can cause infinite loop
             "pos.order.line", // Cannot be auto-loaded can cause infinite loop
