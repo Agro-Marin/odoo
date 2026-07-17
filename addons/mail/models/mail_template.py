@@ -488,14 +488,20 @@ class MailTemplate(models.Model):
         if render_results is None:
             render_results = {}
 
-        # generating reports is done on a per-record basis, better ensure cache
-        # is filled up to avoid rendering and browsing in a loop
+        # Generating reports is per-record; browse the whole batch once and
+        # reuse those slices below (a bare ``browse(res_ids)`` reads nothing, and
+        # a fresh per-record ``browse(res_id)`` gets its own prefetch set, so the
+        # name rendering would read record-by-record). Keyed slices of a single
+        # recordset share one prefetch set.
+        records_by_id = {}
         if (
             res_ids
             and "report_template_ids" in render_fields
             and self.report_template_ids
         ):
-            self.env[self.model].browse(res_ids)
+            records_by_id = {
+                record.id: record for record in self.env[self.model].browse(res_ids)
+            }
 
         for res_id in res_ids:
             values = render_results.setdefault(res_id, {})
@@ -530,7 +536,8 @@ class MailTemplate(models.Model):
                         report_name = safe_eval(
                             report.print_report_name,
                             {
-                                "object": self.env[self.model].browse(res_id),
+                                "object": records_by_id.get(res_id)
+                                or self.env[self.model].browse(res_id),
                                 "time": time,
                             },
                         )

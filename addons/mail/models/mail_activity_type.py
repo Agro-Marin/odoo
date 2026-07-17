@@ -244,7 +244,9 @@ class MailActivityType(models.Model):
         # access to some referencing records would, with an access-filtered
         # search, leave those activities unreassigned and hit the FK on
         # super().unlink(). Defense-in-depth: reassign every referencing row.
-        self.env["mail.activity"].sudo().search(
+        # active_test=False: completed activities are archived (_action_done),
+        # so an active-only search would miss them and still hit the FK.
+        self.env["mail.activity"].sudo().with_context(active_test=False).search(
             [("activity_type_id", "in", self.ids)]
         ).write(
             {

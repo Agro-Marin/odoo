@@ -126,7 +126,9 @@ class MailLinkPreview(models.Model):
             [("source_url", "ilike", domain), ("create_date", ">", date_interval)]
         )
         link_preview_throttle = int(
-            self.env["ir.config_parameter"].get_param("mail.link_preview_throttle", 99)
+            self.env["ir.config_parameter"]
+            .sudo()
+            .get_param("mail.link_preview_throttle", 99)
         )
         return call_counter > link_preview_throttle
 
