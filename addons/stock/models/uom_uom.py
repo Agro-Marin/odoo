@@ -27,7 +27,10 @@ class UomUom(models.Model):
                     )
                     or (
                         "relative_uom_id" in vals
-                        and u.relative_uom_id.id != int(vals["relative_uom_id"])
+                        # `or 0` folds a programmatic None into the same "unset"
+                        # bucket as the web client's False instead of crashing.
+                        and (u.relative_uom_id.id or 0)
+                        != int(vals["relative_uom_id"] or 0)
                     )
                 ),
             )

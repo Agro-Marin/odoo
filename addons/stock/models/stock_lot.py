@@ -1,5 +1,5 @@
 import re
-from collections import defaultdict
+from collections import Counter, defaultdict
 from collections.abc import Iterable
 
 from odoo import _, api, fields, models
@@ -107,6 +107,16 @@ class StockLot(models.Model):
     # CONSTRAINTS
     # ------------------------------------------------------------
 
+    # Race-proof uniqueness for the same-company (or same no-company) case:
+    # `_check_unique_lot` below cannot stop two concurrent transactions from
+    # committing the same lot. NULLS NOT DISTINCT (PostgreSQL 15+) makes two
+    # no-company lots collide too. The company-vs-no-company collision rule is
+    # not expressible as a single SQL constraint and stays in Python.
+    _name_product_company_uniq = models.Constraint(
+        "UNIQUE NULLS NOT DISTINCT (name, product_id, company_id)",
+        "The combination of lot/serial number and product must be unique within a company.",
+    )
+
     @api.constrains("name", "product_id", "company_id")
     def _check_unique_lot(self):
         domain = [
@@ -132,25 +142,79 @@ class StockLot(models.Model):
         # Second pass: a combination duplicates when it appears more than once within
         # a company (or 'no-company'), or when a company-specific lot collides with a
         # 'no-company' one. Company-specific lots aren't checked across companies.
-        error_message_lines = set()
+        duplicate_pairs = set()
         for company, product, name, count in records:
             duplicates = count
             if company:
                 duplicates += cross_lots.get((product, name), 0)
             if duplicates > 1:
-                error_message_lines.add(
-                    _(
-                        " - Product: %(product)s, Lot/Serial Number: %(lot)s",
-                        product=product.display_name,
-                        lot=name,
-                    ),
-                )
-        if error_message_lines:
-            raise ValidationError(
-                _(
-                    "The combination of lot/serial number and product must be unique within a company including when no company is defined.\nThe following combinations contain duplicates:\n%(error_lines)s",
-                    error_lines="\n".join(error_message_lines),
-                ),
+                duplicate_pairs.add((product, name))
+        if duplicate_pairs:
+            self._raise_duplicate_lot_error(duplicate_pairs)
+
+    @api.model
+    def _raise_duplicate_lot_error(self, product_name_pairs):
+        error_message_lines = sorted(
+            _(
+                " - Product: %(product)s, Lot/Serial Number: %(lot)s",
+                product=product.display_name,
+                lot=name,
+            )
+            for product, name in product_name_pairs
+        )
+        raise ValidationError(
+            _(
+                "The combination of lot/serial number and product must be unique within a company including when no company is defined.\nThe following combinations contain duplicates:\n%(error_lines)s",
+                error_lines="\n".join(error_message_lines),
+            ),
+        )
+
+    @api.model
+    def _check_duplicate_lot_keys(self, keys, exclude_ids=None):
+        """Raise the uniqueness ``ValidationError`` for exact (product, name,
+        company) duplicates before the INSERT/UPDATE reaches the
+        ``_name_product_company_uniq`` SQL constraint, so in-process callers
+        keep getting a ``ValidationError``; the SQL constraint only backstops
+        concurrent transactions. Falsy company must be normalized to ``False``
+        by the caller; entries with a falsy product or name are ignored (the
+        required-field errors surface elsewhere). The company-vs-no-company
+        collision rule stays in ``_check_unique_lot``.
+        """
+        keys = [key for key in keys if key[0] and key[1]]
+        if not keys:
+            return
+        duplicates = {key for key, count in Counter(keys).items() if count > 1}
+        remaining = set(keys) - duplicates
+        if remaining:
+            domain = [
+                ("product_id", "in", [key[0] for key in remaining]),
+                ("name", "in", [key[1] for key in remaining]),
+            ]
+            if exclude_ids:
+                domain.append(("id", "not in", list(exclude_ids)))
+            # sudo: an existence check on the exact triple; no-company rows are
+            # visible to everyone but same-company rows may be filtered out by
+            # record rules when the user switches allowed companies.
+            groups = (
+                self.sudo()
+                .with_context(skip_preprocess_gs1=True)
+                ._read_group(domain, ["product_id", "name", "company_id"], ["__count"])
+            )
+            existing = {
+                (product.id, name, company.id if company else False)
+                for product, name, company, __ in groups
+            }
+            duplicates |= remaining & existing
+        if duplicates:
+            products = self.env["product.product"].browse(
+                {product_id for product_id, __, __ in duplicates}
+            )
+            product_by_id = {product.id: product for product in products}
+            self._raise_duplicate_lot_error(
+                {
+                    (product_by_id[product_id], name)
+                    for product_id, name, __ in duplicates
+                }
             )
 
     # ------------------------------------------------------------
@@ -165,11 +229,31 @@ class StockLot(models.Model):
         lot_product_ids.discard(None)
         lot_product_ids.discard(False)
         self.with_context(lot_product_ids=lot_product_ids)._check_create()
+        self._check_duplicate_lot_keys(
+            (
+                vals.get("product_id"),
+                vals.get("name"),
+                vals.get("company_id") or False,
+            )
+            for vals in vals_list
+        )
         return super(StockLot, self.with_context(mail_create_nosubscribe=True)).create(
             vals_list
         )
 
     def write(self, vals):
+        if any(field in vals for field in ("name", "product_id", "company_id")):
+            self._check_duplicate_lot_keys(
+                [
+                    (
+                        vals.get("product_id", lot.product_id.id),
+                        vals.get("name", lot.name),
+                        vals.get("company_id", lot.company_id.id) or False,
+                    )
+                    for lot in self
+                ],
+                exclude_ids=self.ids,
+            )
         if "company_id" in vals:
             for lot in self:
                 if (

@@ -308,10 +308,13 @@ class ProductTemplate(models.Model):
                 capacity
             ) in old_template.product_variant_ids.storage_category_capacity_ids:
                 attribute_value = capacity.product_id.product_template_attribute_value_ids.product_attribute_value_id
+                new_variant_id = new_variant_id_by_value.get(attribute_value)
+                if not new_variant_id:
+                    # No matching variant on the copy (e.g. dynamic attributes
+                    # create variants lazily): skip instead of crashing the copy.
+                    continue
                 storage_category_capacity_vals.append(
-                    capacity.copy_data(
-                        {"product_id": new_variant_id_by_value[attribute_value]},
-                    )[0],
+                    capacity.copy_data({"product_id": new_variant_id})[0],
                 )
         self.env["stock.storage.category.capacity"].create(
             storage_category_capacity_vals,
@@ -453,6 +456,14 @@ class ProductTemplate(models.Model):
             template.qty_outgoing = res[template.id]["qty_outgoing"]
 
     def _prepare_quantities_vals(self):
+        """Sum each template's quantity fields over its (active) variants.
+
+        Shares its name with ``product.product._prepare_quantities_vals`` but
+        NOT its contract: the variant method takes the lot/owner/package/date
+        scope explicitly and aggregates quants and moves, while this one only
+        reads the already-computed variant fields (the scope comes from the
+        context) and rolls them up per template.
+        """
         variants_available = {
             p["id"]: p
             for p in self.product_variant_ids._origin.read(
@@ -564,8 +575,12 @@ class ProductTemplate(models.Model):
     # ------------------------------------------------------------
 
     def _search_variant_quantity(self, field_name, operator, value):
-        # The quantity fields are aggregates of the variants', so a template
-        # matches when any of its variants matches the same criterion.
+        # A template matches when ANY of its variants matches the criterion,
+        # while the displayed template value is the SUM over its variants. The
+        # two can diverge on multi-variant templates (e.g. `qty_available > 10`
+        # misses a template showing 6 + 6 = 12): a known approximation, kept
+        # because an exact search would need to aggregate quantities per
+        # template for every candidate variant.
         variant_query = self.env["product.product"]._search(
             [(field_name, operator, value)]
         )

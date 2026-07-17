@@ -7,7 +7,12 @@ class StockStorageCategory(models.Model):
     _order = "name"
 
     name = fields.Char(string="Storage Category", required=True)
-    max_weight = fields.Float(string="Max Weight", digits="Stock Weight")
+    max_weight = fields.Float(
+        string="Max Weight",
+        digits="Stock Weight",
+        help="Maximum weight the locations of this storage category can hold. "
+        "Leave 0 for no weight limit.",
+    )
     capacity_ids = fields.One2many(
         comodel_name="stock.storage.category.capacity",
         inverse_name="storage_category_id",
@@ -72,7 +77,7 @@ class StockStorageCategory(models.Model):
         vals_list = super().copy_data(default=default)
         return [
             dict(vals, name=self.env._("%s (copy)", category.name))
-            for category, vals in zip(self, vals_list, strict=False)
+            for category, vals in zip(self, vals_list, strict=True)
         ]
 
 

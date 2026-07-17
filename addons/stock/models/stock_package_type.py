@@ -143,7 +143,9 @@ class StockPackageType(models.Model):
 
     def write(self, vals):
         seq_vals = {}
-        if "sequence_code" in vals:
+        # Truthiness guard: clearing the code must not create/rename sequences
+        # with a False prefix ("Package Type Sequence False").
+        if vals.get("sequence_code"):
             seq_vals["name"] = self.env._(
                 "Package Type Sequence %(code)s", code=vals["sequence_code"]
             )
@@ -180,7 +182,7 @@ class StockPackageType(models.Model):
         vals_list = super().copy_data(default=default)
         return [
             dict(vals, name=self.env._("%s (copy)", package_type.name))
-            for package_type, vals in zip(self, vals_list, strict=False)
+            for package_type, vals in zip(self, vals_list, strict=True)
         ]
 
     # ------------------------------------------------------------

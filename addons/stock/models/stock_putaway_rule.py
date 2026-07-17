@@ -90,10 +90,6 @@ class StockPutawayRule(models.Model):
     # CRUD METHODS
     # ------------------------------------------------------------
 
-    @api.model_create_multi
-    def create(self, vals_list):
-        return super().create(vals_list)
-
     def write(self, vals):
         if "company_id" in vals:
             for rule in self:
@@ -162,7 +158,7 @@ class StockPutawayRule(models.Model):
                 self.env["stock.warehouse"]._check_company_domain(self.env.company),
                 limit=1,
             )
-            input_loc, _ = wh._get_input_output_locations(
+            input_loc, __ = wh._get_input_output_locations(
                 wh.reception_steps, wh.delivery_steps
             )
             return input_loc
@@ -245,6 +241,9 @@ class StockPutawayRule(models.Model):
                     product, quantity, package, qty_by_location[location_out.id]
                 ):
                     return location_out
+                # Memoize the failure so consecutive rules pointing at the same
+                # location don't re-run the check (and its weight queries).
+                checked_locations.add(location_out)
                 continue
             child_locations = child_locations.filtered(
                 lambda loc, putaway_rule=putaway_rule: (
@@ -294,12 +293,9 @@ class StockPutawayRule(models.Model):
                     else:
                         checked_locations.add(location)
 
-            # Fall back to any location of the matching storage category, stocked or not
-            for location in child_locations.filtered(
-                lambda l, putaway_rule=putaway_rule: (
-                    l.storage_category_id == putaway_rule.storage_category_id
-                )
-            ):
+            # Fall back to any location of the matching storage category, stocked
+            # or not (child_locations is already filtered to that category above).
+            for location in child_locations:
                 if location in checked_locations:
                     continue
                 if location._check_can_be_used(
