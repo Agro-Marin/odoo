@@ -16,8 +16,14 @@ export const changesToOrder = (
         if (lineChange["quantity"] > 0 && !cancelled) {
             toAdd.push(lineChange);
         } else {
-            lineChange["quantity"] = Math.abs(lineChange["quantity"]); // we need always positive values.
-            toRemove.push(lineChange);
+            // Copy before flipping the sign: when cancelled, lineChange aliases
+            // an entry in the persisted order.last_order_preparation_change.lines,
+            // so writing Math.abs() back corrupted the stored quantity (negative
+            // for refund lines) and skewed every subsequent prep-change diff.
+            toRemove.push({
+                ...lineChange,
+                quantity: Math.abs(lineChange["quantity"]), // we need always positive values.
+            });
         }
     }
 

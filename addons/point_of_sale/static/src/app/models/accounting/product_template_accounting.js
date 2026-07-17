@@ -98,16 +98,22 @@ export class ProductTemplateAccounting extends Base {
             quantity = related_lines.reduce((sum, line) => sum + line.getQuantity(), 0);
         }
 
+        // Match python `_order = "applied_on, min_quantity desc, categ_id desc,
+        // id desc"`: applied_on is handled by the product/template/general
+        // tiering below, so within a tier break ties on min_quantity by id desc
+        // (otherwise two same-min_quantity rules resolved by backLink insertion
+        // order and could price differently from any backend recomputation).
+        const byMinQtyThenId = (a, b) => b.min_quantity - a.min_quantity || b.id - a.id;
         const tmplRules = (
             productTmpl.backLink("<-product.pricelist.item.product_tmpl_id") || []
         )
             .filter((rule) => rule.pricelist_id.id === pricelist.id && !rule.product_id)
-            .sort((a, b) => b.min_quantity - a.min_quantity);
+            .sort(byMinQtyThenId);
         const productRules = (
             product?.backLink?.("<-product.pricelist.item.product_id") || []
         )
             .filter((rule) => rule.pricelist_id.id === pricelist.id)
-            .sort((a, b) => b.min_quantity - a.min_quantity);
+            .sort(byMinQtyThenId);
 
         const tmplRulesSet = new Set(tmplRules.map((rule) => rule.id));
         const productRulesSet = new Set(productRules.map((rule) => rule.id));
