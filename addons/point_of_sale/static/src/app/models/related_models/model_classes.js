@@ -10,16 +10,17 @@ import {
     X2MANY_TYPES,
 } from "./utils.js";
 
-// Tracks which record classes have already had their field getters/setters
-// defined on their prototype. Keyed by the class object itself (not the model
-// name): during Hoot tests a real model class is a singleton reused across many
-// createRelatedModels() calls, and redefining its prototype fields a second time
-// would hit the "matches an existing property" guard below. Keying by identity
-// also lets a later call that supplies a *different* class for the same model
-// (e.g. the default `Base` subclass when no model class is passed) still get
-// processed and registered — keying by model name would wrongly skip it and
-// leave modelClasses[modelName] undefined.
-const INITIALIZED_CLASSES = new WeakSet();
+// Records, per record class, the field names whose getter/setter THIS module
+// installed on the prototype. Field getters are defined ADDITIVELY across
+// createRelatedModels() calls: a record class is a module-level singleton (from
+// the `pos_available_models` registry) reused by every store, so it must carry
+// the UNION of every store's fields — a store that loads a reduced field set
+// (e.g. the preparation display, which drops `taxes_id`/`product_variant_ids`)
+// must not permanently strip getters a later full-POS store needs. Tracking our
+// own getters lets a re-process add the missing ones while still rejecting a
+// field name that collides with an author-defined class member (own or
+// inherited), which a bare `in ...prototype` check could not tell apart.
+const OWN_FIELD_GETTERS = new WeakMap();
 
 /**
  * Processes model definitions to dynamically define getter and setter properties
@@ -37,11 +38,11 @@ export function processModelClasses(modelDefs, modelClasses = {}) {
         // do `new undefined`.
         modelClasses[modelName] = ModelRecordClass;
 
-        // Only (re)define the prototype fields once per class object.
-        if (INITIALIZED_CLASSES.has(ModelRecordClass)) {
-            continue;
+        let ownGetters = OWN_FIELD_GETTERS.get(ModelRecordClass);
+        if (!ownGetters) {
+            ownGetters = new Set();
+            OWN_FIELD_GETTERS.set(ModelRecordClass, ownGetters);
         }
-        INITIALIZED_CLASSES.add(ModelRecordClass);
 
         const excludedLazyGetters = [];
 
@@ -50,11 +51,16 @@ export function processModelClasses(modelDefs, modelClasses = {}) {
             if (field.dummy || fieldName === "id") {
                 continue;
             }
+            // A getter we installed on a previous call is fine to leave in place.
+            if (ownGetters.has(fieldName)) {
+                continue;
+            }
             if (fieldName in ModelRecordClass.prototype) {
                 throw new Error(
                     `The property "${fieldName}" defined in the class "${ModelRecordClass.name}" matches an existing model "${modelName}" property. Please use a different property name.`,
                 );
             }
+            ownGetters.add(fieldName);
             const isRelationNotInModelDef =
                 field.relation && !modelNames.has(field.relation);
             if (!RELATION_TYPES.has(field.type) || isRelationNotInModelDef) {
