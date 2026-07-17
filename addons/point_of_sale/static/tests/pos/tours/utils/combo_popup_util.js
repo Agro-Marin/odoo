@@ -54,18 +54,12 @@ export function clickQtyBtnMinus(productName) {
 export function checkProductQty(productName, expectedQty) {
     return {
         content: `Check that product ${productName} has quantity ${expectedQty}`,
-        trigger: `.modal article:has(.product-name:contains("${productName}")):has(input[name="pos_quantity"])`,
-        run: () => {
-            const article = [...document.querySelectorAll(".modal article")].find(
-                (el) => el.textContent.includes(productName),
-            );
-            const input = article.querySelector('input[name="pos_quantity"]');
-            if (input.value !== expectedQty) {
-                throw new Error(
-                    `Expected ${expectedQty}, but got ${input.value} for "${productName}".`,
-                );
-            }
-        },
+        // Match the quantity via the framework-polled `:value(...)` pseudo so the
+        // step WAITS for the rendered value. Reading input.value once in a `run`
+        // raced OWL's asynchronous render: after two rapid selects the qty state
+        // is already correct but the input's DOM patch lands a frame later, so a
+        // one-shot read saw the stale value.
+        trigger: `.modal article:has(.product-name:contains("${productName}")) input[name="pos_quantity"]:value("${expectedQty}")`,
     };
 }
 export function checkImgAndSelect(productName, checkImg = false) {
