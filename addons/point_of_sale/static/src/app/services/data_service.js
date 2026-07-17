@@ -17,6 +17,8 @@ import DeviceIdentifierSequence from "../utils/devices_identifier_sequence.js";
 import { logPosMessage } from "../utils/pretty_console_log.js";
 const { DateTime } = luxon;
 const CONSOLE_COLOR = "#28ffeb";
+// IndexedDB store persisting network.unsyncData across reloads.
+const UNSYNC_QUEUE_STORE = "pos.unsync.queue";
 
 export class PosData extends SignalStore {
     static modelToLoad = []; // When empty all models are loaded
@@ -168,6 +170,10 @@ export class PosData extends SignalStore {
             const key = this.opts.databaseTable[model]?.key || "id";
             return [key, model];
         });
+        // Synthetic store for the offline retry queue: without persistence a
+        // reload silently dropped every queued mutation. Existing databases
+        // gain the store through the auto-upgrade flow.
+        models.push(["uuid", UNSYNC_QUEUE_STORE]);
 
         return new Promise((resolve) => {
             this.indexedDB = new IndexedDB(
@@ -464,6 +470,7 @@ export class PosData extends SignalStore {
         const relations = {};
         const dataParams = await this.loadFieldsAndRelations();
         await this.initIndexedDB(dataParams);
+        await this.restoreUnsyncQueue();
 
         for (const [model, values] of Object.entries(dataParams)) {
             relations[model] = values.relations;
@@ -730,12 +737,14 @@ export class PosData extends SignalStore {
                 method !== "sync_from_ui" &&
                 error instanceof ConnectionLostError
             ) {
-                this.network.unsyncData.push({
+                const entry = {
                     args: [...arguments],
                     date: DateTime.now(),
                     try: 1,
                     uuid: uuidv4(),
-                });
+                };
+                this.network.unsyncData.push(entry);
+                this._persistQueueEntry(entry);
 
                 throwErr = false;
             }
@@ -870,6 +879,56 @@ export class PosData extends SignalStore {
         }
     }
 
+    // ---- Offline retry-queue persistence -------------------------------
+    // The queue lives in memory (network.unsyncData) and is mirrored into a
+    // dedicated IndexedDB store so a reload does not silently drop queued
+    // mutations. All mirror operations are best-effort fire-and-forget.
+
+    _persistQueueEntry(entry) {
+        this.indexedDB
+            ?.create(UNSYNC_QUEUE_STORE, [
+                {
+                    uuid: entry.uuid,
+                    date: entry.date?.toISO?.() ?? String(entry.date ?? ""),
+                    try: entry.try ?? 1,
+                    args: entry.args,
+                },
+            ])
+            ?.catch?.(() => {});
+    }
+
+    _unpersistQueueEntry(uuid) {
+        this.indexedDB?.delete(UNSYNC_QUEUE_STORE, [uuid])?.catch?.(() => {});
+    }
+
+    async restoreUnsyncQueue() {
+        try {
+            const data = await this.indexedDB.readAll([UNSYNC_QUEUE_STORE]);
+            const rows = data?.[UNSYNC_QUEUE_STORE] || [];
+            for (const row of rows) {
+                if (!this.network.unsyncData.some((d) => d.uuid === row.uuid)) {
+                    this.network.unsyncData.push({
+                        args: row.args,
+                        date: row.date,
+                        try: row.try ?? 1,
+                        uuid: row.uuid,
+                    });
+                }
+            }
+            if (this.network.unsyncData.length && !this.network.offline) {
+                // Online boot with a restored queue: drain right away.
+                this.syncData().catch(() => {});
+            }
+        } catch {
+            logPosMessage(
+                "DataService",
+                "restoreUnsyncQueue",
+                "Could not restore the offline retry queue from IndexedDB",
+                CONSOLE_COLOR,
+            );
+        }
+    }
+
     async syncData() {
         await this.mutex.exec(async () => {
             while (this.network.unsyncData.length > 0) {
@@ -877,6 +936,7 @@ export class PosData extends SignalStore {
                 try {
                     await this.execute({ ...data.args[0], uuid: data.uuid });
                     this.network.unsyncData.shift();
+                    this._unpersistQueueEntry(data.uuid);
                     // Notify other devices now that the queued write landed
                     // (ormWrite skips the dispatch for queued entries).
                     const params = data.args[0];
@@ -898,6 +958,7 @@ export class PosData extends SignalStore {
                     // Dead-letter it (kept for the debug widget / log export)
                     // and keep draining.
                     this.network.unsyncData.shift();
+                    this._unpersistQueueEntry(data.uuid);
                     this.network.deadSyncData.push({ ...data, error });
                     logPosMessage(
                         "DataService",
