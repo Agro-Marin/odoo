@@ -30,3 +30,12 @@ class TestFontToImg(HttpCase):
         # Image is a play button
         img_reference = Image.open(file_open("mail/tests/play.png", "rb"))
         self.assertEqual(img, img_reference, "Result image should be the play button")
+
+    def test_font_to_img_out_of_range_codepoint(self):
+        """A decimal icon outside the Unicode range must 404, not 500: chr()
+        would raise ValueError on this unauthenticated (auth="none") route."""
+        response = self.url_open("/mail/font_to_img/99999999999")
+        self.assertEqual(
+            response.status_code, 404,
+            "out-of-range code point should be a clean 404, not a 500",
+        )
