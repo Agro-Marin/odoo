@@ -74,6 +74,10 @@ class ReportMrpReport_Bom_Structure(models.AbstractModel):
     @api.model
     def _format_route_info(self, rules, rules_delay, warehouse, product, bom, quantity):
         res = super()._format_route_info(rules, rules_delay, warehouse, product, bom, quantity)
+        if not product:
+            # Dynamic-attribute templates may have no variant yet: there is no
+            # product to resolve a seller (or its UoM) against.
+            return res
         subcontract_rules = [rule for rule in rules if rule.action == 'buy' and bom and bom.type == 'subcontract']
         if subcontract_rules:
             supplier = product._select_seller(quantity=quantity, uom_id=product.uom_id, params={'subcontractor_ids': bom.subcontractor_ids})
