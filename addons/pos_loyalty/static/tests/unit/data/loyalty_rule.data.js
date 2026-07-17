@@ -81,4 +81,3 @@ export class LoyaltyRule extends models.ServerModel {
         },
     ];
 }
-

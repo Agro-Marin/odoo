@@ -102,7 +102,7 @@ patch(PosStore.prototype, {
             },
         });
         const guestCount = parseInt(count, 10) || currentOrder.customer_count;
-        if (guestCount == 0 && currentOrder.lines.length === 0) {
+        if (guestCount === 0 && currentOrder.lines.length === 0) {
             if (removeEmptyOrder) {
                 this.removeOrder(currentOrder);
                 this.navigate("FloorScreen");

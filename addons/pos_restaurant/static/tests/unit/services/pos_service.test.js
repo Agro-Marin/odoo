@@ -1,12 +1,12 @@
-import { luxon } from "@web/core/l10n/luxon";
 import { describe, expect, test } from "@odoo/hoot";
-import { definePosRestaurantModels } from "@pos_restaurant/../tests/unit/data/generate_model_definitions";
 import {
     getFilledOrder,
     setupPosEnv,
     waitUntilOrdersSynced,
 } from "@point_of_sale/../tests/unit/utils";
+import { definePosRestaurantModels } from "@pos_restaurant/../tests/unit/data/generate_model_definitions";
 import { MockServer } from "@web/../tests/web_test_helpers";
+import { luxon } from "@web/core/l10n/luxon";
 
 const { DateTime } = luxon;
 
@@ -24,7 +24,7 @@ describe("restaurant pos_store.js", () => {
                 product_tmpl_id: product,
                 qty: 3,
             },
-            sourceOrder
+            sourceOrder,
         );
         const line = sourceOrder.lines[0];
         sourceOrder.uiState.unmerge = {
@@ -381,7 +381,7 @@ describe("restaurant pos_store.js", () => {
                 product_tmpl_id: product1,
                 qty: 2,
             },
-            sourceOrder
+            sourceOrder,
         );
         const order = store.addNewOrder({ table_id: tableDst });
         await store.transferOrder(sourceOrder.uuid, tableDst);
@@ -398,13 +398,19 @@ describe("restaurant pos_store.js", () => {
         const order1 = store.addNewOrder({ table_id: table1 });
         const course1 = store.addCourse();
         const product1 = models["product.template"].get(5);
-        const line1 = await store.addLineToOrder({ product_tmpl_id: product1, qty: 1 }, order1);
+        const line1 = await store.addLineToOrder(
+            { product_tmpl_id: product1, qty: 1 },
+            order1,
+        );
         line1.course_id = course1;
         course1.line_ids = [line1];
         const order2 = store.addNewOrder({ table_id: table2 });
         const course2 = store.addCourse();
         const product2 = models["product.template"].get(6);
-        const line2 = await store.addLineToOrder({ product_tmpl_id: product2, qty: 2 }, order2);
+        const line2 = await store.addLineToOrder(
+            { product_tmpl_id: product2, qty: 2 },
+            order2,
+        );
         line2.course_id = course2;
         course2.line_ids = [line2];
         await store.mergeOrders(order1, order2);

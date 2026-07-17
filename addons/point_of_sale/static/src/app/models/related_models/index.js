@@ -848,7 +848,9 @@ export function createRelatedModels(modelDefs, modelClasses = {}, opts = {}) {
                             // deletion). Device-sync snapshots (connectNewData)
                             // are server-authoritative and deliberately do not
                             // set this flag.
-                            if (this._isPendingDeletion(model, vals[modelKey], vals.id)) {
+                            if (
+                                this._isPendingDeletion(model, vals[modelKey], vals.id)
+                            ) {
                                 continue;
                             }
                         }

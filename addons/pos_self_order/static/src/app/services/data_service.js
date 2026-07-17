@@ -38,7 +38,9 @@ export const unpatchSelf = patch(PosData.prototype, {
         return await rpc(`/pos-self/relations/${parseInt(configId)}`);
     },
     get databaseName() {
-        return isSelfOrder() ? `pos-self-order-${odoo.access_token}` : super.databaseName;
+        return isSelfOrder()
+            ? `pos-self-order-${odoo.access_token}`
+            : super.databaseName;
     },
     async initializeDeviceIdentifier() {
         return isSelfOrder() ? false : super.initializeDeviceIdentifier(...arguments);

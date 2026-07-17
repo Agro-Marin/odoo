@@ -1,8 +1,8 @@
-import { test, expect } from "@odoo/hoot";
-import { mountWithCleanup } from "@web/../tests/web_test_helpers";
+import { expect, test } from "@odoo/hoot";
 import { setupPosEnv } from "@point_of_sale/../tests/unit/utils";
 import { PartnerLine } from "@point_of_sale/app/screens/partner_list/partner_line/partner_line";
 import { definePosLoyaltyModels } from "@pos_loyalty/../tests/unit/data/generate_model_definitions";
+import { mountWithCleanup } from "@web/../tests/web_test_helpers";
 
 definePosLoyaltyModels();
 

@@ -1,4 +1,4 @@
-import { test, expect } from "@odoo/hoot";
+import { expect, test } from "@odoo/hoot";
 import { setupPosEnv } from "@point_of_sale/../tests/unit/utils";
 import { definePosRestaurantModels } from "@pos_restaurant/../tests/unit/data/generate_model_definitions";
 

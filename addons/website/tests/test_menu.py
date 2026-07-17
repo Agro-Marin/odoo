@@ -459,9 +459,7 @@ class TestMenu(common.TransactionCase):
         Menu = self.env["website.menu"]
         website_a = self.env["website"].search([], limit=1)
         website_b = self.env["website"].create({"name": "Seq Site B"})
-        Menu.create(
-            {"name": "HighA", "website_id": website_a.id, "sequence": 5000}
-        )
+        Menu.create({"name": "HighA", "website_id": website_a.id, "sequence": 5000})
         default_b = Menu.with_context(website_id=website_b.id)._default_sequence()
         self.assertLess(
             default_b,

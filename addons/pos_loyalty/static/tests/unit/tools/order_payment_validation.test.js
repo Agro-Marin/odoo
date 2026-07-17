@@ -1,8 +1,8 @@
-import { test, expect } from "@odoo/hoot";
+import { expect, test } from "@odoo/hoot";
 import { setupPosEnv } from "@point_of_sale/../tests/unit/utils";
+import OrderPaymentValidation from "@point_of_sale/app/utils/order_payment_validation";
 import { definePosLoyaltyModels } from "@pos_loyalty/../tests/unit/data/generate_model_definitions";
 import { addProductLineToOrder } from "@pos_loyalty/../tests/unit/utils";
-import OrderPaymentValidation from "@point_of_sale/app/utils/order_payment_validation";
 
 definePosLoyaltyModels();
 
@@ -21,7 +21,12 @@ test("validateOrder", async () => {
 
     order.uiState.couponPointChanges = {
         [card.id]: { coupon_id: card.id, program_id: loyaltyProgram.id, points: 100 },
-        "-1": { coupon_id: -1, program_id: loyaltyProgram.id, points: 30, partner_id: 1 },
+        "-1": {
+            coupon_id: -1,
+            program_id: loyaltyProgram.id,
+            points: 30,
+            partner_id: 1,
+        },
     };
 
     await addProductLineToOrder(store, order, {

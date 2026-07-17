@@ -2,8 +2,9 @@ import { expect, test } from "@odoo/hoot";
 import { Component, xml } from "@odoo/owl";
 import { mountWithCleanup } from "@web/../tests/web_test_helpers";
 import { useService } from "@web/core/utils/hooks";
-import { setupPosEnv } from "../utils.js";
+
 import { definePosModels } from "../data/generate_model_definitions.js";
+import { setupPosEnv } from "../utils.js";
 
 definePosModels();
 

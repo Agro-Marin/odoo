@@ -124,9 +124,7 @@ export class CriticalPOSError extends Component {
     }
     async copyToClipboard() {
         const error = this.props.error;
-        const text = this.state.expanded
-            ? error.stack
-            : error.message || String(error);
+        const text = this.state.expanded ? error.stack : error.message || String(error);
         if (!text) {
             return;
         }

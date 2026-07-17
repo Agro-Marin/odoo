@@ -1,5 +1,5 @@
-import { luxon } from "@web/core/l10n/luxon";
 import { models } from "@web/../tests/web_test_helpers";
+import { luxon } from "@web/core/l10n/luxon";
 
 const { DateTime } = luxon;
 
@@ -155,4 +155,3 @@ export class LoyaltyProgram extends models.ServerModel {
         },
     ];
 }
-

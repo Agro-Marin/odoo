@@ -11,7 +11,9 @@ const fetchCacheRespond = async (event) => {
         // served the error page instead of the bundle. waitUntil keeps the
         // worker alive until the write lands (and swallows its rejection).
         if (response.ok) {
-            event.waitUntil?.(cache.put(event.request, response.clone()).catch(() => {}));
+            event.waitUntil?.(
+                cache.put(event.request, response.clone()).catch(() => {}),
+            );
         }
         return response;
     } catch {

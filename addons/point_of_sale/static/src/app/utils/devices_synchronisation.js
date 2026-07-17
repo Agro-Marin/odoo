@@ -98,7 +98,7 @@ export default class DevicesSynchronisation {
      */
     async readDataFromServer() {
         const { domain, recordIds } = this.constructOrdersDomain();
-        let response = {};
+        let response;
         try {
             response = await this.pos.data.call(
                 "pos.config",

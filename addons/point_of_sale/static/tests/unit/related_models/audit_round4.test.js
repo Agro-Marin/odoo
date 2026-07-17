@@ -1,9 +1,10 @@
 import { expect, test } from "@odoo/hoot";
-import { effect } from "@web/core/utils/reactive";
 import { uuidv4 } from "@point_of_sale/utils";
-import { getRelatedModelsInstance } from "../data/get_model_definitions.js";
 import { makeMockServer } from "@web/../tests/web_test_helpers";
+import { effect } from "@web/core/utils/reactive";
+
 import { definePosModels } from "../data/generate_model_definitions.js";
+import { getRelatedModelsInstance } from "../data/get_model_definitions.js";
 
 definePosModels();
 

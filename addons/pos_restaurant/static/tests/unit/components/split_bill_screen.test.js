@@ -1,8 +1,8 @@
-import { describe, test, expect } from "@odoo/hoot";
-import { SplitBillScreen } from "@pos_restaurant/app/screens/split_bill_screen/split_bill_screen";
-import { setupPosEnv, getFilledOrder } from "@point_of_sale/../tests/unit/utils";
-import { mountWithCleanup } from "@web/../tests/web_test_helpers";
+import { describe, expect, test } from "@odoo/hoot";
+import { getFilledOrder, setupPosEnv } from "@point_of_sale/../tests/unit/utils";
 import { definePosRestaurantModels } from "@pos_restaurant/../tests/unit/data/generate_model_definitions";
+import { SplitBillScreen } from "@pos_restaurant/app/screens/split_bill_screen/split_bill_screen";
+import { mountWithCleanup } from "@web/../tests/web_test_helpers";
 
 definePosRestaurantModels();
 
@@ -60,7 +60,7 @@ describe("onClickLine", () => {
                 ],
                 configure: true,
             },
-            order
+            order,
         );
         expect(order.lines.length).toBe(3);
         expect(line.product_id.product_tmpl_id).toBe(comboTemplate);

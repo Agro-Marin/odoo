@@ -118,7 +118,7 @@ export class Base extends WithLazyGetterTrap {
         // pre-edit state). Only the record itself accumulates field names —
         // parents are merely marked dirty.
         if (fields?.length) {
-            (this._dirtyFields ??= new Set());
+            this._dirtyFields ??= new Set();
             for (const field of fields) {
                 this._dirtyFields.add(field);
             }

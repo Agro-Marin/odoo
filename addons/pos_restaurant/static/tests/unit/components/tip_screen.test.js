@@ -1,9 +1,9 @@
-import { luxon } from "@web/core/l10n/luxon";
-import { test, expect } from "@odoo/hoot";
-import { TipScreen } from "@pos_restaurant/app/screens/tip_screen/tip_screen";
-import { mountWithCleanup, MockServer } from "@web/../tests/web_test_helpers";
-import { setupPosEnv, getFilledOrder } from "@point_of_sale/../tests/unit/utils";
+import { expect, test } from "@odoo/hoot";
+import { getFilledOrder, setupPosEnv } from "@point_of_sale/../tests/unit/utils";
 import { definePosRestaurantModels } from "@pos_restaurant/../tests/unit/data/generate_model_definitions";
+import { TipScreen } from "@pos_restaurant/app/screens/tip_screen/tip_screen";
+import { MockServer, mountWithCleanup } from "@web/../tests/web_test_helpers";
+import { luxon } from "@web/core/l10n/luxon";
 
 definePosRestaurantModels();
 
@@ -24,7 +24,7 @@ test("validateTip", async () => {
     expect(order.is_tipped).toBe(true);
     expect(order.tip_amount).toBe(2);
     const tipLine = order.lines.find(
-        (line) => line.product_id.id === store.config.tip_product_id.id
+        (line) => line.product_id.id === store.config.tip_product_id.id,
     );
     store.data.write("pos.order.line", [tipLine.id], {
         write_date: luxon.DateTime.now(),
