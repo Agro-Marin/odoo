@@ -911,7 +911,13 @@ class StockPicking(models.Model):
         for picking in other_pickings:
             picking.count_packages = packages_by_pick.get(picking, 0)
 
-    @api.depends("state", "move_ids.product_uom_qty", "picking_type_code")
+    @api.depends(
+        "state",
+        "move_ids.state",
+        "move_ids.picked",
+        "move_ids.quantity",
+        "move_ids.product_uom_qty",
+    )
     def _compute_show_check_availability(self):
         """Whether the "Check Availability" button shows on the picking form."""
         for picking in self:
@@ -1396,7 +1402,12 @@ class StockPicking(models.Model):
         self.move_ids._do_unreserve()
 
     def button_validate(self):
-        self = self.filtered(lambda p: p.state != "done")
+        # Exclude cancelled pickings too, not just done ones: a cancelled picking has
+        # only cancel-state moves, so _sanity_check's "all moves have no quantity" test
+        # runs over an empty set and misclassifies it as a zero-quantity transfer --
+        # raising a misleading error and, in a multi-select, blocking every valid
+        # picking in the batch.
+        self = self.filtered(lambda p: p.state not in DONE_CANCEL_STATES)
         draft_picking = self.filtered(lambda p: p.state == "draft")
         draft_picking.action_confirm()
         for move in draft_picking.move_ids:
@@ -2438,9 +2449,10 @@ class StockPicking(models.Model):
         for picking in self:
             if picking.picking_type_id.create_backorder != "ask":
                 continue
-            # Compare picked vs demand with the move's own UoM rounding (both
-            # quantities are expressed in that UoM), rather than the global
-            # "Product Unit" decimal precision.
+            # Compare picked vs demand (both in the move's UoM). In Odoo 19 UoM.compare
+            # rounds with the global "Product Unit" precision -- the same precision
+            # _create_backorder uses -- so the "ask a backorder" and "split a backorder"
+            # decisions round identically and cannot disagree.
             if any(
                 (move.product_uom_qty and not move.picked)
                 or move.product_uom_id.compare(

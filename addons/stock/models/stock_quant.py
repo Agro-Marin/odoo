@@ -1604,8 +1604,21 @@ class StockQuant(models.Model):
 
         quant = None
         if quants:
-            # quants are already ordered by _gather; lock the first one.
-            quant = quants.try_lock_for_update(allow_referencing=True, limit=1)
+            lockable = quants
+            if reserved_quantity and reserved_quantity < 0:
+                # For a release, prefer a row that actually holds reserved quantity.
+                # Locking the strategy-first row unconditionally can pick an empty
+                # (reserved_quantity == 0) sibling -- e.g. the reservation-only row
+                # the create branch below produces when the stock-holding quant is
+                # locked by a concurrent transaction. The max(0, ...) clamp would then
+                # drop the whole release and strand a phantom reservation on the
+                # sibling that does hold it. Targeting a reserved row lands the
+                # decrement where the reservation actually is.
+                reserved_rows = quants.filtered(lambda q: q.reserved_quantity > 0)
+                if reserved_rows:
+                    lockable = reserved_rows
+            # quants are already ordered by _gather; lock the first candidate.
+            quant = lockable.try_lock_for_update(allow_referencing=True, limit=1)
 
         if quant:
             # try_lock_for_update only SELECTs ids FOR UPDATE; it does not refetch
@@ -1618,6 +1631,10 @@ class StockQuant(models.Model):
             if quantity:
                 vals["quantity"] = quant.quantity + quantity
             if reserved_quantity:
+                # Clamp so a single quant's reserved_quantity never goes negative;
+                # an over-release heals to 0 and _clean_reservations corrects the
+                # true value. The release-targeting above keeps this clamp from
+                # dropping a legitimate release in the multi-row group case.
                 vals["reserved_quantity"] = max(
                     0, quant.reserved_quantity + reserved_quantity
                 )

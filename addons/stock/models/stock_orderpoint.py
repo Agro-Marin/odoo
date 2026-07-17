@@ -416,7 +416,7 @@ class StockWarehouseOrderpoint(models.Model):
             Move = self.env["stock.move"].with_context(active_test=False)
             incoming_moves_by_product_date = Move._read_group(
                 domain_move_in,
-                ["product_id", "location_dest_id", "date:day"],
+                ["product_id", "location_dest_id", "location_final_id", "date:day"],
                 ["product_qty:sum"],
             )
             outgoing_moves_by_product_date = Move._read_group(
@@ -429,9 +429,23 @@ class StockWarehouseOrderpoint(models.Model):
             # any sub-location of its own location, not just the exact one (matching by
             # exact id missed sub-bin moves).
             moves_by_product = defaultdict(list)
-            for product, location, in_date, in_qty in incoming_moves_by_product_date:
+            for (
+                product,
+                location_dest,
+                location_final,
+                in_date,
+                in_qty,
+            ) in incoming_moves_by_product_date:
+                # The deadline walk only sees not-done moves, so the goods land at the
+                # move's final location when set (a multi-step reception routes through
+                # an intermediate such as Input, with location_final_id = Stock), else
+                # at its direct destination. Matching on location_dest_id alone made
+                # every 2/3-step receipt invisible to the deadline -- inconsistent with
+                # qty_forecast and _get_orderpoint_action, which both use the final
+                # location.
+                arrival = location_final or location_dest
                 moves_by_product[product.id].append(
-                    (location.parent_path or "", in_date.date(), in_qty),
+                    (arrival.parent_path or "", in_date.date(), in_qty),
                 )
             for product, location, out_date, out_qty in outgoing_moves_by_product_date:
                 moves_by_product[product.id].append(
@@ -1575,7 +1589,13 @@ class StockWarehouseOrderpoint(models.Model):
                             break
                         orderpoints_batch -= failed_orderpoints
 
-                    except OperationalError:
+                    except OperationalError as e:
+                        # Only a serialization failure (40001) or deadlock (40P01) is
+                        # worth retrying; a connection-level OperationalError won't
+                        # recover on retry (and rolling back a dead connection would
+                        # raise again inside this handler, masking the original).
+                        if e.sqlstate not in ("40001", "40P01"):
+                            raise
                         if use_new_cursor:
                             cr.rollback()
                             remaining_retries -= 1

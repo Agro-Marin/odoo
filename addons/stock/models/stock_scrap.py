@@ -265,6 +265,19 @@ class StockScrap(models.Model):
 
     def do_scrap(self):
         self._check_company()
+        already_done = self.filtered(lambda s: s.state == "done")
+        if already_done:
+            # Guard against re-validation (stale dialog, RPC retry, or the
+            # insufficient-qty wizard re-entering): a second pass would draw a new
+            # sequence -- orphaning the reference on the already-posted move -- and
+            # create a second scrap move, decrementing stock twice.
+            raise UserError(
+                _(
+                    "The following scrap orders are already done and cannot be "
+                    "validated again: %s",
+                    ", ".join(already_done.mapped("name")),
+                )
+            )
         for scrap in self:
             scrap.name = self.env["ir.sequence"].next_by_code("stock.scrap") or _("New")
             move = scrap._create_scrap_move()

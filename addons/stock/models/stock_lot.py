@@ -361,6 +361,11 @@ class StockLot(models.Model):
         "to_date",
         "location",
         "warehouse_id",
+        # See product_product._compute_quantities: search_location/search_warehouse
+        # are search-view aliases consumed by _get_domain_locations and must key the
+        # cache, or a lot's product_qty aliases across search scopes in one transaction.
+        "search_location",
+        "search_warehouse",
         "allowed_company_ids",
     )
     @api.depends("quant_ids", "quant_ids.quantity")
@@ -374,20 +379,25 @@ class StockLot(models.Model):
     # ------------------------------------------------------------
 
     def _inverse_location_id(self):
-        quants = self.quant_ids.filtered(lambda q: q.quantity > 0)
-        if len(quants.location_id) == 1:
-            unpack = len(quants.package_id.quant_ids) > 1
-            quants.move_quants(
-                location_dest_id=self.location_id,
-                message=_("Lot/Serial Number Relocated"),
-                unpack=unpack,
-            )
-        elif len(quants.location_id) > 1:
-            raise UserError(
-                _(
-                    "You can only move a lot/serial to a new location if it exists in a single location."
-                ),
-            )
+        # Evaluate per lot: aggregating quants across the whole recordset would raise
+        # the single-location error on a batch write (e.g. list-view multi-edit)
+        # even when each lot individually sits in exactly one location, and would let
+        # one lot's packaging drive another lot's unpack decision.
+        for lot in self:
+            quants = lot.quant_ids.filtered(lambda q: q.quantity > 0)
+            if len(quants.location_id) == 1:
+                unpack = len(quants.package_id.quant_ids) > 1
+                quants.move_quants(
+                    location_dest_id=lot.location_id,
+                    message=_("Lot/Serial Number Relocated"),
+                    unpack=unpack,
+                )
+            elif len(quants.location_id) > 1:
+                raise UserError(
+                    _(
+                        "You can only move a lot/serial to a new location if it exists in a single location."
+                    ),
+                )
 
     # ------------------------------------------------------------
     # SEARCH METHODS

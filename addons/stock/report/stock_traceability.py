@@ -97,6 +97,11 @@ class StockTraceabilityReport(models.TransientModel):
         rec_id = kw.get("model_id") or context.get("active_id")
         level = kw.get("level") or 1
         move_lines = self.env["stock.move.line"]
+        if model and model not in self._get_line_allowed_models():
+            # model_name is client-supplied; refuse to dereference a model this
+            # report does not traverse rather than crashing in env[model].browse(...)
+            # (mirrors the printed path's _get_pdf_line_allowed_models guard).
+            return []
         if rec_id and model == "stock.lot":
             move_lines = move_lines.search(
                 [
@@ -272,6 +277,9 @@ class StockTraceabilityReport(models.TransientModel):
         final_vals = []
         lines = move_lines or self.env["stock.move.line"]
         if model and line_id:
+            if model not in self._get_line_allowed_models():
+                # Defense in depth: _lines is @api.model and browses model directly.
+                return final_vals
             move_line = self.env[model].browse(model_id)
             linked_lines = self._get_linked_move_lines(move_line)[0]
             if linked_lines:
@@ -294,6 +302,18 @@ class StockTraceabilityReport(models.TransientModel):
                 )
             )
         return final_vals
+
+    @api.model
+    def _get_line_allowed_models(self):
+        """Models the client may reference in the interactive (JSON-RPC) report.
+
+        ``get_lines``/``_lines`` dereference client-supplied ``model_name`` values
+        via ``env[model].browse(...)``; restrict them to the models the report
+        actually traverses -- the same guarding ``_get_pdf_line_allowed_models``
+        applies to the printed path. Extension modules that add report entry
+        points (e.g. ``mrp`` for ``mrp.production``) extend this set.
+        """
+        return {"stock.lot", "stock.move.line", "stock.picking", "mrp.production"}
 
     @api.model
     def _get_pdf_line_allowed_models(self):

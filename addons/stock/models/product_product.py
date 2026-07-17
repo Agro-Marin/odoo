@@ -335,6 +335,13 @@ class ProductProduct(models.Model):
         "to_date",
         "location",
         "warehouse_id",
+        # The search views inject these aliases (context="{'search_location': self}"
+        # / 'search_warehouse') and _get_domain_locations reads them as fallbacks for
+        # location/warehouse_id. Without them in the cache key, two reads of the same
+        # product under different search_location values in one transaction alias to
+        # the same cached quantity.
+        "search_location",
+        "search_warehouse",
         "allowed_company_ids",
         "is_storable",
     )
@@ -642,7 +649,8 @@ class ProductProduct(models.Model):
                 "location_id",
                 "any",
                 self.env["stock.location"]._check_company_domain(
-                    self.env.context["allowed_company_ids"]
+                    self.env.context.get("allowed_company_ids")
+                    or self.env.companies.ids
                 ),
             ),
         ]

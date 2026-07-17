@@ -2565,15 +2565,14 @@ Please change the quantity done or the rounding precision in your settings.""",
     def _create_backorder(self):
         """Split off the undone quantity of each move in `self` into a backorder move."""
         backorder_moves_vals = []
-        # To know whether we need to create a backorder or not, round to the general product's
-        # decimal precision and not the product's UOM.
-        rounding = self.env["decimal.precision"].precision_get("Product Unit")
+        # Whether a backorder is needed rounds with the "Product Unit" precision --
+        # which is exactly what move.product_uom_id.compare applies in Odoo 19, keeping
+        # this split decision consistent with picking._check_backorder's "ask" decision.
         for move in self:
             if (
-                float_compare(
+                move.product_uom_id.compare(
                     move.quantity,
                     move.product_uom_qty,
-                    precision_digits=rounding,
                 )
                 < 0
             ):
@@ -2972,7 +2971,13 @@ Please change the quantity done or the rounding precision in your settings.""",
                 )
             grouped_move_lines_out[k] = quantity
         for k, g in groupby(move_lines_out_reserved, key=_keys_out_groupby):
-            grouped_move_lines_out[k] = sum(
+            # Accumulate, don't overwrite: a done sibling and a reserved/assigned
+            # sibling can share the same (location, lot, package, owner) key (common
+            # in multi-step lot-tracked routes off a shared intermediate location).
+            # Assigning with "=" here would drop the done quantity from the outgoing
+            # total, so _get_available_move_lines' (in - out) overstates availability
+            # and the chained move over-reserves.
+            grouped_move_lines_out[k] = grouped_move_lines_out.get(k, 0) + sum(
                 self.env["stock.move.line"]
                 .concat(*list(g))
                 .mapped("quantity_product_uom"),

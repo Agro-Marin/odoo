@@ -1,0 +1,201 @@
+"""Regression tests for the review-driven correctness fixes.
+
+Each test here was written to FAIL against the pre-fix code (verified on a
+disposable DB) and pass after the fix, so they double as mutation guards for the
+specific defects they cover. Grouped in one file for greppability.
+"""
+
+import datetime
+
+from odoo import fields
+from odoo.exceptions import UserError
+from odoo.tests import tagged
+
+from odoo.addons.stock.tests.common import TestStockCommon
+
+
+@tagged("post_install", "-at_install")
+class TestReviewCompoundingFixes(TestStockCommon):
+    def test_reserved_release_not_dropped_in_multirow_group(self):
+        """stock_quant: releasing more than the strategy-first row's own reserved
+        quantity must not be clamped away, or a phantom reservation is stranded on
+        the sibling row (H1)."""
+        Quant = self.env["stock.quant"]
+        loc = self.env["stock.location"].create(
+            {"name": "H1_loc", "usage": "internal", "location_id": self.stock_location.id}
+        )
+        prod = self.env["product.product"].create(
+            {"name": "H1_prod", "type": "consu", "is_storable": True}
+        )
+        t = datetime.datetime(2026, 1, 1)
+        # The exact post-create-branch-fallback state: the stock-holding row is
+        # unreserved (gathered first), a reservation-only sibling holds the 5.
+        q1 = Quant.create(
+            {"product_id": prod.id, "location_id": loc.id, "quantity": 5.0,
+             "reserved_quantity": 0.0, "in_date": t}
+        )
+        q2 = Quant.create(
+            {"product_id": prod.id, "location_id": loc.id, "quantity": 0.0,
+             "reserved_quantity": 5.0, "in_date": t}
+        )
+        self.assertEqual(q1.reserved_quantity + q2.reserved_quantity, 5.0)
+
+        Quant._update_reserved_quantity(prod, loc, -5.0)
+        self.env.flush_all()
+
+        total = sum(
+            Quant.search([("product_id", "=", prod.id), ("location_id", "=", loc.id)])
+            .mapped("reserved_quantity")
+        )
+        self.assertEqual(total, 0.0, "the release of 5 must bring group reserved to 0")
+
+    def test_deadline_date_counts_two_step_receipt(self):
+        """stock_orderpoint: a receipt routed through a 2-step reception (dest=Input,
+        final=Stock) must be visible to the deadline walk, exactly like a 1-step
+        receipt straight to Stock (H2)."""
+        company = self.env.company
+        company.horizon_days = 60
+        wh = self.warehouse_1
+        wh.reception_steps = "two_steps"
+        self.env.flush_all()
+        stock_loc = wh.lot_stock_id
+        input_loc = wh.wh_input_stock_loc_id
+        today = fields.Date.today()
+
+        def deadline_for(in_dest, in_final):
+            prod = self.env["product.product"].create(
+                {"name": "H2_prod", "type": "consu", "is_storable": True}
+            )
+            self.env["stock.quant"].create(
+                {"product_id": prod.id, "location_id": stock_loc.id, "quantity": 10.0}
+            )
+            op = self.env["stock.warehouse.orderpoint"].create(
+                {"product_id": prod.id, "location_id": stock_loc.id,
+                 "warehouse_id": wh.id, "product_min_qty": 10.0, "product_max_qty": 50.0}
+            )
+            base = datetime.datetime.combine(today, datetime.time(12))
+            m_in = self.env["stock.move"].create(
+                {"product_id": prod.id, "product_uom_qty": 20.0,
+                 "product_uom_id": prod.uom_id.id, "location_id": self.supplier_location.id,
+                 "location_dest_id": in_dest.id, "location_final_id": in_final.id,
+                 "picking_type_id": wh.in_type_id.id,
+                 "date": base + datetime.timedelta(days=10)}
+            )
+            m_out = self.env["stock.move"].create(
+                {"product_id": prod.id, "product_uom_qty": 20.0,
+                 "product_uom_id": prod.uom_id.id, "location_id": stock_loc.id,
+                 "location_dest_id": self.customer_location.id,
+                 "location_final_id": self.customer_location.id,
+                 "picking_type_id": wh.out_type_id.id,
+                 "date": base + datetime.timedelta(days=20)}
+            )
+            (m_in | m_out)._action_confirm()
+            self.env.flush_all()
+            op.invalidate_recordset(["deadline_date"])
+            return op.deadline_date
+
+        control = deadline_for(stock_loc, stock_loc)   # 1-step
+        two_step = deadline_for(input_loc, stock_loc)  # 2-step
+        self.assertFalse(control, "1-step receipt should cover the shortage")
+        self.assertEqual(
+            two_step, control,
+            "2-step receipt covers identically; deadline must match the 1-step case",
+        )
+
+    def test_button_validate_skips_cancelled_picking(self):
+        """stock_picking: validating a batch that includes a cancelled picking must
+        not misclassify it as a zero-quantity transfer (M2)."""
+        prod = self.env["product.product"].create(
+            {"name": "M2_prod", "type": "consu", "is_storable": True}
+        )
+        pick = self.env["stock.picking"].create(
+            {"picking_type_id": self.warehouse_1.out_type_id.id,
+             "location_id": self.stock_location.id,
+             "location_dest_id": self.customer_location.id}
+        )
+        self.env["stock.move"].create(
+            {"product_id": prod.id, "product_uom_qty": 5.0, "product_uom_id": prod.uom_id.id,
+             "picking_id": pick.id, "location_id": pick.location_id.id,
+             "location_dest_id": pick.location_dest_id.id}
+        )
+        pick.action_confirm()
+        pick.action_cancel()
+        self.assertEqual(pick.state, "cancel")
+        # Must not raise the zero-quantity error; a no-op is fine.
+        pick.button_validate()
+
+    def test_traceability_get_lines_rejects_foreign_model(self):
+        """stock_traceability: the JSON-RPC entry must not dereference an arbitrary
+        client-supplied model (M4)."""
+        report = self.env["stock.traceability.report"]
+        partner = self.env.ref("base.partner_admin")
+        # Pre-fix this raised AttributeError from res.partner.move_id; post-fix it is
+        # refused cleanly.
+        res = report.get_lines(line_id=1, model_name="res.partner", model_id=partner.id)
+        self.assertEqual(res, [])
+        self.assertIn("stock.move.line", report._get_line_allowed_models())
+        self.assertNotIn("res.partner", report._get_line_allowed_models())
+
+    def test_qty_available_not_aliased_across_search_locations(self):
+        """product_product: qty_available must not alias across two search_location
+        scopes read in one transaction (M6)."""
+        Loc = self.env["stock.location"]
+        la = Loc.create({"name": "M6_A", "usage": "internal", "location_id": self.stock_location.id})
+        lb = Loc.create({"name": "M6_B", "usage": "internal", "location_id": self.stock_location.id})
+        prod = self.env["product.product"].create(
+            {"name": "M6_prod", "type": "consu", "is_storable": True}
+        )
+        self.env["stock.quant"].create(
+            [{"product_id": prod.id, "location_id": la.id, "quantity": 3.0},
+             {"product_id": prod.id, "location_id": lb.id, "quantity": 7.0}]
+        )
+        self.env.flush_all()
+        qa = prod.with_context(search_location=la.id).qty_available
+        qb = prod.with_context(search_location=lb.id).qty_available
+        self.assertEqual(qa, 3.0)
+        self.assertEqual(qb, 7.0, "second read must reflect location B, not A's cache")
+
+    def test_scrap_cannot_be_validated_twice(self):
+        """stock_scrap: re-validating a done scrap must be refused, not silently
+        duplicate the inventory loss (M7)."""
+        prod = self.env["product.product"].create(
+            {"name": "M7_prod", "type": "consu", "is_storable": True}
+        )
+        self.env["stock.quant"]._update_available_quantity(
+            prod, self.stock_location, 10.0
+        )
+        scrap = self.env["stock.scrap"].create(
+            {"product_id": prod.id, "product_uom_id": prod.uom_id.id, "scrap_qty": 3.0,
+             "location_id": self.stock_location.id}
+        )
+        scrap.do_scrap()
+        self.assertEqual(scrap.state, "done")
+        first_name = scrap.name
+        with self.assertRaises(UserError):
+            scrap.do_scrap()
+        # The reference must not have been regenerated by the refused second pass.
+        self.assertEqual(scrap.name, first_name)
+
+    def test_lot_batch_relocate_each_single_location(self):
+        """stock_lot: batch-writing location_id on several lots, each in its own single
+        location, must not raise the single-location error (M9)."""
+        prod = self.env["product.product"].create(
+            {"name": "M9_prod", "type": "consu", "is_storable": True, "tracking": "lot"}
+        )
+        loc_a, loc_b, loc_c = self.env["stock.location"].create(
+            [{"name": f"M9_{n}", "usage": "internal", "location_id": self.stock_location.id}
+             for n in ("A", "B", "C")]
+        )
+        lot1, lot2 = self.env["stock.lot"].create(
+            [{"name": "M9-L1", "product_id": prod.id},
+             {"name": "M9-L2", "product_id": prod.id}]
+        )
+        # lot1 sits only in A, lot2 sits only in B (each single-location).
+        self.env["stock.quant"]._update_available_quantity(prod, loc_a, 5.0, lot_id=lot1)
+        self.env["stock.quant"]._update_available_quantity(prod, loc_b, 5.0, lot_id=lot2)
+        self.env.flush_all()
+        # Batch write to a common destination: must relocate both, not raise.
+        (lot1 | lot2).location_id = loc_c
+        self.env.flush_all()
+        self.assertEqual(lot1.location_id, loc_c)
+        self.assertEqual(lot2.location_id, loc_c)
