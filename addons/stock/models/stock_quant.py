@@ -188,6 +188,10 @@ def _distribute_reservation(candidates, quantity, available_quantity, precision_
             available_quantity -= max_on_cand
         else:
             max_on_cand = min(cand.reserved, abs(quantity))
+            if float_is_zero(max_on_cand, precision_digits=precision_digits):
+                # Nothing reserved on this candidate: don't emit a zero-delta
+                # pair for the caller to apply as a no-op update.
+                continue
             reserved.append((cand.handle, -max_on_cand))
             quantity += max_on_cand
             available_quantity += max_on_cand
@@ -1408,12 +1412,22 @@ class StockQuant(models.Model):
 
         order = self._get_removal_strategy_order(removal_strategy)
         quants_cache = self.env.context.get("quants_cache")
+        cache_sort = self._get_removal_strategy_sort_key(removal_strategy)
 
         if (
             quants_cache is not None
             and strict
             and removal_strategy != "least_packages"
+            and cache_sort is not None
             and quants_cache.covers(product_id, location_id)
+            # The cache fast path replicates only the *base* gather semantics.
+            # If a `_get_gather_domain` override injected extra conditions (the
+            # effective domain differs from the base one), serving from the
+            # cache would silently skip them, so fall back to the search.
+            and domain
+            == StockQuant._get_gather_domain(
+                self, product_id, location_id, lot_id, package_id, owner_id, strict
+            )
         ):
             # package_id/owner_id may be None (their documented default); the cache is
             # keyed by id, so normalise to False like the search path does.
@@ -1436,20 +1450,20 @@ class StockQuant(models.Model):
                     lambda q: not q.removal_date or q.removal_date >= cutoff
                 )
             # The search path orders on the DB by `order`; the cache is keyed but
-            # unordered, so replicate the fifo/lifo in_date ordering here. Otherwise the
-            # two paths return quants in a different order (id vs in_date), so the first
-            # quant locked/consumed downstream would differ by whether a quants_cache
-            # was in context. (closest is re-sorted below for both paths; least_packages
-            # never takes this branch.)
-            if removal_strategy == "fifo":
-                res = res.sorted(lambda q: (q.in_date, q.id))
-            elif removal_strategy == "lifo":
-                res = res.sorted(lambda q: (q.in_date, q.id), reverse=True)
+            # unordered, so replicate the removal-strategy ordering here (via the
+            # `_get_removal_strategy_sort_key` hook). Otherwise the two paths return
+            # quants in a different order (id vs in_date), so the first quant
+            # locked/consumed downstream would differ by whether a quants_cache was
+            # in context. (least_packages never takes this branch.)
+            sort_key, sort_reverse = cache_sort
+            res = res.sorted(sort_key, reverse=sort_reverse)
         else:
-            # No cache / non-strict / least_packages, or a cache that never scanned
-            # this product/location: resolve from the DB. Falling back here -- rather
-            # than trusting an absent key as "empty" -- is what makes a partial cache
-            # safe (an un-scanned pair no longer silently reads as zero stock).
+            # No cache / non-strict / least_packages, a strategy whose SQL ordering
+            # has no Python equivalent (`cache_sort is None`), an override-extended
+            # gather domain, or a cache that never scanned this product/location:
+            # resolve from the DB. Falling back here -- rather than trusting an
+            # absent key as "empty" -- is what makes a partial cache safe (an
+            # un-scanned pair no longer silently reads as zero stock).
             res = self.search(domain, order=order)
 
         if removal_strategy == "closest":
@@ -1622,10 +1636,15 @@ class StockQuant(models.Model):
             if reserved_quantity:
                 # A release (reserved_quantity < 0) can reach this branch when the
                 # only matching quant is locked by a concurrent transaction (gather
-                # sees it, try_lock_for_update skips it). Clamp like the update
-                # branch so we never persist a negative reserved_quantity, which
-                # would inflate availability until _merge_quants repairs it.
-                vals["reserved_quantity"] = max(0, reserved_quantity)
+                # sees it, try_lock_for_update skips it). Persist the raw negative:
+                # the aggregate reserved over the group (locked quant + this row)
+                # then nets to the intended total, so availability stays correct
+                # immediately, and _merge_quants later folds the rows (its
+                # GREATEST(0, SUM(reserved_quantity)) absorbs a spurious
+                # double-release). Clamping to 0 here would silently drop a
+                # legitimate release and leave phantom reservations until
+                # _clean_reservations runs.
+                vals["reserved_quantity"] = reserved_quantity
             self.create(vals)
         return (
             self._get_available_quantity(
@@ -1693,12 +1712,17 @@ class StockQuant(models.Model):
         if self._ids:
             # When called on a recordset (e.g. via _quant_tasks after moving quants),
             # scope to the touched product/location like _merge_quants does instead of
-            # scanning the whole table. Model-level callers (empty self) still run global.
+            # scanning the whole table. Model-level callers (empty self) still run
+            # global. A preceding _merge_quants may have deleted duplicate rows that
+            # are members of self (reading their fields would raise MissingError), so
+            # read the scope off the surviving records only -- the kept row of each
+            # merged group shares its product/location, so the scope is preserved.
+            quants = self.exists()
             query = SQL(
                 "%s AND location_id = ANY(%s) AND product_id = ANY(%s)",
                 query,
-                list(self.location_id.ids),
-                list(self.product_id.ids),
+                list(quants.location_id.ids),
+                list(quants.product_id.ids),
             )
         quants = self.env["stock.quant"].browse(
             row[0] for row in self.env.execute_query(query)
@@ -1707,13 +1731,16 @@ class StockQuant(models.Model):
 
     @api.model
     def _clean_reservations(self):
-        """Realign quants' `reserved_quantity` with the sum still reserved by active move lines."""
-        reserved_quants = self.env["stock.quant"]._read_group(
-            [("reserved_quantity", "!=", 0)],
-            ["product_id", "location_id", "lot_id", "package_id", "owner_id"],
-            ["reserved_quantity:sum", "id:recordset"],
-        )
-        reserved_move_lines = self.env["stock.move.line"]._read_group(
+        """Realign quants' `reserved_quantity` with the sum still reserved by active
+        move lines.
+
+        Like its `_quant_tasks` siblings (`_merge_quants`, `_unlink_zero_quants`),
+        a call on a recordset scopes the realignment to the touched
+        product/location pairs instead of scanning the whole table; model-level
+        callers (empty self) still run global.
+        """
+        quant_domain = Domain("reserved_quantity", "!=", 0)
+        move_line_domain = Domain(
             [
                 (
                     "state",
@@ -1723,6 +1750,26 @@ class StockQuant(models.Model):
                 ("quantity_product_uom", "!=", 0),
                 ("product_id.is_storable", "=", True),
             ],
+        )
+        if self._ids:
+            # exists(): a preceding _merge_quants may have deleted duplicate rows
+            # that are members of self (see _unlink_zero_quants).
+            quants = self.exists()
+            scope_domain = Domain(
+                [
+                    ("product_id", "in", quants.product_id.ids),
+                    ("location_id", "in", quants.location_id.ids),
+                ],
+            )
+            quant_domain &= scope_domain
+            move_line_domain &= scope_domain
+        reserved_quants = self.env["stock.quant"]._read_group(
+            quant_domain,
+            ["product_id", "location_id", "lot_id", "package_id", "owner_id"],
+            ["reserved_quantity:sum", "id:recordset"],
+        )
+        reserved_move_lines = self.env["stock.move.line"]._read_group(
+            move_line_domain,
             ["product_id", "location_id", "lot_id", "package_id", "owner_id"],
             ["quantity_product_uom:sum"],
         )
@@ -1875,7 +1922,11 @@ class StockQuant(models.Model):
                 aggregate_barcodes.append(aggregate_barcode + eol_char)
                 aggregate_barcode = ""
             if barcode:
-                if aggregate_barcode and aggregate_barcode[-1] != barcode_separator:
+                # endswith, not a last-character compare: the separator sysparam may
+                # be several characters long.
+                if aggregate_barcode and not aggregate_barcode.endswith(
+                    barcode_separator
+                ):
                     aggregate_barcode += barcode_separator
                 aggregate_barcode += barcode
 
@@ -2261,6 +2312,30 @@ class StockQuant(models.Model):
             return False
         raise UserError(_("Removal strategy %s not implemented.", removal_strategy))
 
+    @api.model
+    def _get_removal_strategy_sort_key(self, removal_strategy):
+        """Python equivalent of :meth:`_get_removal_strategy_order` for the
+        ``_gather`` quants-cache fast path.
+
+        Returns ``(key, reverse)`` for :meth:`recordset.sorted` when the strategy's
+        SQL ordering can be replicated in Python, or ``None`` when it cannot --
+        ``_gather`` then bypasses the cache and searches, so cache and search paths
+        always return quants in the same order. Modules adding removal strategies
+        (i.e. overriding :meth:`_get_removal_strategy_order`) should override this
+        hook symmetrically; leaving it alone is safe (their strategies simply skip
+        the cache fast path).
+        """
+        if removal_strategy in ("fifo", "least_packages"):
+            return (lambda q: (q.in_date, q.id)), False
+        if removal_strategy == "lifo":
+            return (lambda q: (q.in_date, q.id)), True
+        if removal_strategy == "closest":
+            # `closest` orders by the default `id` on the search path and is
+            # re-sorted by location afterwards on both paths (a total order, so
+            # the pre-sort only fixes the tiebreak).
+            return (lambda q: q.id), False
+        return None
+
     def _get_reserve_quantity(
         self,
         product_id,
@@ -2274,9 +2349,10 @@ class StockQuant(models.Model):
     ):
         """Get the quantity available to reserve for the set of quants
         sharing the combination of `product_id, location_id` if `strict` is set to False or sharing
-        the *exact same characteristics* otherwise. If no quants are in self, `_gather` will do a search to fetch the quants.
+        the *exact same characteristics* otherwise. `self` is never consulted: the
+        candidate set is always resolved from scratch by `_gather` (see its docstring).
         Typically, this method is called before the `stock.move.line` creation to know the reserved_qty that could be used.
-        It's also called by `_update_reserved_quantity` to find the quant to reserve.
+        It's also called by `stock.move._update_reserved_quantity_vals` to find the quants to reserve.
 
         :return: a list of tuples (quant, quantity_reserved) showing on which quant the reservation
             could be done and how much the system is able to reserve on it
@@ -2434,7 +2510,9 @@ class StockQuant(models.Model):
                 self.env.cr.execute(query, params)
                 self.env.invalidate_all()
         except Error as e:
-            _logger.warning("an error occurred while merging quants: %s", e.pgerror)
+            # psycopg 3: no `pgerror` attribute; the exception's str() carries the
+            # server message.
+            _logger.warning("an error occurred while merging quants: %s", e)
 
     def move_quants(
         self,

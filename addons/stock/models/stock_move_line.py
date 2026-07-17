@@ -256,8 +256,12 @@ class StockMoveLine(models.Model):
         store=False,
     )
 
+    # Keyed access path for `_free_reservation`'s candidate search: lead with its
+    # equality columns (product, location, lot, package, owner). No `id` column --
+    # leading with the primary key (as this index historically did) defeats btree
+    # descent for every column after it.
     _free_reservation_index = models.Index(
-        """(id, company_id, product_id, lot_id, location_id, owner_id, package_id)
+        """(product_id, location_id, lot_id, package_id, owner_id, company_id)
         WHERE (state IS NULL OR state NOT IN ('done', 'cancel')) AND quantity_product_uom > 0 AND picked IS NOT TRUE"""
     )
 
@@ -300,7 +304,7 @@ class StockMoveLine(models.Model):
                 if ml.product_id.is_storable:
                     # Move the quant from source to destination.
                     available_qty, _in_date = ml._apply_quant_move()
-                    if available_qty < 0:
+                    if ml.product_id.uom_id.compare(available_qty, 0) < 0:
                         # A directly-created done line can force the source quant
                         # negative; free the now-invalid reservations pointing at it,
                         # mirroring write()/_action_done (else phantom reservations).
@@ -381,7 +385,7 @@ class StockMoveLine(models.Model):
 
         for ml in mls:
             available_qty, _in_date = ml._apply_quant_move()
-            if available_qty < 0:
+            if ml.product_id.uom_id.compare(available_qty, 0) < 0:
                 ml._free_reservation(
                     ml.product_id,
                     ml.location_id,
@@ -413,12 +417,13 @@ class StockMoveLine(models.Model):
 
     def unlink(self):
         for ml in self:
-            # Unlinking a move line should unreserve.
-            if (
-                not ml.product_uom_id.is_zero(ml.quantity_product_uom)
-                and ml.move_id
-                and not ml.move_id._should_bypass_reservation(ml.location_id)
-            ):
+            # Unlinking a move line should unreserve. The move-less-safe helper keeps
+            # this symmetric with _reserve_new_move_lines: a line created without a
+            # move reserves on create, so its unlink must release (the previous
+            # `ml.move_id and ...` guard silently leaked that reservation).
+            if not ml.product_uom_id.is_zero(
+                ml.quantity_product_uom
+            ) and not ml._should_bypass_reservation(ml.location_id):
                 self.env["stock.quant"]._update_reserved_quantity(
                     ml.product_id,
                     ml.location_id,
@@ -822,7 +827,7 @@ class StockMoveLine(models.Model):
                 -ml.quantity_product_uom, ml.location_id, action="reserved"
             )
             available_qty, _in_date = ml._apply_quant_move()
-            if available_qty < 0:
+            if ml.product_id.uom_id.compare(available_qty, 0) < 0:
                 ml.with_context(
                     quants_cache=None, bypass_entire_pack=True
                 )._free_reservation(
@@ -1120,7 +1125,7 @@ class StockMoveLine(models.Model):
             ml_ids_to_ignore = OrderedSet()
         ml_ids_to_ignore |= self.ids
 
-        if self.move_id._should_bypass_reservation(location_id):
+        if self._should_bypass_reservation(location_id):
             return
 
         # Find the move lines that reserved the now-unavailable quantity, excluding ourselves
@@ -1731,7 +1736,14 @@ class StockMoveLine(models.Model):
                 ],
                 "picking_ids": [Command.set(package.picking_ids.ids)],
                 "package_id": package.id,
-                "package_name": package.complete_name,
+                # Freeze the *destination* chain (this runs before
+                # _apply_dest_to_package re-parents the packages and clears
+                # package_dest_id, after which the pending chain is gone).
+                # `complete_name` here would snapshot the *origin* chain, which the
+                # history consumers (e.g. the delivery slip's
+                # _get_complete_dest_name_except_outermost) would misread as the
+                # destination one.
+                "package_name": package.dest_complete_name,
                 "parent_orig_id": package.parent_package_id.id,
                 "parent_orig_name": package.parent_package_id.complete_name,
                 "parent_dest_id": package.package_dest_id.id,
@@ -1851,10 +1863,11 @@ class StockMoveLine(models.Model):
                     product.is_storable and not location.should_bypass_reservation()
                 )
             if move_line.quantity_product_uom and reservation:
-                self.env.context.get(
-                    "reserved_quant",
-                    self.env["stock.quant"],
-                )._update_reserved_quantity(
+                # No `reserved_quant` context indirection here: quant
+                # `_update_reserved_quantity` is @api.model and `_gather` never
+                # filters `self`, so routing the call through a quant recordset
+                # from the context was a no-op pretending to target that quant.
+                self.env["stock.quant"]._update_reserved_quantity(
                     product,
                     location,
                     move_line.quantity_product_uom,
@@ -1904,7 +1917,7 @@ class StockMoveLine(models.Model):
                 )
 
             # Reserve the maximum available of the move line's new characteristics.
-            if not ml.move_id._should_bypass_reservation(
+            if not ml._should_bypass_reservation(
                 updates.get("location_id", ml.location_id)
             ):
                 ml._synchronize_quant(
@@ -1942,9 +1955,7 @@ class StockMoveLine(models.Model):
                 owner_id=owner,
                 in_date=in_date,
             )
-        elif action == "reserved" and not self.move_id._should_bypass_reservation(
-            location
-        ):
+        elif action == "reserved" and not self._should_bypass_reservation(location):
             self.env["stock.quant"]._update_reserved_quantity(
                 self.product_id,
                 location,
@@ -2027,6 +2038,20 @@ class StockMoveLine(models.Model):
                     "Changing the Lot/Serial number for move lines with different products is not allowed."
                 ),
             )
+
+    def _should_bypass_reservation(self, location):
+        """Whether this line's stock at ``location`` is exempt from reservation.
+
+        Safe for lines without a move: ``stock.move._should_bypass_reservation``
+        ``ensure_one()``s, so calling it through an empty ``move_id`` raises. For
+        move-less lines this mirrors the create-path logic of
+        :meth:`_reserve_new_move_lines` (which checks the *move's* own location when
+        a move exists, hence is not rewired through this helper).
+        """
+        self.ensure_one()
+        if self.move_id:
+            return self.move_id._should_bypass_reservation(location)
+        return not self.product_id.is_storable or location.should_bypass_reservation()
 
     def _should_display_put_in_pack_wizard(
         self, package_id, package_type_id, package_name, from_package_wizard
