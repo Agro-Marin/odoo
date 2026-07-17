@@ -371,11 +371,21 @@ export class PaymentScreen extends Component {
     }
     async sendPaymentCancel(line) {
         const payment_terminal = line.payment_method_id.payment_terminal;
+        const previousStatus = line.getPaymentStatus();
         line.setPaymentStatus("waitingCancel");
-        const isCancelSuccessful = await payment_terminal.sendPaymentCancel(
-            this.currentOrder,
-            line.uuid,
-        );
+        let isCancelSuccessful;
+        try {
+            isCancelSuccessful = await payment_terminal.sendPaymentCancel(
+                this.currentOrder,
+                line.uuid,
+            );
+        } catch {
+            // A throwing terminal must not strand the line in "waitingCancel"
+            // (an unrecoverable state plus an unhandled rejection) — restore the
+            // prior status so the cancel can be retried.
+            line.setPaymentStatus(previousStatus);
+            return;
+        }
         if (isCancelSuccessful) {
             line.setPaymentStatus("retry");
             this.pos.paymentTerminalInProgress = false;
@@ -385,11 +395,20 @@ export class PaymentScreen extends Component {
     }
     async sendPaymentReverse(line) {
         const payment_terminal = line.payment_method_id.payment_terminal;
+        const previousStatus = line.getPaymentStatus();
         line.setPaymentStatus("reversing");
 
-        const isReversalSuccessful = await payment_terminal.sendPaymentReversal(
-            line.uuid,
-        );
+        let isReversalSuccessful;
+        try {
+            isReversalSuccessful = await payment_terminal.sendPaymentReversal(
+                line.uuid,
+            );
+        } catch {
+            // Likewise, don't leave the line stuck in "reversing" if the
+            // terminal reversal throws — restore the prior status.
+            line.setPaymentStatus(previousStatus);
+            return;
+        }
         if (isReversalSuccessful) {
             line.setAmount(0);
             line.setPaymentStatus("reversed");
