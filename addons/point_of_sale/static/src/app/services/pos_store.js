@@ -1610,8 +1610,42 @@ export class PosStore extends WithLazyGetterTrap {
                     },
                 );
                 commitClear();
+                // Records edited while the RPC was in flight: the server echo
+                // reflects the serialized (pre-edit) state. The epoch guard
+                // keeps them dirty for the next sync, but without capturing
+                // and re-applying the divergent scalar values, the echo
+                // overwrote them and the next sync re-sent server values.
+                const inFlightEdited = [
+                    order,
+                    ...order.lines,
+                    ...(order.payment_ids || []),
+                ]
+                    .filter((rec) => rec?.isDirty?.() && rec._dirtyFields?.size)
+                    .map((rec) => ({
+                        rec,
+                        values: [...rec._dirtyFields]
+                            .filter((fieldName) => {
+                                const field = rec.model.fields[fieldName];
+                                return (
+                                    field &&
+                                    !field.relation &&
+                                    !field.dummy &&
+                                    !["date", "datetime"].includes(field.type) &&
+                                    !["id", "uuid"].includes(fieldName)
+                                );
+                            })
+                            .map((fieldName) => [fieldName, rec.raw[fieldName]]),
+                    }))
+                    .filter(({ values }) => values.length);
                 const missingRecords = await this.data.missingRecursive(data);
                 const newData = this.models.loadConnectedData(missingRecords);
+                for (const { rec, values } of inFlightEdited) {
+                    for (const [fieldName, value] of values) {
+                        if (rec.raw[fieldName] !== value) {
+                            rec.update({ [fieldName]: value });
+                        }
+                    }
+                }
 
                 logPosMessage(
                     "Store",

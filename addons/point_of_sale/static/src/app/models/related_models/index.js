@@ -829,11 +829,12 @@ export function createRelatedModels(modelDefs, modelClasses = {}, opts = {}) {
                         let record,
                             uiState,
                             isUpdate = false;
-                        if (opts.preserveDirty && !existingRecord) {
+                        if (!existingRecord && dynamicModels.includes(model)) {
                             // A record deleted locally (pending unlink/delete
-                            // command) must not be resurrected by an incoming
-                            // snapshot — the deletion has not reached the
-                            // server yet.
+                            // command) must not be resurrected by ANY incoming
+                            // payload — snapshot or sync echo (a line deleted
+                            // while the sync RPC was in flight is part of the
+                            // echo) — until the deletion reaches the server.
                             if (this._isPendingDeletion(model, vals[modelKey], vals.id)) {
                                 continue;
                             }

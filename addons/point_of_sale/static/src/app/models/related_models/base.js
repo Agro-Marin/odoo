@@ -41,6 +41,9 @@ export class Base extends WithLazyGetterTrap {
         // serializeForIndexedDB: without it, offline edits to a synced record
         // come back "clean" after a reload and are never synced.
         this._dirty = vals?.__dirty ?? !this.isSynced;
+        // A (re)setup starts a fresh divergence-tracking window; a restored
+        // dirty record re-serializes in full anyway.
+        this._dirtyFields = new Set();
     }
 
     /**
@@ -104,9 +107,21 @@ export class Base extends WithLazyGetterTrap {
         return this.model.backLink(this, link);
     }
 
-    _markDirty() {
+    _markDirty(fields = null) {
         if (this.models._loadingData) {
             return;
+        }
+
+        // Track WHICH fields diverged since the last clean state: the
+        // sync-response processing needs them to re-apply edits made while
+        // the RPC was in flight (the server echo reflects the serialized,
+        // pre-edit state). Only the record itself accumulates field names —
+        // parents are merely marked dirty.
+        if (fields?.length) {
+            (this._dirtyFields ??= new Set());
+            for (const field of fields) {
+                this._dirtyFields.add(field);
+            }
         }
 
         // The epoch is bumped on EVERY dirtying write, even when the record is
@@ -133,5 +148,10 @@ export class Base extends WithLazyGetterTrap {
             });
         };
         walk(this);
+    }
+
+    _markClean() {
+        this._dirty = false;
+        this._dirtyFields = new Set();
     }
 }
