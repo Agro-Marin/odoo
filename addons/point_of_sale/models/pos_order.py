@@ -2654,7 +2654,9 @@ class PosOrderLine(models.Model):
 
             reference_ids = line.order_id.stock_reference_ids
             if not reference_ids:
-                reference_ids = self.env["stock.reference"].create(
+                # References are system-managed plumbing: PoS users have no
+                # create rights on stock.reference.
+                reference_ids = self.env["stock.reference"].sudo().create(
                     line._prepare_reference_vals()
                 )
                 line.order_id.stock_reference_ids = [Command.set(reference_ids.ids)]

@@ -398,13 +398,17 @@ class SaleOrderLine(models.Model):
                 product_qty = line.product_qty
 
                 if line.product_uom_id != line.product_id.uom_id:
-                    line.qty_available_today = line.product_id.uom_id._compute_quantity_estimate(
-                        line.qty_available_today,
-                        line.product_uom_id,
+                    line.qty_available_today = (
+                        line.product_id.uom_id._compute_quantity_estimate(
+                            line.qty_available_today,
+                            line.product_uom_id,
+                        )
                     )
-                    line.qty_free_today = line.product_id.uom_id._compute_quantity_estimate(
-                        line.qty_free_today,
-                        line.product_uom_id,
+                    line.qty_free_today = (
+                        line.product_id.uom_id._compute_quantity_estimate(
+                            line.qty_free_today,
+                            line.product_uom_id,
+                        )
                     )
                     line.qty_available_virtual_at_date = (
                         line.product_id.uom_id._compute_quantity_estimate(
@@ -466,7 +470,11 @@ class SaleOrderLine(models.Model):
             references = line.order_id.stock_reference_ids
 
             if not references:
-                self.env["stock.reference"].create(line._prepare_reference_vals())
+                # References are system-managed plumbing: the confirming
+                # salesperson has no create rights on stock.reference.
+                self.env["stock.reference"].sudo().create(
+                    line._prepare_reference_vals()
+                )
 
             values = line._prepare_procurement_vals()
             procurement_qty = line.product_qty - qty
