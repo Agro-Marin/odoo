@@ -18,18 +18,18 @@ export class PosOrderAccounting extends Base {
 
     setup(vals) {
         super.setup(vals);
-
-        this._prices = {};
-        this.triggerRecomputeAllPrices();
     }
 
-    triggerRecomputeAllPrices() {
-        if (!this._prices) {
-            return;
-        }
-        this._prices.original = this._constructPriceData();
-        this._prices.unit = this._constructPriceData({ baseLineOpts: { quantity: 1 } });
-    }
+    /**
+     * Deprecated no-op kept for API compatibility (several modules call it
+     * after mutating an order). `prices`/`unitPrices` are lazy class getters:
+     * the lazy-getter machinery caches them and re-invalidates automatically
+     * whenever any base data they read (lines, quantities, prices, taxes,
+     * fiscal position, is_refund, config…) changes — the previous
+     * event-driven eager recompute ran four full-order tax passes per field
+     * write (O(n²) on repricing) and still left staleness windows.
+     */
+    triggerRecomputeAllPrices() {}
 
     /**
      * Currency formatted prices, these getters already handle included/excluded tax configuration.
@@ -144,10 +144,10 @@ export class PosOrderAccounting extends Base {
      * Do not try to make your own price computation outside these getters.
      */
     get prices() {
-        return this._prices.original;
+        return this._constructPriceData();
     }
     get unitPrices() {
-        return this._prices.unit;
+        return this._constructPriceData({ baseLineOpts: { quantity: 1 } });
     }
     get priceIncl() {
         return this.prices.taxDetails.total_amount_no_rounding;
@@ -276,13 +276,18 @@ export class PosOrderAccounting extends Base {
             });
         }
 
-        logPosMessage(
-            "Accounting",
-            "_constructPriceData",
-            "Recompute allPrices",
-            CONSOLE_COLOR,
-            [data],
-        );
+        if (odoo.debug) {
+            // logPosMessage JSON-serializes its args (circular `record` refs
+            // throw and fall back to toString) — never pay that on the hot
+            // recompute path outside debug mode.
+            logPosMessage(
+                "Accounting",
+                "_constructPriceData",
+                "Recompute allPrices",
+                CONSOLE_COLOR,
+                [data],
+            );
+        }
         return data;
     }
 
