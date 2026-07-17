@@ -121,6 +121,9 @@ class ProjectTask(models.Model):
     _primary_email = "email_from"
     _systray_view = "list"
     _track_duration_field = "step_id"
+    # This fork renames the rotting "last update" field; the mixin reads it
+    # through this attribute so no rotting method needs re-implementing.
+    _track_duration_last_update_field = "date_last_status_change"
 
     def _get_versioned_fields(self) -> list[str]:
         return [ProjectTask.description.name]
@@ -980,128 +983,12 @@ class ProjectTask(models.Model):
             return NotImplemented
         return [("state", "in", searched_states)]
 
-    def _is_rotting_feature_enabled(self):
-        """Override: project.task uses date_last_status_change instead of date_last_stage_update."""
-        return (
-            "rotting_threshold_days" in self[self._track_duration_field]
-            and "date_last_status_change" in self
-            and (
-                not self
-                or any(
-                    stage.rotting_threshold_days
-                    for stage in self[self._track_duration_field]
-                )
-            )
-        )
-
     def _get_rotting_depends_fields(self) -> list[str]:
-        """Override: use date_last_status_change instead of date_last_stage_update."""
-        if (
-            hasattr(self, "_track_duration_field")
-            and "rotting_threshold_days" in self[self._track_duration_field]
-        ):
-            return [
-                "date_last_status_change",
-                f"{self._track_duration_field}.rotting_threshold_days",
-                "is_closed",
-            ]
-        return ["is_closed"]
-
-    def _compute_rotting(self):
-        """Override: use date_last_status_change instead of date_last_stage_update."""
-        if not self._is_rotting_feature_enabled():
-            self.is_rotting = False
-            self.rotting_days = 0
-            return
-        now = self.env.cr.now()
-        rot_enabled = self.filtered_domain(self._get_rotting_domain())
-        others = self - rot_enabled
-        for stage, records in rot_enabled.grouped(self._track_duration_field).items():
-            rotting = records.filtered(
-                lambda record, stage=stage: (
-                    (
-                        record.date_last_status_change
-                        or record.create_date
-                        or fields.Datetime.now()
-                    )
-                    + timedelta(days=stage.rotting_threshold_days)
-                    < now
-                )
-            )
-            for record in rotting:
-                record.is_rotting = True
-                record.rotting_days = (
-                    now - (record.date_last_status_change or record.create_date)
-                ).days
-            others += records - rotting
-        others.is_rotting = False
-        others.rotting_days = 0
-
-    def _search_is_rotting(self, operator, value):
-        """Override: use date_last_status_change instead of date_last_stage_update."""
-        if operator not in ["in", "not in"]:
-            raise ValueError(
-                self.env._(
-                    'For performance reasons, use "=" operators on rotting fields.'
-                )
-            )
-        if not self._is_rotting_feature_enabled():
-            raise UserError(
-                self.env._("Model configuration does not support the rotting feature")
-            )
-        model_depends = [
-            fname for fname in self._get_rotting_depends_fields() if "." not in fname
-        ]
-        self.flush_model(model_depends)
-        self.env[self[self._track_duration_field]._name].flush_model(
-            ["rotting_threshold_days"]
-        )
-        base_query = self._search(self._get_rotting_domain())
-        stage_table_alias_name = base_query.make_alias(
-            self._table, self._track_duration_field
-        )
-        from_add_join = ""
-        if not base_query._joins or stage_table_alias_name not in base_query._joins:
-            from_add_join = """
-                INNER JOIN %(stage_table)s AS %(stage_table_alias_name)s
-                    ON %(stage_table_alias_name)s.id = %(table)s.%(stage_field)s
-            """
-        max_rotting_months = int(
-            self.env["ir.config_parameter"]
-            .sudo()
-            .get_param("crm.lead.rot.max.months", default=12)
-        )
-        query = f"""
-            WITH perishables AS (
-                SELECT  %(table)s.id AS id,
-                        (
-                            %(table)s.date_last_status_change + %(stage_table_alias_name)s.rotting_threshold_days * interval '1 day'
-                        ) AS date_rot
-                FROM %(from_clause)s
-                    {from_add_join}
-                WHERE
-                    %(table)s.date_last_status_change > %(today)s - INTERVAL '%(max_rotting_months)s months'
-                    AND %(where_clause)s
-            )
-            SELECT id
-            FROM perishables
-            WHERE %(today)s >= date_rot
-        """
-        self.env.cr.execute(
-            SQL(
-                query,
-                table=SQL.identifier(self._table),
-                stage_table=SQL.identifier(self[self._track_duration_field]._table),
-                stage_table_alias_name=SQL.identifier(stage_table_alias_name),
-                stage_field=SQL.identifier(self._track_duration_field),
-                today=self.env.cr.now(),
-                where_clause=base_query.where_clause,
-                from_clause=base_query.from_clause,
-                max_rotting_months=max_rotting_months,
-            )
-        )
-        rows = self.env.cr.dictfetchall()
-        return [("id", operator, [r["id"] for r in rows])]
+        # project.task's rotting additionally depends on is_closed (see the
+        # _get_rotting_domain override). The renamed last-update field is handled
+        # by the mixin through _track_duration_last_update_field, so the rest of
+        # the rotting machinery no longer needs re-implementing here.
+        return super()._get_rotting_depends_fields() + ["is_closed"]
 
     def _get_rotting_domain(self) -> list:
         return super()._get_rotting_domain() & Domain("is_closed", "=", False)
