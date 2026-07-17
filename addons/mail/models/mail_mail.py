@@ -310,7 +310,13 @@ class MailMail(models.Model):
         # No limit for an explicit email_ids request: the domain already bounds
         # the result to those ids, so the caller's full set must be honoured
         # rather than truncated at a batch multiple.
-        send_ids = self.search(domain, limit=None if email_ids else batch_size).ids
+        # Force oldest-first selection: the model default order is ``id desc``,
+        # which under a sustained backlog larger than one batch would repeatedly
+        # pick the newest mails and starve the oldest ones indefinitely. FIFO by
+        # id keeps the queue fair (matches the ascending ``send_ids.sort()`` below).
+        send_ids = self.search(
+            domain, limit=None if email_ids else batch_size, order="id"
+        ).ids
         if not email_ids:
             ids_done = set()
             total = (
@@ -717,6 +723,13 @@ class MailMail(models.Model):
             for a in attachments.sudo().sorted("id").read(["name", "raw", "mimetype"])
             if a["raw"] is not False
         ]
+        # The read() above pulled every attachment's full bytes into the ORM
+        # cache (``raw``/``datas`` are non-stored computed Binary fields, so the
+        # cache is never evicted for the rest of the transaction and the per-mail
+        # cr.commit() does not clear it). ``email_attachments`` already holds its
+        # own references to the bytes, so drop the cache copies to keep a queue
+        # batch of large mails from accumulating unbounded memory.
+        attachments.invalidate_recordset(["raw", "datas"])
 
         # Build final list of email values with personalized body for recipient
         results = []
@@ -1056,6 +1069,16 @@ class MailMail(models.Model):
                         _logger.info(
                             "Ignoring SMTPServerDisconnected while trying to quit non open session"
                         )
+                    except Exception:
+                        # Any other teardown error (socket timeout, connection
+                        # reset, ...) must not abort the remaining server-config
+                        # batches of this run: the mails are already sent/recorded.
+                        # Mirror ir_mail_server.send_email's forced close.
+                        _logger.info(
+                            "Ignoring error while closing SMTP session", exc_info=True
+                        )
+                        with contextlib.suppress(Exception):
+                            smtp_session.close()
 
     def action_send_and_close(self):
         """An action sending the selected mail and redirecting to mail.mail list view."""
@@ -1156,6 +1179,10 @@ class MailMail(models.Model):
 
                 # build an RFC2822 email.message.Message object and send it without queuing
                 res = None
+                # Remember the last per-recipient delivery failure so that, if no
+                # recipient at all succeeds, a strict caller (raise_exception=True)
+                # still gets an exception (see the re-raise after the loop).
+                delivery_error = None
                 # TDE note: could be great to pre-detect missing to/cc and skip sending it
                 # to go directly to failed state update
                 email_list = mail._prepare_outgoing_list(
@@ -1266,14 +1293,32 @@ class MailMail(models.Model):
                             mail.message_id,
                             error,
                         )
+                        delivery_error = error
                         processing_pid = None
+                if res is None and raise_exception and delivery_error is not None:
+                    # Every recipient of this mail failed with a per-recipient
+                    # delivery error that the loop isolated above. The caller asked
+                    # for strict sending (raise_exception=True) — e.g. 2FA-code or
+                    # invitation mails that must surface a hard bounce rather than
+                    # report a phantom success — so propagate to the outer handler,
+                    # which records state='exception' and re-raises.
+                    raise delivery_error
                 if res:  # mail has been sent at least once, no major exception occurred
+                    # If some (but not all) recipients failed, keep the failure
+                    # classification on the mail so it stays visible in list views
+                    # and filters; the per-recipient outcome is on each
+                    # mail.notification. state stays 'sent' (a real success
+                    # happened), so action_retry (which targets 'exception') is
+                    # unaffected and won't re-email the served recipients.
+                    partial_failure = bool(delivery_error)
                     mail.write(
                         {
                             "state": "sent",
                             "message_id": res,
-                            "failure_type": False,
-                            "failure_reason": False,
+                            "failure_type": failure_type if partial_failure else False,
+                            "failure_reason": (
+                                failure_reason if partial_failure else False
+                            ),
                         }
                     )
                     if not modules.module.current_test:
@@ -1285,12 +1330,20 @@ class MailMail(models.Model):
                                 msg["from"]
                             ),  # FROM should not change, so last msg good enough
                             ", ".join(
-                                repr(
-                                    tools.mail.email_anonymize(
-                                        tools.email_normalize(m["email_to"])
-                                    )
-                                )
+                                repr(tools.mail.email_anonymize(addr))
                                 for m in email_list
+                                # email_to is a list; email_normalize() returns
+                                # False on a multi-address value, so redact each
+                                # address individually rather than the whole list.
+                                for addr in filter(
+                                    None,
+                                    map(
+                                        tools.email_normalize,
+                                        m["email_to"]
+                                        if isinstance(m["email_to"], (list, tuple))
+                                        else [m["email_to"]],
+                                    ),
+                                )
                             ),
                         )
                         _logger.info("Total emails tried by SMTP: %s", len(email_list))
