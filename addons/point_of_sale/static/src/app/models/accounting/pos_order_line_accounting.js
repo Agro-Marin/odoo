@@ -157,12 +157,11 @@ export class PosOrderlineAccounting extends Base {
         ].join(" ");
     }
 
-    delete(record, opts = {}) {
-        const order = this.order_id;
-        const result = super.delete(record, opts);
-        order?.triggerRecomputeAllPrices();
-        return result;
-    }
+    // NB: the delete() override that used to trigger an order price recompute
+    // is gone — prices are lazy getters invalidated by the raw x2many
+    // mutation itself. (Its `delete(record, opts)` signature also contradicted
+    // Base.delete(opts) and only worked because the options object landed in
+    // the `record` slot.)
 
     get basePrice() {
         return this.qty * this.price_unit * (1 - this.getDiscount() / 100);
