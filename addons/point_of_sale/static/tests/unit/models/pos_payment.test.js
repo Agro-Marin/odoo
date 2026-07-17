@@ -36,3 +36,20 @@ test("pay() marks the line 'done' when the terminal succeeds", async () => {
     expect(ok).toBe(true);
     expect(payment.getPaymentStatus()).toBe("done");
 });
+
+test("re-running setup with a partial payload preserves amount/ticket", async () => {
+    const store = await setupPosEnv();
+    const order = await getFilledOrder(store);
+    const paymentMethod = store.models["pos.payment.method"].get(1);
+    const { data: payment } = order.addPaymentline(paymentMethod);
+    payment.setAmount(42);
+    payment.ticket = "terminal-receipt";
+    expect(payment.amount).toBe(42);
+
+    // setup() re-runs on every connectNewData update; a payload that omits
+    // amount/ticket (as a trimmed server push would) must not zero the
+    // existing values.
+    payment.setup({ payment_status: "done" });
+    expect(payment.amount).toBe(42);
+    expect(payment.ticket).toBe("terminal-receipt");
+});

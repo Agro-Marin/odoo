@@ -66,17 +66,13 @@ export class HardwareProxy extends EventBus {
                 this.setConnectionInfo({ status: "disconnected" });
                 logPosMessage(
                     "HardwareProxy",
-                    "printHtml",
+                    "connect",
                     "Connection refused by the Proxy",
                 );
             }
         } catch {
             this.setConnectionInfo({ status: "disconnected" });
-            logPosMessage(
-                "HardwareProxy",
-                "printHtml",
-                "Could not connect to the Proxy",
-            );
+            logPosMessage("HardwareProxy", "connect", "Could not connect to the Proxy");
         }
     }
 
