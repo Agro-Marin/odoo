@@ -168,13 +168,14 @@ class NumberBuffer extends EventBus {
             : 0;
     }
     _onKeyboardInput(event) {
+        // While an overlay (dialog) is open, only a buffer holder that
+        // explicitly opted in may consume global keyboard input — the
+        // NumberPopup registers `captureWithOverlay` when it takes the buffer.
+        // The previous probe compared the overlay's subComponent constructor
+        // NAME ("NumberPopup"), coupling this service to the overlay/dialog
+        // services' internals and silently breaking for any subclass.
         const overlays = Object.values(this.overlay.overlays);
-        if (
-            overlays.length &&
-            !overlays.some(
-                (overlay) => overlay.props.subComponent?.name === "NumberPopup",
-            )
-        ) {
+        if (overlays.length && !this._currentBufferHolder?.config?.captureWithOverlay) {
             return;
         }
         return (
