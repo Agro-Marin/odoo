@@ -171,13 +171,26 @@ class TestDuplicateMailLock(TransactionCase):
         """The inbound-mail dedup advisory lock must use the 64-bit
         ``hashtextextended`` (vs 32-bit ``hashtext``) so a hash collision does
         not treat two distinct Message-Ids as duplicates and drop the second
-        inbound mail. This pins that the function exists and returns a bool.
+        inbound mail.
+
+        Assert against the model's own source rather than re-running the SQL
+        (which would only test PostgreSQL): reverting message_process to the
+        32-bit ``hashtext`` must fail this test.
         """
-        self.env.cr.execute(
-            "SELECT pg_try_advisory_xact_lock(hashtextextended(%s, 0))",
-            ["<some-message-id@example.com>"],
+        import inspect
+
+        source = inspect.getsource(self.env.registry["mail.thread"].message_process)
+        self.assertIn(
+            "hashtextextended",
+            source,
+            "the dedup advisory lock must use the 64-bit hashtextextended",
         )
-        self.assertIsInstance(self.env.cr.fetchone()[0], bool)
+        # hashtextextended( is fine; a bare 32-bit hashtext( is not.
+        self.assertNotRegex(
+            source,
+            r"hashtext\s*\(",
+            "the dedup advisory lock must not use the 32-bit hashtext",
+        )
 
 
 @tagged("post_install", "-at_install")
