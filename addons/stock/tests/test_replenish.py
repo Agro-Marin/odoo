@@ -182,3 +182,36 @@ class TestStockReplenish(TestStockCommon):
             "unrelated move sharing the transaction timestamp",
         )
         self.assertEqual(notified.product_uom_qty, 7)
+
+    def _weight_orderpoint(self):
+        return self.env["stock.warehouse.orderpoint"].create(
+            {
+                "product_id": self.kgB.id,
+                "location_id": self.stock_location.id,
+                "warehouse_id": self.warehouse_1.id,
+            },
+        )
+
+    def test_get_multiple_rounded_qty_skips_cross_category_multiple(self):
+        """A replenishment multiple UoM left cross-category by legacy data (a
+        Weight product carrying a Units multiple) must be skipped, not raise.
+        Before the fix `_get_multiple_rounded_qty` called `uom._compute_quantity`
+        with `raise_if_failure=True` and blocked POS checkout via the orderpoint
+        recompute triggered when confirming an order with lot selection.
+        """
+        orderpoint = self._weight_orderpoint()
+        orderpoint.replenishment_uom_id = self.uom_unit
+        self.assertFalse(self.uom_kg._has_common_reference(self.uom_unit))
+
+        # Multiple is inapplicable across categories: the qty is returned
+        # unrounded (still correct in the product UoM) instead of raising.
+        self.assertEqual(orderpoint._get_multiple_rounded_qty(4.3), 4.3)
+
+    def test_get_multiple_rounded_qty_rounds_when_compatible(self):
+        """A same-reference multiple must still round the order up so it fully
+        covers the shortage — the guard only skips cross-category multiples.
+        """
+        orderpoint = self._weight_orderpoint()
+        orderpoint.replenishment_uom_id = self.uom_kg
+
+        self.assertEqual(orderpoint._get_multiple_rounded_qty(4.3), 5.0)

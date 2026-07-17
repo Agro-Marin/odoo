@@ -1374,6 +1374,10 @@ class StockWarehouseOrderpoint(models.Model):
             self.replenishment_uom_id
             or self._get_replenishment_multiple_alternative(qty_to_order)
         )
+        # A cross-category multiple (e.g. a legacy Units multiple on a
+        # weight/volume product) has no multiple to round to: skip the
+        # refinement and order the exact shortage in the product UoM instead
+        # of raising.
         if replenishment_multiple and self.product_id.uom_id._has_common_reference(
             replenishment_multiple
         ):
