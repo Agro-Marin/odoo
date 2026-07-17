@@ -597,7 +597,7 @@ export class PosOrder extends PosOrderAccounting {
                         // those two only differ by the line's own discount,
                         // which is 0 in this branch.
                         const listPriceDetails =
-                            orderLine.product_tmpl_id.getTaxDetails({
+                            orderLine.product_id.product_tmpl_id.getTaxDetails({
                                 overridedValues: {
                                     price:
                                         orderLine.product_id.lst_price +
