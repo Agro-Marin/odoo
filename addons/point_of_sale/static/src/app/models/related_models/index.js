@@ -753,6 +753,10 @@ export function createRelatedModels(modelDefs, modelClasses = {}, opts = {}) {
                 {
                     connectRecords: false,
                     serverData: true,
+                    // Trusted local path (an order's own sync echo, IndexedDB
+                    // restore): a line deleted locally while its unlink command
+                    // is still pending must not be resurrected by the echo.
+                    preserveLocalDeletions: true,
                 },
             );
         }
@@ -767,14 +771,17 @@ export function createRelatedModels(modelDefs, modelClasses = {}, opts = {}) {
          * @returns {Array<Base>} - The list of loaded records.
          */
         connectNewData(data, serverData = true) {
-            // Snapshot ingestion (device sync, loadServerOrders, callRelated):
-            // never authoritative over local uncommitted edits, unlike
-            // loadConnectedData (the sync-response path, which carries id
-            // remaps and must apply).
+            // Snapshot ingestion from other devices / the server
+            // (devices_synchronisation.readDataFromServer, loadServerOrders,
+            // callRelated) is SERVER-AUTHORITATIVE by design: shared orders are
+            // edited concurrently across devices, so an incoming snapshot must
+            // override local uncommitted edits (see the
+            // "Data from other devices overrides local data" restaurant test).
+            // The narrow case of an edit made during an order's OWN sync RPC is
+            // preserved separately on the echo path (see PosStore._syncAllOrders).
             return disabler.call((...args) => this._loadData(...args), data, [], {
                 connectRecords: true,
                 serverData: serverData,
-                preserveDirty: true,
             });
         }
 
@@ -829,46 +836,23 @@ export function createRelatedModels(modelDefs, modelClasses = {}, opts = {}) {
                         let record,
                             uiState,
                             isUpdate = false;
-                        if (!existingRecord && dynamicModels.includes(model)) {
-                            // A record deleted locally (pending unlink/delete
-                            // command) must not be resurrected by ANY incoming
-                            // payload — snapshot or sync echo (a line deleted
-                            // while the sync RPC was in flight is part of the
-                            // echo) — until the deletion reaches the server.
+                        if (
+                            opts.preserveLocalDeletions &&
+                            !existingRecord &&
+                            dynamicModels.includes(model)
+                        ) {
+                            // Echo/restore path only: a record deleted locally
+                            // (pending unlink/delete command) must not be
+                            // resurrected by the order's own sync echo (the
+                            // line was serialized before the mid-flight
+                            // deletion). Device-sync snapshots (connectNewData)
+                            // are server-authoritative and deliberately do not
+                            // set this flag.
                             if (this._isPendingDeletion(model, vals[modelKey], vals.id)) {
                                 continue;
                             }
                         }
                         if (existingRecord) {
-                            if (
-                                opts.preserveDirty &&
-                                dynamicModels.includes(model) &&
-                                existingRecord.isSynced &&
-                                existingRecord.isDirty?.()
-                            ) {
-                                // Dynamic models only: the client owns edits
-                                // to pos.order & co. and syncs them back —
-                                // static models (products, categories…) are
-                                // never synced, so their dirty flag must not
-                                // block server refreshes.
-                                // Snapshot ingestion (connectNewData): local
-                                // uncommitted edits to a SYNCED record win —
-                                // clobbering the raw discarded scalar edits
-                                // and deletions whenever another device
-                                // touched the order. (Unsynced records still
-                                // accept the payload: connectNewData is also
-                                // the uuid → server-id remap path.) The record
-                                // stays queued for sync; the server state
-                                // reconciles after.
-                                results[model].push({
-                                    record: existingRecord,
-                                    vals,
-                                    uiState: undefined,
-                                    isUpdate: true,
-                                    skip: true,
-                                });
-                                continue;
-                            }
                             const {
                                 rawData,
                                 uiState: newUiState,
@@ -911,13 +895,7 @@ export function createRelatedModels(modelDefs, modelClasses = {}, opts = {}) {
                     finalResults[model] = resultsArray;
                     const modelEvents = this[model];
                     for (let i = 0; i < entries.length; i++) {
-                        const { record, vals, uiState, isUpdate, skip } = entries[i];
-                        if (skip) {
-                            // Dirty record preserved as-is: no setup re-run,
-                            // no update event.
-                            resultsArray.push(record);
-                            continue;
-                        }
+                        const { record, vals, uiState, isUpdate } = entries[i];
                         setupRecord(record, vals, uiState, isUpdate);
                         if (!isUpdate) {
                             createdIds.push(record.id);
