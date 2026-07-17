@@ -82,7 +82,7 @@
     </record>
 
     <record model="ir.rule" id="stock_putaway_rule_rule">
-        <field name="name">Stock Operation Type multi-company</field>
+        <field name="name">Putaway Rule multi-company</field>
         <field name="model_id" search="[('model','=','stock.putaway.rule')]" model="ir.model"/>
         <field name="domain_force">[('company_id','in', company_ids)]</field>
     </record>
@@ -145,6 +145,12 @@
         <field name="name">stock_package multi-company</field>
         <field name="model_id" ref="model_stock_package"/>
         <field name="domain_force">[('company_id', 'in', company_ids + [False])]</field>
+    </record>
+
+    <record model="ir.rule" id="stock_package_history_comp_rule">
+        <field name="name">stock_package_history multi-company</field>
+        <field name="model_id" ref="model_stock_package_history"/>
+        <field name="domain_force">[('company_id', 'in', company_ids)]</field>
     </record>
 
     <record model="ir.rule" id="stock_scrap_company_rule">
