@@ -7,4 +7,3 @@ export class RestaurantOrderCourse extends models.ServerModel {
         return ["uuid", "fired", "order_id", "line_ids", "index", "write_date"];
     }
 }
-

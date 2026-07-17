@@ -9,9 +9,7 @@ export function computeProductAttributesExclusion(pos, excl = false) {
     // A full recompute (no incremental `excl` payload) starts fresh:
     // accumulating onto the existing map kept exclusions deleted in the
     // backend blocking valid combinations until reload.
-    const exclusions = excl
-        ? pos.productAttributesExclusion || new Map()
-        : new Map();
+    const exclusions = excl ? pos.productAttributesExclusion || new Map() : new Map();
 
     const addExclusion = (key, value) => {
         if (!exclusions.has(key)) {

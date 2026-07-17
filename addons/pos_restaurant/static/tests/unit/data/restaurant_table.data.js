@@ -106,4 +106,3 @@ export class RestaurantTable extends models.ServerModel {
         },
     ];
 }
-

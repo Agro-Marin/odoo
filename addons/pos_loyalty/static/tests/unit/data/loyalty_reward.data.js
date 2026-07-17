@@ -96,4 +96,3 @@ export class LoyaltyReward extends models.ServerModel {
         },
     ];
 }
-

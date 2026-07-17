@@ -35,4 +35,3 @@ export class RestaurantFloor extends models.ServerModel {
         },
     ];
 }
-

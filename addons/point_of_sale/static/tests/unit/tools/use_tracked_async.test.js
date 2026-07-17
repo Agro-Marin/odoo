@@ -1,9 +1,10 @@
 import { expect, test } from "@odoo/hoot";
 import { Component, xml } from "@odoo/owl";
-import { mountWithCleanup } from "@web/../tests/web_test_helpers";
 import { useTrackedAsync } from "@point_of_sale/app/hooks/hooks";
-import { setupPosEnv } from "../utils.js";
+import { mountWithCleanup } from "@web/../tests/web_test_helpers";
+
 import { definePosModels } from "../data/generate_model_definitions.js";
+import { setupPosEnv } from "../utils.js";
 
 definePosModels();
 

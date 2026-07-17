@@ -1,9 +1,9 @@
-import { luxon } from "@web/core/l10n/luxon";
-import { test, describe, expect } from "@odoo/hoot";
+import { describe, expect, test } from "@odoo/hoot";
 import { tick } from "@odoo/hoot-mock";
-import { setupPosEnv, getFilledOrder } from "@point_of_sale/../tests/unit/utils";
+import { getFilledOrder, setupPosEnv } from "@point_of_sale/../tests/unit/utils";
 import { definePosLoyaltyModels } from "@pos_loyalty/../tests/unit/data/generate_model_definitions";
 import { addProductLineToOrder } from "@pos_loyalty/../tests/unit/utils";
+import { luxon } from "@web/core/l10n/luxon";
 
 definePosLoyaltyModels();
 
@@ -267,7 +267,10 @@ describe("pos.order - loyalty", () => {
         // Get loyalty program #3 - type = "gift_card"
         const giftProgram = models["loyalty.program"].get(3);
 
-        const result = order.isSaleDisallowed({}, { eWalletGiftCardProgram: giftProgram });
+        const result = order.isSaleDisallowed(
+            {},
+            { eWalletGiftCardProgram: giftProgram },
+        );
         expect(result).toBe(false);
     });
 

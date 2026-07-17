@@ -126,7 +126,7 @@ export class TicketScreen extends Component {
         } else {
             this.state.selectedPreset = preset;
         }
-        if (this.state.filter == "SYNCED") {
+        if (this.state.filter === "SYNCED") {
             // The preset filter is part of the server domain.
             this.state.page = 1;
             await this._fetchSyncedOrders();

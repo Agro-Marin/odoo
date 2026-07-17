@@ -5,6 +5,7 @@ import { luxon } from "@web/core/l10n/luxon";
 import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
 
+import { logPosMessage } from "../utils/pretty_console_log.js";
 import { PosOrderAccounting } from "./accounting/pos_order_accounting.js";
 import { computeComboItems } from "./utils/compute_combo_items.js";
 const { DateTime } = luxon;
@@ -388,7 +389,8 @@ export class PosOrder extends PosOrderAccounting {
         // manual price (attributes_prices has no entry for it) — reachable by
         // simply selecting a customer after a numpad price override.
         const combo_children_lines = this.lines.filter(
-            (line) => line.combo_parent_id && attributes_prices[line.combo_parent_id.id],
+            (line) =>
+                line.combo_parent_id && attributes_prices[line.combo_parent_id.id],
         );
         combo_children_lines.forEach((line) => {
             const currentItem = attributes_prices[line.combo_parent_id.id].find(
@@ -594,16 +596,15 @@ export class PosOrder extends PosOrderAccounting {
                         // displayPriceUnitNoDiscount here was provably zero —
                         // those two only differ by the line's own discount,
                         // which is 0 in this branch.
-                        const listPriceDetails = orderLine.product_tmpl_id.getTaxDetails(
-                            {
+                        const listPriceDetails =
+                            orderLine.product_tmpl_id.getTaxDetails({
                                 overridedValues: {
                                     price:
                                         orderLine.product_id.lst_price +
                                         (orderLine.price_extra || 0),
                                     fiscalPosition: this.fiscal_position_id,
                                 },
-                            },
-                        );
+                            });
                         const taxedListPrice =
                             this.config.iface_tax_included === "total"
                                 ? listPriceDetails.total_included

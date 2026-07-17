@@ -180,8 +180,6 @@ describe("candidate config isolation", () => {
             "stale",
         );
         // The stale candidate mutated only its own discarded copy.
-        expect(JSON.stringify(staleCandidate.groups.A.list.domain)).toInclude(
-            "stale",
-        );
+        expect(JSON.stringify(staleCandidate.groups.A.list.domain)).toInclude("stale");
     });
 });

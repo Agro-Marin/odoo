@@ -737,7 +737,10 @@ export class PosStore extends WithLazyGetterTrap {
         // sets are in-memory only, so without this a reload silently orphaned
         // those edits.
         const pendingOrderIds = this.models["pos.order"]
-            .filter((order) => order.isUnsyncedPaid || (order.isDirty() && !order.finalized))
+            .filter(
+                (order) =>
+                    order.isUnsyncedPaid || (order.isDirty() && !order.finalized),
+            )
             .map((order) => order.id);
 
         if (pendingOrderIds.length > 0) {
