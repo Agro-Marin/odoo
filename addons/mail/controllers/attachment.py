@@ -11,7 +11,7 @@ from odoo.http import content_disposition, request
 from odoo.tools.misc import file_open
 from odoo.tools.pdf import DependencyError, PdfReadError, extract_page
 
-from odoo.addons.mail.controllers.thread import ThreadController
+from odoo.addons.mail.controllers.thread import ThreadController, _to_record_id
 from odoo.addons.mail.tools.discuss import Store, add_guest_to_context
 
 logger = logging.getLogger(__name__)
@@ -99,7 +99,9 @@ class AttachmentController(ThreadController):
     )
     @add_guest_to_context
     def mail_attachment_delete(self, attachment_id, access_token=None):
-        attachment = request.env["ir.attachment"].browse(int(attachment_id)).exists()
+        attachment = (
+            request.env["ir.attachment"].browse(_to_record_id(attachment_id)).exists()
+        )
         if not attachment or not attachment._has_attachments_ownership([access_token]):
             request.env.user._bus_send("ir.attachment/delete", {"id": attachment_id})
             raise NotFound
@@ -163,7 +165,9 @@ class AttachmentController(ThreadController):
         self, attachment_id, thumbnail=None, access_token=None
     ):
         """Updates the thumbnail of an attachment."""
-        attachment = request.env["ir.attachment"].browse(int(attachment_id)).exists()
+        attachment = (
+            request.env["ir.attachment"].browse(_to_record_id(attachment_id)).exists()
+        )
         if not attachment or (
             not attachment.has_access("write")
             and not attachment._has_attachments_ownership([access_token])

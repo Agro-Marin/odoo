@@ -404,7 +404,14 @@ class MailController(http.Controller):
         font_obj = ImageFont.truetype(file_open(font, "rb"), height)
 
         # if received character is not a number, keep old behaviour (icon is character)
-        icon = chr(int(icon)) if icon.isdigit() else icon
+        if icon.isdigit():
+            code = int(icon)
+            # chr() only accepts a valid Unicode code point; a huge value on
+            # this unauthenticated (auth="none") route would raise ValueError
+            # and surface as a 500. Reject out-of-range codes cleanly instead.
+            if code > 0x10FFFF:
+                raise request.not_found()
+            icon = chr(code)
 
         # Background standardization
         if bg is not None and bg.startswith("rgba"):
@@ -420,7 +427,10 @@ class MailController(http.Controller):
         dummy = Image.new("RGBA", (1, 1))
         draw = ImageDraw.Draw(dummy)
         bbox = draw.textbbox((0, 0), icon, font=font_obj)
-        boxw = bbox[2] - bbox[0]
+        # Clamp the glyph width to the same 512px ceiling as height/width: a long
+        # caller-supplied non-digit `icon` string would otherwise size the output
+        # image by its full rendered width, an unauthenticated memory amplifier.
+        boxw = max(1, min(bbox[2] - bbox[0], 512))
 
         # Render icon directly on the output image
         outimage = Image.new("RGBA", (boxw, height), bg or (0, 0, 0, 0))
