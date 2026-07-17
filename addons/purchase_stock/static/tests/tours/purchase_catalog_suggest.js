@@ -85,7 +85,18 @@ registry.category("web_tour.tours").add("test_purchase_order_suggest_search_pane
 
         // --- Check Add All: suggest qty added and suggest parameters are saved on vendor
         ...catalogSuggestion.addAllSuggestions(),
+        // Wait for the catalog to reflect the added suggestion before leaving the
+        // catalog: the PO line added before confirming the PO already renders a
+        // row in the order form, so going back too early would assert against
+        // the stale quantity while "Add All" is still being applied.
+        ...productCatalog.waitForQuantity("test_product", 24),
         ...productCatalog.goBackToOrder(),
+        {
+            content:
+                "Wait for the order line to be re-rendered with the suggested quantity",
+            trigger:
+                ".o_form_renderer .o_list_view.o_field_x2many tbody tr.o_data_row td[name='product_qty']:contains('24.00')",
+        },
         ...purchaseForm.checkLineValues(0, {
             product: "test_product",
             quantity: "24.00",
@@ -118,14 +129,20 @@ registry.category("web_tour.tours").add("test_purchase_order_suggest_search_pane
         }),
         ...catalogSuggestion.checkKanbanRecordPosition("test_product", 0),
 
-        ...catalogSuggestion.setParameters({ basedOn: "Last 30 days", factor: 10 }), // 2 orders of 12
+        ...catalogSuggestion.setParameters({
+            basedOn: "Last 30 days",
+            factor: 10,
+        }), // 2 orders of 12
         { trigger: "span[name='suggest_total']:visible:contains('60')" },
         ...catalogSuggestion.assertCatalogRecord("test_product", {
             monthly: 24,
             suggest: 3,
         }),
 
-        ...catalogSuggestion.setParameters({ basedOn: "Last 3 months", factor: 500 }), // 2 orders of 12
+        ...catalogSuggestion.setParameters({
+            basedOn: "Last 3 months",
+            factor: 500,
+        }), // 2 orders of 12
         { trigger: "span[name='suggest_total']:visible:contains('740')" },
         ...catalogSuggestion.assertCatalogRecord("test_product", {
             monthly: 8,
@@ -155,7 +172,9 @@ registry.category("web_tour.tours").add("test_purchase_order_suggest_search_pane
             monthly: 24,
         }),
         ...catalogSuggestion.checkKanbanRecordPosition("Other product", 0),
-        { trigger: "span[name='kanban_monthly_demand_qty']:visible:contains('24')" }, // Should come back to normal monthly demand
+        {
+            trigger: "span[name='kanban_monthly_demand_qty']:visible:contains('24')",
+        }, // Should come back to normal monthly demand
 
         /*
          * -------------------  PART 3 : KANBAN FILTERS ---------------------
