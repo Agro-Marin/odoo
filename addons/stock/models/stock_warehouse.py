@@ -460,8 +460,14 @@ class StockWarehouse(models.Model):
         registry and clears this cache. Lets ``_create_missing_locations`` check
         for missing locations on every write without a barcode search per
         location each time.
+
+        Runs under the ``stock_warehouse_probe`` context so ``_valid_barcode``
+        does not emit its collision warning: only the dict keys are read here,
+        no location is about to be created.
         """
-        return tuple(self._get_locations_values({}))
+        return tuple(
+            self.with_context(stock_warehouse_probe=True)._get_locations_values({})
+        )
 
     @ormcache()
     def _get_route_depend_fields(self):
@@ -490,16 +496,22 @@ class StockWarehouse(models.Model):
         purpose: an over-inclusive trigger set only risks a redundant (and
         idempotent) refresh, whereas a missing field would skip a needed one.
 
-        Structural, hence cached — but ``_generate_global_route_rules_values``
-        can ``raise`` on a warehouse whose delivery chain has no stock-origin
-        rule. The raise propagates *before* ormcache stores anything, so a
-        misconfigured warehouse never poisons this cache for its healthy
-        siblings: the caller turns the raise into a base-globals fallback, and
-        the next successful call caches the real set. (The old combined helper
-        cached the fallback registry-wide, letting one broken warehouse suppress
-        global-route refreshes for all.)
+        The generation runs under the ``stock_warehouse_probe`` context: only
+        the dict keys and ``depends`` are read here, so the probe suppresses the
+        side effects of the real generation path — ``_find_or_create_global_route``
+        must not create a route, and the base MTO resolution must not raise —
+        while unmodified module overrides keep working unchanged.
+
+        Structural, hence cached — a module override can still ``raise`` for
+        this warehouse's company (e.g. mrp's production-location lookup). The
+        raise propagates *before* ormcache stores anything, so a misconfigured
+        warehouse never poisons this cache for its healthy siblings: the caller
+        retries on the other warehouses, and the next successful call caches
+        the real set.
         """
-        global_values = self._generate_global_route_rules_values()
+        global_values = self.with_context(
+            stock_warehouse_probe=True
+        )._generate_global_route_rules_values()
         return (
             frozenset(self._collect_depends(global_values)),
             frozenset(global_values),
@@ -513,24 +525,38 @@ class StockWarehouse(models.Model):
         route values (and without calling ``get_rules_dict`` / resolving partner
         & production locations) on every write.
 
-        The global part is guarded: ``_generate_global_route_rules_values`` can
-        ``raise`` on a warehouse whose delivery chain has no stock-origin rule.
-        Rather than abort an unrelated write (e.g. a rename), fall back to the
-        base-known globals. This fallback lives here, not in the cached helper,
-        so it is never cached and can't leak onto other warehouses (see
-        ``_get_global_trigger_fields``).
+        The global part is computed under a side-effect-free probe (see
+        ``_get_global_trigger_fields``), but a module override may still raise
+        for a given warehouse's company (e.g. mrp's production-location
+        lookup). The sets are structural — identical for every warehouse — so
+        retry the cached computation through the other warehouses before
+        falling back. The last-resort fallback is over-inclusive on the rule
+        keys (every ``stock.rule`` Many2one on the warehouse is treated as a
+        trigger); the ``depends`` fall back to the base set until the next
+        successful computation caches the real one.
         """
         route_depends = self._get_route_depend_fields()
-        try:
-            global_depends, global_rule_keys = self._get_global_trigger_fields()
-        except UserError:
-            _logger.warning(
-                "Could not resolve global route rules while computing warehouse "
-                "route trigger fields; falling back to base globals.",
-            )
-            global_depends = frozenset({"delivery_steps"})
-            global_rule_keys = frozenset({"mto_pull_id"})
-        return route_depends, global_depends, global_rule_keys
+        probe = self.sudo().with_context(active_test=False)
+        candidates = probe | probe.search([("id", "not in", probe.ids)])
+        for warehouse in candidates:
+            try:
+                global_depends, global_rule_keys = (
+                    warehouse._get_global_trigger_fields()
+                )
+                return route_depends, global_depends, global_rule_keys
+            except UserError:
+                continue
+        _logger.warning(
+            "Could not resolve global route rules on any warehouse while "
+            "computing route trigger fields; falling back to structural "
+            "defaults.",
+        )
+        global_rule_keys = frozenset(
+            name
+            for name, field in self._fields.items()
+            if field.type == "many2one" and field.comodel_name == "stock.rule"
+        )
+        return route_depends, frozenset({"delivery_steps"}), global_rule_keys
 
     # ------------------------------------------------------------
     # DEFAULT METHODS
@@ -648,6 +674,11 @@ class StockWarehouse(models.Model):
             for depend in reactivate_depends:
                 values[depend] = self[depend]
             self.write(values)
+            # The blanket rule unarchive above also resurrected the resupply
+            # legs `_check_delivery_resupply` had archived as configuration
+            # state; the route rebuild only covers the warehouse's own
+            # reception/delivery routes, so re-align those explicitly.
+            self._align_resupply_rule_activity()
 
     def _sync_resupply_routes(self, previous_resupply_whs):
         """Reflect a change of ``resupply_wh_ids`` on the resupply routes:
@@ -986,7 +1017,13 @@ class StockWarehouse(models.Model):
         if not route:
             if raise_if_not_found:
                 raise UserError(_("Can't find any generic route %s.", route_name))
-            if data_route and create:
+            # Under the structural probe (trigger-field computation) creating
+            # the missing route would be a side effect of a mere metadata read.
+            if (
+                data_route
+                and create
+                and not self.env.context.get("stock_warehouse_probe")
+            ):
                 route = data_route.copy(
                     {
                         "name": route_name,
@@ -1022,6 +1059,15 @@ class StockWarehouse(models.Model):
         rule = next(
             (r for r in delivery_rules if r.from_loc == self.lot_stock_id), None
         )
+        if (
+            not rule
+            and delivery_rules
+            and self.env.context.get("stock_warehouse_probe")
+        ):
+            # Structural probe (trigger-field computation): only the dict keys
+            # and `depends` are read, so any leg works as a stand-in and the
+            # broken delivery chain must not abort an unrelated write.
+            rule = delivery_rules[0]
         if not rule:
             raise UserError(
                 _(
@@ -1278,14 +1324,17 @@ class StockWarehouse(models.Model):
             )
         )
         if location:
-            # Don't silently swallow the collision: a sub-location left without a
-            # barcode is easy to miss and confusing to debug later.
-            _logger.warning(
-                "Barcode %s is already used by location %s; the new warehouse "
-                "location will be created without a barcode.",
-                barcode,
-                location.display_name,
-            )
+            # Don't silently swallow the collision: a sub-location left without
+            # a barcode is easy to miss and confusing to debug later. Stay
+            # silent under the structural probe though — no location is being
+            # created there, so the warning would be misleading noise.
+            if not self.env.context.get("stock_warehouse_probe"):
+                _logger.warning(
+                    "Barcode %s is already used by location %s; the new warehouse "
+                    "location will be created without a barcode.",
+                    barcode,
+                    location.display_name,
+                )
             return False
         return barcode
 
@@ -1739,6 +1788,51 @@ class StockWarehouse(models.Model):
                     ("location_src_id", "=", self.lot_stock_id.id),
                 ]
             ).write({"active": False})
+
+    def _align_resupply_rule_activity(self):
+        """Re-align the active flag of the step-dependent resupply legs with the
+        current delivery configuration.
+
+        Reactivating a warehouse unarchives every rule scoped to it, including
+        the legs `_check_delivery_resupply` had archived as configuration state:
+        the Stock -> Output pick leg only exists for multi-step delivery, the
+        Stock -> Transit MTO rules only for single-step delivery. Without this
+        pass, an archive/unarchive cycle of a supplier warehouse resurrects the
+        variant that contradicts its current delivery steps.
+
+        Only toggles ``active`` on existing rules — creation/repointing remains
+        `_check_delivery_resupply`'s job when the steps actually change.
+        """
+        self.ensure_one()
+        Rule = self.env["stock.rule"].with_context(active_test=False)
+        routes = self.env["stock.route"].search([("supplier_wh_id", "=", self.id)])
+        if not routes:
+            return
+        multi_step = self.delivery_steps != "ship_only"
+        pick_legs = Rule.search(
+            [
+                ("route_id", "in", routes.ids),
+                ("action", "!=", "push"),
+                ("location_dest_id", "=", self.wh_output_stock_loc_id.id),
+                ("picking_type_id", "=", self.pick_type_id.id),
+            ]
+        )
+        pick_legs.write({"active": multi_step})
+        mto_route = self._find_or_create_global_route(
+            "stock.route_warehouse0_mto",
+            _("Replenish on Order (MTO)"),
+            create=False,
+        )
+        if mto_route:
+            Rule.search(
+                [
+                    ("route_id", "=", mto_route.id),
+                    ("action", "!=", "push"),
+                    ("location_dest_id.usage", "=", "transit"),
+                    ("location_src_id", "=", self.lot_stock_id.id),
+                    ("warehouse_id", "=", self.id),
+                ]
+            ).write({"active": not multi_step})
 
     def _update_name_and_code(self, new_name=False, new_code=False):
         if new_code:

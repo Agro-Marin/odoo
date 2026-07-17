@@ -95,7 +95,12 @@ class StockReplenishmentInfo(models.TransientModel):
         self.ensure_one()
         orderpoint = self.orderpoint_id
         orderpoints_values = orderpoint._get_lead_days_values()
-        return orderpoint.rule_ids._get_lead_days(
+        # Thread the orderpoint's own horizon: `_get_lead_days` otherwise
+        # resolves it from the ambient company, which in multi-company is not
+        # necessarily the orderpoint's (same contract as `_compute_lead_days`).
+        return orderpoint.rule_ids.with_context(
+            global_horizon_days=orderpoint.get_horizon_days(),
+        )._get_lead_days(
             orderpoint.product_id,
             **orderpoints_values,
         )
@@ -248,6 +253,14 @@ class StockReplenishmentInfo(models.TransientModel):
                     ],
                 ],
             )
+            # Demand is everything shipped to customers or consumed by
+            # production. The return leg is asymmetric *on purpose*: only
+            # customer returns are netted. Inflow from a production location is
+            # ambiguous at the stock level — for a component it is a demand
+            # reversal (unused parts coming back), but for a *manufactured*
+            # product it is its finished-goods supply, and netting it would
+            # cancel the product's real demand (see mrp's
+            # `test_auto_assign` graph expectations).
             quantity_out = (
                 self.env["stock.move"]._read_group(
                     Domain.AND(

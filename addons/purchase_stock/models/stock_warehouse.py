@@ -120,12 +120,6 @@ class StockWarehouse(models.Model):
         routes.update(self._get_receive_routes_values("buy_to_resupply"))
         return routes
 
-    def _update_name_and_code(self, name=False, code=False):
-        res = super()._update_name_and_code(name, code)
-        warehouse = self[0]
-        # change the buy stock rule name
-        if warehouse.buy_pull_id and name:
-            warehouse.buy_pull_id.write(
-                {"name": warehouse.buy_pull_id.name.replace(warehouse.name, name, 1)},
-            )
-        return res
+    # No `_update_name_and_code` override: the buy rule's name is built by
+    # `_format_rulename` from the warehouse *code*, not its name, so the former
+    # `.replace(warehouse.name, ...)` rename here never matched anything.
