@@ -12,6 +12,8 @@ the public surface so existing consumers and tests keep their imports.
 import functools
 import logging
 import re
+from collections import deque
+from collections.abc import Collection, Iterable, Mapping
 from pathlib import Path
 
 from odoo.libs.asset_log import get_asset_logger, log_event
@@ -264,6 +266,122 @@ _IMPORT_ANY_RE = re.compile(
     r"""["'](?P<spec>@[^"']+)["']"""
     r"""|import\s*["'](?P<side>@[^"']+)["']"""
 )
+
+# Import scan for the debug-mode transitive walk
+# (``discover_transitive_import_specifiers``).  Unlike ``_IMPORT_ANY_RE`` —
+# which only collects ``@addon`` specifiers from ``import`` statements of
+# BUNDLE modules — the walk scans OUT-OF-BUNDLE files the browser fetches as
+# raw source, so it must see EVERY statically imported specifier: relative
+# siblings (followed for their own bare imports) and the re-export ``from``
+# clauses (``export {x} from``, ``export * from``, ``export * as ns from``)
+# the lexer worker deliberately drops from its ``imports`` records.  The
+# lookbehind keeps identifiers merely ENDING in ``import``/``export``
+# (``doImport``) from matching; the bounded lazy binding chunk keeps the
+# scan from crossing statement boundaries on pathological input.  A false
+# positive (e.g. an import statement quoted inside a comment) costs at most
+# one unused-but-valid import-map entry, never a broken one.
+_TRANSITIVE_IMPORT_RE = re.compile(
+    r"(?<![\w$.])(?:import|export)\s*"
+    r"[\w$*{},\s]{0,400}?"  # bindings: names, braces, commas, star, "as"
+    r"\bfrom\s*"
+    r"""["'](?P<spec>[^"'\n]+)["']"""
+    r"""|(?<![\w$.])import\s*["'](?P<side>[^"'\n]+)["']"""
+)
+
+
+def _scan_import_specifiers(src: str) -> set[str]:
+    """Return every statically imported specifier of a JS source file.
+
+    Primary path: the ``es-module-lexer`` worker (``imports`` records, all
+    specifier shapes including relative, plus its ``starFrom`` list).  The
+    ``_TRANSITIVE_IMPORT_RE`` pass ALWAYS runs and is unioned in: it is the
+    fallback when the worker is unavailable, and it supplies the
+    ``export {x} from`` / ``export * as ns from`` clauses the worker's
+    ``imports`` records omit.  Duplicates collapse in the set.
+    """
+    specs: set[str] = set()
+    lexed = lex_module(src)
+    if lexed is not None:
+        specs.update(imp["n"] for imp in lexed["imports"])
+        specs.update(lexed.get("starFrom") or ())
+    for match in _TRANSITIVE_IMPORT_RE.finditer(src):
+        specs.add(match.group("spec") or match.group("side"))
+    return specs
+
+
+def discover_transitive_import_specifiers(
+    seed_specifiers: Iterable[str],
+    known_specifiers: Collection[str],
+    ext_libs: Mapping[str, str],
+    lib_candidates: Mapping[str, tuple[str, ...]],
+    bundle_name: str = "",
+) -> set[str]:
+    """Walk the import graph from *seed_specifiers* and return every reachable
+    ``@addon`` specifier absent from *known_specifiers*.
+
+    Debug-mode/fallback rendering resolves cross-bundle specifiers to DIRECT
+    static URLs: the browser fetches each file's RAW source, so every bare
+    specifier that source imports must resolve through the import map too —
+    transitively.  The one-level ``_discover_bridge_specifiers`` scan only
+    covers the bundle's own modules; this walk covers the out-of-bundle
+    closure.  (Canonical failure: ``web.report_assets_common`` ships only
+    ``@web/libs/bootstrap``, which imports ``@web/core/utils/dom/scrolling``,
+    which imports ``@web/core/browser/browser`` — unmapped, so every
+    ``/report/html`` page on the fallback path died pre-boot with "Failed to
+    resolve module specifier".)
+
+    Relative imports of walked files are followed for scanning (their bare
+    imports matter) but never returned — the browser resolves a relative
+    reference against the importing module's URL, no map entry needed.
+    Specifiers in *known_specifiers* (already mapped), *ext_libs*, or
+    ``@odoo/owl`` are assumed both resolvable and already scanned.  A
+    specifier whose source cannot be read is still returned (the caller
+    decides resolvability); the failed read is logged by the resolver.
+
+    :param seed_specifiers: cross-bundle specifiers already resolved to
+        direct URLs, whose sources seed the walk
+    :param known_specifiers: specifiers the current import map already
+        resolves (never re-added, never re-scanned)
+    :param ext_libs: bare-specifier → URL externals (``ODOO_EXTERNAL_LIBS``)
+    :param lib_candidates: esbuild vendored-lib aliases, for source reads
+    :param bundle_name: for log attribution only
+    """
+    resolver = _BridgeExportResolver(ext_libs, lib_candidates, bundle_name)
+    known = set(known_specifiers) | set(ext_libs) | {"@odoo/owl"}
+    discovered: set[str] = set()
+    queue: deque[str] = deque(seed_specifiers)
+    scanned: set[str] = set(queue)
+    while queue:
+        spec = queue.popleft()
+        src = resolver.read_source(spec)
+        if src is None:
+            continue
+        for target in _scan_import_specifiers(src):
+            if target.startswith("."):
+                # Followed for scanning only — resolves in the browser
+                # relative to the importing module's URL.
+                abs_spec = _resolve_export_specifier(spec, target)
+                if abs_spec and abs_spec not in scanned:
+                    scanned.add(abs_spec)
+                    queue.append(abs_spec)
+                continue
+            if not target.startswith("@") or target in known or target in discovered:
+                # Non-addon bare specifiers resolve via *ext_libs* or not
+                # at all; known/duplicate specifiers are already handled.
+                continue
+            discovered.add(target)
+            scanned.add(target)
+            queue.append(target)
+    if discovered:
+        log_event(
+            _bridge_log,
+            logging.DEBUG,
+            "transitive_specifiers",
+            bundle=bundle_name,
+            seeds=len(scanned),
+            discovered=len(discovered),
+        )
+    return discovered
 
 
 def _resolve_export_specifier(
