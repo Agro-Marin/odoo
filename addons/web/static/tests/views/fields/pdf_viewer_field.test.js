@@ -2,6 +2,7 @@
 
 import { expect, test } from "@odoo/hoot";
 import { click, queryOne, setInputFiles, waitFor } from "@odoo/hoot-dom";
+import { animationFrame } from "@odoo/hoot-mock";
 import {
     clickSave,
     defineModels,
@@ -109,4 +110,31 @@ test("PdfViewerField: upload file and download it", async () => {
     await clickSave();
     await click(".fa-download");
     expect.verifySteps(["ir.actions.act_url", "browser_open:_blank"]);
+});
+
+test("PdfViewerField: uploaded blob does not leak across pager navigation", async () => {
+    Partner._records = [
+        { id: 1, document: false },
+        { id: 2, document: "bbb==\n" },
+    ];
+    onRpc("web_save", () => {});
+    await mountView({
+        type: "form",
+        resModel: "partner",
+        resId: 1,
+        resIds: [1, 2],
+        arch: '<form><field name="document" widget="pdf_viewer"/></form>',
+    });
+    // Upload a PDF on record 1 -> blob URL.
+    const file = new File(["test"], "test.pdf", { type: "application/pdf" });
+    await click(".o_field_pdf_viewer input[type=file]");
+    await setInputFiles(file);
+    await waitFor("iframe.o_pdfview_iframe");
+    expect(getIframeProtocol()).toBe("blob");
+    await clickSave();
+    // Navigate to record 2 -> must show record 2's server PDF, not record 1's blob.
+    await click(".o_pager_next");
+    await animationFrame();
+    expect(getIframeProtocol()).toBe("https");
+    expect(getIframeViewerParams()).toBe("model=partner&field=document&id=2");
 });

@@ -2140,3 +2140,32 @@ test("typing right after opening the search menu keeps focus in the input", asyn
     expect("input.o_searchview_input").toBeFocused();
     expect("input.o_searchview_input").toHaveValue("ab");
 });
+
+test("a stale expansion must not revert a cleared query", async () => {
+    // Expand a menu (async name_search), then clear the search before it
+    // resolves. The clearing computeState has no async work, so it must still
+    // supersede the in-flight expansion — otherwise the stale frame resumes on
+    // resolution and reverts the query (and input value) to the old text.
+    const def = new Deferred();
+    onRpc("name_search", () => def);
+    const searchBar = await mountWithSearch(SearchBar, {
+        resModel: "partner",
+        searchMenuTypes: [],
+        searchViewId: false,
+        searchViewArch: `
+            <search>
+                <field name="bar" operator="child_of"/>
+            </search>
+        `,
+    });
+    await editSearch("rec");
+    await contains(".o_expand").click();
+    // Clear the search while the expansion's name_search is still pending.
+    await editSearch("");
+    // Resolve the stale expansion: it must NOT restore the old query.
+    def.resolve();
+    await animationFrame();
+    expect(searchBar.state.query).toBe("", {
+        message: "a superseded expansion must not revert the cleared query",
+    });
+});

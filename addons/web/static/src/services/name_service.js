@@ -260,7 +260,22 @@ export const nameService = {
             return Object.fromEntries(resIds.map((resId) => [resId, namesById[resId]]));
         }
 
-        return { addDisplayNames, clearCache, loadDisplayNames };
+        return {
+            addDisplayNames,
+            clearCache,
+            loadDisplayNames,
+            destroy() {
+                // ``userBus`` is a module-level singleton that outlives this env
+                // (unlike ``env.bus``, which is collected with the env), so its
+                // listener must be removed explicitly or every started env leaks
+                // its whole display-name cache — amplified across test suites
+                // that spin up many envs. Mirrors slow_rpc / result_set_cache.
+                userBus.removeEventListener(
+                    UserEvent.ACTIVE_COMPANIES_CHANGED,
+                    clearCache,
+                );
+            },
+        };
     },
 };
 

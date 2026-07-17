@@ -26,6 +26,12 @@ export function areDatesEqual(d1, d2) {
             )
         );
     }
+    if (!d1 && !d2) {
+        // Both values are "unset". The model's empty sentinel is `false` while a
+        // parsed-empty input yields `null`, so a strict `===` here would treat
+        // `null` vs `false` as a change and spuriously dirty an untouched field.
+        return true;
+    }
     if (d1 instanceof DateTime && d2 instanceof DateTime && d1 !== d2) {
         return d1.equals(d2);
     } else {

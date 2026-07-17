@@ -15876,3 +15876,36 @@ test(`focusNextCard does not crash when the focused card is in no rendered group
     // Focus never moved onto a card inside the area.
     expect(document.activeElement).toBe(orphanCard);
 });
+
+test("archiving a single card removes it and refreshes counters", async () => {
+    // Regression: a single-card archive must remove the card from its column and
+    // refresh the counter/progressbar. The default single-datapoint reload
+    // re-reads the archived record by id and leaves a stale card, so the kanban
+    // renderer passes a list-level reload (like the bulk "archive all" path).
+    Partner._fields.active = fields.Boolean({ default: true });
+    await mountView({
+        type: "kanban",
+        resModel: "partner",
+        arch: `
+            <kanban limit="3">
+                <progressbar field="foo" colors='{"yop":"success","gnap":"warning","blip":"danger"}' sum_field="int_field"/>
+                <templates>
+                    <t t-name="card">
+                        <a role="menuitem" type="archive" class="dropdown-item o_archive">archive</a>
+                        <field name="foo"/>
+                    </t>
+                </templates>
+            </kanban>`,
+        groupBy: ["product_id"],
+    });
+    const before = queryAll(".o_kanban_record", { root: getKanbanColumn(0) }).length;
+    expect(before).toBe(2);
+
+    await contains(".o_kanban_record .o_archive").click();
+    await animationFrame();
+    await contains(".modal .btn-primary").click();
+    await animationFrame();
+
+    const after = queryAll(".o_kanban_record", { root: getKanbanColumn(0) }).length;
+    expect(after).toBe(1, { message: "archived card must be removed from its column" });
+});

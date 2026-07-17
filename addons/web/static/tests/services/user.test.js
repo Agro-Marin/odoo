@@ -149,3 +149,20 @@ test("activate company branches after access error", async () => {
     // Activating the first branch should activate all branches
     expect(cookie.get("cids")).toBe("1-2-3");
 });
+
+test("activateCompanies does not mutate the caller's array", async () => {
+    cookie.set("cids", "1");
+    serverState.companies = [
+        { id: 1, name: "Company 1", sequence: 1, parent_id: false, child_ids: [2, 3] },
+        { id: 2, name: "Branch 1", sequence: 2, parent_id: 1, child_ids: [] },
+        { id: 3, name: "Branch 2", sequence: 3, parent_id: 1, child_ids: [] },
+    ];
+
+    // Passing a company with children used to alias the argument and push the
+    // resolved child ids onto it, corrupting the caller's own data.
+    const callerIds = [1];
+    user.activateCompanies(callerIds, { reload: false });
+    expect(callerIds).toEqual([1], { message: "caller's array must not be mutated" });
+    // The children were still activated (via the internal copy).
+    expect(cookie.get("cids")).toBe("1-2-3");
+});

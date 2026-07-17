@@ -187,26 +187,27 @@ export class SearchBar extends Component {
             }
         }
 
-        // Only supersede in-flight expansions when there is actually new work:
-        // an empty Promise.all([]) would still bump keepLast and pointlessly
-        // discard a pending fetch.
-        if (tasks.length) {
-            let taskResults;
-            try {
-                taskResults = await this.keepLast.add(
-                    Promise.all(tasks.map((task) => task.prom)),
-                );
-            } catch (error) {
-                if (error instanceof SupersededError) {
-                    // A newer computeState superseded this one — drop silently.
-                    return;
-                }
-                throw error;
+        // Always enter the keepLast, even with no async work: a newer
+        // computeState with nothing to fetch must still supersede an in-flight
+        // expansion, otherwise that stale frame resumes on resolution and
+        // overwrites this newer query/expanded state and the input value. The
+        // per-request dedup in `_pendingSubItems` means superseding the frame no
+        // longer wastes the underlying fetch.
+        let taskResults;
+        try {
+            taskResults = await this.keepLast.add(
+                Promise.all(tasks.map((task) => task.prom)),
+            );
+        } catch (error) {
+            if (error instanceof SupersededError) {
+                // A newer computeState superseded this one — drop silently.
+                return;
             }
-            tasks.forEach((task, index) => {
-                subItems[task.id] = taskResults[index];
-            });
+            throw error;
         }
+        tasks.forEach((task, index) => {
+            subItems[task.id] = taskResults[index];
+        });
 
         this.state.expanded = expanded;
         this.state.query = query;

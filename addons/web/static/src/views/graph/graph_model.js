@@ -626,7 +626,10 @@ export class GraphModel extends Model {
                 labels.push(label);
             }
 
-            const value = group[fieldAggregate];
+            // The server returns `false` (not 0) for an aggregate over an empty
+            // group (e.g. a fill_temporal gap). Coerce it so a single empty group
+            // neither flips `allIntegers` chart-wide nor renders a blank tooltip.
+            const value = group[fieldAggregate] === false ? 0 : group[fieldAggregate];
             if (!Number.isInteger(value)) {
                 metaData.allIntegers = false;
             }

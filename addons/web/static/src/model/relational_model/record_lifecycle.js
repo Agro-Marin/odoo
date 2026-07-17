@@ -21,11 +21,17 @@ import { modelLog } from "@web/core/utils/asset_log";
  * decides whether to show it — the default hook bypasses it and reloads.
  *
  * @param {RelationalRecord} record
+ * @param {() => Promise<any>} [reload] Override for the post-archive reload.
+ *  Defaults to a single-datapoint ``record._load()`` (correct for a form).
+ *  Multi-record views (kanban) must pass a list-level reload so the archived
+ *  record is actually removed from its group and the counters/progressbars
+ *  refresh — a single-datapoint reload re-reads the record by id (which
+ *  ignores the active filter) and leaves a stale card behind.
  * @returns {Promise<any>} archive hook result (usually a reload promise)
  */
-export async function archive(record) {
+export async function archive(record, reload) {
     modelLog("archive", record.resModel, record.resId);
-    return toggleArchive(record, true);
+    return toggleArchive(record, true, reload);
 }
 
 /**
@@ -33,11 +39,12 @@ export async function archive(record) {
  * See {@link archive} for hook and mutex contract.
  *
  * @param {RelationalRecord} record
+ * @param {() => Promise<any>} [reload] See {@link archive}.
  * @returns {Promise<any>}
  */
-export async function unarchive(record) {
+export async function unarchive(record, reload) {
     modelLog("unarchive", record.resModel, record.resId);
-    return toggleArchive(record, false);
+    return toggleArchive(record, false, reload);
 }
 
 /**
@@ -49,7 +56,7 @@ export async function unarchive(record) {
  * @param {boolean} state ``true`` to archive, ``false`` to unarchive
  * @returns {Promise<any>}
  */
-async function toggleArchive(record, state) {
+async function toggleArchive(record, state, reload = () => record._load()) {
     const method = state ? "action_archive" : "action_unarchive";
     const action = await record.model.orm.call(
         record.resModel,
@@ -59,7 +66,6 @@ async function toggleArchive(record, state) {
             context: record.context,
         },
     );
-    const reload = () => record._load();
     return record.model.hooks.ui.onDisplayArchiveAction(action, reload);
 }
 

@@ -395,14 +395,17 @@ test("editing a many2one (with form view opened with external button)", async ()
 });
 
 test("many2ones in form views with show_address", async () => {
-    onRpc("web_read", ({ kwargs }) => {
+    onRpc("web_read", ({ kwargs, parent }) => {
         if (kwargs.specification.trululu.context.show_address) {
-            return [
-                {
-                    name: "",
-                    trululu: { display_name: "aaa\nStreet\nCity ZIP" },
-                },
-            ];
+            // A real ``web_read`` returns the related record's id alongside its
+            // display_name; keep it (via ``parent()``) so the "open record"
+            // external button — which requires a persisted numeric id — renders.
+            const result = parent();
+            result[0].trululu = {
+                id: result[0].trululu.id,
+                display_name: "aaa\nStreet\nCity ZIP",
+            };
+            return result;
         }
     });
     await mountView({

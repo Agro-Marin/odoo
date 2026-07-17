@@ -117,6 +117,27 @@ describe("isBrowserSafari", () => {
         patchUA(UA_FIREFOX_LINUX);
         expect(isBrowserSafari()).toBe(false);
     });
+
+    test("does not detect Safari for iOS Chrome (CriOS)", () => {
+        patchUA(
+            "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) CriOS/120.0.0.0 Mobile/15E148 Safari/604.1",
+        );
+        expect(isBrowserSafari()).toBe(false);
+    });
+
+    test("does not detect Safari for iOS Firefox (FxiOS)", () => {
+        patchUA(
+            "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) FxiOS/121.0 Mobile/15E148 Safari/605.1.15",
+        );
+        expect(isBrowserSafari()).toBe(false);
+    });
+
+    test("does not detect Safari for iOS Edge (EdgiOS)", () => {
+        patchUA(
+            "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 EdgiOS/120.0.0.0 Mobile/15E148 Safari/604.1",
+        );
+        expect(isBrowserSafari()).toBe(false);
+    });
 });
 
 describe("isMacOS", () => {

@@ -1190,3 +1190,29 @@ test(`form-in-dialog destroyed before mount doesn't leak the dialog-stack counte
     expect(stack.count).toBe(0);
     expect(`.blocked_dialog_form`).toHaveCount(0);
 });
+
+test("save on closing tab/browser (uncommitted typed input on NEW record blocks unload)", async () => {
+    // Regression: the value is typed but NOT committed (no blur/focusout), so it
+    // lives only in the DOM input and the FIELD_IS_DIRTY bus event, not yet in
+    // record._changes. A new/creation record can't be beaconed, so beforeUnload
+    // must first flush the pending input synchronously and then block the unload
+    // (native prompt) rather than let the work be silently lost.
+    mockSendBeacon(() => expect.step("sendBeacon"));
+    onRpc("partner", "web_save", () => expect.step("save"));
+
+    await mountView({
+        resModel: "partner",
+        type: "form",
+        arch: `<form><group><field name="name"/></group></form>`,
+        // no resId -> creation / new record
+    });
+    await contains(`.o_field_widget[name="name"] input`).edit("test", {
+        confirm: false,
+    });
+
+    const [event] = await unload();
+    await animationFrame();
+    // No sendBeacon (can't) and no fire-and-forget web_save — just a sync block.
+    expect.verifySteps([]);
+    expect(event.defaultPrevented).toBe(true);
+});

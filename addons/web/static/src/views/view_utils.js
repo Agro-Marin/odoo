@@ -124,6 +124,59 @@ export function isX2Many(field) {
 }
 
 /**
+ * Shared ``beforeunload`` handler for the form and list controllers.
+ *
+ * A record is beacon-eligible only when it already exists (``sendBeacon`` cannot
+ * return the new id for a creation), is not inside a dialog, and the model opted
+ * into ``sendBeacon`` urgent saves. Only that path settles in microtasks, so a
+ * late ``ev.preventDefault()`` after awaiting is still honored. Every other case
+ * (a dirty NEW record, an inline row, a form/list in a dialog) must block the
+ * unload SYNCHRONOUSLY so the browser shows its native "unsaved changes" prompt.
+ *
+ * @param {BeforeUnloadEvent} ev
+ * @param {object} opts
+ * @param {import("@web/model/relational_model/record").Record | null | undefined} opts.record
+ * @param {boolean} opts.inDialog
+ * @param {boolean} opts.useSendBeacon
+ * @param {() => Promise<any>} opts.urgentSave beacon-path save; resolves truthy on success
+ */
+export function handleBeforeUnload(
+    ev,
+    { record, inDialog, useSendBeacon, urgentSave },
+) {
+    if (!record) {
+        return;
+    }
+    const canBeacon = Boolean(record.resId) && !inDialog && useSendBeacon;
+    if (!canBeacon) {
+        // Flush typed-but-uncommitted input synchronously so ``record.dirty``
+        // reflects it. ``record.dirty`` is only raised when a change is
+        // *committed* (blur/Tab), but the browser fires ``beforeunload`` on a
+        // raw Ctrl-W with the input still focused. Entering urgent mode and
+        // firing ``WILL_SAVE_URGENTLY`` makes each field re-commit through a
+        // mutex-bypassed ``record.update``, whose ``_markDirty()`` runs in THIS
+        // tick — before the synchronous ``beforeunload`` dispatch returns.
+        // Fire-and-forget: we need only that synchronous portion; no server
+        // write happens (the callback is a no-op), and we must not await a real
+        // save (its ``preventDefault`` would land too late). Without this, work
+        // typed into a new/dialog/inline-row field and never blurred is silently
+        // lost with no prompt.
+        record.model.urgentSave.run(() => Promise.resolve());
+        if (record.dirty) {
+            ev.preventDefault();
+            ev.returnValue = "Unsaved changes";
+        }
+        return;
+    }
+    return urgentSave().then((ok) => {
+        if (!ok) {
+            ev.preventDefault();
+            ev.returnValue = "Unsaved changes";
+        }
+    });
+}
+
+/**
  * @param {Object} field
  * @returns {boolean} true iff the given field is a numeric field
  */
