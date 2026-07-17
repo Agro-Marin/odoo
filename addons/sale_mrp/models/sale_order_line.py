@@ -197,7 +197,7 @@ class SaleOrderLine(models.Model):
         return super().compute_uom_qty(new_qty, stock_move, rounding)
 
     def _get_bom_component_qty(self, bom):
-        bom_quantity = self.product_id.uom_id._compute_quantity_estimate(1, bom.product_uom_id, rounding_method='HALF-UP')
+        bom_quantity = self.product_id.uom_id._compute_quantity(1, bom.product_uom_id, rounding_method='HALF-UP')
         boms, lines = bom.explode(self.product_id, bom_quantity)
         components = {}
         for line, line_data in lines:
@@ -208,14 +208,14 @@ class SaleOrderLine(models.Model):
                 if uom.id != components[product]['uom']:
                     from_uom = uom
                     to_uom = self.env['uom.uom'].browse(components[product]['uom'])
-                    qty = from_uom._compute_quantity_estimate(qty, to_uom)
+                    qty = from_uom._compute_quantity(qty, to_uom)
                 components[product]['qty'] += qty
             else:
                 # To be in the uom reference of the product
                 to_uom = self.env['product.product'].browse(product).uom_id
                 if uom.id != to_uom.id:
                     from_uom = uom
-                    qty = from_uom._compute_quantity_estimate(qty, to_uom)
+                    qty = from_uom._compute_quantity(qty, to_uom)
                 components[product] = {'qty': qty, 'uom': to_uom.id}
         return components
 

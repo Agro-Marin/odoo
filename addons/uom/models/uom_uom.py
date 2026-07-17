@@ -229,7 +229,12 @@ class UomUom(models.Model):
     #   that guides but does not size a record.
     # - _compute_quantity_reconcile: a stored reconciliation compute
     #   (qty_transferred/qty_invoiced family) matching moves or invoice
-    #   lines back to order lines; not a financial posting.
+    #   lines back to order lines. Degrades while an order is browsed, but
+    #   escalates to strict under the `uom_reconcile_strict` context so the
+    #   delivered/received quantity it feeds is never posted (invoice/bill
+    #   line, accrual amount) unconverted — the posting boundary re-runs the
+    #   compute under that context, see
+    #   `order.line.fields.mixin._assert_transferred_uom_convertible`.
     # Anything that creates or sizes a real record (moves, MOs, order or
     # invoice lines, valuation/COGS) stays on the strict base method. The
     # opt-out is forced: a caller-passed `raise_if_failure` is discarded.
@@ -248,7 +253,20 @@ class UomUom(models.Model):
         return self._compute_quantity_lenient(qty, to_unit, **kwargs)
 
     def _compute_quantity_reconcile(self, qty: float, to_unit: Self, **kwargs) -> float:
-        """Convert for a stored reconciliation compute; degrades on incompatible units."""
+        """Convert for a stored reconciliation compute; degrades on incompatible units.
+
+        Escalates to strict (raises) when the environment flags a posting
+        boundary via the `uom_reconcile_strict` context key. This keeps the
+        stored `qty_transferred`/`qty_transferred_at_date` computes lenient
+        while an order is browsed (never blocking on legacy incompatible-UoM
+        data), yet fails loud when that quantity is about to size an
+        invoice/bill line or an accrual amount — so nothing financial is ever
+        posted on a silently unconverted quantity. See
+        `order.line.fields.mixin._assert_transferred_uom_convertible`.
+        """
+        if self.env.context.get('uom_reconcile_strict'):
+            kwargs.pop('raise_if_failure', None)
+            return self._compute_quantity(qty, to_unit, raise_if_failure=True, **kwargs)
         return self._compute_quantity_lenient(qty, to_unit, **kwargs)
 
     def _check_qty(self, product_qty, uom, rounding_method="HALF-UP"):

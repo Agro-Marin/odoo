@@ -597,6 +597,52 @@ class OrderLineFieldsMixin(models.AbstractModel):
                 transferred_qties[line] = 0.0
         return transferred_qties
 
+    def _invoiced_on_transferred(self):
+        """Whether this line's invoiced/billed quantity is its transferred
+        (delivered/received) quantity rather than its ordered quantity.
+
+        Base lines are never invoiced on transferred qty; sale/purchase
+        override to read their respective policy field.
+        """
+        return False
+
+    def _assert_transferred_uom_convertible(self):
+        """Posting-boundary guard for the leniently-computed transferred qty.
+
+        ``_compute_qty_transferred`` converts move/BoM quantities into the line
+        UoM through ``_compute_quantity_reconcile``, which *degrades* (returns
+        the quantity unconverted) instead of raising when the units share no
+        common reference — so opening or editing an order carrying legacy
+        incompatible-UoM data never blocks. That leniency must not reach a
+        financial posting: before the transferred quantity sizes an
+        invoice/bill line (``qty_to_invoice``) or an accrual amount, re-run the
+        very same computation under the ``uom_reconcile_strict`` context so an
+        impossible conversion raises here — at the deliberate posting action —
+        instead of silently posting an unconverted quantity.
+
+        Reusing ``_compute_qty_transferred`` verbatim (rather than duplicating
+        the per-method move/BoM selection) validates stock-move, kit and
+        analytic lines exactly as they are computed.
+        """
+        for line in self.filtered(lambda l: l._invoiced_on_transferred()):
+            try:
+                line.with_context(
+                    uom_reconcile_strict=True
+                )._compute_qty_transferred()
+            except UserError as error:
+                raise UserError(
+                    _(
+                        "Cannot invoice “%(line)s”: its transferred "
+                        "(delivered/received) quantity relies on a unit of "
+                        "measure conversion that is not possible, so the line "
+                        "cannot be sized for invoicing. Align the units of "
+                        "measure on the order line and its transfers, then try "
+                        "again.\n\n%(detail)s",
+                        line=line.display_name,
+                        detail=error.args[0] if error.args else "",
+                    )
+                ) from error
+
     @api.model
     def _date_in_the_past(self):
         """Whether the context accrual date is before today."""

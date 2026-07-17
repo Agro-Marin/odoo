@@ -1714,6 +1714,9 @@ class SaleOrderLine(models.Model):
         section_lines = self._get_section_lines()
         return sum(section_lines.mapped(totals_field))
 
+    def _invoiced_on_transferred(self):
+        return self.product_id.invoice_policy == "transferred"
+
     def _prepare_aml_vals(self, **optional_values):
         """Prepare the values to create the new invoice line for a sales order line.
 

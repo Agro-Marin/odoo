@@ -236,7 +236,11 @@ class AccountAccruedOrdersWizard(models.TransientModel):
                     else self.date
                 )
                 order_lines = lines.with_context(
-                    accrual_entry_date=accrual_entry_date
+                    accrual_entry_date=accrual_entry_date,
+                    # Posting boundary: the at-date transferred qty feeds the
+                    # accrual amount, so escalate its lenient UoM conversion to
+                    # strict — never accrue on a silently unconverted quantity.
+                    uom_reconcile_strict=True,
                 ).filtered(
                     # We only want non-comment lines (no sections, notes, ...) and include all lines
                     # for purchase orders but exclude downpayment lines for sales orders.
