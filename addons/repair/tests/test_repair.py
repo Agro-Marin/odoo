@@ -329,7 +329,7 @@ class TestRepair(TestRepairCommon):
         so_form.partner_id = self.res_partner_1
         with so_form.line_ids.new() as line:
             line.product_id = self.product_order_repair
-            line.product_uom_qty = 2.0
+            line.product_qty = 2.0
         with so_form.line_ids.new() as line:
             line.display_type = 'line_section'
             line.name = 'Dummy Section'

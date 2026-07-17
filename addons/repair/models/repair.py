@@ -703,7 +703,7 @@ class RepairOrder(models.Model):
             if repair.under_warranty:
                 add_moves.sale_line_id.write({'price_unit': 0.0, 'price_unit_auto': 0.0})
             else:
-                add_moves.sale_line_id._compute_price_unit()
+                add_moves.sale_line_id._compute_price_and_discount()
 
     # -------------------------------------------------------------------------
     # CATALOG
