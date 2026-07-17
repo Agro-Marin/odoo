@@ -82,7 +82,7 @@ const deepSerialization = (
                         const epoch = childRecord._dirtyEpoch;
                         scheduleClear(() => {
                             if (childRecord._dirtyEpoch === epoch) {
-                                childRecord._dirty = false;
+                                childRecord._markClean();
                             }
                         });
                     } else if (!childRecord.isSynced) {
@@ -224,7 +224,7 @@ const deepSerialization = (
     const recordEpoch = record._dirtyEpoch;
     scheduleClear(() => {
         if (record._dirtyEpoch === recordEpoch) {
-            record._dirty = false;
+            record._markClean();
         }
     });
 

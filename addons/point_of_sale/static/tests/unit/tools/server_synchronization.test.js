@@ -70,3 +70,46 @@ test("local scalar edits to a synced order survive snapshot ingestion", async ()
     expect(order.general_customer_note).toBe("local edit");
     expect(order.isDirty()).toBe(true);
 });
+
+test("edits made while the sync RPC is in flight keep their values", async () => {
+    const store = await setupPosEnv();
+    const order = await getFilledOrder(store);
+
+    // Simulate a user edit landing between serialization and the server echo.
+    const origCall = store.data.call.bind(store.data);
+    store.data.call = async (model, method, ...rest) => {
+        if (model === "pos.order" && method === "sync_from_ui") {
+            order.general_customer_note = "edited mid-flight";
+        }
+        return origCall(model, method, ...rest);
+    };
+
+    await store.syncAllOrders({ orders: [order] });
+    // The echo used to overwrite the edit's VALUE (the epoch guard only
+    // preserved the dirty flag, so the next sync re-sent server values).
+    expect(order.general_customer_note).toBe("edited mid-flight");
+    expect(order.isDirty()).toBe(true);
+});
+
+test("a line deleted while the sync RPC is in flight is not resurrected", async () => {
+    const store = await setupPosEnv();
+    const order = await getFilledOrder(store);
+    await store.syncAllOrders({ orders: [order] });
+    expect(order.lines).toHaveLength(2);
+
+    const origCall = store.data.call.bind(store.data);
+    store.data.call = async (model, method, ...rest) => {
+        if (model === "pos.order" && method === "sync_from_ui") {
+            order.removeOrderline(order.lines[0]);
+        }
+        return origCall(model, method, ...rest);
+    };
+    order.general_customer_note = "force dirty";
+    await store.syncAllOrders({ orders: [order], force: true });
+
+    // The echo contained the deleted line (serialized before the deletion):
+    // it must not be recreated locally while its unlink command is pending.
+    expect(order.lines).toHaveLength(1);
+    const serialized = order.serializeForORM({ keepCommands: true });
+    expect(serialized.lines.some((cmd) => cmd[0] === 2 || cmd[0] === 3)).toBe(true);
+});

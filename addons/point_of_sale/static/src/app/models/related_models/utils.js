@@ -153,7 +153,7 @@ export class AggregatedUpdates {
                     fields: [...fields],
                 });
             }
-            record._markDirty();
+            record._markDirty([...fields]);
         }
     }
 
