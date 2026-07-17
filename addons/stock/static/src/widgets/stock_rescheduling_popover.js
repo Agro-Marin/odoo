@@ -27,17 +27,20 @@ export class StockReschedulingPopover extends PopoverWidgetField {
     static components = {
         Popover: StockReschedulingPopoverComponent,
     };
-    setup() {
-        super.setup();
-        this.color = this.jsonValue.color || "text-danger";
-        // Set the full FA7 class (family + name); the parent's bare-name
-        // normalization only runs on the default, not on this override, so a
-        // bare "fa-triangle-exclamation" here would render with no glyph.
-        this.icon = this.jsonValue.icon
-            ? this.jsonValue.icon.includes(" ")
-                ? this.jsonValue.icon
-                : `fa-solid ${this.jsonValue.icon}`
-            : "fa-solid fa-triangle-exclamation";
+
+    // Getters, like the base class: the parent defines `color`/`icon` as
+    // getter-only accessors, so assigning `this.color = ...` in setup() throws
+    // a TypeError (strict-mode assignment through an inherited getter).
+    get color() {
+        return this.jsonValue.color || "text-danger";
+    }
+
+    get icon() {
+        // Full FA7 class (family + name); the parent's bare-name normalization
+        // applies the `fa-solid` family to bare icon names, and this override
+        // only changes the default glyph.
+        const rawIcon = this.jsonValue.icon || "fa-triangle-exclamation";
+        return rawIcon.includes(" ") ? rawIcon : `fa-solid ${rawIcon}`;
     }
 
     showPopup(ev) {

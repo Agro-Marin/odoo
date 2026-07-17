@@ -216,11 +216,16 @@ export class ForecastedDetails extends Component {
         );
     }
 
-    displayReserve(line) {
+    /**
+     * Whether the Reserve/Unreserve action is shown for `line`, the datapoint at
+     * `lineIndex` in `this.lines`. The index is passed explicitly by the template
+     * — do not rely on t-foreach scope variables leaking into `this`.
+     */
+    displayReserve(line, lineIndex) {
         let splittedLine = true;
-        if (this.line_index - 1 >= 0) {
-            const previousLine = this.lines[this.line_index - 1];
-            const sameProduct = this.line.product.id === previousLine.product.id;
+        if (lineIndex - 1 >= 0) {
+            const previousLine = this.lines[lineIndex - 1];
+            const sameProduct = line.product.id === previousLine.product.id;
             const isOnHandSplittedLine =
                 this.OnHandLinesPerProduct[line.product.id] &&
                 this.OnHandLinesPerProduct[line.product.id].some((l) =>
@@ -275,21 +280,11 @@ export class ForecastedDetails extends Component {
     }
 
     isOnHand(line) {
-        return (
-            this.OnHandLinesPerProduct[line.product.id] &&
-            this.OnHandLinesPerProduct[line.product.id].includes(
-                this.lines[this.line_index],
-            )
-        );
+        return Boolean(this.OnHandLinesPerProduct[line.product.id]?.includes(line));
     }
 
     isReconciled(line) {
-        return (
-            this.ReconciledLinesPerProduct[line.product.id] &&
-            this.ReconciledLinesPerProduct[line.product.id].includes(
-                this.lines[this.line_index],
-            )
-        );
+        return Boolean(this.ReconciledLinesPerProduct[line.product.id]?.includes(line));
     }
 
     get freeStockLabel() {

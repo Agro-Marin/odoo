@@ -24,7 +24,7 @@
         <td>
             <button t-if="data.is_qty_assignable &amp;&amp; data.source"
                 class="btn btn-sm btn-primary"
-                t-attf-disabled="{{ !data.is_assigned }}"
+                t-att-disabled="!data.is_assigned"
                 name="print_label"
                 t-on-click="onClickPrint">
                 <span class="d-sm-block">Print Label</span>
