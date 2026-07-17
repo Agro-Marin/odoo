@@ -1,6 +1,4 @@
 import { luxon } from "@web/core/l10n/luxon";
-import { patch } from "@web/core/utils/patch";
-import { hootPosModels } from "@point_of_sale/../tests/unit/data/generate_model_definitions";
 import { models } from "@web/../tests/web_test_helpers";
 
 const { DateTime } = luxon;
@@ -158,4 +156,3 @@ export class LoyaltyProgram extends models.ServerModel {
     ];
 }
 
-patch(hootPosModels, [...hootPosModels, LoyaltyProgram]);

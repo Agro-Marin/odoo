@@ -3,10 +3,10 @@ import { test, expect } from "@odoo/hoot";
 import { mockDate } from "@odoo/hoot-mock";
 import { mountWithCleanup } from "@web/../tests/web_test_helpers";
 import { getFilledOrder, setupPosEnv } from "@point_of_sale/../tests/unit/utils";
-import { definePosModels } from "@point_of_sale/../tests/unit/data/generate_model_definitions";
+import { definePosLoyaltyModels } from "@pos_loyalty/../tests/unit/data/generate_model_definitions";
 import { ManageGiftCardPopup } from "@pos_loyalty/app/components/popups/manage_giftcard_popup/manage_giftcard_popup";
 
-definePosModels();
+definePosLoyaltyModels();
 
 test("addBalance", async () => {
     const store = await setupPosEnv();
