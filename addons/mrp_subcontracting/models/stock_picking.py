@@ -1,13 +1,13 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 from collections import defaultdict
 from datetime import timedelta
 
-from odoo import api, fields, models, _
+from dateutil.relativedelta import relativedelta
+
+from odoo import _, api, fields, models
 from odoo.exceptions import UserError
 from odoo.fields import Command
 from odoo.libs.numbers.float_utils import float_compare
-from dateutil.relativedelta import relativedelta
 
 
 class StockPicking(models.Model):
@@ -43,7 +43,7 @@ class StockPicking(models.Model):
     # Action methods
     # -------------------------------------------------------------------------
     def _action_done(self):
-        res = super(StockPicking, self)._action_done()
+        res = super()._action_done()
         for picking in self:
             productions_to_done = picking._get_subcontract_production().sudo()
             productions_to_done.button_mark_done()
@@ -105,7 +105,9 @@ class StockPicking(models.Model):
     def _prepare_subcontract_mo_vals(self, subcontract_move, bom):
         subcontract_move.ensure_one()
         if not self.reference_ids:
-            references = self.env['stock.reference'].create({
+            # References are system-managed plumbing: created regardless of
+            # the validating user's stock.reference rights.
+            references = self.env['stock.reference'].sudo().create({
                 'name': self.name,
                 'move_ids': [Command.link(subcontract_move.id)],
             })
@@ -157,9 +159,8 @@ class StockPicking(models.Model):
                     _, new_mo = production_to_split.with_context(allow_more=True)._split_productions({production_to_split: [original_qty, move.product_qty]})
                     new_mo.move_finished_ids.move_dest_ids = move
                     continue
-                else:
-                    # do not create extra production for move that have their quantity updated
-                    return
+                # do not create extra production for move that have their quantity updated
+                return
             quantity = move.product_qty or move.quantity
             if move.product_uom_id.compare(quantity, 0) <= 0:
                 # If a subcontracted amount is decreased, don't create a MO that would be for a negative value.

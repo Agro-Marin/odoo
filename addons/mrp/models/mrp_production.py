@@ -1923,7 +1923,9 @@ class MrpProduction(models.Model):
                 # if no value is specified, do take the workorder duration (etc) into account
                 rec.move_finished_ids.write({"date": rec.date_end})
         if reference_vals_list:
-            self.env["stock.reference"].create(reference_vals_list)
+            # References are system-managed plumbing: manufacturing users have
+            # no create rights on stock.reference.
+            self.env["stock.reference"].sudo().create(reference_vals_list)
         return res
 
     def unlink(self):

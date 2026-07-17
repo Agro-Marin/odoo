@@ -669,7 +669,9 @@ class PurchaseOrder(models.Model):
 
     def _prepare_picking_vals(self):
         if not self.reference_ids:
-            self.reference_ids = self.reference_ids.create(
+            # References are system-managed plumbing: the confirming purchase
+            # user has no create rights on stock.reference.
+            self.reference_ids = self.reference_ids.sudo().create(
                 self._prepare_reference_vals(),
             )
         if not self.partner_id.property_stock_supplier.id:

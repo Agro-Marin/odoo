@@ -119,19 +119,25 @@ class StockPicking(models.Model):
     # ------------------------------------------------------------
 
     def _set_sale_id(self):
+        # References are system-managed plumbing: this inverse runs for users
+        # (salespeople) without write/create rights on stock.reference.
         if self.reference_ids:
             if self.sale_id:
-                self.reference_ids.sale_ids = [Command.link(self.sale_id.id)]
+                self.reference_ids.sudo().sale_ids = [Command.link(self.sale_id.id)]
             else:
                 sale_order = self.move_ids.sale_line_id.order_id
                 if len(sale_order) == 1:
-                    self.reference_ids.sale_ids = [Command.unlink(sale_order.id)]
+                    self.reference_ids.sudo().sale_ids = [Command.unlink(sale_order.id)]
         elif self.sale_id:
-            reference = self.env["stock.reference"].create(
-                {
-                    "sale_ids": [Command.link(self.sale_id.id)],
-                    "name": self.sale_id.name,
-                },
+            reference = (
+                self.env["stock.reference"]
+                .sudo()
+                .create(
+                    {
+                        "sale_ids": [Command.link(self.sale_id.id)],
+                        "name": self.sale_id.name,
+                    },
+                )
             )
             self._add_reference(reference)
         self.move_ids._reassign_sale_lines(self.sale_id)

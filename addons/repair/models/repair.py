@@ -386,7 +386,9 @@ class RepairOrder(models.Model):
             if not vals.get('name', False) or vals['name'] == 'New':
                 vals['name'] = picking_type.sequence_id.next_by_id()
             if not vals.get('reference_ids'):
-                vals['reference_ids'] = [Command.link(self.env["stock.reference"].create({'name': vals['name']}).id)]
+                # References are system-managed plumbing: repair users have no
+                # create rights on stock.reference.
+                vals['reference_ids'] = [Command.link(self.env["stock.reference"].sudo().create({'name': vals['name']}).id)]
         return super().create(vals_list)
 
     def write(self, vals):
