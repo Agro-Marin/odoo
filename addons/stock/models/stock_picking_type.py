@@ -2,6 +2,8 @@ import json
 from ast import literal_eval
 from datetime import timedelta
 
+import pytz
+
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError
 from odoo.fields import Domain
@@ -352,43 +354,13 @@ class StockPickingType(models.Model):
                             "company_id": picking_type.env.company.id,
                         }
                     )
-        if "reservation_method" in vals:
-            if vals["reservation_method"] == "by_date":
-                if picking_types := self.filtered(
-                    lambda p: p.reservation_method != "by_date"
-                ):
-                    domain = [
-                        ("picking_type_id", "in", picking_types.ids),
-                        (
-                            "state",
-                            "in",
-                            ("draft", "confirmed", "waiting", "partially_available"),
-                        ),
-                    ]
-                    group_by = ["picking_type_id"]
-                    aggregates = ["id:recordset"]
-                    for picking_type, moves in self.env["stock.move"]._read_group(
-                        domain, group_by, aggregates
-                    ):
-                        common_days = (
-                            vals.get("reservation_days_before")
-                            or picking_type.reservation_days_before
-                        )
-                        priority_days = (
-                            vals.get("reservation_days_before_priority")
-                            or picking_type.reservation_days_before_priority
-                        )
-                        for move in moves:
-                            move.date_reservation = fields.Date.to_date(
-                                move.date
-                            ) - timedelta(
-                                days=(
-                                    priority_days
-                                    if move.priority == "1"
-                                    else common_days
-                                )
-                            )
-            elif picking_types := self.filtered(
+        days_changed = (
+            "reservation_days_before" in vals
+            or "reservation_days_before_priority" in vals
+        )
+        new_method = vals.get("reservation_method")
+        if new_method and new_method != "by_date":
+            if picking_types := self.filtered(
                 lambda p: p.reservation_method == "by_date"
             ):
                 moves = self.env["stock.move"].search(
@@ -398,6 +370,51 @@ class StockPickingType(models.Model):
                     ]
                 )
                 moves.date_reservation = False
+        elif new_method == "by_date" or days_changed:
+            # Refresh open moves for the types switching to "by_date" now, plus —
+            # when the day counts change — the types already reserving by date.
+            if new_method == "by_date" and not days_changed:
+                picking_types = self.filtered(
+                    lambda p: p.reservation_method != "by_date"
+                )
+            elif new_method == "by_date":
+                picking_types = self
+            else:
+                picking_types = self.filtered(
+                    lambda p: p.reservation_method == "by_date"
+                )
+            if picking_types:
+                domain = [
+                    ("picking_type_id", "in", picking_types.ids),
+                    (
+                        "state",
+                        "in",
+                        ("draft", "confirmed", "waiting", "partially_available"),
+                    ),
+                ]
+                group_by = ["picking_type_id"]
+                aggregates = ["id:recordset"]
+                for picking_type, moves in self.env["stock.move"]._read_group(
+                    domain, group_by, aggregates
+                ):
+                    # `.get(key, fallback)` (not `.get(key) or fallback`) so an
+                    # explicit 0 in `vals` wins over the stored day count.
+                    common_days = vals.get(
+                        "reservation_days_before",
+                        picking_type.reservation_days_before,
+                    )
+                    priority_days = vals.get(
+                        "reservation_days_before_priority",
+                        picking_type.reservation_days_before_priority,
+                    )
+                    for move in moves:
+                        move.date_reservation = fields.Date.to_date(
+                            move.date
+                        ) - timedelta(
+                            days=(
+                                priority_days if move.priority == "1" else common_days
+                            )
+                        )
 
         return super().write(vals)
 
@@ -440,6 +457,16 @@ class StockPickingType(models.Model):
             rec.hide_reservation_method = rec.code == "incoming"
 
     def _compute_picking_count(self):
+        # "Late" shares the kanban graph's day boundary (start of today in the
+        # user's timezone, expressed as naive UTC like the stored datetimes), so
+        # the badge, the graph buckets and the date-category filters all agree
+        # on what "today" means.
+        late_cutoff = (
+            self.env["stock.picking"]
+            ._date_category_boundaries()["today"]
+            .astimezone(pytz.UTC)
+            .replace(tzinfo=None)
+        )
         domains = {
             "count_picking_draft": [("state", "=", "draft")],
             "count_picking_waiting": [("state", "in", ("confirmed", "waiting"))],
@@ -448,7 +475,7 @@ class StockPickingType(models.Model):
             "count_picking_late": [
                 ("state", "in", ("assigned", "waiting", "confirmed")),
                 "|",
-                ("date_planned", "<", fields.Date.today()),
+                ("date_planned", "<", late_cutoff),
                 ("has_deadline_issue", "=", True),
             ],
             "count_picking_backorders": [
