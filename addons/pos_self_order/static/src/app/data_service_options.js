@@ -6,13 +6,14 @@ import { session } from "@web/session";
 patch(DataServiceOptions.prototype, {
     // Self-order persists nothing to IndexedDB outside mobile mode, so it uses a
     // minimal databaseTable. This override only applies inside the self-order
-    // app (the only context that populates `session.data`): the whole patch is
-    // co-loaded into web.assets_unit_tests_setup, so outside a self-order
-    // session it must defer to the base table — otherwise it clobbers the
-    // entries every other POS module (pos_restaurant, pos_loyalty, …) and the
-    // base itself register, which their unit tests depend on.
+    // app (which populates `session.data`, but NOT the prep-display context
+    // that also sets it — see data_service.js): the whole patch is co-loaded
+    // into web.assets_unit_tests_setup, so outside a self-order session it must
+    // defer to the base table — otherwise it clobbers the entries every other
+    // POS module (pos_restaurant, pos_loyalty, pos_enterprise, …) and the base
+    // itself register, which their unit tests depend on.
     get databaseTable() {
-        if (!session.data) {
+        if (!session.data || odoo.preparation_display) {
             return super.databaseTable;
         }
         return {

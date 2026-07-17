@@ -4,15 +4,21 @@ import { rpc } from "@web/core/network/rpc";
 import { patch } from "@web/core/utils/patch";
 import { session } from "@web/session";
 
-// These overrides only apply inside the self-order app, which is the only
-// context that populates `session.data` (config_id, self_ordering_mode, ...).
-// The whole patch is co-loaded into `web.assets_unit_tests_setup` for
-// pos_self_order's own unit tests, so it must stay inert when another module's
-// POS unit test runs with pos_self_order co-installed (no self-order session):
-// every override defers to base PosData when `session.data` is absent, mirroring
-// the self_ordering_mode gating the IndexedDB overrides already do.
-const isSelfOrder = () => Boolean(session.data);
-const isSelfOrderMobile = () => session.data?.self_ordering_mode === "mobile";
+// These overrides only apply inside the self-order app, which populates
+// `session.data` (config_id, self_ordering_mode, ...). The whole patch is
+// co-loaded into `web.assets_unit_tests_setup`, so it must stay inert for any
+// non-self-order POS unit test: every override defers to base PosData when
+// there is no self-order session, mirroring the self_ordering_mode gating the
+// IndexedDB overrides already do.
+//
+// The preparation-display context (pos_enterprise) also sets `session.data`
+// but drives its OWN PosData pipeline (guarded on `odoo.preparation_display`).
+// The two are mutually exclusive: exclude it here so self-order does not claim
+// a prep-display boot, otherwise whichever patch is applied outermost would
+// win non-deterministically.
+const isSelfOrder = () => Boolean(session.data) && !odoo.preparation_display;
+const isSelfOrderMobile = () =>
+    isSelfOrder() && session.data?.self_ordering_mode === "mobile";
 
 export const unpatchSelf = patch(PosData.prototype, {
     async loadInitialData() {
