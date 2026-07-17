@@ -128,8 +128,17 @@ class MailMessageSchedule(models.Model):
                     schedule_notify_kwargs = (
                         schedule._deserialize_notification_parameters()
                     )
-                except Exception:  # noqa: S110
-                    pass
+                except Exception:
+                    # Fall back to default notify kwargs, but leave a trace: a
+                    # silently-dropped payload means the notification goes out
+                    # with wrong company branding / auto-delete and nothing to
+                    # explain it.
+                    _logger.warning(
+                        "Invalid notification_parameters on mail.message.schedule %s; "
+                        "using defaults.",
+                        schedule.id,
+                        exc_info=True,
+                    )
                 else:
                     schedule_notify_kwargs.pop("scheduled_date", None)
                     notify_kwargs.update(schedule_notify_kwargs)

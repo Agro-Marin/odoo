@@ -1476,8 +1476,16 @@ class MailMessage(models.Model):
             "write_date",
             *self._get_store_linked_messages_fields(),
         ]
-        if target.is_internal(self.env):
+        if target.is_internal(self.env) and not self.env.context.get(
+            "mail_notify_inbox"
+        ):
             # sudo - mail.notification: internal users can access notifications.
+            # Skipped on the inbox fan-out (mail_notify_inbox): that payload is
+            # serialized once per recipient, so embedding every notification of
+            # the message there is O(recipients**2) in CPU and bus bytes, and it
+            # would disclose every other recipient's mail_email_address to each
+            # recipient. The delivery-status list is only needed when viewing the
+            # record's chatter (_message_fetch), which does not set the flag.
             field_names.append(
                 Store.Many(
                     "notification_ids",
@@ -1538,8 +1546,15 @@ class MailMessage(models.Model):
                 )
         record_by_message = self._record_by_message()
         records = record_by_message.values()
-        non_channel_records = filter(
-            lambda record: record._name != "discuss.channel", records
+        # Materialize (and sort by model) rather than keep a lazy ``filter``:
+        # a filter object is always truthy, so the two ``and non_channel_records``
+        # guards below never actually guarded, and the iterator is consumed by the
+        # groupby — leaving the second guard testing an exhausted iterator. A list
+        # makes both guards real (empty => skip the follower work) and lets
+        # ``groupby`` collapse each model into a single term.
+        non_channel_records = sorted(
+            (record for record in records if record._name != "discuss.channel"),
+            key=lambda record: record._name,
         )
         target_user = store.target.get_user(self.env)
         if target_user and add_followers and non_channel_records:
@@ -1726,21 +1741,23 @@ class MailMessage(models.Model):
         client. Purpose is to send the updated status per author."""
         messages = self.env["mail.message"]
         record_by_message = self._record_by_message()
+        # Check access to the linked record before displaying a notification
+        # about it (e.g. after a company switch the user may have lost access).
+        # Batch the check per model with _filtered_access — one ir.rule query per
+        # model instead of a has_access() per message — which is also fail-closed
+        # for cascade-deleted records (they drop out instead of raising).
+        ids_by_model = defaultdict(list)
+        for record in record_by_message.values():
+            ids_by_model[record._name].append(record.id)
+        accessible_ids_by_model = {
+            model: set(self.env[model].browse(ids)._filtered_access("read")._ids)
+            for model, ids in ids_by_model.items()
+        }
         for message in self:
-            # Check if user has access to the record before displaying a notification about it.
-            # In case the user switches from one company to another, it might happen that they don't
-            # have access to the record related to the notification. In this case, we skip it.
-            # YTI FIXME: check allowed_company_ids if necessary
-            if record := record_by_message.get(message):
-                try:
-                    if record.has_access("read"):
-                        _dummy = (
-                            record.display_name
-                        )  # access anything to make sure record exists
-                        messages += message
-                except MissingError:
-                    # record has been removed from db without cascading notif -> avoid crash at least
-                    continue
+            if (record := record_by_message.get(message)) and record.id in (
+                accessible_ids_by_model.get(record._name, ())
+            ):
+                messages += message
         messages_per_partner = defaultdict(lambda: self.env["mail.message"])
         for message in messages:
             if not self.env.user._is_public():

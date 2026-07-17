@@ -445,7 +445,10 @@ class MailFollowers(models.Model):
         elif pids is not None:
             sub_where += ["fol.partner_id IS NULL"]
         if sub_where:
-            where_clause += "AND (%s)" % " OR ".join(sub_where)
+            # Parenthesize the OR-joined (res_model, res_id) group before ANDing
+            # the partner filter: without the outer parens, "m1 AND r1 OR m2 AND
+            # r2 AND (pid)" binds the pid filter to the last pair only.
+            where_clause = "(%s) AND (%s)" % (where_clause, " OR ".join(sub_where))
 
         query = """
 SELECT fol.id, fol.res_id, fol.partner_id, array_agg(subtype.id)%s%s

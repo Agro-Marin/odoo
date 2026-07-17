@@ -77,6 +77,30 @@ _logger = logging.getLogger(__name__)
 encodings.aliases.aliases["cp_850"] = "cp850"
 
 
+def _email_part_get_content_safe(part):
+    """Decode the text content of an email part, tolerating an unresolvable
+    declared charset.
+
+    ``EmailMessage.get_content()`` raises ``LookupError`` when the part
+    declares a charset Python's codec registry does not know — and MTAs
+    legitimately emit such values (notably ``unknown-8bit`` per RFC 1428, or
+    ``x-user-defined``), especially in bounce reports. An unguarded call would
+    propagate out of ``message_parse``; the fetchmail cron then rolls back and
+    still marks the message handled (POP3 ``dele()``), permanently losing the
+    mail. Fall back to a lenient utf-8 decode of the raw payload instead.
+    """
+    try:
+        return part.get_content()
+    except LookupError, UnicodeDecodeError, ValueError:
+        _logger.warning(
+            "Unresolvable charset %r on inbound mail part; decoding as utf-8 "
+            "with replacement.",
+            part.get_content_charset(),
+        )
+        payload = part.get_payload(decode=True) or b""
+        return payload.decode("utf-8", errors="replace")
+
+
 class MailThread(models.AbstractModel):
     """mail_thread model is meant to be inherited by any model that needs to
         act as a discussion topic on which messages can be attached. Public
@@ -1358,7 +1382,20 @@ class MailThread(models.AbstractModel):
         """
         primary_email = self._mail_get_primary_email_field()
         if primary_email:
-            return [(primary_email, "ilike", email_from_normalized)]
+            # Anchored, case-insensitive equality: a plain ``ilike`` wraps the
+            # value in %...% and treats % / _ as wildcards, so it both
+            # over-matches unrelated addresses sharing a substring (e.g.
+            # jane@x.com / mike@x.com for a sender e@x.com) and lets a crafted
+            # local part such as ``%@dom.com`` match a whole domain — either way
+            # inflating the loop counter and bouncing legitimate senders. Use
+            # ``=ilike`` and escape the LIKE metacharacters that are valid in an
+            # address so the pattern matches only the exact sender.
+            escaped = (
+                email_from_normalized.replace("\\", "\\\\")
+                .replace("%", "\\%")
+                .replace("_", "\\_")
+            )
+            return [(primary_email, "=ilike", escaped)]
 
         _logger.info("Primary email missing on %s", self._name)
         return None
@@ -2253,7 +2290,7 @@ class MailThread(models.AbstractModel):
         #   boundary="_004_3f1e4da175f349248b8d43cdeb9866f1AMSPR06MB343eurprd06pro_";
         #   type="text/html"
         if message.get_content_maintype() == "text":
-            body = message.get_content()
+            body = _email_part_get_content_safe(message)
             if message.get_content_type() == "text/plain":
                 # text/plain -> <pre/>
                 body = append_content_to_html("", body, preserve=True)
@@ -2299,7 +2336,7 @@ class MailThread(models.AbstractModel):
                         "application/pdf" + part.get("Content-Type", "")[3:],
                     )
 
-                content = part.get_content()
+                content = _email_part_get_content_safe(part)
                 info = {"encoding": encoding}
                 # 0) Inline Attachments -> attachments, with a third part in the tuple to match cid / attachment
                 if filename and part.get("content-id"):
@@ -3911,9 +3948,6 @@ class MailThread(models.AbstractModel):
             "tracking_value_ids": tracking_value_ids,
             # recipients
             "email_add_signature": False,  # False as no notification -> no need to compute signature
-            "message_id": generate_tracking_message_id(
-                "message-notify"
-            ),  # why? this is all but a notify
             "partner_ids": partner_ids,
             "reply_to": self.env["mail.thread"]._notify_get_reply_to(
                 default=email_from, author_id=author_id
@@ -3925,6 +3959,9 @@ class MailThread(models.AbstractModel):
                 base_message_values,
                 res_id=record.id,
                 body=escape(bodies.get(record.id, "")),
+                # per-record: message_id is a unique message identifier (used by
+                # reply routing), so it must not be shared across a batch.
+                message_id=generate_tracking_message_id("message-notify"),
             )
             for record in self
         ]
@@ -4456,7 +4493,14 @@ class MailThread(models.AbstractModel):
             )
             for user in users:
                 store = Store(bus_channel=user).add(
-                    message.with_user(user).with_context(allowed_company_ids=[]),
+                    message.with_user(user).with_context(
+                        allowed_company_ids=[],
+                        # inbox payload: drop the per-message notification list
+                        # (see mail.message._to_store_defaults) to keep this
+                        # per-recipient fan-out from being O(recipients**2) and
+                        # from leaking other recipients' email addresses.
+                        mail_notify_inbox=True,
+                    ),
                     msg_vals=msg_vals,
                     add_followers=True,
                     followers=followers,
@@ -5413,21 +5457,42 @@ class MailThread(models.AbstractModel):
         # avoid double notification (on demand due to additional queries)
         if kwargs.pop("skip_existing", False):
             pids = [r["id"] for r in recipients_data if r["id"]]
-            if pids:
+            # Email-only recipients have no partner id; dedup them by normalized
+            # address against mail.notification.mail_email_address. Otherwise a
+            # replay (e.g. mail.message.schedule, whose only replay guard IS
+            # skip_existing) re-emails them and accumulates duplicate email-only
+            # notification rows, which the partner-scoped unique index cannot
+            # catch.
+            emails = [
+                r["email_normalized"]
+                for r in recipients_data
+                if not r["id"] and r["email_normalized"]
+            ]
+            if pids or emails:
                 existing_notifications = (
                     self.env["mail.notification"]
                     .sudo()
                     .search(
                         [
-                            ("res_partner_id", "in", pids),
                             ("mail_message_id", "in", message.ids),
+                            "|",
+                            ("res_partner_id", "in", pids),
+                            ("mail_email_address", "in", emails),
                         ]
                     )
+                )
+                existing_pids = set(existing_notifications.res_partner_id.ids)
+                existing_emails = set(
+                    existing_notifications.mapped("mail_email_address")
                 )
                 recipients_data = [
                     r
                     for r in recipients_data
-                    if r["id"] not in existing_notifications.res_partner_id.ids
+                    if (
+                        r["id"] not in existing_pids
+                        if r["id"]
+                        else r["email_normalized"] not in existing_emails
+                    )
                 ]
 
         return recipients_data

@@ -488,9 +488,12 @@ class Base(models.AbstractModel):
                     and p.email_normalized not in ban_emails
                 )
             )
-            # filter emails, skip banned mails
-            email_cc_lst = [e for e in email_cc_lst if e not in ban_emails]
-            email_to_lst = [e for e in email_to_lst if e not in ban_emails]
+            # filter emails, skip banned mails. email_*_lst entries are formatted
+            # ("Name" <addr>), while ban_emails holds normalized/keyed values, so
+            # compare through email_key() — a raw ``e not in ban_emails`` silently
+            # no-ops whenever the address carries a display name (mail-loop risk).
+            email_cc_lst = [e for e in email_cc_lst if email_key(e) not in ban_emails]
+            email_to_lst = [e for e in email_to_lst if email_key(e) not in ban_emails]
 
             # prioritize recipients: default unless asked through '_mail_defaults_to_email', or when no email_to
             if not prioritize_email or not email_to_lst:
