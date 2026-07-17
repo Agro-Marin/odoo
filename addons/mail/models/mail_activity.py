@@ -727,16 +727,20 @@ class MailActivity(models.Model):
             for record_sudo, activity in zip(
                 records_sudo, activity_data["activities"], strict=False
             ):
-                # extract value to generate next activities
-                if activity.chaining_type == "trigger":
-                    vals = activity.with_context(
-                        activity_previous_deadline=activity.date_deadline
-                    )._prepare_next_activity_values()
-                    next_activities_values.append(vals)
-
                 # post message on activity, before deleting it
 
                 if record_sudo in existing:
+                    # extract value to generate next activities — only when the
+                    # record still exists: chaining a next activity onto a
+                    # cascade-deleted record would create it with a dangling
+                    # res_id, and its message_subscribe would then raise and
+                    # break the whole "mark as done" the existence guard protects.
+                    if activity.chaining_type == "trigger":
+                        vals = activity.with_context(
+                            activity_previous_deadline=activity.date_deadline
+                        )._prepare_next_activity_values()
+                        next_activities_values.append(vals)
+
                     activity_message = record_sudo.message_post_with_source(
                         "mail.message_activity_done",
                         attachment_ids=attachment_ids,
@@ -1143,14 +1147,25 @@ class MailActivity(models.Model):
         - If the config_parameter is set to a negative number, it's an invalid value, we skip the gc routine
         - If the config_parameter is set to a positive number, we delete only overdue activities which deadline is older than X years
         """
-        year_threshold = int(
+        raw_threshold = (
             self.env["ir.config_parameter"]
             .sudo()
             .get_param("mail.activity.gc.delete_overdue_years", 0)
         )
-        if year_threshold == 0:
+        try:
+            year_threshold = int(raw_threshold)
+        except TypeError, ValueError:
             _logger.warning(
-                "The ir.config_parameter 'mail.activity.gc.delete_overdue_years' is missing or set to 0. Skipping gc routine."
+                "The ir.config_parameter 'mail.activity.gc.delete_overdue_years' "
+                "has a non-integer value %r; skipping gc routine.",
+                raw_threshold,
+            )
+            return
+        if year_threshold == 0:
+            # Absent / 0 is the default: the deployment opted out of this GC.
+            # This cron runs daily on every database, so keep it quiet (debug).
+            _logger.debug(
+                "'mail.activity.gc.delete_overdue_years' missing or 0; skipping gc routine."
             )
             return
         if year_threshold < 0:
