@@ -215,21 +215,28 @@ class _QuantsCache:
     scan never looked at, e.g. because the caller seeded an incomplete cache -- from a
     *covered-but-empty* result. On a genuine miss it must fall back to a DB search;
     without this, a miss silently returned an empty recordset, which reads as "no
-    stock" and causes silent under-reservation. Coverage is scope membership only
-    (``product in built products`` and ``location`` under a built root), so an
-    ``extra_domain``-filtered cache keeps exactly its previous in-scope behaviour --
-    only never-scanned pairs change, from empty to a search.
+    stock" and causes silent under-reservation.
+
+    A build scan may also be *lot-filtered* (``_action_done`` seeds only the lots it is
+    about to consume, plus untracked stock). Such a cache is authoritative only for
+    those lots: a gather for any other lot must fall back to the search, since that
+    lot's quants were never scanned and a miss would wrongly read as "no stock". Pass
+    ``lot_scope`` to record the authoritative lot set (``None`` = unfiltered).
     """
 
-    __slots__ = ("_data", "_empty", "_location_paths", "_product_ids")
+    __slots__ = ("_data", "_empty", "_location_paths", "_lot_scope", "_product_ids")
 
-    def __init__(self, empty, product_ids=(), location_paths=()):
+    def __init__(self, empty, product_ids=(), location_paths=(), lot_scope=None):
         self._data = {}
         self._empty = empty  # empty stock.quant recordset returned on a miss
         self._product_ids = frozenset(product_ids)
         # parent_path prefixes of the root locations the scan descended from; a
         # gathered location is covered iff its parent_path starts with one of them.
         self._location_paths = tuple(p for p in location_paths if p)
+        # None: unfiltered scan, authoritative for every lot. A frozenset: the scan
+        # was filtered to these lot ids (untracked stock, lot_id=False, is always
+        # scanned), so only those lots are authoritative.
+        self._lot_scope = None if lot_scope is None else frozenset(lot_scope)
 
     def __getitem__(self, key):
         return self._data.get(key, self._empty)
@@ -237,13 +244,17 @@ class _QuantsCache:
     def __setitem__(self, key, value):
         self._data[key] = value
 
-    def covers(self, product_id, location_id):
-        """Whether the build scan fully covered this product/location, so a missing
-        key means genuinely no quant rather than an un-scanned pair."""
+    def covers(self, product_id, location_id, lot_id=None):
+        """Whether the build scan fully covered this product/location (and lot), so a
+        missing key means genuinely no quant rather than an un-scanned pair."""
         if product_id.id not in self._product_ids:
             return False
         path = location_id.parent_path or ""
-        return any(path.startswith(root) for root in self._location_paths)
+        if not any(path.startswith(root) for root in self._location_paths):
+            return False
+        # A lot-filtered cache is authoritative only for its seeded lots (untracked
+        # stock is always scanned, so lot_id=False is fine).
+        return self._lot_scope is None or not lot_id or lot_id.id in self._lot_scope
 
 
 class StockQuant(models.Model):
@@ -1419,7 +1430,7 @@ class StockQuant(models.Model):
             and strict
             and removal_strategy != "least_packages"
             and cache_sort is not None
-            and quants_cache.covers(product_id, location_id)
+            and quants_cache.covers(product_id, location_id, lot_id)
             # The cache fast path replicates only the *base* gather semantics.
             # If a `_get_gather_domain` override injected extra conditions (the
             # effective domain differs from the base one), serving from the
@@ -2266,12 +2277,13 @@ class StockQuant(models.Model):
         return action
 
     def _get_quants_by_products_locations(
-        self, product_ids, location_ids, extra_domain=False
+        self, product_ids, location_ids, extra_domain=False, lot_scope=None
     ):
         res = _QuantsCache(
             self.env["stock.quant"],
             product_ids.ids,
             location_ids.mapped("parent_path"),
+            lot_scope=lot_scope.ids if lot_scope is not None else None,
         )
         if product_ids and location_ids:
             domain = Domain(
@@ -2280,6 +2292,12 @@ class StockQuant(models.Model):
                     ("location_id", "child_of", location_ids.ids),
                 ]
             )
+            if lot_scope is not None:
+                # Scan only the authoritative lots (plus untracked stock); covers()
+                # refuses coverage for any other lot so it falls back to the search.
+                domain &= Domain(
+                    ["|", ("lot_id", "in", lot_scope.ids), ("lot_id", "=", False)]
+                )
             if extra_domain:
                 domain &= Domain(extra_domain)
             needed_quants = self.env["stock.quant"]._read_group(
