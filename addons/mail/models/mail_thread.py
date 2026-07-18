@@ -1012,7 +1012,19 @@ class MailThread(models.AbstractModel):
             ):
                 email_from = decode_message_header(message, "To")
         if not email_from:
-            email_from = formataddr(("MAILER-DAEMON", self.env.user.email_normalized))
+            # Never expose the processing user's personal address as the public
+            # bounce From: on the fetchmail cron path env.user is the gateway/cron
+            # user, so an internal employee's address would leak. Prefer the system
+            # notifications-from / catchall address, falling back to env.user only
+            # on a server with no configured from address at all.
+            noreply = (
+                self.env.company.default_from_email
+                or self.env.company.catchall_email
+                or self.env["mail.alias.domain"].search([], limit=1).default_from_email
+            )
+            email_from = formataddr(
+                ("MAILER-DAEMON", noreply or self.env.user.email_normalized)
+            )
 
         bounce_mail_values["email_from"] = email_from
         bounce_mail_values.update(mail_values)
