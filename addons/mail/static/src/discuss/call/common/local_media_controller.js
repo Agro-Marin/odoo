@@ -66,6 +66,11 @@ export class LocalMediaController {
      * closed.
      */
     _videoMutexes = { camera: new Mutex(), screen: new Mutex() };
+    /**
+     * Serializes `linkVoiceActivation` runs: monitorAudio spins an
+     * AudioContext/worklet, so overlapping runs would leak a context.
+     */
+    _voiceActivationMutex = new Mutex();
 
     /**
      * @param {Object} param0
@@ -254,7 +259,6 @@ export class LocalMediaController {
                     sourceCameraStream: sourceStream,
                     cameraTrack: outputTrack,
                     sendCamera: Boolean(outputTrack),
-                    isCameraSourceExternal: Boolean(sourceStream) && env?.pipWindow,
                 });
                 break;
             }
@@ -264,7 +268,6 @@ export class LocalMediaController {
                     screenTrack: outputTrack,
                     screenAudioTrack: screenAudioTrack,
                     sendScreen: Boolean(outputTrack),
-                    isScreenSourceExternal: Boolean(sourceStream) && env?.pipWindow,
                 });
                 break;
             }
@@ -390,41 +393,50 @@ export class LocalMediaController {
      * attaches an audio monitor for voice activation if necessary.
      */
     async linkVoiceActivation() {
-        this.state.disconnectAudioMonitor?.();
-        const session = this.hooks.getLocalSession();
-        if (!session) {
-            return;
-        }
-        const settings = this.hooks.getSettings();
-        if (
-            settings.use_push_to_talk ||
-            !this.state.channel ||
-            !this.state.micAudioTrack
-        ) {
-            session.isTalking = false;
-            await this.hooks.refreshMicAudioStatus();
-            return;
-        }
-        try {
-            this.state.disconnectAudioMonitor = await monitorAudio(
-                this.state.micAudioTrack,
-                {
+        return this._voiceActivationMutex.exec(async () => {
+            this.state.disconnectAudioMonitor?.();
+            const session = this.hooks.getLocalSession();
+            if (!session) {
+                return;
+            }
+            const settings = this.hooks.getSettings();
+            // Capture the track we monitor: monitorAudio clones it and takes a
+            // multi-hundred-ms window, during which dispose() (or a newer track)
+            // can supersede it.
+            const micAudioTrack = this.state.micAudioTrack;
+            if (settings.use_push_to_talk || !this.state.channel || !micAudioTrack) {
+                session.isTalking = false;
+                await this.hooks.refreshMicAudioStatus();
+                return;
+            }
+            try {
+                const disconnect = await monitorAudio(micAudioTrack, {
                     onThreshold: async (isAboveThreshold) => {
                         this.hooks.setTalking(isAboveThreshold);
                     },
                     volumeThreshold: settings.voiceActivationThreshold,
-                },
-            );
-        } catch {
-            /**
-             * The browser is probably missing audioContext,
-             * in that case, voice activation is not enabled
-             * and the microphone is always 'on'.
-             */
-            this.hooks.notify(_t("Your browser does not support voice activation"));
-            session.isTalking = true;
-        }
-        await this.hooks.refreshMicAudioStatus();
+                });
+                if (this.state.micAudioTrack !== micAudioTrack) {
+                    // Superseded while awaiting: dispose() already stopped the
+                    // original track and cleared the slot (it could not disconnect
+                    // this monitor, which was not stored yet). Stop the cloned
+                    // monitor now instead of re-storing a dangling disconnect,
+                    // otherwise the mic capture stays live.
+                    disconnect?.();
+                    return;
+                }
+                this.state.disconnectAudioMonitor = disconnect;
+            } catch {
+                /**
+                 * The browser is probably missing audioContext,
+                 * in that case, voice activation is not enabled
+                 * and the microphone is always 'on'.
+                 */
+                this.hooks.notify(_t("Your browser does not support voice activation"));
+                session.isTalking = true;
+            }
+            await this.hooks.refreshMicAudioStatus();
+        });
     }
 
     /**
@@ -432,6 +444,8 @@ export class LocalMediaController {
      * state slots this controller owns.
      */
     dispose() {
+        // Cancel any queued run so it cannot re-arm a monitor after teardown.
+        this.linkVoiceActivationDebounce?.cancel?.();
         this.state.disconnectAudioMonitor?.();
         this.state.micAudioTrack?.stop();
         this.state.screenAudioTrack?.stop();

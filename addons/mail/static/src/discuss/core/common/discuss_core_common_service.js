@@ -101,7 +101,11 @@ export class DiscussCoreCommon {
             model: "discuss.channel",
             id: channelId,
         });
-        if (!channel) {
+        // Re-guard after the await: a `discuss.channel/delete` in the same bus
+        // batch can delete the thread during the pending fetch, leaving a
+        // tombstoned record. Continuing would RPC (markAsFetched) on a deleted id
+        // and mutate counters on a dead record.
+        if (!channel?.exists()) {
             return;
         }
         // `message_id` explicitly identifies the posted message. Fall back on

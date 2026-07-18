@@ -121,7 +121,7 @@ export class MailComposerFormRenderer extends formView.Renderer {
             const updateRecipientWithCorrespondingPartner = (recipient) => {
                 const partner = selectedPartners.find(
                     (partner) =>
-                        partner.id === recipient.id ||
+                        partner.id === recipient.partner_id ||
                         partner.email === recipient.email,
                 );
                 if (partner) {

@@ -4,18 +4,27 @@ import { browser } from "@web/core/browser/browser";
 const FPS = 30; // Frames per second for the blurred background stream
 
 function drawAndBlurImageOnCanvas(image, blurAmount, canvas) {
-    canvas.width = image.width;
-    canvas.height = image.height;
+    // Assigning canvas.width/height reallocates the backing store and resets the
+    // 2D context, so only do it when the dimensions actually change (camera
+    // resolution is stable across the ~30fps stream). getContext is fetched once
+    // instead of up to five times per frame.
+    if (canvas.width !== image.width) {
+        canvas.width = image.width;
+    }
+    if (canvas.height !== image.height) {
+        canvas.height = image.height;
+    }
+    const ctx = canvas.getContext("2d");
     if (blurAmount === 0) {
-        canvas.getContext("2d").drawImage(image, 0, 0, image.width, image.height);
+        ctx.drawImage(image, 0, 0, image.width, image.height);
         return;
     }
-    canvas.getContext("2d").clearRect(0, 0, image.width, image.height);
-    canvas.getContext("2d").save();
+    ctx.clearRect(0, 0, image.width, image.height);
+    ctx.save();
     // FIXME : Does not work on safari https://bugs.webkit.org/show_bug.cgi?id=198416
-    canvas.getContext("2d").filter = `blur(${blurAmount}px)`;
-    canvas.getContext("2d").drawImage(image, 0, 0, image.width, image.height);
-    canvas.getContext("2d").restore();
+    ctx.filter = `blur(${blurAmount}px)`;
+    ctx.drawImage(image, 0, 0, image.width, image.height);
+    ctx.restore();
 }
 
 export class BlurManager {
@@ -181,20 +190,23 @@ export class BlurManager {
      */
     _onSelfieSegmentationResults(results) {
         drawAndBlurImageOnCanvas(results.image, this.backgroundBlur, this.canvasBlur);
-        this.canvas.width = this.canvasBlur.width;
-        this.canvas.height = this.canvasBlur.height;
+        if (this.canvas.width !== this.canvasBlur.width) {
+            this.canvas.width = this.canvasBlur.width;
+        }
+        if (this.canvas.height !== this.canvasBlur.height) {
+            this.canvas.height = this.canvasBlur.height;
+        }
         drawAndBlurImageOnCanvas(
             results.segmentationMask,
             this.edgeBlur,
             this.canvasMask,
         );
-        this.canvas.getContext("2d").save();
-        this.canvas
-            .getContext("2d")
-            .drawImage(results.image, 0, 0, this.canvas.width, this.canvas.height);
+        const ctx = this.canvas.getContext("2d");
+        ctx.save();
+        ctx.drawImage(results.image, 0, 0, this.canvas.width, this.canvas.height);
         this._drawWithCompositing(this.canvasMask, "destination-in");
         this._drawWithCompositing(this.canvasBlur, "destination-over");
-        this.canvas.getContext("2d").restore();
+        ctx.restore();
         if (this.resolveStreamPromise) {
             this.resolveStreamPromise(this.canvasStream);
             this.resolveStreamPromise = null;
