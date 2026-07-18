@@ -477,7 +477,13 @@ class StockPicking(models.Model):
                 self.browse(picking_ids).write(type_location_vals)
 
         if vals.get("date_done"):
-            self.filtered(lambda p: p.state == "done").move_ids.date = vals["date_done"]
+            # Exclude scrap moves (dest "inventory"): they are validated independently
+            # (a scrap posted on day 1) and re-dating them to the picking's validation
+            # date corrupts inventory history -- the same reason _inverse_date_planned
+            # protects done moves, and mirroring the after_vals exclusion below.
+            self.filtered(lambda p: p.state == "done").move_ids.filtered(
+                lambda move: move.location_dest_usage != "inventory",
+            ).date = vals["date_done"]
         if vals.get("signature"):
             for picking in self:
                 picking._attach_sign()

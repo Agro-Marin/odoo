@@ -271,3 +271,38 @@ class TestReviewCompoundingFixes(TestStockCommon):
         in_move._action_confirm()
         with self.assertRaises(UserError):
             report.action_assign([out_move.id], [5.0], [[in_move.id]])
+
+    def test_date_done_does_not_redate_scrap_moves(self):
+        """stock_picking.write: setting date_done must not re-date a done scrap
+        (inventory-dest) move on the picking (L9)."""
+        prod = self.env["product.product"].create(
+            {"name": "L9_prod", "type": "consu", "is_storable": True}
+        )
+        self.env["stock.quant"]._update_available_quantity(prod, self.stock_location, 10.0)
+        pick = self.env["stock.picking"].create(
+            {"picking_type_id": self.warehouse_1.out_type_id.id,
+             "location_id": self.stock_location.id,
+             "location_dest_id": self.customer_location.id}
+        )
+        normal_move = self.env["stock.move"].create(
+            {"product_id": prod.id, "product_uom_qty": 5.0, "product_uom_id": prod.uom_id.id,
+             "picking_id": pick.id, "location_id": self.stock_location.id,
+             "location_dest_id": self.customer_location.id}
+        )
+        pick.action_confirm()
+        normal_move.quantity = 5.0
+        normal_move.picked = True
+        pick.button_validate()
+        self.assertEqual(pick.state, "done")
+        # A scrap-like done move on the same picking, dated in the past.
+        old_date = datetime.datetime(2026, 1, 1, 8, 0, 0)
+        scrap_move = self.env["stock.move"].create(
+            {"product_id": prod.id, "product_uom_qty": 1.0, "product_uom_id": prod.uom_id.id,
+             "picking_id": pick.id, "location_id": self.stock_location.id,
+             "location_dest_id": self.scrap_location.id, "state": "done", "date": old_date}
+        )
+        self.assertEqual(scrap_move.location_dest_usage, "inventory")
+        pick.write({"date_done": datetime.datetime(2026, 5, 5, 12, 0, 0)})
+        self.assertEqual(
+            scrap_move.date, old_date, "the done scrap move must keep its own date"
+        )

@@ -640,19 +640,27 @@ class StockWarehouseOrderpoint(models.Model):
                 | orderpoint.product_id.categ_id.total_route_ids
                 | orderpoint.product_id.get_total_routes()
             )
+            # Key on the product-route partition too, not just the union: rule
+            # resolution (_extract_rule_from_dict) sorts product routes ahead of
+            # category routes, so two products with the same route *union* but a
+            # different split (product vs category) resolve different rule chains and
+            # must not share a cache entry. Use `in` rather than `or`, or a legitimately
+            # empty result would be treated as a cache miss and recomputed each time.
             cache_key = (
                 orderpoint.location_id,
                 orderpoint.route_id,
+                orderpoint.product_id.route_ids,
                 all_product_routes,
             )
-            rule_ids = rules_cache.get(
-                cache_key,
-            ) or orderpoint.product_id._get_rules_from_location(
-                orderpoint.location_id,
-                route_ids=orderpoint.route_id,
-            )
+            if cache_key in rules_cache:
+                rule_ids = rules_cache[cache_key]
+            else:
+                rule_ids = orderpoint.product_id._get_rules_from_location(
+                    orderpoint.location_id,
+                    route_ids=orderpoint.route_id,
+                )
+                rules_cache[cache_key] = rule_ids
             orderpoint.rule_ids = rule_ids
-            rules_cache[cache_key] = rule_ids
         (self - orderpoints_to_compute).rule_ids = False
 
     @api.depends("product_min_qty")
