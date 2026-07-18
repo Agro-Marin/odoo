@@ -808,11 +808,11 @@ class StockMoveLine(models.Model):
         quants_cache = self.env["stock.quant"]._get_quants_by_products_locations(
             mls_todo.product_id,
             mls_todo.location_id | mls_todo.location_dest_id,
-            extra_domain=[
-                "|",
-                ("lot_id", "in", mls_todo.lot_id.ids),
-                ("lot_id", "=", False),
-            ],
+            # Seed only the lots being consumed here (plus untracked stock). lot_scope
+            # marks the cache authoritative for exactly those, so a gather for any
+            # other lot (e.g. from an _action_done override) falls back to the search
+            # instead of reading the filtered cache's absence as "no stock".
+            lot_scope=mls_todo.lot_id,
         )
 
         # Prepare package history records before any actual move

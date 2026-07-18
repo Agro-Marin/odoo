@@ -306,3 +306,33 @@ class TestReviewCompoundingFixes(TestStockCommon):
         self.assertEqual(
             scrap_move.date, old_date, "the done scrap move must keep its own date"
         )
+
+    def test_lot_filtered_quant_cache_not_authoritative_for_unseeded_lot(self):
+        """stock_quant._QuantsCache: a lot-filtered cache must not claim coverage for a
+        lot it never scanned; the gather must fall back to search and find real stock
+        (D7)."""
+        Quant = self.env["stock.quant"]
+        prod = self.env["product.product"].create(
+            {"name": "D7_prod", "type": "consu", "is_storable": True, "tracking": "lot"}
+        )
+        lot_a, lot_b = self.env["stock.lot"].create(
+            [{"name": "D7-A", "product_id": prod.id},
+             {"name": "D7-B", "product_id": prod.id}]
+        )
+        Quant._update_available_quantity(prod, self.stock_location, 5.0, lot_id=lot_a)
+        Quant._update_available_quantity(prod, self.stock_location, 7.0, lot_id=lot_b)
+        self.env.flush_all()
+        # Cache seeded for lot A only (as _action_done seeds its consumed lots).
+        cache = Quant._get_quants_by_products_locations(
+            prod, self.stock_location, lot_scope=lot_a
+        )
+        self.assertTrue(cache.covers(prod, self.stock_location, lot_a))
+        self.assertFalse(
+            cache.covers(prod, self.stock_location, lot_b),
+            "an unseeded lot must not be reported as covered",
+        )
+        # A gather for lot B through the cache must search and find the real 7.0.
+        res = Quant.with_context(quants_cache=cache)._gather(
+            prod, self.stock_location, lot_id=lot_b, strict=True
+        )
+        self.assertEqual(sum(res.mapped("quantity")), 7.0)
