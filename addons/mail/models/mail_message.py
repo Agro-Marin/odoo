@@ -406,12 +406,22 @@ class MailMessage(models.Model):
     @api.depends_context("uid")
     def _compute_starred(self):
         """Compute if the message is starred by the current user."""
-        # TDE FIXME: use SQL
-        starred_ids = set(
-            self.sudo()
-            .filtered(lambda msg: self.env.user.partner_id in msg.starred_partner_ids)
-            .ids
+        # Query only the current user's rows in the relation table rather than
+        # loading every partner who starred each message: 'starred' is serialized
+        # on each fetch, so materializing the full m2m for a message starred by
+        # thousands of users pulled thousands of rows per message. Mirrors
+        # _compute_needaction / _compute_has_error.
+        self.env["mail.message"].flush_model(["starred_partner_ids"])
+        rows = self.env.execute_query(
+            SQL(
+                """ SELECT mail_message_id
+                    FROM mail_message_res_partner_starred_rel
+                    WHERE mail_message_id = ANY(%s) AND res_partner_id = %s """,
+                self.ids,
+                self.env.user.partner_id.id,
+            )
         )
+        starred_ids = {mid for [mid] in rows}
         for message in self:
             message.starred = message.id in starred_ids
 
@@ -695,7 +705,13 @@ class MailMessage(models.Model):
         """
         forbidden = self.browse()
 
-        # Non employees see only messages with a subtype (aka, not internal logs)
+        # Non employees see only messages with a subtype (aka, not internal logs).
+        # The message_type='comment' narrowing for read/create is intentional and
+        # pinned by test_mail_message_security.test_access_read/create_portal:
+        # manual internal notes (comment + mt_note / internal subtype) stay hidden
+        # from share users, while automatic system logs (message_type='notification',
+        # e.g. field tracking) are readable by a share user who can access the
+        # document. Do not drop it.
         if not self.env.user._is_internal():
             message_type_condition = ""
             if operation in ("create", "read"):

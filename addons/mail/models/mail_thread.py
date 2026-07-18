@@ -1440,7 +1440,12 @@ class MailThread(models.AbstractModel):
                 continue
 
             loop_new, loop_update = False, False
-            search_new = 0 in thread_ids  # route creating new records = thread_id = 0
+            # A record-creating route carries a falsy thread_id: 0 for alias routes
+            # (alias_force_thread_id unset), but None for the fallback-model route
+            # and for reply targets reset to None in _routing_check_route. Testing
+            # `0 in thread_ids` misses None (0 != None), which silently disabled
+            # loop detection on the standard fetchmail create-new-record path.
+            search_new = any(not tid for tid in thread_ids)
             doc_ids = list(
                 filter(None, thread_ids)
             )  # route updating records = thread_id set
@@ -2641,7 +2646,11 @@ class MailThread(models.AbstractModel):
                     message.get("Date"),
                     message_id,
                 )
-                stored_date = datetime.datetime.now()
+                # Datetime fields store naive UTC; naive local now() would be
+                # written as if UTC, stamping the mail hours off (and into the
+                # future on positive-offset servers). Match the UTC normalization
+                # done for successfully-parsed dates just above.
+                stored_date = datetime.datetime.now(datetime.UTC).replace(tzinfo=None)
             msg_dict["date"] = fields.Datetime.to_string(stored_date)
 
         msg_dict.update(
@@ -5761,6 +5770,16 @@ class MailThread(models.AbstractModel):
         if message_type not in ("comment", "email"):
             return ooo_messages
 
+        # If the triggering message is an internal log (note), the auto-reply must
+        # stay internal too: it quotes the triggering body (replied_body below), so
+        # posting it as a public mt_comment would republish internal note content to
+        # portal followers of the record.
+        trigger_is_internal = bool(
+            msg_vals["is_internal"]
+            if "is_internal" in (msg_vals or {})
+            else message.is_internal
+        )
+
         # message author to notify is either a valid partner, either an email only
         # (e.g. mail gateway, portal with token)
         recipient = self._message_compute_real_author(
@@ -5882,12 +5901,13 @@ class MailThread(models.AbstractModel):
                 notify_skip_followers=True,
                 outgoing_email_to=email_to,
                 partner_ids=recipient.ids,
+                is_internal=trigger_is_internal,
                 subject=_(
                     "Auto: %(subject)s", subject=(original_subject or self.display_name)
                 ),
                 subtype_id=self.env.ref(
-                    "mail.mt_comment"
-                ).id,  # TDE check: note ? but what about portal / internal ?
+                    "mail.mt_note" if trigger_is_internal else "mail.mt_comment"
+                ).id,
             )
         return ooo_messages
 

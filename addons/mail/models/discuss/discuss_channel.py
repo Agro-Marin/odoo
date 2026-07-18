@@ -655,6 +655,52 @@ class DiscussChannel(models.Model):
                 return field_description._get_value(channel)
             return channel[field_description]
 
+        # Only snapshot sync fields that this write can actually change. The
+        # before/after diff exists to broadcast changes caused by `vals` (and its
+        # compute cascade), so a field whose stored dependencies are untouched
+        # always diffs equal. Without this filter the hot message_post path (which
+        # writes only last_interest_dt) re-read member_count -- a _read_group
+        # aggregate -- and re-serialized the group relations on every posted
+        # message. Mirrors the message_unread_counter guard on member.write.
+        vals_keys = set(vals)
+
+        def is_affected(field_description):
+            fname = get_field_name(field_description)
+            if fname not in self._fields:
+                return True
+            # A sync field's value can change from this write iff one of its
+            # transitive stored dependencies is written. field_depends exposes
+            # only *direct* deps, so resolve the closure; a dep root written in
+            # vals -> affected. write_date/create_date are bumped implicitly by
+            # any write, so a field depending on them is always affected.
+            seen = set()
+            stack = [fname]
+            while stack:
+                cur = stack.pop()
+                if cur in seen:
+                    continue
+                seen.add(cur)
+                if cur in vals_keys or cur in ("write_date", "create_date"):
+                    return True
+                cur_field = self._fields.get(cur)
+                if cur_field is None:
+                    continue
+                stack.extend(
+                    dep.split(".", 1)[0] for dep in self.pool.field_depends[cur_field]
+                )
+            return False
+
+        sync_field_names = {
+            subchannel: affected
+            for subchannel, field_descriptions in self._sync_field_names().items()
+            if (affected := [fd for fd in field_descriptions if is_affected(fd)])
+        }
+        if not sync_field_names:
+            result = super().write(vals)
+            if vals.get("group_ids"):
+                self._subscribe_users_automatically()
+            return result
+
         def get_vals(channel):
             return {
                 subchannel: {
@@ -664,7 +710,7 @@ class DiscussChannel(models.Model):
                     )
                     for field_description in field_descriptions
                 }
-                for subchannel, field_descriptions in self._sync_field_names().items()
+                for subchannel, field_descriptions in sync_field_names.items()
             }
 
         old_vals = {channel: get_vals(channel) for channel in self}
@@ -1784,7 +1830,7 @@ class DiscussChannel(models.Model):
             FROM discuss_channel C, discuss_channel_member M
             WHERE M.channel_id = C.id
                 AND M.partner_id IN %(partner_ids)s
-                AND C.channel_type LIKE 'chat'
+                AND C.channel_type = 'chat'
                 AND NOT EXISTS (
                     SELECT 1
                     FROM discuss_channel_member M2

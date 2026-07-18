@@ -4,7 +4,7 @@ from werkzeug.exceptions import NotFound
 from odoo import http
 from odoo.http import request
 
-from odoo.addons.mail.controllers.thread import _to_record_id
+from odoo.addons.mail.controllers.thread import _to_record_id, _to_record_ids
 from odoo.addons.mail.controllers.webclient import WebclientController
 from odoo.addons.mail.tools.discuss import Store, add_guest_to_context
 
@@ -93,12 +93,16 @@ class ChannelController(http.Controller):
     )
     @add_guest_to_context
     def discuss_channel_members(self, channel_id, known_member_ids):
-        channel = request.env["discuss.channel"].search([("id", "=", channel_id)])
+        channel = request.env["discuss.channel"].search(
+            [("id", "=", _to_record_id(channel_id))]
+        )
         if not channel:
             raise NotFound
+        # auth="public": coerce the client-supplied id list to ints (dropping
+        # junk) so a non-numeric entry can't surface a 500 through the domain.
         unknown_members = request.env["discuss.channel.member"].search(
             domain=[
-                ("id", "not in", known_member_ids),
+                ("id", "not in", _to_record_ids(known_member_ids)),
                 ("channel_id", "=", channel.id),
             ],
             limit=100,
@@ -229,7 +233,7 @@ class ChannelController(http.Controller):
             ["res_model", "=", "discuss.channel"],
         ]
         if before:
-            domain.append(["id", "<", before])
+            domain.append(["id", "<", _to_record_id(before)])
         # sudo: ir.attachment - reading attachments of a channel that the current user can access
         attachments = (
             request.env["ir.attachment"]
@@ -290,7 +294,7 @@ class ChannelController(http.Controller):
             raise NotFound
         domain = [("parent_channel_id", "=", channel.id)]
         if before:
-            domain.append(("id", "<", before))
+            domain.append(("id", "<", _to_record_id(before)))
         if search_term:
             domain.append(("name", "ilike", search_term))
         sub_channels = request.env["discuss.channel"].search(

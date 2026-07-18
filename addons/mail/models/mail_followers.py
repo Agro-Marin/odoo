@@ -1,6 +1,8 @@
 import itertools
 from collections import defaultdict
 
+from psycopg import IntegrityError
+
 from odoo import Command, api, fields, models
 
 from odoo.addons.mail.tools.discuss import Store
@@ -513,13 +515,27 @@ GROUP BY fol.id%s%s""" % (
                 existing_policy=existing_policy,
             )
         if new:
-            sudo_self.create(
-                [
-                    dict(values, res_id=res_id)
-                    for res_id, values_list in new.items()
-                    for values in values_list
-                ]
-            )
+            new_vals = [
+                dict(values, res_id=res_id)
+                for res_id, values_list in new.items()
+                for values in values_list
+            ]
+            try:
+                with self.env.cr.savepoint():
+                    sudo_self.create(new_vals)
+            except IntegrityError:
+                # Two transactions posting on the same record and auto-subscribing
+                # the same partner (author-subscribe, double-submitted assignment)
+                # race the unique(res_model, res_id, partner_id) index; the plain
+                # batch create would surface a 500. The follower we wanted exists
+                # either way, so retry row by row and treat "already there" as
+                # success -- mirroring the reaction add/remove race handling.
+                for vals in new_vals:
+                    try:
+                        with self.env.cr.savepoint():
+                            sudo_self.create(vals)
+                    except IntegrityError:
+                        pass
         for fol_id, values in upd.items():
             sudo_self.browse(fol_id).write(values)
 
@@ -620,6 +636,15 @@ GROUP BY fol.id%s%s""" % (
             if existing_policy == "force":
                 self.sudo().browse(data_fols.keys()).unlink()
 
+        # Index existing followers by (record, partner) once. (res_model, res_id,
+        # partner_id) is unique, so each key maps to one follower. This replaces a
+        # per-pair next() scan over data_fols that was O(res_ids x partners x
+        # existing_followers) -- quadratic on large subscribes (same fix already
+        # applied in mail.thread._message_auto_subscribe_batch).
+        fols_by_key = {
+            (rid, pid): (fid, sids) for fid, (rid, pid, sids) in data_fols.items()
+        }
+
         new, update = {}, {}
         for res_id in _res_ids:
             for partner_id in set(partner_ids or []):
@@ -632,14 +657,7 @@ GROUP BY fol.id%s%s""" % (
                         }
                     )
                 elif existing_policy in ("replace", "update"):
-                    fol_id, sids = next(
-                        (
-                            (key, val[2])
-                            for key, val in data_fols.items()
-                            if val[0] == res_id and val[1] == partner_id
-                        ),
-                        (False, []),
-                    )
+                    fol_id, sids = fols_by_key.get((res_id, partner_id), (False, []))
                     new_sids = set(subtypes[partner_id]) - set(sids)
                     old_sids = set(sids) - set(subtypes[partner_id])
                     update_cmd = []

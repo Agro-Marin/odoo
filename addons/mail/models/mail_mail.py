@@ -454,8 +454,17 @@ class MailMail(models.Model):
             if not parsed_datetime.tzinfo:
                 parsed_datetime = pytz.utc.localize(parsed_datetime)
             else:
-                with contextlib.suppress(Exception):
+                try:
                     parsed_datetime = parsed_datetime.astimezone(pytz.utc)
+                except (ValueError, OverflowError, OSError):
+                    # Do not silently keep a non-UTC value: callers strip tzinfo
+                    # right after and store it as if it were UTC, sending the mail
+                    # at the wrong time with no trace. Treat it as unparseable.
+                    _logger.warning(
+                        "Could not convert scheduled date %r to UTC; ignoring it.",
+                        scheduled_datetime,
+                    )
+                    parsed_datetime = False
         return parsed_datetime
 
     # ------------------------------------------------------
@@ -514,6 +523,11 @@ class MailMail(models.Model):
         :param dict doc_to_followers: see ``Followers._get_mail_doc_to_followers()``
         """
         self.ensure_one()
+        # Nothing to personalize if the body carries no unfollow block: skip the
+        # DOTALL regex scan (and the URL replace) over the potentially large body,
+        # which otherwise ran once per recipient even with no marker to rewrite.
+        if "mail_unfollow" not in body:
+            return body
         if (
             partner
             and self.model
@@ -868,7 +882,10 @@ class MailMail(models.Model):
 
         MAX_SEND = mail_server._get_personal_mail_servers_limit()
 
-        current_minute = datetime.datetime.now().replace(second=0, microsecond=0)
+        # Bucket on UTC minutes (like the outgoing-mail scheduling above): naive
+        # local time replays/skips a bucket across DST transitions, and fights the
+        # test suite's UTC-normalized clock freezing.
+        current_minute = self.env.cr.now().replace(second=0, microsecond=0)
         server_limit_minute = (
             mail_server.owner_limit_time or current_minute - timedelta(minutes=1)
         )
@@ -1047,6 +1064,12 @@ class MailMail(models.Model):
                     success_pids=[], success_emails=[], failure_type="mail_smtp"
                 )
             else:
+                # Note: an SMTPServerDisconnected (or psycopg error) raised by
+                # _send propagates out of this loop by design -- the fork rolls
+                # back the whole run so every mail stays 'outgoing' and retries
+                # cleanly on the next cron pass (pinned by
+                # test_mail_mail_send_exceptions_raise_management). Do not swallow
+                # it to continue with the other server groups.
                 self.browse(batch_ids)._send(
                     auto_commit=auto_commit,
                     raise_exception=raise_exception,
