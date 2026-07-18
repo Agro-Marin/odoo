@@ -14,6 +14,10 @@ from odoo.tools.translate import _
 
 PROCUREMENT_PRIORITIES = [("0", "Normal"), ("1", "Urgent")]
 
+# Hard bound on the number of serial/lot lines a single (client-steered) RPC call
+# to `action_generate_lot_line_vals` may generate.
+GENERATED_LOT_VALS_MAX = 10000
+
 
 class StockMove(models.Model):
     _name = "stock.move"
@@ -979,6 +983,11 @@ class StockMove(models.Model):
                 continue
             if (
                 move.state == "draft"
+                # Only consuming draft moves have this (source-warehouse) key
+                # prefetched; for a draft incoming move the read silently
+                # returned the fallback 0.0 and, with a zero demand, shortcut
+                # past the incoming branch below.
+                and move._is_consuming()
                 and float_compare(
                     qty_free,
                     move.product_qty,
@@ -1525,7 +1534,10 @@ Please change the quantity done or the rounding precision in your settings.""",
             "res_id": self.id,
             "context": dict(
                 self.env.context,
-                auto_pick_move_lines=self.picked,
+                # Create-time default: new detail lines of an already-picked move
+                # start picked. This replaces the `auto_pick_move_lines` context
+                # key the (now pure) `_compute_picked` used to read.
+                default_picked=self.picked,
             ),
         }
 
@@ -1569,6 +1581,14 @@ Please change the quantity done or the rounding precision in your settings.""",
                     _("The quantity per lot should always be a positive value."),
                 )
             line_count = int(quantity // qty_per_lot)
+            if line_count > GENERATED_LOT_VALS_MAX:
+                # Bound before the list is materialised (client-supplied values).
+                raise UserError(
+                    _(
+                        "You cannot generate more than %s Serials/Lots at once.",
+                        GENERATED_LOT_VALS_MAX,
+                    ),
+                )
             leftover = quantity % qty_per_lot
             qty_array = [qty_per_lot] * line_count
             if leftover:
@@ -1602,6 +1622,15 @@ Please change the quantity done or the rounding precision in your settings.""",
         if default_vals["tracking"] == "lot" and mode == "generate":
             lot_qties = generate_lot_qty(default_vals["quantity"], count)
         else:
+            # Bound before the list is materialised: `count` comes straight from
+            # the client and an absurd value would allocate gigabytes here.
+            if count > GENERATED_LOT_VALS_MAX:
+                raise UserError(
+                    _(
+                        "You cannot generate more than %s Serials/Lots at once.",
+                        GENERATED_LOT_VALS_MAX,
+                    ),
+                )
             lot_qties = [1] * count
 
         if mode == "generate":
@@ -1612,6 +1641,13 @@ Please change the quantity done or the rounding precision in your settings.""",
         elif mode == "import":
             lot_names = self.split_lots(lot_text)
             lot_qties = [1] * len(lot_names)
+        if len(lot_qties) > GENERATED_LOT_VALS_MAX:
+            raise UserError(
+                _(
+                    "You cannot generate more than %s Serials/Lots at once.",
+                    GENERATED_LOT_VALS_MAX,
+                ),
+            )
 
         vals_list = []
         loc_dest = self.env["stock.location"].browse(
@@ -1680,7 +1716,10 @@ Please change the quantity done or the rounding precision in your settings.""",
                 first_number + increment
             ):
                 final_number = first_number + increment + len(lot_qties)
-            if first_number != final_number:
+            # This sudo() write is steered by the client-supplied `first_lot`:
+            # clamp it so the sequence can only ever advance, never rewind.
+            final_number = max(final_number, current_sequence.number_next_actual)
+            if final_number != current_sequence.number_next_actual:
                 current_sequence.sudo().write({"number_next_actual": final_number})
         return vals_list
 
@@ -1871,18 +1910,21 @@ Please change the quantity done or the rounding precision in your settings.""",
                     and m.state in ["confirmed", "waiting", "partially_available"]
                 ),
             )
-        # Build the quants cache only for chained moves: the strict, exact-location
-        # gather they use is the only path that reads it. Plain MTS moves (no origin)
-        # reserve with strict=False against child locations and never consult the
-        # cache; an un-scanned product/location now falls back to a DB search in
-        # `_gather` (see `_QuantsCache`), so leaving them out is safe.
+        # Build the quants cache for every move that reserves against quants:
+        # chained moves gather strictly at their exact locations, and every
+        # created move line re-gathers strictly at its own (child) location when
+        # its reservation is synced to the quants -- the cache covers subtree
+        # locations by parent_path, so both are served from it. Bypass moves
+        # never touch quants. An un-scanned product/location falls back to a DB
+        # search in `_gather` (see `_QuantsCache`), so a partial cache is safe.
         moves_needing_reservation = moves_to_assign.filtered(
-            lambda m: m.move_orig_ids and not m._should_bypass_reservation(),
+            lambda m: not m._should_bypass_reservation(),
         )
         quants_cache = self.env["stock.quant"]._get_quants_by_products_locations(
             moves_needing_reservation.product_id,
             moves_needing_reservation.location_id,
         )
+        serial_move_ids_by_qty = defaultdict(OrderedSet)
         for move in moves_to_assign.with_context(quants_cache=quants_cache):
             move = move.with_company(move.company_id)
             rounding = roundings[move]
@@ -1925,9 +1967,17 @@ Please change the quantity done or the rounding precision in your settings.""",
             ):
                 continue
             if move.product_id.tracking == "serial":
-                move.next_serial_count = move.product_uom_qty
+                # Deferred below: one batched write per distinct count instead of
+                # one write per move inside the loop.
+                serial_move_ids_by_qty[move.product_uom_qty].add(move.id)
 
-        self.env["stock.move.line"].create(move_line_vals_list)
+        for qty, move_ids in serial_move_ids_by_qty.items():
+            StockMove.browse(move_ids).next_serial_count = qty
+        # Thread the cache into the batched create so the reservation sync of the
+        # created lines (`_reserve_new_move_lines`) gathers from it too.
+        self.env["stock.move.line"].with_context(quants_cache=quants_cache).create(
+            move_line_vals_list
+        )
         StockMove.browse(partially_available_moves_ids).write(
             {"state": "partially_available"},
         )
@@ -2073,11 +2123,18 @@ Please change the quantity done or the rounding precision in your settings.""",
                     )
                     + _("\nPackage: %s", result_package.name)
                 )
-        if any(
-            ml.package_id and ml.package_id == ml.result_package_id
-            for ml in moves_todo.move_line_ids
-        ):
-            self.env["stock.quant"]._unlink_zero_quants()
+        same_package_mls = moves_todo.move_line_ids.filtered(
+            lambda ml: ml.package_id and ml.package_id == ml.result_package_id
+        )
+        if same_package_mls:
+            # Scope the cleanup to the touched products/locations: the
+            # model-level call scans the whole quant table with an unindexable
+            # predicate on every such validation.
+            self.env["stock.quant"]._unlink_zero_quants(
+                products=same_package_mls.product_id,
+                locations=same_package_mls.location_id
+                | same_package_mls.location_dest_id,
+            )
         picking = moves_todo.mapped("picking_id")
         moves_todo.write({"state": "done", "date": fields.Datetime.now()})
 
@@ -2484,10 +2541,16 @@ Please change the quantity done or the rounding precision in your settings.""",
         to match the new direction, then assign them to a picking.
         """
         for move in self:
-            move.location_id, move.location_dest_id, move.location_final_id = (
-                move.location_dest_id,
-                move.location_id,
-                move.location_id,
+            # Two writes per move instead of six sequential ones. The location
+            # swap stays a separate first write so the second one's interceptors
+            # (`_on_demand_change` reads `location_id.usage`) observe the swapped
+            # locations, exactly as the historical one-field-at-a-time writes did.
+            move.write(
+                {
+                    "location_id": move.location_dest_id.id,
+                    "location_dest_id": move.location_id.id,
+                    "location_final_id": move.location_id.id,
+                }
             )
             orig_move_ids, dest_move_ids = [], []
             for m in move.move_orig_ids | move.move_dest_ids:
@@ -2498,15 +2561,16 @@ Please change the quantity done or the rounding precision in your settings.""",
                     orig_move_ids += m.ids
                 elif move.location_dest_id == from_loc:
                     dest_move_ids += m.ids
-            move.move_orig_ids, move.move_dest_ids = (
-                [Command.set(orig_move_ids)],
-                [Command.set(dest_move_ids)],
-            )
-            move.product_uom_qty *= -1
+            vals = {
+                "move_orig_ids": [Command.set(orig_move_ids)],
+                "move_dest_ids": [Command.set(dest_move_ids)],
+                "product_uom_qty": -move.product_uom_qty,
+                # We are returning some products, we must take them in the source location
+                "procure_method": "make_to_stock",
+            }
             if move.picking_type_id.return_picking_type_id:
-                move.picking_type_id = move.picking_type_id.return_picking_type_id
-            # We are returning some products, we must take them in the source location
-            move.procure_method = "make_to_stock"
+                vals["picking_type_id"] = move.picking_type_id.return_picking_type_id.id
+            move.write(vals)
         self._assign_picking()
 
     def _break_mto_link(self, parent_move):
@@ -4134,7 +4198,25 @@ Please change the quantity done or the rounding precision in your settings.""",
         if not self.reference_ids:
             return self.env["stock.picking"]
         domain = self._search_picking_for_assignation_domain()
-        return self.env["stock.picking"].search(domain, limit=1)
+        # The domain's ("reference_ids", "=", ids) condition is normalised by the
+        # ORM to an any-overlap "in". Keep it as a prefilter but only accept a
+        # picking whose reference set is covered by the move's own: the union
+        # after assignment then equals the move's set, so the picking never ends
+        # up serving an origin the move does not belong to (which would wipe its
+        # partner and concatenate origins in `_assign_picking_values`). The
+        # subset -- rather than exact -- match matters for flows that accumulate
+        # references on the origin document (e.g. merged manufacturing orders):
+        # their later moves carry the union of the original references and must
+        # still land in the pickings created before the merge.
+        reference_set = set(self.reference_ids.ids)
+        covered_picking = self.env["stock.picking"]
+        for picking in self.env["stock.picking"].search(domain):
+            picking_set = set(picking.reference_ids.ids)
+            if picking_set == reference_set:
+                return picking
+            if not covered_picking and picking_set <= reference_set:
+                covered_picking = picking
+        return covered_picking
 
     def _skip_push(self):
         return self.is_inventory or (

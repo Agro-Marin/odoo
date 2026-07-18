@@ -897,12 +897,31 @@ class StockQuant(models.Model):
     def _search_is_outdated(self, operator, value):
         if operator != "in":
             return NotImplemented
-        quant_ids = (
-            self.search([("inventory_quantity_set", "=", True)])
-            .filtered(lambda quant: quant._is_outdated())
-            .ids
+        # SQL translation of `_is_outdated` (kept as the single Python source of
+        # truth for the compute): comparing the rounded values in the database
+        # avoids materialising every counted quant into Python. All UoMs share
+        # the 'Product Unit' precision, so one digit count fits every row.
+        self.env["stock.quant"].flush_model(
+            [
+                "inventory_quantity_set",
+                "inventory_quantity",
+                "inventory_diff_quantity",
+                "quantity",
+            ]
         )
-        return [("id", "in", quant_ids)]
+        digits = self.env["decimal.precision"].precision_get("Product Unit")
+        rows = self.env.execute_query(
+            SQL(
+                """SELECT id FROM stock_quant
+                    WHERE inventory_quantity_set = TRUE
+                      AND round((COALESCE(inventory_quantity, 0)
+                                 - COALESCE(inventory_diff_quantity, 0))::numeric, %s)
+                          != round(COALESCE(quantity, 0)::numeric, %s)""",
+                digits,
+                digits,
+            )
+        )
+        return [("id", "in", [row[0] for row in rows])]
 
     def _search_on_hand(self, operator, value):
         """Handle the "on_hand" filter, indirectly calling `_get_domain_locations`."""
@@ -1518,6 +1537,19 @@ class StockQuant(models.Model):
             ).property_stock_inventory or default_loss_locations.get(
                 quant.company_id.id
             )
+            if not inventory_location:
+                # Without this guard the move creation below crashes with a raw
+                # not-null violation on location_id.
+                raise UserError(
+                    _(
+                        "No inventory loss location is configured for product "
+                        "%(product)s (company %(company)s). Set one on the product "
+                        "or in the company's default product settings.",
+                        product=quant.product_id.display_name,
+                        company=quant.company_id.display_name
+                        or self.env.company.display_name,
+                    )
+                )
             # Positive diff (counted more than expected): receive stock from the loss location.
             # Negative diff: send the missing stock to the loss location.
             if quant.product_uom_id.compare(quant.inventory_diff_quantity, 0) > 0:
@@ -1572,14 +1604,13 @@ class StockQuant(models.Model):
         if not (quantity or reserved_quantity):
             raise ValidationError(_("Quantity or Reserved Quantity should be set."))
         self = self.sudo()
-        # Resolve the strategy once and thread it (via the private
-        # `_gather_removal_strategy` context key, see `_gather`) to both the gather
-        # below and the closing `_get_available_quantity` re-gather, so neither re-walks
-        # the product category + location parent chain.
+        # Resolve the strategy once and thread it to the gather below (via the
+        # private `_gather_removal_strategy` context key, see `_gather`) so it
+        # does not re-walk the product category + location parent chain.
         self = self.with_context(
             _gather_removal_strategy=self._get_removal_strategy(product_id, location_id)
         )
-        quants = self._gather(
+        gathered = self._gather(
             product_id,
             location_id,
             lot_id=lot_id,
@@ -1587,6 +1618,7 @@ class StockQuant(models.Model):
             owner_id=owner_id,
             strict=True,
         )
+        quants = gathered
         if lot_id:
             if product_id.uom_id.compare(quantity, 0) > 0:
                 quants = quants.filtered(lambda q: q.lot_id)
@@ -1631,6 +1663,7 @@ class StockQuant(models.Model):
             # quants are already ordered by _gather; lock the first candidate.
             quant = lockable.try_lock_for_update(allow_referencing=True, limit=1)
 
+        new_quant = self.env["stock.quant"]
         if quant:
             # try_lock_for_update only SELECTs ids FOR UPDATE; it does not refetch
             # column values. The quantity/reserved_quantity in cache came from the
@@ -1673,14 +1706,24 @@ class StockQuant(models.Model):
                 # legitimate release and leave phantom reservations until
                 # _clean_reservations runs.
                 vals["reserved_quantity"] = reserved_quantity
-            self.create(vals)
+            new_quant = self.create(vals)
+        # The strict availability a fresh re-gather would report is exactly the
+        # set gathered above plus the quant possibly created here: the write/
+        # create updated the ORM cache, so summing over these records saves a
+        # second search of the stock_quant hot table per update.
+        avail_quants = gathered | new_quant
+        with_expiration = self.env.context.get("with_expiration")
+        if new_quant and with_expiration:
+            # Mirror the gather domain's removal_date filter (see
+            # _get_gather_domain) for the record the re-gather would have vetted.
+            cutoff = fields.Datetime.to_datetime(with_expiration)
+            if new_quant.removal_date and new_quant.removal_date < cutoff:
+                avail_quants -= new_quant
         return (
-            self._get_available_quantity(
+            self._sum_available_quantity(
+                avail_quants,
                 product_id,
-                location_id,
                 lot_id=lot_id,
-                package_id=package_id,
-                owner_id=owner_id,
                 strict=True,
                 allow_negative=True,
             ),
@@ -1716,12 +1759,18 @@ class StockQuant(models.Model):
         )
 
     @api.model
-    def _unlink_zero_quants(self):
+    def _unlink_zero_quants(self, products=None, locations=None):
         """_update_available_quantity may leave quants with no
         quantity and no reserved_quantity. It used to directly unlink
         these zero quants but this proved to hurt the performance as
         this method is often called in batch and each unlink invalidate
         the cache. We defer the calls to unlink in this method.
+
+        :param products, locations: optional recordsets scoping the cleanup to
+            these product/location ids for model-level callers that know the
+            touched scope but hold no quant recordset (e.g. the same-package
+            path of ``stock.move._action_done``). Ignored when ``self`` holds
+            records (the recordset defines the scope then).
         """
         precision_digits = max(
             6, self.sudo().env.ref("uom.decimal_product_uom").digits * 2
@@ -1741,16 +1790,20 @@ class StockQuant(models.Model):
             # When called on a recordset (e.g. via _quant_tasks after moving quants),
             # scope to the touched product/location like _merge_quants does instead of
             # scanning the whole table. Model-level callers (empty self) still run
-            # global. A preceding _merge_quants may have deleted duplicate rows that
-            # are members of self (reading their fields would raise MissingError), so
+            # global unless they passed an explicit products/locations scope. A
+            # preceding _merge_quants may have deleted duplicate rows that are
+            # members of self (reading their fields would raise MissingError), so
             # read the scope off the surviving records only -- the kept row of each
             # merged group shares its product/location, so the scope is preserved.
             quants = self.exists()
+            products = quants.product_id
+            locations = quants.location_id
+        if products is not None and locations is not None:
             query = SQL(
                 "%s AND location_id = ANY(%s) AND product_id = ANY(%s)",
                 query,
-                list(quants.location_id.ids),
-                list(quants.product_id.ids),
+                list(locations.ids),
+                list(products.ids),
             )
         quants = self.env["stock.quant"].browse(
             row[0] for row in self.env.execute_query(query)
@@ -2462,30 +2515,18 @@ class StockQuant(models.Model):
             if product_id.uom_id.compare(quantity, int(quantity)) != 0:
                 quantity = 0
 
-        # Size the running budget from the whole gathered set (the reserve branch draws
-        # it down; the unreserve branch guards against releasing more than is reserved),
-        # then hand per-candidate allocation to the pure `_distribute_reservation`. The
-        # `raise` and ORM aggregates stay here; the DB-free arithmetic is extracted.
-        cmp_quantity = product_id.uom_id.compare(quantity, 0)
-        if cmp_quantity > 0:
-            # Positive quantity means reserving.
-            available_quantity = sum(
-                quants.filtered(
-                    lambda q: product_id.uom_id.compare(q.quantity, 0) > 0
-                ).mapped("quantity")
-            ) - sum(quants.mapped("reserved_quantity"))
-        elif cmp_quantity < 0:
-            # Negative quantity means unreserving.
-            available_quantity = sum(quants.mapped("reserved_quantity"))
-            if product_id.uom_id.compare(abs(quantity), available_quantity) > 0:
-                raise UserError(
-                    _(
-                        "It is not possible to unreserve more products of %s than you have in stock.",
-                        product_id.display_name,
-                    )
-                )
-        else:
+        # Size the running budget from the whole gathered set, then hand
+        # per-candidate allocation to the pure `_distribute_reservation`. Only
+        # reservation requests reach this method (releases go through
+        # `_update_reserved_quantity` with a negative delta), so a non-positive
+        # quantity means there is nothing to allocate.
+        if product_id.uom_id.compare(quantity, 0) <= 0:
             return []
+        available_quantity = sum(
+            quants.filtered(
+                lambda q: product_id.uom_id.compare(q.quantity, 0) > 0
+            ).mapped("quantity")
+        ) - sum(quants.mapped("reserved_quantity"))
 
         precision_digits = self.env["decimal.precision"].precision_get("Product Unit")
         candidates = [
