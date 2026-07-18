@@ -27,6 +27,25 @@ def _to_record_id(value):
         raise NotFound from None
 
 
+def _to_record_ids(values, limit=None):
+    """Coerce a client-supplied list of record ids to a list of ``int``.
+
+    Non-integer entries are dropped rather than surfacing an uncaught
+    ``ValueError`` (same rationale as ``_to_record_id``). When ``limit`` is set,
+    at most that many ids are kept, bounding the size of the resulting domain on
+    ``auth="public"`` routes.
+    """
+    result = []
+    for value in values or []:
+        try:
+            result.append(int(value))
+        except TypeError, ValueError:
+            continue
+        if limit is not None and len(result) >= limit:
+            break
+    return result
+
+
 class ThreadController(http.Controller):
     # access helpers
     # ------------------------------------------------------------

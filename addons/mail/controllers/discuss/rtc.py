@@ -6,6 +6,7 @@ from odoo import http
 from odoo.http import request
 from odoo.tools import file_open
 
+from odoo.addons.mail.controllers.thread import _to_record_id, _to_record_ids
 from odoo.addons.mail.tools.discuss import Store, add_guest_to_context
 
 
@@ -33,7 +34,7 @@ class RtcController(http.Controller):
             session_sudo = (
                 request.env["discuss.channel.rtc.session"]
                 .sudo()
-                .browse(int(sender_session_id))
+                .browse(_to_record_id(sender_session_id))
                 .exists()
             )
             if (
@@ -46,7 +47,7 @@ class RtcController(http.Controller):
             ):
                 continue
             notifications_by_session[session_sudo].append(
-                ([int(sid) for sid in target_session_ids], content)
+                (_to_record_ids(target_session_ids), content)
             )
         for session_sudo, notifications in notifications_by_session.items():
             session_sudo._notify_peers(notifications)
@@ -71,7 +72,7 @@ class RtcController(http.Controller):
                 session = (
                     guest.env["discuss.channel.rtc.session"]
                     .sudo()
-                    .browse(int(session_id))
+                    .browse(_to_record_id(session_id))
                     .exists()
                 )
                 if session and session.guest_id == guest:
@@ -82,7 +83,7 @@ class RtcController(http.Controller):
         session = (
             request.env["discuss.channel.rtc.session"]
             .sudo()
-            .browse(int(session_id))
+            .browse(_to_record_id(session_id))
             .exists()
         )
         if session and session.partner_id == request.env.user.partner_id:
@@ -96,7 +97,9 @@ class RtcController(http.Controller):
         """Joins the RTC call of a channel if the user is a member of that channel
         :param int channel_id: id of the channel to join
         """
-        channel = request.env["discuss.channel"].search([("id", "=", channel_id)])
+        channel = request.env["discuss.channel"].search(
+            [("id", "=", _to_record_id(channel_id))]
+        )
         if not channel:
             raise request.not_found()
         member = channel._find_or_create_member_for_self()
@@ -119,7 +122,7 @@ class RtcController(http.Controller):
         :param int session_id: id of the leaving session
         """
         member = request.env["discuss.channel.member"].search(
-            [("channel_id", "=", channel_id), ("is_self", "=", True)]
+            [("channel_id", "=", _to_record_id(channel_id)), ("is_self", "=", True)]
         )
         if not member:
             raise NotFound
@@ -134,7 +137,7 @@ class RtcController(http.Controller):
     )
     def channel_upgrade(self, channel_id):
         member = request.env["discuss.channel.member"].search(
-            [("channel_id", "=", channel_id), ("is_self", "=", True)]
+            [("channel_id", "=", _to_record_id(channel_id)), ("is_self", "=", True)]
         )
         if not member:
             raise NotFound
@@ -152,7 +155,9 @@ class RtcController(http.Controller):
         :param member_ids: members whose invitation is to cancel
         :type member_ids: list(int) or None
         """
-        channel = request.env["discuss.channel"].search([("id", "=", channel_id)])
+        channel = request.env["discuss.channel"].search(
+            [("id", "=", _to_record_id(channel_id))]
+        )
         if not channel:
             raise NotFound
         # Require the caller to be a member: read access alone is too weak here
@@ -193,7 +198,7 @@ class RtcController(http.Controller):
     @add_guest_to_context
     def channel_ping(self, channel_id, rtc_session_id=None, check_rtc_session_ids=None):
         member = request.env["discuss.channel.member"].search(
-            [("channel_id", "=", channel_id), ("is_self", "=", True)]
+            [("channel_id", "=", _to_record_id(channel_id)), ("is_self", "=", True)]
         )
         if not member:
             raise NotFound
@@ -201,7 +206,7 @@ class RtcController(http.Controller):
         channel_member_sudo = member.sudo()
         if rtc_session_id:
             domain = [
-                ("id", "=", int(rtc_session_id)),
+                ("id", "=", _to_record_id(rtc_session_id)),
                 ("channel_member_id", "=", member.id),
             ]
             channel_member_sudo.channel_id.rtc_session_ids.filtered_domain(

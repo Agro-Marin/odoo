@@ -9,6 +9,7 @@ from . import test_ir_attachment
 from . import test_js
 from . import test_mail_activity
 from . import test_mail_activity_mixin
+from . import test_mail_audit_v7
 from . import test_mail_activity_plan
 from . import test_mail_alias
 from . import test_mail_composer

@@ -100,9 +100,11 @@ class WebclientController(ThreadController):
                 lambda n: n.mail_message_id.res_id in existing[n.mail_message_id.model]
             )
             lost = notifications - valid
-            # might break readonly status of mail/data, but in really rare cases
-            # and solves it by removing useless notifications
-            if lost:
+            # Garbage-collect notifications whose document was deleted. /mail/data
+            # is declared readonly=True, so on a read-replica cursor this unlink
+            # would raise and break the whole response; skip it there and let the
+            # next read/write request (or autovacuum) clean them up instead.
+            if lost and not request.env.cr.readonly:
                 lost.sudo().unlink()  # no unlink right except admin, ok to remove as lost anyway
             valid.mail_message_id._message_notifications_to_store(store)
 
