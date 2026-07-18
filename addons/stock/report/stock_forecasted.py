@@ -2,7 +2,8 @@ from collections import defaultdict
 from dataclasses import dataclass
 from datetime import date
 
-from odoo import api, fields, models
+from odoo import _, api, fields, models
+from odoo.exceptions import UserError
 from odoo.fields import Domain
 from odoo.tools import OrderedSet, format_date
 
@@ -145,9 +146,21 @@ class StockForecasted_Product_Product(models.AbstractModel):
         products = self._get_products(product_template_ids, product_ids)
         location = self._get_warehouse().lot_stock_id
         for product in products:
-            rule = product._get_rules_from_location(location)
-            # ``_get_lead_days`` always returns a ``(delays, details)`` tuple.
-            delays, details = rule._get_lead_days(product)
+            # Rule resolution cannot be shared across products, even per
+            # location: modules filter the candidate routes per product
+            # (purchase_stock on seller_ids, mrp on bom_ids), so only the
+            # location lookup above is hoisted.
+            try:
+                rule = product._get_rules_from_location(location)
+                # ``_get_lead_days`` always returns a ``(delays, details)`` tuple.
+                delays, details = rule._get_lead_days(product)
+            except UserError:
+                # A misconfigured rule cycle on one product (endless-loop
+                # UserError) must not kill the whole report: show that product
+                # without a lead time instead (the header renders nothing for a
+                # falsy leadtime).
+                res["product"][product.id]["leadtime"] = False
+                continue
             res["product"][product.id]["leadtime"] = {
                 "total_delay": delays.get("total_delay", 0),
                 "details": details,
@@ -232,10 +245,20 @@ class StockForecasted_Product_Product(models.AbstractModel):
         ) or Warehouse.search([("active", "=", True)], limit=1)
 
     def _get_report_data(self, product_template_ids=False, product_ids=False):
-        assert product_template_ids or product_ids
+        if not product_template_ids and not product_ids:
+            # The docids come from the client action payload: refuse an empty
+            # request instead of asserting (assertions are stripped under -O
+            # and raise an opaque 500).
+            raise UserError(_("No product selected for the forecasted report."))
         res = {}
 
         warehouse = self._get_warehouse()
+        # Thread the resolved warehouse so every quantity read below (header
+        # product quantities, lead times, sub-module extensions) is computed
+        # for the same warehouse as the report lines; without it, the header
+        # helpers run under the ambient context (all warehouses of the current
+        # companies) while the lines use this warehouse's locations.
+        self = self.with_context(warehouse_id=warehouse.id)
         # Materialised id list for the header/lines helpers. A Query would be
         # equally correct in the domains (`_get_forecast_availability_outgoing`
         # passes one to `_get_report_lines`): the `not in` clauses do not rely
@@ -311,6 +334,10 @@ class StockForecasted_Product_Product(models.AbstractModel):
             ),
             "uom_id": product.uom_id.read()[0] if read else product.uom_id,
         }
+        # Source-document *resolution* is needed even for `read=False` callers
+        # (mrp's MO overview consumes the document_in/document_out dicts), but
+        # the display formatting (`display_name`, `format_date`) is UI-only and
+        # discarded by them, so it is gated on `read`.
         if move_in:
             document_in = move_in.sudo()._get_source_document()
             line.update(
@@ -324,14 +351,15 @@ class StockForecasted_Product_Product(models.AbstractModel):
                         {
                             "_name": document_in._name,
                             "id": document_in.id,
-                            "name": document_in.display_name,
+                            "name": document_in.display_name if read else False,
                         }
                         if document_in
                         else False
                     ),
-                    "receipt_date": format_date(self.env, move_in.date),
                 }
             )
+            if read:
+                line["receipt_date"] = format_date(self.env, move_in.date)
 
         if move_out:
             document_out = move_out.sudo()._get_source_document()
@@ -346,14 +374,15 @@ class StockForecasted_Product_Product(models.AbstractModel):
                         {
                             "_name": document_out._name,
                             "id": document_out.id,
-                            "name": document_out.display_name,
+                            "name": document_out.display_name if read else False,
                         }
                         if document_out
                         else False
                     ),
-                    "delivery_date": format_date(self.env, move_out.date),
                 }
             )
+            if read:
+                line["delivery_date"] = format_date(self.env, move_out.date)
             if move_out.picking_id and read:
                 line["move_out"].update(
                     {

@@ -74,7 +74,7 @@ class ProductProduct(models.Model):
         "with 'internal' type.",
     )
     qty_free = fields.Float(
-        string="Free To Use Quantity ",
+        string="Free To Use Quantity",
         digits="Product Unit",
         compute="_compute_quantities",
         compute_sudo=False,
@@ -301,7 +301,10 @@ class ProductProduct(models.Model):
             product.reordering_qty_min = product_min_qty_sum
             product.reordering_qty_max = product_max_qty_sum
 
-    @api.depends("product_tmpl_id")
+    @api.depends(
+        "product_tmpl_id.show_on_hand_qty_status_button",
+        "product_tmpl_id.show_forecasted_qty_status_button",
+    )
     def _compute_show_qty_status_button(self):
         for product in self:
             product.show_on_hand_qty_status_button = (
@@ -311,7 +314,9 @@ class ProductProduct(models.Model):
                 product.product_tmpl_id.show_forecasted_qty_status_button
             )
 
-    @api.depends("product_tmpl_id")
+    # `_should_open_product_quants` also reads user groups, which cannot be
+    # declared as dependencies; `tracking` is the record-level trigger.
+    @api.depends("product_tmpl_id.tracking")
     def _compute_show_qty_update_button(self):
         for product in self:
             product.show_qty_update_button = (
@@ -330,6 +335,9 @@ class ProductProduct(models.Model):
     @api.depends_context(
         "lot_id",
         "owner_id",
+        # `owners` scopes quants AND moves in _prepare_quantities_vals; without
+        # it in the cache key, reads under different owners contexts alias.
+        "owners",
         "package_id",
         "from_date",
         "to_date",
@@ -416,16 +424,23 @@ class ProductProduct(models.Model):
             # adjustment is skipped rather than crashing on a False location.
             self.env["stock.warehouse"]._warehouse_redirect_warning()
             return
-        for product in products_to_update:
-            self.env["stock.quant"].with_context(
-                inventory_mode=True, from_inverse_qty=True
-            ).create(
-                {
-                    "product_id": product.id,
-                    "location_id": warehouse.lot_stock_id.id,
-                    "inventory_quantity": product.qty_available,
-                }
-            )._apply_inventory()
+        # Both APIs are batch-capable: one create() for all adjustments, one
+        # _apply_inventory() on the resulting quants.
+        quants = (
+            self.env["stock.quant"]
+            .with_context(inventory_mode=True, from_inverse_qty=True)
+            .create(
+                [
+                    {
+                        "product_id": product.id,
+                        "location_id": warehouse.lot_stock_id.id,
+                        "inventory_quantity": product.qty_available,
+                    }
+                    for product in products_to_update
+                ]
+            )
+        )
+        quants._apply_inventory()
 
     # ------------------------------------------------------------
     # SEARCH METHODS
@@ -508,7 +523,13 @@ class ProductProduct(models.Model):
     def _search_qty_available_new(
         self, operator, value, lot_id=False, owner_id=False, package_id=False
     ):
-        """Optimized method which doesn't search on stock.moves, only on stock.quants."""
+        """Optimized method which doesn't search on stock.moves, only on stock.quants.
+
+        Caller invariant: zero-matching searches (any `(operator, value)` that 0
+        satisfies) are pre-routed to `_search_product_quantity` by
+        `_search_qty_available`, so quant-less products — whose on-hand is 0 —
+        can never match here and only products with quants need to be examined.
+        """
         op = PY_OPERATORS.get(operator)
         if not op:
             return NotImplemented
@@ -528,29 +549,9 @@ class ProductProduct(models.Model):
         quants_groupby = self.env["stock.quant"]._read_group(
             domain_quant, ["product_id"], ["quantity:sum"]
         )
-
-        # Products with no quants at all are only relevant if 0 matches the search value.
-        include_zero = op(0.0, value)
-
-        processed_product_ids = set()
         for product, quantity_sum in quants_groupby:
-            product_id = product.id
-            if include_zero:
-                processed_product_ids.add(product_id)
             if op(quantity_sum, value):
-                product_ids.add(product_id)
-
-        if include_zero:
-            # A product absent from the quant groups has 0 on hand in this domain,
-            # so it matches whenever 0 does — regardless of `is_storable`. Filtering
-            # to storable here would diverge from the field's `filtered_domain`
-            # semantics and the dated search, dropping non-storable/service products
-            # that legitimately have 0.
-            products_without_quants_in_domain = self.env["product.product"].search(
-                [("id", "not in", list(processed_product_ids))],
-                order="id",
-            )
-            product_ids |= set(products_without_quants_in_domain.ids)
+                product_ids.add(product.id)
         return list(product_ids)
 
     # ------------------------------------------------------------
@@ -742,10 +743,20 @@ class ProductProduct(models.Model):
             domain_move_out &= Domain([("restrict_partner_id", "=", owner_id)])
         if "owners" in self.env.context:
             owners = self.env.context["owners"]
+            # The move domains are filtered through the move lines' owner (as
+            # upstream does): a move's owner scope only materializes on its
+            # lines, so unreserved moves don't count towards the owner's
+            # incoming/outgoing quantities. Filtering only `domain_quant` would
+            # desync qty_incoming/qty_outgoing/qty_available_virtual from
+            # qty_available/qty_free under the same context.
             if owners:
-                domain_quant &= Domain([("owner_id", "in", self.env.context["owners"])])
+                domain_quant &= Domain([("owner_id", "in", owners)])
+                domain_move_in &= Domain([("move_line_ids.owner_id", "in", owners)])
+                domain_move_out &= Domain([("move_line_ids.owner_id", "in", owners)])
             else:
                 domain_quant &= Domain([("owner_id", "=", False)])
+                domain_move_in &= Domain([("move_line_ids.owner_id", "=", False)])
+                domain_move_out &= Domain([("move_line_ids.owner_id", "=", False)])
         if package_id is not None:
             domain_quant &= Domain([("package_id", "=", package_id)])
         if dates_in_the_past:
@@ -1147,7 +1158,7 @@ class ProductProduct(models.Model):
 
     def _get_dates_info(self, date, location, route_ids=False):
         rules = self._get_rules_from_location(location, route_ids=route_ids)
-        delays, _ = rules.with_context(bypass_delay_description=True)._get_lead_days(
+        delays, __ = rules.with_context(bypass_delay_description=True)._get_lead_days(
             self
         )
         return {

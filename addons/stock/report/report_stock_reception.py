@@ -362,7 +362,11 @@ class ReportStockReport_Reception(models.AbstractModel):
             out = self.env["stock.move"].browse(out_id)
             if out.state not in allowed_out_states:
                 raise UserError(
-                    _("Cannot assign transfer %s in state %s.", out.display_name, out.state)
+                    _(
+                        "Cannot assign transfer %s in state %s.",
+                        out.display_name,
+                        out.state,
+                    )
                 )
             if out.move_orig_ids:
                 raise UserError(
@@ -407,15 +411,19 @@ class ReportStockReport_Reception(models.AbstractModel):
                     # let's assume if 1 of the potential_ins isn't done, then none of them are => we are only assigning the not-reserved
                     # qty and the new move should have all existing reserved quants (i.e. move lines) assigned to it
                     out.move_line_ids.move_id = new_out
-                elif potential_ins[0].state == "done" and out.product_id.uom_id.compare(
-                    # out.quantity is in the move's UoM; qty_to_link is in the product's
-                    # reference UoM (as is product_qty). Convert before comparing, or a
-                    # non-unit move UoM (e.g. dozens) silently mis-compares.
-                    out.product_uom_id._compute_quantity(
-                        out.quantity, out.product_id.uom_id
-                    ),
-                    qty_to_link,
-                ) > 0:
+                elif (
+                    potential_ins[0].state == "done"
+                    and out.product_id.uom_id.compare(
+                        # out.quantity is in the move's UoM; qty_to_link is in the product's
+                        # reference UoM (as is product_qty). Convert before comparing, or a
+                        # non-unit move UoM (e.g. dozens) silently mis-compares.
+                        out.product_uom_id._compute_quantity(
+                            out.quantity, out.product_id.uom_id
+                        ),
+                        qty_to_link,
+                    )
+                    > 0
+                ):
                     # let's assume if 1 of the potential_ins is done, then all of them are => we can link them to already reserved moves, but we
                     # need to make sure the reserved qtys still match the demand amount the move (we're assigning).
                     out.move_line_ids.move_id = new_out
@@ -471,7 +479,7 @@ class ReportStockReport_Reception(models.AbstractModel):
                 # too much and leave the out silently under-covered.
                 linked_qty = min(quantity_remaining, qty_to_link)
                 in_move.move_dest_ids |= out
-                self._action_assign(in_move, out)
+                self._share_source_references(in_move, out)
                 out.procure_method = "make_to_order"
                 quantity_remaining -= linked_qty
                 qty_to_link -= linked_qty
@@ -492,13 +500,41 @@ class ReportStockReport_Reception(models.AbstractModel):
         out = self.env["stock.move"].browse(move_id)
         ins = self.env["stock.move"].browse(in_ids)
 
+        # Re-validate the client-supplied payload server-side, mirroring
+        # `action_assign`: this RPC severs MTO links, rewrites procure_method
+        # and unreserves, so a crafted request (or a stale report tab) must not
+        # touch a move in an unexpected state, an unlinked move, or a move of
+        # another company.
+        allowed_out_states = {"confirmed", "partially_available", "waiting", "assigned"}
+        if out.state not in allowed_out_states:
+            raise UserError(
+                _(
+                    "Cannot unassign transfer %s in state %s.",
+                    out.display_name,
+                    out.state,
+                )
+            )
+        if not out.move_orig_ids:
+            raise UserError(
+                _("Transfer %s is not linked to a source.", out.display_name)
+            )
+        for in_move in ins:
+            if in_move.company_id != out.company_id:
+                raise UserError(
+                    _(
+                        "Cannot unlink transfers across companies (%(out)s / %(inc)s).",
+                        out=out.display_name,
+                        inc=in_move.display_name,
+                    )
+                )
+
         amount_unassigned = 0
         for in_move in ins:
             if out.id not in in_move.move_dest_ids.ids:
                 continue
             move_quantity = self._get_move_quantity(in_move)
             in_move.move_dest_ids -= out
-            self._action_unassign(in_move, out)
+            self._unshare_source_references(in_move, out)
             amount_unassigned += min(qty, move_quantity)
             if out.product_id.uom_id.compare(qty, amount_unassigned) <= 0:
                 break
@@ -523,9 +559,12 @@ class ReportStockReport_Reception(models.AbstractModel):
                 new_out_qty_ref = new_out.product_uom_id._compute_quantity(
                     new_out.quantity, new_out.product_id.uom_id
                 )
-                if new_out.product_id.uom_id.compare(
-                    new_out_qty_ref, new_out.product_qty
-                ) > 0:
+                if (
+                    new_out.product_id.uom_id.compare(
+                        new_out_qty_ref, new_out.product_qty
+                    )
+                    > 0
+                ):
                     # extra reserved amount goes to no longer linked out
                     reserved_amount_to_remain = new_out_qty_ref - new_out.product_qty
                     for move_line_id in new_out.move_line_ids:
@@ -556,7 +595,7 @@ class ReportStockReport_Reception(models.AbstractModel):
         out._do_unreserve()
         return True
 
-    def _action_assign(self, in_move, out_move):
+    def _share_source_references(self, in_move, out_move):
         """share reference across source documents"""
         in_ref = in_move.reference_ids
         out_ref = out_move.reference_ids
@@ -567,7 +606,7 @@ class ReportStockReport_Reception(models.AbstractModel):
         if in_ref and out_source:
             out_source._add_reference(in_ref)
 
-    def _action_unassign(self, in_move, out_move):
+    def _unshare_source_references(self, in_move, out_move):
         """remove shared reference across source documents if any"""
         in_ref = in_move.reference_ids
         out_ref = out_move.reference_ids

@@ -9,11 +9,19 @@ from odoo.tools.misc import html_escape
 
 class StockReportController(http.Controller):
     @http.route(
-        "/stock/<string:output_format>/<string:report_name>",
+        [
+            "/stock/<string:output_format>",
+            # Legacy path: the trailing report-name segment was never consumed
+            # server-side, but it is still baked into the URLs built by
+            # data/stock_traceability_report_data.xml and
+            # stock_traceability_report_backend.js ("/stock/pdf/stock"), so it
+            # stays routable (and ignored) until those builders are updated.
+            "/stock/<string:output_format>/<string:report_name>",
+        ],
         type="http",
         auth="user",
     )
-    def report(self, output_format, report_name=False, **kw):
+    def report(self, output_format, report_name=None, **kw):
         # Only PDF is produced; anything else used to fall through and return
         # ``None`` (an invalid WSGI response). Reject it explicitly.
         if output_format != "pdf":
@@ -27,6 +35,10 @@ class StockReportController(http.Controller):
         active_model = kw.get("active_model")
         if not raw_data or not active_id or not active_model:
             raise BadRequest("Missing required parameters: data/active_id/active_model")
+        try:
+            active_id = int(active_id)
+        except ValueError as e:
+            raise BadRequest("'active_id' must be an integer") from e
         try:
             line_data = json.loads(raw_data)
         except ValueError as e:

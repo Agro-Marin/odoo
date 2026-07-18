@@ -48,7 +48,9 @@
                     <field name="warehouseinfo_ids" invisible="1" />
                     <page string="Warehouses" name="page_warehouses"
                         invisible="not warehouseinfo_ids">
-                        <field name="wh_replenishment_option_ids" />
+                        <!-- readonly: options are generated at wizard creation
+                             (previously an implicitly-readonly computed field) -->
+                        <field name="wh_replenishment_option_ids" readonly="1" />
                     </page>
                 </notebook>
                 <footer>
