@@ -537,8 +537,18 @@ class StockWarehouse(models.Model):
         """
         route_depends = self._get_route_depend_fields()
         probe = self.sudo().with_context(active_test=False)
-        candidates = probe | probe.search([("id", "not in", probe.ids)])
-        for warehouse in candidates:
+        # Try `self` first: `_get_global_trigger_fields` is ormcached, so in the
+        # common case the first attempt returns the cached structural set and
+        # the fallback search over the other warehouses is never paid.
+        for warehouse in probe:
+            try:
+                global_depends, global_rule_keys = (
+                    warehouse._get_global_trigger_fields()
+                )
+                return route_depends, global_depends, global_rule_keys
+            except UserError:
+                continue
+        for warehouse in probe.search([("id", "not in", probe.ids)]):
             try:
                 global_depends, global_rule_keys = (
                     warehouse._get_global_trigger_fields()
@@ -608,21 +618,26 @@ class StockWarehouse(models.Model):
         picking_types = PickingType.with_context(active_test=False).search(
             [("warehouse_id", "=", self.id)]
         )
-        moves = self.env["stock.move"].search(
+        # Run every validation BEFORE the first write, so a raise never leaves
+        # the environment with half of the toggling applied. Aggregate instead
+        # of materializing every ongoing move just to name its picking type.
+        open_moves_by_type = self.env["stock.move"]._read_group(
             [
                 ("picking_type_id", "in", picking_types.ids),
                 ("state", "not in", ("done", "cancel")),
-            ]
+            ],
+            ["picking_type_id"],
         )
-        if moves:
+        if open_moves_by_type:
             raise UserError(
                 _(
                     "You still have ongoing operations for operation types %(operations)s in warehouse %(warehouse)s",
-                    operations=moves.mapped("picking_type_id.name"),
+                    operations=[
+                        picking_type.name for (picking_type,) in open_moves_by_type
+                    ],
                     warehouse=self.name,
                 )
             )
-        picking_types.write({"active": active})
         locations = (
             self.env["stock.location"]
             .with_context(active_test=False)
@@ -649,6 +664,7 @@ class StockWarehouse(models.Model):
                     warehouse=self.name,
                 )
             )
+        picking_types.write({"active": active})
         self.view_location_id.write({"active": active})
 
         rules = (

@@ -108,9 +108,12 @@ class ResConfigSettings(models.TransientModel):
     horizon_days = fields.Integer(related="company_id.horizon_days", readonly=False)
 
     def _compute_replenish_on_order(self):
+        # Unconditional assignment: a compute must assign its field on every
+        # record even when the MTO route was deleted (a case this module guards
+        # elsewhere), otherwise the settings page crashes on
+        # "Compute method failed to assign".
         route = self.env.ref("stock.route_warehouse0_mto", raise_if_not_found=False)
-        if route:
-            self.replenish_on_order = route.active
+        self.replenish_on_order = bool(route and route.active)
 
     def _inverse_replenish_on_order(self):
         route = self.env.ref("stock.route_warehouse0_mto", raise_if_not_found=False)
@@ -150,7 +153,7 @@ class ResConfigSettings(models.TransientModel):
         ):
             raise UserError(
                 _(
-                    "You can't deactivate the multi-location if you have more than once warehouse by company"
+                    "You can't deactivate the multi-location setting if you have more than one warehouse per company."
                 )
             )
 
