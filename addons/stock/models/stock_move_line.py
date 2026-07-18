@@ -299,6 +299,10 @@ class StockMoveLine(models.Model):
         created_moves = mls._link_or_create_moves()
         mls._reserve_new_move_lines()
         self.env["stock.move"].browse(created_moves)._post_process_created_moves()
+        # Accumulate the chained moves impacted by the done lines and re-run their
+        # reservation once after the loop (mirroring write()): N done lines on one
+        # move would otherwise redo the unreserve/assign pair N times.
+        next_moves = self.env["stock.move"]
         for ml in mls:
             if ml.state == "done":
                 if ml.product_id.is_storable:
@@ -316,11 +320,12 @@ class StockMoveLine(models.Model):
                             package_id=ml.package_id,
                             owner_id=ml.owner_id,
                         )
-                next_moves = ml.move_id.move_dest_ids.filtered(
+                next_moves |= ml.move_id.move_dest_ids.filtered(
                     lambda move: move.state not in ("done", "cancel")
                 )
-                next_moves._do_unreserve()
-                next_moves._action_assign()
+        if next_moves:
+            next_moves._do_unreserve()
+            next_moves._action_assign()
 
         move_done = mls.filtered(lambda m: m.state == "done").move_id
         if move_done:
@@ -421,7 +426,7 @@ class StockMoveLine(models.Model):
             # this symmetric with _reserve_new_move_lines: a line created without a
             # move reserves on create, so its unlink must release (the previous
             # `ml.move_id and ...` guard silently leaked that reservation).
-            if not ml.product_uom_id.is_zero(
+            if not ml.product_id.uom_id.is_zero(
                 ml.quantity_product_uom
             ) and not ml._should_bypass_reservation(ml.location_id):
                 self.env["stock.quant"]._update_reserved_quantity(
@@ -502,10 +507,12 @@ class StockMoveLine(models.Model):
 
     @api.depends("state")
     def _compute_picked(self):
+        # Deliberately state-driven only: reading the environment here made the
+        # stored result depend on which env flushed it (the detail dialog's
+        # auto-pick is a create-time default instead, see
+        # `stock.move.action_show_details` / `_prepare_create_vals`).
         for line in self:
-            if line.move_id.state == "done" or self.env.context.get(
-                "auto_pick_move_lines"
-            ):
+            if line.move_id.state == "done":
                 line.picked = True
 
     @api.depends("picking_id")
@@ -602,8 +609,10 @@ class StockMoveLine(models.Model):
             if self.lot_name or self.lot_id:
                 move_lines_to_check = self._get_similar_move_lines() - self
                 if self.lot_name:
+                    # `move_lines_to_check` excludes self, so a single other line
+                    # carrying this serial already is a duplicate.
                     counter = Counter([line.lot_name for line in move_lines_to_check])
-                    if counter[self.lot_name] > 1:
+                    if counter[self.lot_name] >= 1:
                         message = _(
                             "You cannot use the same serial number twice. Please correct the serial numbers encoded."
                         )
@@ -632,7 +641,7 @@ class StockMoveLine(models.Model):
                             )
                 elif self.lot_id:
                     counter = Counter([line.lot_id.id for line in move_lines_to_check])
-                    if counter[self.lot_id.id] > 1:
+                    if counter[self.lot_id.id] >= 1:
                         message = _(
                             "You cannot use the same serial number twice. Please correct the serial numbers encoded."
                         )
@@ -951,7 +960,6 @@ class StockMoveLine(models.Model):
     def _apply_putaway_strategy(self):
         if self.env.context.get("avoid_putaway_rules"):
             return
-        self = self.with_context(do_not_unreserve=True)
         for package, smls in groupby(
             self,
             lambda sml: sml.result_package_id.outermost_package_id,
@@ -1075,6 +1083,10 @@ class StockMoveLine(models.Model):
             key = (ml.product_id.id, ml.lot_name)
             key_to_mls[key] |= ml
             if ml.tracking != "lot" or key not in key_to_index:
+                # Duplicate serials in the batch reach `stock.lot.create`, whose
+                # `_check_duplicate_lot_keys` raises the clean, company-aware
+                # uniqueness ValidationError before the SQL constraint can turn
+                # it into a raw IntegrityError.
                 key_to_index[key] = len(lot_vals)
                 lot_vals.append(ml._prepare_new_lot_vals())
 
@@ -1165,15 +1177,15 @@ class StockMoveLine(models.Model):
         move_to_reassign = self.env["stock.move"]
         to_unlink_candidate_ids = set()
 
+        # `quantity` (and `quantity_product_uom`) are in the product's UoM, so
+        # the comparisons use the product UoM, not this line's.
+        product_uom = product_id.uom_id
         for candidate in outdated_candidates:
             move_to_reassign |= candidate.move_id
-            if (
-                self.product_uom_id.compare(candidate.quantity_product_uom, quantity)
-                <= 0
-            ):
+            if product_uom.compare(candidate.quantity_product_uom, quantity) <= 0:
                 quantity -= candidate.quantity_product_uom
                 to_unlink_candidate_ids.add(candidate.id)
-                if self.product_uom_id.is_zero(quantity):
+                if product_uom.is_zero(quantity):
                     break
             else:
                 candidate.quantity -= candidate.product_id.uom_id._compute_quantity(
@@ -1184,10 +1196,24 @@ class StockMoveLine(models.Model):
         move_line_to_unlink = self.env["stock.move.line"].browse(
             to_unlink_candidate_ids
         )
-        for m in move_line_to_unlink.move_id | move_to_reassign:
-            m.write(
-                {"procure_method": "make_to_stock", "move_orig_ids": [Command.clear()]}
-            )
+        # Every affected candidate lost (part of) its reservation to stock its
+        # origin chain can no longer account for, so downgrade them all to
+        # make_to_stock: quant-side replenishment (`_trigger_assign` only
+        # considers MTS moves) must be able to serve the stolen portion again.
+        # But only moves losing their *entire* remaining reservation also drop
+        # their `move_orig_ids`; partially-reduced candidates keep the chain
+        # links -- traceability survives and their chained re-assignment (which
+        # double-checks takes against the quants) still works. Severing every
+        # iterated candidate permanently cut open MTO chains on any overlap.
+        moves_to_sever = move_line_to_unlink.move_id.filtered(
+            lambda m: not (m.move_line_ids - move_line_to_unlink)
+        )
+        moves_to_sever.write(
+            {"procure_method": "make_to_stock", "move_orig_ids": [Command.clear()]}
+        )
+        (move_to_reassign - moves_to_sever).filtered(
+            lambda m: m.procure_method != "make_to_stock"
+        ).procure_method = "make_to_stock"
         move_line_to_unlink.unlink()
         move_to_reassign[::-1]._action_assign()
 
@@ -1248,8 +1274,15 @@ class StockMoveLine(models.Model):
                 )["line_key"]
             return key
 
-        # Bucket backorder move lines by their move's base key so each aggregated line matches
-        # them with a handful of prefix checks instead of a scan over every backorder line.
+        # Base (package-less) key of each aggregated entry, so entries match by
+        # *exact* base equality. The historical `str.startswith` prefix matching
+        # collided whenever one key was a textual prefix of another (ids sharing
+        # leading digits, descriptions containing separator-like text), silently
+        # merging unrelated groups.
+        base_by_agg_key = {}
+
+        # Bucket backorder move lines by their move's base key so each aggregated line
+        # matches them with one dict lookup instead of a scan over every backorder line.
         backorder_lines_by_base = defaultdict(lambda: self.env["stock.move.line"])
         for bo_line in backorders.move_line_ids:
             backorder_lines_by_base[base_key(bo_line.move_id)] |= bo_line
@@ -1274,22 +1307,19 @@ class StockMoveLine(models.Model):
                 if not kwargs.get("strict"):
                     qty_ordered = move_line.move_id.product_uom_qty
                     if backorders:
-                        # Add quantities moved to backorders (matched by aggregation key) to
-                        # recover the original ordered qty.
-                        following_move_lines = self.env["stock.move.line"]
-                        for candidate_key, bo_lines in backorder_lines_by_base.items():
-                            if line_key.startswith(candidate_key):
-                                following_move_lines |= bo_lines
+                        # Add quantities moved to backorders (matched by exact base
+                        # aggregation key) to recover the original ordered qty.
+                        following_move_lines = backorder_lines_by_base.get(
+                            base_key(move_line.move_id),
+                            self.env["stock.move.line"],
+                        )
                         qty_ordered += sum(
                             following_move_lines.move_id.mapped("product_uom_qty")
                         )
-                    # Remove the done quantities of the other move lines of the stock move
-                    previous_move_lines = move_line.move_id.move_line_ids.filtered(
-                        lambda ml, line_key=line_key, move_line=move_line: (
-                            line_key.startswith(base_key(ml.move_id))
-                            and ml.id != move_line.id
-                        )
-                    )
+                    # Remove the done quantities of the other move lines of the
+                    # stock move (they all share this move's base key by
+                    # construction).
+                    previous_move_lines = move_line.move_id.move_line_ids - move_line
                     qty_ordered -= sum(
                         m.product_uom_id._compute_quantity(m.quantity, uom)
                         for m in previous_move_lines
@@ -1297,6 +1327,7 @@ class StockMoveLine(models.Model):
                     packaging_qty_ordered = uom._compute_quantity(
                         qty_ordered, move_line.move_id.packaging_uom_id
                     )
+                base_by_agg_key[line_key] = base_key(move_line.move_id)
                 aggregated_move_lines[line_key] = {
                     **aggregated_properties,
                     "quantity": quantity,
@@ -1336,14 +1367,14 @@ class StockMoveLine(models.Model):
             aggregated_properties = self._get_aggregated_properties(move=empty_move)
             line_key = aggregated_properties["line_key"]
 
-            if (
-                not any(
-                    aggregated_key.startswith(line_key)
-                    for aggregated_key in aggregated_move_lines
-                )
-                and not to_bypass
-            ):
+            # Entries sharing this empty move's base key (i.e. its own aggregation
+            # group, package variants included) -- matched exactly, not by prefix.
+            matching_keys = [
+                key for key, base in base_by_agg_key.items() if base == line_key
+            ]
+            if not matching_keys and not to_bypass:
                 qty_ordered = empty_move.product_uom_qty
+                base_by_agg_key[line_key] = line_key
                 aggregated_move_lines[line_key] = {
                     **aggregated_properties,
                     "quantity": False,
@@ -1356,14 +1387,10 @@ class StockMoveLine(models.Model):
                 aggregated_move_lines[line_key]["qty_ordered"] += (
                     empty_move.product_uom_qty
                 )
-            else:
-                keys = list(
-                    filter(lambda key: key.startswith(line_key), aggregated_move_lines)
+            elif matching_keys:
+                aggregated_move_lines[matching_keys[0]]["qty_ordered"] += (
+                    empty_move.product_uom_qty
                 )
-                if keys:
-                    aggregated_move_lines[keys[0]]["qty_ordered"] += (
-                        empty_move.product_uom_qty
-                    )
 
         return aggregated_move_lines
 
@@ -1848,8 +1875,18 @@ class StockMoveLine(models.Model):
 
     def _reserve_new_move_lines(self):
         """Reserve quants for the freshly created, not-yet-done move lines, then recompute the
-        state of the moves whose reservation changed."""
+        state of the moves whose reservation changed.
+
+        Lines sharing the same reservation characteristics (product, location, lot,
+        package, owner) reserve with a single quant update each: repeated calls for
+        one characteristics tuple would gather/lock/write the very same quant once
+        per line. (No `reserved_quant` context indirection here either: quant
+        `_update_reserved_quantity` is @api.model and `_gather` never filters
+        `self`, so routing the call through a quant recordset from the context was
+        a no-op pretending to target that quant.)
+        """
         move_to_recompute_state = set()
+        qty_by_characteristics = defaultdict(float)
         for move_line in self:
             if move_line.state == "done":
                 continue
@@ -1863,21 +1900,30 @@ class StockMoveLine(models.Model):
                     product.is_storable and not location.should_bypass_reservation()
                 )
             if move_line.quantity_product_uom and reservation:
-                # No `reserved_quant` context indirection here: quant
-                # `_update_reserved_quantity` is @api.model and `_gather` never
-                # filters `self`, so routing the call through a quant recordset
-                # from the context was a no-op pretending to target that quant.
-                self.env["stock.quant"]._update_reserved_quantity(
+                qty_by_characteristics[
                     product,
                     location,
-                    move_line.quantity_product_uom,
-                    lot_id=move_line.lot_id,
-                    package_id=move_line.package_id,
-                    owner_id=move_line.owner_id,
-                )
-
+                    move_line.lot_id,
+                    move_line.package_id,
+                    move_line.owner_id,
+                ] += move_line.quantity_product_uom
                 if move:
                     move_to_recompute_state.add(move.id)
+        for (
+            product,
+            location,
+            lot,
+            package,
+            owner,
+        ), qty in qty_by_characteristics.items():
+            self.env["stock.quant"]._update_reserved_quantity(
+                product,
+                location,
+                qty,
+                lot_id=lot,
+                package_id=package,
+                owner_id=owner,
+            )
         self.env["stock.move"].browse(move_to_recompute_state)._recompute_state()
 
     def _resync_reservation(self, vals, updates):
@@ -1885,13 +1931,18 @@ class StockMoveLine(models.Model):
         desyncs the quants' reserved quantity from the sum of the lines' `quantity_product_uom`,
         so unreserve the old characteristics and reserve the new ones (falling back to whatever
         is available). Runs for any reservation-affecting change -- `quantity`, or any trigger
-        but `result_package_id` (destination packaging only); that key is subtracted rather than
-        tested for absence so the re-sync still fires when it is written alongside a real one.
+        except the destination-side ones (`result_package_id`, `location_dest_id`), which are
+        irrelevant to a reservation keyed on source characteristics; those keys are subtracted
+        rather than tested for absence so the re-sync still fires when one is written alongside
+        a real trigger.
 
         :return: the moves whose state must be recomputed because their quantity/uom changed.
         """
         moves_to_recompute_state = self.env["stock.move"]
-        if not ((set(updates) - {"result_package_id"}) or "quantity" in vals):
+        if not (
+            (set(updates) - {"result_package_id", "location_dest_id"})
+            or "quantity" in vals
+        ):
             return moves_to_recompute_state
         for ml in self:
             if not ml.product_id.is_storable or ml.state == "done":
@@ -1911,7 +1962,9 @@ class StockMoveLine(models.Model):
                 new_reserved_qty = ml.quantity_product_uom
 
             # Unreserve the move line's old characteristics.
-            if not ml.product_uom_id.is_zero(ml.quantity_product_uom):
+            # (`quantity_product_uom` is in the product's UoM, so the zero guard
+            # must use the product UoM, not the line's.)
+            if not ml.product_id.uom_id.is_zero(ml.quantity_product_uom):
                 ml._synchronize_quant(
                     -ml.quantity_product_uom, ml.location_id, action="reserved"
                 )
@@ -1943,7 +1996,8 @@ class StockMoveLine(models.Model):
         package = quants_value.get("package", self.package_id)
         owner = quants_value.get("owner", self.owner_id)
         available_qty = 0
-        if not self.product_id.is_storable or self.product_uom_id.is_zero(quantity):
+        # `quantity` is in the product's UoM: guard with the product UoM.
+        if not self.product_id.is_storable or self.product_id.uom_id.is_zero(quantity):
             return 0, False
         if action == "available":
             available_qty, in_date = self.env["stock.quant"]._update_available_quantity(
