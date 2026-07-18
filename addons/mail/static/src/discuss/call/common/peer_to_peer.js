@@ -822,7 +822,15 @@ export class PeerToPeer extends EventTarget {
                             "too many failed attempts to send notifications, giving up",
                             LOG_LEVEL.ERROR,
                         );
-                        this._notificationsToSend.clear();
+                        // Drop only what we actually tried to send (by identity),
+                        // like the success path below, so notifications queued
+                        // during the ~30s backoff survive for the recovery flow
+                        // instead of being cleared with the whole queue.
+                        for (const [id, notification] of sent) {
+                            if (this._notificationsToSend.get(id) === notification) {
+                                this._notificationsToSend.delete(id);
+                            }
+                        }
                         return;
                     }
                     // retry with an exponential backoff

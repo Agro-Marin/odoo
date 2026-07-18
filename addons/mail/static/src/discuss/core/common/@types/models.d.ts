@@ -42,7 +42,6 @@ declare module "models" {
         correspondentCountry: Country;
         correspondents: Readonly<ChannelMember[]>;
         default_display_mode: "video_full_screen"|undefined;
-        fetchChannelInfoDeferred: Deferred<Thread|undefined>;
         fetchChannelInfoState: "not_fetched"|"fetching"|"fetched";
         fetchChannelMembers: () => Promise<void>;
         fetchMoreAttachments: (limit: number) => Promise<void>;

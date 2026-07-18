@@ -1274,6 +1274,15 @@ export class Rtc extends Record {
             });
             return;
         }
+        // Fully leave the current call before joining another one. joinCall only
+        // clear()s, and clear() -> transport.dispose() deliberately skips
+        // disconnect() (it trusts endCall to have run). Without leaving first, the
+        // previous channel's peer connections and SFU socket leak, its p2p
+        // listeners keep firing (doubling updates), updateUpload replaceTracks the
+        // new mic/camera to the *old* participants, and no leave_call RPC is sent.
+        if (this.state.channel && this.state.channel.notEq(channel)) {
+            await this.leaveCall(this.state.channel);
+        }
         this.pttExtService.subscribe();
         this.state.hasPendingRequest = true;
         let data;

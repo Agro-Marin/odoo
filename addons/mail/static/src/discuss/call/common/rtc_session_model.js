@@ -98,8 +98,6 @@ export class RtcSession extends Record {
     audioElement;
     /** @type {MediaStream} */
     audioStream;
-    /** @type {RTCDataChannel} */
-    dataChannel;
     audioError;
     videoError;
     isTalking = fields.Attr(false, {
@@ -151,8 +149,6 @@ export class RtcSession extends Record {
     });
     talkingTime = 0;
     localVolume;
-    /** @type {RTCPeerConnection} */
-    peerConnection;
     /** @type {Date|undefined} */
     raisingHand;
     videoComponentCount = 0;
