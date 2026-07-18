@@ -114,7 +114,16 @@ class StockRoute(models.Model):
                 rules.action_unarchive()
             else:
                 rules.action_archive()
-        return super().write(vals)
+        res = super().write(vals)
+        if vals.get("active"):
+            # The blanket rule unarchive above also resurrects the resupply legs
+            # `_check_delivery_resupply` had archived as configuration state
+            # (the Stock -> Output pick leg vs. the single-step MTO rules).
+            # Re-align them with the supplier warehouses' current delivery
+            # steps, mirroring what the warehouse unarchive already does.
+            for warehouse in self.sudo().supplier_wh_id:
+                warehouse._align_resupply_rule_activity()
+        return res
 
     def copy_data(self, default=None):
         default = dict(default or {})

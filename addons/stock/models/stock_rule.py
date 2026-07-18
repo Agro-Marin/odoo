@@ -479,7 +479,11 @@ class StockRule(models.Model):
                 partner = partners.id
 
         if product_uom_id.compare(product_qty, 0.0) < 0:
-            values["to_refund"] = True
+            # Work on a local copy: `values` is the caller's procurement dict,
+            # shared with sibling consumers, and a value-preparation getter must
+            # not mutate it. The copy still feeds `procurement_values` and the
+            # custom-field loop below.
+            values = dict(values, to_refund=True)
 
         move_values = {
             "company_id": self.company_id.id
@@ -632,6 +636,7 @@ class StockRule(models.Model):
 
         actions_to_run = defaultdict(list)
         procurement_errors = []
+        valid_procurements = []
         for procurement in procurements:
             procurement.values.setdefault(
                 "company_id", procurement.location_id.company_id
@@ -645,9 +650,11 @@ class StockRule(models.Model):
             )
             if self._skip_procurement(procurement):
                 continue
-            rule = self._get_rule(
-                procurement.product_id, procurement.location_id, procurement.values
-            )
+            valid_procurements.append(procurement)
+        # Batched rule resolution: one rule-dict search per (hierarchy root,
+        # company, warehouse, route set) group instead of one per procurement.
+        rules = self._get_rules_batch(valid_procurements)
+        for procurement, rule in zip(valid_procurements, rules, strict=True):
             if not rule:
                 error = _(
                     'No rule has been found to replenish "%(product)s" in "%(location)s".\nVerify the routes configuration on the product.',
@@ -691,6 +698,15 @@ class StockRule(models.Model):
         (`_search_rule_for_warehouses`) and the in-memory resolver
         (`_get_rule`), so the four-tier fallback lives in exactly one place.
         Empty buckets may be yielded; callers skip them.
+
+        Full resolution contract: a rule in an earlier bucket always beats any
+        rule in a later bucket. WITHIN a bucket, routes set directly on the
+        product take precedence over category/packaging/warehouse routes, then
+        routes are ordered by ascending route sequence and rules within a route
+        by ascending rule sequence — see `_sorted_bucket_routes`, shared by
+        `_search_rule` (push resolution) and `_extract_rule_from_dict` (pull
+        resolution) so both paths resolve the same rule for the same
+        configuration.
         """
         if route_ids:
             yield route_ids
@@ -701,20 +717,23 @@ class StockRule(models.Model):
             yield warehouse_id.route_ids
 
     @api.model
-    def _search_rule_for_warehouses(
-        self, route_ids, packaging_uom_id, product_id, warehouse_ids, domain
+    def _get_valid_route_ids(
+        self, route_ids, packaging_uom_id, product_id, warehouse_ids
     ):
-        domain = Domain(domain)
-        if warehouse_ids:
-            domain &= Domain("warehouse_id", "in", [False, *warehouse_ids.ids])
+        """Set of route ids a rule may come from for this (routes, packaging,
+        product, warehouses) combination — the union of every bucket, with the
+        warehouse routes filtered per product. Shared by
+        `_search_rule_for_warehouses` (domain restriction) and the batched
+        resolution in `run()` (grouping key).
+        """
         valid_route_ids = set()
         no_warehouse = self.env["stock.warehouse"]
         for routes in self._get_route_buckets(
             route_ids, packaging_uom_id, product_id, no_warehouse
         ):
             valid_route_ids |= set(routes.ids)
-        # The warehouse bucket differs here: it spans several warehouses and is
-        # filtered per product, so it is handled outside `_get_route_buckets`.
+        # The warehouse bucket differs here: it may span several warehouses and
+        # is filtered per product, so it is handled outside `_get_route_buckets`.
         if warehouse_ids:
             filter_function = partial(
                 self._filter_warehouse_routes, product_id, warehouse_ids
@@ -722,6 +741,18 @@ class StockRule(models.Model):
             valid_route_ids |= set(
                 warehouse_ids.route_ids.filtered(filter_function).ids
             )
+        return valid_route_ids
+
+    @api.model
+    def _search_rule_for_warehouses(
+        self, route_ids, packaging_uom_id, product_id, warehouse_ids, domain
+    ):
+        domain = Domain(domain)
+        if warehouse_ids:
+            domain &= Domain("warehouse_id", "in", [False, *warehouse_ids.ids])
+        valid_route_ids = self._get_valid_route_ids(
+            route_ids, packaging_uom_id, product_id, warehouse_ids
+        )
         if valid_route_ids:
             domain &= Domain("route_id", "in", list(valid_route_ids))
         res = self.env["stock.rule"]._read_group(
@@ -740,12 +771,31 @@ class StockRule(models.Model):
     def _filter_warehouse_routes(self, product, warehouses, route):
         return route
 
+    @api.model
+    def _sorted_bucket_routes(self, routes, product_id):
+        """Order the routes of one precedence bucket for rule resolution:
+        product-specific routes first, then ascending route sequence (id as
+        tiebreaker). Single definition of the intra-bucket ordering, shared by
+        the sequential resolver (`_search_rule`, push path) and the prefetched
+        one (`_extract_rule_from_dict`, pull path) so both resolve the same
+        rule for the same configuration.
+        """
+        product_route_ids = set(product_id.route_ids.ids)
+        return routes.sorted(
+            key=lambda route: (
+                route.id not in product_route_ids,
+                route.sequence,
+                route.id,
+            ),
+        )
+
     def _search_rule(
         self, route_ids, packaging_uom_id, product_id, warehouse_id, domain
     ):
         """First find a rule among the routes given in `route_ids`, then try
         the packaging's routes, then the product's routes, finally fallback
-        on the warehouse's routes.
+        on the warehouse's routes. Within a bucket, routes are tried in
+        `_sorted_bucket_routes` order (product routes first, then sequence).
         """
         Rule = self.env["stock.rule"]
         domain = Domain(domain)
@@ -757,13 +807,17 @@ class StockRule(models.Model):
         ):
             if not routes:
                 continue
-            res = Rule.search(
-                Domain("route_id", "in", routes.ids) & domain,
-                order="route_sequence, sequence",
-                limit=1,
-            )
-            if res:
-                return res
+            rules = Rule.search(Domain("route_id", "in", routes.ids) & domain)
+            if not rules:
+                continue
+            for route in self._sorted_bucket_routes(rules.route_id, product_id):
+                route_rules = rules.filtered(
+                    lambda rule, route=route: rule.route_id == route,
+                )
+                if route_rules:
+                    return route_rules.sorted(
+                        key=lambda rule: (rule.sequence, rule.id),
+                    )[:1]
         return Rule
 
     def _extract_rule_from_dict(
@@ -772,12 +826,11 @@ class StockRule(models.Model):
         """Pick a rule delivering to `location_dest_id` among `routes` from the
         prefetched `rule_dict` (built by `_search_rule_for_warehouses`).
 
-        Routes are tried product-routes-first, then by ascending route/rule
-        sequence. Returns an empty recordset when none matches.
+        Routes are tried in `_sorted_bucket_routes` order (product routes
+        first, then ascending route/rule sequence). Returns an empty recordset
+        when none matches.
         """
-        for route in routes.sorted(
-            key=lambda r: (r not in product_id.route_ids, r.sequence)
-        ):
+        for route in self._sorted_bucket_routes(routes, product_id):
             sub_dict = rule_dict.get((location_dest_id.id, route.id))
             if not sub_dict:
                 continue
@@ -811,18 +864,21 @@ class StockRule(models.Model):
         return self.env["stock.rule"]
 
     @api.model
-    def _get_rule(self, product_id, location_id, values):
-        """Find a pull rule for the location_id, fallback on the parent
-        locations if it could not be found.
+    def _get_location_hierarchy(self, location_id):
+        """Return the leaf -> root location chain of `location_id` (leaf first),
+        reused for the rule search domain, the warehouse set and the fallback
+        walk of `_get_rule`.
         """
-        Rule = self.env["stock.rule"]
-        if not location_id:
-            return Rule
-        # Build the leaf -> root location hierarchy once; it is reused below for
-        # the search domain, the warehouse set and the fallback walk.
         locations = location_id
         while locations[-1].location_id:
             locations |= locations[-1].location_id
+        return locations
+
+    @api.model
+    def _get_rule_from_hierarchy(self, rule_dict, product_id, locations, values):
+        """Walk the leaf -> root chain `locations`, returning the first pull rule
+        the prefetched `rule_dict` yields (empty recordset when none matches).
+        """
         # Resolve the intercompany locations once instead of re-running
         # `_check_intercomp_location` / `env.ref` per location in the walk. When the
         # inter-company transit is in scope, `_get_rule_domain` also searches rules
@@ -836,16 +892,6 @@ class StockRule(models.Model):
             intercomp_customers = self.env.ref(
                 "stock.stock_location_customers", raise_if_not_found=False
             )
-        domain = self._get_rule_domain(locations, values)
-        # Mapping (location_id, route_id) -> {warehouse_id: rule}
-        rule_dict = self._search_rule_for_warehouses(
-            values.get("route_ids", False),
-            values.get("packaging_uom_id", False),
-            product_id,
-            values.get("warehouse_id", locations.warehouse_id),
-            domain,
-        )
-        # Walk the hierarchy leaf -> root, returning the first matching rule.
         for location in locations:
             candidate_locations = location
             if intercomp_customers and location == intercomp_transit:
@@ -856,7 +902,90 @@ class StockRule(models.Model):
                 )
                 if rule:
                     return rule
-        return Rule
+        return self.env["stock.rule"]
+
+    @api.model
+    def _get_rule(self, product_id, location_id, values):
+        """Find a pull rule for the location_id, fallback on the parent
+        locations if it could not be found.
+        """
+        Rule = self.env["stock.rule"]
+        if not location_id:
+            return Rule
+        # Build the leaf -> root location hierarchy once; it is reused below for
+        # the search domain, the warehouse set and the fallback walk.
+        locations = self._get_location_hierarchy(location_id)
+        domain = self._get_rule_domain(locations, values)
+        # Mapping (location_id, route_id) -> {warehouse_id: rule}
+        rule_dict = self._search_rule_for_warehouses(
+            values.get("route_ids", False),
+            values.get("packaging_uom_id", False),
+            product_id,
+            values.get("warehouse_id", locations.warehouse_id),
+            domain,
+        )
+        return self._get_rule_from_hierarchy(rule_dict, product_id, locations, values)
+
+    @api.model
+    def _get_rules_batch(self, procurements):
+        """Resolve the pull rule of every procurement in `procurements`, returning
+        a list of rules aligned with the input.
+
+        Procurements sharing (hierarchy root, company, warehouse, applicable
+        route set) share one prefetched rule dict — one
+        `_search_rule_for_warehouses` read-group per group instead of one per
+        procurement, which is what `run()` needs when the scheduler feeds it
+        hundreds of procurements targeting the same warehouse. The applicable
+        route set (and the explicit routes' companies) is part of the key so a
+        group's merged search stays exactly equivalent to the per-procurement
+        one.
+        """
+        Rule = self.env["stock.rule"]
+        rules = [Rule] * len(procurements)
+        groups = defaultdict(list)
+        for index, procurement in enumerate(procurements):
+            if not procurement.location_id:
+                continue
+            values = procurement.values
+            locations = self._get_location_hierarchy(procurement.location_id)
+            warehouse_ids = values.get("warehouse_id", locations.warehouse_id)
+            explicit_routes = values.get("route_ids") or self.env["stock.route"]
+            valid_route_ids = self._get_valid_route_ids(
+                values.get("route_ids", False),
+                values.get("packaging_uom_id", False),
+                procurement.product_id,
+                warehouse_ids,
+            )
+            company_id = values.get("company_id")
+            key = (
+                locations[-1].id,
+                tuple(company_id.ids) if company_id else (),
+                tuple(warehouse_ids.ids) if warehouse_ids else (),
+                tuple(explicit_routes.company_id.ids),
+                frozenset(valid_route_ids),
+            )
+            groups[key].append((index, procurement, locations, warehouse_ids))
+        for group in groups.values():
+            # One rule dict for the union of the group's ancestor chains: extra
+            # (location, route) entries are harmless, each procurement's walk
+            # only consults its own chain and route buckets.
+            group_locations = self.env["stock.location"].union(
+                *(locations for _index, _procurement, locations, _wh in group),
+            )
+            _index0, representative, _locations0, warehouse_ids = group[0]
+            domain = self._get_rule_domain(group_locations, representative.values)
+            rule_dict = self._search_rule_for_warehouses(
+                representative.values.get("route_ids", False),
+                representative.values.get("packaging_uom_id", False),
+                representative.product_id,
+                warehouse_ids,
+                domain,
+            )
+            for index, procurement, locations, _warehouse_ids in group:
+                rules[index] = self._get_rule_from_hierarchy(
+                    rule_dict, procurement.product_id, locations, procurement.values
+                )
+        return rules
 
     @api.model
     def _check_intercomp_location(self, locations):
@@ -944,7 +1073,13 @@ class StockRule(models.Model):
         orderpoints.sudo()._compute_deadline_date()
         # Refresh stored lead-time analytics from freshly completed receipts; they cannot
         # ORM-depend on the pickings they aggregate, so the scheduler owns their refresh.
-        orderpoints.sudo()._compute_lead_time_stats()
+        # Covers every active orderpoint, not only the auto-triggered ones procured
+        # below: manual orderpoints' stats otherwise go stale forever.
+        stats_domain = [("product_id.active", "=", True)]
+        if company_id:
+            stats_domain += [("company_id", "=", company_id)]
+        stats_orderpoints = self.env["stock.warehouse.orderpoint"].search(stats_domain)
+        stats_orderpoints.sudo()._compute_lead_time_stats()
 
         if use_new_cursor:
             # Commit — and thereby flush — the freshly recomputed stored values

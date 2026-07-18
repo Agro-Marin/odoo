@@ -27,9 +27,12 @@ class StockReplenishMixin(models.AbstractModel):
     # Overridden in 'Drop Shipping' and 'Dropship and Subcontracting Management'
     # to exclude the dropshipping route from the allowed routes.
     def _get_allowed_route_domain(self):
-        stock_location_inter_company_id = self.env.ref(
-            "stock.stock_location_inter_company"
-        ).id
+        # raise_if_not_found=False: the record is deletable and the rest of the
+        # module already guards this ref — a missing transit location must not
+        # crash the replenish wizard.
+        inter_company_location = self.env.ref(
+            "stock.stock_location_inter_company", raise_if_not_found=False
+        )
 
         base_domain = Domain("product_selectable", "=", True)
         if self.warehouse_id:
@@ -39,15 +42,27 @@ class StockReplenishMixin(models.AbstractModel):
             if wh_route_ids:
                 base_domain |= Domain("id", "in", wh_route_ids)
 
-        return Domain.AND(
-            [
-                base_domain,
+        domains = [
+            base_domain,
+            # "Any rule delivering inside a warehouse" is intended `any`
+            # semantics and stays a plain o2m path condition.
+            Domain("rule_ids.location_dest_id.warehouse_id", "!=", False),
+        ]
+        if inter_company_location:
+            # `not any`, not a `!=` path condition: `rule_ids.location_src_id
+            # != X` matches routes having ANY rule whose source differs from X
+            # (i.e. almost all of them, inter-company ones included). The intent
+            # is routes with NO rule touching the inter-company location.
+            domains += [
                 Domain(
-                    "rule_ids.location_src_id", "!=", stock_location_inter_company_id
+                    "rule_ids",
+                    "not any",
+                    [("location_src_id", "=", inter_company_location.id)],
                 ),
                 Domain(
-                    "rule_ids.location_dest_id", "!=", stock_location_inter_company_id
+                    "rule_ids",
+                    "not any",
+                    [("location_dest_id", "=", inter_company_location.id)],
                 ),
-                Domain("rule_ids.location_dest_id.warehouse_id", "!=", False),
             ]
-        )
+        return Domain.AND(domains)

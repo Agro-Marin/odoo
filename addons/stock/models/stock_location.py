@@ -274,10 +274,26 @@ class StockLocation(models.Model):
     def unlink(self):
         # active_test=False so archived descendants are unlinked too, instead
         # of being orphaned (location_id set NULL). Matches the traversal in write().
-        return super(
-            StockLocation,
-            self.with_context(active_test=False).search([("id", "child_of", self.ids)]),
-        ).unlink()
+        subtree = self.with_context(active_test=False).search(
+            [("id", "child_of", self.ids)],
+        )
+        descendants = subtree - self
+        if descendants and not self.env.context.get("stock_unlink_subtree"):
+            # Deleting a location silently dragged its whole subtree along
+            # (archived descendants and their putaway rules included). Make the
+            # cascade opt-in: internal flows that legitimately delete subtrees
+            # pass `stock_unlink_subtree=True`; everyone else must empty the
+            # location first.
+            raise UserError(
+                _(
+                    "You cannot delete location %(location)s: it still contains "
+                    "%(count)s sub-location(s) (archived ones included). Delete or "
+                    "move them first.",
+                    location=self[:1].display_name,
+                    count=len(descendants),
+                ),
+            )
+        return super(StockLocation, subtree).unlink()
 
     @api.ondelete(at_uninstall=False)
     def _unlink_except_master_data(self):
@@ -301,9 +317,12 @@ class StockLocation(models.Model):
     def name_create(self, name):
         if name:
             name_split = name.split("/")
+            # Scope the parent lookup by company: an unscoped match could hook
+            # the new location under a same-named path of another company.
             parent_location = self.env["stock.location"].search(
                 [
                     ("complete_name", "=", "/".join(name_split[:-1])),
+                    ("company_id", "in", [False, self.env.company.id]),
                 ],
                 limit=1,
             )
@@ -495,21 +514,40 @@ class StockLocation(models.Model):
         self = self.filtered(lambda location: location.active != bool(active))
         if not self:
             return
+        # Despite its name, ``do_not_check_quant`` returns before the subtree
+        # traversal below, suppressing the whole descendant cascade — this is what
+        # stops the recursive write at the end of this method from re-cascading.
+        # The guards below already ran against the full subtree in the outer call.
+        if self.env.context.get("do_not_check_quant"):
+            return
+        # ``child_of`` returns self *and* every descendant, not just direct
+        # children — the whole subtree is what (de)activates together. Resolved
+        # BEFORE the guards so they cover the descendants about to be
+        # (de)activated, not just the directly-written records.
+        descendant_locations = (
+            self.env["stock.location"]
+            .with_context(active_test=False)
+            .search([("id", "child_of", self.ids)])
+        )
+        # The warehouse/stock checks only block *deactivation*; skip them (and
+        # their queries) entirely when reactivating.
         if not active:
+            # Guard against the whole subtree: archiving an ancestor Zone used
+            # to silently archive a warehouse's WH/Stock nested below it.
             # One query for the whole set instead of a search per location.
             blocking_warehouse = self.env["stock.warehouse"].search(
                 [
                     ("active", "=", True),
                     "|",
-                    ("lot_stock_id", "in", self.ids),
-                    ("view_location_id", "in", self.ids),
+                    ("lot_stock_id", "in", descendant_locations.ids),
+                    ("view_location_id", "in", descendant_locations.ids),
                 ],
                 limit=1,
             )
             if blocking_warehouse:
                 location = (
                     blocking_warehouse.lot_stock_id
-                    if blocking_warehouse.lot_stock_id in self
+                    if blocking_warehouse.lot_stock_id in descendant_locations
                     else blocking_warehouse.view_location_id
                 )
                 raise UserError(
@@ -519,22 +557,6 @@ class StockLocation(models.Model):
                         warehouse=blocking_warehouse.display_name,
                     ),
                 )
-
-        # Despite its name, ``do_not_check_quant`` returns before the subtree
-        # traversal below, suppressing the whole descendant cascade — this is what
-        # stops the recursive write at the end of this method from re-cascading.
-        if self.env.context.get("do_not_check_quant"):
-            return
-        # ``child_of`` returns self *and* every descendant, not just direct
-        # children — the whole subtree is what (de)activates together.
-        descendant_locations = (
-            self.env["stock.location"]
-            .with_context(active_test=False)
-            .search([("id", "child_of", self.ids)])
-        )
-        # The stock check only blocks *deactivation*; skip it (and its
-        # query) entirely when reactivating.
-        if not active:
             internal_descendants = descendant_locations.filtered(
                 lambda l: l.usage == "internal"
             )

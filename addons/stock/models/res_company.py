@@ -1,3 +1,5 @@
+from collections import defaultdict
+
 from odoo import _, api, fields, models, modules
 from odoo.exceptions import ValidationError
 
@@ -245,25 +247,38 @@ class ResCompany(models.Model):
         unique(name, company_id)), so callers need not know whether one was already
         provisioned.
         """
+        Warehouse = self.env["stock.warehouse"]
         warehouse_by_company = {}
-        for warehouse in self.env["stock.warehouse"].search(
+        # active_test=False: an archived warehouse still occupies its
+        # unique(name/code, company_id) slots, so ignoring it made this
+        # "idempotent" seam create a duplicate name and crash on the constraint.
+        for warehouse in Warehouse.with_context(active_test=False).search(
             [("company_id", "in", self.ids)], order="id"
         ):
             warehouse_by_company.setdefault(warehouse.company_id.id, warehouse)
         companies_without = self.filtered(
             lambda company: company.id not in warehouse_by_company
         )
-        new_warehouses = self.env["stock.warehouse"].create(
-            [
+        # Route name/code through the warehouse's own unique-default generators
+        # instead of the raw company name, so they de-duplicate against existing
+        # (and same-batch) warehouses exactly like every other creation path.
+        vals_list = []
+        taken_names = defaultdict(set)
+        taken_codes = defaultdict(set)
+        for company in companies_without:
+            name = Warehouse._generate_default_name(company, taken_names[company.id])
+            code = Warehouse._generate_default_code(company, taken_codes[company.id])
+            taken_names[company.id].add(name)
+            taken_codes[company.id].add(code)
+            vals_list.append(
                 {
-                    "name": company.name,
-                    "code": company.name[:5],
+                    "name": name,
+                    "code": code,
                     "company_id": company.id,
                     "partner_id": company.partner_id.id,
-                }
-                for company in companies_without
-            ],
-        )
+                },
+            )
+        new_warehouses = Warehouse.create(vals_list)
         for company, warehouse in zip(companies_without, new_warehouses, strict=True):
             warehouse_by_company[company.id] = warehouse
         return self.env["stock.warehouse"].union(
