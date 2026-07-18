@@ -1,9 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <templates id="template" xml:space="preserve">
     <t t-name="stock.ForecastWidget">
-        <span title="Forecasted Report"
+        <!-- A real button: the badge opens the Forecasted Report on click, so it
+             must be focusable and keyboard-activatable. -->
+        <button type="button" title="Forecasted Report" aria-label="Forecasted Report"
               t-on-click="_openReport"
-              class="badge rounded-pill align-middle"
+              class="badge rounded-pill align-middle border-0"
               t-att-class="decoration"
         >
             <t t-if="status === 'available'">
@@ -13,7 +15,7 @@
                 Exp <t t-out="forecastExpectedDate"/>
             </t>
             <t t-else="">Not Available</t>
-        </span>
+        </button>
     </t>
 
 </templates>

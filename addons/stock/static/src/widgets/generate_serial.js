@@ -1,8 +1,9 @@
 /** @odoo-module native */
-import { Component, onMounted, onWillStart, useRef } from "@odoo/owl";
+import { Component, onMounted, onWillStart, useRef, useState } from "@odoo/owl";
 import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
+import { useDebounced } from "@web/core/utils/timing";
 import { parseInteger } from "@web/fields/parsers";
 import { x2ManyCommands } from "@web/model/relational_model/commands";
 import { user } from "@web/services/user";
@@ -37,6 +38,15 @@ export class GenerateDialog extends Component {
         this.keepLines = useRef("keepLines");
         this.lots = useRef("lots");
         this.orm = useService("orm");
+        // In-flight guard: Generate runs an RPC + command batch; a second click
+        // during the await must not emit a second batch (duplicated lines).
+        this.state = useState({ busy: false });
+        // Debounced (leading edge): rapid repeat clicks on "New" collapse into
+        // one preview computation — the legend-placeholder path consumes a real
+        // sequence number per call, so every avoided call matters.
+        this.onGenerateCustomSerial = useDebounced(this._onGenerateCustomSerial, 500, {
+            immediate: true,
+        });
         onWillStart(async () => {
             this.displayUOM = await user.hasGroup("uom.group_uom");
         });
@@ -51,23 +61,29 @@ export class GenerateDialog extends Component {
         });
     }
     async _onGenerateCustomSerial() {
-        const product = (
-            await this.orm.searchRead(
-                "product.product",
-                [["id", "=", this.props.move.data.product_id.id]],
-                ["lot_sequence_id"],
-            )
-        )[0];
-        if (!product.lot_sequence_id) {
+        // One RPC instead of two sequential ones: fetch the product's lot
+        // sequence and its preview fields through a nested read specification.
+        const { records } = await this.orm.webSearchRead(
+            "product.product",
+            [["id", "=", this.props.move.data.product_id.id]],
+            {
+                specification: {
+                    lot_sequence_id: {
+                        fields: {
+                            prefix: {},
+                            suffix: {},
+                            padding: {},
+                            number_next_actual: {},
+                        },
+                    },
+                },
+                limit: 1,
+            },
+        );
+        const sequence = records[0]?.lot_sequence_id;
+        if (!sequence) {
             return;
         }
-        const sequence = (
-            await this.orm.searchRead(
-                "ir.sequence",
-                [["id", "=", product.lot_sequence_id[0]]],
-                ["prefix", "suffix", "padding", "number_next_actual"],
-            )
-        )[0];
         const prefix = sequence.prefix || "";
         const suffix = sequence.suffix || "";
         if (prefix.includes("%") || suffix.includes("%")) {
@@ -90,6 +106,9 @@ export class GenerateDialog extends Component {
             suffix;
     }
     async _onGenerate() {
+        if (this.state.busy) {
+            return;
+        }
         let count;
         let qtyToProcess;
         if (this.props.move.data.has_tracking === "lot") {
@@ -101,6 +120,30 @@ export class GenerateDialog extends Component {
             count = parseInteger(this.nextSerialCount.el?.value || "0");
             qtyToProcess = this.props.move.data.product_qty;
         }
+        // Validate BEFORE building any command: an empty submit must not wipe
+        // the existing lines ("keep current lines" unchecked deletes them all
+        // even when nothing is generated).
+        if (this.props.mode === "generate") {
+            if (!this.nextSerial.el?.value.trim()) {
+                return;
+            }
+            // Serial mode: a non-positive count generates nothing.
+            // NB: `!(count >= 1)` also rejects NaN.
+            if (this.props.move.data.has_tracking !== "lot" && !(count >= 1)) {
+                return;
+            }
+        } else if (!this.lots.el?.value.trim()) {
+            return;
+        }
+        this.state.busy = true;
+        try {
+            await this._generate(count, qtyToProcess);
+            this.props.close();
+        } finally {
+            this.state.busy = false;
+        }
+    }
+    async _generate(count, qtyToProcess) {
         const move_line_vals = await this.orm.call(
             "stock.move",
             "action_generate_lot_line_vals",
@@ -143,7 +186,6 @@ export class GenerateDialog extends Component {
             commands.push(x2ManyCommands.create(false, values));
         }
         await lines.applyCommands(commands);
-        this.props.close();
     }
 }
 

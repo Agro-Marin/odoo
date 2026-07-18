@@ -1,5 +1,6 @@
 /** @odoo-module native */
 import { Component } from "@odoo/owl";
+import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 import { usePopover } from "@web/ui/popover/popover_hook";
@@ -56,6 +57,11 @@ export class PopoverWidgetField extends Component {
         // Support full FA7 class strings ("fa-solid fa-x") and bare icon names ("fa-x")
         const rawIcon = this.jsonValue.icon || "fa-circle-info";
         return rawIcon.includes(" ") ? rawIcon : `fa-solid ${rawIcon}`;
+    }
+
+    /** Accessible name of the icon-only trigger button. */
+    get buttonLabel() {
+        return this.jsonValue.title || _t("More information");
     }
 
     showPopup(ev) {

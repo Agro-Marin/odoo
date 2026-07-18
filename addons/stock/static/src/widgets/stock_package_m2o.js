@@ -57,6 +57,14 @@ export class StockPackageMany2One extends Component {
     };
 
     get isDone() {
+        // NB: relies on `state` being present in the view arch. The widget is
+        // used on models both with a `state` field (stock.move.line — whose
+        // stock views all declare `<field name="state" column_invisible="True"/>`)
+        // and without one (stock.package, stock.quant, stock.quant.relocate),
+        // so a widget-level `fieldDependencies` on `state` is NOT an option:
+        // it would inject `state` into the read spec of models that don't have
+        // the field and crash those views. When adding this widget to a new
+        // view on a model with `state`, include the field in the arch.
         return ["done", "cancel"].includes(this.props.record?.data?.state);
     }
 

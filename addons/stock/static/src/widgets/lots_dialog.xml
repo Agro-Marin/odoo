@@ -9,7 +9,7 @@
     <t t-name="stock.generate_serial_dialog">
         <Dialog size="size" title="title" withBodyPadding="false">
             <t t-set-slot="footer">
-                <button class="btn btn-primary" t-on-click="_onGenerate">Generate</button>
+                <button class="btn btn-primary" t-att-disabled="state.busy" t-on-click="_onGenerate">Generate</button>
                 <button class="btn btn-secondary" t-on-click="() => this.props.close()">
                     Discard
                 </button>
@@ -30,7 +30,7 @@
                                 </div>
                             </div>
                             <div class="col">
-                                <button class="btn btn-primary py-1" t-on-click="_onGenerateCustomSerial">New</button>
+                                <button class="btn btn-primary py-1" t-on-click="onGenerateCustomSerial">New</button>
                             </div>
                         </div>
                         <div class="row mb-2">

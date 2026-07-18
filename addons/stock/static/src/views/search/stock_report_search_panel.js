@@ -8,7 +8,12 @@ export class StockReportSearchPanel extends SearchPanel {
         super.setup(...arguments);
         // Self-driven reactive highlight state (mirrors StockOrderpointSearchPanel)
         // instead of relying on a searchModel._notify() side-effect to re-render.
-        this.selectedWarehouse = useState({ value: false });
+        // Initialized from the search model's persisted context so the highlight
+        // survives remounts (e.g. coming back from a form view) instead of
+        // desyncing from the still-applied warehouse filter.
+        this.selectedWarehouse = useState({
+            value: this.env.searchModel.globalContext.warehouse_id || false,
+        });
     }
 
     //---------------------------------------------------------------------

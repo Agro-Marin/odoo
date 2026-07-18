@@ -13,11 +13,12 @@ export class JsonPopOver extends Component {
     get jsonValue() {
         // Memoized: this getter is read many times per render (once per derived
         // getter and repeatedly in getScatterGraphConfig). Re-parse only when the
-        // underlying field value actually changes.
+        // underlying field value actually changes. An empty/false field value
+        // parses as an empty object instead of throwing.
         const raw = this.props.record.data[this.props.name];
         if (raw !== this._jsonRaw) {
             this._jsonRaw = raw;
-            this._jsonValue = JSON.parse(raw);
+            this._jsonValue = JSON.parse(raw || "{}");
         }
         return this._jsonValue;
     }
@@ -97,6 +98,30 @@ export class ReplenishmentGraphWidget extends JsonPopOver {
     }
     get leadTime() {
         return this.jsonValue["lead_time"];
+    }
+
+    // Full translatable sentences (placeholders included) instead of template
+    // fragments a translator would only ever see piecewise.
+    get dailyDemandText() {
+        return _t("Daily Demand: %(demand)s %(uom)s/day", {
+            demand: this.dailyDemand,
+            uom: this.productUomName,
+        });
+    }
+    get averageStockText() {
+        return _t("Average Stock: %(qty)s %(uom)s", {
+            qty: this.averageStock,
+            uom: this.productUomName,
+        });
+    }
+    get orderingFrequencyText() {
+        if (this.qtiesAreTheSame) {
+            return _t("Ordering Frequency: On demand");
+        }
+        return _t("Ordering Frequency: %s day(s)", this.orderingPeriod);
+    }
+    get leadTimeText() {
+        return _t("Lead Time: %s day(s)", this.leadTime);
     }
 
     renderChart() {

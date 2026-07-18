@@ -4,7 +4,7 @@
     <t t-name="stock.StockOrderpoint.listView" t-inherit="web.ListView">
         <xpath expr="//SelectionBox" position="after">
             <Dropdown>
-                <button class="btn btn-secondary">
+                <button class="btn btn-secondary" t-att-disabled="opGuard.busy">
                     <span class="o_dropdown_title">Order</span>
                     <i class="fa-solid fa-caret-down ms-1"/>
                 </button>
@@ -18,6 +18,7 @@
                 </t>
             </Dropdown>
             <button t-if="hasSelectedRecords" type="button" t-on-click="onClickSnooze"
+                    t-att-disabled="opGuard.busy"
                     class="o_button_snooze btn btn-secondary me-1">
                 Snooze
             </button>

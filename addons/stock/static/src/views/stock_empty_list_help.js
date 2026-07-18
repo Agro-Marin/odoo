@@ -17,8 +17,11 @@ export class StockActionHelper extends Component {
 
 export class StockListRenderer extends ListRenderer {
     static template = "stock.StockListRenderer";
+    // Spread the parent's components explicitly: `...StockListRenderer.components`
+    // only worked by falling through to the inherited static during class
+    // definition, which reads as self-referential.
     static components = {
-        ...StockListRenderer.components,
+        ...ListRenderer.components,
         StockActionHelper,
     };
 }

@@ -1,5 +1,8 @@
 /** @odoo-module native */
 import { Component, markup } from "@odoo/owl";
+import { formatDate } from "@web/core/l10n/dates";
+import { DateTime } from "@web/core/l10n/luxon";
+import { _t } from "@web/core/l10n/translation";
 import { useService } from "@web/core/utils/hooks";
 import { formatFloat } from "@web/fields/formatters";
 
@@ -57,21 +60,27 @@ export class ForecastedHeader extends Component {
             return null;
         }
         // Return a derived copy; never write today/earliestPossibleArrival back
-        // into the shared report data.
-        const today = new Date();
+        // into the shared report data. Dates are formatted with the user's
+        // Odoo date format, not the browser locale.
+        const today = DateTime.local().startOf("day");
         return {
             ...product.leadtime,
-            today: today.toLocaleDateString(),
-            earliestPossibleArrival: this.addDays(today, product.leadtime.total_delay),
+            today: formatDate(today),
+            earliestPossibleArrival: formatDate(
+                today.plus({ days: product.leadtime.total_delay }),
+            ),
         };
     }
 
     get leadTimeShort() {
-        let short = " " + this.leadTime.total_delay + " day(s)";
-        if (this.leadTime.total_delay !== 0) {
-            short += " (" + this.leadTime.earliestPossibleArrival + ")";
+        const { total_delay, earliestPossibleArrival } = this.leadTime;
+        if (total_delay === 0) {
+            return _t("%(delay)s day(s)", { delay: total_delay });
         }
-        return short;
+        return _t("%(delay)s day(s) (%(date)s)", {
+            delay: total_delay,
+            date: earliestPossibleArrival,
+        });
     }
 
     get quantityOnHand() {
@@ -104,12 +113,6 @@ export class ForecastedHeader extends Component {
 
     get uom() {
         return Object.values(this.products)[0].uom;
-    }
-
-    addDays(date, days) {
-        const result = new Date(date);
-        result.setDate(result.getDate() + days);
-        return result.toLocaleDateString();
     }
 
     toJsonString(obj) {

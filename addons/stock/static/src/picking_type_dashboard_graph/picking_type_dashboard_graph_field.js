@@ -1,6 +1,7 @@
 /** @odoo-module native */
 import { cookie } from "@web/core/browser/cookie";
 import { getColor, getCustomColor } from "@web/core/colors/colors";
+import { Chart } from "@web/core/lib/chartjs";
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
 import { JournalDashboardGraphField } from "@web/fields/specialized/journal_dashboard_graph/journal_dashboard_graph_field";
@@ -10,6 +11,63 @@ export class PickingTypeDashboardGraphField extends JournalDashboardGraphField {
         super.setup();
         this.actionService = useService("action");
     }
+
+    /**
+     * Same as the parent's renderChart, but sources the graph data through
+     * getGraphData(): parsing is memoized on the raw value, and when the whole
+     * dashboard only has sample (empty) graphs the flat zeros are replaced by
+     * random bars — locally, without ever writing fabricated values back into
+     * `record.data`.
+     */
+    renderChart() {
+        if (this.chart) {
+            this.chart.destroy();
+        }
+        this.data = this.getGraphData();
+        if (!this.data.length) {
+            return;
+        }
+        let config;
+        if (this.props.graphType === "line") {
+            config = this.getLineChartConfig();
+        } else {
+            // Only bar chart is available for picking types
+            config = this.getBarChartConfig();
+        }
+        this.chart = new Chart(this.canvasRef.el, config);
+    }
+
+    getGraphData() {
+        const raw = this.props.record.data[this.props.name] || "[]";
+        if (this._graphRaw !== raw) {
+            this._graphRaw = raw;
+            let data;
+            try {
+                data = JSON.parse(raw);
+            } catch {
+                data = [];
+            }
+            if (!Array.isArray(data)) {
+                data = [];
+            }
+            if (
+                data[0]?.values?.length &&
+                data[0].values.every((value) => value.type === "sample") &&
+                // Provided by StockDashboardKanbanRenderer; absent when the
+                // field is used outside the stock dashboard kanban.
+                this.env.stockDashboardAllSample?.()
+            ) {
+                for (const value of data[0].values) {
+                    value.value = Math.floor(Math.random() * 9 + 1);
+                }
+            }
+            // Memoized on `raw`: the random sample bars stay stable across
+            // re-renders instead of re-randomising every time.
+            this._graphData = data;
+        }
+        return this._graphData;
+    }
+
     getBarChartConfig() {
         // Only bar chart is available for picking types
         const data = [];

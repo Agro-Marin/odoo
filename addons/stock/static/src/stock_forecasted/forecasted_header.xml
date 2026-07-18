@@ -58,14 +58,14 @@
         <div t-if="leadTime" class="d-flex flex-wrap pb-1 pt-2 justify-content-end">
             <div class="row">
                 <h6>Time to replenish:
-                    <span data-tooltip-template="LeadTimeTooltip" t-att-data-tooltip-info="this.toJsonString(this.leadTime)">
+                    <span data-tooltip-template="stock.LeadTimeTooltip" t-att-data-tooltip-info="this.toJsonString(this.leadTime)">
                         <span class="text-info" t-out="this.leadTimeShort"/>
                     </span>
                 </h6>
             </div>
         </div>
     </t>
-    <t t-name="LeadTimeTooltip">
+    <t t-name="stock.LeadTimeTooltip">
         <h6>Lead Time Information</h6>
         <table>
             <tr>

@@ -16,11 +16,18 @@ export class StockOrderpointSearchPanel extends SearchPanel {
     async getHorizonParameter() {
         // Pass an empty recordset ([[]]), not browse(0): get_horizon_days is not
         // @api.model and reads self.company_id (matches get_current_warehouses).
-        const res = await this.orm.call(
-            "stock.warehouse.orderpoint",
-            "get_horizon_days",
-            [[]],
-        );
+        let res;
+        try {
+            res = await this.orm.call(
+                "stock.warehouse.orderpoint",
+                "get_horizon_days",
+                [[]],
+            );
+        } catch {
+            // A failing RPC in onWillStart would otherwise blank the whole
+            // view; default the horizon to 0 and let the panel render.
+            res = 0;
+        }
         // Clamp to >= 0, consistent with applyGlobalHorizonDays below.
         this.globalHorizonDays.value = Math.max(parseInt(res, 10) || 0, 0);
     }

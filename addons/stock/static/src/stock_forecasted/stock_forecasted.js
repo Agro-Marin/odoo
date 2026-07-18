@@ -81,8 +81,6 @@ export class StockForecasted extends Component {
             // precision is a scalar int (decimal.precision "Product Unit"); spreading
             // it added nothing. Assign it so the formatters can read a real value.
             precision: reportValues.precision,
-            lead_horizon_date: this.context.lead_horizon_date,
-            qty_to_order: this.context.qty_to_order,
         };
     }
 
