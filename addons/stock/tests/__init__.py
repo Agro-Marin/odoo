@@ -36,3 +36,7 @@ from . import test_migrations
 from . import test_orderpoint_scheduler
 from . import test_location_package_fixes
 from . import test_report_wizard_fixes
+from . import test_audit_fixes_product
+from . import test_audit_fixes_procure
+from . import test_audit_fixes_picking
+from . import test_audit_fixes_core

@@ -9,7 +9,9 @@ class StockRequestCount(models.TransientModel):
     inventory_date = fields.Date(
         string="Scheduled at",
         required=True,
-        default=fields.Datetime.now,
+        # Date.context_today, not Datetime.now: a naive UTC datetime coerced to
+        # a date shifts to the previous/next day for users far from UTC.
+        default=fields.Date.context_today,
         help="Choose a date to get the inventory at that date",
     )
     user_id = fields.Many2one(

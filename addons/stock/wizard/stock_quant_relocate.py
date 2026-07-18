@@ -1,6 +1,7 @@
 from ast import literal_eval
 
-from odoo import api, fields, models
+from odoo import _, api, fields, models
+from odoo.exceptions import UserError
 
 
 class StockQuantRelocate(models.TransientModel):
@@ -8,7 +9,14 @@ class StockQuantRelocate(models.TransientModel):
     _description = "Stock Quantity Relocation"
 
     quant_ids = fields.Many2many(comodel_name="stock.quant")
-    company_id = fields.Many2one(related="quant_ids.company_id")
+    # Computed, not related: a related field through a x2many silently takes
+    # the first quant's company, mis-scoping the destination location/package
+    # domains for every other quant. `_check_single_company` refuses
+    # multi-company selections outright.
+    company_id = fields.Many2one(
+        comodel_name="res.company",
+        compute="_compute_company_id",
+    )
     dest_location_id = fields.Many2one(
         comodel_name="stock.location",
         domain="[('usage', '=', 'internal'), ('company_id', '=', company_id)]",
@@ -24,6 +32,22 @@ class StockQuantRelocate(models.TransientModel):
     is_partial_package = fields.Boolean(compute="_compute_is_partial_package")
     partial_package_names = fields.Char(compute="_compute_is_partial_package")
     is_multi_location = fields.Boolean(compute="_compute_is_multi_location")
+
+    @api.constrains("quant_ids")
+    def _check_single_company(self):
+        for wizard in self:
+            if len(wizard.quant_ids.company_id) > 1:
+                raise UserError(
+                    _(
+                        "You cannot relocate quantities belonging to several"
+                        " companies at once.",
+                    ),
+                )
+
+    @api.depends("quant_ids")
+    def _compute_company_id(self):
+        for wizard in self:
+            wizard.company_id = wizard.quant_ids.company_id[:1]
 
     @api.depends("quant_ids")
     def _compute_is_partial_package(self):

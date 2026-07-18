@@ -219,8 +219,29 @@ class ProductTemplate(models.Model):
             for product_tmpl, qty in zip(
                 product_templates, product_tmpl_quantities, strict=True
             ):
-                if qty > 0 and product_tmpl.tracking == "none":
-                    product_tmpl.product_variant_id.qty_available = qty
+                if not qty:
+                    continue
+                # Refuse instead of silently dropping the requested quantity:
+                # negatives are invalid (mirrors the variant inverse) and
+                # tracked products need lot/serial numbers, which only an
+                # inventory adjustment can provide.
+                if qty < 0:
+                    raise UserError(
+                        _(
+                            "The quantity on hand of %(product)s cannot be set to a negative value.",
+                            product=product_tmpl.display_name,
+                        ),
+                    )
+                if product_tmpl.tracking != "none":
+                    raise UserError(
+                        _(
+                            "%(product)s is tracked by lot/serial number: set its quantity"
+                            " through an inventory adjustment so lot/serial numbers can be"
+                            " assigned.",
+                            product=product_tmpl.display_name,
+                        ),
+                    )
+                product_tmpl.product_variant_id.qty_available = qty
         return product_templates
 
     def write(self, vals):
@@ -287,7 +308,41 @@ class ProductTemplate(models.Model):
 
         res = super().write(vals)
         if clean_inventory:
-            self.env["stock.quant"].sudo()._clean_reservations()
+            # Scope the realignment to the transitioning products; a
+            # model-level (empty recordset) call would rescan every reserved
+            # quant and open move line in the database.
+            products = templates_to_reset.with_context(
+                active_test=False
+            ).product_variant_ids
+            Quant = self.env["stock.quant"].sudo()
+            quants = Quant.search([("product_id", "in", products.ids)])
+            # The recordset-scoped clean covers the (product, location) pairs
+            # of the given quants. Open reservable move lines of a product
+            # that just became storable typically live at pairs with NO quant
+            # row yet -- their reserved quant is exactly what the clean must
+            # create -- so seed a zero quant for each uncovered pair.
+            existing_pairs = {(q.product_id.id, q.location_id.id) for q in quants}
+            move_line_groups = self.env["stock.move.line"]._read_group(
+                [
+                    ("product_id", "in", products.ids),
+                    (
+                        "state",
+                        "in",
+                        ("assigned", "partially_available", "waiting", "confirmed"),
+                    ),
+                    ("quantity_product_uom", "!=", 0),
+                ],
+                ["product_id", "location_id"],
+            )
+            quants |= Quant.create(
+                [
+                    {"product_id": product.id, "location_id": location.id}
+                    for product, location in move_line_groups
+                    if (product.id, location.id) not in existing_pairs
+                ],
+            )
+            if quants:
+                quants._clean_reservations()
             templates_to_reset._reset_inventory()
         return res
 
@@ -439,6 +494,9 @@ class ProductTemplate(models.Model):
     @api.depends_context(
         "lot_id",
         "owner_id",
+        # See product_product._compute_quantities: `owners` scopes the variant
+        # quantities this rollup sums, so it must key the cache too.
+        "owners",
         "package_id",
         "from_date",
         "to_date",
@@ -576,6 +634,18 @@ class ProductTemplate(models.Model):
         if self.env.context.get("skip_qty_available_update", False):
             return
         for template in self:
+            if template.product_variant_count > 1:
+                # The template value is the SUM over its variants; writing it
+                # back onto the first variant would silently move every other
+                # variant's stock there. The UI hides the field in that case,
+                # but RPC/imports can still write it.
+                raise UserError(
+                    _(
+                        "%(product)s has several variants: update the quantity of each"
+                        " variant instead.",
+                        product=template.display_name,
+                    ),
+                )
             if template.qty_available and not template.product_variant_id:
                 raise UserError(
                     _("Save the product form before updating the Quantity On Hand."),
@@ -713,7 +783,7 @@ class ProductTemplate(models.Model):
         return action
 
     def action_view_routes_diagram(self):
-        products = False
+        products = self.env["product.product"]
         if self.env.context.get("default_product_id"):
             products = self.env["product.product"].browse(
                 self.env.context["default_product_id"]
@@ -724,6 +794,13 @@ class ProductTemplate(models.Model):
                 .browse(self.env.context["default_product_tmpl_id"])
                 .product_variant_ids
             )
+        if not products:
+            # Called without the context keys (e.g. directly on records or from
+            # a server action): fall back to self, then to the active record.
+            templates = self or self.browse(
+                self.env.context.get("active_id") or [],
+            )
+            products = templates.product_variant_ids
         if (
             not self.env.user.has_group("stock.group_stock_multi_warehouses")
             and len(products) == 1

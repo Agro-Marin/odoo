@@ -32,10 +32,10 @@
 ^FT35,65^A0N,20^FD<t t-out="product.product_template_attribute_value_ids._get_combination_name()"/>^FS
             </t>
             <t t-else="">
-^FT35,40^A0N,25^FD<t t-out="product_info['display_name_markup']"/>^FS
+^FT35,40^A0N,25^FD<t t-out="markup(product_info['display_name'])"/>^FS
             </t>
             <t t-if="barcode">
-^FO35,77^BY2 ^BCN,100,Y,N,N ^FD<t t-out="barcode"/>^FS
+^FO35,77^BY2 ^BCN,100,Y,N,N ^FD<t t-out="markup(barcode)"/>^FS
             </t>
             <t t-if="price_included">
                 <t t-if="show_price_per_unit">
@@ -51,10 +51,10 @@
 ^FT35,48^A0N,15^FD<t t-out="product.product_template_attribute_value_ids._get_combination_name()"/>^FS
             </t>
             <t t-else="">
-^FT35,30^A0N,20^FD<t t-out="product_info['display_name_markup']"/>^FS
+^FT35,30^A0N,20^FD<t t-out="markup(product_info['display_name'])"/>^FS
             </t>
             <t t-if="barcode">
-^FO35,55^BY2 ^BCN,100,Y,N,N ^FD<t t-out="barcode"/>^FS
+^FO35,55^BY2 ^BCN,100,Y,N,N ^FD<t t-out="markup(barcode)"/>^FS
             </t>
             <t t-if="price_included">
                 <t t-if="show_price_per_unit">
@@ -67,7 +67,7 @@
         <template id="small_zpl_label">
 ^FT35,30^A0N,20^FD<t t-out="product.name"/>^FS
             <t t-if="barcode">
-^FO35,50^BY1 ^BCN,80,Y,N,N ^FD<t t-out="barcode"/>^FS
+^FO35,50^BY1 ^BCN,80,Y,N,N ^FD<t t-out="markup(barcode)"/>^FS
             </t>
             <t t-if="price_included">
 ^FO150,165 ^A0N,25^FH ^FD<t t-out="price"/>^FS
@@ -77,7 +77,7 @@
         <template id="jewelry_zpl_label">
 ^FT210,30^A0N,25^FD<t t-out="product.name"/>^FS
             <t t-if="barcode">
-^FO35,5^BY1 ^BCN,80,Y,N,N ^FD<t t-out="barcode"/>^FS
+^FO35,5^BY1 ^BCN,80,Y,N,N ^FD<t t-out="markup(barcode)"/>^FS
             </t>
             <t t-if="price_included">
 ^FO290,50 ^A0N,30^FH ^FD<t t-out="price"/>^FS
@@ -91,9 +91,9 @@
                 <t t-translation="off">
 ^XA^CI28
 ^FO100,50
-^A0N,44,33^FD<t t-out="lot['display_name_markup']"/>^FS
+^A0N,44,33^FD<t t-out="markup(lot['display_name'])"/>^FS
 ^FO100,100
-^A0N,44,33^FDLN/SN: <t t-out="lot['name']"/>^FS
+^A0N,44,33^FDLN/SN: <t t-out="markup(lot['name'])"/>^FS
                     <t t-if="env.user.has_group('stock.group_stock_lot_print_gs1')">
                         <t t-set="final_barcode" t-value="''" />
                         <t t-if="lot['lot_record'].product_id.valid_ean" t-set="final_barcode" t-value="'01' + '0' * (14 - len(lot['lot_record'].product_id.barcode)) + lot['lot_record'].product_id.barcode"/>
@@ -102,12 +102,12 @@
                         <t t-elif="lot['lot_record'].product_id.tracking == 'serial'" t-set="final_barcode" t-value="(final_barcode or '') + '21' + lot['name']"/>
 ^FO425,150^BY3
 ^BXN,8,200
-^FD<t t-out="final_barcode"/>^FS
+^FD<t t-out="markup(final_barcode)"/>^FS
                     </t>
                     <t t-else="" name="code128_barcode">
 ^FO100,150^BY3
 ^BCN,100,Y,N,N
-^FD<t t-out="lot['name']"/>^FS
+^FD<t t-out="markup(lot['name'])"/>^FS
                     </t>
 ^XZ
                 </t>

@@ -311,9 +311,11 @@ class StockTraceabilityReport(models.TransientModel):
         via ``env[model].browse(...)``; restrict them to the models the report
         actually traverses -- the same guarding ``_get_pdf_line_allowed_models``
         applies to the printed path. Extension modules that add report entry
-        points (e.g. ``mrp`` for ``mrp.production``) extend this set.
+        points MUST extend this set in their own override (e.g. ``mrp`` for
+        ``mrp.production``); the base module must not reference models it does
+        not ship (``env[model]`` on an uninstalled model raises a KeyError 500).
         """
-        return {"stock.lot", "stock.move.line", "stock.picking", "mrp.production"}
+        return {"stock.lot", "stock.move.line", "stock.picking"}
 
     @api.model
     def _get_pdf_line_allowed_models(self):

@@ -65,31 +65,49 @@ class StockReplenishmentInfo(models.TransientModel):
     wh_replenishment_option_ids = fields.One2many(
         comodel_name="stock.replenishment.option",
         inverse_name="replenishment_info_id",
-        compute="_compute_wh_replenishment_options",
     )
+
+    @api.model_create_multi
+    def create(self, vals_list):
+        wizards = super().create(vals_list)
+        wizards._create_wh_replenishment_options()
+        return wizards
 
     @api.constrains("percent_factor")
     def _check_percent_factor(self):
         if any(report.percent_factor < 0 for report in self):
             raise ValidationError(_("The percentage factor cannot be negative."))
 
-    @api.depends("orderpoint_id")
-    def _compute_wh_replenishment_options(self):
+    def _create_wh_replenishment_options(self):
+        """Create one replenishment option per warehouse resupply route.
+
+        This runs from ``create()`` rather than a compute: creating records is
+        a side effect a compute must not have (it would fire on every cache
+        miss). Options are created ordered by decreasing free quantity so the
+        default ``id`` ordering shows the best-supplied warehouse first (the
+        historical compute sorted the recordset the same way).
+        """
+        option_vals = []
         for replenishment_info in self:
-            replenishment_info.wh_replenishment_option_ids = (
-                self.env["stock.replenishment.option"]
-                .create(
-                    [
-                        {
-                            "product_id": replenishment_info.product_id.id,
-                            "route_id": route_id.id,
-                            "replenishment_info_id": replenishment_info.id,
-                        }
-                        for route_id in replenishment_info.warehouseinfo_ids
-                    ],
-                )
-                .sorted(lambda o: o.qty_free, reverse=True)
+            product = replenishment_info.product_id
+            routes = sorted(
+                replenishment_info.warehouseinfo_ids,
+                key=lambda route: (
+                    product.with_context(
+                        location=route.supplier_wh_id.lot_stock_id.id,
+                    ).qty_free
+                ),
+                reverse=True,
             )
+            option_vals += [
+                {
+                    "product_id": product.id,
+                    "route_id": route.id,
+                    "replenishment_info_id": replenishment_info.id,
+                }
+                for route in routes
+            ]
+        self.env["stock.replenishment.option"].create(option_vals)
 
     def _get_lead_days_and_description(self):
         self.ensure_one()
@@ -226,6 +244,10 @@ class StockReplenishmentInfo(models.TransientModel):
         "product_max_qty",
     )
     def _compute_json_replenishment_graph(self):
+        # Default before the loop: the guard below `continue`s without
+        # assigning (same pattern as `_compute_json_lead_days`), and a compute
+        # must assign every record.
+        self.json_replenishment_graph = False
         for replenishment_report in self:
             if (
                 not replenishment_report.product_id
