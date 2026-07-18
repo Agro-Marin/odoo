@@ -5,6 +5,11 @@ class StockTraceabilityReport(models.TransientModel):
     _inherit = "stock.traceability.report"
 
     @api.model
+    def _get_line_allowed_models(self):
+        # _get_reference below emits lines anchored on both models
+        return super()._get_line_allowed_models() | {"mrp.production", "mrp.unbuild"}
+
+    @api.model
     def _get_reference(self, move_line):
         res_model, res_id, ref = super()._get_reference(move_line)
         if (
