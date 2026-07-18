@@ -94,8 +94,9 @@ class StockScrap(models.Model):
         check_company=True,
         domain="[('usage', '=', 'inventory')]",
         help="Inventory-loss location the scrapped goods are moved to. Any"
-        " inventory-loss location qualifies; a company location named 'Scrap'"
-        " is preferred by default when one exists.",
+        " inventory-loss location qualifies; a company can designate its"
+        " dedicated scrap location by tagging it with the external id"
+        " 'stock.stock_location_scrap_company_<company_id>'.",
     )
     scrap_qty = fields.Float(
         string="Quantity",
@@ -150,15 +151,15 @@ class StockScrap(models.Model):
         )
         if len(company_warehouses) == 0 and self.company_id:
             self.env["stock.warehouse"]._warehouse_redirect_warning()
-        groups = company_warehouses._read_group(
-            [("company_id", "in", self.company_id.ids)],
-            ["company_id"],
-            ["lot_stock_id:array_agg"],
-        )
-        locations_per_company = {
-            company.id: lot_stock_ids[0] if lot_stock_ids else False
-            for company, lot_stock_ids in groups
-        }
+        # First warehouse per company in the search order (`sequence, id`): the
+        # deterministic "main" warehouse, instead of re-grouping the very same
+        # records through an unordered array_agg (whose first element was
+        # arbitrary in multi-warehouse companies).
+        locations_per_company = {}
+        for warehouse in company_warehouses:
+            locations_per_company.setdefault(
+                warehouse.company_id.id, warehouse.lot_stock_id.id
+            )
         for scrap in self:
             if scrap.picking_id:
                 scrap.location_id = (
@@ -174,24 +175,34 @@ class StockScrap(models.Model):
     @api.depends("company_id")
     def _compute_scrap_location_id(self):
         # Flagless default (upstream 53181c7ac4d dropped the scrap_location
-        # flag: any inventory-loss location qualifies). This fork also does
-        # not provision a per-company "Scrap" location; still prefer one so
-        # named (what upstream provisioning creates and pre-fork databases
-        # carry) over the arbitrary lowest id, keeping scrap losses
-        # separable from inventory adjustments wherever a dedicated
-        # location exists.
+        # flag: any inventory-loss location qualifies, and this fork does not
+        # provision a per-company "Scrap" location). A company can designate
+        # its dedicated scrap location explicitly through the external id
+        # `stock.stock_location_scrap_company_<company_id>` (locale-proof,
+        # unlike the previous preference for a location literally named
+        # "Scrap"); otherwise fall back to the company's first (lowest id)
+        # inventory-loss location, deterministically.
         locations = self.env["stock.location"].search_fetch(
             [("company_id", "in", self.company_id.ids), ("usage", "=", "inventory")],
-            ["company_id", "name"],
+            ["company_id"],
             order="id",
         )
         locations_per_company = {}
         for location in locations:
-            current = locations_per_company.get(location.company_id.id)
-            if current is None or (
-                location.name == "Scrap" and current.name != "Scrap"
+            locations_per_company.setdefault(location.company_id.id, location)
+        for company in self.company_id:
+            designated = self.env.ref(
+                f"stock.stock_location_scrap_company_{company.id}",
+                raise_if_not_found=False,
+            )
+            if (
+                designated is not None
+                and designated._name == "stock.location"
+                and designated.usage == "inventory"
+                and designated.company_id == company
+                and designated.active
             ):
-                locations_per_company[location.company_id.id] = location
+                locations_per_company[company.id] = designated
         for scrap in self:
             if scrap.company_id:
                 scrap.scrap_location_id = locations_per_company.get(

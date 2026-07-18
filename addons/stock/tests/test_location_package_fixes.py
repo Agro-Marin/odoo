@@ -290,26 +290,40 @@ class TestLocationPackageFixes(TestStockCommon):
     # stock.scrap default location tiebreak
     # ------------------------------------------------------------
 
-    def test_scrap_location_prefers_scrap_named_location(self):
-        """The flagless scrap default prefers a company inventory-loss
-        location named 'Scrap' over the arbitrary lowest id; without one it
-        falls back to the lowest-id inventory-loss location."""
+    def test_scrap_location_default_designation(self):
+        """The flagless scrap default is the company's lowest-id inventory-loss
+        location; a dedicated location is designated through the company-scoped
+        external id, not by its (locale-dependent) name."""
         company = self.env.company
         adjustment = self.StockLocationObj.search(
             [("company_id", "=", company.id), ("usage", "=", "inventory")],
             order="id",
             limit=1,
         )
-        scrap_wo_named = self.env["stock.scrap"].create(
+        scrap_wo_designated = self.env["stock.scrap"].create(
             {"product_id": self.productA.id, "company_id": company.id}
         )
-        self.assertEqual(scrap_wo_named.scrap_location_id, adjustment)
+        self.assertEqual(scrap_wo_designated.scrap_location_id, adjustment)
 
-        # A dedicated 'Scrap' location (necessarily a higher id) wins the tie.
+        # A location named 'Scrap' no longer wins by name alone.
         scrap_location = self.StockLocationObj.create(
             {"name": "Scrap", "usage": "inventory", "company_id": company.id}
         )
         scrap_w_named = self.env["stock.scrap"].create(
             {"product_id": self.productA.id, "company_id": company.id}
         )
-        self.assertEqual(scrap_w_named.scrap_location_id, scrap_location)
+        self.assertEqual(scrap_w_named.scrap_location_id, adjustment)
+
+        # Tagging it with the company-scoped external id designates it.
+        self.env["ir.model.data"].create(
+            {
+                "module": "stock",
+                "name": f"stock_location_scrap_company_{company.id}",
+                "model": "stock.location",
+                "res_id": scrap_location.id,
+            }
+        )
+        scrap_w_designated = self.env["stock.scrap"].create(
+            {"product_id": self.productA.id, "company_id": company.id}
+        )
+        self.assertEqual(scrap_w_designated.scrap_location_id, scrap_location)

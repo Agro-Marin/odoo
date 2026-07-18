@@ -1,3 +1,5 @@
+from collections import defaultdict
+
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError
 from odoo.fields import Domain
@@ -219,6 +221,10 @@ class StockPutawayRule(models.Model):
         packaging=None,
         qty_by_location=None,
     ):
+        if qty_by_location is None:
+            # The default must be subscriptable: the checks below read
+            # `qty_by_location[location.id]` for every candidate location.
+            qty_by_location = defaultdict(float)
         package_type = self.env["stock.package.type"]
         if package:
             package_type = package.package_type_id

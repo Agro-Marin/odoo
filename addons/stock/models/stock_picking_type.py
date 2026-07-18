@@ -280,6 +280,11 @@ class StockPickingType(models.Model):
     def create(self, vals_list):
         for vals in vals_list:
             if not vals.get("sequence_id") and vals.get("sequence_code"):
+                # The sequence follows the picking type's own company (`company_id`
+                # is required with a `env.company` default, and `check_company`
+                # forces the warehouse to belong to that same company), matching
+                # the resolution used by `write` when the code is renamed.
+                company_id = vals.get("company_id") or self.env.company.id
                 if vals.get("warehouse_id"):
                     wh = self.env["stock.warehouse"].browse(vals["warehouse_id"])
                     vals["sequence_id"] = (
@@ -294,7 +299,7 @@ class StockPickingType(models.Model):
                                 ),
                                 "prefix": wh.code + "/" + vals["sequence_code"] + "/",
                                 "padding": 5,
-                                "company_id": wh.company_id.id,
+                                "company_id": company_id,
                             }
                         )
                         .id
@@ -310,8 +315,7 @@ class StockPickingType(models.Model):
                                 ),
                                 "prefix": vals["sequence_code"],
                                 "padding": 5,
-                                "company_id": vals.get("company_id")
-                                or self.env.company.id,
+                                "company_id": company_id,
                             }
                         )
                         .id
@@ -327,8 +331,18 @@ class StockPickingType(models.Model):
                             "Changing the company of this record is forbidden at this point, you should rather archive it and create a new one."
                         )
                     )
+        types_changing_warehouse = self.browse()
+        if vals.get("warehouse_id"):
+            types_changing_warehouse = self.filtered(
+                lambda picking_type: (
+                    picking_type.warehouse_id.id != vals["warehouse_id"]
+                ),
+            )
         if "sequence_code" in vals:
             for picking_type in self:
+                # The sequence belongs to the picking type's own company, not the
+                # current user's (`env.company` here silently reassigned the
+                # sequence to whatever company the renaming user was logged into).
                 if picking_type.warehouse_id:
                     picking_type.sequence_id.sudo().write(
                         {
@@ -342,7 +356,7 @@ class StockPickingType(models.Model):
                             + vals["sequence_code"]
                             + "/",
                             "padding": 5,
-                            "company_id": picking_type.warehouse_id.company_id.id,
+                            "company_id": picking_type.company_id.id,
                         }
                     )
                 else:
@@ -351,7 +365,7 @@ class StockPickingType(models.Model):
                             "name": _("Sequence %(code)s", code=vals["sequence_code"]),
                             "prefix": vals["sequence_code"],
                             "padding": 5,
-                            "company_id": picking_type.env.company.id,
+                            "company_id": picking_type.company_id.id,
                         }
                     )
         days_changed = (
@@ -416,12 +430,47 @@ class StockPickingType(models.Model):
                             )
                         )
 
-        return super().write(vals)
+        res = super().write(vals)
+
+        # Reassigning a type's warehouse must not leave its stored default
+        # locations pointing into the *old* warehouse. Done here (not via a
+        # `warehouse_id` dependency on the computes) so only a genuine
+        # reassignment re-defaults: the warehouse machinery configures
+        # step-specific locations (pack/pick/store...) that a dependency-driven
+        # recompute would clobber with `lot_stock_id`. Locations the caller set
+        # explicitly in this same write, locations outside any warehouse
+        # (suppliers/customers/...) and locations already in the new warehouse
+        # are left alone.
+        if types_changing_warehouse:
+            new_warehouse = self.env["stock.warehouse"].browse(vals["warehouse_id"])
+            for picking_type in types_changing_warehouse:
+                updates = {}
+                if "default_location_src_id" not in vals:
+                    src = picking_type.default_location_src_id
+                    if picking_type.code != "incoming" and (
+                        not src
+                        or (src.warehouse_id and src.warehouse_id != new_warehouse)
+                    ):
+                        updates["default_location_src_id"] = (
+                            new_warehouse.lot_stock_id.id
+                        )
+                if "default_location_dest_id" not in vals:
+                    dest = picking_type.default_location_dest_id
+                    if picking_type.code != "outgoing" and (
+                        not dest
+                        or (dest.warehouse_id and dest.warehouse_id != new_warehouse)
+                    ):
+                        updates["default_location_dest_id"] = (
+                            new_warehouse.lot_stock_id.id
+                        )
+                if updates:
+                    picking_type.write(updates)
+        return res
 
     def copy_data(self, default=None):
         default = dict(default or {})
         vals_list = super().copy_data(default=default)
-        for picking, vals in zip(self, vals_list, strict=False):
+        for picking, vals in zip(self, vals_list, strict=True):
             if "name" not in default:
                 vals["name"] = _("%s (copy)", picking.name)
             if "sequence_code" not in default and "sequence_id" not in default:
@@ -467,11 +516,29 @@ class StockPickingType(models.Model):
             .astimezone(pytz.UTC)
             .replace(tzinfo=None)
         )
-        domains = {
-            "count_picking_draft": [("state", "=", "draft")],
-            "count_picking_waiting": [("state", "in", ("confirmed", "waiting"))],
-            "count_picking_ready": [("state", "=", "assigned")],
-            "count_picking": [("state", "in", ("assigned", "waiting", "confirmed"))],
+        # The plain state-based counters all derive from one query grouped by
+        # (picking_type, state); only "late" and "backorders" carry predicates a
+        # state grouping cannot express, so they keep their own grouped query
+        # (3 queries total instead of 6).
+        counts_by_type_state = {
+            (picking_type.id, state): count
+            for picking_type, state, count in self.env["stock.picking"]._read_group(
+                [
+                    ("state", "in", ("draft", "confirmed", "waiting", "assigned")),
+                    ("picking_type_id", "in", self.ids),
+                ],
+                ["picking_type_id", "state"],
+                ["__count"],
+            )
+        }
+
+        def state_count(picking_type_id, states):
+            return sum(
+                counts_by_type_state.get((picking_type_id, state), 0)
+                for state in states
+            )
+
+        extra_domains = {
             "count_picking_late": [
                 ("state", "in", ("assigned", "waiting", "confirmed")),
                 "|",
@@ -483,19 +550,24 @@ class StockPickingType(models.Model):
                 ("state", "in", ("confirmed", "assigned", "waiting")),
             ],
         }
-        for field_name, domain in domains.items():
+        for field_name, domain in extra_domains.items():
             data = self.env["stock.picking"]._read_group(
-                domain
-                + [
-                    ("state", "not in", ("done", "cancel")),
-                    ("picking_type_id", "in", self.ids),
-                ],
+                domain + [("picking_type_id", "in", self.ids)],
                 ["picking_type_id"],
                 ["__count"],
             )
             count = {picking_type.id: count for picking_type, count in data}
             for record in self:
                 record[field_name] = count.get(record.id, 0)
+        for record in self:
+            record.count_picking_draft = state_count(record.id, ("draft",))
+            record.count_picking_waiting = state_count(
+                record.id, ("confirmed", "waiting")
+            )
+            record.count_picking_ready = state_count(record.id, ("assigned",))
+            record.count_picking = state_count(
+                record.id, ("assigned", "waiting", "confirmed")
+            )
 
     def _compute_move_count(self):
         data = self.env["stock.move"]._read_group(
@@ -532,29 +604,42 @@ class StockPickingType(models.Model):
 
     @api.depends("code")
     def _compute_default_location_src_id(self):
+        # Deliberately NOT dependent on `warehouse_id`: the stored defaults of
+        # warehouse-managed types (pack/pick/store/...) are configured by
+        # `stock.warehouse` with step-specific locations that this generic
+        # compute cannot derive, so a dependency-driven recompute (e.g. on
+        # module upgrade) would clobber them with `lot_stock_id`. Stale
+        # defaults on an actual warehouse reassignment are handled in `write`
+        # instead. The missing-warehouse redirect only fires for the branch
+        # that actually reads `lot_stock_id` (an incoming type needs no
+        # warehouse here).
         for picking_type in self:
-            if not picking_type.warehouse_id:
-                self.env["stock.warehouse"]._warehouse_redirect_warning()
-            stock_location = picking_type.warehouse_id.lot_stock_id
             if picking_type.code == "incoming":
                 picking_type.default_location_src_id = self.env.ref(
                     "stock.stock_location_suppliers"
                 ).id
             else:
-                picking_type.default_location_src_id = stock_location.id
+                if not picking_type.warehouse_id:
+                    self.env["stock.warehouse"]._warehouse_redirect_warning()
+                picking_type.default_location_src_id = (
+                    picking_type.warehouse_id.lot_stock_id.id
+                )
 
     @api.depends("code")
     def _compute_default_location_dest_id(self):
+        # See `_compute_default_location_src_id` for why `warehouse_id` is not
+        # a dependency and for the per-branch missing-warehouse redirect.
         for picking_type in self:
-            if not picking_type.warehouse_id:
-                self.env["stock.warehouse"]._warehouse_redirect_warning()
-            stock_location = picking_type.warehouse_id.lot_stock_id
             if picking_type.code == "outgoing":
                 picking_type.default_location_dest_id = self.env.ref(
                     "stock.stock_location_customers"
                 ).id
             else:
-                picking_type.default_location_dest_id = stock_location.id
+                if not picking_type.warehouse_id:
+                    self.env["stock.warehouse"]._warehouse_redirect_warning()
+                picking_type.default_location_dest_id = (
+                    picking_type.warehouse_id.lot_stock_id.id
+                )
 
     @api.depends("code")
     def _compute_print_label(self):
@@ -588,8 +673,8 @@ class StockPickingType(models.Model):
         grouped_records = self._get_aggregated_records_by_date()
 
         summaries = {}
-        for picking_type_id, dates, data_series_name in grouped_records:
-            summaries[picking_type_id] = {
+        for picking_type_id, data, data_series_name in grouped_records:
+            summary = {
                 "data_series_name": data_series_name,
                 "total_before": 0,
                 "total_yesterday": 0,
@@ -598,12 +683,21 @@ class StockPickingType(models.Model):
                 "total_day_2": 0,
                 "total_after": 0,
             }
-            for p_date in dates:
-                date_category = self.env["stock.picking"].calculate_date_category(
-                    p_date
-                )
-                if date_category:
-                    summaries[picking_type_id]["total_" + date_category] += 1
+            if isinstance(data, dict):
+                # Base implementation: counts already bucketed per date category
+                # by the SQL aggregation.
+                for date_category, count in data.items():
+                    summary["total_" + date_category] += count
+            else:
+                # Legacy shape kept for overrides (e.g. mrp, repair) that still
+                # return the raw datetime list of their own source records.
+                for p_date in data:
+                    date_category = self.env["stock.picking"].calculate_date_category(
+                        p_date
+                    )
+                    if date_category:
+                        summary["total_" + date_category] += 1
+            summaries[picking_type_id] = summary
 
         self._prepare_graph_data(summaries)
 
@@ -636,11 +730,16 @@ class StockPickingType(models.Model):
             return Domain.OR(self._search_display_name("=", v) for v in value)
         if operator == "not in":
             return NotImplemented
-        parts = isinstance(value, str) and value.split(": ")
+        # `maxsplit=1` so a picking type name containing ": " still round-trips
+        # ("WH: Pick: Zone A" -> warehouse "WH", name "Pick: Zone A"), and OR the
+        # split interpretation with a plain-name match: a warehouse-less type may
+        # itself carry ": " in its name.
+        parts = isinstance(value, str) and value.split(": ", 1)
         if parts and len(parts) == 2:
-            return Domain("warehouse_id.name", operator, parts[0]) & Domain(
-                "name", operator, parts[1]
-            )
+            return (
+                Domain("warehouse_id.name", operator, parts[0])
+                & Domain("name", operator, parts[1])
+            ) | Domain("name", operator, value)
         if operator == "=":
             operator = "in"
             value = [value]
@@ -728,7 +827,11 @@ class StockPickingType(models.Model):
         action_context = literal_eval(action["context"])
         context = {**action_context, **context}
         action["context"] = context
-        action["domain"] = [("picking_type_id", "=", self.id)]
+        if self:
+            # Only scope the action when called on an actual picking type: with an
+            # empty recordset, `("picking_type_id", "=", False)` would match no
+            # picking at all, defeating the "all operations" entry points.
+            action["domain"] = [("picking_type_id", "=", self.id)]
 
         action["help"] = self.env["ir.ui.view"]._render_template(
             "stock.help_message_template",
@@ -775,22 +878,68 @@ class StockPickingType(models.Model):
         """
         Returns a list, each element containing 3 values:
         * picking type ID
-        * list of date_planned values of that type's open (assigned/waiting/confirmed) pickings
+        * per-date-category counts of that type's open (assigned/waiting/confirmed)
+          pickings, as a ``{date_category: count}`` dict — overrides adding other
+          source records (e.g. mrp, repair) may instead return the legacy list of
+          raw datetime values, which `_compute_kanban_dashboard_graph` still
+          classifies one by one
         * data series name, used to display it in the graph
         """
-        records = self.env["stock.picking"]._read_group(
+        if not self:
+            return []
+        # Bucket in SQL: one grouped COUNT per (picking type, date category) using
+        # the same boundaries as `calculate_date_category`, instead of array_agg-ing
+        # every open picking's datetime out of PostgreSQL and classifying them one
+        # by one in Python on every dashboard render.
+        picking_model = self.env["stock.picking"]
+        picking_model.browse().check_access("read")
+        query = picking_model._search(
             [
                 ("picking_type_id", "in", self.ids),
                 ("state", "in", ["assigned", "waiting", "confirmed"]),
-            ],
-            ["picking_type_id"],
-            ["date_planned" + ":array_agg"],
+                ("date_planned", "!=", False),
+            ]
         )
-        # Make sure that all picking type IDs are represented, even if empty
-        picking_type_id_to_dates = {i: [] for i in self.ids}
-        picking_type_id_to_dates.update({r[0].id: r[1] for r in records})
+        counts_by_type = {picking_type_id: {} for picking_type_id in self.ids}
+        if not query.is_empty():
+            # Stored datetimes are naive UTC; express the tz-aware boundaries the
+            # same way (mirrors `date_category_to_domain`).
+            bounds = {
+                key: value.astimezone(pytz.UTC).replace(tzinfo=None)
+                for key, value in picking_model._date_category_boundaries().items()
+            }
+            picking_type_sql = picking_model._field_to_sql(
+                picking_model._table, "picking_type_id", query
+            )
+            date_planned_sql = picking_model._field_to_sql(
+                picking_model._table, "date_planned", query
+            )
+            category_sql = SQL(
+                """CASE
+                    WHEN %(date_planned)s < %(yesterday)s THEN 'before'
+                    WHEN %(date_planned)s < %(today)s THEN 'yesterday'
+                    WHEN %(date_planned)s < %(day_1)s THEN 'today'
+                    WHEN %(date_planned)s < %(day_2)s THEN 'day_1'
+                    WHEN %(date_planned)s < %(day_3)s THEN 'day_2'
+                    ELSE 'after'
+                END""",
+                date_planned=date_planned_sql,
+                **bounds,
+            )
+            # Group by select-list position: the CASE expression is parametrized,
+            # and the parameters would get distinct placeholders in the SELECT
+            # and GROUP BY renderings, so PostgreSQL could not match them as the
+            # same expression.
+            query.groupby = SQL("1, 2")
+            rows = self.env.execute_query(
+                query.select(picking_type_sql, category_sql, SQL("COUNT(*)"))
+            )
+            for picking_type_id, date_category, count in rows:
+                counts_by_type[picking_type_id][date_category] = count
+        label = self.env._("Transfers")
         return [
-            (i, d, self.env._("Transfers")) for i, d in picking_type_id_to_dates.items()
+            (picking_type_id, counts, label)
+            for picking_type_id, counts in counts_by_type.items()
         ]
 
     def _get_code_report_name(self):

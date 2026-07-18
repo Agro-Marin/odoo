@@ -124,6 +124,10 @@ class StockStorageCategoryCapacity(models.Model):
         "CHECK(quantity > 0)",
         "Quantity should be a positive number.",
     )
+    _product_or_package_type = models.Constraint(
+        "CHECK((product_id IS NULL) != (package_type_id IS NULL))",
+        "A storage capacity rule must concern either a product or a package type, but not both.",
+    )
     _unique_product = models.Constraint(
         "UNIQUE(product_id, storage_category_id)",
         "Multiple capacity rules for one product.",

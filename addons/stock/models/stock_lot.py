@@ -254,13 +254,16 @@ class StockLot(models.Model):
                 ],
                 exclude_ids=self.ids,
             )
-        if "company_id" in vals:
+        if vals.get("company_id"):
             for lot in self:
-                if (
-                    lot.location_id.company_id
-                    and vals["company_id"]
-                    and lot.location_id.company_id.id != vals["company_id"]
-                ):
+                # Guard on the actual quants, not the computed (and editable)
+                # `location_id`: that field reads False as soon as the lot spans
+                # more than one location, which is exactly when the guard
+                # matters most.
+                quant_companies = lot.quant_ids.filtered(
+                    lambda q: q.quantity
+                ).location_id.company_id
+                if any(company.id != vals["company_id"] for company in quant_companies):
                     raise UserError(
                         _(
                             "You cannot change the company of a lot/serial number currently in a location belonging to another company."
@@ -318,10 +321,13 @@ class StockLot(models.Model):
     def _compute_name(self):
         for lot in self:
             if not lot.name:
+                # Fall back to the global lot/serial sequence when the product
+                # has no dedicated one: leaving `name` empty would surface as an
+                # opaque required-field error at save time.
                 lot.name = (
                     lot.product_id.lot_sequence_id.next_by_id()
                     if lot.product_id.lot_sequence_id
-                    else False
+                    else self.env["ir.sequence"].next_by_code("stock.lot.serial")
                 )
 
     @api.depends("product_id.company_id")
@@ -440,8 +446,13 @@ class StockLot(models.Model):
             ]
         )
         if is_no_partner:
-            # reverse the search, get all lots sent to partner so we can return all lots NOT sent
-            domain &= Domain("picking_partner_id", "not in", value)
+            # Reverse the search: collect the lots sent to *some* partner so we
+            # can return all lots NOT sent. Mirror the positive branch and count
+            # both partner sources — a lot delivered through `move_partner_id`
+            # only must not come back as "never delivered to a partner".
+            domain &= Domain("picking_partner_id", "!=", False) | Domain(
+                "move_partner_id", "!=", False
+            )
         else:
             domain &= Domain.OR(
                 [
@@ -461,6 +472,7 @@ class StockLot(models.Model):
     # ------------------------------------------------------------
 
     def action_lot_open_quants(self):
+        self.ensure_one()
         self = self.with_context(search_default_lot_id=self.id, create=False)
         if self.env.user.has_group("stock.group_stock_manager"):
             self = self.with_context(inventory_mode=True)
