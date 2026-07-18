@@ -458,13 +458,18 @@ class StockPicking(models.Model):
         # supplier/customer override) rather than one value forced onto the batch.
         # Never override a location the caller passed explicitly in this same write; the
         # recursive write cascades the change to the picking's moves (see `after_vals`).
+        # Return pickings keep their locations (they reverse the original flow, so
+        # the type's defaults don't apply) — mirrors `_compute_location_id`.
         write_src = "location_id" not in vals
         write_dest = "location_dest_id" not in vals
-        if pickings_changing_type and (write_src or write_dest):
+        pickings_to_redefault = pickings_changing_type.filtered(
+            lambda picking: not picking.return_id,
+        )
+        if pickings_to_redefault and (write_src or write_dest):
             # Group pickings sharing the same resolved pair so the cascade to moves runs
             # once per distinct pair (mirrors the `date_planned` grouping in `create`).
             ids_by_locations = defaultdict(list)
-            for picking in pickings_changing_type:
+            for picking in pickings_to_redefault:
                 ids_by_locations[picking._get_type_default_location_ids()].append(
                     picking.id,
                 )
@@ -481,8 +486,12 @@ class StockPicking(models.Model):
             # (a scrap posted on day 1) and re-dating them to the picking's validation
             # date corrupts inventory history -- the same reason _inverse_date_planned
             # protects done moves, and mirroring the after_vals exclusion below.
+            # Only done moves follow: re-dating a *cancelled* move would fabricate an
+            # effective date for something that never happened.
             self.filtered(lambda p: p.state == "done").move_ids.filtered(
-                lambda move: move.location_dest_usage != "inventory",
+                lambda move: (
+                    move.state == "done" and move.location_dest_usage != "inventory"
+                ),
             ).date = vals["date_done"]
         if vals.get("signature"):
             for picking in self:
@@ -714,21 +723,28 @@ class StockPicking(models.Model):
         - Done: if the picking is done.
         - Cancelled: if the picking is cancelled
         """
-        # Read moves from the database (rather than `self.move_ids`) so the state
-        # reflects committed moves regardless of the in-memory cache. Collect ids and
-        # `browse` once per picking to avoid the quadratic cost of repeated `|=` union.
+        # For database records, read the moves from the database (rather than
+        # `self.move_ids`) so the stored state reflects the committed set of moves
+        # regardless of the in-memory cache — upstream semantics, kept for the
+        # flush-time recompute. For NewId records (form edits / onchange), querying
+        # the origin's committed moves made the displayed state stale against the
+        # unsaved edits *and* cost one query per onchange: read the pending
+        # `move_ids` from the cache instead, which is both live and query-free.
+        real_pickings = self.filtered("id")
         move_ids_by_picking = defaultdict(list)
-        for move in self.env["stock.move"].search([("picking_id", "in", self.ids)]):
-            move_ids_by_picking[move.picking_id.id].append(move.id)
+        if real_pickings:
+            for move in self.env["stock.move"].search(
+                [("picking_id", "in", real_pickings.ids)]
+            ):
+                move_ids_by_picking[move.picking_id.id].append(move.id)
 
         for picking in self:
-            # When an existing picking is edited in a form, `picking.id` is a NewId
-            # wrapping the database record; its committed moves are keyed by the real
-            # (origin) id, so resolve that to look them up.
-            picking_id = picking._origin.id or picking.id
-            moves = self.env["stock.move"].browse(
-                move_ids_by_picking.get(picking_id, ()),
-            )
+            if picking.id:
+                moves = self.env["stock.move"].browse(
+                    move_ids_by_picking.get(picking.id, ()),
+                )
+            else:
+                moves = picking.move_ids
             move_states = set(moves.mapped("state"))
 
             if not moves or "draft" in move_states:
@@ -785,7 +801,6 @@ class StockPicking(models.Model):
         self,
         model_name,
         extra_domain,
-        uom_fname,
         product_attr,
     ):
         """Sum ``product.<product_attr>`` weighted by line quantity for every line of
@@ -809,7 +824,7 @@ class StockPicking(models.Model):
                 ("product_id", "!=", False),
                 *extra_domain,
             ],
-            ["picking_id", "product_id", uom_fname],
+            ["picking_id", "product_id", "product_uom_id"],
             ["quantity:sum"],
         )
         for picking, product, product_uom_id, quantity in res_groups:
@@ -828,7 +843,6 @@ class StockPicking(models.Model):
         weights = self._measure_total_by_picking(
             "stock.move.line",
             [("result_package_id", "=", False)],
-            "product_uom_id",
             "weight",
         )
         for picking in self:
@@ -844,18 +858,25 @@ class StockPicking(models.Model):
         "weight_bulk",
     )
     def _compute_shipping_weight(self):
+        # Batch the computed package weights over the whole recordset: one
+        # dest-children walk and one grouped move-line aggregation for all
+        # pickings, instead of both per picking (N+1 on batch validation).
+        packages_by_picking = {
+            picking: picking.move_line_ids.result_package_id.outermost_package_id
+            for picking in self
+        }
+        all_packages = self.env["stock.package"].union(*packages_by_picking.values())
+        packages_weight = (
+            all_packages.sudo()._get_weight_by_picking(self.ids) if all_packages else {}
+        )
         for picking in self:
             shipping_weight = picking.weight_bulk
-            relevant_packages = (
-                picking.move_line_ids.result_package_id.outermost_package_id
-            )
-            packages_weight = relevant_packages.sudo()._get_weight(picking.id)
-            for package in relevant_packages:
+            for package in packages_by_picking[picking]:
                 if package.shipping_weight:
                     shipping_weight += package.shipping_weight
                 else:
                     # No shipping weight set: fall back to the computed product weight.
-                    shipping_weight += packages_weight.get(package, 0)
+                    shipping_weight += packages_weight.get((package, picking.id), 0)
             picking.shipping_weight = shipping_weight
 
     @api.depends(
@@ -867,7 +888,6 @@ class StockPicking(models.Model):
         volumes = self._measure_total_by_picking(
             "stock.move",
             [],
-            "product_uom_id",
             "volume",
         )
         for picking in self:
@@ -1173,6 +1193,24 @@ class StockPicking(models.Model):
         )
 
     def _search_products_availability_state(self, operator, value):
+        """Search on the non-stored forecast state of open outgoing/internal
+        pickings.
+
+        The field is intentionally not stored: it derives from
+        ``forecast_availability`` of every move, which shifts with any stock
+        move anywhere in the chain, so persisting it would need near-global
+        invalidation. The cheap discriminators are pushed into SQL — the
+        ``qualifying`` domain below pre-restricts candidates to the only
+        pickings that can carry a state (waiting/confirmed/assigned and
+        outgoing/internal), and the all-states case short-circuits to that
+        domain alone. The remaining cost is inherent: for any strict subset of
+        states, every qualifying picking's moves get one batched
+        ``forecast_availability`` computation (a few grouped queries over
+        quants/moves for all candidates together, then a Python pass) per
+        search call. On databases with a very large number of open
+        outgoing/internal pickings this search is expensive by design; callers
+        should narrow the rest of their domain first if they can.
+        """
         if operator != "in":
             return NotImplemented
 
@@ -1196,12 +1234,16 @@ class StockPicking(models.Model):
                 "in",
                 value - {False},
             )
-        value = (
-            set(self._fields["products_availability_state"].get_values(self.env))
-            & value
+        all_states = set(
+            self._fields["products_availability_state"].get_values(self.env)
         )
+        value = all_states & value
         if not value:
             return Domain.FALSE
+        if value == all_states:
+            # Searching every possible state is exactly the qualifying set: skip
+            # the per-picking forecast pass entirely.
+            return qualifying
 
         def _get_comparison_date(move):
             return move.picking_id.date_planned
@@ -1485,35 +1527,45 @@ class StockPicking(models.Model):
         pickings_show_report = self.filtered(
             lambda p: p.picking_type_id.auto_show_reception_report,
         )
-        lines = pickings_show_report.move_ids.filtered(
-            lambda m: (
-                m.product_id.is_storable
-                and m.state != "cancel"
-                and m.quantity
-                and not m.move_dest_ids
-            ),
-        )
-        if not lines:
-            return False
-        # don't show reception report if all already assigned/nothing to assign
-        wh_location_ids = pickings_show_report._get_allocation_source_location_ids(
-            pickings_show_report.picking_type_id.warehouse_id.view_location_id.ids,
-        )
-        if not self.env["stock.move"].search_count(
-            [
-                *self._get_allocatable_demand_domain(
-                    wh_location_ids,
-                    lines.product_id.ids,
+        # don't show reception report if all already assigned/nothing to assign.
+        # Probe per warehouse: a multi-warehouse batch must not cross demand
+        # locations of warehouse A with products only received in warehouse B
+        # (mirrors `_get_show_allocation_map`'s per-warehouse indexing).
+        has_allocatable_demand = False
+        for warehouse, pickings in pickings_show_report.grouped(
+            lambda p: p.picking_type_id.warehouse_id,
+        ).items():
+            lines = pickings.move_ids.filtered(
+                lambda m: (
+                    m.product_id.is_storable
+                    and m.state != "cancel"
+                    and m.quantity
+                    and not m.move_dest_ids
                 ),
-                # Reception report only offers *fresh* demand: moves with no origin,
-                # from other pickings. `_get_show_allocation_map` differs on purpose —
-                # it also re-surfaces demand chained to this receipt's own lines
-                # (`move_orig_ids & lines`).
-                ("move_orig_ids", "=", False),
-                ("picking_id", "not in", pickings_show_report.ids),
-            ],
-            limit=1,
-        ):
+            )
+            if not lines:
+                continue
+            wh_location_ids = pickings._get_allocation_source_location_ids(
+                warehouse.view_location_id.ids,
+            )
+            if self.env["stock.move"].search_count(
+                [
+                    *self._get_allocatable_demand_domain(
+                        wh_location_ids,
+                        lines.product_id.ids,
+                    ),
+                    # Reception report only offers *fresh* demand: moves with no
+                    # origin, from other pickings. `_get_show_allocation_map`
+                    # differs on purpose — it also re-surfaces demand chained to
+                    # this receipt's own lines (`move_orig_ids & lines`).
+                    ("move_orig_ids", "=", False),
+                    ("picking_id", "not in", pickings_show_report.ids),
+                ],
+                limit=1,
+            ):
+                has_allocatable_demand = True
+                break
+        if not has_allocatable_demand:
             return False
         action = pickings_show_report.action_view_reception_report()
         action["context"] = {"default_picking_ids": pickings_show_report.ids}
@@ -1548,11 +1600,20 @@ class StockPicking(models.Model):
                 ),
             )
 
-        moves = self.move_ids.filtered(
-            lambda m: m.state not in DONE_CANCEL_STATES and m.quantity != 0,
+        # UoM-aware zero test on both sides of the partition (a raw `!= 0` lets
+        # rounding dust count as "done"), and done/cancelled moves never move to
+        # the backorder: a cancelled move has quantity 0 and would otherwise be
+        # dragged into the new transfer.
+        open_moves = self.move_ids.filtered(
+            lambda m: m.state not in DONE_CANCEL_STATES,
+        )
+        moves = open_moves.filtered(
+            lambda m: not m.product_uom_id.is_zero(m.quantity),
         )
         backorder_moves = moves._create_backorder()
-        backorder_moves += self.move_ids.filtered(lambda m: m.quantity == 0)
+        backorder_moves += open_moves.filtered(
+            lambda m: m.product_uom_id.is_zero(m.quantity),
+        )
         self._create_backorder(backorder_moves=backorder_moves)
 
     def _pre_action_done_hook(self):
@@ -2005,6 +2066,7 @@ class StockPicking(models.Model):
         """
         backorders = self.env["stock.picking"]
         bo_to_assign = self.env["stock.picking"]
+        all_moves_to_backorder = self.env["stock.move"]
         for picking in self:
             if backorder_moves:
                 moves_to_backorder = backorder_moves.filtered(
@@ -2012,17 +2074,16 @@ class StockPicking(models.Model):
                 )
             else:
                 moves_to_backorder = picking._get_moves_to_backorder()
-            moves_to_backorder._recompute_state()
             if moves_to_backorder:
                 backorder_picking = picking._create_backorder_picking()
                 moves_to_backorder.write(
                     {"picking_id": backorder_picking.id, "picked": False},
                 )
-                moves_to_backorder.mapped("move_line_ids").write(
+                moves_to_backorder.move_line_ids.write(
                     {"picking_id": backorder_picking.id},
                 )
+                all_moves_to_backorder |= moves_to_backorder
                 backorders |= backorder_picking
-                backorder_picking.user_id = False
                 picking.message_post(
                     body=_(
                         "The backorder %s has been created.",
@@ -2031,6 +2092,13 @@ class StockPicking(models.Model):
                 )
                 if backorder_picking.picking_type_id.reservation_method == "at_confirm":
                     bo_to_assign |= backorder_picking
+        if backorders:
+            backorders.user_id = False
+        # Recompute once the moves live on their backorder, and once for the
+        # whole batch: recomputing before the reassignment described states that
+        # the subsequent writes immediately invalidated, and doing it per
+        # picking multiplied the reservation queries.
+        all_moves_to_backorder._recompute_state()
         if bo_to_assign:
             bo_to_assign.action_assign()
         return backorders

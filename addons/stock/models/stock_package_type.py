@@ -155,7 +155,14 @@ class StockPackageType(models.Model):
         if seq_vals:
             seq_to_todo_ids = set()
             for package_type in self:
-                if not package_type.sequence_id:
+                if package_type.sequence_id:
+                    seq_to_todo_ids.add(package_type.sequence_id.id)
+                elif vals.get("sequence_code"):
+                    # Only create a sequence when a code is provided: a
+                    # company-only change on a type without a sequence must not
+                    # create a nameless/prefixless one (NOT NULL violation on
+                    # ir_sequence.name); it only has to move existing sequences
+                    # to the new company.
                     sequence = (
                         self.env["ir.sequence"]
                         .sudo()
@@ -170,8 +177,6 @@ class StockPackageType(models.Model):
                         )
                     )
                     package_type.sequence_id = sequence
-                else:
-                    seq_to_todo_ids.add(package_type.sequence_id.id)
             if seq_to_todo_ids:
                 self.env["ir.sequence"].browse(list(seq_to_todo_ids)).sudo().write(
                     seq_vals

@@ -200,6 +200,33 @@ class StockPackage(models.Model):
                     message=_("Package manually relocated"),
                     up_to_parent_packages=self,
                 )
+                # Negative quants (pending accounting, e.g. an outbound
+                # validated before its inbound) must relocate too, or the
+                # package stays split across the old and new locations and the
+                # negative never nets against future receipts at the new one.
+                # Moving a -N quant from OLD to NEW means moving N units
+                # NEW -> OLD within the same package: it nets the OLD quant to
+                # zero and recreates the -N at NEW.
+                negative_quants = self.contained_quant_ids.filtered(
+                    lambda q: q.quantity < 0
+                )
+                if negative_quants:
+                    message = _("Package manually relocated")
+                    moves = self.env["stock.move"].create(
+                        [
+                            quant.with_context(
+                                inventory_name=message
+                            )._get_inventory_move_values(
+                                -quant.quantity,
+                                location_dest_id,
+                                quant.location_id,
+                                quant.package_id,
+                                quant.package_id,
+                            )
+                            for quant in negative_quants
+                        ]
+                    )
+                    moves._action_done()
         if vals.get("package_dest_id"):
             # Guard against a cycle in the package_dest_id chain; parent_path
             # can't be used here since it only tracks parent_package_id.
@@ -394,25 +421,37 @@ class StockPackage(models.Model):
         "quant_ids.company_id",
     )
     def _compute_package_info(self):
+        # Location and company are only meaningful when unambiguous: a package
+        # whose positive quants (or child packages) span several locations or
+        # companies is in an inconsistent state, and silently electing the first
+        # quant's value would hide it (and make the result depend on quant
+        # ordering). Mirror the homogeneity rule already applied to the company.
         for package in self:
             package.location_id = False
             package.company_id = False
+            # Homogeneity only over the positive quants: a stale zero-quantity
+            # quant left in another location/company must not blank the values.
             quants = package.quant_ids.filtered(
                 lambda q: q.product_uom_id.compare(q.quantity, 0) > 0
             )
             if quants:
-                package.location_id = quants[0].location_id
-                # Company homogeneity only over the positive quants: a stale
-                # zero-quantity quant left in another company must not blank it.
-                if all(q.company_id == quants[0].company_id for q in quants):
-                    package.company_id = quants[0].company_id
+                locations = quants.location_id
+                if len(locations) == 1:
+                    package.location_id = locations
+                companies = quants.company_id
+                if len(companies) == 1 and all(q.company_id for q in quants):
+                    package.company_id = companies
             elif package.child_package_ids:
-                package.location_id = package.child_package_ids[0].location_id
-                if all(
-                    p.company_id == package.child_package_ids[0].company_id
-                    for p in package.child_package_ids
+                # Location-less children (e.g. empty packages) don't make the
+                # located ones ambiguous, so only distinct truthy values count.
+                locations = package.child_package_ids.location_id
+                if len(locations) == 1:
+                    package.location_id = locations
+                companies = package.child_package_ids.company_id
+                if len(companies) == 1 and all(
+                    p.company_id for p in package.child_package_ids
                 ):
-                    package.company_id = package.child_package_ids[0].company_id
+                    package.company_id = companies
 
     @api.depends("child_package_dest_ids")
     def _compute_picking_ids(self):
@@ -438,14 +477,16 @@ class StockPackage(models.Model):
             picking_ids.update(pickings_by_package.get(package.id, []))
             package.picking_ids = [Command.set(list(picking_ids))]
 
-    @api.depends("quant_ids.owner_id")
+    @api.depends("contained_quant_ids.owner_id")
     def _compute_owner_id(self):
+        # Aggregate over the whole content (own quants plus nested packages'):
+        # a container whose goods all belong to one owner through its children
+        # must expose that owner too.
         for package in self:
             package.owner_id = False
-            if package.quant_ids and all(
-                q.owner_id == package.quant_ids[0].owner_id for q in package.quant_ids
-            ):
-                package.owner_id = package.quant_ids[0].owner_id
+            quants = package.contained_quant_ids
+            if quants and all(q.owner_id == quants[0].owner_id for q in quants):
+                package.owner_id = quants[0].owner_id
 
     @api.depends("package_dest_id", "package_dest_id.outermost_package_id")
     def _compute_outermost_package_id(self):
@@ -512,9 +553,13 @@ class StockPackage(models.Model):
             if isinstance(value, Domain):
                 value = self.env["stock.move.line"]._search(value)
 
+        if isinstance(value, Iterable) and not isinstance(value, str):
+            # Materialize one-shot iterables (e.g. generators): `value` is
+            # inspected below and then reused inside the domain.
+            value = list(value)
         domain = Domain("state", "not in", ["done", "cancel"])
         pack_operator = "in"
-        if isinstance(value, Iterable) and tuple(value) == (False,):
+        if isinstance(value, list) and value == [False]:
             # ('move_line_ids', '=', False): not assigned to any ongoing picking
             pack_operator = "not in"
         else:
@@ -753,53 +798,77 @@ class StockPackage(models.Model):
     def _get_weight(self, picking_id=False):
         res = {}
         if picking_id:
-            package_weights = defaultdict(float)
-            # For an ongoing picking, also count the weight of current dest children.
-            children_by_dest_pack, all_pack_ids = (
-                self._get_all_children_package_dest_ids()
-            )
-            base_weight_per_package_group = self.env["stock.package"]._read_group(
-                domain=[("id", "in", all_pack_ids)],
-                groupby=["id", "package_type_id.base_weight"],
-            )
-            base_weight_per_package = {
-                pack.id: weight for pack, weight in base_weight_per_package_group
+            return {
+                package: weight
+                for (package, __), weight in self._get_weight_by_picking(
+                    [picking_id]
+                ).items()
             }
-
-            res_groups = self.env["stock.move.line"]._read_group(
-                [
-                    ("result_package_id", "in", all_pack_ids),
-                    ("product_id", "!=", False),
-                    ("picking_id", "=", picking_id),
-                ],
-                ["result_package_id", "product_id", "product_uom_id", "quantity"],
-                ["__count"],
-            )
-            for result_package, product, product_uom_id, quantity, count in res_groups:
-                package_weights[result_package.id] += (
-                    count
-                    * product_uom_id._compute_quantity(quantity, product.uom_id)
-                    * product.weight
-                )
         for package in self:
             weight = package.package_type_id.base_weight or 0.0
-            if picking_id:
-                res[package] = weight + package_weights[package.id]
+            # Add the base_weight of every nested package, including ones that
+            # only contain other packages (no quants of their own to weigh).
+            weight += sum(
+                package.all_children_package_ids.mapped(
+                    lambda p: p.package_type_id.base_weight,
+                ),
+            )
+            for quant in package.contained_quant_ids:
+                weight += quant.quantity * quant.product_id.weight
+            res[package] = weight
+        return res
+
+    def _get_weight_by_picking(self, picking_ids):
+        """Weight of each package in ``self`` restricted to each given picking's
+        own move lines, including the current dest children of the package.
+
+        Batched over pickings: the recursive dest-children walk and the move-line
+        aggregation run once for the whole (packages x pickings) set, so callers
+        computing weights for many pickings (e.g. `_compute_shipping_weight` on a
+        batch validation) do not pay one walk and two grouped queries per picking.
+
+        :param picking_ids: iterable of `stock.picking` ids.
+        :return: dict mapping ``(package, picking_id)`` to its weight.
+        """
+        picking_ids = list(picking_ids)
+        # (picking_id, package_id) -> weight of the picking's own product content.
+        package_weights = defaultdict(float)
+        # For an ongoing picking, also count the weight of current dest children.
+        children_by_dest_pack, all_pack_ids = self._get_all_children_package_dest_ids()
+        base_weight_per_package_group = self.env["stock.package"]._read_group(
+            domain=[("id", "in", all_pack_ids)],
+            groupby=["id", "package_type_id.base_weight"],
+        )
+        base_weight_per_package = {
+            pack.id: weight for pack, weight in base_weight_per_package_group
+        }
+
+        res_groups = self.env["stock.move.line"]._read_group(
+            [
+                ("result_package_id", "in", all_pack_ids),
+                ("product_id", "!=", False),
+                ("picking_id", "in", picking_ids),
+            ],
+            ["picking_id", "result_package_id", "product_id", "product_uom_id"],
+            ["quantity:sum"],
+        )
+        for picking, result_package, product, product_uom_id, quantity in res_groups:
+            package_weights[(picking.id, result_package.id)] += (
+                product_uom_id._compute_quantity(quantity, product.uom_id)
+                * product.weight
+            )
+
+        res = {}
+        for package in self:
+            base_weight = package.package_type_id.base_weight or 0.0
+            for picking_id in picking_ids:
+                weight = base_weight + package_weights[(picking_id, package.id)]
                 for child_id in children_by_dest_pack.get(package, []):
-                    res[package] += base_weight_per_package.get(
-                        child_id, 0
-                    ) + package_weights.get(child_id, 0)
-            else:
-                # Add the base_weight of every nested package, including ones that
-                # only contain other packages (no quants of their own to weigh).
-                weight += sum(
-                    package.all_children_package_ids.mapped(
-                        lambda p: p.package_type_id.base_weight,
-                    ),
-                )
-                for quant in package.contained_quant_ids:
-                    weight += quant.quantity * quant.product_id.weight
-                res[package] = weight
+                    weight += (
+                        base_weight_per_package.get(child_id, 0)
+                        + package_weights[(picking_id, child_id)]
+                    )
+                res[(package, picking_id)] = weight
         return res
 
     def _get_all_children_package_dest_ids(self):
