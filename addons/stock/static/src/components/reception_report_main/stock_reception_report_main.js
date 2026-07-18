@@ -40,12 +40,19 @@ export class ReceptionReportMain extends Component {
             let defaultDocIds;
             const { rfield, rids } = this.props.action.context.params || {};
             if (rfield && rids) {
-                const parsedIds = JSON.parse(rids);
-                defaultDocIds = [
-                    rfield,
-                    parsedIds instanceof Array ? parsedIds : [parsedIds],
-                ];
-            } else {
+                try {
+                    const parsedIds = JSON.parse(rids);
+                    defaultDocIds = [
+                        rfield,
+                        parsedIds instanceof Array ? parsedIds : [parsedIds],
+                    ];
+                } catch {
+                    // `rids` comes straight from the (user-editable) URL: a
+                    // malformed value falls through to the context defaults
+                    // below instead of crashing the whole action.
+                }
+            }
+            if (!defaultDocIds) {
                 const defaultEntry = Object.entries(this.context).find(([k]) =>
                     k.startsWith("default_"),
                 );

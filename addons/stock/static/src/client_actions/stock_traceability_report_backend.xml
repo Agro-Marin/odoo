@@ -55,9 +55,12 @@
  </span>
  </t>
  <t t-elif="line.unfoldable">
- <span class="o_stock_reports_unfoldable o_stock_reports_caret_icon" t-on-click="() => this.toggleLine(line)">
- <i class="fa-solid " t-att-class="line.isFolded ? 'fa-caret-right' : 'fa-caret-down'" role="img" aria-label="Unfold" title="Unfold"/>
- </span>
+ <button type="button" class="btn p-0 border-0 bg-transparent o_stock_reports_unfoldable o_stock_reports_caret_icon"
+ t-att-aria-expanded="!line.isFolded ? 'true' : 'false'"
+ t-att-aria-label="foldLabel(line)" t-att-title="foldLabel(line)"
+ t-on-click="() => this.toggleLine(line)">
+ <i class="fa-solid" t-att-class="line.isFolded ? 'fa-caret-right' : 'fa-caret-down'"/>
+ </button>
  </t>
  </t>
 

@@ -163,21 +163,34 @@ export class TraceabilityReport extends Component {
         });
     }
 
+    /** Dynamic fold-toggle labels (a11y): reflect the line's current state. */
+    foldLabel(line) {
+        return line.isFolded ? _t("Unfold") : _t("Fold");
+    }
+
     async toggleLine(line) {
         line.isFolded = !line.isFolded;
-        if (!line.lines.length) {
-            line.lines = (
-                await this.orm.call(
-                    "stock.traceability.report",
-                    "get_lines",
-                    [line.id],
-                    {
-                        model_id: line.model_id,
-                        model_name: line.model,
-                        level: (line.level ?? 0) + 30,
-                    },
-                )
-            ).map(processLine);
+        // Pending-guard: while the children RPC is in flight `line.lines` is
+        // still empty, so a second toggle would fire a duplicate RPC and
+        // desync the fold state from the (twice-) loaded rows.
+        if (!line.lines.length && !line.linesLoading) {
+            line.linesLoading = true;
+            try {
+                line.lines = (
+                    await this.orm.call(
+                        "stock.traceability.report",
+                        "get_lines",
+                        [line.id],
+                        {
+                            model_id: line.model_id,
+                            model_name: line.model,
+                            level: (line.level ?? 0) + 30,
+                        },
+                    )
+                ).map(processLine);
+            } finally {
+                line.linesLoading = false;
+            }
         }
     }
 }

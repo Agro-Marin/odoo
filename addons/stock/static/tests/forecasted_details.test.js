@@ -8,10 +8,7 @@ import { ForecastedDetails } from "@stock/stock_forecasted/forecasted_details";
 function makeDetails(docs) {
     const details = Object.create(ForecastedDetails.prototype);
     details.props = { docs };
-    details._groupLines();
-    details._prepareLines();
-    details._prepareData();
-    details._mergeLines();
+    details._deriveLinesData(docs);
     return details;
 }
 
@@ -88,9 +85,30 @@ test("grouping and totals per product", () => {
 
 test("zero-quantity free stock line is dropped when other lines exist", () => {
     const { docs, lines } = makeDocs();
-    makeDetails(docs);
-    expect(docs.lines).not.toInclude(lines.freeStockZero);
-    expect(docs.lines.length).toBe(3);
+    const details = makeDetails(docs);
+    expect(details.lines).not.toInclude(lines.freeStockZero);
+    expect(details.lines.length).toBe(3);
+});
+
+test("derivation never mutates the parent-owned docs.lines", () => {
+    const { docs, lines } = makeDocs();
+    const original = [...docs.lines];
+    const details = makeDetails(docs);
+    // The dropped zero-qty free stock line is removed from the local copy only.
+    expect(details.lines).not.toBe(docs.lines);
+    expect(docs.lines).toEqual(original);
+    expect(docs.lines).toInclude(lines.freeStockZero);
+});
+
+test("re-deriving from new docs replaces the local line list", () => {
+    const { docs } = makeDocs();
+    const details = makeDetails(docs);
+    const firstLines = details.lines;
+    const { docs: newDocs } = makeDocs();
+    newDocs.lines = newDocs.lines.slice(0, 2);
+    details._deriveLinesData(newDocs);
+    expect(details.lines).not.toBe(firstLines);
+    expect(details.lines.length).toBe(2);
 });
 
 test("adjacent on-hand lines of a product merge into one rowspan", () => {

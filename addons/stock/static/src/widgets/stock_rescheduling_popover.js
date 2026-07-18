@@ -4,12 +4,23 @@ import {
     PopoverWidgetField,
     popoverWidgetField,
 } from "@stock/widgets/popover_widget";
+import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
 
 export class StockReschedulingPopoverComponent extends PopoverComponent {
     setup() {
         this.action = useService("action");
+    }
+
+    // Complete translatable sentences: the operation links are rendered between
+    // them, so the surrounding text must not be split into fragments.
+    get precedingLabel() {
+        return _t("Preceding operations:");
+    }
+
+    get plannedLabel() {
+        return _t("Planned on %s.", this.props.date_delay_alert);
     }
 
     openElement(ev) {

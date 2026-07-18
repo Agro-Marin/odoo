@@ -44,7 +44,7 @@
                                         t-out="line.document_in.name"
                                         class="fw-bold"/>
                                     <span t-if="line.receipt_date">:
-                                        <t t-out="_formatFloat(skip_row > 0 ? mergesLinesData[line_index].tot_qty : line.quantity)"/> <t t-out="line.uom_id.display_name"/> expected on <t t-out="line.receipt_date"/>
+                                        <t t-out="incomingSentence(line, skip_row > 0 ? mergesLinesData[line_index].tot_qty : line.quantity)"/>
                                     </span>
                                 </t>
                                 <t t-elif="line.in_transit">
@@ -57,7 +57,7 @@
                                 </t>
                                 <t t-elif="line.replenishment_filled">
                                     <t name="onHand_cell" t-if="line.document_out">
-                                        Stock To Reserve: <t t-out="_formatFloat(OnHandTotalQty[line.product.id])"/> <t t-out="line.uom_id.display_name"/>
+                                        <t t-out="stockToReserveSentence(line)"/>
                                     </t>
                                     <t name="freeStock_cell" t-else="" t-out="freeStockLabel"/>
                                 </t>
@@ -67,7 +67,9 @@
                         <td name="quantity_cell" class="text-end" t-att-class="{ 'text-danger': !line.replenishment_filled }"><t t-out="_formatFloat(line.quantity)"/> <t t-out="line.uom_id.display_name"/></td>
                         <td class="border-end-0 o_forecasted_details_line_button" t-attf-class="#{(!line.replenishment_filled and 'table-danger') or (line.is_matched and 'table-info')}" name="usedby_cell">
                             <button t-if="line.move_out and line.move_out.picking_id"
+                                type="button" title="Toggle priority" aria-label="Toggle priority"
                                 t-attf-class="o_priority o_priority_star me-1 #{line.move_out.picking_id.priority=='1' ? 'fa-solid fa-star' : 'fa-regular fa-star'}"
+                                t-att-disabled="opGuard.busy"
                                 t-on-click="() => this._onClickChangePriority('stock.picking', line.move_out.picking_id)"
                                 name="change_priority_link"/>
                             <a t-if="line.document_out"
@@ -82,12 +84,15 @@
                                 <a t-if="line.reservation"
                                     href="#"
                                     name="unreserve_link"
-                                    t-on-click="() => this._unreserve(line.move_out.id)">
+                                    t-att-aria-disabled="opGuard.busy"
+                                    t-att-class="{ disabled: opGuard.busy }"
+                                    t-on-click.prevent="() => this._unreserve(line.move_out.id)">
                                     Unreserve
                                 </a>
                                 <button t-elif="line.replenishment_filled or AvailableOnHandTotalQty[line.product.id] &gt; 0"
                                     class="btn btn-sm btn-secondary"
                                     name="reserve_link"
+                                    t-att-disabled="opGuard.busy"
                                     t-on-click="() => this._reserve(line.move_out.id)">
                                     Reserve
                                     <t t-if="AvailableOnHandTotalQty[line.product.id] &gt; 0 and !isOnHand(line)">
@@ -100,15 +105,6 @@
                             t-attf-class="#{line.delivery_late and 'text-danger'}"/>
                     </tr>
                     <t t-if="line_index === last_line_index or line.product.id !== lines[line_index + 1].product.id">
-                        <!-- Check in progress with DALA
-                        <tr t-if="! multipleProducts and this.props.docs.qty_to_order" t-attf-class="#{multipleProducts and 'collapse show' or ''} collapseGroup_#{line.product.id}">
-                            <td/>
-                            <td>To Order</td>
-                            <td class="text-end">
-                                <span class="text-muted" t-out="this.props.docs.lead_horizon_date"/>
-                                <span ><t t-out="_formatFloat(this.props.docs.qty_to_order)"/> <t t-out="line.uom_id.display_name"/></span>
-                            </td>
-                        </tr> -->
                         <tr class="o_forecasted_row fw-bold table-secondary" t-attf-class="#{multipleProducts and 'collapse show' or ''} collapseGroup_#{line.product.id}">
                             <td/>
                             <td class="border-end-0">Forecasted Inventory</td>

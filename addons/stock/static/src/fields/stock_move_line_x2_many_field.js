@@ -182,11 +182,10 @@ export class SMLX2ManyField extends X2ManyField {
                 demand,
             );
         }
-        this.list.addNewRecord(params).then((record) => {
-            // Make it dirty to force the save of the record. addNewRecord make
-            // the new record dirty === False by default to remove them at unfocus event
-            record.dirty = true;
-        });
+        const record = await this.list.addNewRecord(params);
+        // Make it dirty to force the save of the record. addNewRecord make
+        // the new record dirty === False by default to remove them at unfocus event
+        record.dirty = true;
     }
 
     createOpenRecord() {

@@ -1,5 +1,6 @@
 /** @odoo-module native */
-import { Component } from "@odoo/owl";
+import { Component, onWillUpdateProps } from "@odoo/owl";
+import { useOperationGuard } from "@stock/utils/use_operation_guard";
 import { _t } from "@web/core/l10n/translation";
 import { useService } from "@web/core/utils/hooks";
 import { formatFloat } from "@web/fields/formatters";
@@ -10,13 +11,34 @@ export class ForecastedDetails extends Component {
 
     setup() {
         this.orm = useService("orm");
-        this._groupLines();
-        this._prepareLines();
-        this._prepareData();
-        this._mergeLines();
+        // Shared busy flag: while a reserve/unreserve/priority RPC (and the
+        // reloadReport it triggers) is in flight, all three handlers are inert
+        // and the template disables the controls.
+        this.opGuard = useOperationGuard();
+        this._reserve = this.opGuard.guard(this._reserve.bind(this));
+        this._unreserve = this.opGuard.guard(this._unreserve.bind(this));
+        this._onClickChangePriority = this.opGuard.guard(
+            this._onClickChangePriority.bind(this),
+        );
+        this._deriveLinesData(this.props.docs);
+        onWillUpdateProps((nextProps) => this._deriveLinesData(nextProps.docs));
 
         this._formatFloat = (num) =>
             formatFloat(num, { digits: [false, this.props.docs.precision] });
+    }
+
+    /**
+     * Derives everything the template reads (local line list, groupings,
+     * totals, merge data) from `docs`. Called from setup and again on every
+     * props update. The line list is a local copy: sorting/splicing during the
+     * derivation must never write back into the parent-owned `props.docs`.
+     */
+    _deriveLinesData(docs) {
+        this.docs = docs;
+        this._prepareLines();
+        this._groupLines();
+        this._prepareData();
+        this._mergeLines();
     }
 
     async _reserve(move_id) {
@@ -91,7 +113,7 @@ export class ForecastedDetails extends Component {
 
     _groupLinesByProduct() {
         this.LinesPerProduct = {};
-        for (const line of this.props.docs.lines) {
+        for (const line of this.lines) {
             const key = line.product.id;
             (this.LinesPerProduct[key] ??= []).push(line);
         }
@@ -99,7 +121,7 @@ export class ForecastedDetails extends Component {
 
     _groupOnHandLinesByProduct() {
         this.OnHandLinesPerProduct = {};
-        for (const line of this.props.docs.lines) {
+        for (const line of this.lines) {
             if (this._onHandCondition(line)) {
                 const key = line.product.id;
                 (this.OnHandLinesPerProduct[key] ??= []).push(line);
@@ -109,7 +131,7 @@ export class ForecastedDetails extends Component {
 
     _groupReconciledLinesByProduct() {
         this.ReconciledLinesPerProduct = {};
-        for (const line of this.props.docs.lines) {
+        for (const line of this.lines) {
             if (this._reconciledCondition(line)) {
                 const key = line.product.id;
                 (this.ReconciledLinesPerProduct[key] ??= []).push(line);
@@ -119,7 +141,7 @@ export class ForecastedDetails extends Component {
 
     _groupNotAvailableLinesByProduct() {
         this.NotAvailableLinesPerProduct = {};
-        for (const line of this.props.docs.lines) {
+        for (const line of this.lines) {
             if (this._notAvailableCondition(line)) {
                 const key = line.product.id;
                 (this.NotAvailableLinesPerProduct[key] ??= []).push(line);
@@ -128,9 +150,12 @@ export class ForecastedDetails extends Component {
     }
 
     _groupFreeStockLinesByProduct() {
+        // NB: no `removal_date` filtering here — that key only exists when
+        // product_expiry is installed, and product_expiry's override of
+        // `_freeStockCondition` applies it.
         this.FreeStockLinesPerProduct = {};
-        for (const line of this.props.docs.lines) {
-            if (this._freeStockCondition(line) && line?.removal_date !== -1) {
+        for (const line of this.lines) {
+            if (this._freeStockCondition(line)) {
                 const key = line.product.id;
                 (this.FreeStockLinesPerProduct[key] ??= []).push(line);
             }
@@ -138,10 +163,12 @@ export class ForecastedDetails extends Component {
     }
 
     _prepareLines() {
+        // Copy first (extensions sort `docs.lines` in place before calling
+        // super, so the copy must be taken here, not earlier): every later
+        // step — grouping, splicing, merging — works on this local array only.
+        this._lines = [...this.docs.lines];
         if (this.multipleProducts) {
-            this.props.docs.lines.sort(
-                (a, b) => (a.product.id || 0) - (b.product.id || 0),
-            );
+            this._lines.sort((a, b) => (a.product.id || 0) - (b.product.id || 0));
         }
     }
 
@@ -291,15 +318,38 @@ export class ForecastedDetails extends Component {
         return _t("Free Stock");
     }
 
+    /**
+     * Full translatable sentence for an incoming document's expected receipt —
+     * built in one piece so translators see the whole phrase, not fragments.
+     */
+    incomingSentence(line, quantity) {
+        return _t("%(quantity)s %(uom)s expected on %(date)s", {
+            quantity: this._formatFloat(quantity),
+            uom: line.uom_id.display_name,
+            date: line.receipt_date,
+        });
+    }
+
+    stockToReserveSentence(line) {
+        return _t("Stock To Reserve: %(quantity)s %(uom)s", {
+            quantity: this._formatFloat(this.OnHandTotalQty[line.product.id]),
+            uom: line.uom_id.display_name,
+        });
+    }
+
+    /**
+     * Local, derived copy of `docs.lines` (see _deriveLinesData) — never the
+     * parent-owned array itself.
+     */
     get lines() {
-        return this.props.docs.lines;
+        return this._lines;
     }
 
     get multipleProducts() {
-        return this.props.docs.multiple_product;
+        return this.docs.multiple_product;
     }
 
     get productIds() {
-        return Object.keys(this.props.docs.product).map(Number);
+        return Object.keys(this.docs.product).map(Number);
     }
 }

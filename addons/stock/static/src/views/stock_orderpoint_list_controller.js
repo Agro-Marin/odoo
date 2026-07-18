@@ -1,4 +1,5 @@
 /** @odoo-module native */
+import { useOperationGuard } from "@stock/utils/use_operation_guard";
 import { Dropdown } from "@web/components/dropdown/dropdown";
 import { DropdownItem } from "@web/components/dropdown/dropdown_item";
 import { ListController } from "@web/views/list/list_controller";
@@ -11,6 +12,15 @@ export class StockOrderpointListController extends ListController {
         Dropdown,
         DropdownItem,
     };
+
+    setup() {
+        super.setup();
+        // Order/Order To Max/Snooze mutate orderpoints and reload the list; a
+        // second activation while one is in flight would replenish twice.
+        this.opGuard = useOperationGuard();
+        this.onClickOrder = this.opGuard.guard(this.onClickOrder.bind(this));
+        this.onClickSnooze = this.opGuard.guard(this.onClickSnooze.bind(this));
+    }
 
     async onClickOrder(force_to_max) {
         const resIds = await this.model.root.getResIds(true);
