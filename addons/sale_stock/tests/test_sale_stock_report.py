@@ -280,7 +280,7 @@ class TestSaleStockReports(TestReportsCommon):
         )
         picking_receipt.action_confirm()
 
-        self.env["report.stock.report_reception"]._action_assign(
+        self.env["report.stock.report_reception"]._share_source_references(
             picking_receipt.move_ids,
             so_delivery.move_ids,
         )
@@ -288,7 +288,7 @@ class TestSaleStockReports(TestReportsCommon):
             picking_receipt.move_ids.reference_ids, so_delivery.move_ids.reference_ids
         )
 
-        self.env["report.stock.report_reception"]._action_unassign(
+        self.env["report.stock.report_reception"]._unshare_source_references(
             picking_receipt.move_ids,
             so_delivery.move_ids,
         )

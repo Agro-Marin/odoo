@@ -42,9 +42,9 @@
     <xpath expr="//t[@name='code128_barcode']" position="before">
         <t t-elif="lot['lot_record'].use_expiration_date and (lot['lot_record'].use_date or lot['lot_record'].expiration_date)">
 ^FO100,50
-^A0N,44,33^FD<t t-out="lot['display_name_markup']"/>^FS
+^A0N,44,33^FD<t t-out="markup(lot['display_name_markup'])"/>^FS
 ^FO100,100
-^A0N,44,33^FDLN/SN: <t t-out="lot['name']"/>^FS
+^A0N,44,33^FDLN/SN: <t t-out="markup(lot['name'])"/>^FS
             <t t-if="lot['lot_record'].use_date">
 ^FO100,150
 ^A0N,44,33^FDBest before: <t t-out="lot['lot_record'].use_date" t-options='{"widget": "date"}'/>^FS
@@ -57,14 +57,14 @@
 ^FO100,200^BY3
                 </t>
 ^BCN,100,Y,N,N
-^FD<t t-out="lot['name']"/>^FS
+^FD<t t-out="markup(lot['name'])"/>^FS
             </t>
             <t t-elif="lot['lot_record'].expiration_date">
 ^FO100,150
 ^A0N,44,33^FDUse by: <t t-out="lot['lot_record'].expiration_date" t-options='{"widget": "date"}'/>^FS
 ^FO100,200^BY3
 ^BCN,100,Y,N,N
-^FD<t t-out="lot['name']"/>^FS
+^FD<t t-out="markup(lot['name'])"/>^FS
             </t>
         </t>
     </xpath>

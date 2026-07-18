@@ -42,7 +42,7 @@ class ReportStockReport_Reception(models.AbstractModel):
             return format_date(self.env, source.date_start)
         return super()._get_formatted_scheduled_date(source)
 
-    def _action_unassign(self, in_move, out_move):
-        super()._action_unassign(in_move, out_move)
+    def _unshare_source_references(self, in_move, out_move):
+        super()._unshare_source_references(in_move, out_move)
         if in_move.production_id:
             in_move.production_id.move_dest_ids -= out_move
