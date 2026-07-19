@@ -1069,7 +1069,9 @@ class MailComposeMessage(models.TransientModel):
                 .sudo()
                 .create(list(prepared_mail_values_filtered.values()))
             )
-            self.env["mail.notification"].create(
+            # sudo: technical mass-mail path (mirrors the mail.mail create above);
+            # notifications here are framework-generated, not user-authored writes.
+            self.env["mail.notification"].sudo().create(
                 self._generate_mail_notification_values(iter_mails_sudo)
             )
             mails_sudo += iter_mails_sudo
