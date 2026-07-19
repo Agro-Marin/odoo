@@ -53,6 +53,9 @@ export class CallParticipantCard extends Component {
             });
         });
         onWillUnmount(() => {
+            // drop any drag listeners still attached to document if the card
+            // unmounts mid-drag
+            this._removeDragListeners?.();
             if (!this.rtcSession) {
                 return;
             }
@@ -231,33 +234,43 @@ export class CallParticipantCard extends Component {
         if (!this.props.inset) {
             return;
         }
+        this._removeDragListeners?.();
         const onMousemove = (ev) => this.drag(ev);
         const onMouseup = () => {
+            // The card can unmount mid-drag (e.g. the remote stops screen-share).
+            // Only run the snapping DOM work when the element still exists, but
+            // always remove the document listeners below.
             const insetEl = this.root.el;
-            const bottomOffset = this.env.inChatWindow
-                ? this.window.innerHeight * 0.05
-                : 0; // 5vh in pixels
-            if (parseInt(insetEl.style.left) < insetEl.parentNode.offsetWidth / 2) {
-                insetEl.style.left = "1vh";
-                insetEl.style.right = "";
-            } else {
-                insetEl.style.left = "";
-                insetEl.style.right = "1vh";
-            }
-            if (
-                parseInt(insetEl.style.top) <
-                (insetEl.parentNode.offsetHeight - bottomOffset) / 2
-            ) {
-                insetEl.style.top = "1vh";
-                insetEl.style.bottom = "";
-            } else {
-                insetEl.style.bottom = this.env.inChatWindow ? "5vh" : "1vh";
-                insetEl.style.top = "unset";
+            if (insetEl) {
+                const bottomOffset = this.env.inChatWindow
+                    ? this.window.innerHeight * 0.05
+                    : 0; // 5vh in pixels
+                if (parseInt(insetEl.style.left) < insetEl.parentNode.offsetWidth / 2) {
+                    insetEl.style.left = "1vh";
+                    insetEl.style.right = "";
+                } else {
+                    insetEl.style.left = "";
+                    insetEl.style.right = "1vh";
+                }
+                if (
+                    parseInt(insetEl.style.top) <
+                    (insetEl.parentNode.offsetHeight - bottomOffset) / 2
+                ) {
+                    insetEl.style.top = "1vh";
+                    insetEl.style.bottom = "";
+                } else {
+                    insetEl.style.bottom = this.env.inChatWindow ? "5vh" : "1vh";
+                    insetEl.style.top = "unset";
+                }
             }
             this.dragPos = undefined;
             this.parentBoundingRect = undefined;
+            this._removeDragListeners();
+        };
+        this._removeDragListeners = () => {
             document.removeEventListener("mouseup", onMouseup);
             document.removeEventListener("mousemove", onMousemove);
+            this._removeDragListeners = undefined;
         };
         document.addEventListener("mouseup", onMouseup);
         document.addEventListener("mousemove", onMousemove);
@@ -271,8 +284,14 @@ export class CallParticipantCard extends Component {
     }
 
     drag(ev) {
-        this.isDrag = true;
         const insetEl = this.root.el;
+        if (!insetEl) {
+            // unmounted mid-drag: stop the pointer tracking instead of throwing
+            // on every mouse move.
+            this._removeDragListeners?.();
+            return;
+        }
+        this.isDrag = true;
         const parent = insetEl.parentNode;
         const boundingRect =
             this.parentBoundingRect ||

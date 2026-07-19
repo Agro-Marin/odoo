@@ -39,10 +39,15 @@ export class ActivityListPopover extends Component {
     }
 
     get activities() {
+        // Set membership instead of Array.includes: the getter is invoked once
+        // per render plus once per state bucket (done/overdue/planned/today), so
+        // the filter ran activityIds.includes for every stored activity on every
+        // one of those passes -- O(activities x activityIds).
+        const activityIds = new Set(this.props.activityIds);
         /** @type {import("models").Activity[]} */
         const allActivities = Object.values(this.store["mail.activity"].records);
         return allActivities
-            .filter((activity) => this.props.activityIds.includes(activity.id))
+            .filter((activity) => activityIds.has(activity.id))
             .sort(
                 (a, b) =>
                     compareDatetime(a.date_deadline, b.date_deadline) || a.id - b.id,

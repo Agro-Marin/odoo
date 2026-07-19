@@ -626,13 +626,25 @@ class MailRenderMixin(models.AbstractModel):
         normalized_src = html_normalize(f"<div>{template_src}</div>")
         if normalized_src.startswith("<div>") and normalized_src.endswith("</div>"):
             normalized_src = normalized_src.removeprefix("<div>").removesuffix("</div>")
+        # The allow-list check depends only on (expr, model), not the record, yet
+        # ran per match per record and rebuilt mail_allowed_qweb_expressions() each
+        # time. Memoize it for the whole render (which may span thousands of ids).
+        allowed_cache = {}
+
+        def is_expression_allowed(expr):
+            if expr not in allowed_cache:
+                allowed_cache[expr] = self.env["ir.qweb"]._is_expression_allowed(
+                    expr, model
+                )
+            return allowed_cache[expr]
+
         for record in records:
 
             def replace(match, record=record):
                 tag = match.group(1)
                 expr = match.group(3)
                 default = match.group(9)
-                if not self.env["ir.qweb"]._is_expression_allowed(expr, model):
+                if not is_expression_allowed(expr):
                     raise SyntaxError(f"Invalid expression for the regex mode {expr!r}")
 
                 try:
@@ -792,14 +804,24 @@ class MailRenderMixin(models.AbstractModel):
         template = parse_inline_template(str(template_txt))
         records = self.env[model].browse(res_ids)
         result = {}
+        # Memoize the (expr, model)-only allow-list check for the whole render;
+        # it otherwise reran per expression per record, rebuilding
+        # mail_allowed_qweb_expressions() each time.
+        allowed_cache = {}
+
+        def is_expression_allowed(expr):
+            if expr not in allowed_cache:
+                allowed_cache[expr] = self.env["ir.qweb"]._is_expression_allowed(
+                    expr, model
+                )
+            return allowed_cache[expr]
+
         for record in records:
             renderer = []
             for string, expression, default in template:
                 renderer.append(string)
                 if expression:
-                    if not self.env["ir.qweb"]._is_expression_allowed(
-                        expression, model
-                    ):
+                    if not is_expression_allowed(expression):
                         raise SyntaxError(
                             f"Invalid expression for the regex mode {expression!r}"
                         )
