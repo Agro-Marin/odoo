@@ -109,7 +109,7 @@ class TestOrmCache(TransactionCase):
         caches = ["default", "templates", "assets"]
         nb_treads = len(caches)
 
-        # use barriers to ensure threads synchronization
+        # use barriers to ensure thread synchronization
         sync_clear_cache = Barrier(nb_treads, timeout=5)
         sync_assert_equal = Barrier(nb_treads, timeout=5)
         sync_reset = Barrier(nb_treads, timeout=5)
@@ -140,7 +140,7 @@ class TestOrmCache(TransactionCase):
         for thread in threads:
             thread.join()
 
-        # threads operations must have run in the expected order
+        # thread operations must have run in the expected order
         self.assertEqual(
             operations,
             ["clear_cache"] * nb_treads

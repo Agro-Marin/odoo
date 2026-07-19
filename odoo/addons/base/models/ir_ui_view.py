@@ -3371,7 +3371,7 @@ class IrUiView(models.Model):
         # Only qweb views have a specific counterpart
         if self.type != "qweb":
             return self.env["ir.ui.view"]
-        # A specific view can have a xml_id if exported/imported but it will not be equals to it's key (only generic view will).
+        # A specific view can have an xml_id if exported/imported, but it will not be equal to its key (only generic views will).
         return (
             self.with_context(active_test=False)
             .search([("key", "=", self.key)])

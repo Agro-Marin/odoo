@@ -36,7 +36,7 @@ class TestOrmLesson(models.Model):
 
     def _compute_display_name(self):
         """
-        use to check that a context has can still have an impact when reading the names of a many2one
+        Used to check that a context can still have an impact when reading the names of a many2one
         """
         for record in self:
             if "special" in self.env.context:
@@ -57,7 +57,7 @@ class TestOrmPerson(models.Model):
 
     def _compute_display_name(self):
         """
-        use to check that a context has can still have an impact when reading the names of a many2one
+        Used to check that a context can still have an impact when reading the names of a many2one
         """
         particular = "particular " if "particular" in self.env.context else ""
         special = " special" if "special" in self.env.context else ""

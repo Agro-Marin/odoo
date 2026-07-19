@@ -65,7 +65,7 @@ class ormcache_counter:
 _COUNTERS: defaultdict[tuple[str, Callable], ormcache_counter] = defaultdict(
     ormcache_counter
 )
-"""statistic counters dictionary, maps (dbname, method) to counter"""
+"""Statistic counters, mapping (dbname, method) to counter."""
 
 
 # --------------------------------------------------------------------------
@@ -106,8 +106,8 @@ class ormcache:
         @ormcache("model_name", "mode")
         def _compute_domain(self, model_name, mode="read"): ...
 
-    For the sake of backward compatibility, the decorator supports the named
-    parameter `skiparg`::
+    For backward compatibility, the decorator supports the named parameter
+    `skiparg`::
 
         @ormcache(skiparg=1)
         def _compute_domain(self, model_name, mode="read"): ...

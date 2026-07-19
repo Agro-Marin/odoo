@@ -428,7 +428,7 @@ class Environment(Mapping[str, "BaseModel"]):
 
         :param source: String to translate or lazy translation
         :param ...: args or kwargs for templating
-        :return: The transalted string
+        :return: The translated string
         """
         lang = self.lang or "en_US"
         if isinstance(source, str):
@@ -684,9 +684,9 @@ class Environment(Mapping[str, "BaseModel"]):
             self[model_name].flush_model(field_names)
 
     def execute_query(self, query: SQL) -> list[tuple]:
-        """Execute the given query, fetch its result and it as a list of tuples
-        (or an empty list if no result to fetch).  The method automatically
-        flushes all the fields in the metadata of the query.
+        """Execute the given query, fetch its result and return it as a list of
+        tuples (or an empty list if no result to fetch).  The method
+        automatically flushes all the fields in the metadata of the query.
         """
         # raise (not assert) so the contract holds under python -O — passing a
         # plain string would otherwise reach ``flush_query`` which iterates

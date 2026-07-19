@@ -335,7 +335,7 @@ If you really, really need access, perhaps you can win over your friendly admini
         )
 
     def test_globals_any(self):
-        """Global rules are AND-eded together, so when an access fails it
+        """Global rules are AND-ed together, so when an access fails it
         might be just one of the rules, and we want an exact listing
         """
         self._make_rule("rule 0", '[("val", "=", 42)]', global_=True)
@@ -395,8 +395,8 @@ If you really, really need access, perhaps you can win over your friendly admini
 
     def test_warn_company_no_access(self):
         """If one of the failing rules mentions company_id, add a note that
-        this might be a multi-company issue, but the user doesn't access to this company
-        then no information about the company is showed.
+        this might be a multi-company issue, but the user doesn't have access to this
+        company, then no information about the company is shown.
         """
         self._make_rule("rule 0", "[('company_id', '=', user.company_id.id)]")
         self._make_rule("rule 1", '[("val", "=", 0)]', global_=True)
@@ -425,8 +425,8 @@ If you really, really need access, perhaps you can win over your friendly admini
 
     def test_warn_company_no_company_field(self):
         """If one of the failing rules mentions company_id, add a note that
-        this might be a multi-company issue, but the record doesn't have company_id field
-        then no information about the company is showed.
+        this might be a multi-company issue, but the record doesn't have a company_id
+        field, then no information about the company is shown.
         """
         ChildModel = self.env["test_access_right.child"].sudo()
         self.env["ir.rule"].create(

@@ -35,7 +35,7 @@ _logger = logging.getLogger(__name__)
 
 
 class Params:
-    """Representation of parameters to a function call that can be stringified for display/logging.
+    """Function-call parameters, stringifiable for display/logging.
 
     Positional args are rendered in their original order (position is semantic).
     Keyword args are sorted by name so successive log lines with the same call

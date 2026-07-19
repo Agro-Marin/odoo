@@ -166,23 +166,22 @@ class Command(enum.IntEnum):
     :class:`~odoo.fields.One2many` and :class:`~odoo.fields.Many2many` fields
     expect a special command to manipulate the relation they implement.
 
-    Internally, each command is a 3-elements tuple where the first element is a
+    Internally, each command is a 3-element tuple where the first element is a
     mandatory integer that identifies the command, the second element is either
     the related record id to apply the command on (commands update, delete,
-    unlink and link) either 0 (commands create, clear and set), the third
+    unlink and link) or 0 (commands create, clear and set), and the third
     element is either the ``values`` to write on the record (commands create
-    and update) either the new ``ids`` list of related records (command set),
-    either 0 (commands delete, unlink, link, and clear).
+    and update), the new ``ids`` list of related records (command set), or 0
+    (commands delete, unlink, link, and clear).
     This triplet is aliased as ``CommandValue``.
 
-    Via Python, we encourage developers craft new commands via the various
-    functions of this namespace. We also encourage developers to use the
-    command identifier constant names when comparing the 1st element of
-    existing commands.
+    Via Python, we encourage developers to craft new commands via the various
+    functions of this namespace, and to use the command identifier constant
+    names when comparing the 1st element of existing commands.
 
-    Via RPC, it is impossible nor to use the functions nor the command constant
-    names. It is required to instead write the literal 3-elements tuple where
-    the first element is the integer identifier of the command.
+    Via RPC, neither the functions nor the command constant names are available;
+    write the literal 3-element tuple instead, with the first element set to the
+    integer identifier of the command.
     """
 
     CREATE = 0

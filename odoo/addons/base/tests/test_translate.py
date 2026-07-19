@@ -466,7 +466,7 @@ class TranslationToolsTestCase(BaseCase):
         )
 
     def test_translate_xml_fstring(self):
-        """Test xml_translate() with formated string (ruby or jinja)."""
+        """Test xml_translate() with formatted string (ruby or jinja)."""
         terms = []
         source = """<t t-name="stuff">
                         <t t-set="first" t-value="33"/>
@@ -609,7 +609,7 @@ class TestTranslation(TransactionCase):
             # non-existing language
             _ = category.with_context(lang="Dummy").name
         with self.assertRaises(UserError):
-            # technical langauge starts with '_'
+            # technical language starts with '_'
             _ = category.with_context(lang="_en_US").name
         with self.assertRaises(UserError):
             # SQL injection language

@@ -593,7 +593,7 @@ class IrModuleModule(models.Model):
             if module.state not in states_to_update:
                 continue
 
-            # determine dependency modules to update/others
+            # partition dependencies into those to update and those already ready
             update_ids, ready_ids = [], []
             for dep in module.dependencies_id:
                 if dep.state == "unknown":
@@ -1390,7 +1390,7 @@ class IrModuleModule(models.Model):
     @api.model
     @tools.ormcache(cache="stable")
     def _installed(self) -> dict[str, int]:
-        """Return the set of installed modules as a dictionary {name: id}"""
+        """Return the installed modules as a dict ``{name: id}``."""
         return {
             module.name: module.id
             for module in self.sudo().search([("state", "=", "installed")])

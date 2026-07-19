@@ -148,9 +148,7 @@ class IrRule(models.Model):
         ).with_user(self.env.user)
 
     def _get_rules(self, model_name: str, mode: str = "read") -> Self:
-        """Returns all the rules matching the model for the mode for the
-        current user.
-        """
+        """Return all rules matching the model and mode for the current user."""
         if mode not in self._PERM_COLUMNS:
             raise ValueError(
                 f"Invalid mode {mode!r}: expected one of {tuple(self._PERM_COLUMNS)}."

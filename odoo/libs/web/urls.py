@@ -33,7 +33,7 @@ def urljoin(base: str, extra: str) -> str:
     :returns: joined URL.
     :rtype: str
     :raises TypeError: If inputs are not strings.
-    :raises ValueError: `extra` contains dot-segments or is absolute URLs.
+    :raises ValueError: `extra` contains dot-segments or is an absolute URL.
 
     Examples::
 

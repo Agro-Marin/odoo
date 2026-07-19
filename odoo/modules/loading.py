@@ -426,8 +426,8 @@ def load_module_graph(
                 model_names = registry.descendants(model_names, "_inherit", "_inherits")
                 models_to_check |= model_names & models_updated
             elif update_module and package.state == "to remove":
-                # For all model extented (with _inherit) in the package to uninstall, we need to
-                # update ir.model / ir.model.fields along side not-null SQL constrains.
+                # For all models extended (with _inherit) in the package to uninstall, we need to
+                # update ir.model / ir.model.fields alongside not-null SQL constraints.
                 models_to_check |= model_names
 
             if update_operation:
@@ -591,7 +591,7 @@ def load_module_graph(
         time.time() - t0,
         env.cr.sql_log_count - loading_cursor_query_count,
         odoo.db.sql_counter - loading_extra_query_count,
-    )  # extra queries: testes, notify, any other closed cursor
+    )  # extra queries: tests, notify, any other closed cursor
 
 
 def _check_module_names(cr: BaseCursor, module_names: Iterable[str]) -> None:

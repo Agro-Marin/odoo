@@ -241,8 +241,8 @@ class Selection(Field[str | typing.Literal[False]]):
         return value_modules
 
     def _description_selection(self, env: Environment) -> list[SelectValue]:
-        """return the selection list (pairs (value, label)); labels are
-        translated according to context language
+        """Return the selection list (pairs (value, label)); labels are
+        translated according to the context language.
         """
         selection = self.selection
         if isinstance(selection, str) or callable(selection):

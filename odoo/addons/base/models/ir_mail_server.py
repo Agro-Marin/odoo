@@ -344,7 +344,7 @@ class IrMail_Server(models.Model):
         if not usages_per_server:
             return super().write(vals)
 
-        # Write cannot be performed as some server are used, build detailed usage per server
+        # Write cannot be performed as some servers are used; build detailed usage per server
         usage_details_per_server = {}
         is_multiple_server_usage = len(usages_per_server) > 1
         for server in self:

@@ -67,7 +67,7 @@ class AccessDenied(UserError):
     def suppress_traceback(self) -> None:
         """
         Remove the traceback, cause and context of the exception, hiding
-        where the exception occured but keeping the exception message.
+        where the exception occurred but keeping the exception message.
 
         This method must be called in all situations where we are about
         to print this exception to the users.
@@ -136,7 +136,7 @@ class ValidationError(UserError):
 
     .. admonition:: Example
 
-        When you try to create a new user with a login which already exist in the db.
+        When you try to create a new user with a login which already exists in the db.
     """
 
 

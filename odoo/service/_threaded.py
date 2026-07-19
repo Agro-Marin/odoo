@@ -411,10 +411,10 @@ class ThreadedServer(CommonServer):
         logging.shutdown()
 
     def run(self, preload: list[str] | None = None, stop: bool = False) -> int | None:
-        """Start the http server and the cron thread then wait for a signal.
+        """Start the http server and the cron thread, then wait for a signal.
 
-        The first SIGINT or SIGTERM signal will initiate a graceful shutdown while
-        a second one if any will force an immediate exit.
+        A first SIGINT or SIGTERM starts a graceful shutdown; a second forces
+        an immediate exit.
         """
         with Registry._lock:
             self.start(stop=stop)

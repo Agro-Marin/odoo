@@ -60,8 +60,8 @@ class TestFloatPrecision(TransactionCase):
         try_zero(0.0046, True)
         try_zero(-0.0046, True)
         try_zero(2.68 - 2.675, False)  # 2.68 - 2.675 = 0.005 -> rounds to 0.01
-        try_zero(2.68 - 2.676, True)  # 2.68 - 2.675 = 0.004 -> rounds to 0.0
-        try_zero(2.676 - 2.68, True)  # 2.675 - 2.68 = -0.004 -> rounds to -0.0
+        try_zero(2.68 - 2.676, True)  # 2.68 - 2.676 = 0.004 -> rounds to 0.0
+        try_zero(2.676 - 2.68, True)  # 2.676 - 2.68 = -0.004 -> rounds to -0.0
         try_zero(2.675 - 2.68, False)  # 2.675 - 2.68 = -0.005 -> rounds to -0.01
 
         def try_compare(amount1, amount2, expected):

@@ -441,8 +441,8 @@ class Session(collections.abc.MutableMapping):
 
     def finalize(self, env: Any) -> None:
         """
-        Finalizes a partial session, should be called on MFA validation
-        to convert a partial / pre-session into a logged-in one.
+        Finalize a partial session; called on MFA validation to convert a
+        partial / pre-session into a logged-in one.
         """
         login = self.pop("pre_login")
         uid = self.pop("pre_uid")

@@ -10,7 +10,7 @@ orig_literal_eval = ast.literal_eval
 def literal_eval(expr: str | bytes | ast.AST) -> object:
     # limit the size of the expression to avoid segmentation faults
     # the default limit is set to 100KiB
-    # can be overridden by setting the ODOO_LIMIT_LITEVAL_BUFFER buffer_size_environment variable
+    # can be overridden by setting the ODOO_LIMIT_LITEVAL_BUFFER environment variable
 
     buffer_size = 102400
     buffer_size_env = os.getenv("ODOO_LIMIT_LITEVAL_BUFFER")

@@ -12,7 +12,7 @@ class TestRetryCommon(BaseCase):
     def setUpClass(cls):
         super().setUpClass()
         original_runbot = test_logger.runbot
-        # lower 25 to info to avoid spaming builds with test logs
+        # lower 25 to info to avoid spamming builds with test logs
 
         def runbot(message, *args):
             if message.startswith("Retrying"):

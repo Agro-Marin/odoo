@@ -653,9 +653,8 @@ class TestOnchange(SavepointCaseWithUserDemo):
         email.important = True
         self.assertIn(email, discussion.important_emails)
 
-        # check that when trigger an onchange, we don't reset important emails
-        # (force `invalidate` as but appear in onchange only when we get a cache
-        # miss)
+        # check that triggering an onchange does not reset important emails
+        # (force `invalidate`, as they only appear in onchange on a cache miss)
         self.env.invalidate_all()
         self.assertEqual(len(discussion.messages), 4)
         values = {
@@ -1401,7 +1400,7 @@ class TestComputeOnchange2(TransactionCase):
             )
         )
         # 'baz' is computed editable, so when given a default value it should
-        # 'not be recomputed, even if a dependency also has a default value
+        # not be recomputed, even if a dependency also has a default value
         self.assertEqual(form.foo, "foo")
         self.assertEqual(form.bar, "foor")
         self.assertEqual(form.baz, "baz")

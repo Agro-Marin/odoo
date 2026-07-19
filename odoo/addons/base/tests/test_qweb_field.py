@@ -28,7 +28,7 @@ class TestQwebFieldTime(common.TransactionCase):
         with self.assertRaises(ValueError):
             self.value_to_html(-6.5)
 
-        # Only values inferior to 24 can be used
+        # Only values less than 24 can be used
         with self.assertRaises(ValueError):
             self.value_to_html(24)
 

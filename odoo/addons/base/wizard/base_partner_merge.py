@@ -1019,7 +1019,7 @@ class BasePartnerMergeAutomaticWizard(models.TransientModel):
         )
         wizard.action_start_automatic_process()
 
-        # NOTE JEM : no idea if this query is usefull
+        # NOTE JEM : no idea if this query is useful
         self.env.cr.execute("""
             UPDATE
                 res_partner

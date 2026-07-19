@@ -129,12 +129,12 @@ PdfFileWriter = BrandedFileWriter
 
 
 def merge_pdf(pdf_data: list[bytes]) -> bytes:
-    """Merge a collection of PDF documents in one.
+    """Merge a collection of PDF documents into one.
 
     Attachments are not merged.
 
     :param pdf_data: a list of PDF datastrings
-    :return: a unique merged PDF datastring
+    :return: the merged PDF datastring
     """
     writer = PdfFileWriter()
     for document in pdf_data:
@@ -164,12 +164,12 @@ def fill_form_fields_pdf(writer: PdfWriter, form_fields: dict[str, Any]) -> None
 
 
 def rotate_pdf(pdf: bytes) -> bytes:
-    """Rotate clockwise PDF (90°) into a new PDF.
+    """Rotate a PDF 90° clockwise into a new PDF.
 
     Attachments are not copied.
 
     :param pdf: a PDF to rotate
-    :return: a PDF rotated
+    :return: the rotated PDF
     """
     writer = PdfFileWriter()
     reader = PdfFileReader(io.BytesIO(pdf), strict=False)
@@ -221,7 +221,7 @@ def add_banner(
     logo: bool = False,
     thickness: float | object = SENTINEL,
 ) -> io.BytesIO:
-    """Add a banner on a PDF in the upper right corner, with Odoo's logo (optionally).
+    """Add a banner in the upper-right corner of a PDF, optionally with Odoo's logo.
 
     :param pdf_stream: The PDF stream where the banner will be applied.
     :param text: The text to be displayed.
@@ -387,7 +387,7 @@ class OdooPdfFileWriter(PdfFileWriter):
 
         It should take the form of "/xxx#2Fxxx". E.g. for "text/xml": "/text#2Fxml".
 
-        :param subtype: The mime-type of the attachement.
+        :param subtype: The mime-type of the attachment.
         """
         if not subtype:
             return subtype
@@ -415,9 +415,9 @@ class OdooPdfFileWriter(PdfFileWriter):
     ) -> None:
         """Add an attachment to the PDF, respecting PDF/A rules.
 
-        :param name: The name of the attachement
-        :param data: The data of the attachement
-        :param subtype: The mime-type of the attachement. Required by PDF/A.
+        :param name: The name of the attachment
+        :param data: The data of the attachment
+        :param subtype: The mime-type of the attachment. Required by PDF/A.
         :param afrelationship: The relationship between the embedded file and
             the PDF content. Required by PDF/A.
         """

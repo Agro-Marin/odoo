@@ -819,8 +819,8 @@ class Char(BaseString):
     :param int size: the maximum size of values stored for that field
 
     :param bool trim: states whether the value is trimmed or not (by default,
-        ``True``). Note that the trim operation is applied by both the server code and the web client
-        This ensures consistent behavior between imported data and UI-entered data.
+        ``True``). The trim operation is applied by both the server code and the
+        web client, ensuring consistent behavior between imported and UI-entered data.
 
         - The web client trims user input during in write/create flows in UI.
         - The server trims values during import (in `base_import`) to avoid discrepancies between
@@ -885,8 +885,8 @@ class Char(BaseString):
 
 
 class Text(BaseString):
-    """Very similar to :class:`Char` but used for longer contents, does not
-    have a size and usually displayed as a multiline text box.
+    """Similar to :class:`Char` but for longer content: has no size limit and
+    is usually displayed as a multiline text box.
 
     :param translate: enable the translation of the field's values; use
         ``translate=True`` to translate field values as a whole; ``translate``
@@ -901,7 +901,7 @@ class Text(BaseString):
 
 
 class Html(BaseString):
-    """Encapsulates an html code content.
+    """Encapsulates HTML content.
 
     :param bool sanitize: whether value must be sanitized (default: ``True``)
     :param bool sanitize_overridable: whether the sanitation can be bypassed by

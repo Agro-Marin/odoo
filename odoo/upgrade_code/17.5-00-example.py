@@ -20,7 +20,7 @@ def upgrade(file_manager: FileManager) -> None:
         if file.path.name != "__init__.py"
     ]
 
-    # Early return if case there are no file, so we don't compile
+    # Early return in case there are no files, so we don't compile
     # regexps for nothing.
     if not files:
         return
@@ -32,8 +32,8 @@ def upgrade(file_manager: FileManager) -> None:
     # to actually expect a space you have to escape it: "\ "
     #
     # a* vs a*? the first is greedy and the second is lazy, the first is
-    # gonna match as most "a" as possible, the second will stop as soon
-    # as possible. Lazy quantifiers are MUCH faster than greedy one.
+    # gonna match as many "a" as possible, the second will stop as soon
+    # as possible. Lazy quantifiers are MUCH faster than greedy ones.
     #
     # (?P<x>) it is your regular group, but you can access it via its
     # name "x": match = re.match(...); match.group('x'). Much better
@@ -64,7 +64,7 @@ def upgrade(file_manager: FileManager) -> None:
     # Assume that all strings:
     # - Are fully lowercase
     # - Have a single word
-    # - Have no ponctuation
+    # - Have no punctuation
     # This assumption is wrong for many cases, don't use this script!
     strings_re = re.compile(r'"(?P<string>[a-z]+)"')
 

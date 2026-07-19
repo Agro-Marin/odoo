@@ -152,7 +152,7 @@ class IrModelAccess(models.Model):
         self, model: str, mode: str = "read", raise_exception: bool = True
     ) -> bool:
         if self.env.su:
-            # User root have all accesses
+            # User root has all accesses
             return True
 
         if not isinstance(model, str):

@@ -77,7 +77,7 @@ class IrConfig_Parameter(models.Model):
 
     @api.model
     def set_param(self, key: str, value: Any) -> str | bool:
-        """Sets the value of a parameter.
+        """Set the value of a parameter.
 
         :param str key: The key of the parameter value to set.
         :param Any value: The value to set.

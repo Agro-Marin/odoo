@@ -492,7 +492,7 @@ class TestWebReadGroup(common.TransactionCase):
                             "partner_id": False,
                             "__count": 2,
                             "value:sum": 6,
-                            # Group no opened since it is an Falsy value
+                            # Group not opened since it is a Falsy value
                         },
                     ],
                     "length": 3,
@@ -537,7 +537,7 @@ class TestWebReadGroup(common.TransactionCase):
         )
         self.env.invalidate_all()
 
-        # Scenario: groupby many2one (no __fold informatoion) on a kanban view
+        # Scenario: groupby many2one (no __fold information) on a kanban view
 
         # One query for the _read_group
         # One query to read the display_name of partner_id
@@ -574,7 +574,7 @@ class TestWebReadGroup(common.TransactionCase):
                             "partner_id": False,
                             "__count": 2,
                             "value:sum": 6,
-                            # No __records since we don't opened False relational value by default
+                            # No __records since we don't open False relational value by default
                         },
                     ],
                     "length": 3,
@@ -583,7 +583,7 @@ class TestWebReadGroup(common.TransactionCase):
 
         self.env.invalidate_all()
 
-        # Scenario: list view with expaned="1", auto opened the first level of groupby
+        # Scenario: list view with expand="1", auto opened the first level of groupby
 
         # One query for the _read_group
         # One query to read the display_name of partner_id

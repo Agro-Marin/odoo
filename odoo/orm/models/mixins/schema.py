@@ -251,7 +251,7 @@ class SchemaMixin(_ModelStubs):
     def _sql_error_to_message(self, exc: psycopg.Error) -> str:
         """Convert a database exception to a user error message depending on the model.
 
-        Note that the cursor on self has to be in a valid state.
+        The cursor on self must be in a valid state.
         """
         if (constraint_name := exc.diag.constraint_name) and (
             cons := self._table_objects.get(constraint_name)

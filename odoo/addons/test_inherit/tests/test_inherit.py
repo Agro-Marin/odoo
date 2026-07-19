@@ -8,10 +8,8 @@ class test_inherits(common.TransactionCase):
 
     def test_10_access_from_child_to_parent_model(self):
         """check whether added field in model is accessible from children models (_inherits)"""
-        # This test checks if the new added column of a parent model
-        # is accessible from the child model. This test has been written
-        # to verify the purpose of the inheritance computing of the class
-        # in the odoo.orm._build_model.
+        # Verify the new column added to a parent model is accessible from the
+        # child model, exercising the inheritance computation in odoo.orm._build_model.
         mother = self.env["test.inherit.mother"]
         daughter = self.env["test_inherit_daughter"]
 

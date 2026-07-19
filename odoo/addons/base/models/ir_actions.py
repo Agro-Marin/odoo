@@ -368,7 +368,7 @@ class IrActionsActions(models.Model):
 
     @api.model
     def _for_xml_id(self, full_xml_id: str) -> dict[str, Any]:
-        """Returns the action content for the provided xml_id
+        """Return the action content for the provided xml_id
 
         :param full_xml_id: the fully qualified external id of the action,
             i.e. ``module.name``
@@ -883,5 +883,5 @@ class IrActionsTodo(models.Model):
         return result
 
     def action_open(self) -> bool:
-        """Sets configuration wizard in TODO state"""
+        """Set the configuration wizard to TODO state"""
         return self.write({"state": "open"})

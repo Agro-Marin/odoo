@@ -128,8 +128,8 @@ class SetDefinitions:
 
         :param str refs: comma-separated list of set references
             optionally preceded by ``!`` (negative item). The result is
-            an union between positive item who intersect every negative
-            group.
+            a union of the positive items, each intersected with every
+            negative group.
             (e.g. ``base.group_user,base.group_portal,!base.group_system``)
         """
         positives: list[Leaf] = []
@@ -198,8 +198,8 @@ class SetDefinitions:
     def get_superset_ids(self, ids: Iterable[int]) -> list[int]:
         """Return the supersets matching the provided list of ids.
 
-        Following example defined in this set definitions constructor::
-        The supersets of "Q" (id 3) is "R" and "C" with ids [4, 6]
+        Following the example defined in this class's constructor::
+        The supersets of "Q" (id 3) are "R" and "C" with ids [4, 6]
         """
         return sorted(
             {
@@ -214,8 +214,8 @@ class SetDefinitions:
     def get_subset_ids(self, ids: Iterable[int]) -> list[int]:
         """Return the subsets matching the provided list of ids.
 
-        Following example defined in this set definitions constructor::
-        The subsets of "Q" (id 3) is "Z" and "N" with ids [1, 2]
+        Following the example defined in this class's constructor::
+        The subsets of "Q" (id 3) are "Z" and "N" with ids [1, 2]
         """
         return sorted(
             {
@@ -228,10 +228,10 @@ class SetDefinitions:
         )
 
     def get_disjoint_ids(self, ids: Iterable[int]) -> list[int]:
-        r"""Return the disjoints set matching the provided list of ids.
+        r"""Return the disjoint sets matching the provided list of ids.
 
-        Following example defined in this set definitions constructor::
-        The disjoint set of "Q" (id 3) is "R\\Q" and "I" with ids [7, 5]
+        Following the example defined in this class's constructor::
+        The disjoint sets of "Q" (id 3) are "R\\Q" and "I" with ids [7, 5]
         """
         return sorted(
             {

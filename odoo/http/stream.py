@@ -195,7 +195,7 @@ class Stream:
         :param bool|None immutable: Add the ``immutable`` directive to
             the ``Cache-Control`` response header, allowing intermediary
             proxies to aggressively cache the response. This option also
-            set the ``max-age`` directive to 1 year.
+            sets the ``max-age`` directive to 1 year.
         :param str|None content_security_policy: Optional value for the
             ``Content-Security-Policy`` (CSP) header. This header is
             used by browsers to allow/restrict the downloaded resource

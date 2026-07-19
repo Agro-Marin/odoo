@@ -24,9 +24,8 @@ Example:
 
 The command line offers a way to select and run those scripts.
 
-Please note that all the scripts are doing a best-effort a migrating the
-source code, they only help do the heavy-lifting, they are not silver
-bullets.
+All scripts are best-effort: they do the heavy lifting of migrating the
+source code, but they are not silver bullets.
 """
 
 import argparse

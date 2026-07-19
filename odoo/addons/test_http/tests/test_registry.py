@@ -158,7 +158,7 @@ class TestHttpRegistry(BaseCase):
         with self.assertLogs("odoo.http.application", logging.WARNING) as capture:
             res = self.url_open("/test_http/ensure_db")
             res.raise_for_status()
-            self.authenticate(db=db_duplicate)  # session was drop
+            self.authenticate(db=db_duplicate)  # session was dropped
             res_query = self.url_open(f"/test_http/ensure_db?db={db_duplicate}")
             res_query.raise_for_status()
 
@@ -239,7 +239,7 @@ class TestHttpRegistry(BaseCase):
             """)
 
         with self.subTest(name="existing registry"):
-            # attempt to reuse the registry, make sure the system recover
+            # attempt to reuse the registry, make sure the system recovers
             with self.assertLogs("odoo.http.application", logging.WARNING) as capture:
                 res = self.url_open("/test_http/greeting-public")
                 self.assertEqual(res.status_code, 404)

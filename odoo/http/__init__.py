@@ -101,7 +101,7 @@ ir.http._authenticate
   unsafe prior to calling this function.
 
 ir.http._pre_dispatch/Dispatcher.pre_dispatch
-  Prepare the system the handle the current request, often used to save
+  Prepare the system to handle the current request, often used to save
   some extra query-string parameters in the session (e.g. ?debug=1)
 
 ir.http._dispatch/Dispatcher.dispatch

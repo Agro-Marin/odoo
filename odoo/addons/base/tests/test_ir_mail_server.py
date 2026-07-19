@@ -308,7 +308,7 @@ class TestIrMailServer(TransactionCase, MockSmtplibCase):
         > environment.
 
         Also, the MIME-Version header should be present in BOTH the
-        enveloppe AND the parts
+        envelope AND the parts
         """
         fake_smtp = _FakeSMTP()
         msg = self._build_email(
@@ -713,7 +713,7 @@ class TestIrMailServer(TransactionCase, MockSmtplibCase):
             for provide_smtp in [
                 False,
                 True,
-            ]:  # providing smtp session should ont impact test
+            ]:  # providing smtp session should not impact test
                 with self.subTest(mail_from=mail_from, provide_smtp=provide_smtp):
                     with self.mock_smtplib_connection():
                         if provide_smtp:

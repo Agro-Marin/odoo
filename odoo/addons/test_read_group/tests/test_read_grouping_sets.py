@@ -245,7 +245,7 @@ class TestPrivateReadGroupingSets(common.TransactionCase):
                 "nb_queries": 4,
             },
             {
-                # Test that __count doesn't make a extra query
+                # Test that __count doesn't make an extra query
                 "grouping_sets": [
                     ["user_ids", "key"],
                     ["key"],
@@ -300,7 +300,7 @@ class TestPrivateReadGroupingSets(common.TransactionCase):
                 ],
                 "complete_order": "key, __count DESC, customer_ids DESC, integer, user_ids",
                 "aggregates": ["integer:sum", "__count"],
-                # 1 for ('user_ids', 'customer_ids') + 1 for ('customer_ids',) + 1 for remainings grouping set
+                # 1 for ('user_ids', 'customer_ids') + 1 for ('customer_ids',) + 1 for remaining grouping set
                 "nb_queries": 3,
             },
         ]
@@ -468,7 +468,7 @@ class TestFormattedReadGroupingSets(common.TransactionCase):
                 "nb_queries": 4,
             },
             {
-                # Test that __count doesn't make a extra query
+                # Test that __count doesn't make an extra query
                 "grouping_sets": [
                     ["user_ids", "key"],
                     ["key"],
@@ -523,7 +523,7 @@ class TestFormattedReadGroupingSets(common.TransactionCase):
                 ],
                 "complete_order": "key, __count DESC, customer_ids DESC, integer, user_ids",
                 "aggregates": ["integer:sum", "__count"],
-                # 1 for ('user_ids', 'customer_ids') + 1 for ('customer_ids',) + 1 for remainings grouping set
+                # 1 for ('user_ids', 'customer_ids') + 1 for ('customer_ids',) + 1 for remaining grouping set
                 "nb_queries": 3,
             },
         ]
@@ -600,7 +600,7 @@ class TestFormattedReadGroupingSets(common.TransactionCase):
             ],
         )
 
-        # Cannot groupby on foo_names_sudo because it traverse One2many
+        # Cannot groupby on foo_names_sudo because it traverses One2many
         with self.assertRaises(ValueError):
             RelatedBar.formatted_read_grouping_sets(
                 [], [["foo_names_sudo"]], ["__count"]

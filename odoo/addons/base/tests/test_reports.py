@@ -639,7 +639,7 @@ class TestReportsRendering(TestReportsRenderingCommon):
         page_positions = [[elem[0] for elem in page] for page in pages]
         logo, header, content, footer = page_positions[0]
 
-        # leaving this as reference but this is to fragile to make a strict assertion
+        # leaving this as reference but this is too fragile to make a strict assertion
         # 14.3, 29.6, 43.1, 137.2     # logo
         # 19.1, 137.2, 32.5, 214.2   # header
         # 111.3, 29.6, 124.8, 123.7   # content
@@ -828,7 +828,7 @@ class TestReportsRendering(TestReportsRenderingCommon):
             pages_contents.append(page_content)
 
         expected_pages_contents = []
-        # Thoses changes are needed to format the page content and the expected page the same due to the inconsistency
+        # These changes are needed to format the page content and the expected page the same due to the inconsistency
         # With the pdfminer library
         for partner in self.partners:
 

@@ -33,8 +33,8 @@ class EnvironmentMixin(_ModelStubs):
         :raise odoo.exceptions.ValueError: ``len(self) != 1``
         """
         try:
-            # unpack to ensure there is only one value is faster than len when true and
-            # has a significant impact as this check is largely called
+            # Unpacking to check for a single value is faster than len() when
+            # true, and this check is called very often.
             (_id,) = self._ids
             return self
         except ValueError:

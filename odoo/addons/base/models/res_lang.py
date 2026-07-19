@@ -626,7 +626,7 @@ def split(l: str, counts: list[int]) -> list[str]:
 
     """
     res = []
-    saved_count = len(l)  # count to use when encoutering a zero
+    saved_count = len(l)  # count to use when encountering a zero
     for count in counts:
         if not l:
             break

@@ -53,7 +53,7 @@ class TestAPI(SavepointCaseWithUserDemo):
 
     @mute_logger("odoo.models")
     def test_02_query_limit(self):
-        """Build a recordset with offset, and check equivalence."""
+        """Build a recordset with limit, and check equivalence."""
         partners1 = self.env["res.partner"].search(
             [("id", "in", self.partners.ids)], order="id asc", limit=5
         )

@@ -73,8 +73,8 @@ class Test_Read_GroupAggregate(models.Model):
     display_name = fields.Char(store=True)
 
 
-# we use a selection that is in reverse lexical order, in order to check the
-# possible reordering made by read_group on selection fields
+# a selection in reverse lexical order, to check the possible reordering made
+# by read_group on selection fields
 SELECTION = [("c", "C"), ("b", "B"), ("a", "A")]
 
 

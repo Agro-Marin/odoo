@@ -68,7 +68,7 @@ class TestSignature(TransactionCase):
                     self.skipTest("Could not load the PdfSigner class properly")
             pdf_data = out_stream.getvalue()
 
-            # Retrive the signature content
+            # Retrieve the signature content
             sig_field_index = pdf_data.rfind(b"/FT /Sig")
             content_index = pdf_data.find(b"Contents", sig_field_index)
             content_start_index = pdf_data.find(b"<", content_index)

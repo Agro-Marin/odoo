@@ -227,7 +227,7 @@ def extract_python(
             FSTRING_MIDDLE,
         }:
             # In Python 3.12, tokens other than FSTRING_* mean the f-string is dynamic,
-            # so we don't wan't to extract it.
+            # so we don't want to extract it.
             # And if it's FSTRING_END, we've already handled it above.
-            # Let's forget that we're in an f-string.
+            # Forget that we're in an f-string.
             current_fstring_start = None

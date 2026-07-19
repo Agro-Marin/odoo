@@ -73,7 +73,7 @@ class TestPrivateReadGroup(common.TransactionCase):
                 ],
             )
 
-        # Same than before but with private method, the order doesn't traverse
+        # Same as before but with private method, the order doesn't traverse
         # many2one order, then the order is based on id of partner
         with self.assertQueries(["""
             SELECT "test_read_group_aggregate"."key",
@@ -1399,7 +1399,7 @@ class TestPrivateReadGroup(common.TransactionCase):
                 [(1,)],
             )
 
-        # Cannot groupby on foo_names_sudo because it traverse One2many
+        # Cannot groupby on foo_names_sudo because it traverses One2many
         with self.assertRaises(ValueError):
             RelatedBar._read_group([], ["foo_names_sudo"])
 
@@ -1665,7 +1665,7 @@ class TestPrivateReadGroup(common.TransactionCase):
             GROUP BY "{alias_join}"."bar_id"
             ORDER BY "{alias_join}"."bar_id" ASC
         """]):
-            # foos[0] not accessible, then foo_id.bar_id result into empty recordset
+            # foos[0] not accessible, then foo_id.bar_id results in empty recordset
             self.assertEqual(
                 RelatedBase._read_group([], ["foo_id.bar_id"], ["__count"]),
                 [(bars[0], 1), (bars[1], 1), (RelatedBar, 3)],
@@ -1728,7 +1728,7 @@ class TestPrivateReadGroup(common.TransactionCase):
                     [("bar_a", 3), (False, 2)],
                 )
 
-        # Cannot groupby on foo_ids.name because it traverse One2many
+        # Cannot groupby on foo_ids.name because it traverses One2many
         with self.assertRaises(ValueError):
             RelatedBar._read_group([], ["foo_ids.name"])
 
@@ -1796,7 +1796,7 @@ class TestPrivateReadGroup(common.TransactionCase):
 
         with self.assertQueries([expected_query] * 2):
             for fname_chain in ["foo_id.bar_id.name", "foo_id.bar_name_sudo"]:
-                # foos[0] not accessible, then bar_a is only exist via foos[2]
+                # foos[0] not accessible, then bar_a only exists via foos[2]
                 self.assertEqual(
                     RelatedBase._read_group([], [fname_chain], ["__count"]),
                     [("bar_a", 1), (False, 4)],

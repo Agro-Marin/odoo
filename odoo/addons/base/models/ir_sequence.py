@@ -270,7 +270,7 @@ class IrSequence(models.Model):
 
     @api.model_create_multi
     def create(self, vals_list: list[ValuesType]) -> Self:
-        """Create a sequence, in implementation == standard a fast gaps-allowed PostgreSQL sequence is used."""
+        """Create a sequence; the ``standard`` implementation is backed by a fast, gaps-allowed PostgreSQL sequence."""
         seqs = super().create(vals_list)
         for seq in seqs:
             if seq.implementation == "standard":
@@ -683,7 +683,7 @@ class IrSequenceDate_Range(models.Model):
 
     @api.model_create_multi
     def create(self, vals_list: list[ValuesType]) -> Self:
-        """Create a sequence, in implementation == standard a fast gaps-allowed PostgreSQL sequence is used."""
+        """Create a sequence; the ``standard`` implementation is backed by a fast, gaps-allowed PostgreSQL sequence."""
         seqs = super().create(vals_list)
         for seq in seqs:
             main_seq = seq.sequence_id

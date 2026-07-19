@@ -299,7 +299,7 @@ def autovacuum[C: Callable](method: C) -> C:
     ``ir.autovacuum``).  This is typically used for garbage-collection-like
     tasks that do not deserve a specific cron job.
 
-    A return value can be a tuple (done, remaining) which have simular meaning
+    A return value can be a tuple (done, remaining) with the same meaning
     as in :meth:`~odoo.addons.base.models.ir_cron.IrCron._commit_progress`.
     """
     if not method.__name__.startswith("_"):
@@ -391,7 +391,7 @@ def private[C: Callable](method: C) -> C:
 
 def readonly[C: Callable](method: C) -> C:
     """Decorate a record-style method where ``self.env.cr`` can be a
-    readonly cursor when called trough a rpc call.
+    readonly cursor when called through an RPC call.
 
         @api.readonly
         def method(self, args):

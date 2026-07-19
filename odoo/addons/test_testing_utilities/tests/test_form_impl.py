@@ -1,6 +1,6 @@
 """
 Test for the pseudo-form implementation (odoo.tests.Form), which should
-basically be a server-side implementation of form views (though probably not
+be a server-side implementation of form views (though probably not
 complete) intended for properly validating business "view" flows (onchanges,
 readonly, required, ...) and make it easier to generate sensible & coherent
 business objects.
@@ -663,7 +663,7 @@ class TestNestedO2M(TransactionCase):
         product0 = self.env["ttu.product"].create({}).id
         product1 = self.env["ttu.product"].create({}).id
         product2 = self.env["ttu.product"].create({}).id
-        # create pseudo-MO in post-asigned state
+        # create pseudo-MO in post-assigned state
         obj = self.env["ttu.root"].create(
             {
                 "product_id": product0,
@@ -722,7 +722,7 @@ class TestNestedO2M(TransactionCase):
         product1 = self.env["ttu.product"].create({}).id
         product2 = self.env["ttu.product"].create({}).id
         product4 = self.env["ttu.product"].create({})
-        # create pseudo-MO in post-asigned state
+        # create pseudo-MO in post-assigned state
         obj = self.env["ttu.root"].create(
             {
                 "product_id": product0,

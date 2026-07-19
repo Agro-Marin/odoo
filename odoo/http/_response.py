@@ -39,10 +39,9 @@ class _RequestResponseMixin:
         """Helper for non-HTML responses, or HTML responses with custom
         response headers or cookies.
 
-        While handlers can just return the HTML markup of a page they want to
-        send as a string if non-HTML data is returned they need to create a
-        complete response object, or the returned data will not be correctly
-        interpreted by the clients.
+        Handlers may return a page's HTML markup directly as a string; for
+        non-HTML data they must build a complete response object, or clients
+        will not interpret the returned data correctly.
 
         :param str data: response body
         :param int status: http status code
@@ -160,8 +159,8 @@ class _RequestResponseMixin:
     def reroute(self, path: str | bytes, query_string: str | None = None) -> None:
         """
         Rewrite the current request URL using the new path and query
-        string. This act as a light redirection, it does not return a
-        3xx responses to the browser but still change the current URL.
+        string. This acts as a light redirection: it does not return a
+        3xx response to the browser but still changes the current URL.
         """
         # WSGI encoding dance (PEP 3333): re-encode UTF-8 then decode latin-1, so
         # every byte maps to one char. latin-1 covers all bytes 0-255, so strict

@@ -259,14 +259,14 @@ class _Response(werkzeug.wrappers.Response):
         return self.template is not None
 
     def render(self) -> bytes:
-        """Renders the Response's template, returns the result."""
+        """Render the Response's template and return the result."""
         self.qcontext["request"] = request
         return request.env["ir.ui.view"]._render_template(self.template, self.qcontext)
 
     def flatten(self) -> None:
         """
-        Forces the rendering of the response's template, sets the result
-        as response body and unsets :attr:`.template`
+        Force rendering of the response's template, set the result as the
+        response body and unset :attr:`.template`.
         """
         if self.template:
             self.response.append(self.render())

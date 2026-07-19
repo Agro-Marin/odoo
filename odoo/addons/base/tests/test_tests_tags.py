@@ -299,13 +299,13 @@ class TestSelector(TransactionCase):
                 ("standard", None, None, None, None),
             },
             tags.include,
-        )  # all strandard
+        )  # all standard
         self.assertEqual(
             {
                 (None, "module", "class", "method", None),
             },
             tags.exclude,
-        )  # exept the test func
+        )  # except the test func
 
         tags = TagsSelector("-*/module:class.method")
         self.assertEqual(
@@ -351,7 +351,7 @@ class TestSelector(TransactionCase):
                 ("standard", None, None, None, None),
             },
             tags.exclude,
-        )  # exept standard ones
+        )  # except standard ones
 
         tags = TagsSelector(
             "*/some-paths/with-dash/addons/account/test/test_file.py"

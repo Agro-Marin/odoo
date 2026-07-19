@@ -50,10 +50,10 @@ class Many2many(_RelationalMulti):
     If not given, names are automatically generated from model names,
     provided ``model_name`` and ``comodel_name`` are different!
 
-    Note that having several fields with implicit relation parameters on a
-    given model with the same comodel is not accepted by the ORM, since
-    those field would use the same table. The ORM prevents two many2many
-    fields to use the same relation parameters, except if
+    Having several fields with implicit relation parameters on a given model
+    with the same comodel is not accepted by the ORM, since those fields would
+    use the same table. The ORM prevents two many2many fields from using the
+    same relation parameters, except if
 
     - both fields use the same model, comodel, and relation parameters are
       explicit; or

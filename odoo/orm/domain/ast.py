@@ -415,12 +415,12 @@ class Domain:
 
     @staticmethod
     def AND(items: Iterable[object]) -> Domain:
-        """Build the conjuction of domains: (item1 AND item2 AND ...)"""
+        """Build the conjunction of domains: (item1 AND item2 AND ...)"""
         return DomainAnd.apply(Domain(item) for item in items)
 
     @staticmethod
     def OR(items: Iterable[object]) -> Domain:
-        """Build the disjuction of domains: (item1 OR item2 OR ...)"""
+        """Build the disjunction of domains: (item1 OR item2 OR ...)"""
         return DomainOr.apply(Domain(item) for item in items)
 
     def __setattr__(self, name: str, value: object) -> None:
@@ -942,7 +942,7 @@ class DomainOr(DomainNary):
 
 
 class DomainCustom(Domain):
-    """Domain condition that generates directly SQL and possibly a ``filtered`` predicate."""
+    """Domain condition that directly generates SQL and possibly a ``filtered`` predicate."""
 
     __slots__ = ("_filtered", "_sql")
 

@@ -16,11 +16,11 @@ IGNORE_MODEL_NAMES_DISPLAY_NAME = {
 }
 
 IGNORE_MODEL_NAMES_NEW_FORM = {
-    "account.report.line",  # only used as wizard, and display_name isn't compute in a wizard but Form add display_name automatically
+    "account.report.line",  # only used as wizard, and display_name isn't computed in a wizard but Form adds display_name automatically
     "chatbot.script.step",  # only used as wizard
     "stock.warehouse",  # avoid warning "Creating a new warehouse will automatically activate the Storage Locations setting"
     "website.visitor",  # Visitors can only be created through the frontend.
-    "marketing.activity",  # only used as wizard and always used form marketing.campaign
+    "marketing.activity",  # only used as wizard and always used from marketing.campaign
     "crm.stage",  # Avoid warning "Changing the value of 'Is Won Stage' may induce ..."
 }
 

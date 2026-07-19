@@ -72,9 +72,8 @@ def find_pg_tool(name: str) -> str:
 def exec_pg_environ() -> dict[str, str]:
     """Get environment variables for PostgreSQL subprocess execution.
 
-    Creates a copy of the current environment with PostgreSQL-specific
-    variables set according to the Odoo configuration. This is used
-    for running pg_dump, pg_restore, and other PostgreSQL tools.
+    Copy the current environment, setting PostgreSQL variables from the Odoo
+    configuration, for running pg_dump, pg_restore, and other PostgreSQL tools.
 
     Note: On systems where pg_restore/pg_dump require an explicit password
     (i.e. on Windows where TCP sockets are used), it is necessary to pass the
@@ -171,8 +170,8 @@ def dumpstacks(
 ) -> None:
     """Dump stack traces for running threads.
 
-    Signal handler that logs stack traces for debugging purposes.
-    Useful for diagnosing hangs or understanding thread state.
+    Signal handler that logs stack traces, e.g. to diagnose hangs or inspect
+    thread state.
 
     :param sig: Signal number (when used as signal handler)
     :param frame: Current stack frame (when used as signal handler)

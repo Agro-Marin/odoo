@@ -29,7 +29,7 @@ class _RequestCsrfMixin:
 
     def csrf_token(self, time_limit: int | None = None) -> str:
         """
-        Generates and returns a CSRF token for the current session.
+        Generate and return a CSRF token for the current session.
 
         :param int | None time_limit: validity duration in seconds.
             Defaults to :data:`~odoo.http.CSRF_TOKEN_MAX_AGE` (one year), so
@@ -59,7 +59,7 @@ class _RequestCsrfMixin:
 
     def validate_csrf(self, csrf: str | None) -> bool:
         """
-        Is the given csrf token valid ?
+        Is the given csrf token valid?
 
         :param str csrf: The token to validate.
         :returns: ``True`` when valid, ``False`` when not.

@@ -179,7 +179,7 @@ OWL_TRANSLATED_ATTRS = {
 avoid_pattern = re.compile(r"\s*<!DOCTYPE", re.IGNORECASE | re.MULTILINE | re.UNICODE)
 space_pattern = re.compile(r"[\s\uFEFF]*")  # web_editor uses \uFEFF as ZWNBSP
 
-# regexpr for string formatting and extract ( ruby-style )|( jinja-style  ) used in `_compile_format`
+# Regex for string-format expressions: ruby-style #{...} and jinja-style {{...}}; used in `_compile_format`
 FORMAT_REGEX = re.compile(r"(?:#\{(.+?)\})|(?:\{\{(.+?)\}\})")
 
 
@@ -565,7 +565,7 @@ def get_translation(module: str, lang: str, source: str, args: tuple | dict) -> 
 def get_translated_module(
     arg: str | int | typing.Any,
 ) -> str:  # frame not represented as hint
-    """Get the addons name.
+    """Return the addon name.
 
     :param arg: can be any of the following:
                 str ("name_of_module") returns itself;
@@ -1287,7 +1287,7 @@ def babel_extract_qweb(
 
 
 def extract_formula_terms(formula: str) -> Iterator[str]:
-    """Extract strings in a spreadsheet formula which are arguments to '_t' functions
+    """Extract strings passed to '_t' functions in a spreadsheet formula.
 
     >>> extract_formula_terms('=_t("Hello") + _t("Raoul")')
     ["Hello", "Raoul"]
@@ -2222,8 +2222,8 @@ class CodeTranslations:
 
         :param func filter_func: a filter function to drop unnecessary code translations
         """
-        # current, we assume the fileobj is from the source code, which only contains the translation for the current module
-        # don't use it in the import logic
+        # We assume fileobj is source code containing only the current module's
+        # translations; don't use this in the import logic.
         translations = {}
         fileobj.seek(0)
         reader = translation_file_reader(fileobj, fileformat="po")

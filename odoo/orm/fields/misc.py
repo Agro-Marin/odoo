@@ -83,7 +83,7 @@ class Boolean(Field[bool]):
 
 
 class Json(Field):
-    """JSON Field that contain unstructured information in jsonb PostgreSQL column.
+    """Store unstructured information in a jsonb PostgreSQL column.
 
     Some features won't be implemented, including:
     * searching

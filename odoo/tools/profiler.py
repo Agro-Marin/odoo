@@ -147,7 +147,7 @@ class Collector:
         entry: dict[str, Any] | None = None,
         frame: FrameType | None = None,
     ) -> None:
-        """Check if limits were met and add to the entries."""
+        """Add an entry, or end the profiler if the entry-count limit is reached."""
         if (
             self.profiler.entry_count_limit
             and self.profiler.counter >= self.profiler.entry_count_limit
@@ -634,14 +634,17 @@ class Profiler:
         log: bool = False,
     ) -> None:
         """
-        :param db: database name to use to save results.
-            Will try to define database automatically by default.
-            Use value ``None`` to not save results in a database.
-        :param collectors: list of string and Collector object Ex: ['sql', PeriodicCollector(interval=0.2)]. Use `None` for default collectors
-        :param profile_session: session description to use to regroup multiple profiles. use make_session(name) for default format.
-        :param description: description of the current profiler Suggestion: (route name/test method/loading module, ...)
-        :param disable_gc: flag to disable gc during profiling (useful to avoid gc while profiling, especially during sql execution)
-        :param params: parameters usable by collectors (like frame interval)
+        :param db: database name for saving results; determined automatically by
+            default. Pass ``None`` to skip saving.
+        :param collectors: collector names or Collector objects, e.g.
+            ``['sql', PeriodicCollector(interval=0.2)]``. ``None`` for the defaults.
+        :param profile_session: session label to regroup multiple profiles; see
+            make_session() for the default format.
+        :param description: description of this profiler, e.g. route name, test
+            method, or loading module.
+        :param disable_gc: disable gc during profiling (avoids gc pauses, notably
+            during SQL execution).
+        :param params: parameters usable by collectors (e.g. frame interval).
         """
         self.start_time: float = 0
         self.duration: float = 0

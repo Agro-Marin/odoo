@@ -309,7 +309,7 @@ class One2manyCase(TransactionExpressionCase):
             self.assertFalse(record0.attachment_ids, "inconsistent cache")
 
     def test_recompute(self):
-        """test recomputation of fields that indirecly depend on one2many"""
+        """test recomputation of fields that indirectly depend on one2many"""
         discussion = self.env.ref("test_orm.discussion_0")
         self.assertTrue(discussion.messages)
 

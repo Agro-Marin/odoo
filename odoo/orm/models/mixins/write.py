@@ -50,7 +50,7 @@ class WriteMixin(_ModelStubs):
           database identifier of the record to set
         * The expected value of a :class:`~odoo.fields.One2many` or
           :class:`~odoo.fields.Many2many` relational field is a list of
-          :class:`~odoo.fields.Command` that manipulate the relation the
+          :class:`~odoo.fields.Command` that manipulate the relation they
           implement. There are a total of 7 commands:
           :meth:`~odoo.fields.Command.create`,
           :meth:`~odoo.fields.Command.update`,

@@ -49,7 +49,7 @@ class TestAccess(odoo.tests.HttpCase):
         # no raise, because we are supposed to be able to read our ticket
 
     def test_name_search_with_sudo(self):
-        """Check that _name_search return correct values with sudo"""
+        """Check that _name_search returns correct values with sudo"""
         no_access_user = self.env["res.users"].create(
             {
                 "login": "no_access",

@@ -1796,12 +1796,12 @@ class TestCommonCustomFields(common.TransactionCase):
 
 class TestCustomFields(TestCommonCustomFields):
     def test_create_custom(self):
-        """custom field names must be start with 'x_'"""
+        """custom field names must start with 'x_'"""
         with self.assertRaises(IntegrityError), mute_logger("odoo.db"):
             self.create_field("xyz")
 
     def test_rename_custom(self):
-        """custom field names must be start with 'x_'"""
+        """custom field names must start with 'x_'"""
         field = self.create_field("x_xyz")
         with self.assertRaises(IntegrityError), mute_logger("odoo.db"):
             field.name = "xyz"
