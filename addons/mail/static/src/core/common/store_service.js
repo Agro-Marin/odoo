@@ -228,7 +228,10 @@ export class Store extends BaseStore {
                 (thread) =>
                     (thread.displayToSelf ||
                         (thread.needactionMessages.length > 0 && !thread.isMailbox)) &&
-                    cleanTerm(thread.displayName).includes(searchTerm),
+                    // Skip the per-thread cleanTerm(displayName) normalization when
+                    // no search is active (the common case): includes("") is always
+                    // true, so it only ever cost CPU on every menuThreads recompute.
+                    (!searchTerm || cleanTerm(thread.displayName).includes(searchTerm)),
             );
             const tab = this.discuss?.activeTab;
             if (tab === "inbox") {
