@@ -3866,6 +3866,18 @@ export class Model extends Array {
     _unityReadRecords(records, spec) {
         for (const fieldName in spec) {
             const field = this._fields[fieldName];
+            if (!field) {
+                // A web_read specification referenced a field the mock model does
+                // not define. The real ORM raises a clear error here; the mock
+                // used to read `field.type` off `undefined` and surface the
+                // opaque "Cannot read properties of undefined (reading 'type')",
+                // which hides the actual mismatch (usually a src patch adding a
+                // field to the read spec whose mock model was not updated).
+                throw new Error(
+                    `MockServer: model "${this._name}" has no field ` +
+                        `"${fieldName}" referenced in a web_read specification`
+                );
+            }
             const relatedFields = spec[fieldName].fields;
             switch (field.type) {
                 case "reference": {
