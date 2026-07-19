@@ -1154,14 +1154,9 @@ class StockMove(models.Model):
     def _compute_quantity_packaging_uom(self):
         for move in self:
             if move.packaging_uom_id:
-                # Display value: use the report wrapper so a legacy/import
-                # packaging UoM with no common reference degrades to the
-                # unconverted quantity instead of raising and blocking the flush.
-                move.quantity_packaging_uom = (
-                    move.product_uom_id._compute_quantity_report(
-                        move.product_uom_qty,
-                        move.packaging_uom_id,
-                    )
+                move.quantity_packaging_uom = move.product_uom_id._compute_quantity(
+                    move.product_uom_qty,
+                    move.packaging_uom_id,
                 )
             else:
                 move.quantity_packaging_uom = 0.0
