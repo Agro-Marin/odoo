@@ -1,4 +1,4 @@
-import { expect } from "@odoo/hoot";
+import { after, expect } from "@odoo/hoot";
 import { animationFrame, tick, waitFor, waitUntil } from "@odoo/hoot-dom";
 import { Deferred } from "@odoo/hoot-mock";
 import { onMounted } from "@odoo/owl";
@@ -41,6 +41,26 @@ export const setupPosEnv = async () => {
 
     await makeDialogMockEnv();
     const store = getService("pos");
+
+    // `removeOrder()` on a synced order schedules `syncAllOrdersDebounced` on a
+    // 100ms timer, which then queues `_syncAllOrders` on `pushOrderMutex`. Most
+    // tests finish well inside that window, so the sync landed during a LATER
+    // test against this now-dead store and crashed reading
+    // `DeviceIdentifierSequence.identifier` — its localStorage entry is wiped by
+    // HOOT's teardown, so `data` is null. No test may depend on a debounced sync
+    // landing after it ended, so drop the pending timer and drain the mutex
+    // while the env is still alive.
+    //
+    // NOTE: this reduces but does not fully eliminate the leak — a debounce that
+    // fires after this hook still queues work post-teardown. See the residual
+    // flake in @pos_self_order/unit (1-2 random tests per ~3 runs).
+    after(async () => {
+        store.syncAllOrdersDebounced?.cancel?.();
+        // Anything already queued on the mutex must also settle while the env
+        // (and the mocked localStorage the sync reads) is still alive.
+        await store.pushOrderMutex?.getUnlockedDef?.();
+    });
+
     store.setCashier(store.user);
     patchWithCleanup(user, {
         // Needed for the allowProductCreation method

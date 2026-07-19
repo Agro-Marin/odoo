@@ -1,9 +1,10 @@
-import { test, expect, describe } from "@odoo/hoot";
-import { definePosModels } from "@point_of_sale/../tests/unit/data/generate_model_definitions";
+import { describe, expect, test } from "@odoo/hoot";
 import { getFilledOrder } from "@point_of_sale/../tests/unit/utils";
+
+import { definePosSelfModels } from "../../data/generate_model_definitions.js";
 import { setupPoSEnvForSelfOrder } from "../../utils.js";
 
-definePosModels();
+definePosSelfModels();
 
 describe("pos_store.js", () => {
     test("check self_ordering_table_id", async () => {

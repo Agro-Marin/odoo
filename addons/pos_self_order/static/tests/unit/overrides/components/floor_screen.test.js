@@ -1,12 +1,13 @@
 import { test } from "@odoo/hoot";
-import { getFilledOrder } from "@point_of_sale/../tests/unit/utils";
-import { mountWithCleanup } from "@web/../tests/web_test_helpers";
-import { FloorScreen } from "@pos_restaurant/app/screens/floor_screen/floor_screen";
-import { definePosModels } from "@point_of_sale/../tests/unit/data/generate_model_definitions";
 import { waitFor, waitForNone } from "@odoo/hoot-dom";
+import { getFilledOrder } from "@point_of_sale/../tests/unit/utils";
+import { FloorScreen } from "@pos_restaurant/app/screens/floor_screen/floor_screen";
+import { mountWithCleanup } from "@web/../tests/web_test_helpers";
+
+import { definePosSelfModels } from "../../data/generate_model_definitions.js";
 import { setupPoSEnvForSelfOrder } from "../../utils.js";
 
-definePosModels();
+definePosSelfModels();
 
 test.tags("desktop");
 test("computeFloorSize", async () => {
