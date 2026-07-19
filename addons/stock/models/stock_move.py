@@ -1157,9 +1157,11 @@ class StockMove(models.Model):
                 # Display value: use the report wrapper so a legacy/import
                 # packaging UoM with no common reference degrades to the
                 # unconverted quantity instead of raising and blocking the flush.
-                move.quantity_packaging_uom = move.product_uom_id._compute_quantity_report(
-                    move.product_uom_qty,
-                    move.packaging_uom_id,
+                move.quantity_packaging_uom = (
+                    move.product_uom_id._compute_quantity_report(
+                        move.product_uom_qty,
+                        move.packaging_uom_id,
+                    )
                 )
             else:
                 move.quantity_packaging_uom = 0.0
@@ -3318,68 +3320,56 @@ Please change the quantity done or the rounding precision in your settings.""",
             extra_uom_qty -= quantity_to_reserve
         return commands
 
-    def _match_searched_availability(self, operator, value, get_comparison_date):
-        def get_stock_moves(moves, state):
-            if state == "available":
-                return moves.filtered(
-                    lambda m: (
-                        m.forecast_availability == m.product_qty
-                        and not m.date_planned_forecast
-                    ),
-                )
-            if state == "expected":
-                return moves.filtered(
-                    lambda m: (
-                        m.forecast_availability == m.product_qty
-                        and m.date_planned_forecast
-                        and m.date_planned_forecast <= get_comparison_date(m)
-                    ),
-                )
-            if state == "late":
-                return moves.filtered(
-                    lambda m: (
-                        m.forecast_availability == m.product_qty
-                        and m.date_planned_forecast
-                        and m.date_planned_forecast > get_comparison_date(m)
-                    ),
-                )
-            if state == "unavailable":
-                return (
-                    moves
-                    if moves.filtered(lambda m: m.forecast_availability < m.product_qty)
-                    else self.env["stock.move"]
-                )
-            raise UserError(_("Selection not supported."))
+    def _get_availability_state(self, get_comparison_date):
+        """Picking-level availability of these moves, mirroring
+        `stock.picking._compute_products_availability` exactly: 'late' when any
+        move is short of its demand (short of 0 for drafts) or when the latest
+        forecast date exceeds the comparison date, 'expected' when fully
+        available with an on-time forecast date, 'available' otherwise.
+        """
+        # An operation without moves has no goods to wait for.
+        if not self:
+            return "available"
+        if any(
+            move.product_id
+            and move.product_id.uom_id.compare(
+                move.forecast_availability,
+                0 if move.state == "draft" else move.product_qty,
+            )
+            == -1
+            for move in self
+        ):
+            return "late"
+        forecast_date = max(
+            self.filtered("date_planned_forecast").mapped("date_planned_forecast"),
+            default=False,
+        )
+        if forecast_date:
+            comparison_date = get_comparison_date(self[0])
+            return (
+                "late"
+                if comparison_date and comparison_date < forecast_date
+                else "expected"
+            )
+        return "available"
 
+    def _match_searched_availability(self, operator, value, get_comparison_date):
+        """Whether the (single) availability state of these moves' operation
+        matches the searched value(s).
+
+        The previous per-move OR classification could disagree with the
+        displayed state (a picking with one short move and one clean move
+        matched 'available' while displaying 'Late', and shortage-only
+        pickings matched nothing); the search now classifies the operation
+        with the same rules as the display compute.
+        """
         if not value:
             raise UserError(_("Search not supported without a value."))
-
-        # We consider an operation without any moves as always available since there is no goods to wait.
-        if len(self) == 0:
-            is_selected_available = (
-                any(val == "available" for val in value)
-                if isinstance(value, list)
-                else value == "available"
-            )
-            return is_selected_available == (operator in {"=", "in"})
-        moves = self
-        if operator == "=":
-            moves = get_stock_moves(moves, value)
-        elif operator == "!=":
-            moves = moves - get_stock_moves(moves, value)
-        elif operator == "in":
-            search_moves = self.env["stock.move"]
-            for state in value:
-                search_moves |= get_stock_moves(moves, state)
-            moves = search_moves
-        elif operator == "not in":
-            search_moves = self.env["stock.move"]
-            for state in value:
-                search_moves |= get_stock_moves(moves, state)
-            moves = self - search_moves
-        else:
+        if operator not in ("=", "!=", "in", "not in"):
             raise UserError(_("Operation not supported"))
-        return bool(moves)
+        values = set(value) if isinstance(value, (list, tuple, set)) else {value}
+        matched = self._get_availability_state(get_comparison_date) in values
+        return matched == (operator in ("=", "in"))
 
     def _merge_moves_fields(self):
         """Return a dict of stock move values merging all the moves in `self`."""
