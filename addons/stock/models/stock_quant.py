@@ -1362,23 +1362,29 @@ class StockQuant(models.Model):
         :func:`_least_packages_search`.
 
         Unpackaged singles are resolved to concrete quant ids in a single query.
-        Slicing the tail (``[-single_count:]``) yields the same id-set the old
-        per-single popping loop produced, without re-running the query each time.
 
         Note the deliberate asymmetry: ``single_count`` counts selected *unit slots*
         (the search expands loose stock into one ``(None, 1)`` entry per unit), but
         ``single_item_ids`` are quant *records*, each possibly holding several units.
-        Taking the last ``single_count`` records thus yields *at least* that many loose
+        Taking ``single_count`` records thus yields *at least* that many loose
         units -- never fewer -- so the candidate set can only over-cover on the
         unpackaged side. That is harmless: the reservation loop caps consumption at the
         requested quantity, and the package set is pinned exactly by
         ``package_id in [...]`` below, so no extra package is ever opened.
+
+        The A* only fixes the loose-unit *count*, not which quants, so choose the
+        FIFO-oldest singles (``in_date, id``) -- matching the ``least_packages``
+        removal order -- and take the head. Slicing the tail would restrict the
+        candidate set to the *newest* loose quants and strand older stock the
+        final strategy-ordered gather could never reconsider.
         """
         single_count = sum(1 for pkg in taken_packages if pkg[0] is None)
         selected_single_items = []
         if single_count:
-            single_item_ids = self.search(Domain("package_id", "=", None) & domain).ids
-            selected_single_items = single_item_ids[-single_count:]
+            single_item_ids = self.search(
+                Domain("package_id", "=", None) & domain, order="in_date, id"
+            ).ids
+            selected_single_items = single_item_ids[:single_count]
 
         return (
             Domain(
@@ -2756,7 +2762,7 @@ class StockQuant(models.Model):
                     recommended_location = self.env["stock.location"]
                     if ref_doc_location_id:
                         for location in sn_locations:
-                            if ref_doc_location_id.parent_path in location.parent_path:
+                            if location._child_of(ref_doc_location_id):
                                 recommended_location = location
                                 break
                     else:

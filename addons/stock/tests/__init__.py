@@ -40,3 +40,4 @@ from . import test_audit_fixes_product
 from . import test_audit_fixes_procure
 from . import test_audit_fixes_picking
 from . import test_audit_fixes_core
+from . import test_audit_fixes_v2

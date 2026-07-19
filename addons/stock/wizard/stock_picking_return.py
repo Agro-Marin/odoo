@@ -278,7 +278,9 @@ class StockReturnPicking(models.TransientModel):
                 ):
                     continue
                 quantity -= move.quantity
-            quantity = stock_move.product_uom_id.round(quantity)
+            # Already fully (or over-) returned: never propose a negative
+            # return, which would create a negative-demand move.
+            quantity = max(stock_move.product_uom_id.round(quantity), 0)
             return_move.quantity = quantity
         return self.action_create_returns()
 

@@ -117,6 +117,15 @@
         <field name="domain_force">[('company_id', 'in', company_ids + [False])]</field>
      </record>
 
+     <record model="ir.rule" id="stock_reference_comp_rule">
+        <field name="name">stock_reference multi-company</field>
+        <field name="model_id" search="[('model','=','stock.reference')]" model="ir.model"/>
+        <!-- stock.reference has no company_id of its own; scope it through its
+             moves' companies. A freshly created, not-yet-linked reference has
+             no moves, so allow that transient case too. -->
+        <field name="domain_force">['|', ('move_ids', '=', False), ('move_ids.company_id', 'in', company_ids)]</field>
+     </record>
+
     <record model="ir.rule" id="stock_quant_rule">
         <field name="name">stock_quant multi-company</field>
         <field name="model_id" ref="model_stock_quant"/>

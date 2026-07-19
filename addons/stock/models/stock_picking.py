@@ -613,23 +613,17 @@ class StockPicking(models.Model):
         # Batch-compute forecast_availability for all moves, not per prefetch chunk.
         all_moves._fields["forecast_availability"].compute_value(all_moves)
         for picking in pickings:
-            # Draft moves check forecast_availability against 0, not the full demand.
-            if any(
-                move.product_id
-                and move.product_id.uom_id.compare(
-                    move.forecast_availability,
-                    0 if move.state == "draft" else move.product_qty,
-                )
-                == -1
-                for move in picking.move_ids
-            ):
+            # Draft moves check forecast_availability against 0, not the full
+            # demand; cancelled and done moves are excluded (see
+            # `stock.move._availability_relevant`).
+            if picking.move_ids._is_availability_short():
                 picking.products_availability = _("Not Available")
                 picking.products_availability_state = "late"
             else:
                 forecast_date = max(
-                    picking.move_ids.filtered("date_planned_forecast").mapped(
-                        "date_planned_forecast",
-                    ),
+                    picking.move_ids._availability_relevant()
+                    .filtered("date_planned_forecast")
+                    .mapped("date_planned_forecast"),
                     default=False,
                 )
                 if forecast_date:
@@ -1135,10 +1129,14 @@ class StockPicking(models.Model):
 
     @api.depends("move_ids.move_dest_ids")
     def _compute_show_next_pickings(self):
-        # Per-record: `_get_next_transfers` aggregates over the whole recordset, so a
-        # scalar assignment would OR every picking's next-transfers together.
+        # Warm the whole dest-move chain in one prefetch, then classify per
+        # record (a scalar assignment would OR every picking's next-transfers
+        # together). Recordset subtraction avoids `_get_next_transfers`'
+        # per-element `in self.return_ids` scan on each picking.
+        self.mapped("move_ids.move_dest_ids.picking_id")
         for picking in self:
-            picking.show_next_pickings = bool(picking._get_next_transfers())
+            next_pickings = picking.move_ids.move_dest_ids.picking_id
+            picking.show_next_pickings = bool(next_pickings - picking.return_ids)
 
     @api.depends("move_ids.location_dest_usage")
     def _compute_has_scrap_move(self):

@@ -59,5 +59,12 @@ class StockWarnInsufficientQtyScrap(models.TransientModel):
         # FIXME in master: we should not have created the scrap in a first place
         if self.env.context.get("not_unlink_on_discard"):
             return True
-        else:
-            return self.scrap_id.sudo().unlink()
+        scrap = self.scrap_id
+        if not scrap or scrap.state != "draft":
+            return True
+        # `sudo()` is needed because stock users lack unlink on `stock.scrap`,
+        # but must not let a forged `scrap_id` delete another company's scrap:
+        # gate on the user's own write access first (enforces the multi-company
+        # record rule) and only remove the in-flight draft.
+        scrap.check_access("write")
+        return scrap.sudo().unlink()

@@ -75,7 +75,12 @@ class ProductLabelLayout(models.TransientModel):
                         continue
                     quantities[line.product_id.id] += line.quantity
                 else:
-                    quantities[line.product_id.id] = 1
+                    # A non-unit UoM line prints one label, but must not clobber
+                    # units already accumulated from other lines of the same
+                    # product (plain `= 1` dropped them).
+                    quantities[line.product_id.id] = max(
+                        quantities[line.product_id.id], 1
+                    )
             # Pass only products with some quantity done to the report
             data["quantity_by_product"] = {
                 p: int(q) for p, q in quantities.items() if q

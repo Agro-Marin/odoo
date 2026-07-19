@@ -1273,31 +1273,24 @@ class StockMove(models.Model):
             self.env["stock.move.line"].browse(mls_to_unlink).unlink()
 
         err = []
-        precision_digits = self.env["decimal.precision"].precision_get("Product Unit")
+        MoveLine = self.env["stock.move.line"]
         for move in self:
-            rounded_qty = float_round(
-                move.quantity,
-                precision_digits=precision_digits,
-                rounding_method="HALF-UP",
-            )
-            # Compare at a stricter precision than the one used for rounding:
-            # `float_compare` rounds both operands first, so comparing at
-            # `precision_digits` would always return 0 and never detect a
-            # quantity entered with more decimals than the precision allows.
-            if (
-                float_compare(
-                    rounded_qty,
-                    move.quantity,
-                    precision_digits=precision_digits + 2,
-                )
-                != 0
+            # Reject a done quantity the move's UoM rounding can't represent
+            # (e.g. 1.5 of an integer-rounding unit). Checks UoM rounding, not
+            # decimal precision: `quantity` is `Float(digits="Product Unit")`,
+            # so the ORM cache has already rounded it to that precision and a
+            # decimal-precision self-comparison could never fire. Shared with
+            # the line-level `_action_done` check.
+            if move.product_uom_id and not MoveLine._quantity_respects_uom_rounding(
+                move.quantity, move.product_uom_id
             ):
                 err.append(
                     _(
                         """
-The quantity done for the product %(product)s doesn't respect the rounding precision defined on the system.
-Please change the quantity done or the rounding precision in your settings.""",
+The quantity done for the product %(product)s doesn't respect the rounding precision defined on the unit of measure %(unit)s.
+Please change the quantity done or the rounding precision of your unit of measure.""",
                         product=move.product_id.display_name,
+                        unit=move.product_uom_id.name,
                     ),
                 )
                 continue
@@ -1592,14 +1585,9 @@ Please change the quantity done or the rounding precision in your settings.""",
                 qty_array.append(leftover)
             return qty_array
 
-        def remove_prefix(text, prefix):
-            if text.startswith(prefix):
-                return text[len(prefix) :]
-            return text
-
         for key in context_data:
             if key.startswith("default_"):
-                default_vals[remove_prefix(key, "default_")] = context_data[key]
+                default_vals[key.removeprefix("default_")] = context_data[key]
 
         # RPC boundary: the fields dereferenced below come straight from the
         # client-supplied context. A missing key must surface as a clean
@@ -1700,7 +1688,10 @@ Please change the quantity done or the rounding precision in your settings.""",
                     "id": value,
                     "display_name": name_by_field_id.get((f_name, value), False),
                 }
-        if product.lot_sequence_id and first_lot:
+        # Only generated names come from the sequence; import mode's names are
+        # user-pasted (split_lots), so advancing the sequence for them would
+        # skip numbers whenever the pasted `first_lot` happened to match.
+        if mode == "generate" and product.lot_sequence_id and first_lot:
             current_sequence = product.lot_sequence_id._get_current_sequence()
             increment = product.lot_sequence_id.number_increment
             first_number = current_sequence.number_next_actual - increment
@@ -3315,6 +3306,33 @@ Please change the quantity done or the rounding precision in your settings.""",
             extra_uom_qty -= quantity_to_reserve
         return commands
 
+    def _availability_relevant(self):
+        """The moves whose shortage bears on their operation's availability.
+
+        Cancelled moves are irrelevant, and done moves have already moved their
+        goods; both keep a non-zero `product_qty` with `forecast_availability`
+        left at 0 by `_compute_forecast_information`, so counting them would
+        wrongly flag their picking 'Not Available' (see
+        `_compute_products_availability` and `_get_availability_state`).
+        """
+        return self.filtered(lambda move: move.state not in ("cancel", "done"))
+
+    def _is_availability_short(self):
+        """Whether any relevant move is short of its demand (of 0 for drafts).
+
+        Single source of the shortage predicate shared by the picking-level
+        display compute and the availability-state search classifier.
+        """
+        return any(
+            move.product_id
+            and move.product_id.uom_id.compare(
+                move.forecast_availability,
+                0 if move.state == "draft" else move.product_qty,
+            )
+            == -1
+            for move in self._availability_relevant()
+        )
+
     def _get_availability_state(self, get_comparison_date):
         """Picking-level availability of these moves, mirroring
         `stock.picking._compute_products_availability` exactly: 'late' when any
@@ -3325,18 +3343,12 @@ Please change the quantity done or the rounding precision in your settings.""",
         # An operation without moves has no goods to wait for.
         if not self:
             return "available"
-        if any(
-            move.product_id
-            and move.product_id.uom_id.compare(
-                move.forecast_availability,
-                0 if move.state == "draft" else move.product_qty,
-            )
-            == -1
-            for move in self
-        ):
+        if self._is_availability_short():
             return "late"
         forecast_date = max(
-            self.filtered("date_planned_forecast").mapped("date_planned_forecast"),
+            self._availability_relevant()
+            .filtered("date_planned_forecast")
+            .mapped("date_planned_forecast"),
             default=False,
         )
         if forecast_date:

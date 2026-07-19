@@ -449,8 +449,11 @@ class ProductProduct(models.Model):
     def _search_qty_available(self, operator, value):
         # Without a date range, qty_available depends only on quants, not moves,
         # so use the faster quant-only '_search_qty_available_new' instead of
-        # '_search_product_quantity'.
-        if not ({"from_date", "to_date"} & self.env.context.keys()):
+        # '_search_product_quantity'. The `owners` (plural) context is honored
+        # by the compute via `_prepare_quantities_vals` but not by the quant-only
+        # path, so fall through to the move-aware search when it is set, keeping
+        # search and display symmetric.
+        if not ({"from_date", "to_date", "owners"} & self.env.context.keys()):
             op = PY_OPERATORS.get(operator)
             if op is not None and op(0.0, value):
                 # 0 matches the criterion, so the result is "every product except
@@ -1260,6 +1263,12 @@ class ProductProduct(models.Model):
         return self.filtered(
             lambda product: product.route_ids or product.categ_id.total_route_ids
         )
+
+    def _get_allowed_uoms(self):
+        """UoMs selectable for this product: its own UoM, its packaging UoMs,
+        and its vendors' purchase UoMs. Single source for the scrap and
+        replenish wizards' ``allowed_uom_ids`` computes."""
+        return self.uom_id | self.uom_ids | self.seller_ids.product_uom_id
 
     def _trigger_uom_warning(self):
         res = super()._trigger_uom_warning()
