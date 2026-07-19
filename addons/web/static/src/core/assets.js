@@ -168,8 +168,11 @@ whenReady(() => {
  * @param {(error: Error) => any} onError
  * @param {() => void} [onPageHideCleanup] invoked when the page hides before
  *  the asset settles (bfcache hazard) — evict cache entries here
+ * @param {(error: Error) => any} [onInterrupt] settles the caller's promise when
+ *  the page hides mid-load. Separate from `onError` because the caller's error
+ *  path may retry, and an interrupted load must not be retried — it must reject.
  */
-const onLoadAndError = (el, onLoad, onError, onPageHideCleanup) => {
+const onLoadAndError = (el, onLoad, onError, onPageHideCleanup, onInterrupt) => {
     const onLoadListener = (/** @type {Event} */ event) => {
         removeListeners();
         onLoad(event);
@@ -189,8 +192,16 @@ const onLoadAndError = (el, onLoad, onError, onPageHideCleanup) => {
         // On bfcache restore (Safari back-nav) the JS heap, including the asset
         // cache, comes back intact, but this promise can never settle (listeners
         // gone, request aborted). Evict the cache entry so a post-restore load
-        // re-injects instead of returning a dead promise forever.
+        // re-injects instead of returning a dead promise forever...
         onPageHideCleanup?.();
+        // ...and settle the promise the caller is already holding, otherwise a
+        // component suspended in `onWillStart` resumes stuck in its loading
+        // state for the rest of the session. `loadESMBundle` already does this.
+        onInterrupt?.(
+            new AssetsLoadingError(
+                `The loading of ${el.getAttribute("src") || el.getAttribute("href")} was interrupted: the page was hidden`,
+            ),
+        );
     };
 
     const removeListeners = () => {
@@ -736,6 +747,7 @@ export const assets = {
                         }
                     },
                     () => cacheMap.delete(url),
+                    reject,
                 ),
             );
             targetDoc.head.appendChild(linkEl);
@@ -790,6 +802,7 @@ export const assets = {
                         cacheMap.delete(url);
                     }
                 },
+                reject,
             ),
         );
         cacheMap.set(url, promise);
