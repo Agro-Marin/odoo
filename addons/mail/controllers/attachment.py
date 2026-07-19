@@ -61,7 +61,10 @@ class AttachmentController(ThreadController):
         vals = {
             "name": ufile.filename,
             "raw": ufile.read(),
-            "res_id": int(thread_id),
+            # reuse the id already coerced+access-checked by
+            # _get_thread_with_access_for_post rather than re-parsing the raw
+            # client input (which could diverge / ValueError).
+            "res_id": thread.id,
             "res_model": thread_model,
         }
         if is_pending and str(is_pending).lower() not in ("false", "0", ""):

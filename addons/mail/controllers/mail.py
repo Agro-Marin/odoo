@@ -2,7 +2,7 @@ import io
 import logging
 from urllib.parse import parse_qsl, urlencode, urlparse
 
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageColor, ImageDraw, ImageFont
 from werkzeug.exceptions import NotFound
 from werkzeug.utils import send_file
 
@@ -422,6 +422,17 @@ class MailController(http.Controller):
         if color is not None and color.startswith("rgba"):
             color = color.replace("rgba", "rgb")
             color = ",".join(color.split(",")[:-1]) + ")"
+
+        # Validate the caller-supplied colors up-front: an invalid color string
+        # would otherwise raise ValueError deep inside PIL (Image.new / draw.text)
+        # and surface as a 500 on this auth="none" route. Reject cleanly with a
+        # 404, matching the size/glyph-width hardening above.
+        for _color in (color, bg):
+            if _color is not None:
+                try:
+                    ImageColor.getrgb(_color)
+                except ValueError:
+                    raise request.not_found() from None
 
         # Measure the icon glyph dimensions
         dummy = Image.new("RGBA", (1, 1))

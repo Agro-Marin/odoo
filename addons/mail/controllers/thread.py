@@ -204,13 +204,22 @@ class ThreadController(http.Controller):
         "/mail/partner/from_email", methods=["POST"], type="jsonrpc", auth="user"
     )
     def mail_thread_partner_from_email(self, thread_model, thread_id, emails):
-        partners = (
-            request.env[thread_model]
-            .browse(thread_id)
-            ._partner_find_from_emails_single(
-                emails,
-                no_create=not request.env.user.has_group("base.group_partner_manager"),
-            )
+        # thread_model / thread_id are fully client-controlled. Validate the
+        # model (an unknown name used to KeyError -> 500) and bind to the record
+        # only when the caller can actually read it: an inaccessible record falls
+        # back to the generic (record-less) partner lookup — which
+        # _partner_find_from_emails_single explicitly supports on a void
+        # recordset — instead of deriving company/context from a thread the user
+        # cannot access.
+        if thread_model not in request.env:
+            raise NotFound
+        thread = request.env[thread_model]
+        record_id = _to_record_id(thread_id)
+        if record_id:
+            thread = thread._get_thread_with_access(record_id, mode="read") or thread
+        partners = thread._partner_find_from_emails_single(
+            emails,
+            no_create=not request.env.user.has_group("base.group_partner_manager"),
         )
         # The returned recordset is deduped and id-ordered, so a client cannot
         # positionally pair it with the input ``emails``. Echo the input email

@@ -112,7 +112,9 @@ class ChannelController(http.Controller):
 
     @http.route("/discuss/channel/update_avatar", methods=["POST"], type="jsonrpc")
     def discuss_channel_avatar_update(self, channel_id, data):
-        channel = request.env["discuss.channel"].search([("id", "=", channel_id)])
+        channel = request.env["discuss.channel"].search(
+            [("id", "=", _to_record_id(channel_id))]
+        )
         if not channel or not data:
             raise NotFound
         channel.write({"image_128": data})
@@ -122,7 +124,9 @@ class ChannelController(http.Controller):
     )
     @add_guest_to_context
     def discuss_channel_messages(self, channel_id, fetch_params=None):
-        channel = request.env["discuss.channel"].search([("id", "=", channel_id)])
+        channel = request.env["discuss.channel"].search(
+            [("id", "=", _to_record_id(channel_id))]
+        )
         if not channel:
             raise NotFound
         res = request.env["mail.message"]._message_fetch(

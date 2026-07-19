@@ -9,6 +9,12 @@ from odoo.tools import file_open
 from odoo.addons.mail.controllers.thread import _to_record_id, _to_record_ids
 from odoo.addons.mail.tools.discuss import Store, add_guest_to_context
 
+# Generous bounds for peer-to-peer WebRTC signaling relayed through the public
+# session_call_notify route (SDP/ICE payloads are small; a request carries a
+# handful of entries). They exist to cap abuse, not to constrain real use.
+_MAX_PEER_NOTIFICATIONS = 100
+_MAX_PEER_CONTENT_LEN = 100_000
+
 
 class RtcController(http.Controller):
     @http.route(
@@ -28,8 +34,20 @@ class RtcController(http.Controller):
             - string content: the content to send to the other sessions
         """
         guest = request.env["mail.guest"]._get_guest_from_context()
+        # auth="public": validate/bound the payload rather than trusting it.
+        # Blindly unpacking a malformed entry would 500 an anonymous caller, and
+        # relaying unbounded content/count is a channel-scoped bus-amplification
+        # primitive. WebRTC signaling (SDP/ICE) per request is small, so these
+        # caps are generous; malformed entries are skipped, not fatal.
+        if not isinstance(peer_notifications, (list, tuple)):
+            raise NotFound
         notifications_by_session = defaultdict(list)
-        for sender_session_id, target_session_ids, content in peer_notifications:
+        for notification in peer_notifications[:_MAX_PEER_NOTIFICATIONS]:
+            if not isinstance(notification, (list, tuple)) or len(notification) != 3:
+                continue
+            sender_session_id, target_session_ids, content = notification
+            if isinstance(content, str) and len(content) > _MAX_PEER_CONTENT_LEN:
+                continue
             # sudo: discuss.channel.rtc.session - only keeping sessions matching the current user
             session_sudo = (
                 request.env["discuss.channel.rtc.session"]
