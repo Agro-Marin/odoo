@@ -686,8 +686,13 @@ export class Thread extends Record {
                 this.loadOlder = false;
             } else if (epoch === "newer") {
                 this.loadNewer = false;
-                const missingMessages = this.pendingNewMessages.filter(
-                    ({ id }) => !alreadyKnownMessages.has(id),
+                // Filter against the CURRENT message list, not the stale
+                // `alreadyKnownMessages` snapshot taken before `messagesToAdd`
+                // was pushed above: a message present in both the fetch response
+                // and `pendingNewMessages` (posted via bus during the RPC) would
+                // otherwise be inserted twice -> duplicate t-key -> list crash.
+                const missingMessages = this.pendingNewMessages.filter((message) =>
+                    message.notIn(this.messages),
                 );
                 if (missingMessages.length > 0) {
                     this.messages.push(...missingMessages);
@@ -1139,6 +1144,15 @@ export class Thread extends Record {
      */
     _enrichMessagesWithTransient() {
         for (const message of this.transientMessages) {
+            // RecordList.push/unshift/splice do not dedupe, while `messages`
+            // carries a uniqueness invariant (t-key=msg.id in thread.xml). A
+            // transient message already placed by a previous load must not be
+            // re-inserted, otherwise the duplicate localId yields a duplicate
+            // t-key and OWL corrupts / crashes the thread list on every further
+            // "load older".
+            if (message.in(this.messages)) {
+                continue;
+            }
             if (message.id < this.oldestPersistentMessage?.id && !this.loadOlder) {
                 this.messages.unshift(message);
             } else if (

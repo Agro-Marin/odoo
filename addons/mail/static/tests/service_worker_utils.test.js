@@ -55,12 +55,14 @@ test("planPushNotification: CALL on Android drops the ACCEPT action (no mutation
 });
 
 test("planPushNotification: tag-less CANCEL is ignored, tagged CANCEL cancels", () => {
+    // NB: a real CANCEL push carries an empty title (see discuss_channel.py) -
+    // classification must not depend on a title being present, otherwise the
+    // ringing call notification is never dismissed.
     expect(
-        planPushNotification({ title: "x", options: { data: { type: "CANCEL" } } })
-            .type,
+        planPushNotification({ title: "", options: { data: { type: "CANCEL" } } }).type,
     ).toBe("ignore");
     const plan = planPushNotification({
-        title: "x",
+        title: "",
         options: { data: { type: "CANCEL" }, tag: "call-42" },
     });
     expect(plan.type).toBe("cancel");

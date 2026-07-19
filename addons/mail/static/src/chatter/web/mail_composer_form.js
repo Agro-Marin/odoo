@@ -77,22 +77,31 @@ export class MailComposerFormRenderer extends formView.Renderer {
         useCustomDropzone(this.root, MailAttachmentDropzone, {
             /** @param {Event} event */
             onDrop: async (event) => {
-                for (const thread of getActiveMailThreads()) {
-                    // Use an isolated composer object instead of thread.composer to
-                    // avoid pushing into the main thread's composer.attachments list,
-                    // which is observed by the chatter.
-                    const composer =
-                        this.props.record.resModel === "mail.scheduled.message"
-                            ? { attachments: [] }
-                            : thread.composer;
-                    for (const file of event.dataTransfer.files) {
-                        const attachment = await this.attachmentUploadService.upload(
-                            thread,
-                            composer,
-                            file,
-                        );
-                        await this.operations.saveRecord([attachment.id]);
-                    }
+                // Upload each dropped file exactly ONCE and link it to the single
+                // composer wizard. The composer is one `mail.compose.message`
+                // record regardless of how many recipients it targets; the
+                // previous per-thread loop uploaded and linked a separate copy of
+                // every file for each selected record, so dropping one file on an
+                // N-record selection created N identical attachments and every
+                // recipient's mail carried all N copies.
+                const [thread] = getActiveMailThreads();
+                if (!thread) {
+                    return;
+                }
+                // Use an isolated composer object instead of thread.composer to
+                // avoid pushing into the main thread's composer.attachments list,
+                // which is observed by the chatter.
+                const composer =
+                    this.props.record.resModel === "mail.scheduled.message"
+                        ? { attachments: [] }
+                        : thread.composer;
+                for (const file of event.dataTransfer.files) {
+                    const attachment = await this.attachmentUploadService.upload(
+                        thread,
+                        composer,
+                        file,
+                    );
+                    await this.operations.saveRecord([attachment.id]);
                 }
             },
         });

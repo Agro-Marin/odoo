@@ -123,7 +123,13 @@ export class DiscussCoreCommon {
                     message,
                     this.store["mail.message"].get(temporary_id),
                 );
-            } else if (channel.status === "loading") {
+            } else if (
+                channel.status === "loading" &&
+                message.notIn(channel.pendingNewMessages)
+            ) {
+                // Guard against bus replay (e.g. after reconnect) queuing the
+                // same message twice: fetchMoreMessages would then insert the
+                // duplicate into `messages`.
                 channel.pendingNewMessages.push(message);
             }
             if (message.isSelfAuthored) {
