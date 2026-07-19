@@ -82,6 +82,7 @@ import { useListVirtualization } from "./list_virtualization.js";
 export class ListRenderer extends Component {
     static template = "web.ListRenderer";
     static rowsTemplate = "web.ListRenderer.Rows";
+    static createControlsTemplate = "web.ListRenderer.CreateControls";
     static recordRowTemplate = "web.ListRenderer.RecordRow";
     static groupRowTemplate = "web.ListRenderer.GroupRow";
     static useMagicColumnWidths = true;

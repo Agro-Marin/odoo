@@ -144,43 +144,19 @@
  <tr t-if="virt.bottomSpacerHeight > 0" class="o_virtual_spacer">
  <td t-att-colspan="nbCols" t-attf-style="height: {{ virt.bottomSpacerHeight }}px;"/>
  </tr>
+ <!-- Same trailer as the non-virtualized branch. Virtualization decides
+      WHICH rows render; it must not decide WHETHER the x2many create
+      controls exist. Grouped lists instead get their add-line rows
+      materialized as flat rows by ListGridState. -->
+ <t t-if="!props.list.isGrouped" t-call="{{ constructor.createControlsTemplate }}"/>
  </t>
  <t t-else="">
- <!-- Non-virtualized path (unchanged) -->
+ <!-- Non-virtualized path -->
  <t t-if="!list.isGrouped">
  <t t-foreach="list.records" t-as="record" t-key="record.id">
  <t t-component="rowComponent" t-props="getRowProps(record, group, groupId)"/>
  </t>
- <tr t-if="displayRowCreates" class="d-print-none">
- <td t-if="withHandleColumn"/>
- <td t-att-colspan="withHandleColumn ? nbCols - 1 : nbCols"
- class="o_field_x2many_list_row_add"
- t-on-keydown="(ev) => this.onCellKeydown(ev, null)"
- >
- <t t-foreach="controls" t-as="control" t-key="control_index">
- <a
- t-if="control.type === 'create' and !evalColumnInvisible(control.invisible)"
- href="#"
- role="button"
- t-att-class="control_index !== 0 ? 'ml16' : ''"
- t-att-tabindex="props.list.editedRecord ? '-1' : '0'"
- t-on-click.stop.prevent="() => this.add({ context: control.context })"
- >
- <t t-esc="control.string"/>
- </a>
- <ViewButton
- t-if="control.type === 'button' and !evalColumnInvisible(control.invisible)"
- className="`${control.className} ${control_index !== 0 ? 'ml16' : ''}`"
- clickParams="control.clickParams"
- icon="control.icon"
- record="props.list"
- string="control.string"
- title="control.title"
- tabindex="props.list.editedRecord ? '-1' : '0'"
- />
- </t>
- </td>
- </tr>
+ <t t-call="{{ constructor.createControlsTemplate }}"/>
  <t t-if="!props.list.isGrouped and !props.noContentHelp">
  <tr t-foreach="getEmptyRowIds" t-as="emptyRowId" t-key="emptyRowId">
  <td t-att-colspan="nbCols">&#8203;</td>
@@ -215,6 +191,44 @@
  </t>
  </t>
  </t>
+ </t>
+
+ <!-- x2many create controls ("Add a line" + arch <control> buttons). Shared by
+      the virtualized and non-virtualized row paths so the two cannot drift:
+      this trailer used to live only in the non-virtualized branch, so a
+      one2many past the virtualization threshold lost its only way to add a
+      line. -->
+ <t t-name="web.ListRenderer.CreateControls">
+ <tr t-if="displayRowCreates" class="d-print-none">
+ <td t-if="withHandleColumn"/>
+ <td t-att-colspan="withHandleColumn ? nbCols - 1 : nbCols"
+ class="o_field_x2many_list_row_add"
+ t-on-keydown="(ev) => this.onCellKeydown(ev, null)"
+ >
+ <t t-foreach="controls" t-as="control" t-key="control_index">
+ <a
+ t-if="control.type === 'create' and !evalColumnInvisible(control.invisible)"
+ href="#"
+ role="button"
+ t-att-class="control_index !== 0 ? 'ml16' : ''"
+ t-att-tabindex="props.list.editedRecord ? '-1' : '0'"
+ t-on-click.stop.prevent="() => this.add({ context: control.context })"
+ >
+ <t t-esc="control.string"/>
+ </a>
+ <ViewButton
+ t-if="control.type === 'button' and !evalColumnInvisible(control.invisible)"
+ className="`${control.className} ${control_index !== 0 ? 'ml16' : ''}`"
+ clickParams="control.clickParams"
+ icon="control.icon"
+ record="props.list"
+ string="control.string"
+ title="control.title"
+ tabindex="props.list.editedRecord ? '-1' : '0'"
+ />
+ </t>
+ </td>
+ </tr>
  </t>
 
  <t t-name="web.ListRenderer.GroupRow">
