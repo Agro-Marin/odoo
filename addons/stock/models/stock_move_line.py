@@ -701,6 +701,26 @@ class StockMoveLine(models.Model):
     # ACTION METHODS
     # ------------------------------------------------------------
 
+    @api.model
+    def _quantity_respects_uom_rounding(self, quantity, uom):
+        """Whether `quantity` is a legal amount for `uom`'s rounding step.
+
+        It respects the rounding when snapping it to the UoM's own rounding
+        leaves it unchanged, compared at the "Product Unit" decimal precision.
+        Shared single source for the move-line done-quantity check and the
+        move-level `_inverse_quantity` guard so the two cannot diverge (the
+        move-level one historically compared decimal-precision-against-itself,
+        which the ORM's `Float(digits=...)` cache rounding makes a no-op).
+        """
+        precision_digits = self.env["decimal.precision"].precision_get("Product Unit")
+        uom_qty = uom.round(quantity, rounding_method="HALF-UP")
+        rounded = float_round(
+            quantity,
+            precision_digits=precision_digits,
+            rounding_method="HALF-UP",
+        )
+        return float_compare(uom_qty, rounded, precision_digits=precision_digits) == 0
+
     def _action_done(self):
         """Called by the move's `_action_done` for all of its move lines: moves the reserved
         quants from source to destination location, releasing reservations as needed.
@@ -717,15 +737,8 @@ class StockMoveLine(models.Model):
         ml_ids_to_create_lot = OrderedSet()
         ml_ids_to_check = defaultdict(OrderedSet)
 
-        precision_digits = self.env["decimal.precision"].precision_get("Product Unit")
         for ml in self:
-            uom_qty = ml.product_uom_id.round(ml.quantity, rounding_method="HALF-UP")
-            quantity = float_round(
-                ml.quantity,
-                precision_digits=precision_digits,
-                rounding_method="HALF-UP",
-            )
-            if float_compare(uom_qty, quantity, precision_digits=precision_digits) != 0:
+            if not self._quantity_respects_uom_rounding(ml.quantity, ml.product_uom_id):
                 raise UserError(
                     _(
                         'The quantity done for the product "%(product)s" doesn\'t respect the rounding precision '

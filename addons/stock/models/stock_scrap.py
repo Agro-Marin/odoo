@@ -133,11 +133,7 @@ class StockScrap(models.Model):
     )
     def _compute_allowed_uom_ids(self):
         for scrap in self:
-            scrap.allowed_uom_ids = (
-                scrap.product_id.uom_id
-                | scrap.product_id.uom_ids
-                | scrap.product_id.seller_ids.product_uom_id
-            )
+            scrap.allowed_uom_ids = scrap.product_id._get_allowed_uoms()
 
     @api.depends("product_id")
     def _compute_product_uom_id(self):
@@ -290,7 +286,14 @@ class StockScrap(models.Model):
                 )
             )
         for scrap in self:
-            scrap.name = self.env["ir.sequence"].next_by_code("stock.scrap") or _("New")
+            # Draw from the scrap's own company sequence, not `env.company`'s:
+            # each company provisions its own `stock.scrap` sequence.
+            scrap.name = (
+                self.env["ir.sequence"]
+                .with_company(scrap.company_id)
+                .next_by_code("stock.scrap")
+                or _("New")
+            )
             move = scrap._create_scrap_move()
             # master: replace context by cancel_backorder
             move.with_context(is_scrap=True)._action_done()

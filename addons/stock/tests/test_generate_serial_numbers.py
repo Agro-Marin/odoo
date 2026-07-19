@@ -712,3 +712,33 @@ class StockGenerateCommon(TransactionCase):
                 },
             ],
         )
+
+    def test_import_mode_does_not_advance_sequence(self):
+        """Import mode (pasted names) must not advance the lot sequence, even
+        when the pasted `first_lot` happens to match the sequence's next char.
+        """
+        action_context = {
+            "default_location_id": self.location.id,
+            "default_location_dest_id": self.location_dest.id,
+            "default_product_id": self.product_serial.id,
+            "default_tracking": "serial",
+        }
+        seq = self.product_serial.lot_sequence_id
+        seq.invalidate_recordset(["number_next_actual"])
+        before = seq.number_next_actual
+        next_char = seq.get_next_char(before)
+
+        # Paste a list whose first name equals the sequence's next char.
+        self.env["stock.move"].action_generate_lot_line_vals(
+            action_context,
+            "import",
+            next_char,
+            0,
+            "\n".join(seq.get_next_char(before + i) for i in range(3)),
+        )
+        seq.invalidate_recordset(["number_next_actual"])
+        self.assertEqual(
+            seq.number_next_actual,
+            before,
+            "import mode must not consume sequence numbers",
+        )

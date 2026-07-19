@@ -70,11 +70,7 @@ class ProductReplenish(models.TransientModel):
     )
     def _compute_allowed_uom_ids(self):
         for rec in self:
-            rec.allowed_uom_ids = (
-                rec.product_id.uom_id
-                | rec.product_id.uom_ids
-                | rec.product_id.seller_ids.product_uom_id
-            )
+            rec.allowed_uom_ids = rec.product_id._get_allowed_uoms()
 
     @api.depends("warehouse_id", "product_id")
     def _compute_forecasted_quantity(self):

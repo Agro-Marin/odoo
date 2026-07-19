@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
+from datetime import datetime
+
 from odoo import api, fields, models
 
 
@@ -26,6 +28,25 @@ class StockQuant(models.Model):
         if removal_strategy == 'fefo':
             return 'removal_date, in_date, id'
         return super()._get_removal_strategy_order(removal_strategy)
+
+    @api.model
+    def _get_removal_strategy_sort_key(self, removal_strategy):
+        if removal_strategy == 'fefo':
+            # Python mirror of `removal_date, in_date, id` for the `_gather`
+            # quants-cache fast path. `removal_date` may be unset; Postgres
+            # orders NULLs last in ASC, so unset dates sort after real ones.
+            # The `is False` flag decides that ordering, so the sentinel below
+            # is only ever compared within the unset group (never to a real
+            # date). Odoo datetimes are naive-UTC, hence naive `datetime.min`.
+            def key(quant):
+                return (
+                    quant.removal_date is False,
+                    quant.removal_date or datetime.min,  # noqa: DTZ901
+                    quant.in_date,
+                    quant.id,
+                )
+            return key, False
+        return super()._get_removal_strategy_sort_key(removal_strategy)
 
     @api.depends('removal_date')
     def _compute_available_quantity(self):

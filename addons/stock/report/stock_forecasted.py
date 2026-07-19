@@ -351,7 +351,13 @@ class StockForecasted_Product_Product(models.AbstractModel):
                         {
                             "_name": document_in._name,
                             "id": document_in.id,
-                            "name": document_in.display_name if read else False,
+                            # Resolution is via `sudo()`, but the name is only
+                            # exposed when the real user may read the document,
+                            # so the report never leaks names their ACLs hide.
+                            "name": document_in.display_name
+                            if read
+                            and document_in.with_env(self.env).has_access("read")
+                            else False,
                         }
                         if document_in
                         else False
@@ -374,7 +380,12 @@ class StockForecasted_Product_Product(models.AbstractModel):
                         {
                             "_name": document_out._name,
                             "id": document_out.id,
-                            "name": document_out.display_name if read else False,
+                            # See document_in: name gated on the real user's read
+                            # access despite the sudo() resolution.
+                            "name": document_out.display_name
+                            if read
+                            and document_out.with_env(self.env).has_access("read")
+                            else False,
                         }
                         if document_out
                         else False
