@@ -19,6 +19,11 @@ const { DateTime } = luxon;
 const CONSOLE_COLOR = "#28ffeb";
 // IndexedDB store persisting network.unsyncData across reloads.
 const UNSYNC_QUEUE_STORE = "pos.unsync.queue";
+// How many times a queued offline operation may fail with a CLIENT-side error
+// before it is dead-lettered. Server rejections (RPCError) are dead-lettered on
+// the first failure; connection loss is not counted at all, since it is the
+// normal offline case the queue exists for.
+const MAX_SYNC_ATTEMPTS = 5;
 
 export class PosData extends SignalStore {
     static modelToLoad = []; // When empty all models are loaded
@@ -1004,8 +1009,24 @@ export class PosData extends SignalStore {
                         // data layer, a bug in execute, …) is NOT evidence that
                         // the server refused this write. Dead-lettering it here
                         // silently destroyed queued offline edits. Keep the
-                        // entry queued and stop draining so it can be retried.
-                        throw error;
+                        // entry queued so it can be retried — but bounded: the
+                        // `try` counter has always been carried on the entry and
+                        // never incremented, so without this a permanently
+                        // failing entry would block everything behind it for the
+                        // rest of the session. Past the cap it dead-letters like
+                        // a server rejection.
+                        data.try = (data.try ?? 1) + 1;
+                        if (data.try <= MAX_SYNC_ATTEMPTS) {
+                            this._persistQueueEntry(data);
+                            throw error;
+                        }
+                        logPosMessage(
+                            "DataService",
+                            "syncData",
+                            `A queued offline operation failed ${MAX_SYNC_ATTEMPTS} times client-side and will not be retried`,
+                            CONSOLE_COLOR,
+                            [error, data],
+                        );
                     }
                     // Hard server rejection: this entry would fail on every
                     // reconnect forever and block everything queued behind it.
