@@ -1,5 +1,6 @@
 /** @odoo-module native */
 import { Component, onWillStart, useState } from "@odoo/owl";
+import { useOperationGuard } from "@stock/utils/use_operation_guard";
 import { registry } from "@web/core/registry";
 import { useBus, useService } from "@web/core/utils/hooks";
 import { ControlPanel } from "@web/search/control_panel/control_panel";
@@ -34,6 +35,10 @@ export class ReceptionReportMain extends Component {
         useBus(this.env.bus, "update-assign-state", (ev) =>
             this._changeAssignedState(ev.detail),
         );
+        // Guard the global bulk assign against a double-click firing two
+        // concurrent action_assign RPCs (mirrors ReceptionReportLine).
+        this.opGuard = useOperationGuard();
+        this.onClickAssignAll = this.opGuard.guard(this.onClickAssignAll.bind(this));
 
         onWillStart(async () => {
             // Check the URL if report was alreadu loaded.
@@ -188,8 +193,11 @@ export class ReceptionReportMain extends Component {
     }
 
     get isAssignAllDisabled() {
-        return Object.values(this.state.sourcesToLines).every((lines) =>
-            lines.every((line) => !isLineAssignable(line)),
+        return (
+            this.opGuard.busy ||
+            Object.values(this.state.sourcesToLines).every((lines) =>
+                lines.every((line) => !isLineAssignable(line)),
+            )
         );
     }
 

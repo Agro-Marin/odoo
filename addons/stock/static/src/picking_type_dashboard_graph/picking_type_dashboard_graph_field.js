@@ -144,9 +144,13 @@ export class PickingTypeDashboardGraphField extends JournalDashboardGraphField {
                 plugins: {
                     legend: { display: false },
                     tooltip: {
-                        // Suppress the tooltip over fake sample bars (matches the
-                        // parent JournalDashboardGraphField behaviour).
-                        enabled: !this.data[0]?.is_sample_data,
+                        // Suppress the tooltip over fake sample bars. The stock
+                        // server never sends the parent's top-level
+                        // `is_sample_data`; it tags sampleness per value with
+                        // `type: "sample"` (see getGraphData), so key off that.
+                        enabled: !this.data[0]?.values?.every(
+                            (value) => value.type === "sample",
+                        ),
                         intersect: false,
                         position: "nearest",
                         caretSize: 0,

@@ -1,5 +1,6 @@
 /** @odoo-module native */
 import { Component } from "@odoo/owl";
+import { useOperationGuard } from "@stock/utils/use_operation_guard";
 import { useService } from "@web/core/utils/hooks";
 
 import { ReceptionReportLine } from "../reception_report_line/stock_reception_report_line.js";
@@ -31,6 +32,11 @@ export class ReceptionReportTable extends Component {
     setup() {
         this.actionService = useService("action");
         this.ormService = useService("orm");
+        // Guard the bulk assign against a double-click firing two concurrent
+        // action_assign RPCs (the server then errors "already linked"); mirrors
+        // the line-level handlers in ReceptionReportLine.
+        this.opGuard = useOperationGuard();
+        this.onClickAssignAll = this.opGuard.guard(this.onClickAssignAll.bind(this));
     }
 
     //---- Handlers ----
@@ -75,10 +81,14 @@ export class ReceptionReportTable extends Component {
     }
 
     get isAssignAllDisabled() {
-        // Disabled when no line is actually assignable — shares the predicate with
-        // collectAssignable/onClickAssignAll so the button state and what the click
-        // actually assigns stay in lockstep.
-        return this.props.lines.every((line) => !isLineAssignable(line));
+        // Disabled while a bulk assign is in flight (re-entrancy guard), or when
+        // no line is actually assignable — shares the predicate with
+        // collectAssignable/onClickAssignAll so the button state and what the
+        // click actually assigns stay in lockstep.
+        return (
+            this.opGuard.busy ||
+            this.props.lines.every((line) => !isLineAssignable(line))
+        );
     }
 
     get isPrintLabelDisabled() {
