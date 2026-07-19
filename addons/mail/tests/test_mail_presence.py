@@ -1,8 +1,9 @@
 import json
-from datetime import datetime, timedelta
+from datetime import timedelta
 
 from freezegun import freeze_time
 
+from odoo import fields
 from odoo.tests import HttpCase, new_test_user, tagged
 
 from ..models.mail_presence import PRESENCE_OUTDATED_TIMER
@@ -13,7 +14,10 @@ from odoo.addons.bus.models.bus import channel_with_db, json_dump
 class TestMailPresence(HttpCase):
     def test_bus_presence_auto_vacuum(self):
         user = new_test_user(self.env, login="bob_user")
-        more_than_away_timer_ago = datetime.now() - timedelta(
+        # UTC, matching the fields.Datetime.now() the presence model stores and
+        # GCs against; naive local datetime.now() skewed the window by the host's
+        # UTC offset and made this test fail on UTC-positive servers.
+        more_than_away_timer_ago = fields.Datetime.now() - timedelta(
             seconds=PRESENCE_OUTDATED_TIMER + 1
         )
         more_than_away_timer_ago = more_than_away_timer_ago.replace(microsecond=0)
