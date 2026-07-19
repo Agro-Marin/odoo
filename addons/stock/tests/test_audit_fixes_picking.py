@@ -660,3 +660,76 @@ class TestAuditFixesPicking(TestStockCommon):
         )
         location = rule._get_putaway_location(self.product_2, quantity=1)
         self.assertEqual(location, self.shelf_1)
+
+
+@tagged("post_install", "-at_install")
+class TestAuditAvailabilitySearch(TestStockCommon):
+    """The products_availability_state search must classify a picking exactly
+    like `_compute_products_availability` (a short move makes the whole picking
+    'late', regardless of its other moves)."""
+
+    def test_availability_search_matches_display_state(self):
+        in_stock = self.env["product.product"].create(
+            {"name": "Avail In Stock", "is_storable": True},
+        )
+        shortage = self.env["product.product"].create(
+            {"name": "Avail Short", "is_storable": True},
+        )
+        warehouse = self.env["stock.warehouse"].search(
+            [("company_id", "=", self.env.company.id)],
+            limit=1,
+        )
+        self.env["stock.quant"]._update_available_quantity(
+            in_stock,
+            warehouse.lot_stock_id,
+            quantity=10,
+        )
+        customers = self.env.ref("stock.stock_location_customers")
+        picking = self.env["stock.picking"].create(
+            {
+                "picking_type_id": warehouse.out_type_id.id,
+                "location_id": warehouse.lot_stock_id.id,
+                "location_dest_id": customers.id,
+                "move_ids": [
+                    (
+                        0,
+                        0,
+                        {
+                            "product_id": product.id,
+                            "product_uom_id": product.uom_id.id,
+                            "product_uom_qty": 5,
+                            "location_id": warehouse.lot_stock_id.id,
+                            "location_dest_id": customers.id,
+                        },
+                    )
+                    for product in (in_stock, shortage)
+                ],
+            },
+        )
+        picking.action_confirm()
+        self.assertEqual(picking.products_availability_state, "late")
+
+        Picking = self.env["stock.picking"]
+        late = Picking.search([("products_availability_state", "=", "late")])
+        self.assertIn(picking, late, "a shortage picking must be searchable as late")
+        available = Picking.search(
+            [("products_availability_state", "=", "available")],
+        )
+        self.assertNotIn(
+            picking,
+            available,
+            "the clean sibling move must not leak the picking into 'available'",
+        )
+        # in/not-in operators mirror the same single-state classification
+        self.assertIn(
+            picking,
+            Picking.search(
+                [("products_availability_state", "in", ["late", "expected"])],
+            ),
+        )
+        self.assertNotIn(
+            picking,
+            Picking.search(
+                [("products_availability_state", "not in", ["late"])],
+            ),
+        )
