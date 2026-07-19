@@ -139,6 +139,19 @@ export function shouldEmitUnlink(ownCommands) {
     const linkIndex = ownCommands.findIndex((x) => x.command[0] === LINK);
     if (linkIndex >= 0) {
         ownCommands.splice(linkIndex, 1);
+        // If that was the LAST link, the record is no longer part of the
+        // relation, so every staged CREATE/UPDATE for it must go too —
+        // "net effect: nothing happened", as this function's contract states.
+        // A surviving `[UPDATE, id]` is not inert: `serializeCommands` keeps
+        // commands whose record is still in `_cache`, and the engine's UNLINK
+        // branch prunes `_unknownRecordCommands` / `_loadingStubIds` but never
+        // `_cache`. The save therefore wrote the user's edits into a record
+        // they had just removed from the relation.
+        // A remaining LINK means the row is still linked (duplicate-link
+        // ref-counting), so its pending edits stay valid.
+        if (!ownCommands.some((x) => x.command[0] === LINK)) {
+            ownCommands.splice(0);
+        }
         return false;
     }
     return true;

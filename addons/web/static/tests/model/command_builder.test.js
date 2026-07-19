@@ -241,9 +241,11 @@ describe("shouldEmitUnlink", () => {
             { command: [UPDATE, 3], index: 1 },
         ];
         expect(shouldEmitUnlink(ownCommands)).toBe(false);
-        // LINK removed, UPDATE remains
-        expect(ownCommands.length).toBe(1);
-        expect(ownCommands[0].command[0]).toBe(UPDATE);
+        // Every command for the id is dropped — "net effect: nothing happened".
+        // A surviving UPDATE would still serialize (the record stays in
+        // `_cache` after an UNLINK) and write edits to a record the user just
+        // removed from the relation.
+        expect(ownCommands.length).toBe(0);
     });
 
     test("handles empty command list", () => {
