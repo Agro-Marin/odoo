@@ -107,6 +107,18 @@ export function random5Chars() {
     return code;
 }
 
+/**
+ * Stable per-browser identifier for a customer-display device. The
+ * /pos_customer_display route takes it as a path segment and authenticates
+ * separately via an access_token query parameter.
+ */
+export function getDeviceUuid() {
+    if (!localStorage.getItem("device_uuid")) {
+        localStorage.setItem("device_uuid", uuidv4());
+    }
+    return localStorage.getItem("device_uuid");
+}
+
 export function qrCodeSrc(url, { size = 200 } = {}) {
     return `/report/barcode/QR/${encodeURIComponent(url)}?width=${size}&height=${size}`;
 }

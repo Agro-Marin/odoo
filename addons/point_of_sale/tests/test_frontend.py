@@ -2455,22 +2455,34 @@ class TestUi(TestPointOfSaleHttpCommon):
             )
 
     def test_customer_display(self):
+        # The customer-display route requires an active session as well as
+        # the config access_token (a611387f577); open one first.
+        self.main_pos_config.with_user(self.pos_user).open_ui()
         self.start_tour(
-            f"/pos_customer_display/{self.main_pos_config.id}/{self.main_pos_config.access_token}",
+            f"/pos_customer_display/{self.main_pos_config.id}/display-test-device"
+            f"?access_token={self.main_pos_config.access_token}",
             "CustomerDisplayTour",
             login="pos_user",
         )
 
     def test_customer_display_scroll(self):
+        # The customer-display route requires an active session as well as
+        # the config access_token (a611387f577); open one first.
+        self.main_pos_config.with_user(self.pos_user).open_ui()
         self.start_tour(
-            f"/pos_customer_display/{self.main_pos_config.id}/{self.main_pos_config.access_token}",
+            f"/pos_customer_display/{self.main_pos_config.id}/display-test-device"
+            f"?access_token={self.main_pos_config.access_token}",
             "CustomerDisplayTourScroll",
             login="pos_user",
         )
 
     def test_customer_display_with_qr(self):
+        # The customer-display route requires an active session as well as
+        # the config access_token (a611387f577); open one first.
+        self.main_pos_config.with_user(self.pos_user).open_ui()
         self.start_tour(
-            f"/pos_customer_display/{self.main_pos_config.id}/{self.main_pos_config.access_token}",
+            f"/pos_customer_display/{self.main_pos_config.id}/display-test-device"
+            f"?access_token={self.main_pos_config.access_token}",
             "CustomerDisplayTourWithQr",
             login="pos_user",
         )

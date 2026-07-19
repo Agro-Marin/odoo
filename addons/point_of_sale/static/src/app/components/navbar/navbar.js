@@ -13,7 +13,7 @@ import { SyncPopup } from "@point_of_sale/app/components/popups/sync_popup/sync_
 import { QrCodeCustomerDisplay } from "@point_of_sale/app/customer_display/customer_display_qr_code_popup";
 import { useAsyncLockedMethod } from "@point_of_sale/app/hooks/hooks";
 import { usePos } from "@point_of_sale/app/hooks/pos_hook";
-import { uuidv4 } from "@point_of_sale/utils";
+import { getDeviceUuid } from "@point_of_sale/utils";
 import { isBarcodeScannerSupported } from "@web/components/barcode/barcode_video_scanner";
 import { Dropdown } from "@web/components/dropdown/dropdown";
 import { DropdownItem } from "@web/components/dropdown/dropdown_item";
@@ -150,12 +150,6 @@ export class Navbar extends Component {
     }
 
     openCustomerDisplay() {
-        const getDeviceUuid = () => {
-            if (!localStorage.getItem("device_uuid")) {
-                localStorage.setItem("device_uuid", uuidv4());
-            }
-            return localStorage.getItem("device_uuid");
-        };
         // Carry the config access_token so the public customer-display route
         // can authenticate the caller instead of serving its payload to any
         // enumerable id (t23962 / R6-3).
