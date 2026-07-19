@@ -9,6 +9,11 @@ _build/
 !.mailmap
 !.weblate.json
 !.pre-commit-config.yaml
+# Prettier config/ignore: these must be tracked or the standalone
+# `prettier` CLI silently falls back to its defaults (2-space, 80 cols),
+# which contradict the prettier/prettier rule options in eslint.config.mjs.
+!.prettierrc.json
+!.prettierignore
 # compiled python files
 *.py[co]
 __pycache__/

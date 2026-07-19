@@ -117,7 +117,13 @@ export class PosOrderAccounting extends Base {
             : amount;
     }
     get shouldRoundChange() {
-        return this.config.cash_rounding;
+        // Gate on whether THIS order is actually rounded, not on the raw config
+        // flag. `cash_rounding` alone ignores `only_round_cash_method` and the
+        // absence of any cash line, so a card-only order whose total was left
+        // unrounded (orderIsRounded === false, appliedRounding === 0) still had
+        // its change rounded — shorting the customer a cent that nothing in the
+        // accounting entry accounted for.
+        return this.orderIsRounded;
     }
     get orderIsRounded() {
         const cashPm = this.payment_ids.some((p) => p.payment_method_id.is_cash_count);
@@ -224,7 +230,13 @@ export class PosOrderAccounting extends Base {
     setOrderPrices() {
         this.amount_paid = this.amountPaid; // Already rounded by the getter
         this.amount_tax = this.amountTaxes; // Already rounded by the getter
-        this.amount_total = this.currency.round(this.priceIncl);
+        // `totalDue`, not `priceIncl`: Python stores the POST-cash-rounding
+        // total (pos_order.py `_compute_prices` -> total_amount_currency), and
+        // `_compute_prices` is not re-run on the create path unless
+        // amount_return != 0. Writing the pre-rounding `priceIncl` therefore
+        // persisted a total one rounding step below amount_paid on every
+        // exactly-paid rounded order, leaving a permanent amount_difference.
+        this.amount_total = this.currency.round(this.totalDue);
         this.amount_return = this.change; // Already rounded by the getter
         this.lines.forEach((line) => {
             line.price_subtotal = line.priceExcl;
@@ -267,8 +279,17 @@ export class PosOrderAccounting extends Base {
             const dData = data.baseLineByLineUuids[key].tax_details;
 
             Object.assign(data.baseLineByLineUuids[key].tax_details, {
+                // Follow the display mode and the order sign, exactly like the
+                // line's own displayPrice/priceIncl getters. Hard-wiring the
+                // tax-INCLUDED delta made the receipt's "Discounts" total
+                // disagree with the per-line figures in tax-excluded display
+                // mode (lines showed 1000 -> 900 while the total read 125), and
+                // left it positive on refunds where every other amount flips.
                 discount_amount: currency.round(
-                    ndData.total_included - dData.total_included,
+                    (this.config.iface_tax_included === "total"
+                        ? ndData.total_included - dData.total_included
+                        : ndData.total_excluded - dData.total_excluded) *
+                        this.orderSign,
                 ),
                 no_discount_total_excluded: ndData.total_excluded,
                 no_discount_total_included: ndData.total_included,

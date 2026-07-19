@@ -1,0 +1,42 @@
+# Mirrors the ignore set in eslint.config.mjs so the standalone `prettier` CLI
+# and `eslint` (which runs prettier via the prettier/prettier rule) agree on
+# exactly which files they format. Keep the two lists in sync when either moves.
+#
+# NB: prettier's own formatting options live in .prettierrc.json and mirror the
+# `prettier/prettier` rule options in eslint.config.mjs. Without that file the
+# CLI silently fell back to its defaults (2-space, 80 cols), disagreed with
+# eslint on ~60 point_of_sale files alone, and reformatting with it produced
+# pure churn that contradicted the repo style.
+
+# Vendored third-party libraries (not our code). By convention vendored code
+# lives under <module>/static/lib and nowhere else.
+**/static/lib/**
+# hoot is first-party despite living under web/static/lib (historical).
+!addons/web/static/lib/hoot/**
+# Vendored bundle that predates the convention.
+addons/spreadsheet/static/src/o_spreadsheet/o_spreadsheet.js
+
+# Legacy code (only top-level adapters are linted)
+addons/web/static/src/legacy/**
+!addons/web/static/src/legacy/*.js
+web_enterprise/static/src/legacy/**
+!web_enterprise/static/src/legacy/*.js
+web_studio/static/src/legacy/**
+!web_studio/static/src/legacy/*.js
+web_cohort/static/src/legacy/**
+web_gantt/static/src/legacy/**
+web_map/static/src/legacy/**
+addons/base_import/static/src/legacy/**
+
+# Legacy tests
+addons/web/static/tests/**/legacy/*
+web_enterprise/static/tests/**/legacy/*
+web_studio/static/tests/**/legacy/*
+web_cohort/static/tests/legacy/**
+web_gantt/static/tests/legacy/**
+web_map/static/tests/legacy/**
+
+# Hand-formatted HTML-fixture test with inline `/* eslint-disable */` blocks
+# placed mid-expression; Prettier mangles those into invalid JS. Matches the
+# deliberate `prettier/prettier: "off"` override in eslint.config.mjs.
+**/html_editor/static/tests/columnize.test.js

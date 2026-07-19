@@ -14,8 +14,8 @@ export class DataServiceOptions {
         const orderIsPurgeable = (order) =>
             Boolean(
                 order?.finalized &&
-                    order.isSynced &&
-                    order.session_id?.id !== parseInt(odoo.pos_session_id),
+                order.isSynced &&
+                order.session_id?.id !== parseInt(odoo.pos_session_id),
             );
         return {
             "pos.order": {

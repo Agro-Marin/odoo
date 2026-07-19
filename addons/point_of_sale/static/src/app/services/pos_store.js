@@ -1406,7 +1406,21 @@ export class PosStore extends WithLazyGetterTrap {
         }
 
         if (this.config.use_presets && !data["preset_id"]) {
-            this.selectPreset(this.config.default_preset_id, order);
+            // createNewOrder is synchronous by contract (callers use the
+            // returned order immediately), so this cannot be awaited — but it
+            // must not be an unhandled rejection either. selectPreset only
+            // awaits when the preset needs a partner/timing dialog.
+            Promise.resolve(
+                this.selectPreset(this.config.default_preset_id, order),
+            ).catch((error) => {
+                logPosMessage(
+                    "Store",
+                    "createNewOrder",
+                    "Could not apply the default preset to the new order",
+                    CONSOLE_COLOR,
+                    [error],
+                );
+            });
         }
 
         return order;
@@ -1716,7 +1730,18 @@ export class PosStore extends WithLazyGetterTrap {
             // In that case we assume the order data isn't valid anymore, so we
             // try to read data from server, to be sure to have the latest state
             // the order can be deleted from the server side during the sync_from_ui call
-            this.deviceSync.readDataFromServer();
+            // Deliberately not awaited (the sync result is already returned to
+            // the caller) but never unhandled: a rejection here used to surface
+            // as a global unhandled-rejection dialog mid-transaction.
+            this.deviceSync.readDataFromServer().catch((error) => {
+                logPosMessage(
+                    "Store",
+                    "syncAllOrders",
+                    "Could not refresh data after a failed order sync",
+                    CONSOLE_COLOR,
+                    [error],
+                );
+            });
         }
 
         if (newSession) {
@@ -2090,6 +2115,13 @@ export class PosStore extends WithLazyGetterTrap {
     // Now the printer should work in PoS without restaurant
     async sendOrderInPreparation(order, opts = {}) {
         let isPrinted = false;
+        // A failure to *produce* the change set (not merely to reach a printer)
+        // must not advance the preparation baseline: updateLastOrderChange()
+        // rewrites order.last_order_preparation_change, which is exactly what
+        // changesToOrder() diffs against. Advancing it after a swallowed
+        // exception made the pending items vanish from every subsequent
+        // computation — the kitchen never received them and never would.
+        let changeSetFailed = false;
 
         if (this.config.printerCategories.size && !opts.byPassPrint) {
             try {
@@ -2109,7 +2141,14 @@ export class PosStore extends WithLazyGetterTrap {
 
                 let shouldPrint = true;
                 if (!hasChanges) {
-                    if (opts.explicitReprint && order.uiState.lastPrints) {
+                    // `.length`, not truthiness: lastPrints is initialised to
+                    // [], which is truthy, so an explicit reprint of an order
+                    // this device never printed itself (e.g. one sent to
+                    // preparation from another device, whose baseline arrives
+                    // from the server while lastPrints stays empty) produced
+                    // `[undefined]` and threw inside generateOrderChange —
+                    // swallowed below, so the button silently did nothing.
+                    if (opts.explicitReprint && order.uiState.lastPrints?.length) {
                         orderChange = [order.uiState.lastPrints.at(-1)];
                         reprint = true;
                     } else {
@@ -2128,6 +2167,7 @@ export class PosStore extends WithLazyGetterTrap {
                     isPrinted = await this.printChanges(order, orderChange, reprint);
                 }
             } catch (e) {
+                changeSetFailed = true;
                 logPosMessage(
                     "Store",
                     "sendOrderInPreparation",
@@ -2137,7 +2177,9 @@ export class PosStore extends WithLazyGetterTrap {
                 );
             }
         }
-        order.updateLastOrderChange();
+        if (!changeSetFailed) {
+            order.updateLastOrderChange();
+        }
         // Ensure that other devices are aware of the changes
         // Otherwise several devices can print the same changes
         // We need to check if a preparation display is configured to avoid unnecessary sync
@@ -2407,7 +2449,14 @@ export class PosStore extends WithLazyGetterTrap {
         const data = await makeAwaitable(this.dialog, PresetSlotsPopup);
         if (data) {
             if (order.preset_id?.id !== data.presetId) {
-                await this.selectPreset(this.models["pos.preset"].get(data.presetId));
+                // Pass `order` explicitly: omitting it fell back to getOrder(),
+                // which is NOT this order during createNewOrder (selectedOrderUuid
+                // is only set after it returns), so changing the preset inside the
+                // slots popup reconfigured the previously selected order instead.
+                await this.selectPreset(
+                    this.models["pos.preset"].get(data.presetId),
+                    order,
+                );
             }
 
             order.preset_time = data.slot.datetime;
@@ -2904,9 +2953,22 @@ export class PosStore extends WithLazyGetterTrap {
         await validation.validateOrder(false);
     }
 
-    clickSaveOrder() {
-        this.syncAllOrders({ orders: [this.getOrder()] });
-        this.notification.add(_t("Order saved for later"), { type: "success" });
+    async clickSaveOrder() {
+        const order = this.getOrder();
+        // Queue BEFORE pushing. syncAllOrders({orders}) bypasses getPendingOrder(),
+        // so without this the order is not in the retry queue if the push fails —
+        // and _syncAllOrders *returns* (never throws) a ConnectionLostError when
+        // offline, so the failure was invisible and the success toast was a lie.
+        this.addPendingOrder([order.id]);
+        const result = await this.syncAllOrders({ orders: [order] });
+        if (result instanceof ConnectionLostError) {
+            this.notification.add(
+                _t("Order saved locally. It will be sent once you are back online."),
+                { type: "warning" },
+            );
+        } else {
+            this.notification.add(_t("Order saved for later"), { type: "success" });
+        }
         this.setOrder(this.getEmptyOrder());
         this.mobile_pane = "right";
     }

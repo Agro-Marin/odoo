@@ -9,7 +9,30 @@ import { session } from "@web/session";
  * https://stackoverflow.com/questions/105034/create-guid-uuid-in-javascript
  * */
 export function uuidv4() {
-    // mainly for jest and other browsers that do not have the crypto functionality
+    // Prefer the CSPRNG. These uuids are not only record keys: pos.order's
+    // access_token is minted from one, and it is the sole credential for the
+    // public /pos/ticket/validate route. Math.random (V8: xorshift128+) is not
+    // a CSPRNG and its output is not a safe basis for a security token.
+    // The Math.random branch below is kept only as a last-resort fallback for
+    // runtimes without crypto (it is never reached in a browser POS session).
+    if (typeof crypto !== "undefined") {
+        if (typeof crypto.randomUUID === "function") {
+            return crypto.randomUUID();
+        }
+        if (typeof crypto.getRandomValues === "function") {
+            const bytes = crypto.getRandomValues(new Uint8Array(16));
+            bytes[6] = (bytes[6] & 0x0f) | 0x40; // version 4
+            bytes[8] = (bytes[8] & 0x3f) | 0x80; // variant 10xx
+            const hex = [...bytes].map((b) => b.toString(16).padStart(2, "0"));
+            return [
+                hex.slice(0, 4).join(""),
+                hex.slice(4, 6).join(""),
+                hex.slice(6, 8).join(""),
+                hex.slice(8, 10).join(""),
+                hex.slice(10, 16).join(""),
+            ].join("-");
+        }
+    }
     return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, function (c) {
         const r = (Math.random() * 16) | 0,
             v = c === "x" ? r : (r & 0x3) | 0x8;

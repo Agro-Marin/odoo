@@ -1,5 +1,3 @@
-import { patch } from "@web/core/utils/patch";
-import { hootPosModels } from "@point_of_sale/../tests/unit/data/generate_model_definitions";
 import { models } from "@web/../tests/web_test_helpers";
 
 export class HrEmployee extends models.ServerModel {
@@ -35,4 +33,3 @@ export class HrEmployee extends models.ServerModel {
         return records;
     }
 }
-patch(hootPosModels, [...hootPosModels, HrEmployee]);

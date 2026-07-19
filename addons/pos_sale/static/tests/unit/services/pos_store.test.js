@@ -1,12 +1,12 @@
-import { test, expect, describe } from "@odoo/hoot";
-import { setupPosEnv, getFilledOrder } from "@point_of_sale/../tests/unit/utils";
+import { describe, expect, test } from "@odoo/hoot";
 import { click, waitFor } from "@odoo/hoot-dom";
-import { mountWithCleanup } from "@web/../tests/web_test_helpers";
-import { ProductScreen } from "@point_of_sale/app/screens/product_screen/product_screen";
+import { getFilledOrder, setupPosEnv } from "@point_of_sale/../tests/unit/utils";
 import { Orderline } from "@point_of_sale/app/components/orderline/orderline";
-import { definePosModels } from "@point_of_sale/../tests/unit/data/generate_model_definitions";
+import { ProductScreen } from "@point_of_sale/app/screens/product_screen/product_screen";
+import { definePosSaleModels } from "@pos_sale/../tests/unit/data/generate_model_definitions";
+import { mountWithCleanup } from "@web/../tests/web_test_helpers";
 
-definePosModels();
+definePosSaleModels();
 
 describe("onClickSaleOrder", () => {
     test("no selection → abort", async () => {
@@ -110,7 +110,8 @@ describe("onClickSaleOrder", () => {
         });
 
         const saleOrderInfo = ".orderline .info-list .sale-order-info";
-        const cell = (tr, td) => `${saleOrderInfo} tr:nth-child(${tr}) td:nth-child(${td})`;
+        const cell = (tr, td) =>
+            `${saleOrderInfo} tr:nth-child(${tr}) td:nth-child(${td})`;
 
         expect(comp.line).toEqual(currentOrder.lines[2]);
         expect(`${saleOrderInfo} tr`).toHaveCount(4);
@@ -164,7 +165,8 @@ describe("onClickSaleOrder", () => {
         });
 
         const saleOrderInfo = ".orderline .info-list .sale-order-info";
-        const cell = (tr, td) => `${saleOrderInfo} tr:nth-child(${tr}) td:nth-child(${td})`;
+        const cell = (tr, td) =>
+            `${saleOrderInfo} tr:nth-child(${tr}) td:nth-child(${td})`;
 
         expect(comp.line).toEqual(currentOrder.lines[2]);
         expect(`${saleOrderInfo} tr`).toHaveCount(4);

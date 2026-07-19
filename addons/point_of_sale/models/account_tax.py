@@ -52,11 +52,20 @@ class AccountTax(models.Model):
         # this, a tax used only by an open-session order stayed deletable, and
         # deleting it left the session-closing entry computed without a tax that
         # was already collected from the customer — a fiscal under-declaration.
-        # Restores upstream behavior dropped in the fork; see t23802.
+        # Restores upstream behavior dropped in the fork; see t23802. Upstream
+        # 19.0 settled the same question in a2e47c4b0f1, which kept the block
+        # and fixed its POS flow test to archive the tax instead of deleting it
+        # — archiving is the supported way to retire a tax that is in use.
         used_taxes = super()._hook_compute_is_used(tax_to_compute)
         tax_to_compute -= used_taxes
         if tax_to_compute:
             self.env["pos.order.line"].flush_model(["tax_ids"])
+            # `= ANY(%s)` over a list, not `IN %s` over a tuple: this fork runs
+            # psycopg3, which adapts a tuple as a composite row rather than an
+            # IN-list, so the tuple form raised `syntax error at or near "$1"`.
+            # That aborted _compute_is_used for every tax, which broke
+            # TestPoSCommon.setUpClass (_create_taxes) and with it the whole
+            # point_of_sale Python test suite. Mirrors the write() guard above.
             self.env.cr.execute(
                 """
                 SELECT id
@@ -64,11 +73,11 @@ class AccountTax(models.Model):
                 WHERE EXISTS(
                     SELECT 1
                     FROM account_tax_pos_order_line_rel AS pos
-                    WHERE account_tax_id IN %s
+                    WHERE pos.account_tax_id = ANY(%s)
                       AND account_tax.id = pos.account_tax_id
                 )
                 """,
-                [tuple(tax_to_compute)],
+                [list(tax_to_compute)],
             )
             used_taxes.update(tax[0] for tax in self.env.cr.fetchall())
         return used_taxes
