@@ -230,6 +230,19 @@ export class WebChatter extends Chatter {
             return;
         }
         const thread = this.state.thread;
+        // The record observer fires updateRecipients on *every* field change, and
+        // a recipient field stays in _changes until save, so unrelated edits (e.g.
+        // typing the body) otherwise re-issued this RPC with identical inputs.
+        // Skip when the (thread, partnerIds, email) inputs are unchanged. Keyed on
+        // thread so a record switch still fetches.
+        const queryKey = JSON.stringify({
+            threadId: thread?.localId,
+            partnerIds: [...partnerIds].sort((a, b) => a - b),
+            email: email || null,
+        });
+        if (queryKey === this._lastRecipientsQueryKey) {
+            return;
+        }
         const recipients = await this.keepLastSuggestedRecipientsUpdate.add(
             rpc("/mail/thread/recipients/get_suggested_recipients", {
                 thread_model: this.props.threadModel,
@@ -244,6 +257,10 @@ export class WebChatter extends Chatter {
         if (status(this) === "destroyed" || !this.state.thread?.eq(thread)) {
             return;
         }
+        // Only remember the key once the matching result has actually landed on
+        // this thread, so a discarded (superseded / thread-switched) response
+        // doesn't suppress a later identical query.
+        this._lastRecipientsQueryKey = queryKey;
         this.state.thread.suggestedRecipients = recipients.map((result) => ({
             display_name: result.display_name,
             email: result.email,
