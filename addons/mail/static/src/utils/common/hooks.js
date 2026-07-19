@@ -292,12 +292,12 @@ export function useOnBottomScrolled(refName, callback, threshold = 1) {
             callback();
         }
     }
-    onMounted(() => {
-        ref.el?.addEventListener("scroll", onScroll);
-    });
-    onWillUnmount(() => {
-        ref.el?.removeEventListener("scroll", onScroll);
-    });
+    // Bind through useLazyExternalListener so the listener (re)attaches when the
+    // scroll target appears or changes. Binding once in onMounted missed a
+    // target rendered behind a t-if (e.g. gif_picker's scroller): ref.el was
+    // null at mount and the listener was never attached, silently breaking
+    // infinite scroll.
+    useLazyExternalListener(() => ref.el, "scroll", onScroll);
 }
 
 /**

@@ -95,7 +95,11 @@ function _loadScriptProcessor(
 
     // timing variables
     const intervalInFrames = (processInterval / 1000) * analyser.context.sampleRate;
-    let nextUpdateFrame = processInterval;
+    // Count down in frames (onaudioprocess decrements by bitSize per block and
+    // re-adds intervalInFrames), so seed it in frames too. Seeding with the raw
+    // processInterval (a millisecond value) made the very first tic fire one
+    // audio block in (~21ms) instead of after processInterval.
+    let nextUpdateFrame = intervalInFrames;
 
     // process variables
     let activityBuffer = 0;
