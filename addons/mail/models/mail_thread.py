@@ -1552,13 +1552,16 @@ class MailThread(models.AbstractModel):
         return False
 
     @api.model
-    def _detect_write_to_catchall(self, msg_dict):
-        """Return True if directly contacts catchall."""
-        # Note: tweaked in stable to avoid doing two times same search due to bugfix
-        # (see odoo/odoo#161782), to clean when reaching master
-        if self.env.context.get("mail_catchall_aliases"):
-            catchall_aliases = self.env.context["mail_catchall_aliases"]
-        else:
+    def _detect_write_to_catchall(self, msg_dict, catchall_aliases=None, match_any=False):
+        """Return True if directly contacts catchall.
+
+        :param catchall_aliases: pre-fetched catchall emails to test against; if
+          None they are fetched here. Callers that already have them (message
+          routing) pass them to avoid a redundant search.
+        :param bool match_any: if True, match when *any* recipient is a catchall;
+          otherwise (legacy strict) only when *all* recipients are catchall.
+        """
+        if catchall_aliases is None:
             catchall_aliases = (
                 self.env["mail.alias.domain"].search([]).mapped("catchall_email")
             )
@@ -1566,7 +1569,7 @@ class MailThread(models.AbstractModel):
         email_to_list = [email_normalize(e) or e for e in email_split(msg_dict["to"])]
         # check it does not directly contact catchall; either (legacy) strict aka
         # all TOs belong are catchall, either (optional) any catchall in all TOs
-        if self.env.context.get("mail_catchall_write_any_to"):
+        if match_any:
             return catchall_aliases and any(
                 email_to in catchall_aliases for email_to in email_to_list
             )
@@ -1843,13 +1846,14 @@ class MailThread(models.AbstractModel):
         catchall_aliases = (
             self.env["mail.alias.domain"].search([]).mapped("catchall_email")
         )
-        self = self.with_context(mail_catchall_aliases=catchall_aliases)
         if rcpt_tos_list:
             # no route found for a matching reference (or reply), so parent is invalid
             message_dict.pop("parent_id", None)
 
             # check it does not directly contact catchall
-            if self._detect_write_to_catchall(message_dict):
+            if self._detect_write_to_catchall(
+                message_dict, catchall_aliases=catchall_aliases
+            ):
                 _logger.info(
                     "Routing mail from %s to %s with Message-Id %s: direct write to catchall, bounce",
                     email_from,
@@ -1926,9 +1930,9 @@ class MailThread(models.AbstractModel):
                 return [route]
 
         # 4. Recipients contain catchall and unroutable emails -> bounce
-        if rcpt_tos_list and self.with_context(
-            mail_catchall_write_any_to=True
-        )._detect_write_to_catchall(message_dict):
+        if rcpt_tos_list and self._detect_write_to_catchall(
+            message_dict, catchall_aliases=catchall_aliases, match_any=True
+        ):
             _logger.info(
                 "Routing mail from %s to %s with Message-Id %s: write to catchall + other unroutable emails, bounce",
                 email_from,
