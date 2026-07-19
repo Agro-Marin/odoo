@@ -177,7 +177,17 @@ export function makeCleanupManager(defaultCleanupFn) {
      */
     const cleanup = () => {
         while (cleanups.length) {
-            cleanups.pop()();
+            try {
+                cleanups.pop()();
+            } catch (error) {
+                // Per-entry isolation: the stack is LIFO, so the entries pushed
+                // earliest — `controller.abort()` (which unbinds every window
+                // listener) and the default state reset — pop LAST. One throwing
+                // cleanup (a restore on a since-detached node, a consumer's
+                // addCleanup) would otherwise strand exactly the two that matter
+                // most, and skip re-arming `defaultCleanupFn` below.
+                console.error(error);
+            }
         }
         add(defaultCleanupFn);
     };
