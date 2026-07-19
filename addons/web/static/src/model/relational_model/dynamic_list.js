@@ -116,6 +116,21 @@ export class DynamicList extends DataPoint {
         return true;
     }
 
+    /**
+     * Number of records matching the domain.
+     *
+     * For a flat list this is simply ``count``, but ``DynamicGroupList``
+     * overrides ``count`` to mean the number of GROUPS (see its ``_setData``).
+     * Any bulk-operation guard that reasons about how many *records* the user
+     * selected must read this getter, never ``count`` directly — otherwise the
+     * comparison silently degrades to "records vs groups" on a grouped list.
+     *
+     * @returns {number}
+     */
+    get recordCount() {
+        return this.count;
+    }
+
     get limit() {
         return this.config.limit;
     }
@@ -335,11 +350,11 @@ export class DynamicList extends DataPoint {
         if (
             this.isDomainSelected &&
             resIds.length === this.model.activeIdsLimit &&
-            resIds.length < this.count
+            resIds.length < this.recordCount
         ) {
             const msg = _t(
                 "Only the first %(count)s records have been deleted (out of %(total)s selected)",
-                { count: resIds.length, total: this.count },
+                { count: resIds.length, total: this.recordCount },
             );
             this.model.hooks.ui.onDisplayLimitNotification(msg);
         }
@@ -681,12 +696,12 @@ export class DynamicList extends DataPoint {
         if (
             this.isDomainSelected &&
             resIds.length === this.model.activeIdsLimit &&
-            resIds.length < this.count
+            resIds.length < this.recordCount
         ) {
             const msg = _t(
                 "Of the %(selectedRecords)s selected records, only the first %(firstRecords)s have been archived/unarchived.",
                 {
-                    selectedRecords: this.count,
+                    selectedRecords: this.recordCount,
                     firstRecords: resIds.length,
                 },
             );
