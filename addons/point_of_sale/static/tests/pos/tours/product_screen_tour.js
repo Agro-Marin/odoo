@@ -631,7 +631,7 @@ registry.category("web_tour.tours").add("PosCustomerAllFieldsDisplayed", {
             {
                 isActive: ["mobile"],
                 content: `Click search field`,
-                trigger: `.fa-search.undefined`,
+                trigger: `.fa-magnifying-glass`,
                 run: `click`,
             },
             {

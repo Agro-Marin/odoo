@@ -684,7 +684,7 @@ export function searchProduct(string) {
         {
             isActive: ["mobile"],
             content: `Click search field`,
-            trigger: `.fa-search`,
+            trigger: `.fa-magnifying-glass`,
             run: `click`,
         },
         {

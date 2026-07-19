@@ -25,8 +25,8 @@
                         <div class="row">
                             <div class="col-12">
                                 <ul>
-                                    <t t-foreach="pos_order.lines" t-as="line_ids">
-                                        <li><t t-out="int(order_line.qty)"/> <t t-out="line_ids.full_product_name"/> for <t t-out="format_amount(env, order_line.price_subtotal_incl, order_line.currency_id)"/></li>
+                                    <t t-foreach="pos_order.lines" t-as="order_line">
+                                        <li><t t-out="int(order_line.qty)"/> <t t-out="order_line.full_product_name"/> for <t t-out="format_amount(env, order_line.price_subtotal_incl, order_line.currency_id)"/></li>
                                     </t>
                                 </ul>
                             </div>

@@ -910,6 +910,18 @@ export class PosStore extends WithLazyGetterTrap {
         let merge = true;
         order.assertEditable();
 
+        // Flush any buffered numpad input BEFORE a new line exists.
+        // number_buffer debounces keys for maxTimeBetweenKeys (150ms with
+        // useWithBarcode) and resolves its target with getSelectedOrderline()
+        // at FLUSH time, not at key-press time. Tapping a product within that
+        // window therefore applied the pending keys to the line that was just
+        // added instead of the one they were typed against: press backspace
+        // twice to clear a quantity, immediately tap another product, and the
+        // flush deletes the NEW line while the old one survives. capture() is
+        // already called on the numpad (product_screen.onNumpadClick) and
+        // payment paths; the product-add path was the gap.
+        this.numberBuffer?.capture();
+
         const options = {
             ...opts,
         };
