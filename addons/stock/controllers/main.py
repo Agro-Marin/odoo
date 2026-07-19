@@ -12,10 +12,11 @@ class StockReportController(http.Controller):
         [
             "/stock/<string:output_format>",
             # Legacy path: the trailing report-name segment was never consumed
-            # server-side, but it is still baked into the URLs built by
-            # data/stock_traceability_report_data.xml and
-            # stock_traceability_report_backend.js ("/stock/pdf/stock"), so it
-            # stays routable (and ignored) until those builders are updated.
+            # server-side. The in-tree builders (stock_traceability_report_data.xml,
+            # stock_traceability_report_backend.js) now use the canonical form,
+            # but stored copies of the client action in existing databases
+            # (Studio duplicates, saved contexts) may still carry it, so it
+            # stays routable (and ignored).
             "/stock/<string:output_format>/<string:report_name>",
         ],
         type="http",

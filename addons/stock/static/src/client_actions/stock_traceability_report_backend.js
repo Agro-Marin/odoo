@@ -139,7 +139,7 @@ export class TraceabilityReport extends Component {
                 // Must carry the :active_id/:active_model placeholders that
                 // onClickPrint() substitutes; without them Print builds a broken
                 // URL (see stock_traceability_report_data.xml for the canonical form).
-                url: "/stock/output_format/stock?active_id=:active_id&active_model=:active_model",
+                url: "/stock/output_format?active_id=:active_id&active_model=:active_model",
             },
         });
     }
