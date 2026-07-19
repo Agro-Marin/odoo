@@ -326,6 +326,20 @@ test("trigger a ServerOverloadError when response carries a non-JSON content-typ
     await expect(rpc("/test/")).rejects.toThrow(ServerOverloadError);
 });
 
+test("502/503/504 proxy statuses are ServerOverloadError (earn the backoff floor)", async () => {
+    // 503 is the canonical "back off" status; classifying it as
+    // ServerOverloadError (still a ConnectionLostError, so the reconnect UX is
+    // unchanged) makes retries honour SERVER_OVERLOAD_BACKOFF_FLOOR_MS instead
+    // of thundering the recovering backend on the short default schedule.
+    for (const status of [502, 503, 504]) {
+        mockFetch(() => new Response("", { status }));
+        const error = await rpc("/test/").catch((e) => e);
+        expect(error).toBeInstanceOf(ServerOverloadError);
+        expect(error).toBeInstanceOf(ConnectionLostError);
+        expect(error.status).toBe(status);
+    }
+});
+
 test("ServerOverloadError is also a ConnectionLostError (backward compatibility)", async () => {
     // Existing callers catching ``instanceof ConnectionLostError`` must
     // continue to match the subclass — this contract is load-bearing for
@@ -937,6 +951,57 @@ test("Cache: aborting a cache joiner rejects only that caller", async () => {
     // When the shared fetch completes, the initiator resolves normally.
     fetchDef.resolve({ result: { ok: 1 } });
     expect(await initiator).toEqual({ ok: 1 });
+});
+
+test("Cache: aborting a joiner stops its update:'always' callback firing after teardown", async () => {
+    // Regression: an ``update: "always"`` joiner registers its callback on the
+    // initiator's shared request. Aborting the joiner (e.g. its component
+    // unmounts) previously left that callback subscribed, so it fired into the
+    // torn-down consumer when the shared request finally resolved. The
+    // initiator's own callback must still fire.
+    rpc.setCache(new RPCCache("mockRpc", 1, RPC_CACHE_SECRET));
+    after(() => rpc.setCache(undefined));
+
+    const fetchDef = new Deferred();
+    let fetchCount = 0;
+    mockFetch(() => {
+        fetchCount++;
+        return fetchDef;
+    });
+
+    const initiator = rpc(
+        "/test/",
+        {},
+        {
+            cache: {
+                update: "always",
+                callback: () => expect.step("initiator callback"),
+            },
+        },
+    );
+    const joiner = rpc(
+        "/test/",
+        {},
+        {
+            cache: { update: "always", callback: () => expect.step("joiner callback") },
+        },
+    );
+    joiner.catch(() => {}); // aborted below; swallow its rejection
+
+    await tick();
+    // The joiner shared the initiator's fetch (no second request).
+    expect(fetchCount).toBe(1);
+
+    // Joiner tears down and aborts before the shared request resolves.
+    joiner.abort(true);
+    await tick();
+
+    // Shared request resolves and rpc_cache fans out to every callback: only
+    // the still-mounted initiator's callback runs; the joiner's is suppressed.
+    fetchDef.resolve({ result: { ok: 1 } });
+    expect(await initiator).toEqual({ ok: 1 });
+    await tick();
+    expect.verifySteps(["initiator callback"]);
 });
 
 test("Cache: aborting the initiator rejects it (control)", async () => {

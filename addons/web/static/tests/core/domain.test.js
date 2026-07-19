@@ -309,6 +309,28 @@ describe("Basic Properties", () => {
         expect(new Domain(["!", ["a", "=", 3]]).toList()).toEqual(["!", ["a", "=", 3]]);
     });
 
+    test("flat implicit-AND normalization scales (O(N)) and stays correct", () => {
+        // Regression for the O(N)-rewrite of normalizeDomainAST: N leaves with
+        // no explicit operator normalize to (N-1) leading "&" then the leaves in
+        // order. Exercised at a size that would be painfully O(N^2) under the
+        // old per-segment unshift.
+        const N = 500;
+        const leaves = Array.from({ length: N }, (_, i) => [`f${i}`, "=", i]);
+        const dom = new Domain(leaves);
+        const ast = dom.ast.value;
+        expect(ast.length).toBe(2 * N - 1);
+        // First N-1 tokens are "&" operators...
+        expect(ast.slice(0, N - 1).every((n) => n.value === "&")).toBe(true);
+        // ...followed by the N leaves in their original order.
+        expect(ast[N - 1].value[0].value).toBe("f0");
+        expect(ast.at(-1).value[0].value).toBe(`f${N - 1}`);
+        // And it still evaluates as a plain AND of all leaves.
+        const record = Object.fromEntries(leaves.map(([f, , v]) => [f, v]));
+        expect(dom.contains(record)).toBe(true);
+        record.f7 = 999;
+        expect(dom.contains(record)).toBe(false);
+    });
+
     test("toString", () => {
         expect(new Domain([]).toString()).toBe(`[]`);
         expect(new Domain([["a", "=", 3]]).toString()).toBe(`[("a", "=", 3)]`);
@@ -1049,5 +1071,26 @@ describe("contains: = / in use the py_compare kernel (bool==int, deep eq)", () =
         // An array field value is treated as x2many ids (overlap), so it is NOT
         // equal to a single list value.
         expect(new Domain([["x", "in", [[1, 2]]]]).contains({ x: [1, 2] })).toBe(false);
+    });
+
+    test("('field', '=', False) matches any present falsy value (server parity)", () => {
+        // The server's filtered_domain treats ``field = False`` as a falsiness
+        // check (``not getter(rec)``), so False, 0, "" and null all match — the
+        // interpreter kernel alone missed "" and null (Python ``"" == False`` is
+        // False). Verified against res.partner.filtered_domain.
+        const eq = new Domain([["x", "=", false]]);
+        const ne = new Domain([["x", "!=", false]]);
+        for (const falsy of [false, 0, "", null]) {
+            expect(eq.contains({ x: falsy })).toBe(true);
+            expect(ne.contains({ x: falsy })).toBe(false);
+        }
+        for (const truthy of ["a", 5, true]) {
+            expect(eq.contains({ x: truthy })).toBe(false);
+            expect(ne.contains({ x: truthy })).toBe(true);
+        }
+        // An ABSENT field is NOT coalesced to False (client invariant): it does
+        // not match ``= False`` and is treated as satisfying ``!= False``.
+        expect(eq.contains({})).toBe(false);
+        expect(ne.contains({})).toBe(true);
     });
 });

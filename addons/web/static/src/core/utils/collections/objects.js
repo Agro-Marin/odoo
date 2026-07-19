@@ -333,6 +333,15 @@ export function deepMerge(target, extension) {
     const output = Object.assign({}, target);
     if (isObject(extension)) {
         for (const key of Reflect.ownKeys(extension)) {
+            if (extension[key] === undefined) {
+                // Same rule as the top-level both-non-object branch above: an
+                // ``undefined`` extension value leaves the target's value
+                // intact (use ``null`` to explicitly override to "empty").
+                // Without this, layering a partial options object that carries
+                // an unset field silently wiped the base value it meant to
+                // keep, e.g. deepMerge({icon: "x"}, {icon: undefined}) → {}.
+                continue;
+            }
             // Recurse only when BOTH sides are plain objects. Guarding on
             // ``key in target`` instead let an object-over-primitive merge
             // (e.g. deepMerge({a:1}, {a:{b:2}})) recurse with a primitive

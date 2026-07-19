@@ -75,7 +75,9 @@ const normalizeFormatTable = {
     d: "dd",
     H: "HH",
     I: "hh",
-    j: "o",
+    // Python ``%j`` is the zero-padded 3-digit day of year ("065", "005");
+    // luxon ``o`` is unpadded ("65", "5"), so pad it with ``ooo``.
+    j: "ooo",
     m: "MM",
     M: "mm",
     p: "a",

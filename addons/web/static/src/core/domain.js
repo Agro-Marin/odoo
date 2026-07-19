@@ -137,24 +137,38 @@ export class Domain {
          */
         function computeSubtreeSizes(elements) {
             const sizes = new Array(elements.length).fill(0);
+            // ``fullyRemoved[idx]``: every leaf of the subtree at ``idx`` is in
+            // keysToRemove. It obeys the SAME right-to-left recurrence as
+            // ``sizes``, so computing it in this pass is free and turns
+            // ``isFullyRemoved`` into an O(1) lookup — the previous version
+            // re-walked each connector's whole subtree, O(N²) on a deep chain.
+            const fullyRemoved = new Array(elements.length).fill(false);
             for (let idx = elements.length - 1; idx >= 0; idx--) {
                 const node = elements[idx];
                 if (isDomainLeaf(node)) {
                     sizes[idx] = 1;
+                    fullyRemoved[idx] = keysToRemove.includes(
+                        /** @type {any} */ (node).value[0].value,
+                    );
                 } else if (node.type === ASTType.String) {
                     if (node.value === "!") {
                         sizes[idx] = 1 + sizes[idx + 1];
+                        fullyRemoved[idx] = fullyRemoved[idx + 1];
                     } else if (node.value === "&" || node.value === "|") {
                         const firstSize = sizes[idx + 1];
                         sizes[idx] = 1 + firstSize + sizes[idx + 1 + firstSize];
+                        fullyRemoved[idx] =
+                            fullyRemoved[idx + 1] && fullyRemoved[idx + 1 + firstSize];
                     }
                 }
             }
-            return sizes;
+            return { sizes, fullyRemoved };
         }
 
         /** @type {number[]} */
         let sizes;
+        /** @type {boolean[]} */
+        let fullyRemovedMemo;
 
         /**
          * Return how many AST elements the subtree rooted at ``idx`` spans.
@@ -173,23 +187,8 @@ export class Domain {
          * @returns {boolean}
          */
         function isFullyRemoved(elements, idx) {
-            const node = elements[idx];
-            if (isDomainLeaf(node)) {
-                return keysToRemove.includes(/** @type {any} */ (node).value[0].value);
-            }
-            if (node.type === ASTType.String) {
-                if (node.value === "!") {
-                    return isFullyRemoved(elements, idx + 1);
-                }
-                if (node.value === "&" || node.value === "|") {
-                    const firstSize = subtreeSize(elements, idx + 1);
-                    return (
-                        isFullyRemoved(elements, idx + 1) &&
-                        isFullyRemoved(elements, idx + 1 + firstSize)
-                    );
-                }
-            }
-            return false;
+            // Precomputed in computeSubtreeSizes' single right-to-left pass.
+            return fullyRemovedMemo[idx];
         }
 
         /**
@@ -270,7 +269,9 @@ export class Domain {
         if (!domain.ast.value.length) {
             return domain;
         }
-        sizes = computeSubtreeSizes(domain.ast.value);
+        ({ sizes, fullyRemoved: fullyRemovedMemo } = computeSubtreeSizes(
+            domain.ast.value,
+        ));
         const newDomain = new Domain([]);
         processLeaf(domain.ast.value, 0, "&", newDomain);
         return newDomain;
@@ -459,13 +460,20 @@ function normalizeDomainAST(domain, op = "&") {
     // expression followed by a dangling operator — which the server rejects
     // and which the matching stack machine cannot evaluate.
     /** @type {AST[]} */
-    const values = [];
+    const body = [];
     let expected = 1;
+    // Count implicit-operator joins instead of ``unshift``-ing one operator per
+    // extra segment. Every ``unshift`` targeted position 0, so the operators all
+    // pile up at the very front, followed by the segments in their original push
+    // order — the two loops below rebuild that exact flat prefix form in O(N)
+    // (the old per-segment ``unshift`` was O(N²) on a flat implicit-AND domain,
+    // e.g. many search filters or combined access-rule domains).
+    let joins = 0;
     for (const child of domain.value) {
         if (expected === 0) {
             // The expression is already complete: join the extra segment
             // with the implicit operator, as in [leaf, leaf] ≡ ["&", leaf, leaf].
-            values.unshift({ type: ASTType.String, value: op });
+            joins++;
             expected = 1;
         }
         switch (child.type) {
@@ -486,12 +494,20 @@ function normalizeDomainAST(domain, op = "&") {
             default:
                 throw new InvalidDomainError("Invalid domain AST");
         }
-        values.push(child);
+        body.push(child);
     }
     if (expected > 0) {
         throw new InvalidDomainError(
             `invalid domain ${formatAST(domain)} (missing ${expected} segment(s))`,
         );
+    }
+    /** @type {AST[]} */
+    const values = new Array(joins + body.length);
+    for (let i = 0; i < joins; i++) {
+        values[i] = { type: ASTType.String, value: op };
+    }
+    for (let i = 0; i < body.length; i++) {
+        values[joins + i] = body[i];
     }
     return { type: ASTType.List, value: values };
 }
@@ -579,10 +595,20 @@ function matchCondition(record, condition) {
             if (Array.isArray(fieldValue) && Array.isArray(value)) {
                 return shallowEqual(fieldValue, value);
             }
-            if (value === false && Array.isArray(fieldValue)) {
-                // Server semantics: ('x2many', '=', False) matches records
-                // whose relation is empty.
-                return fieldValue.length === 0;
+            if (value === false) {
+                // Server semantics (Field.filter_function normalizes
+                // ``field = False`` to ``in {False}`` → ``not getter(rec)``):
+                // it matches ANY present falsy value — ``False``, ``0``, ``""``
+                // and an empty relation — not just strict equality. The
+                // interpreter kernel alone misses ``""`` (Python ``"" == False``
+                // is False) and ``null``, so an empty char/text field diverged
+                // from the server here. An ABSENT field (``undefined``) stays
+                // unmatched, preserving the ``contains``/``expressionFromTree``
+                // "don't coalesce free variables" invariant (see above).
+                if (Array.isArray(fieldValue)) {
+                    return fieldValue.length === 0;
+                }
+                return fieldValue !== undefined && !fieldValue;
             }
             // Use the interpreter's equality kernel so client-side matching
             // agrees with ``evaluateExpr`` / the server: bool≡int (True == 1)

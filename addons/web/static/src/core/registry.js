@@ -128,9 +128,21 @@ export class Registry extends EventBus {
         /**
          * Null-prototype object prevents false positives from inherited
          * keys like "constructor" or "toString" in contains()/get().
-         * @type {Record<string, [number, GetRegistryItemShape<T>]>}
+         * Each entry is ``[sequence, value, insertionIndex]``; the trailing
+         * insertion index is the deterministic tiebreaker for equal sequences
+         * (see {@link add}).
+         * @type {Record<string, [number, GetRegistryItemShape<T>, number]>}
          */
         this.content = Object.create(null);
+        /**
+         * Monotonic counter stamped onto each inserted entry so equal-sequence
+         * entries order by insertion regardless of key shape. Object key
+         * enumeration alone is not insertion order — integer-like keys ("2",
+         * "10") enumerate in ascending numeric order BEFORE string keys — so
+         * a registry keyed by numeric ids would otherwise reorder ties
+         * unpredictably. @type {number}
+         */
+        this._insertionIndex = 0;
         /** @type {{ [P in keyof GetRegistryCategories<T>]?: Registry<GetRegistryCategories<T>[P]> }} */
         this.subRegistries = {};
         /** @type {GetRegistryItemShape<T>[] | null}*/
@@ -203,7 +215,7 @@ export class Registry extends EventBus {
             previousSequence = elem && elem[0];
         }
         sequence = sequence ?? previousSequence ?? 50;
-        this.content[key] = [sequence, value];
+        this.content[key] = [sequence, value, this._insertionIndex++];
         const payload = { operation: "add", key, value };
         this.trigger("UPDATE", payload);
         return this;
@@ -248,7 +260,10 @@ export class Registry extends EventBus {
     getAll() {
         if (!this.elements) {
             const tuples = Object.values(this.content);
-            tuples.sort((a, b) => a[0] - b[0]);
+            // Sequence first, then insertion index so equal sequences keep
+            // add() order deterministically (Object.values enumeration would
+            // otherwise put integer-like keys ahead of string keys).
+            tuples.sort((a, b) => a[0] - b[0] || a[2] - b[2]);
             const elements = new Array(tuples.length);
             for (let i = 0; i < tuples.length; i++) {
                 elements[i] = tuples[i][1];
@@ -271,7 +286,8 @@ export class Registry extends EventBus {
     getEntries() {
         if (!this.entries) {
             const raw = Object.entries(this.content);
-            raw.sort((a, b) => a[1][0] - b[1][0]);
+            // See getAll(): sequence, then insertion index for stable ties.
+            raw.sort((a, b) => a[1][0] - b[1][0] || a[1][2] - b[1][2]);
             const entries = new Array(raw.length);
             for (let i = 0; i < raw.length; i++) {
                 entries[i] = [raw[i][0], raw[i][1][1]];

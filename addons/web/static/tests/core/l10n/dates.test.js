@@ -58,6 +58,22 @@ test("formatDate/formatDateTime specs", async () => {
     expect(formatDateTime(minus13FromLocalTZ)).toBe("05/04/2009 12:34:56");
 });
 
+test("strftimeToLuxonFormat: %j is the zero-padded 3-digit day of year", () => {
+    // Python ``%j`` pads to 3 digits ("001", "065", "366"); the luxon ``o``
+    // token is unpadded, so the conversion must use ``ooo`` to stay
+    // server-consistent.
+    const luxonJ = strftimeToLuxonFormat("%j");
+    expect(DateTime.fromObject({ year: 2024, month: 1, day: 1 }).toFormat(luxonJ)).toBe(
+        "001",
+    );
+    expect(DateTime.fromObject({ year: 2024, month: 3, day: 5 }).toFormat(luxonJ)).toBe(
+        "065",
+    );
+    expect(
+        DateTime.fromObject({ year: 2024, month: 12, day: 31 }).toFormat(luxonJ),
+    ).toBe("366");
+});
+
 test("formatDate/formatDateTime specs, at midnight", async () => {
     patchWithCleanup(localization, {
         dateFormat: "MM/dd/yyyy",
