@@ -324,21 +324,31 @@ export function makeDraggableHook(hookParams) {
              *  originated from one of the handlers.
              */
             const dragEnd = (target, inErrorState) => {
-                if (state.dragging) {
-                    preventClick = true;
-                    if (!inErrorState) {
-                        if (
-                            target &&
-                            (params.allowDisconnected ||
-                                ctx.current.element.isConnected)
-                        ) {
-                            callBuildHandler("onDrop", { target });
+                try {
+                    if (state.dragging) {
+                        preventClick = true;
+                        if (!inErrorState) {
+                            if (
+                                target &&
+                                (params.allowDisconnected ||
+                                    ctx.current.element.isConnected)
+                            ) {
+                                callBuildHandler("onDrop", { target });
+                            }
+                            callBuildHandler("onDragEnd");
                         }
-                        callBuildHandler("onDragEnd");
                     }
+                } finally {
+                    // Teardown is unconditional by construction. `callBuildHandler`
+                    // — unlike its guarded sibling `callHandler` — does not catch,
+                    // and consumers reach it with their OWN callbacks (e.g.
+                    // nested_sortable invokes `params.isAllowed` directly from
+                    // `_isAllowedNodeMove`). A throw escaping before this point
+                    // left `document.body` carrying `pe-none`/`user-select-none`
+                    // and the window pointer/keydown listeners bound, i.e. a page
+                    // that stays unclickable for the rest of the session.
+                    cleanup.cleanup();
                 }
-
-                cleanup.cleanup();
             };
 
             /**
