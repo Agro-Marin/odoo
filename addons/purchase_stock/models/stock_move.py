@@ -36,7 +36,12 @@ class StockMove(models.Model):
     def _compute_packaging_uom_id(self):
         super()._compute_packaging_uom_id()
         for move in self:
-            if move.purchase_line_id:
+            # Only inherit the order line's UoM when it can convert into the
+            # move's own UoM (see sale_stock for the kit-component rationale);
+            # otherwise keep the move UoM set by super().
+            if move.purchase_line_id and move.product_uom_id._has_common_reference(
+                move.purchase_line_id.product_uom_id
+            ):
                 move.packaging_uom_id = move.purchase_line_id.product_uom_id
 
     @api.depends("purchase_line_id.name")

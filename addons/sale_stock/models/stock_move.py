@@ -47,7 +47,14 @@ class StockMove(models.Model):
     def _compute_packaging_uom_id(self):
         super()._compute_packaging_uom_id()
         for move in self:
-            if move.sale_line_id:
+            # Only inherit the order line's UoM when it can convert into the
+            # move's own UoM. A phantom-BoM (kit) component move carries the
+            # kit line's UoM (e.g. Units) while the component is measured in a
+            # different category (kg/L); inheriting it would make the packaging
+            # quantity unconvertible. Fall back to the move UoM set by super().
+            if move.sale_line_id and move.product_uom_id._has_common_reference(
+                move.sale_line_id.product_uom_id
+            ):
                 move.packaging_uom_id = move.sale_line_id.product_uom_id
 
     @api.depends("sale_line_id")
