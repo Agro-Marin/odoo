@@ -235,6 +235,26 @@ export class ActionManager {
      * @return {Promise<void>}
      */
     async _removeDialog(closeParams, removeFn) {
+        if (removeFn && this.nextDialog && this.nextDialog.remove === removeFn) {
+            // The dialog going away was dispatched but never mounted, so it
+            // still sits in the pending slot. The committed dialog survives
+            // (the identity guard below keeps it), but the ``onClose``
+            // ``_dispatchTargetNew`` stole from it must be handed back and the
+            // slot cleared. Otherwise the committed dialog closes without
+            // running its callback, and the stale ``stolenOnClose`` is
+            // inherited by the NEXT target="new" action.
+            //
+            // ``ControllerComponent``'s onError branch performs the same
+            // recovery for a replacement that crashes; doing it here covers
+            // every way a pending dialog can disappear — notably
+            // ``dialog.closeAll()`` from an inline action dispatched while the
+            // replacement is still loading.
+            if (this.dialog && !this.dialog.onClose) {
+                this.dialog.onClose = this.nextDialog.stolenOnClose;
+            }
+            this.nextDialog = null;
+            return;
+        }
         const dialog = this.dialog;
         if (!dialog || (removeFn && removeFn !== dialog.remove)) {
             return;
@@ -609,7 +629,14 @@ export class ActionManager {
             // yet). _removeDialog's identity guard keeps the committed
             // dialog alive, and the discarded entry's stolen onClose already
             // transferred above.
-            this.nextDialog.remove();
+            //
+            // Vacate the slot BEFORE removing: this is a transfer, not a
+            // discard, and ``_removeDialog``'s hand-back branch must not fire
+            // — it would restore the callback onto the committed dialog while
+            // this dispatch is also carrying it forward, so it would run twice.
+            const superseded = this.nextDialog;
+            this.nextDialog = null;
+            superseded.remove();
         }
         this.nextDialog = {
             remove: removeDialogFn,

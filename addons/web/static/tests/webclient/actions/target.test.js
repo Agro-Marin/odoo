@@ -251,6 +251,59 @@ describe("new", () => {
         expect(".o_technical_modal").toHaveCount(0);
     });
 
+    test("discarded pending replacement hands the committed on_close back", async () => {
+        // `_dispatchTargetNew` steals the committed dialog's onClose into
+        // `nextDialog.stolenOnClose` and deletes it, on the contract that it
+        // rides along to the replacement. But `_removeDialog`'s identity guard
+        // early-returns when the dialog being removed is the PENDING one, so
+        // the slot is never cleared and the callback never handed back.
+        //
+        // Reachable via an inline (target="current") action dispatched while
+        // the replacement is still loading: that runs `dialog.closeAll()`, so
+        // the committed dialog closes with its onClose already gone and the
+        // caller never learns the wizard flow ended.
+        //
+        // The sibling cases are covered above: B superseded by C, and B
+        // crashing (which recovers via ControllerComponent's onError branch).
+        // This is the transition neither covers.
+        const def = new Deferred();
+        class SlowDialogAction extends Component {
+            static template = xml`<div class="slow_dialog_action"/>`;
+            static props = ["*"];
+            setup() {
+                onWillStart(() => def);
+            }
+        }
+        registry.category("actions").add("never_mounts", SlowDialogAction);
+
+        await mountWithCleanup(WebClient);
+        // The point under test is that the callback RUNS at all; the close
+        // params differ by teardown route (an inline action's closeAll passes
+        // its own object, not the `infos` string an explicit act_window_close
+        // carries), so don't couple the assertion to them.
+        await getService("action").doAction(5, {
+            onClose: () => expect.step("committed on_close"),
+        });
+        expect(".o_technical_modal").toHaveCount(1);
+
+        // Dispatch a replacement that never mounts, then close everything with
+        // an inline action while it is still pending.
+        getService("action").doAction({
+            type: "ir.actions.client",
+            tag: "never_mounts",
+            target: "new",
+        });
+        await animationFrame();
+        expect.verifySteps([]);
+
+        await getService("action").doAction(1);
+        await animationFrame();
+        expect(".o_technical_modal").toHaveCount(0);
+        expect.verifySteps(["committed on_close"]);
+
+        def.resolve();
+    });
+
     test("footer buttons are moved to the dialog footer", async () => {
         Partner._views["form"] = `
             <form>
