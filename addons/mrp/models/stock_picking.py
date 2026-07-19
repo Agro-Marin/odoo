@@ -152,21 +152,16 @@ class StockPickingType(models.Model):
         records = super(
             StockPickingType, other_picking_types
         )._get_aggregated_records_by_date()
-        mrp_records = self.env["mrp.production"]._read_group(
-            [
-                ("picking_type_id", "in", production_picking_types.ids),
-                ("state", "=", "confirmed"),
-            ],
-            ["picking_type_id"],
-            ["date_start" + ":array_agg"],
+        counts_by_type = production_picking_types._get_date_category_counts(
+            "mrp.production",
+            "date_start",
+            [("state", "=", "confirmed")],
         )
-        # Make sure that all picking type IDs are represented, even if empty
-        picking_type_id_to_dates = {i: [] for i in production_picking_types.ids}
-        picking_type_id_to_dates.update({r[0].id: r[1] for r in mrp_records})
-        mrp_records = [
-            (i, d, self.env._("Confirmed")) for i, d in picking_type_id_to_dates.items()
+        label = self.env._("Confirmed")
+        return records + [
+            (picking_type_id, counts, label)
+            for picking_type_id, counts in counts_by_type.items()
         ]
-        return records + mrp_records
 
 
 class StockPicking(models.Model):
