@@ -108,7 +108,14 @@ class MailNotification(models.Model):
         messages = self.env["mail.message"].browse(
             vals["mail_message_id"] for vals in vals_list
         )
-        messages.check_access("read")
+        # A notification grants its recipient visibility of — and, through the
+        # message access rules, effective read access to — the message. Minting
+        # one must therefore require the right to *modify* that message (author
+        # or document write access), not merely to read it. Otherwise any user
+        # could forge inbox entries for arbitrary partners and self-grant access
+        # to messages on documents they cannot reach. Every legitimate notify
+        # pipeline creates notifications in sudo, where this check is a no-op.
+        messages.check_access("write")
         for vals in vals_list:
             if vals.get("is_read"):
                 vals["read_date"] = fields.Datetime.now()

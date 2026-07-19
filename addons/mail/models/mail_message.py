@@ -284,7 +284,11 @@ class MailMessage(models.Model):
         "mail.mail", "mail_message_id", string="Mails", groups="base.group_system"
     )
 
-    _model_res_id_idx = models.Index("(model, res_id)")
+    # A single composite index suffices: (model, res_id) is a strict prefix of
+    # (model, res_id, id), so every (model, res_id) lookup uses the 3-column
+    # index just as well, and the 3-column form additionally serves the very
+    # common "... ORDER BY id" chatter fetch. Keeping both only doubled the
+    # write amplification on mail_message, typically the largest table in the DB.
     _model_res_id_id_idx = models.Index("(model, res_id, id)")
 
     @api.depends("body")
@@ -551,6 +555,7 @@ class MailMessage(models.Model):
                     SQL.identifier(self._table, "res_id"),
                     SQL.identifier(self._table, "author_id"),
                     SQL.identifier(self._table, "message_type"),
+                    SQL.identifier(self._table, "create_uid"),
                     SQL(
                         "COALESCE(%s, %s)",
                         SQL.identifier(rel_alias, "res_partner_id"),
@@ -563,9 +568,13 @@ class MailMessage(models.Model):
             chunk_ids = []
             direct_allowed = set()
             model_ids = defaultdict(lambda: defaultdict(set))
-            for id_, model, res_id, author_id, message_type, partner_id in rows:
+            for id_, model, res_id, author_id, message_type, create_uid, partner_id in rows:
                 chunk_ids.append(id_)
-                if pid in (author_id, partner_id):
+                # Mirror _check_access("read"): author, recipient/notified, OR
+                # creator. Without the create_uid check, a message the user
+                # created on behalf of another author was readable by id yet
+                # never returned by search/inbox/chatter fetch (asymmetry).
+                if pid in (author_id, partner_id) or create_uid == self.env.uid:
                     direct_allowed.add(id_)
                 elif model and res_id and message_type != "user_notification":
                     model_ids[model][res_id].add(id_)
@@ -805,9 +814,17 @@ class MailMessage(models.Model):
         if not messages_to_check:
             return forbidden
 
-        # Recipients condition, for read and write (partner_ids)
+        # Recipients condition, for READ only (partner_ids / notifications).
         # keep on top, usefull for systray notifications
-        if operation in ("read", "write"):
+        #
+        # NB: this shortcut is deliberately NOT applied to "write". Being a
+        # recipient (in partner_ids) or having a mail.notification row grants
+        # visibility, not the right to alter another author's message: otherwise
+        # any notified user could rewrite the body/subject of a message they did
+        # not author, on a document they cannot even access. Recipient-side state
+        # (starred, mark-as-read) goes through dedicated sudo'd methods, so
+        # restricting write here breaks nothing legitimate.
+        if operation == "read":
             for mid, message in list(messages_to_check.items()):
                 if message.get("notified"):
                     messages_to_check.pop(mid)
@@ -1797,7 +1814,16 @@ class MailMessage(models.Model):
                                 self.env["ir.model"]._get(thread._name).display_name
                             ),
                         ),
-                        "display_name",
+                        # sudo: this store is built in the *author's* env (see
+                        # _notify_message_notification_update) to render a
+                        # delivery-failure notice. If the author lost access to
+                        # the record since sending (company switch, archived
+                        # access), reading display_name unsudoed would raise
+                        # AccessError *after* the mail was already SMTP-sent,
+                        # flipping its state to 'exception' and causing the queue
+                        # cron to re-send duplicates. A record name the author
+                        # was already associated with is safe to surface here.
+                        Store.Attr("display_name", sudo=True),
                     ],
                     as_thread=True,
                 ),
