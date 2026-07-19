@@ -564,3 +564,31 @@ class TestAuditProductMultiCompany(TransactionCase):
             self.env_b["stock.quant.relocate"].create(
                 {"quant_ids": [Command.set(quants.ids)]},
             )
+
+
+@tagged("post_install", "-at_install")
+class TestAuditLotPreview(TransactionCase):
+    def test_preview_next_lot_does_not_consume(self):
+        """The generator dialog preview must match the next real draw without
+        advancing the sequence (legends interpolated server-side)."""
+        product = self.env["product.product"].create(
+            {"name": "Preview Product", "is_storable": True, "tracking": "serial"},
+        )
+        sequence = self.env["ir.sequence"].create(
+            {"name": "Audit Lot Seq", "prefix": "LOT-%(year)s-", "padding": 4},
+        )
+        product.product_tmpl_id.lot_sequence_id = sequence
+        number_before = sequence.number_next_actual
+        preview = product.preview_next_lot()
+        year = fields.Date.today().year
+        self.assertEqual(preview, f"LOT-{year}-{number_before:04d}")
+        self.assertEqual(
+            sequence.number_next_actual,
+            number_before,
+            "preview must not consume the sequence",
+        )
+        self.assertEqual(
+            sequence.next_by_id(),
+            preview,
+            "the next real draw must yield exactly the previewed value",
+        )

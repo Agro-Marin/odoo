@@ -637,6 +637,16 @@ class ProductProduct(models.Model):
         action["domain"] = [("product_id", "in", self.ids)]
         return action
 
+    def preview_next_lot(self):
+        """Interpolated preview of this product's next lot/serial value.
+
+        Read-only single-RPC helper for the serial generator dialog: never
+        consumes a sequence number (see ``ir.sequence.preview_next``).
+        """
+        self.ensure_one()
+        sequence = self.lot_sequence_id
+        return sequence.preview_next() if sequence else False
+
     def action_view_product_lot(self):
         self.ensure_one()
         action = self.env["ir.actions.actions"]._for_xml_id(

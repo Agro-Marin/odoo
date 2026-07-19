@@ -535,6 +535,42 @@ class IrSequence(models.Model):
         self.browse().check_access("read")
         return self._next(sequence_date=sequence_date)
 
+    def preview_next(self, sequence_date: Any = None) -> str:
+        """Interpolated preview of the next value WITHOUT consuming it.
+
+        Unlike ``next_by_id`` this never increments the counter nor creates a
+        date range, so clients may call it freely to display the upcoming
+        value (e.g. serial/lot generators). The preview can go stale if a
+        concurrent transaction draws from the sequence in the meantime.
+        """
+        self.browse().check_access("read")
+        self.ensure_one()
+        if not self.use_date_range:
+            return self.get_next_char(self.number_next_actual)
+        dt = sequence_date or self.env.context.get(
+            "ir_sequence_date", fields.Datetime.now()
+        )
+        date_range = self.env["ir.sequence.date_range"].search(
+            [
+                ("sequence_id", "=", self.id),
+                ("date_from", "<=", dt),
+                ("date_to", ">=", dt),
+            ],
+            limit=1,
+        )
+        # No covering range yet: _next would create one starting at the
+        # range default (1); preview that value without creating anything.
+        number_next = date_range.number_next_actual if date_range else 1
+        ir_sequence_date = dt.replace(tzinfo=None) if isinstance(dt, datetime) else dt
+        return self.with_context(
+            ir_sequence_date_range=(
+                date_range.date_from
+                if date_range
+                else fields.Date.to_date(f"{fields.Date.to_date(dt).year}-01-01")
+            ),
+            ir_sequence_date=ir_sequence_date,
+        ).get_next_char(number_next)
+
     @api.model
     def next_by_code(self, sequence_code: str, sequence_date: Any = None) -> str | bool:
         """Draw an interpolated string using a sequence with the requested code.
