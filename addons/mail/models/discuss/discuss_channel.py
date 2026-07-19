@@ -91,7 +91,14 @@ class DiscussChannel(models.Model):
     avatar_128 = fields.Image(
         "Avatar", max_width=128, max_height=128, compute="_compute_avatar_128"
     )
-    avatar_cache_key = fields.Char(compute="_compute_avatar_cache_key")
+    # Stored: this short hash is serialized for every channel/group on each
+    # init_messaging, and its non-stored compute regenerated the SVG avatar and
+    # ran a sha512 per read. It only changes with its stored roots
+    # (channel_type / image_128 / uuid via avatar_128), so store it once and read
+    # it back instead of recomputing on every serialization.
+    avatar_cache_key = fields.Char(
+        compute="_compute_avatar_cache_key", store=True
+    )
     channel_partner_ids = fields.Many2many(
         "res.partner",
         string="Partners",
