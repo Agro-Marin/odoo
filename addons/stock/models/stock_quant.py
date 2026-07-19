@@ -1811,14 +1811,23 @@ class StockQuant(models.Model):
         quants.sudo().unlink()
 
     @api.model
-    def _clean_reservations(self):
+    def _clean_reservations(self, products=None, locations=None):
         """Realign quants' `reserved_quantity` with the sum still reserved by active
         move lines.
 
         Like its `_quant_tasks` siblings (`_merge_quants`, `_unlink_zero_quants`),
         a call on a recordset scopes the realignment to the touched
         product/location pairs instead of scanning the whole table; model-level
-        callers (empty self) still run global.
+        callers (empty self) still run global unless they pass an explicit
+        `products`/`locations` scope.
+
+        :param products, locations: optional recordsets scoping the realignment
+            for model-level callers that know the touched scope but hold no
+            quant recordset. Unlike the recordset form, a products-only scope
+            also covers (product, location) pairs with no quant row yet — the
+            creation loop below provisions their reserved quants (needed by
+            e.g. the consumable→storable flip, where open move lines predate
+            any quant). Ignored when ``self`` holds records.
         """
         quant_domain = Domain("reserved_quantity", "!=", 0)
         move_line_domain = Domain(
@@ -1836,12 +1845,16 @@ class StockQuant(models.Model):
             # exists(): a preceding _merge_quants may have deleted duplicate rows
             # that are members of self (see _unlink_zero_quants).
             quants = self.exists()
-            scope_domain = Domain(
-                [
-                    ("product_id", "in", quants.product_id.ids),
-                    ("location_id", "in", quants.location_id.ids),
-                ],
-            )
+            products = quants.product_id
+            locations = quants.location_id
+        if products is not None:
+            scope_domain = Domain("product_id", "in", products.ids)
+            if locations is not None:
+                scope_domain &= Domain("location_id", "in", locations.ids)
+            quant_domain &= scope_domain
+            move_line_domain &= scope_domain
+        elif locations is not None:
+            scope_domain = Domain("location_id", "in", locations.ids)
             quant_domain &= scope_domain
             move_line_domain &= scope_domain
         reserved_quants = self.env["stock.quant"]._read_group(

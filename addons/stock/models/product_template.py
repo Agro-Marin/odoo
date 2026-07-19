@@ -309,40 +309,14 @@ class ProductTemplate(models.Model):
         res = super().write(vals)
         if clean_inventory:
             # Scope the realignment to the transitioning products; a
-            # model-level (empty recordset) call would rescan every reserved
-            # quant and open move line in the database.
+            # model-level unscoped call would rescan every reserved quant and
+            # open move line in the database. The products-only scope also
+            # covers (product, location) pairs holding open move lines but no
+            # quant row yet — exactly the consumable→storable case.
             products = templates_to_reset.with_context(
                 active_test=False
             ).product_variant_ids
-            Quant = self.env["stock.quant"].sudo()
-            quants = Quant.search([("product_id", "in", products.ids)])
-            # The recordset-scoped clean covers the (product, location) pairs
-            # of the given quants. Open reservable move lines of a product
-            # that just became storable typically live at pairs with NO quant
-            # row yet -- their reserved quant is exactly what the clean must
-            # create -- so seed a zero quant for each uncovered pair.
-            existing_pairs = {(q.product_id.id, q.location_id.id) for q in quants}
-            move_line_groups = self.env["stock.move.line"]._read_group(
-                [
-                    ("product_id", "in", products.ids),
-                    (
-                        "state",
-                        "in",
-                        ("assigned", "partially_available", "waiting", "confirmed"),
-                    ),
-                    ("quantity_product_uom", "!=", 0),
-                ],
-                ["product_id", "location_id"],
-            )
-            quants |= Quant.create(
-                [
-                    {"product_id": product.id, "location_id": location.id}
-                    for product, location in move_line_groups
-                    if (product.id, location.id) not in existing_pairs
-                ],
-            )
-            if quants:
-                quants._clean_reservations()
+            self.env["stock.quant"].sudo()._clean_reservations(products=products)
             templates_to_reset._reset_inventory()
         return res
 
