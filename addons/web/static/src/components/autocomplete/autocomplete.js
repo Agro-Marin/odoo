@@ -299,6 +299,11 @@ export class AutoComplete extends Component {
         // out of order. SearchBar wraps calls in KeepLast; other consumers
         // (record selectors, many2one widgets) rely on this guard directly.
         const loadId = (this._loadId = (this._loadId ?? 0) + 1);
+        // The query these options are being built for. Recorded once they are
+        // all in place (below) so ``onOptionClick`` can tell whether what is on
+        // screen still matches the input. ``null`` means "not input-driven",
+        // in which case no such correspondence exists.
+        const request = useInput ? this.inputRef.el.value.trim() : null;
         this.sources = [];
         this.state.activeSourceOption = null;
         const proms = [];
@@ -330,6 +335,9 @@ export class AutoComplete extends Component {
         if (loadId !== this._loadId) {
             return; // a newer load is in flight; let it finalize navigation
         }
+        // Every source has its options now, so the rendered list corresponds to
+        // `request` until the next load finalizes.
+        this._loadedRequest = request;
         this.navigate(0);
         this.scroll();
     }
@@ -611,7 +619,35 @@ export class AutoComplete extends Component {
         }
         this.state.activeSourceOption = null;
     }
-    onOptionClick(option) {
+    async onOptionClick(option) {
+        // Same invariant the keydown path already enforces (see
+        // ``onInputKeydown``): an option may only be selected against the query
+        // that produced it. Type "ab", keep typing, and click "Create ab" while
+        // the input already reads "abcdefgh" — the option is still on screen
+        // because ``onInput`` only arms the debounce, and selecting it
+        // quick-creates against the superseded text.
+        //
+        // Test on the CORRESPONDENCE (do the rendered options match the current
+        // input?) rather than on ``loadingPromise`` alone: a load may be in
+        // flight whose options already match what the user typed, and rejecting
+        // those would break the ordinary "type, then click the matching row"
+        // flow. ``_loadedRequest`` is null for non-input-driven sources, where
+        // no such correspondence exists.
+        const staleOptions =
+            typeof this._loadedRequest === "string" &&
+            this._loadedRequest !== this.inputRef.el.value.trim();
+        if (staleOptions) {
+            try {
+                await this.loadingPromise;
+            } catch {
+                // Sources failed to load: proceed as if there were no options.
+            }
+            // The options have been rebuilt, so the clicked object is stale.
+            // Leave the refreshed list open rather than silently selecting a
+            // different row than the one under the cursor.
+            this.inputRef.el.focus();
+            return;
+        }
         this.selectOption(option);
         this.inputRef.el.focus();
     }
