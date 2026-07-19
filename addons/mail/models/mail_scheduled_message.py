@@ -134,8 +134,15 @@ class MailScheduledMessage(models.Model):
                 domain, offset, limit, order, bypass_access=True, **kwargs
             )
 
+        # The access filter below runs in Python, so the caller's LIMIT/OFFSET
+        # must NOT be pushed into SQL: doing so truncated the candidate set
+        # before filtering and returned short / empty pages when inaccessible
+        # rows filled the window (same class of bug the fork fixed for
+        # mail.message). A user only ever sees their own scheduled messages
+        # (ir.rule create_uid == user), so the unfiltered set is tiny —
+        # materialize it, filter by document access, then slice.
         # don't use the ORM to avoid cache pollution
-        query = super()._search(domain, offset, limit, order, **kwargs)
+        query = super()._search(domain, order=order, **kwargs)
         fnames_to_read = ["id", "model", "res_id"]
         rows = self.env.execute_query(
             query.select(
@@ -164,6 +171,12 @@ class MailScheduledMessage(models.Model):
             for msg_id, res_model, res_id in rows
             if res_id in allowed_ids[res_model]
         )
+        # apply the caller's window to the ACCESSIBLE rows (rows are already in
+        # `order`), so a page is never shortened by inaccessible entries.
+        if offset:
+            scheduled_messages = scheduled_messages[offset:]
+        if limit is not None:
+            scheduled_messages = scheduled_messages[:limit]
 
         return scheduled_messages._as_query(order)
 

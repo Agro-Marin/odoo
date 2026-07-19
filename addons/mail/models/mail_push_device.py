@@ -85,6 +85,17 @@ class MailPushDevice(models.Model):
             # row and new endpoint/keys are supplied. Always refresh so the row
             # does not keep pointing at a dead endpoint (which would silently
             # drop web push until a delivery failure GCs the device).
+            #
+            # The *new* endpoint may already exist on another row (the same
+            # browser previously registered under a different login, or a stale
+            # duplicate). endpoint is globally unique, so writing it here would
+            # violate _endpoint_unique and 500 — mirror the create path's guard
+            # by dropping the superseded conflicting row first.
+            conflicting = self.sudo().search(
+                [("endpoint", "=", endpoint), ("id", "!=", mail_push_device.id)]
+            )
+            if conflicting:
+                conflicting.unlink()
             mail_push_device.write(
                 {
                     "endpoint": endpoint,

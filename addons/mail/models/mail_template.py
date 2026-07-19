@@ -376,7 +376,12 @@ class MailTemplate(models.Model):
             if {"model", "model_id"}.isdisjoint(vals.keys())
             else None
         )
-        self._fix_attachment_ownership()
+        # Attachment ownership (res_model/res_id -> this template) only needs
+        # fixing when the attachment set actually changes. Running it on every
+        # write re-wrote every attachment's ownership on unrelated edits (a
+        # rename, a subject change), dirtying them for no reason.
+        if "attachment_ids" in vals:
+            self._fix_attachment_ownership()
         return True
 
     def unlink(self):

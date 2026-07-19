@@ -432,15 +432,22 @@ class MailThread(models.AbstractModel):
         return [("message_ids", "any", message_domain)]
 
     def _compute_message_attachment_count(self):
+        # Key on _origin.id, not id: during an onchange `self` holds NewId
+        # records whose attachments are stored against the persisted origin id.
+        # Using record.id (a NewId) made the count wrongly drop to 0 in the form
+        # the moment any onchange fired. The two sibling computes in this file
+        # already key on _origin.id for this exact reason.
         read_group_var = self.env["ir.attachment"]._read_group(
-            [("res_id", "in", self.ids), ("res_model", "=", self._name)],
+            [("res_id", "in", self._origin.ids), ("res_model", "=", self._name)],
             groupby=["res_id"],
             aggregates=["__count"],
         )
 
         attachment_count_dict = dict(read_group_var)
         for record in self:
-            record.message_attachment_count = attachment_count_dict.get(record.id, 0)
+            record.message_attachment_count = attachment_count_dict.get(
+                record._origin.id, 0
+            )
 
     # ------------------------------------------------------------
     # CRUD
@@ -6922,12 +6929,18 @@ class MailThread(models.AbstractModel):
             )
             non_svg_ids = res - svg_ids
             original_ids = res.mapped("original_id")
+            # Pre-materialize id sets: `record in recordset` is a linear scan, so
+            # these membership tests were O(n^2) in a record's attachment count
+            # (e.g. an invoice with many EDI files) on every chatter open.
+            svg_id_set = set(svg_ids._ids)
+            non_svg_id_set = set(non_svg_ids._ids)
+            original_id_set = set(original_ids._ids)
             res = res.filtered(
                 lambda attachment: (
-                    (attachment in svg_ids and attachment not in original_ids)
+                    (attachment.id in svg_id_set and attachment.id not in original_id_set)
                     or (
-                        attachment in non_svg_ids
-                        and attachment.original_id not in non_svg_ids
+                        attachment.id in non_svg_id_set
+                        and attachment.original_id.id not in non_svg_id_set
                     )
                 )
             )
