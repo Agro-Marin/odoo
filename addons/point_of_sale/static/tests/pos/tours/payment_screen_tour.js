@@ -5,6 +5,7 @@ import * as Order from "@point_of_sale/../tests/generic_helpers/order_widget_uti
 import * as Chrome from "@point_of_sale/../tests/pos/tours/utils/chrome_util";
 import * as PaymentScreen from "@point_of_sale/../tests/pos/tours/utils/payment_screen_util";
 import * as ProductScreen from "@point_of_sale/../tests/pos/tours/utils/product_screen_util";
+import * as ReceiptScreen from "@point_of_sale/../tests/pos/tours/utils/receipt_screen_util";
 import * as TicketScreen from "@point_of_sale/../tests/pos/tours/utils/ticket_screen_util";
 import { registry } from "@web/core/registry";
 
@@ -105,6 +106,11 @@ registry.category("web_tour.tours").add("PaymentScreenRoundingUp", {
                 amount: "2.00",
             }),
             PaymentScreen.clickValidate(),
+            // Validation is async (sync to server, then navigate). Without this
+            // wait the tour clicks "Orders" while the order is still syncing and
+            // the ReceiptScreen navigation that ends validation clobbers the
+            // TicketScreen that was just opened.
+            ReceiptScreen.isShown(),
 
             Chrome.clickOrders(),
             TicketScreen.selectFilter("Paid"),
@@ -142,6 +148,9 @@ registry.category("web_tour.tours").add("PaymentScreenRoundingDown", {
                 amount: "1.95",
             }),
             PaymentScreen.clickValidate(),
+            // See PaymentScreenRoundingUp: wait for validation to land before
+            // navigating away, otherwise the two navigations race.
+            ReceiptScreen.isShown(),
 
             Chrome.clickOrders(),
             TicketScreen.selectFilter("Paid"),

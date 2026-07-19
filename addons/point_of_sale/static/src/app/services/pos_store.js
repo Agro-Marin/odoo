@@ -1779,6 +1779,11 @@ export class PosStore extends WithLazyGetterTrap {
     }
 
     async pay() {
+        // Flush any numpad input still inside the number buffer's debounce
+        // window: leaving the ProductScreen destroys the buffer holder, so an
+        // unflushed keystroke (e.g. the price just typed) would be dropped and
+        // the order would be paid with the pre-edit values.
+        this.numberBuffer.capture();
         const currentOrder = this.getOrder();
 
         if (!currentOrder.canPay()) {
@@ -2789,6 +2794,12 @@ export class PosStore extends WithLazyGetterTrap {
         return showBackButton(this);
     }
     async onClickBackButton() {
+        // Leaving the cart pane deselects the order line and tears down the
+        // number-buffer holder, so anything still inside the buffer's debounce
+        // window (the price/qty digit just tapped) would be silently dropped:
+        // `updateSelectedOrderline` would run with no selected line and reset.
+        // Flush it first so the edit the cashier made is applied.
+        this.numberBuffer.capture();
         if (this.router.state.current === "TicketScreen") {
             if (this.ticket_screen_mobile_pane === "left") {
                 const next = this.defaultPage;

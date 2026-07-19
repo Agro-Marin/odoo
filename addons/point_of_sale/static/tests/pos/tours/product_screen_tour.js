@@ -653,19 +653,19 @@ registry.category("web_tour.tours").add("PosCategoriesOrder", {
             Dialog.confirm("Open Register"),
             ProductScreen.verifyCategorySequence(["AAA", "AAB", "AAC"]),
             {
-                trigger: '.category-button:eq(1) > span:contains("AAB")',
+                trigger: '.category-button:eq(1) span:contains("AAB")',
                 run: "click",
             },
             ProductScreen.productIsDisplayed("Product in AAB and AAX", 0),
             {
-                trigger: '.category-button:eq(-1) > span:contains("AAX")',
+                trigger: '.category-button:eq(-1) span:contains("AAX")',
             },
             {
-                trigger: '.category-button:eq(-1) > span:contains("AAX")',
+                trigger: '.category-button:eq(-1) span:contains("AAX")',
                 run: "click",
             },
             {
-                trigger: '.category-button:eq(-1) > span:contains("AAY")',
+                trigger: '.category-button:eq(-1) span:contains("AAY")',
             },
         ].flat(),
 });
@@ -863,7 +863,10 @@ registry.category("web_tour.tours").add("AddMultipleSerialsAtOnce", {
             ProductScreen.clickDisplayedProduct("Product A"),
             [
                 {
-                    trigger: ".fa-trash-o",
+                    content: "remove the first serial number of the line",
+                    // FA6: the popup's delete icon is `fa-trash-can`; the FA4
+                    // name `fa-trash-o` no longer exists anywhere in POS.
+                    trigger: ".lot-container .lot-item .btn:has(.fa-trash-can)",
                     run: "click",
                 },
             ],
