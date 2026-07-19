@@ -359,6 +359,17 @@ class configmanager:
             help='update one or more modules (comma-separated list, use "all" for all modules). Requires -d.',
         )
         group.add_option(
+            "--reload-unchanged-data-files",
+            dest="skip_unchanged_data_files",
+            action="store_false",
+            my_default=True,
+            help="During module upgrade, reconvert every data file even when "
+            "its content is identical to the last successful load. By default "
+            "unchanged files are skipped (their records are left as-is), based "
+            "on checksums stored in ir_module_module.data_file_checksums; use "
+            "this flag (or --reinit) to force a full re-assertion of the data.",
+        )
+        group.add_option(
             "--reinit",
             dest="reinit",
             type="comma",

@@ -277,7 +277,15 @@ class IrModelData(models.Model):
                 )
                 raise
 
-        self.pool.loaded_xmlids.update(f"{row[0]}.{row[1]}" for row in rows)
+        xml_ids = {f"{row[0]}.{row[1]}" for row in rows}
+        self.pool.loaded_xmlids.update(xml_ids)
+        # tee for modules.loading.load_data: while a data file is being
+        # converted, it records which xmlids the file asserts, so an upgrade
+        # can later skip the unchanged file yet still mark those xmlids loaded
+        # (protecting the records from _process_end's orphan cleanup)
+        recorder = getattr(self.pool, "_xmlid_recorder", None)
+        if recorder is not None:
+            recorder.update(xml_ids)
 
         if any(row[2] == "res.groups" for row in rows):
             self.env.registry.clear_cache("groups")
@@ -325,6 +333,10 @@ class IrModelData(models.Model):
         record = self.env.ref(xml_id, raise_if_not_found=False)
         if record:
             self.pool.loaded_xmlids.add(xml_id)
+            # see the recorder tee in _update_xmlids
+            recorder = getattr(self.pool, "_xmlid_recorder", None)
+            if recorder is not None:
+                recorder.add(xml_id)
         return record
 
     @api.model

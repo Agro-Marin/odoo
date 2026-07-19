@@ -1,5 +1,4 @@
 import re
-from datetime import datetime
 from urllib.parse import urlparse
 
 import requests
@@ -20,6 +19,13 @@ class MailLinkPreview(models.Model):
     _rec_name = "source_url"
 
     source_url = fields.Char("URL", required=True)
+    source_url_netloc = fields.Char(
+        "URL host",
+        compute="_compute_source_url_netloc",
+        store=True,
+        index=True,
+        help="Parsed host of source_url, used for per-host throttling.",
+    )
     og_type = fields.Char("Type")
     og_title = fields.Char("Title")
     og_site_name = fields.Char("Site name")
@@ -119,22 +125,28 @@ class MailLinkPreview(models.Model):
         )
         return link_preview_throttle > 0
 
+    @api.depends("source_url")
+    def _compute_source_url_netloc(self):
+        for preview in self:
+            preview.source_url_netloc = urlparse(preview.source_url or "").netloc
+
     def _is_domain_thottled(self, url):
         domain = urlparse(url).netloc
+        # cr.now() is naive UTC like the stored create_date; datetime.now() is
+        # naive *local* time, so on a non-UTC server the "10s" window was skewed
+        # by the UTC offset (spanning hours and massively over-throttling).
         date_interval = fields.Datetime.to_string(
-            datetime.now() - relativedelta(seconds=10)
+            self.env.cr.now() - relativedelta(seconds=10)
         )
-        # Count recent previews for the SAME host. Matching source_url with
-        # ``ilike domain`` was a substring test: it defeated the source_url index
-        # (sequential scan on every preview) and conflated hosts — an unrelated
-        # URL carrying the domain in its path/query inflated the per-host counter
-        # (over-throttling the real host) while a look-alike host slipped through.
-        # Scan the create_date-indexed window and compare the parsed netloc.
-        recent_urls = self.env["mail.link.preview"].search_read(
-            [("create_date", ">", date_interval)], ["source_url"]
-        )
-        call_counter = sum(
-            1 for row in recent_urls if urlparse(row["source_url"]).netloc == domain
+        # Count recent previews for the SAME host through the indexed netloc
+        # column, instead of fetching the whole create_date window across every
+        # host and re-parsing each source_url in Python (O(previews) per url under
+        # a preview storm).
+        call_counter = self.env["mail.link.preview"].search_count(
+            [
+                ("create_date", ">", date_interval),
+                ("source_url_netloc", "=", domain),
+            ]
         )
         link_preview_throttle = int(
             self.env["ir.config_parameter"]
