@@ -1936,15 +1936,49 @@ class IrQweb(models.AbstractModel):
                 bridge_code += "odoo.loader.registerNativeModules({\n"
                 bridge_code += ",\n".join(register_entries)
                 bridge_code += "\n});\n"
+            elif bundle in esm_registry().import_map_included_bundles:
+                # Import-map SATELLITE (web.assets_unit_tests): it carries
+                # ('include', <src bundle>) source modules that the primary
+                # (web.assets_unit_tests_setup) does NOT contain in its esbuild
+                # output. Those modules' top-level side-effects (registry.add(...)
+                # plugin and cell-menu registrations) must run — and must run in
+                # THIS import-map/lazy context, so they register into the SAME
+                # singletons the lazily-imported tests use. This matters because
+                # libs like @odoo/o-spreadsheet are inlined per-bundle
+                # (_LIB_CANDIDATES), so a copy registered inside the esbuild'd
+                # primary is invisible to a test's model; only a registration made
+                # through the import map (served, shared) reaches it. The old
+                # tour-only import silently dropped every such registration, so a
+                # unit-test model was missing its odoo plugins (getOdooChartIds
+                # undefined, use_global_filter menu absent, ...).
+                #
+                # Eager-execute via DYNAMIC import() + allSettled, awaited before
+                # loadAndStart. Dynamic (not static) is essential:
+                #  - static imports hoist ahead of the whole module, so they would
+                #    run before the parent's registerNativeModules / loader /
+                #    template setup and blow up on runtime APIs that do not exist
+                #    yet (e.g. `registerTemplate is not a function`);
+                #  - a single module that throws at import (e.g. a frontend
+                #    interaction whose base class isn't in the unit-test module
+                #    graph) would otherwise abort the entire page boot. With
+                #    allSettled such a module degrades to "not registered" (its
+                #    pre-fix state) instead of taking every test down.
+                if non_hoot_specs:
+                    imports = ", ".join(
+                        f"import({json_mod.dumps(s)})" for s in non_hoot_specs
+                    )
+                    bridge_code += f"await Promise.allSettled([{imports}]);\n"
             else:
-                # Secondary bundle: source modules are already loaded by the
-                # primary's esbuild output, so skip generic eager imports. Tour
-                # files are test-bundle-specific and unknown to the parent —
-                # eager-import them here for their registration side-effect.
+                # Other secondary bundle: source modules are already loaded by the
+                # primary's esbuild output, so skip generic eager imports and only
+                # pull in tour files (test-bundle-specific, unknown to the parent)
+                # for their registration side-effect.
                 tour_specs = [s for s in non_hoot_specs if "/tours/" in s]
                 if tour_specs:
-                    bridge_code = (
-                        "\n".join(f"import {json_mod.dumps(s)};" for s in tour_specs)
+                    bridge_code += (
+                        "\n".join(
+                            f"import {json_mod.dumps(s)};" for s in tour_specs
+                        )
                         + "\n"
                     )
 
