@@ -600,7 +600,13 @@ class TestPointOfSaleFlow(CommonPosTest):
         untax, atax = self.compute_tax(
             self.ten_dollars_with_10_excl.product_variant_id, 10.0
         )
-        self.ten_dollars_with_10_excl.taxes_id.unlink()
+        # Archive rather than unlink: a tax carried by an order of a still-open
+        # session is `is_used` (account_tax._hook_compute_is_used in this
+        # module), so `unlink()` is refused by `unlink_except_tax_used`.
+        # Upstream settled this in a2e47c4b0f1 by switching this test to
+        # `active = False`; the fork's port of upstream fixes missed the change,
+        # which is why the test ran against `unlink()` and errored.
+        self.ten_dollars_with_10_excl.taxes_id.active = False
         current_session = self.pos_config_usd.current_session_id
         payment = self.env["pos.make.payment"].create(
             {

@@ -1,6 +1,7 @@
 import logging
 
 import odoo
+from odoo.exceptions import ValidationError
 
 from odoo.addons.point_of_sale.tests.common import TestPoSCommon
 
@@ -97,14 +98,29 @@ class TestAuditVerification2(TestPoSCommon):
         )
         self.assertTrue(order_b.has_deleted_line)
 
-    # ---- R4 [MED] a tax used only by a non-posted POS order blocked deletion ----
-    def test_R4_tax_deletable_when_only_open_pos_order(self):
-        # The removed pos `_hook_compute_is_used` override marked a tax "used"
-        # whenever ANY pos.order.line referenced it, including orders in an open
-        # (not-yet-posted) session — wrongly blocking tax deletion. Finalized
-        # accounting is still protected by the base account.move.line check
-        # (exercised by test_tax_is_used_when_in_transactions, which closes the
-        # session).
+    # ---- R4 a tax used by a non-posted POS order must NOT be deletable ----
+    def test_R4_tax_not_deletable_when_open_pos_order_uses_it(self):
+        # This test originally asserted the opposite (that such a tax stays
+        # deletable), on the premise that `is_used` should reflect *finalized*
+        # accounting only and that an open-session order "degrades gracefully"
+        # when its tax disappears. That premise is wrong:
+        #
+        # - It does not degrade gracefully. The tax has already been collected
+        #   from the customer at the till; deleting the record cascades the
+        #   `account_tax_pos_order_line_rel` rows away, so the session-closing
+        #   entry is computed without a tax that was actually charged — a silent
+        #   fiscal under-declaration.
+        # - It was internally inconsistent: `account.tax.write` (in this module)
+        #   already refuses to *modify* a tax carried by a non-closed POS order.
+        #   Deletion is strictly more destructive than modification, so allowing
+        #   it while blocking modification is incoherent.
+        # - Upstream 19.0 ships the `_hook_compute_is_used` override that makes
+        #   this tax used, and deliberately settled the question in
+        #   a2e47c4b0f1 ("block deletion of group of taxes in use"), which fixed
+        #   the POS flow test to *archive* the tax instead of deleting it.
+        #
+        # So the guarded behaviour is the correct one, and this test now pins it:
+        # the tax is `is_used`, `unlink()` raises, and archiving is the way out.
         self._start_pos_session(self.cash_pm1, 0)
         tax = self.env["account.tax"].create(
             {
@@ -127,11 +143,16 @@ class TestAuditVerification2(TestPoSCommon):
             ]
         )
         tax.invalidate_model(fnames=["is_used"])
-        self.assertFalse(
+        self.assertTrue(
             tax.is_used,
-            "BUG CONFIRMED: a tax referenced only by an open-session (non-posted) "
-            "POS order was marked used, blocking its deletion",
+            "a tax carried by an open-session POS order must count as used, so "
+            "that it cannot be deleted out from under the closing entry",
         )
-        # And it must actually be deletable (was raising ValidationError).
-        tax.unlink()
-        self.assertFalse(tax.exists())
+        with self.assertRaises(ValidationError):
+            tax.unlink()
+        self.assertTrue(tax.exists())
+
+        # Archiving is the supported escape hatch: it keeps the record (and the
+        # closing entry's tax) intact while removing the tax from new orders.
+        tax.active = False
+        self.assertFalse(tax.active)
