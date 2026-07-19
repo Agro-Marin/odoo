@@ -370,6 +370,19 @@ class configmanager:
             "this flag (or --reinit) to force a full re-assertion of the data.",
         )
         group.add_option(
+            "--upgrade-unchanged-modules",
+            dest="skip_unchanged_modules",
+            action="store_false",
+            my_default=True,
+            help="When the upgrade of a module cascades to its dependents "
+            "(most notably -u base, which cascades to every installed "
+            "module), also mark dependents whose directory content is "
+            "identical to their last successful upgrade. By default such "
+            "modules are skipped, based on the checksum stored in "
+            "ir_module_module.content_checksum; explicitly listed modules "
+            "(-u/--reinit) are always processed.",
+        )
+        group.add_option(
             "--reinit",
             dest="reinit",
             type="comma",

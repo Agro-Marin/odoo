@@ -1,6 +1,7 @@
 import ast
 import copy
 import functools
+import hashlib
 import importlib
 import importlib.machinery
 import importlib.metadata
@@ -50,6 +51,7 @@ __all__ = [
     "initialize_sys_path",
     "load_odoo_module",
     "load_script",
+    "module_content_checksum",
 ]
 
 # re.ASCII restricts \w to [A-Za-z0-9_] — module names must be ASCII because
@@ -481,6 +483,45 @@ def get_module_path(module: str, display_warning: bool = True) -> str | None:
     # TODO deprecate
     mod = Manifest.for_addon(module, display_warning=display_warning)
     return mod.path if mod else None
+
+
+# Directories and file suffixes with no bearing on a module's installed
+# behaviour, excluded from module_content_checksum.
+_CHECKSUM_IGNORE_DIRS = frozenset({"__pycache__", ".git"})
+_CHECKSUM_IGNORE_SUFFIXES = (".pyc", ".pyo", ".swp", "~")
+
+
+def module_content_checksum(module: str) -> str | None:
+    """Return a sha256 hexdigest over the module directory's content.
+
+    Covers every regular file (relative path and bytes) except caches and
+    editor droppings, in sorted order, so the digest is stable across
+    checkouts and hosts.  Returns None when the module has no directory on
+    the current addons path.  Used by ``ir.module.module`` to detect modules
+    whose code and data did not change since their last successful upgrade
+    (see ``button_upgrade``); deliberately *not* cached — a running server
+    may see the directory change under it on deploy.
+    """
+    path = get_module_path(module, display_warning=False)
+    if not path:
+        return None
+    digest = hashlib.sha256()
+    root = Path(path)
+    files = sorted(
+        p
+        for p in root.rglob("*")
+        if not _CHECKSUM_IGNORE_DIRS.intersection(p.parts)
+        and not p.name.endswith(_CHECKSUM_IGNORE_SUFFIXES)
+        and p.is_file()
+    )
+    for p in files:
+        digest.update(str(p.relative_to(root)).encode())
+        digest.update(b"\0")
+        with p.open("rb") as fp:
+            while chunk := fp.read(1 << 20):
+                digest.update(chunk)
+        digest.update(b"\0")
+    return digest.hexdigest()
 
 
 def get_resource_from_path(path: str) -> tuple[str, str, str] | None:
