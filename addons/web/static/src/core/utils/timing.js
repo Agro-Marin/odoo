@@ -185,13 +185,21 @@ export function debounce(func, delay, options) {
  * @returns {() => void} stop function
  */
 export function setRecurringAnimationFrame(callback) {
+    let stopped = false;
     const handler = (/** @type {number} */ timestamp) => {
         callback(timestamp - lastTimestamp);
         lastTimestamp = timestamp;
-        handle = browser.requestAnimationFrame(handler);
+        // `callback` may call `stop()` to terminate the loop (the natural
+        // self-terminating idiom). Re-scheduling unconditionally would cancel
+        // an already-fired handle and keep the loop — and its retained
+        // closure — alive for the page lifetime.
+        if (!stopped) {
+            handle = browser.requestAnimationFrame(handler);
+        }
     };
 
     const stop = () => {
+        stopped = true;
         browser.cancelAnimationFrame(handle);
     };
 
