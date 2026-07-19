@@ -749,8 +749,18 @@ class PosConfig(models.Model):
     @api.constrains("rounding_method", "cash_rounding")
     def _check_rounding_method_strategy(self):
         for config in self:
+            # `rounding_method` is checked for truthiness first: `cash_rounding`
+            # is in @api.constrains (so flipping the flag on a config that
+            # already carries a non-`add_invoice_line` method cannot bypass the
+            # check), but that also fires the constraint on the intermediate
+            # state where the flag is set before the method is chosen. An empty
+            # method is not a strategy violation — it simply means no rounding
+            # is applied, which pos_order._add_cash_rounding_aml_vals already
+            # guards for — and the settings view makes the field required once
+            # the flag is on. Only a *chosen* method can violate the invariant.
             if (
                 config.cash_rounding
+                and config.rounding_method
                 and config.rounding_method.strategy != "add_invoice_line"
             ):
                 selection_value = "Add a rounding line"
