@@ -4,6 +4,7 @@ from urllib.parse import urlparse
 import requests
 from dateutil.relativedelta import relativedelta
 from lxml import html
+from psycopg import IntegrityError
 
 from odoo import api, fields, models, tools
 from odoo.tools.misc import OrderedSet
@@ -91,7 +92,7 @@ class MailLinkPreview(models.Model):
                 break
         new_link_preview_by_url = {
             link_preview.source_url: link_preview
-            for link_preview in self.env["mail.link.preview"].create(
+            for link_preview in self.env["mail.link.preview"]._create_from_values_race_safe(
                 [values for sequence, values in link_previews_values]
             )
         }
@@ -156,6 +157,28 @@ class MailLinkPreview(models.Model):
         return call_counter > link_preview_throttle
 
     @api.model
+    def _create_from_values_race_safe(self, values_list):
+        """Create link previews, one per entry in ``values_list``, tolerating a
+        concurrent creation of the same ``source_url``.
+
+        ``source_url`` is protected by the ``_unique_source_url`` index, and the
+        search-then-create in the callers has an outbound HTTP fetch in the race
+        window, so two requests previewing the same brand-new URL both miss the
+        search and both create -> one hits the unique index and 500s. Fall back
+        to re-fetching the row the other transaction inserted, mirroring the
+        savepoint pattern already used for reactions and followers.
+        """
+        previews = self.browse()
+        for values in values_list:
+            url = values["source_url"]
+            try:
+                with self.env.cr.savepoint():
+                    previews += self.create(values)
+            except IntegrityError:
+                previews += self.search([("source_url", "=", url)], limit=1)
+        return previews
+
+    @api.model
     def _search_or_create_from_url(self, url):
         """Return the URL preview, first from the database if available otherwise make the request."""
         preview = self.env["mail.link.preview"].search([("source_url", "=", url)])
@@ -165,7 +188,7 @@ class MailLinkPreview(models.Model):
             preview_values = get_link_preview_from_url(url)
             if not preview_values:
                 return self.env["mail.link.preview"]
-            preview = self.env["mail.link.preview"].create(preview_values)
+            preview = self._create_from_values_race_safe([preview_values])
         return preview
 
     def _to_store_defaults(self, target):
@@ -179,3 +202,21 @@ class MailLinkPreview(models.Model):
             "og_type",
             "source_url",
         ]
+
+    @api.autovacuum
+    def _gc_link_previews(self):
+        """Vacuum orphan previews. A `mail.link.preview` row is cached per unique
+        source_url and reused across messages; the through-rows
+        (`mail.message.link.preview`) cascade away with their messages, but the
+        preview payload itself was never collected, so the table grew unbounded
+        on chatty databases. Drop previews no longer referenced by any message
+        and older than a fortnight; the next post re-fetches (and thus refreshes)
+        the URL, which also fixes stale previews being served forever.
+        """
+        threshold = fields.Datetime.now() - relativedelta(weeks=2)
+        self.search(
+            [
+                ("message_link_preview_ids", "=", False),
+                ("create_date", "<", threshold),
+            ]
+        ).unlink()

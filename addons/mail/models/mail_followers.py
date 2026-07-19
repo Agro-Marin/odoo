@@ -356,6 +356,11 @@ class MailFollowers(models.Model):
 
         res_ids = records.ids if records else [0]
         doc_infos = {res_id: {} for res_id in res_ids}
+        # Memoize the transitive group closure per distinct group set: most
+        # recipients share the same groups, so recomputing
+        # browse(...).all_implied_ids per row was thousands of redundant
+        # recordset builds on a mass notification (the hot message_post path).
+        group_closure_cache = {}
         for (
             partner_id,
             is_active,
@@ -373,10 +378,14 @@ class MailFollowers(models.Model):
             to_update = [res_id] if res_id else res_ids
             # add transitive closure of implied groups; note that the field
             # all_implied_ids relies on ormcache'd data, which shouldn't add
-            # more queries
-            groups = (
-                self.env["res.groups"].browse(set(groups or [])).all_implied_ids.ids
-            )
+            # more queries. Memoized per distinct group set (see above).
+            group_key = frozenset(groups or ())
+            groups = group_closure_cache.get(group_key)
+            if groups is None:
+                groups = frozenset(
+                    self.env["res.groups"].browse(group_key).all_implied_ids.ids
+                )
+                group_closure_cache[group_key] = groups
             for res_id_to_update in to_update:
                 # avoid updating already existing information, unnecessary dict update
                 if not res_id and partner_id in doc_infos[res_id_to_update]:
@@ -573,6 +582,10 @@ GROUP BY fol.id%s%s""" % (
                 .search([("id", "in", partner_ids), ("partner_share", "=", True)])
                 .ids
             )
+        # set membership: `pid in customer_ids` over a list made this dict-comp
+        # O(partners^2) on large subscribes (channel invites, big partner_ids
+        # posts). Also normalizes the caller-supplied customer_ids=[] case.
+        customer_ids = set(customer_ids or ())
 
         p_stypes = {
             pid: external.ids if pid in customer_ids else default.ids
