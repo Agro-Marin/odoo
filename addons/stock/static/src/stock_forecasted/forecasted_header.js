@@ -112,7 +112,7 @@ export class ForecastedHeader extends Component {
     }
 
     get uom() {
-        return Object.values(this.products)[0].uom;
+        return Object.values(this.products)[0]?.uom ?? "";
     }
 
     toJsonString(obj) {
