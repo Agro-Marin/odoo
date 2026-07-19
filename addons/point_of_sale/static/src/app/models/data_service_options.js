@@ -3,26 +3,32 @@
 // We are now able to override options from others modules
 export class DataServiceOptions {
     get databaseTable() {
+        // A pos.order is purged from IndexedDB once it is finalized, synced, and
+        // belongs to a PAST session. Its children (lines, payments) must follow
+        // the SAME predicate on their parent order — otherwise a kept
+        // current-session order has its lines/payments purged and reloads as a
+        // corrupt header with no lines and a zero total.
+        // NB: the JS field is session_id (pos_session_id does not exist on the
+        // model — the old clause was always true, so the condition silently
+        // degenerated to `finalized && isSynced`).
+        const orderIsPurgeable = (order) =>
+            Boolean(
+                order?.finalized &&
+                    order.isSynced &&
+                    order.session_id?.id !== parseInt(odoo.pos_session_id),
+            );
         return {
             "pos.order": {
                 key: "uuid",
-                // NB: the JS field is session_id (pos_session_id does not
-                // exist on the model — the old clause was always true, so the
-                // condition silently degenerated to `finalized && isSynced`).
-                condition: (record) =>
-                    record.finalized &&
-                    record.isSynced &&
-                    record.session_id?.id !== parseInt(odoo.pos_session_id),
+                condition: (record) => orderIsPurgeable(record),
             },
             "pos.order.line": {
                 key: "uuid",
-                condition: (record) =>
-                    record.order_id?.finalized && record.order_id.isSynced,
+                condition: (record) => orderIsPurgeable(record.order_id),
             },
             "pos.payment": {
                 key: "uuid",
-                condition: (record) =>
-                    record.pos_order_id?.finalized && record.pos_order_id.isSynced,
+                condition: (record) => orderIsPurgeable(record.pos_order_id),
             },
             "product.attribute.custom.value": {
                 key: "id",

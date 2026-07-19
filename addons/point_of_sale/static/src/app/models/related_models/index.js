@@ -324,6 +324,15 @@ export function createRelatedModels(modelDefs, modelClasses = {}, opts = {}) {
 
                         if (isX2Many) {
                             rawData[field.name] = new Set(); //Default value
+                        } else if (existingRecord) {
+                            // Preserve the previous many2one id through the
+                            // wholesale RAW_SYMBOL replacement so _connect can
+                            // read prevConnectedRecordId and clean the OLD
+                            // parent's inverse when a snapshot reparents this
+                            // record. Without it the old parent keeps a stale
+                            // o2m entry (record listed under two parents).
+                            rawData[field.name] =
+                                existingRecord[RAW_SYMBOL][field.name];
                         }
                     } else {
                         if (isX2Many) {
