@@ -235,6 +235,15 @@ export class FormCompiler extends ViewCompiler {
             dynamicLabel(label);
         }
         this.encounteredFields[fieldName] = dynamicLabel;
+        // Pending labels are LOOKED UP by `id || name` (see `labelsForAttr`
+        // above), so a forward reference must be registered under the same key.
+        // Registering only under `name` meant `<label for="X"/>` placed AFTER
+        // `<field id="X">` missed the lookup and was pushed into a bucket that
+        // is never drained — rendering as a bare, unbound <label>. (The reverse
+        // order worked, which is why this went unnoticed.)
+        if (labelsForAttr !== fieldName) {
+            this.encounteredFields[labelsForAttr] = dynamicLabel;
+        }
         return field;
     }
 
