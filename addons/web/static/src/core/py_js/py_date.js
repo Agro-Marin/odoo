@@ -47,6 +47,25 @@ function strftime(format, converters) {
     });
 }
 
+/**
+ * ``%I`` 12-hour clock hour (01–12); midnight and noon both format as 12.
+ * @param {number} hour24
+ * @returns {string}
+ */
+function fmt12(hour24) {
+    const h = hour24 % 12;
+    return fmt2(h === 0 ? 12 : h);
+}
+
+/**
+ * ``%p`` AM/PM marker (CPython's default C locale).
+ * @param {number} hour24
+ * @returns {string}
+ */
+function ampm(hour24) {
+    return hour24 < 12 ? "AM" : "PM";
+}
+
 // ─── construction validation ─────────────────────────────────────────────────
 
 /**
@@ -196,6 +215,17 @@ export class PyDate {
             Y: () => fmt4(this.year),
             m: () => fmt2(this.month),
             d: () => fmt2(this.day),
+            // A bare date has no time-of-day; CPython renders time directives
+            // against midnight (``date(2024,3,5).strftime('%H:%M:%S')`` →
+            // "00:00:00"), so match that instead of raising — a datetime format
+            // string applied to a date is a common paste and must not diverge
+            // from the server-side Python evaluation of the same expression.
+            H: () => "00",
+            M: () => "00",
+            S: () => "00",
+            f: () => "000000",
+            I: () => "12",
+            p: () => "AM",
         });
     }
 
@@ -405,6 +435,9 @@ export class PyDateTime {
             H: () => fmt2(this.hour),
             M: () => fmt2(this.minute),
             S: () => fmt2(this.second),
+            f: () => String(this.microsecond).padStart(6, "0"),
+            I: () => fmt12(this.hour),
+            p: () => ampm(this.hour),
         });
     }
 
@@ -557,12 +590,20 @@ export class PyTime extends PyDate {
      */
     strftime(format) {
         return strftime(format, {
-            Y: () => fmt4(this.year),
-            m: () => fmt2(this.month),
-            d: () => fmt2(this.day),
+            // A bare time has no date. CPython formats date directives against
+            // the default 1900-01-01 — NOT the arbitrary "today" this instance
+            // stamps internally (see the constructor), which made
+            // ``time(9,0,0).strftime('%Y')`` return the current year and thus
+            // vary by run.
+            Y: () => "1900",
+            m: () => "01",
+            d: () => "01",
             H: () => fmt2(this.hour),
             M: () => fmt2(this.minute),
             S: () => fmt2(this.second),
+            f: () => "000000",
+            I: () => fmt12(this.hour),
+            p: () => ampm(this.hour),
         });
     }
 

@@ -167,6 +167,16 @@ describe("datetime.date", () => {
         expect(evaluateExpr(expr2)).toBe("2001-04-03");
     });
 
+    test("strftime renders time directives as midnight (CPython parity)", () => {
+        // A datetime format string applied to a bare date must not throw — the
+        // server-side Python evaluation renders the time part as midnight, so
+        // the client must agree (a copy-pasted "%Y-%m-%d %H:%M:%S" is common).
+        expect(
+            evaluateExpr("datetime.date(2024,3,5).strftime('%Y-%m-%d %H:%M:%S')"),
+        ).toBe("2024-03-05 00:00:00");
+        expect(evaluateExpr("datetime.date(2024,3,5).strftime('%I %p')")).toBe("12 AM");
+    });
+
     test("datetime.date.toJSON", () => {
         expect(
             JSON.stringify(evaluateExpr("datetime.date(year=1997,month=5,day=18)")),
@@ -249,6 +259,22 @@ describe("datetime.time", () => {
         expect(
             JSON.stringify(evaluateExpr("datetime.time(hour=11,minute=45,second=15)")),
         ).toBe(`"11:45:15"`);
+    });
+
+    test("strftime date directives use 1900-01-01, not the stamped today", () => {
+        // CPython: a bare time has no date, so %Y/%m/%d format against the
+        // default 1900-01-01 (the class instance internally stamps "today",
+        // which previously leaked a run-dependent current year).
+        expect(evaluateExpr("datetime.time(9,7,3).strftime('%Y-%m-%d')")).toBe(
+            "1900-01-01",
+        );
+        // 12-hour clock + AM/PM.
+        expect(evaluateExpr("datetime.time(0,7,3).strftime('%I:%M %p')")).toBe(
+            "12:07 AM",
+        );
+        expect(evaluateExpr("datetime.time(13,7,3).strftime('%I:%M %p')")).toBe(
+            "01:07 PM",
+        );
     });
 
     test("time equality compares the time of day", () => {

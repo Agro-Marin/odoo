@@ -560,6 +560,23 @@ rpc._rpc = function (url, params, settings) {
         if (params?.model && cacheSettings.model === undefined) {
             cacheSettings.model = params.model;
         }
+        // Guard the stale-while-revalidate (``update: "always"``) callback so a
+        // caller that aborts — typically a joiner that shared an in-flight
+        // request it no longer owns — is NOT invoked after tear-down when the
+        // shared request finally resolves and ``rpc_cache`` fans out to every
+        // registered callback (rpc_cache.js onFulfilled). The flag is flipped by
+        // the abort wrappers below. ``cacheSettings`` is a per-call copy, so each
+        // caller guards its OWN callback — one caller's abort never silences
+        // another's still-mounted callback.
+        let callerAborted = false;
+        if (typeof cacheSettings.callback === "function") {
+            const userCallback = cacheSettings.callback;
+            cacheSettings.callback = (/** @type {any[]} */ ...args) => {
+                if (!callerAborted) {
+                    userCallback(...args);
+                }
+            };
+        }
         // Preserve the ``RpcPromise`` contract on the cache path: ``cache.read``
         // yields a plain promise with no ``abort``, which would crash a caller
         // doing ``prom.abort(false)``. Capture the fallback's abort (only
@@ -592,6 +609,7 @@ rpc._rpc = function (url, params, settings) {
         // warm hit on an already-resolved entry — neither owns a fetch.
         if (innerAbort) {
             /** @type {any} */ (cacheProm).abort = function (rejectError = true) {
+                callerAborted = true;
                 // A silent abort leaves the fallback fetch pending forever, so
                 // the cache's own settle-time bookkeeping never runs — evict the
                 // cache-miss slot synchronously (mirrors the dedup layer) so the
@@ -623,6 +641,9 @@ rpc._rpc = function (url, params, settings) {
             cacheProm.then(resolve, reject);
         });
         /** @type {any} */ (joinerProm).abort = function (rejectError = true) {
+            // Also stops this joiner's SWR callback (guarded above) from firing
+            // into a torn-down consumer when the shared request later resolves.
+            callerAborted = true;
             if (rejectError) {
                 abortReject(new ConnectionAbortedError(url));
             }
@@ -701,8 +722,15 @@ function _rpcOnce(url, params, settings) {
             }
             if (response.status >= 502 && response.status <= 504) {
                 // 502 Bad Gateway / 503 Service Unavailable / 504 Gateway Timeout
-                // — common when Odoo is behind a reverse proxy (nginx, etc.)
-                const error = new ConnectionLostError(url);
+                // — common when Odoo is behind a reverse proxy (nginx, etc.).
+                // These are transient overload/unavailability signals, so
+                // classify them as ServerOverloadError (a ConnectionLostError
+                // subclass — the reconnect UX and retryability are unchanged)
+                // so retries honour the anti-thundering-herd backoff floor.
+                // Otherwise 503, the status that most explicitly means "back
+                // off", retried on the short default schedule while a generic
+                // non-JSON 500 got the gentle 1000ms floor — inverted vs intent.
+                const error = new ServerOverloadError(url, response.status);
                 rpcBus.trigger(RpcEvent.RESPONSE, { data, settings, error });
                 settleReject(error);
                 return;

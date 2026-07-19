@@ -6,6 +6,7 @@
 import { ASTType } from "./ast_type.js";
 import { bindArgs } from "./py_args.js";
 import {
+    _pythonRound,
     BUILTINS,
     EvaluationError,
     execOnIterable,
@@ -437,13 +438,30 @@ function _applyUnaryOp(ast, recurse) {
             return value;
         case "not":
             return !isTrue(value);
-        case "~":
-            if (typeof value !== "number" && typeof value !== "boolean") {
+        case "~": {
+            // Python's ``~`` is integer-only (floats have no ``__invert__``)
+            // and arbitrary-precision. Reject floats, and do the maths in
+            // BigInt so ``~5000000000`` stays exact instead of being wrapped to
+            // 32 bits by JS ``~`` — matching the binary bitwise ops below.
+            const isInt =
+                typeof value === "boolean" ||
+                (typeof value === "number" && Number.isInteger(value));
+            if (!isInt) {
                 throw new EvaluationError(
                     `bad operand type for unary ~: '${pyTypeName(value)}'`,
                 );
             }
-            return ~value;
+            const result = ~BigInt(value);
+            if (
+                result > BigInt(Number.MAX_SAFE_INTEGER) ||
+                result < BigInt(Number.MIN_SAFE_INTEGER)
+            ) {
+                throw new EvaluationError(
+                    "integer result of '~' exceeds the safe integer range",
+                );
+            }
+            return Number(result);
+        }
     }
     throw new EvaluationError(`Unknown unary operator: ${ast.op}`);
 }
@@ -500,6 +518,35 @@ function assertIntegerOperands(op, left, right) {
 }
 
 /**
+ * Python floor division (``a // b``). ``Math.floor(a / b)`` is wrong whenever
+ * ``a / b`` rounds UP to a representable value at or above the true quotient:
+ * e.g. ``5 / 0.1`` rounds to exactly ``50`` (0.1 is slightly more than 1/10), so
+ * ``Math.floor`` yields 50, but CPython's ``5 // 0.1`` is ``49`` — the true
+ * quotient is 49.999…. Mirrors CPython's ``float_divmod``
+ * (Objects/floatobject.c): derive the quotient from the ``fmod`` remainder (so
+ * it is never rounded past an integer boundary), fix the sign, then floor with
+ * the half-unit correction. Correct for integer operands too (a subset here,
+ * since JS has one number type), so it uniformly replaces ``Math.floor``.
+ *
+ * @param {number} a
+ * @param {number} b nonzero
+ * @returns {number}
+ */
+function pyFloorDiv(a, b) {
+    const mod = a % b;
+    let div = (a - mod) / b;
+    if (mod !== 0 && b < 0 !== mod < 0) {
+        div -= 1;
+    }
+    const floordiv = Math.floor(div);
+    // ``div`` can land just under an integer boundary from representation
+    // error; CPython nudges it up when it is within half a unit.
+    const result = div - floordiv > 0.5 ? floordiv + 1 : floordiv;
+    // Normalize -0 (Math.floor of a small negative) to 0.
+    return result === 0 ? 0 : result;
+}
+
+/**
  * Python-style exponential notation: like toExponential but with the
  * exponent padded to at least two digits (``1.5e+2`` → ``1.500000e+02``).
  *
@@ -509,6 +556,24 @@ function assertIntegerOperands(op, left, right) {
  */
 function formatExponential(num, precision) {
     return num.toExponential(precision).replace(/e([+-])(\d)$/, "e$10$2");
+}
+
+/**
+ * Python ``%f`` magnitude: round to ``precision`` decimals with round-half-to
+ * -even (CPython's rule) instead of ``toFixed``'s round-half-away, then render
+ * with exactly ``precision`` trailing digits. ``_pythonRound`` returns a value
+ * already at ``precision`` decimals, so ``toFixed`` only restores zeros — it
+ * does not re-round the half cases. Caller passes a non-negative magnitude.
+ *
+ * @param {number} num non-negative
+ * @param {number} precision
+ * @returns {string}
+ */
+function formatFixed(num, precision) {
+    if (!Number.isFinite(num)) {
+        return num.toFixed(precision);
+    }
+    return _pythonRound(num, precision).toFixed(precision);
 }
 
 /**
@@ -592,104 +657,113 @@ function pyStringFormat(fmt, value) {
                 }
                 arg = values[i++];
             }
-            let str;
-            const isNumericConv = "diufeEgGxXo".includes(conv);
-            if (isNumericConv && typeof arg !== "number" && typeof arg !== "boolean") {
-                // CPython raises TypeError when a numeric conversion gets a
-                // non-number. A POSITIVE type check is required: the previous
-                // ``Number.isNaN(Number(arg))`` guard let ``null``, ``[]``,
-                // ``""`` and ``false`` through (they all coerce to 0), so
-                // ``'%d' % None`` and an unset field (``false``) silently
-                // rendered "0" instead of raising. Booleans are accepted
-                // because Python bools ARE ints (``'%d' % True`` → "1").
+            if (conv !== "s" && conv !== "r" && !"diufeEgGxXo".includes(conv)) {
+                // Any letter that reached here is a conversion CPython supports
+                // but py_js does not (``%c``, ``%a``, …). Raise like CPython
+                // rather than emit garbage / a stray literal.
+                throw new EvaluationError(
+                    `unsupported format character '${conv}' (0x${conv
+                        .charCodeAt(0)
+                        .toString(16)})`,
+                );
+            }
+            const precision = prec != null ? Number(prec) : null;
+            const w = width ? Number(width) : 0;
+            const leftAlign = flags.includes("-");
+
+            // String conversions: precision truncates the result, width pads;
+            // the sign/#/0 flags do not apply. ('%.3s' % 'hello' → "hel").
+            if (conv === "s" || conv === "r") {
+                let str = conv === "s" ? pyStr(arg) : pyRepr(arg);
+                if (precision != null) {
+                    str = str.slice(0, precision);
+                }
+                if (w > str.length) {
+                    str = leftAlign ? str.padEnd(w) : str.padStart(w);
+                }
+                return str;
+            }
+
+            // Numeric conversions. A POSITIVE type check is required: the
+            // previous ``Number.isNaN(Number(arg))`` guard let ``null``,
+            // ``[]``, ``""`` and ``false`` through (they all coerce to 0), so
+            // ``'%d' % None`` and an unset field (``false``) silently rendered
+            // "0" instead of raising. Booleans are accepted because Python
+            // bools ARE ints (``'%d' % True`` → "1").
+            if (typeof arg !== "number" && typeof arg !== "boolean") {
                 throw new EvaluationError(
                     `%${conv} format: a number is required, not '${pyTypeName(arg)}'`,
                 );
             }
-            switch (conv) {
-                case "s":
-                    str = pyStr(arg);
-                    break;
-                case "r":
-                    str = pyRepr(arg);
-                    break;
-                case "d":
-                case "i":
-                case "u":
-                    str = String(Math.trunc(Number(arg)));
-                    break;
-                case "f":
-                    str = Number(arg).toFixed(prec != null ? Number(prec) : 6);
-                    break;
-                case "e":
-                case "E": {
-                    str = formatExponential(
-                        Number(arg),
-                        prec != null ? Number(prec) : 6,
-                    );
+            const num = Number(arg);
+            // Split the rendered number into sign / radix-prefix / digit body
+            // so precision (min digits), the # prefix, the sign flags and
+            // zero-padding compose in CPython's order: sign, prefix, zeros,
+            // digits.
+            const sign =
+                num < 0
+                    ? "-"
+                    : flags.includes("+")
+                      ? "+"
+                      : flags.includes(" ")
+                        ? " "
+                        : "";
+            let prefix = "";
+            let body;
+            let zeroPad = flags.includes("0");
+            const isIntConv = "diuxXo".includes(conv);
+            if (isIntConv) {
+                const base = conv === "o" ? 8 : conv === "x" || conv === "X" ? 16 : 10;
+                body = Math.trunc(Math.abs(num)).toString(base);
+                if (conv === "X") {
+                    body = body.toUpperCase();
+                }
+                if (precision != null) {
+                    // Precision = MINIMUM digit count, zero-padded independently
+                    // of the field width. '%.3d' % 5 → "005". CPython ignores
+                    // the field-width 0 flag when a precision is given.
+                    body = body.padStart(precision, "0");
+                    zeroPad = false;
+                }
+                // Alternate form (#): 0x/0o/0X radix prefix, kept even for zero
+                // ('%#x' % 0 → "0x0"). No prefix for decimal.
+                if (flags.includes("#")) {
+                    prefix =
+                        conv === "o"
+                            ? "0o"
+                            : conv === "x"
+                              ? "0x"
+                              : conv === "X"
+                                ? "0X"
+                                : "";
+                }
+            } else {
+                const magnitude = Math.abs(num);
+                const p = precision != null ? precision : 6;
+                if (conv === "f") {
+                    body = formatFixed(magnitude, p);
+                } else if (conv === "e" || conv === "E") {
+                    body = formatExponential(magnitude, p);
                     if (conv === "E") {
-                        str = str.toUpperCase();
+                        body = body.toUpperCase();
                     }
-                    break;
-                }
-                case "g":
-                case "G": {
-                    str = formatGeneral(Number(arg), prec != null ? Number(prec) : 6);
+                } else {
+                    body = formatGeneral(magnitude, p);
                     if (conv === "G") {
-                        str = str.toUpperCase();
+                        body = body.toUpperCase();
                     }
-                    break;
-                }
-                case "x":
-                    str = Math.trunc(Number(arg)).toString(16);
-                    break;
-                case "X":
-                    str = Math.trunc(Number(arg)).toString(16).toUpperCase();
-                    break;
-                case "o":
-                    str = Math.trunc(Number(arg)).toString(8);
-                    break;
-                default:
-                    // Any letter that reached here is a conversion CPython
-                    // supports but py_js does not (``%c``, ``%a``, …). Raise
-                    // like CPython rather than emit garbage / a stray literal.
-                    throw new EvaluationError(
-                        `unsupported format character '${conv}' (0x${conv
-                            .charCodeAt(0)
-                            .toString(16)})`,
-                    );
-            }
-            // Alternate form (#): radix prefix for integer conversions
-            // ('%#x' % 255 → "0xff"). Sign goes before the prefix (below).
-            if (flags.includes("#")) {
-                if (conv === "x") {
-                    str = "0x" + str;
-                } else if (conv === "X") {
-                    str = "0X" + str;
-                } else if (conv === "o") {
-                    str = "0o" + str;
                 }
             }
-            // Sign flags for numeric conversions: force a leading sign on
-            // non-negative values ('%+d' % 5 → "+5", '% d' % 5 → " 5"). The
-            // space flag yields to '+' when both are given, as in CPython.
-            if (
-                isNumericConv &&
-                str[0] !== "-" &&
-                (flags.includes("+") || flags.includes(" "))
-            ) {
-                const signCh = flags.includes("+") ? "+" : " ";
-                str = signCh + str;
-            }
-            if (width) {
-                const w = Number(width);
-                if (flags.includes("-")) {
+
+            let str = sign + prefix + body;
+            if (w > str.length) {
+                if (leftAlign) {
                     str = str.padEnd(w);
-                } else if (flags.includes("0") && conv !== "s" && conv !== "r") {
-                    // Python zero-pads AFTER the sign ('%05d' % -3 → "-0003")
-                    // and ignores the 0 flag for string conversions.
-                    const sign = str[0] === "-" || str[0] === "+" ? str[0] : "";
-                    str = sign + str.slice(sign.length).padStart(w - sign.length, "0");
+                } else if (zeroPad) {
+                    // Zero-pad AFTER sign+prefix: '%05d' % -3 → "-0003",
+                    // '%#06x' % 255 → "0x00ff".
+                    const head = sign + prefix;
+                    str = head + body.padStart(w - head.length, "0");
                 } else {
                     str = str.padStart(w);
                 }
@@ -900,7 +974,7 @@ function _applyBinaryOp(ast, recurse) {
                     "ZeroDivisionError: integer division or modulo by zero",
                 );
             }
-            return Math.floor(left / right);
+            return pyFloorDiv(Number(left), Number(right));
         // KNOWN LIMITATION (Python 3 divergence): integer arithmetic (``+``,
         // ``-``, ``*``, ``**``) is done with JS doubles, which are exact only up
         // to 2**53. Python 3 ints are arbitrary precision, so large results lose

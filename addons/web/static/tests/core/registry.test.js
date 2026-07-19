@@ -103,6 +103,18 @@ test("can get ordered list of elements", () => {
     expect(registry.getAll()).toEqual(["foo1", "foo2", "foo3", "foo5"]);
 });
 
+test("equal sequences keep insertion order, even for integer-like keys", () => {
+    // Object key enumeration puts "2" before "10"; the insertion-index
+    // tiebreaker must override that so ties reflect add() order instead.
+    const registry = new Registry();
+    registry
+        .add("10", "v10", { sequence: 50 })
+        .add("2", "v2", { sequence: 50 })
+        .add("foo", "vfoo", { sequence: 50 });
+    expect(registry.getAll()).toEqual(["v10", "v2", "vfoo"]);
+    expect(registry.getEntries().map((e) => e[0])).toEqual(["10", "2", "foo"]);
+});
+
 test("can get ordered list of entries", () => {
     const registry = new Registry();
 

@@ -432,4 +432,17 @@ test("deepMerge", () => {
     expect(deepMerge({ a: { x: 1 } }, { a: { x: 2, y: 3 } })).toEqual({
         a: { x: 2, y: 3 },
     });
+
+    // A keyed `undefined` in the extension leaves the target's value intact
+    // (same rule as a top-level `undefined` extension), so layering a partial
+    // options object with unset fields never wipes the base values.
+    expect(deepMerge({ icon: "x", keep: 1 }, { icon: undefined })).toEqual({
+        icon: "x",
+        keep: 1,
+    });
+    expect(deepMerge({ a: { b: 2 } }, { a: { b: undefined, c: 3 } })).toEqual({
+        a: { b: 2, c: 3 },
+    });
+    // `null` still overrides (explicit "empty"), unlike `undefined`.
+    expect(deepMerge({ a: 1 }, { a: null })).toEqual({ a: null });
 });

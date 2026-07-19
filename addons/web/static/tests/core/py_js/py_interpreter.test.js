@@ -87,6 +87,20 @@ describe("number properties", () => {
         expect(evaluateExpr("-1 // 2")).toBe(-1);
         expect(evaluateExpr("6 // 2")).toBe(3);
     });
+    test("// on floats floors the true quotient (CPython-verified)", () => {
+        // JS `5 / 0.1` rounds up to exactly 50, so `Math.floor` would give 50;
+        // CPython's `5 // 0.1` is 49 (the true quotient is 49.999…).
+        expect(evaluateExpr("5 // 0.1")).toBe(49);
+        expect(evaluateExpr("1 // 0.1")).toBe(9);
+        expect(evaluateExpr("0.5 // 0.1")).toBe(4);
+        expect(evaluateExpr("-5 // 0.1")).toBe(-50);
+        expect(evaluateExpr("7 // 0.1")).toBe(69);
+        // plain float division is unaffected
+        expect(evaluateExpr("5 / 0.1")).toBe(50);
+        // negative divisor keeps Python's floor-toward-negative-infinity sign
+        expect(evaluateExpr("5 // -2")).toBe(-3);
+        expect(evaluateExpr("-5 // -2")).toBe(2);
+    });
 });
 
 describe("boolean properties", () => {
@@ -631,6 +645,37 @@ describe("builtins — int", () => {
         expect(evaluateExpr("int(3.9)")).toBe(3);
         expect(evaluateExpr("int(-3.9)")).toBe(-3);
     });
+    test("int with explicit base", () => {
+        expect(evaluateExpr("int('10', 2)")).toBe(2);
+        expect(evaluateExpr("int('777', 8)")).toBe(511);
+        expect(evaluateExpr("int('ff', 16)")).toBe(255);
+        expect(evaluateExpr("int('FF', 16)")).toBe(255);
+        expect(evaluateExpr("int('0x10', 16)")).toBe(16);
+        expect(evaluateExpr("int('z', 36)")).toBe(35);
+        expect(evaluateExpr("int('ff', base=16)")).toBe(255);
+    });
+    test("int base 0 auto-detects the prefix", () => {
+        expect(evaluateExpr("int('0x1f', 0)")).toBe(31);
+        expect(evaluateExpr("int('0o17', 0)")).toBe(15);
+        expect(evaluateExpr("int('0b101', 0)")).toBe(5);
+        expect(evaluateExpr("int('42', 0)")).toBe(42);
+        expect(evaluateExpr("int('0', 0)")).toBe(0);
+        expect(() => evaluateExpr("int('010', 0)")).toThrow(/invalid literal/);
+    });
+    test("int accepts PEP 515 underscores", () => {
+        expect(evaluateExpr("int('1_000')")).toBe(1000);
+        expect(evaluateExpr("int('0x_1f', 16)")).toBe(31);
+        expect(() => evaluateExpr("int('1__0')")).toThrow(/invalid literal/);
+        expect(() => evaluateExpr("int('_1')")).toThrow(/invalid literal/);
+    });
+    test("int with base rejects bad base / non-string value", () => {
+        expect(() => evaluateExpr("int('10', 1)")).toThrow(/base must be/);
+        expect(() => evaluateExpr("int('10', 37)")).toThrow(/base must be/);
+        expect(() => evaluateExpr("int(5, 2)")).toThrow(
+            /non-string with explicit base/,
+        );
+        expect(() => evaluateExpr("int('ff', 10)")).toThrow(/invalid literal/);
+    });
     test("int from boolean", () => {
         expect(evaluateExpr("int(True)")).toBe(1);
         expect(evaluateExpr("int(False)")).toBe(0);
@@ -814,6 +859,13 @@ describe("operators — bitwise", () => {
     test("bitwise not", () => {
         expect(evaluateExpr("~0")).toBe(-1);
         expect(evaluateExpr("~5")).toBe(-6);
+        expect(evaluateExpr("~-1")).toBe(0);
+        // Beyond 32 bits: JS ``~`` would wrap to -705032705; BigInt keeps it exact.
+        expect(evaluateExpr("~5000000000")).toBe(-5000000001);
+        expect(evaluateExpr("~2147483648")).toBe(-2147483649);
+    });
+    test("bitwise not is integer-only (Python TypeError on float)", () => {
+        expect(() => evaluateExpr("~2.5")).toThrow(/bad operand type for unary ~/);
     });
     test("left shift", () => {
         expect(evaluateExpr("1 << 3")).toBe(8);
@@ -907,6 +959,35 @@ describe("Python semantics fixes", () => {
         expect(evaluateExpr("'%x' % 255")).toBe("ff");
         expect(evaluateExpr("'%X' % 255")).toBe("FF");
         expect(evaluateExpr("'%o' % 8")).toBe("10");
+    });
+    test("'%' precision on strings truncates (CPython-verified)", () => {
+        expect(evaluateExpr("'%.3s' % 'hello'")).toBe("hel");
+        expect(evaluateExpr("'%.3r' % 'hello'")).toBe("'he");
+        expect(evaluateExpr("'%.10s' % 'hi'")).toBe("hi");
+        expect(evaluateExpr("'%-5.3s' % 'hello' + '|'")).toBe("hel  |");
+    });
+    test("'%' precision on integers is a minimum digit count (CPython-verified)", () => {
+        expect(evaluateExpr("'%.3d' % 5")).toBe("005");
+        expect(evaluateExpr("'%.4x' % 255")).toBe("00ff");
+        expect(evaluateExpr("'%.4X' % 255")).toBe("00FF");
+        expect(evaluateExpr("'%+.3d' % 5")).toBe("+005");
+        expect(evaluateExpr("'%.0d' % 0")).toBe("0");
+    });
+    test("'%' alternate form (#) places the prefix after the sign (CPython-verified)", () => {
+        expect(evaluateExpr("'%#x' % 255")).toBe("0xff");
+        expect(evaluateExpr("'%#x' % -255")).toBe("-0xff");
+        expect(evaluateExpr("'%#o' % -8")).toBe("-0o10");
+        expect(evaluateExpr("'%#x' % 0")).toBe("0x0");
+        expect(evaluateExpr("'%#06x' % 255")).toBe("0x00ff");
+        expect(evaluateExpr("'%-#8x' % 255")).toBe("0xff    ");
+    });
+    test("'%f' uses round-half-to-even like CPython", () => {
+        expect(evaluateExpr("'%.0f' % 2.5")).toBe("2");
+        expect(evaluateExpr("'%.0f' % 0.5")).toBe("0");
+        expect(evaluateExpr("'%.0f' % 1.5")).toBe("2");
+        expect(evaluateExpr("'%.0f' % 3.5")).toBe("4");
+        expect(evaluateExpr("'%.0f' % -2.5")).toBe("-2");
+        expect(evaluateExpr("'%.2f' % 2.675")).toBe("2.67");
     });
 
     test("'%' formatting mapping and argument errors", () => {

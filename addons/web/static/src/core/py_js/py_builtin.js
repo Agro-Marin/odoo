@@ -126,7 +126,7 @@ export function pyStr(value) {
  * @param {number} ndigits
  * @returns {number}
  */
-function _pythonRound(value, ndigits) {
+export function _pythonRound(value, ndigits) {
     if (!Number.isFinite(value) || value === 0) {
         return value;
     }
@@ -187,6 +187,69 @@ function _pythonRound(value, ndigits) {
         return sign * truncated;
     }
     return sign * (truncated + increment);
+}
+
+/**
+ * Parse a Python ``int(str, base)`` literal. Mirrors CPython: an optional
+ * ``+``/``-`` sign, base-matching ``0x``/``0o``/``0b`` prefixes, surrounding
+ * whitespace, and single underscores between digits (and directly after the
+ * base prefix — PEP 515). ``base === 0`` auto-detects from the prefix and
+ * otherwise means decimal (rejecting redundant leading zeros, e.g.
+ * ``int("010", 0)``). Throws the CPython ``invalid literal for int() with
+ * base N`` message on malformed input.
+ *
+ * @param {string} raw
+ * @param {number} base 0 or 2..36
+ * @returns {number}
+ */
+function pyIntFromString(raw, base) {
+    const fail = () => {
+        throw new EvaluationError(
+            `invalid literal for int() with base ${base}: ${pyRepr(raw)}`,
+        );
+    };
+    let s = raw.trim();
+    let negative = false;
+    if (s[0] === "+" || s[0] === "-") {
+        negative = s[0] === "-";
+        s = s.slice(1);
+    }
+    const prefixBase = { "0x": 16, "0o": 8, "0b": 2 }[s.slice(0, 2).toLowerCase()];
+    let hadPrefix = false;
+    if (base === 0) {
+        if (prefixBase) {
+            base = prefixBase;
+            s = s.slice(2);
+            hadPrefix = true;
+        } else {
+            base = 10;
+            // A leading zero is legal only for the literal 0 (``int("010", 0)``
+            // is a ValueError, but ``int("0", 0)`` / ``int("0_0", 0)`` are 0).
+            if (/^0[0-9_]*[1-9]/.test(s)) {
+                fail();
+            }
+        }
+    } else if (prefixBase === base) {
+        s = s.slice(2);
+        hadPrefix = true;
+    }
+    // A single underscore may follow the base prefix (``0x_1f``); strip it so
+    // the between-digits underscore rule below applies to the remainder.
+    if (hadPrefix && s[0] === "_") {
+        s = s.slice(1);
+    }
+    // Underscores are allowed only singly, between digits — never leading,
+    // trailing, or doubled.
+    if (!s || s[0] === "_" || s.at(-1) === "_" || s.includes("__")) {
+        fail();
+    }
+    const digits = s.replace(/_/g, "");
+    const alphabet = "0123456789abcdefghijklmnopqrstuvwxyz".slice(0, base);
+    if (!new RegExp(`^[${alphabet}]+$`, "i").test(digits)) {
+        fail();
+    }
+    const n = Number.parseInt(digits, base);
+    return negative ? -n : n;
 }
 
 /**
@@ -400,19 +463,38 @@ export const BUILTINS = {
         return Math.abs(value);
     },
 
-    /** Convert to integer (truncate toward zero). */
-    int(/** @type {any} */ value) {
+    /**
+     * Convert to integer. With no ``base`` it truncates a number toward zero
+     * or parses a base-10 string; with an explicit ``base`` (2..36 or 0 for
+     * prefix auto-detect) it parses a string in that base — ``int("ff", 16)``,
+     * ``int("10", 2)``. The interpreter appends its trailing kwargs object, so
+     * ``int(x)`` → rest=[{}], ``int(s, 2)`` → rest=[2, {}], ``int(s, base=2)``
+     * → rest=[{base: 2}] (mirrors ``round``).
+     */
+    int(/** @type {any} */ value, /** @type {any[]} */ ...rest) {
+        const kwargs = rest.at(-1);
+        const base = rest.length > 1 ? rest[0] : kwargs?.base;
+        if (base !== undefined) {
+            // Python: int(number, base) raises "can't convert non-string with
+            // explicit base"; the base itself must be 0 or 2..36.
+            if (typeof value !== "string") {
+                throw new EvaluationError(
+                    "int() can't convert non-string with explicit base",
+                );
+            }
+            if (typeof base !== "number" || !Number.isInteger(base)) {
+                throw new EvaluationError("int() base must be an integer");
+            }
+            if (base !== 0 && (base < 2 || base > 36)) {
+                throw new EvaluationError("int() base must be >= 2 and <= 36, or 0");
+            }
+            return pyIntFromString(value, base);
+        }
         if (typeof value === "boolean") {
             return value ? 1 : 0;
         }
         if (typeof value === "string") {
-            const trimmed = value.trim();
-            if (!trimmed || !/^[+-]?\d+$/.test(trimmed)) {
-                throw new EvaluationError(
-                    `invalid literal for int() with base 10: '${value}'`,
-                );
-            }
-            return Number.parseInt(trimmed, 10);
+            return pyIntFromString(value, 10);
         }
         if (typeof value !== "number") {
             // Python: int(None)/int([]) raise TypeError; Number() would
