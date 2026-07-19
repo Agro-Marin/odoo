@@ -43,41 +43,129 @@ function registerService(name, dependencies, factory) {
     });
 }
 
+/**
+ * Capture calls to a console method for the duration of the test, restoring it
+ * on cleanup. Service-startup failures are reported through the console by
+ * design (see the resilience contract below), so asserting on them is how the
+ * degrade-gracefully behaviour is specified.
+ *
+ * @param {"warn" | "error"} method
+ * @returns {any[][]} captured argument lists, appended to as calls arrive
+ */
+function captureConsole(method) {
+    const calls = [];
+    const original = console[method];
+    console[method] = (/** @type {any[]} */ ...args) => calls.push(args);
+    after(() => {
+        console[method] = original;
+    });
+    return calls;
+}
+
+/**
+ * Create a bare env and begin its service startup.
+ *
+ * Deliberately NOT `makeMockEnv`: that helper conditionally awaits
+ * `makeMockServer()`, which may perform a real `/web/model/get_definitions`
+ * request, so the number of microtasks between the call and the first service
+ * factory is an incidental scheduling detail rather than a contract. Tests that
+ * observe startup mid-flight must synchronise on an observable signal (a
+ * `Deferred` resolved inside the factory) instead of counting ticks.
+ *
+ * @returns {{ env: any, started: Promise<void> }}
+ */
+function startEnv() {
+    const env = makeEnv();
+    after(() => env.disposeServiceRegistryListener?.());
+    return { env, started: startServices(env) };
+}
+
 test(`can start a service`, async () => {
     registerService("test", [], () => 17);
     const env = await makeMockEnv();
     expect(env.services.test).toBe(17);
 });
 
-test(`crashing service start causes startService to crash`, async () => {
+// Resilience contract: a service whose start() fails is logged and SKIPPED —
+// it does not reject the startup pass. Left unguarded, one broken service (a
+// third-party addon, say) rejects Promise.all of the whole wave, which rejects
+// startServicesPromise, which fails mountComponent and blanks the entire app.
+// Dependents of a failed service cascade-skip and fail at their own use site,
+// the same contract as an unreachable dependency.
+//
+// These two tests previously asserted the opposite (`rejects.toThrow("boom")`).
+// That was the pre-2026 behaviour; the guard in `_startServices`'s wave loop
+// changed it deliberately, and the spec was never updated — so they had been
+// failing rather than describing the intended design.
+
+test(`a service throwing synchronously is skipped, not fatal`, async () => {
+    const errors = captureConsole("error");
     registerService("ouch", [], () => {
         throw new Error("boom");
     });
-    await expect(makeMockEnv()).rejects.toThrow("boom");
+    registerService("fine", [], () => "ok");
+
+    const { env, started } = startEnv();
+    await started;
+
+    expect("ouch" in env.services).toBe(false);
+    expect(env.services.fine).toBe("ok");
+    expect(errors.length).toBe(1);
+    expect(String(errors[0][0])).toMatch(/service "ouch" failed to start \(sync\)/);
 });
 
-test(`crashing async service start causes startService to crash`, async () => {
+test(`a service rejecting asynchronously is skipped, not fatal`, async () => {
+    const errors = captureConsole("error");
     registerService("ouch", [], async () => {
         throw new Error("boom");
     });
-    await expect(makeMockEnv()).rejects.toThrow("boom");
+    registerService("fine", [], () => "ok");
+
+    const { env, started } = startEnv();
+    await started;
+
+    expect("ouch" in env.services).toBe(false);
+    expect(env.services.fine).toBe("ok");
+    expect(errors.length).toBe(1);
+    expect(String(errors[0][0])).toMatch(/service "ouch" failed to start \(async\)/);
+});
+
+test(`a failed service does not prevent its dependents from being reported`, async () => {
+    const errors = captureConsole("error");
+    const warnings = captureConsole("warn");
+    registerService("ouch", [], () => {
+        throw new Error("boom");
+    });
+    registerService("needsOuch", ["ouch"], () => "never");
+
+    const { env, started } = startEnv();
+    await started;
+
+    expect(env.services).toEqual({});
+    expect(errors.length).toBe(1);
+    // The dependent is cascade-skipped rather than left pending or misreported
+    // as a circular dependency.
+    expect(warnings.length).toBe(1);
+    expect(warnings[0][0]).toMatch(/Skipped 1 service\(s\)/);
 });
 
 test(`can start an asynchronous service`, async () => {
     const deferred = new Deferred();
+    const entered = new Deferred();
     registerService("test", [], async () => {
         expect.step("before");
+        entered.resolve();
         const result = await deferred;
         expect.step("after");
         return result;
     });
 
-    const envCreationPromise = makeMockEnv();
-    await tick(); // wait for startServices
+    const { env, started } = startEnv();
+    await entered; // the factory has been invoked — no tick counting
     expect.verifySteps(["before"]);
 
     deferred.resolve(15);
-    const env = await envCreationPromise;
+    await started;
     expect.verifySteps(["after"]);
     expect(env.services.test).toBe(15);
 });
@@ -112,8 +200,10 @@ test(`can start two sequentially dependant asynchronous services`, async () => {
     });
 
     const deferred1 = new Deferred();
+    const entered1 = new Deferred();
     registerService("test1", [], () => {
         expect.step("test1");
+        entered1.resolve();
         return deferred1;
     });
 
@@ -121,31 +211,36 @@ test(`can start two sequentially dependant asynchronous services`, async () => {
         expect.step("test3");
     });
 
-    const envCreationPromise = makeMockEnv();
-    await tick();
+    const { started } = startEnv();
+    await entered1; // test1's factory has run; test2 is gated on it
     expect.verifySteps(["test1"]);
 
+    // Resolving the DEPENDENT's deferred must not unlock anything: test2 has
+    // not started yet, so nothing can observe it.
     deferred2.resolve();
     await tick();
     expect.verifySteps([]);
 
+    // Resolving the dependency unlocks the rest of the chain.
     deferred1.resolve();
-    await tick();
+    await started;
     expect.verifySteps(["test2", "test3"]);
-
-    await envCreationPromise;
 });
 
 test(`can start two independant asynchronous services in parallel`, async () => {
     const deferred1 = new Deferred();
+    const entered1 = new Deferred();
     registerService("test1", [], () => {
         expect.step("test1");
+        entered1.resolve();
         return deferred1;
     });
 
     const deferred2 = new Deferred();
+    const entered2 = new Deferred();
     registerService("test2", [], () => {
         expect.step("test2");
+        entered2.resolve();
         return deferred2;
     });
 
@@ -153,19 +248,20 @@ test(`can start two independant asynchronous services in parallel`, async () => 
         expect.step("test3");
     });
 
-    const envCreationPromise = makeMockEnv();
-    await tick();
+    const { started } = startEnv();
+    // Both dependency-free services belong to the same wave and are invoked
+    // together, before either resolves.
+    await Promise.all([entered1, entered2]);
     expect.verifySteps(["test1", "test2"]);
 
+    // test3 needs BOTH: resolving only one must not unlock it.
     deferred1.resolve();
     await tick();
     expect.verifySteps([]);
 
     deferred2.resolve();
-    await tick();
+    await started;
     expect.verifySteps(["test3"]);
-
-    await envCreationPromise;
 });
 
 test(`startServices: skips services with unreachable deps and warns (no throw)`, async () => {
@@ -228,36 +324,41 @@ test(`a queued startup pass runs even if the in-flight pass rejects`, async () =
     // throws), the second, independent pass must still run to completion and
     // start its own services — it must not inherit the first pass's unrelated
     // rejection nor be silently cancelled.
+    const errors = captureConsole("error");
     const env = makeEnv();
-    // "boom" rejects on its first start (poisoning the in-flight pass) and
+    after(() => env.disposeServiceRegistryListener?.());
+    // "boom" fails on its first start (poisoning the in-flight pass) and
     // recovers on a later pass, so we can assert the queued pass re-ran.
     const deferredBoom = new Deferred();
+    const enteredBoom = new Deferred();
     let boomStarts = 0;
     registerService("boom", [], () => {
         boomStarts++;
+        enteredBoom.resolve();
         return boomStarts === 1 ? deferredBoom : "recovered";
     });
 
     // First (in-flight) pass: captures {boom} and suspends on boom's deferred.
     const p1 = ensureServicesStarted(env);
-    // Attach the rejection expectation now so the pending rejection is handled
-    // (no unhandled-rejection noise) and asserted below.
-    const p1Rejects = expect(p1).rejects.toThrow("boom");
-    await tick();
+    await enteredBoom;
 
     // Second (queued) pass: registered after p1 captured its work, so its
     // "good" service belongs solely to this independent pass.
     registerService("good", [], () => "g");
     const p2 = ensureServicesStarted(env);
-    await tick();
 
-    // The in-flight pass rejects; the queued pass must still complete.
+    // Per the resilience contract, boom's rejection is logged and skipped
+    // rather than rejecting the in-flight pass — but the invariant under test
+    // is unchanged: the queued, independent pass must still run to completion
+    // and start its own services.
     deferredBoom.reject(new Error("boom"));
-    await p1Rejects;
+    await p1;
     await p2;
 
     expect(env.services.good).toBe("g");
     expect(env.services.boom).toBe("recovered");
+    expect(errors.length).toBe(1);
+    expect(String(errors[0][0])).toMatch(/service "boom" failed to start \(async\)/);
 });
 
 test(`startServices: cascade-skips transitive consumers when a dep is missing`, async () => {
@@ -510,22 +611,27 @@ test(`mountComponent: can pass props to the root component`, async () => {
 test(`env.isReady is resolved after services are loaded`, async () => {
     const deferred = new Deferred();
 
+    const entered = new Deferred();
     registerService("test", [], async (env) => {
         expect.step("before");
         env.isReady.then(() => {
             expect.step("env ready");
         });
+        entered.resolve();
 
         const result = await deferred;
         expect.step("after");
         return result;
     });
 
-    const envCreationPromise = makeMockEnv();
-    await tick(); // wait for startServices
+    const { started } = startEnv();
+    await entered; // the factory has been invoked — no tick counting
     expect.verifySteps(["before"]);
 
     deferred.resolve();
-    await envCreationPromise;
+    await started;
+    // `isReady` resolves on the SERVICES_LOADED bus event, which startServices
+    // triggers only after every wave has settled — hence strictly after "after".
+    await Promise.resolve();
     expect.verifySteps(["after", "env ready"]);
 });
