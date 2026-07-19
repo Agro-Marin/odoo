@@ -30,8 +30,12 @@
         </div>
     </t>
     <t t-name="point_of_sale.inputIcon">
-        <i t-if="props.icon.type === 'fa'" t-attf-class="{{props.icon.value}} {{margin}}"/>
-        <span t-if="props.icon.type === 'string'" t-attf-class="{{margin}}" t-esc="props.icon.value"/>
+        <!-- `margin` was never defined (no t-set, no component field), so OWL
+             interpolated it as the literal string "undefined" and every icon
+             rendered with a bogus `undefined` CSS class. Tours had codified that
+             artifact into their selectors (`.fa-search.undefined`). -->
+        <i t-if="props.icon.type === 'fa'" t-attf-class="{{props.icon.value}}"/>
+        <span t-if="props.icon.type === 'string'" t-esc="props.icon.value"/>
     </t>
 
 </templates>
