@@ -850,3 +850,74 @@ class TestSaleMrpKitBom(BaseCommon):
         picking.button_validate()
 
         self.assertEqual(so.line_ids.qty_transferred, 1)
+
+    def _confirm_kit_sale(self, kit_uom, component_uom, kit_qty=3.0, comp_per_kit=2.0):
+        """Create and confirm a SO for a phantom-BoM kit (measured in
+        ``kit_uom``) with a single component (measured in ``component_uom``),
+        and return the component's delivery move.
+        """
+        kit = self.env['product.product'].create({
+            'name': 'Kit', 'is_storable': True, 'uom_id': kit_uom.id,
+        })
+        component = self.env['product.product'].create({
+            'name': 'Component', 'is_storable': True, 'uom_id': component_uom.id,
+        })
+        self.env['mrp.bom'].create({
+            'product_tmpl_id': kit.product_tmpl_id.id,
+            'product_qty': 1.0,
+            'type': 'phantom',
+            'bom_line_ids': [Command.create({
+                'product_id': component.id,
+                'product_qty': comp_per_kit,
+                'product_uom_id': component_uom.id,
+            })],
+        })
+        partner = self.env['res.partner'].create({'name': 'Kit customer'})
+        so = self.env['sale.order'].create({
+            'partner_id': partner.id,
+            'line_ids': [Command.create({
+                'product_id': kit.id, 'product_qty': kit_qty,
+            })],
+        })
+        so.action_confirm()
+        move = so.line_ids.move_ids
+        self.assertEqual(move.product_id, component)
+        return move
+
+    def test_kit_component_packaging_uom_falls_back_cross_category(self):
+        """A kit measured in Units exploding into a component measured in a
+        different category (kg) must NOT stamp the kit line's Units onto the
+        component move: `packaging_uom_id` would then be cross-category with the
+        move UoM and the strict `quantity_packaging_uom` recompute would raise a
+        UserError, blocking the delivery (task 24021). The component move keeps
+        its own UoM and the packaging quantity stays convertible.
+        """
+        uom_unit = self.env.ref('uom.product_uom_unit')
+        uom_kg = self.env.ref('uom.product_uom_kgm')
+        self.assertFalse(uom_kg._has_common_reference(uom_unit))
+
+        move = self._confirm_kit_sale(uom_unit, uom_kg)
+
+        self.assertEqual(
+            move.sale_line_id.product_uom_id, uom_unit,
+            "the kit sale line is legitimately measured in Units",
+        )
+        # The guard: fall back to the component's own UoM, not the kit's Units.
+        self.assertEqual(move.packaging_uom_id, uom_kg)
+        # Strict recompute now yields a value (3 kits * 2 kg) instead of raising.
+        self.assertEqual(move.quantity_packaging_uom, move.product_uom_qty)
+        self.assertEqual(move.quantity_packaging_uom, 6.0)
+
+    def test_kit_component_packaging_uom_inherited_when_compatible(self):
+        """The guard only skips cross-category UoMs: a component sharing the
+        kit line's reference still inherits the line UoM (unchanged behavior).
+        """
+        uom_unit = self.env.ref('uom.product_uom_unit')
+        uom_dozen = self.env.ref('uom.product_uom_dozen')
+        self.assertTrue(uom_dozen._has_common_reference(uom_unit))
+
+        move = self._confirm_kit_sale(uom_unit, uom_dozen)
+
+        # Same reference (Unit/Dozen): the kit line's Units UoM is inherited.
+        self.assertEqual(move.packaging_uom_id, uom_unit)
+        self.assertEqual(move.sale_line_id.product_uom_id, uom_unit)
