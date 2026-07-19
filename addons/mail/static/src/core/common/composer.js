@@ -620,6 +620,14 @@ export class Composer extends Component {
                     (recipient) => !recipient.email || !isEmail(recipient.email),
                 )
             ) {
+                // Surface why nothing was sent instead of silently returning
+                // (an unexplained no-op reads as a dead Send button).
+                this.env.services.notification.add(
+                    _t(
+                        "Cannot send: a recipient has a missing or invalid email address.",
+                    ),
+                    { type: "danger" },
+                );
                 return;
             }
         }
