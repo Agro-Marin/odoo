@@ -13,9 +13,8 @@ from typing import Literal
 def remove_accents(input_str: str) -> str:
     """Replace accented latin letters by an ASCII equivalent.
 
-    Suboptimal-but-better-than-nothing way to replace accented
-    latin letters by an ASCII equivalent. Will obviously change the
-    meaning of input_str and work only for some cases.
+    Suboptimal but better than nothing: this obviously changes the meaning
+    of input_str and works only for some cases.
 
     :param input_str: String with potential accented characters
     :returns: String with accents removed

@@ -18,10 +18,7 @@ class TestDomain(TransactionExpressionCase):
         return super()._search(model, domain, init_domain, test_complement)
 
     def test_00_test_bool_undefined(self):
-        """
-        Check that undefined/empty values in database is equal to False and different of True
-
-        """
+        """Undefined/empty values in the database equal False and differ from True."""
 
         # Add a new boolean column after that some rows/tuples has been added (with data)
         # Existing rows/tuples will be undefined/empty
@@ -257,7 +254,7 @@ class TestDomain(TransactionExpressionCase):
         values = ["name", "", False]
         for length in range(len(values) + 1):
             for subset in combinations(values, length):
-                # check against a subset containg both values for empty strings
+                # check against a subset containing both values for empty strings
                 subset_check = set(subset)
                 if {False, ""} & subset_check:
                     subset_check |= {False, ""}
@@ -356,7 +353,7 @@ class TestDomain(TransactionExpressionCase):
         values = ["name", "", False]
         for length in range(len(values) + 1):
             for subset in combinations(values, length):
-                # check against a subset containg both values for empty strings
+                # check against a subset containing both values for empty strings
                 subset_check = set(subset)
                 if {False, ""} & subset_check:
                     subset_check |= {False, ""}

@@ -516,7 +516,7 @@ class TestGroups(TransactionCase):
         # - Since B didn't imply A, removing A from the implied groups of (B+C)
         #   should not remove user U1 from A, even though C implied A, since C does
         #   not have U1 as a user
-        # - P should be removed as was only added via inheritance to C
+        # - P should be removed as it was only added via inheritance to C
         # - U2 should not be removed from A since it is implied via C but also via D
         assertUsersEqual([u1, u2], a)
         assertUsersEqual([u1], b)

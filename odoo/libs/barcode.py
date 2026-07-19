@@ -64,8 +64,8 @@ def get_barcode_font() -> str:
 def get_barcode_check_digit(numeric_barcode: str) -> int:
     """Compute and return the barcode check digit.
 
-    The used algorithm follows the GTIN specifications and can be used by all
-    compatible barcode nomenclature, like as EAN-8, EAN-12 (UPC-A) or EAN-13.
+    The algorithm follows the GTIN specifications and works for all
+    compatible barcode nomenclatures, such as EAN-8, EAN-12 (UPC-A) or EAN-13.
     https://www.gs1.org/sites/default/files/docs/barcodes/GS1_General_Specifications.pdf
     https://www.gs1.org/services/how-calculate-check-digit-manually
 

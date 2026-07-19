@@ -70,7 +70,7 @@ class TestFreezeTimeMethodDecorator(TransactionCase):
 @freeze_time("2021-01-01")
 @tagged("post_install", "-at_install")
 class TestFreezeTimeClassDecoratorWithDateString(TransactionCase):
-    # Both methods should have the same freezed time.
+    # Both methods should have the same frozen time.
     def test_freeze_time_class_decorator_with_date_string_01(self):
         self.assertEqual(datetime.now(), datetime(2021, 1, 1))
 
@@ -81,7 +81,7 @@ class TestFreezeTimeClassDecoratorWithDateString(TransactionCase):
 @freeze_time("Jan 2th, 2021")
 @tagged("post_install", "-at_install")
 class TestFreezeTimeClassDecoratorWithFancyDateString(TransactionCase):
-    # Both methods should have the same freezed time.
+    # Both methods should have the same frozen time.
     def test_freeze_time_class_decorator_with_fancy_date_string_01(self):
         self.assertEqual(datetime.now(), datetime(2021, 1, 2))
 
@@ -92,7 +92,7 @@ class TestFreezeTimeClassDecoratorWithFancyDateString(TransactionCase):
 @freeze_time(date(2021, 1, 3))
 @tagged("post_install", "-at_install")
 class TestFreezeTimeClassDecoratorWithDate(TransactionCase):
-    # Both methods should have the same freezed time.
+    # Both methods should have the same frozen time.
     def test_freeze_time_class_decorator_with_date_01(self):
         self.assertEqual(datetime.now(), datetime(2021, 1, 3))
 
@@ -103,7 +103,7 @@ class TestFreezeTimeClassDecoratorWithDate(TransactionCase):
 @freeze_time("2021-01-04 04:04")
 @tagged("post_install", "-at_install")
 class TestFreezeTimeClassDecoratorWithDatetimeString(TransactionCase):
-    # Both methods should have the same freezed time.
+    # Both methods should have the same frozen time.
     def test_freeze_time_class_decorator_with_datetime_string_01(self):
         self.assertEqual(datetime.now(), datetime(2021, 1, 4, 4, 4))
 
@@ -114,7 +114,7 @@ class TestFreezeTimeClassDecoratorWithDatetimeString(TransactionCase):
 @freeze_time(datetime(2021, 1, 5, 5, 5))
 @tagged("post_install", "-at_install")
 class TestFreezeTimeClassDecoratorWithDatetime(TransactionCase):
-    # Both methods should have the same freezed time.
+    # Both methods should have the same frozen time.
     def test_freeze_time_class_decorator_with_datetime_01(self):
         self.assertEqual(datetime.now(), datetime(2021, 1, 5, 5, 5))
 
@@ -125,7 +125,7 @@ class TestFreezeTimeClassDecoratorWithDatetime(TransactionCase):
 @freeze_time("2021-01-06 06:06", tz_offset=-1)
 @tagged("post_install", "-at_install")
 class TestFreezeTimeClassDecoratorWithTzOffsetInt(TransactionCase):
-    # Both methods should have the same freezed time.
+    # Both methods should have the same frozen time.
     def test_freeze_time_class_decorator_with_tz_offset_int_01(self):
         self.assertEqual(datetime.now(UTC), datetime(2021, 1, 6, 5, 6, tzinfo=UTC))
         self.assertEqual(datetime.now(), datetime(2021, 1, 6, 5, 6))
@@ -138,7 +138,7 @@ class TestFreezeTimeClassDecoratorWithTzOffsetInt(TransactionCase):
 @freeze_time("2021-01-07 08:08", tz_offset=-timedelta(hours=1, minutes=1))
 @tagged("post_install", "-at_install")
 class TestFreezeTimeClassDecoratorWithTzOffsetDatetime(TransactionCase):
-    # Both methods should have the same freezed time.
+    # Both methods should have the same frozen time.
     def test_freeze_time_class_decorator_with_tz_offset_datetime_01(self):
         self.assertEqual(datetime.now(UTC), datetime(2021, 1, 7, 7, 7, tzinfo=UTC))
         self.assertEqual(datetime.now(), datetime(2021, 1, 7, 7, 7))
@@ -151,7 +151,7 @@ class TestFreezeTimeClassDecoratorWithTzOffsetDatetime(TransactionCase):
 @freeze_time("2121-01-08 08:08", tick=True)
 @tagged("post_install", "-at_install")
 class TestFreezeTimeClassDecoratorWithTick(TransactionCase):
-    # Both methods should have the same freezed time.
+    # Both methods should have the same frozen time.
     def test_freeze_time_class_decorator_with_tick_01(self):
         self.assertGreater(datetime.now(), datetime(2021, 1, 8, 8, 8))
 

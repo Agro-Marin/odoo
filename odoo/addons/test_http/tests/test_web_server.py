@@ -21,7 +21,7 @@ class TestHttpStaticWebServer(
 
     def assertDownloadGizeh(self, url, x_sendfile=None, assert_filename="gizeh.png"):
         # X-Sendfile and X-Accel-Redirect http response headers should
-        # have been consummed by the web server. We should get the
+        # have been consumed by the web server. We should get the
         # ultimate response which holds the file.
         return super().assertDownloadGizeh(
             url, x_sendfile=False, assert_filename=assert_filename

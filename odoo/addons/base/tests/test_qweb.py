@@ -734,7 +734,7 @@ class TestQWebNS(TransactionCase):
         self.assertEqual(len(cac_lines), 2)
         self.assertEqual(result.count("Appel"), 2)
 
-        # check that the t-call dit not output again the xmlns declaration
+        # check that the t-call did not output the xmlns declaration again
         self.assertEqual(
             result.count(
                 'xmlns:cbc="urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2"'
@@ -1624,7 +1624,7 @@ class TestQWebBasic(TransactionCase):
         self.assertEqual(rendered.strip(), result.strip())
 
     def test_set_body_3(self):
-        # test if the cached result don't fail
+        # check that the cached result does not fail
         t = self.env["ir.ui.view"].create(
             {
                 "name": "test",
@@ -2207,13 +2207,13 @@ class TestQWebBasic(TransactionCase):
             self.assertIn("template is required", str(e))
 
     def test_error_message_5(self):
-        # Error not found a first rendering.
+        # Not-found error on the first rendering.
         with self.assertRaises(MissingError, msg="Not Found"):
             self.env["ir.qweb"]._render(-9999)
 
     @mute_logger("odoo.addons.base.models.ir_qweb")  # warning for template not found
     def test_error_message_6(self):
-        # Error not found a second rendering (first rendering with option hide this error).
+        # Not-found error on the second rendering (the first rendering's option hid this error).
         html = self.env["ir.qweb"]._render(-9999, raise_if_not_found=False)
         self.assertEqual("", html)
 
@@ -2226,13 +2226,13 @@ class TestQWebBasic(TransactionCase):
             self.env["ir.qweb"]._render(-9999)
 
     def test_error_message_7(self):
-        # UserError not found a first rendering.
+        # Not-found UserError on the first rendering.
         with self.assertRaises(UserError, msg="Not Found"):
             self.env["ir.qweb"]._render(-9999)
 
     @mute_logger("odoo.addons.base.models.ir_qweb")  # warning for template not found
     def test_error_message_8(self):
-        # UserError not found a second rendering (first rendering with option hide this error).
+        # Not-found UserError on the second rendering (the first rendering's option hid this error).
         html = self.env["ir.qweb"]._render(-9999, raise_if_not_found=False)
         self.assertEqual("", html)
 
@@ -2937,7 +2937,7 @@ class TestQWebBasic(TransactionCase):
                 values={},
             )
 
-        # Check that as above, if we do not have a parent called templates, the file become unreadable for security reasons.
+        # As above, if we do not have a parent called templates, the file becomes unreadable for security reasons.
         with self.assertRaises(QWebError):
             self.env["ir.qweb"]._render(
                 "base/tests/file_template/unreadable_file_template.xml",

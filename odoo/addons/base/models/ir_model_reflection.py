@@ -126,7 +126,6 @@ class IrModelConstraint(models.Model):
                     _logger.info("Dropped CONSTRAINT %s@%s", name, data.model.model)
 
             elif typ == "i":
-                # drop index if it exists
                 self.env.execute_query(
                     SQL("DROP INDEX IF EXISTS %s", SQL.identifier(hname))
                 )

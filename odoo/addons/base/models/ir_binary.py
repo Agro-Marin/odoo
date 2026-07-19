@@ -246,7 +246,7 @@ class IrBinary(models.AbstractModel):
             stream = self._get_placeholder_stream(placeholder)
 
         if stream.type == "url":
-            return stream  # Rezising an external URL is not supported
+            return stream  # Resizing an external URL is not supported
         if not stream.mimetype.startswith("image/"):
             stream.mimetype = "application/octet-stream"
 

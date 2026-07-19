@@ -14,9 +14,9 @@ The GC is triggered by the number of created objects. For the first collection,
 at every allocation and deallocation, a counter is respectively increased and
 decreased. Once it reaches a threshold, that collection is automatically
 collected.
-Before 3.14, other thresolds indicate that every X collections, the next
-collection is collected. Since the, there is only one additional collection
-which is collected inrementally; `1 / threshold1` percent of the heap is
+Before 3.14, other thresholds indicate that every X collections, the next
+collection is collected. Since then, there is only one additional collection
+which is collected incrementally; `1 / threshold1` percent of the heap is
 collected.
 """
 

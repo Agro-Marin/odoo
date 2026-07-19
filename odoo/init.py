@@ -31,12 +31,12 @@ except ImportError as exc:
     ) from exc
 
 # ----------------------------------------------------------
-# Set gc thresolds if they are default, see `odoo.libs.gc`.
+# Set gc thresholds if they are default, see `odoo.libs.gc`.
 # Defaults changed from (700, 10, 10) to (2000, 10, 10) in 3.13
 # and the last generation was removed in 3.14.
 # ----------------------------------------------------------
 if gc.get_threshold()[0] in (700, 2000):
-    # Handling requests can sometimes allocate over 5k new objects, let leave
+    # Handling requests can sometimes allocate over 5k new objects, so leave
     # some space before starting any collection.
     gc.set_threshold(12_000, 20, 25)
 

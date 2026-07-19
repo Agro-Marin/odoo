@@ -28,9 +28,8 @@ _logger = logging.getLogger(__name__)
 
 
 class odoo_resolver(etree.Resolver):
-    """Odoo specific file resolver that can be added to the XML Parser.
-
-    It will search filenames in the ir.attachments
+    """Odoo-specific file resolver for the XML parser: resolve filenames from
+    ir.attachment.
     """
 
     def __init__(self, env: object, prefix: str) -> None:
@@ -78,8 +77,7 @@ def _check_with_xsd(
 ) -> None:
     """Check an XML against an XSD schema.
 
-    This will raise a UserError if the XML file is not valid according to the
-    XSD file.
+    Raise a UserError if the XML is not valid according to the XSD.
 
     :param etree._Element | str | bytes tree_or_str: representation of the tree to be checked
     :param io.IOBase | str stream: the byte stream used to build the XSD schema.
@@ -189,8 +187,8 @@ def load_xsd_files_from_url(
     from the URL or from the ZIP archive, or the `file_name` param if it is specified and a single XSD is being downloaded.
     A typical prefix is the calling module's name.
 
-    For ZIP archives, XSD files inside it will be saved as attachments, depending on the provided list of XSD names.
-    ZIP archive themselves are not saved.
+    For ZIP archives, the contained XSD files are saved as attachments, filtered by the provided list of XSD names.
+    The ZIP archives themselves are not saved.
 
     The XSD files content can be modified by providing the `modify_xsd_content` function as argument.
     Typically, this is used when XSD files depend on each other (with the schemaLocation attribute),
@@ -322,8 +320,8 @@ def validate_xml_from_attachment(
     reload_files_function: object = None,
     prefix: str | None = None,
 ) -> None:
-    """Try and validate the XML content with an XSD attachment.
-    If the XSD attachment cannot be found in database, skip validation without raising.
+    """Validate the XML content against an XSD attachment.
+    If the XSD attachment is not found in database, skip validation without raising.
 
     :param odoo.api.Environment env: environment of calling module
     :param xml_content: the XML content to validate

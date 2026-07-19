@@ -771,7 +771,7 @@ class TestPartnerAddressCompany(TransactionCase):
         )
         self.assertFalse(inv_2.vat)
 
-        # sync P1 with parent, check address is update + other fields in write kept
+        # sync P1 with parent, check address is updated + other fields in write kept
         ct1_phone = "+320455999999"
         ct1.write(
             {
@@ -1015,7 +1015,7 @@ class TestPartnerAddressCompany(TransactionCase):
         )
         branch11.write(
             {"is_company": False}
-        )  # force is_company after creating 1rst child
+        )  # force is_company after creating first child
         branch2 = res_partner.create(
             {"name": "Branch 2", "parent_id": elmtree.id, "is_company": True}
         )

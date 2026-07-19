@@ -231,9 +231,8 @@ class SQL:
         return hash((self.__code, self.__params))
 
     def __iter__(self):
-        """Yields ``self.code`` and ``self.params``. This was introduced for
-        backward compatibility, as it enables to access the SQL and parameters
-        by deconstructing the object::
+        """Yield ``self.code`` and ``self.params``, for backward-compatible
+        deconstruction of the object::
 
             sql = SQL(...)
             code, params = sql
@@ -553,7 +552,7 @@ def _convert_column(
 
 
 def drop_depending_views(cr: Cursor, table: str, column: str) -> None:
-    """drop views depending on a field to allow the ORM to resize it in-place"""
+    """Drop views depending on a field so the ORM can resize it in-place."""
     for v, k in get_depending_views(cr, table, column):
         cr.execute(
             SQL(
@@ -932,14 +931,13 @@ def drop_view_if_exists(cr: Cursor, viewname: str) -> None:
 
 
 def increment_fields_skiplock(records: object, *fields: str) -> bool:
-    """
-    Increment 'friendly' the given `fields` of the current `records`.
-    If record is locked, we just skip the update.
-    It doesn't invalidate the cache since the update is not critical.
+    """Increment the given integer ``fields`` on ``records``, skipping locked rows.
+
+    Does not invalidate the cache, since the update is not critical.
 
     :param records: recordset to update
     :param fields: integer fields to increment
-    :returns: whether the specified fields were incremented on any record.
+    :returns: whether the fields were incremented on any record.
     :rtype: bool
     """
     if not records:

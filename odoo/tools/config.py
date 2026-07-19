@@ -1211,8 +1211,8 @@ class configmanager:
     ) -> None:
         """Parse the config file (if any) and command-line arguments.
 
-        Initializes odoo.tools.config with library-wide values and must be
-        called before the library can be used properly, e.g.::
+        Initialize odoo.tools.config with library-wide values; call this
+        before using the library, e.g.::
 
             odoo.tools.config.parse_config(sys.argv[1:])
         """

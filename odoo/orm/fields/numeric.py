@@ -98,10 +98,10 @@ class Float(Field[float]):
         :class:`~odoo.addons.base.models.decimal_precision.DecimalPrecision` record name.
     :type digits: tuple(int,int) or str
 
-    When a float is a quantity associated with an unit of measure, it is important
-    to use the right tool to compare or round values with the correct precision.
+    When a float is a quantity associated with a unit of measure, use the right
+    tool to compare or round values with the correct precision.
 
-    The Float class provides some static methods for this purpose:
+    The Float class provides static methods for this purpose:
 
     :func:`~odoo.fields.Float.round()` to round a float with the given precision.
     :func:`~odoo.fields.Float.compare()` to compare two floats at the given precision.
@@ -122,8 +122,8 @@ class Float(Field[float]):
                 precision_rounding=self.product_uom_id.rounding,
             )
 
-        The compare helper uses the __cmp__ semantics for historic purposes, therefore
-        the proper, idiomatic way to use this helper is like so:
+        The compare helper uses __cmp__ semantics for historic reasons, so the
+        idiomatic way to use it is:
 
             if result == 0, the first and second floats are equal
             if result < 0, the first float is lower than the second

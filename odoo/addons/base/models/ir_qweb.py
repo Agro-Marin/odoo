@@ -199,7 +199,7 @@ Raise an exception if the ``t-options`` is not consumed.
 
 ``t-qweb-skip``
 ~~~~~~~~~~~~~~~~~~~~~~
-Ignore rendering and directives for the curent **input** node.
+Ignore rendering and directives for the current **input** node.
 
 ``t-else-valid``
 ~~~~~~~~~~~~~~~~~~~~~~
@@ -1756,9 +1756,9 @@ class IrQweb(models.AbstractModel):
     # compile python expression and format string
 
     def _compile_format(self, expr: str) -> str:
-        """Parses the provided format string and compiles it to a single
-        expression python, uses string with format method.
-        Use format is faster to concat string and values.
+        """Parse the format string and compile it to a single python
+        ``%``-format expression, which is faster than concatenating the
+        strings and values.
         """
         # <t t-setf-name="Hello #{world} %s !"/>
         # =>

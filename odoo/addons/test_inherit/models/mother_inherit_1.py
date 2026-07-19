@@ -1,8 +1,6 @@
 from odoo import fields, models
 
 # We add a new field in the parent model. Because of a recent refactoring, this
-
-
 # feature was broken. These models rely on that feature.
 class TestInheritMother(models.Model):
     _inherit = "test.inherit.mother"

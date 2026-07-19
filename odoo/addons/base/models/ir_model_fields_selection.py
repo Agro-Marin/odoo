@@ -154,7 +154,7 @@ class IrModelFieldsSelection(models.Model):
             new_row, cur_row = new_rows.get(value), cur_rows.get(value)
             if new_row is None:
                 if self.pool.ready:
-                    # removing a selection in the new list, at your own risks
+                    # value dropped from the new list; removing at your own risk
                     _logger.warning(
                         "Removing selection value %s on %s.%s",
                         cur_row["value"],
@@ -272,7 +272,7 @@ class IrModelFieldsSelection(models.Model):
                 if selection.value == vals["value"]:
                     continue
                 if selection.field_id.store:
-                    # flush and invalidate the field to keep the cache consistent
+                    # invalidate the field to keep the cache consistent
                     model = self.env[selection.field_id.model]
                     fname = selection.field_id.name
                     model.invalidate_model([fname])

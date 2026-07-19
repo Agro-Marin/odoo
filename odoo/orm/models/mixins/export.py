@@ -348,9 +348,7 @@ class ExportMixin(_ModelStubs):
             )
 
     def export_data(self, fields_to_export: list[str]) -> dict[str, list]:
-        """Export fields for selected objects.
-
-        This method is used when exporting data via client menu.
+        """Export fields for selected objects, for the client's export menu.
 
         :param fields_to_export: list of fields
         :returns: dictionary with a *datas* matrix

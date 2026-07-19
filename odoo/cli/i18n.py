@@ -147,7 +147,7 @@ class I18n(DatabaseCommand):
     def _get_languages(
         self, env: Any, language_codes: list[str], active_test: bool = True
     ) -> Any:
-        # We want to log invalid parameters
+        # active_test=False so inactive languages still match and can be logged below
         Lang = env["res.lang"].with_context(active_test=False)
         languages = Lang.search(
             Domain.OR(
@@ -235,7 +235,7 @@ class I18n(DatabaseCommand):
             parsed_args.languages.remove("pot")
 
         with odoo_env(parsed_args.db_name, readonly=True) as env:
-            # We want to log invalid parameters
+            # Search all requested modules so missing/uninstalled ones can be logged below
             modules = env["ir.module.module"].search_fetch(
                 [("name", "in", parsed_args.modules)], ["name", "state"]
             )

@@ -701,7 +701,7 @@ class IrModelFields(models.Model):
         if not self:
             return True
 
-        # prevent screwing up fields that depend on these fields
+        # prevent breaking fields that depend on these fields
         self = self._prepare_update()
 
         # determine registry fields corresponding to self

@@ -158,7 +158,7 @@ class PdfSigner:
         # /Subtype = type of annotation
         # /F = annotation flags, represented as a 32 bit unsigned integer. 132 corresponds to the Print and Locked flags
         #   Print : corresponds to printing the signature when the page is printed
-        #   Locked : preventing the annotation properties to be modfied or the annotation to be deletd by the user
+        #   Locked : prevents the annotation properties from being modified or the annotation from being deleted by the user
         #   (see section 8.4.2 of the Adobe PDF Reference (v1.7) https://ia601001.us.archive.org/1/items/pdf1.7/pdf_reference_1-7.pdf),
         # /P = page reference, reference to the page where the signature field is located
         signature_field.update(
@@ -240,7 +240,7 @@ class PdfSigner:
             # of the Adobe PDF Reference (v1.7) https://ia601001.us.archive.org/1/items/pdf1.7/pdf_reference_1-7.pdf
             #
             # Parameters:
-            # q = saves the the current graphics state on the graphics state stack
+            # q = saves the current graphics state on the graphics state stack
             # 0.5 0 0 0.5 0 0 cm = modification of the current transformation matrix. Here used to scale down the text size by 0.5 in x and y
             # BT = begin text object
             # /F1 = reference to the font resource named F1

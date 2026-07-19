@@ -100,7 +100,7 @@ class IrModelData(models.Model):
     def _xmlid_to_res_model_res_id(
         self, xmlid: str, raise_if_not_found: bool = False
     ) -> tuple[str, int] | tuple[typing.Literal[False], typing.Literal[False]]:
-        """Return (res_model, res_id)"""
+        """Return (res_model, res_id), or (False, False) if not found."""
         try:
             return self._xmlid_lookup(xmlid)
         except ValueError:

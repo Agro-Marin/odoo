@@ -101,7 +101,11 @@ class TestComputeScheduling(unittest.TestCase):
         self.assertFalse(self.engine.has_pending_field("tax"))
 
     def test_has_pending_field_empty_set(self) -> None:
-        """has_pending_field returns True even if the set was auto-created and is empty."""
+        """has_pending_field is False after mark_done drains the last id.
+
+        The entry is deleted rather than kept as an empty set (the _pending
+        invariant), so no phantom pending field remains.
+        """
         self.engine.schedule("total", [1])
         self.engine.mark_done("total", [1])
         # mark_done deletes the entry when empty

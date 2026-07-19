@@ -58,7 +58,7 @@ def parse_version(s: str) -> tuple[str, ...]:
     "2.4". Alphanumeric parts are lower-cased.
 
     The algorithm assumes that strings like "-" and any alpha string that
-    alphabetically follows "final"  represents a "patch level".  So, "2.4-1"
+    alphabetically follows "final" represents a "patch level".  So, "2.4-1"
     is assumed to be a branch or patch of "2.4", and therefore "2.4.1" is
     considered newer than "2.4-1", which in turn is newer than "2.4".
 

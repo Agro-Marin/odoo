@@ -90,7 +90,7 @@ def nl2br_enclose(string: str, enclosure_tag: str = "div") -> Markup:
     """Like nl2br, but wraps the result in an enclosure tag.
 
     Returns enclosed Markup allowing to better manipulate trusted and
-    untrusted content. New lines added by use are trusted, other content
+    untrusted content. New lines added by us are trusted, other content
     is escaped.
     """
     return Markup("<{enclosure_tag}>{converted}</{enclosure_tag}>").format(
@@ -827,7 +827,7 @@ def html2plaintext(
     encoding: str = "utf-8",
     include_references: bool = True,
 ) -> str:
-    """From an HTML text, convert the HTML to plain text.
+    """Convert HTML content to plain text.
 
     If @param body_id is provided then this is the tag where the
     body (not necessarily <body>) starts.

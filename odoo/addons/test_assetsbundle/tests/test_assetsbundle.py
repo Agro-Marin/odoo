@@ -494,7 +494,7 @@ class TestJavascriptAssetsBundle(FileTouchable):
         )
 
     def _any_ira_for_bundle(self, extension, rtl=False):
-        """Returns all ir.attachments associated to a bundle, regardless of the verion."""
+        """Returns all ir.attachments associated to a bundle, regardless of the version."""
         bundle = (
             self.jsbundle_name if extension in ["js", "min.js"] else self.cssbundle_name
         )
@@ -749,7 +749,7 @@ class TestJavascriptAssetsBundle(FileTouchable):
 
     def test_07_debug_assets(self):
         """Checks that a bundle rendered in debug assets mode outputs non-minified assets
-        and create an non-minified ir.attachment at the .
+        and creates a non-minified ir.attachment.
         """
         debug_bundle = self._get_asset(self.jsbundle_name, debug_assets=True)
         content = debug_bundle.get_links()
@@ -1419,7 +1419,7 @@ class TestAssetsBundleInBrowser(HttpCase):
 
     @skip("Feature Regression")
     def test_02_js_interpretation_inline(self):
-        """Checks that the javascript of a bundle is correctly interpretet when mixed with inline."""
+        """Checks that the javascript of a bundle is correctly interpreted when mixed with inline."""
         view_arch = """
         <data>
             <xpath expr="." position="inside">
@@ -3026,7 +3026,7 @@ class AssetsNodeOrmCacheUsage(TransactionCase):
         if self.env["ir.module.module"].search(
             [("name", "=", "website"), ("state", "=", "uninstalled")]
         ):
-            return  # only makes sence if website is installed
+            return  # only makes sense if website is installed
         self.env.registry.clear_cache("assets")
 
         asset_keys, qweb_keys = self.cache_keys()

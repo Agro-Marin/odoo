@@ -7,7 +7,7 @@ from odoo.tools import file_open
 
 
 class TestAvatarMixin(TransactionCase):
-    """tests the avatar mixin"""
+    """Test the avatar mixin."""
 
     def setUp(self):
         super().setUp()

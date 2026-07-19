@@ -289,7 +289,7 @@ def populate_field(
         )
 
     def copy_many2one(field_):
-        # if the comodel was priorly populated, remap the many2one to the new copies
+        # if the comodel was previously populated, remap the many2one to the new copies
         if (comodel := model.env[field_.comodel_name]) in populated:
             comodel_max_id = populated[comodel]
             # we use MOD() instead of %, because % cannot be correctly escaped, it's a limitation of the SQL wrapper
@@ -307,10 +307,10 @@ def populate_field(
         return copy_id()
     match field.type:
         case "one2many":
-            # there is nothing to copy, as it's value is implicitly read from the inverse Many2one
+            # nothing to copy: its value is implicitly read from the inverse Many2one
             return copy_noop()
         case "many2many":
-            # there is nothing to do, the copying of the m2m will be handled when copying the relation table
+            # nothing to do: the m2m is copied when copying the relation table
             return copy_noop()
         case "many2one":
             return copy_many2one(field)
@@ -322,7 +322,7 @@ def populate_field(
             #  If we need to read on-the-fly, the populated structure needs to be in DB (via a new Model?)
             return copy(field)
         case "binary":
-            # copy only binary field that are inlined in the table
+            # copy only binary fields that are inlined in the table
             return copy(field) if not field.attachment else copy_noop()
         case _:
             return copy(field)
@@ -355,7 +355,7 @@ def populate_model(
     update_fields = []
     table_alias = "t"
     series_alias = "s"
-    # process all stored fields (that has a respective column), if the model has an 'id', it's processed first
+    # process all stored fields (that have a respective column); an 'id' field is processed first
     for _, field in sorted(model._fields.items(), key=lambda pair: pair[0] != "id"):
         if has_column(field):
             if field_needs_variation(model, field) and field.type in (

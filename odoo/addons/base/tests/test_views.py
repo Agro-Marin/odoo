@@ -2129,7 +2129,7 @@ class TestViews(ViewCase):
         )
 
     def _insert_view(self, **kw):
-        """Insert view into database via a query to passtrough validation"""
+        """Insert view into database via a query to bypass validation"""
         kw.pop("id", None)
         kw.setdefault("mode", "extension" if kw.get("inherit_id") else "primary")
         kw.setdefault("active", True)
@@ -3990,7 +3990,7 @@ class TestViews(ViewCase):
         """Tests the attrs is well processed to modifiers for a field node combining:
         - a `groups` attribute on the field node in the view architecture
         - a `groups` attribute on the field in the Python model
-        This is an edge case and it worths a unit test."""
+        This is an edge case and it is worth a unit test."""
         self.patch(self.env.registry["res.partner"].name, "groups", "base.group_system")
         self.env.user.group_ids += self.env.ref("base.group_multi_company")
         view = self.View.create(

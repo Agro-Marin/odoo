@@ -117,7 +117,7 @@ class AccessMixin(_ModelStubs):
 
         If `field_names` is not provided, we list accessible fields to the user.
         Otherwise, an error is raised if we try to access a forbidden field.
-        Note that this function ignores unknown (virtual) fields.
+        Unknown (virtual) fields are ignored.
 
         :param operation: one of ``read``, ``write`` (field access is group-based,
           so ``create``/``unlink`` have no field-level granularity)
@@ -237,10 +237,10 @@ class AccessMixin(_ModelStubs):
     def check_access_rights(
         self, operation: str, raise_exception: bool = True
     ) -> bool | None:
-        """Verify that the given operation is allowed for the current user accord to ir.model.access.
+        """Verify that the given operation is allowed for the current user according to ir.model.access.
 
         :param str operation: one of ``create``, ``read``, ``write``, ``unlink``
-        :param bool raise_exception: whether an exception should be raise if operation is forbidden
+        :param bool raise_exception: whether an exception should be raised if operation is forbidden
         :return: whether the operation is allowed
         :rtype: bool | None
         :raise AccessError: if the operation is forbidden and raise_exception is True

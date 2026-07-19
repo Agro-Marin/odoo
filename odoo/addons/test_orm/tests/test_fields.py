@@ -82,7 +82,7 @@ class TestFields(TransactionCaseWithUserDemo, TransactionExpressionCase):
         records.body = "Updated"
         self.assertTrue(all(record.body == "Updated" for record in records))
 
-        # field assigmenent does not cache the wrong value when write overridden
+        # field assignment does not cache the wrong value when write overridden
         record.priority = 4
         self.assertEqual(record.priority, 5)
 
@@ -485,7 +485,7 @@ class TestFields(TransactionCaseWithUserDemo, TransactionExpressionCase):
                 "domain_force": "[('id', '!=', %d)]" % user2.id,
             }
         )
-        # DLE P72: Since we decided that we do not raise security access errors for data to which we had the occassion
+        # DLE P72: Since we decided that we do not raise security access errors for data to which we had the occasion
         # to put the value in the cache, we need to invalidate the cache for user1, user2 and user3 in order
         # to test the below access error. Otherwise the above create calls set in the cache the information needed
         # to compute `company_type` ('is_company'), and doesn't need to trigger a read.
@@ -598,7 +598,7 @@ class TestFields(TransactionCaseWithUserDemo, TransactionExpressionCase):
 
         # Before deleting order, the following are marked to recompute:
         #  - task.line_id (recursive, depends on task.line_id.order_id.value)
-        #  - line.task_number (implicitely depends on line.task_ids.line_id)
+        #  - line.task_number (implicitly depends on line.task_ids.line_id)
         #
         # If task.line_id is ever recomputed in order to mark line.task_number,
         # its recomputed value will be lost in the cache invalidation, and
@@ -617,7 +617,7 @@ class TestFields(TransactionCaseWithUserDemo, TransactionExpressionCase):
         self.assertEqual(c.context_dependent_name, "A / B / C")
         self.assertEqual(d.context_dependent_name, "A / B / C / D")
 
-        # now let's swith to another context to update the dependency
+        # now let's switch to another context to update the dependency
         a.with_context(bozo=42).name = "A1"
         self.assertEqual(a.context_dependent_name, "A1")
         self.assertEqual(b.context_dependent_name, "A1 / B")
@@ -5240,7 +5240,7 @@ class TestMany2oneReference(TransactionExpressionCase):
         m = self.env["test_orm.model_many2one_reference"]
         self.env.cr.execute("SELECT max(id) FROM test_orm_model_many2one_reference")
         ids = self.env.cr.fetchone()
-        # fake record to emulate the unlink of a non-existant record
+        # fake record to emulate the unlink of a non-existent record
         foo = m.browse(1 if not ids[0] else (ids[0] + 1))
         self.assertTrue(foo.unlink())
 
@@ -5438,7 +5438,7 @@ class TestSelectionOndelete(TransactionCase):
         # unlink the extended option (simulates a module uninstall)
         self._unlink_option(self.MODEL_REQUIRED, "baz")
 
-        # verify that the ondelete policy has succesfully been applied
+        # verify that the ondelete policy has successfully been applied
         self.assertEqual(rec1.my_selection, "foo")
         self.assertEqual(rec2.my_selection, "bar")
         self.assertEqual(rec3.my_selection, "foo")  # reset to default

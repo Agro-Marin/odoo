@@ -80,12 +80,12 @@ class Speedscope:
     ) -> Self:
         """Add a profile output to the list of profiles.
 
-        :param names: list of keys to combine in this output. Keys corresponds to the one used in add
+        :param names: list of keys to combine in this output. Keys correspond to the ones used in add
         :param display_name: name of the tab for this output
-        :param complete: display the complete stack. If False, don't display the stack bellow the profiler.
+        :param complete: display the complete stack. If False, don't display the stack below the profiler.
         :param use_context: use execution context (added by ExecutionContext context manager) to display the profile.
         :param constant_time: hide temporality. Useful to compare query counts
-        :param context_per_name: a dictionary of additionnal context per name.
+        :param context_per_name: a dictionary of additional context per name.
         """
         entries = []
         display_name = display_name or ",".join(names)

@@ -124,7 +124,7 @@ class Application:
 
     def initialize(self) -> None:
         """
-        Call when setting up a WSGI application, after initializing the
+        Called when setting up a WSGI application, after initializing the
         configuration values.
         """
         module_manager.initialize_sys_path()
@@ -386,8 +386,8 @@ class Application:
             such as the request HTTP headers, the source IP address and
             the body as an io file.
         :param callable start_response: function provided by the WSGI
-            server that this application must call in order to send the
-            HTTP response status line and the response headers.
+            server that this application must call to send the HTTP
+            response status line and the response headers.
         """
         self._reset_thread_state()
         self._apply_proxy_fix(environ)

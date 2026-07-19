@@ -120,7 +120,7 @@ def float_round(
     # 1 unit in the last place (ulp) after rounding.
     # For example 2.675 == 2.6749999999999998.
     # To correct this, we add a very small epsilon value, scaled to the
-    # the order of magnitude of the value, to tip the tie-break in the right
+    # order of magnitude of the value, to tip the tie-break in the right
     # direction.
     # Credit: discussion with Odoo community members on bug 882036
     epsilon_magnitude = math.log2(abs(normalized_value))

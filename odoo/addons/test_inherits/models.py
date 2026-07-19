@@ -28,10 +28,7 @@ class TestUnitLine(models.Model):
     unit_id = fields.Many2one("test.unit", required=True)
 
 
-# We want to _inherits from the parent model and we add some fields
-
-
-# in the child object
+# We want to _inherits from the parent model and add some fields in the child object
 class TestBox(models.Model):
     _name = "test.box"
     _inherits = {"test.unit": "unit_id"}
@@ -61,9 +58,7 @@ class TestAnother_Unit(models.Model):
 
 
 # We want to _inherits from the parent model, add a field and check
-
-
-# the new field is always equals to the first one
+# the new field is always equal to the first one
 class TestAnother_Box(models.Model):
     _name = "test.another_box"
     _inherits = {"test.another_unit": "another_unit_id"}

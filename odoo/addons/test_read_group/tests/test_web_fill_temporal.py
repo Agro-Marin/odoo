@@ -1039,12 +1039,12 @@ class TestFillTemporal(common.TransactionCase):
         self.assertEqual(groups, expected)
 
     def test_edge_fx_tz(self):
-        """We test if different edge effect by using a different timezone from the user context
+        """Test an edge effect by using a timezone different from the user context
 
-        Suppose a user resident near Hovd, a city in Mongolia. he sells a product
-        at exacltly 4:00 AM on 1st January 2018. Using its context, that datetime
-        is previously converted to UTC time by the ORM so as being stored properly
-        inside the datebase. We are in winter time so 'Asia/Hovd' is UTC+7 :
+        Suppose a user resident near Hovd, a city in Mongolia. He sells a product
+        at exactly 4:00 AM on 1st January 2018. Using his context, that datetime
+        is converted to UTC time by the ORM so as being stored properly inside the
+        database. We are in winter time so 'Asia/Hovd' is UTC+7 :
 
                  '2018-01-01 04:00:00'   -->  '2017-12-31 21:00:00'
 
@@ -1075,7 +1075,7 @@ class TestFillTemporal(common.TransactionCase):
     def test_with_bounds(self):
         """Test the alternative dictionary format for the fill_temporal context key (fill_from, fill_to).
 
-        We apply the fill_temporal logic only to a cibled portion of the result of a formatted_read_group.
+        We apply the fill_temporal logic only to a targeted portion of the result of a formatted_read_group.
         [fill_from, fill_to] are the inclusive bounds of this portion.
         Data outside those bounds will not be filtered out
         Bounds will be converted to the start of the period which they belong to (depending
@@ -1329,7 +1329,7 @@ class TestFillTemporal(common.TransactionCase):
     def test_lower_bound(self):
         """Test the alternative dictionary format for the fill_temporal context key (fill_from).
 
-        Same as with both bounds, but this time the second bound is the lastest group with data
+        Same as with both bounds, but this time the second bound is the latest group with data
         (since only fill_from is set)
         """
         self.Model.create({"date": "1916-04-15", "value": 1})

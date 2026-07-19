@@ -57,7 +57,7 @@ class Properties(Field):
     properties can be created on the fly without changing the structure of the
     database.
 
-    The "definition_record" define the field used to find the container of the
+    The "definition_record" defines the field used to find the container of the
     current record. The container must have a :class:`~odoo.fields.PropertiesDefinition`
     field "definition_record_field" that contains the properties definition
     (type of each property, default value)...
@@ -81,7 +81,7 @@ class Properties(Field):
 
     definition = None
     definition_record = (
-        None  # field on the current model that point to the definition record
+        None  # field on the current model that points to the definition record
     )
     # field on the definition record that defined the Properties field definition
     definition_record_field = None
@@ -730,8 +730,8 @@ class Properties(Field):
 
         :param values_dict: JSON value coming from the child table
         :param properties_definition: Properties definition coming from the container table
-        :return: Merge both value into a list of properties with value
-            Ignore every values in the child that is not defined on the container.
+        :return: both merged into a list of properties with values;
+            values in the child that are not defined on the container are ignored.
         """
         if not is_list_of(properties_definition, dict):
             raise ValueError(f"Wrong properties value {properties_definition!r}")

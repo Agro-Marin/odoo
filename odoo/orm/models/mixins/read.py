@@ -86,8 +86,8 @@ class ReadMixin(_ModelStubs):
         that key. (``search``/``create``/``write`` still raise ``ValueError``
         for unknown fields; only ``read`` is lenient.)
 
-        This is a high-level method that is not supposed to be overridden. In
-        order to modify how fields are read from database, see methods
+        This is a high-level method that is not supposed to be overridden. To
+        modify how fields are read from the database, see methods
         :meth:`_fetch_query` and :meth:`_read_format`.
         """
         prof = _OrmProfile(_orm_read)

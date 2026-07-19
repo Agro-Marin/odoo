@@ -25,7 +25,7 @@ class TestNum2WordsAr(TransactionCase):
         )
 
     def test_decimal_multiple_of_thousands(self):
-        """Test num2words function with a multiple of thousands number."""
+        """Test num2words function with a decimal multiple of thousands number."""
         thousand = num2words(1234.1, lang="ar")
         million = num2words(1234567.23, lang="ar")
         billion = num2words(1234567890.9, lang="ar")

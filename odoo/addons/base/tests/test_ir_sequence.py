@@ -213,7 +213,7 @@ class TestIrSequenceGenerate(BaseCase):
                 self.assertEqual(n, str(i))
 
     def test_ir_sequence_prefix(self):
-        """test whether the raise a user error for an invalid sequence"""
+        """test whether a user error is raised for an invalid sequence"""
 
         # try to create a sequence with invalid prefix
         with environment() as env:
@@ -249,7 +249,7 @@ class TestIrSequenceGenerate(BaseCase):
             )
 
     def test_ir_sequence_iso_directives(self):
-        """Test ISO 8061 date directives in sequence suffix/prefix."""
+        """Test ISO 8601 date directives in sequence suffix/prefix."""
         with environment() as env:
             seq = env["ir.sequence"].create(
                 {

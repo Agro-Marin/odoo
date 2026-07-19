@@ -47,7 +47,7 @@ class TestFormattedReadGroup(common.TransactionCase):
             ],
         )
 
-        # groupby on many2one, the order use the order of the comodel (res.partner)
+        # groupby on many2one, the order uses the order of the comodel (res.partner)
         self.assertEqual(
             Model.formatted_read_group(
                 [], groupby=["key", "partner_id"], aggregates=["value:sum"]
@@ -1769,7 +1769,7 @@ class TestFormattedReadGroup(common.TransactionCase):
         )
 
         # TODO: should we order by the relation and not by the id also for many2many
-        # (same than many2one) ? for public methods ?
+        # (same as many2one) ? for public methods ?
         self.assertEqual(
             tasks.formatted_read_group(
                 [("id", "in", tasks.ids)],
@@ -1795,7 +1795,7 @@ class TestFormattedReadGroup(common.TransactionCase):
             ],
         )
 
-        # Inverse the order, only inverse depending of id (see TODO above)
+        # Inverse the order, only inverse depending on id (see TODO above)
         self.assertEqual(
             tasks.formatted_read_group(
                 [("id", "in", tasks.ids)],
@@ -1948,7 +1948,7 @@ class TestFormattedReadGroup(common.TransactionCase):
             ],
         )
 
-        # Same result for these 3 scenario, except name of the group
+        # Same result for these 3 scenarios, except name of the group
         for fname in (
             "foo_id_bar_id_name",
             "foo_id_bar_name",
@@ -1981,7 +1981,7 @@ class TestFormattedReadGroup(common.TransactionCase):
             ],
         )
 
-        # Cannot groupby on foo_names_sudo because it traverse One2many
+        # Cannot groupby on foo_names_sudo because it traverses One2many
         with self.assertRaises(ValueError):
             RelatedBar.formatted_read_group([], ["foo_names_sudo"])
 
@@ -2365,7 +2365,7 @@ class TestFormattedReadGroup(common.TransactionCase):
             GROUP BY "{alias_join}"."bar_id"
             ORDER BY "{alias_join}"."bar_id" ASC
         """]):
-            # foos[0] not accessible, then foo_id.bar_id result into empty recordset
+            # foos[0] not accessible, then foo_id.bar_id results in empty recordset
             result = RelatedBase.formatted_read_group(
                 [], ["foo_id.bar_id"], ["__count"]
             )
@@ -2524,7 +2524,7 @@ class TestFormattedReadGroup(common.TransactionCase):
                     RelatedBase.search_count(group["__extra_domain"]),
                 )
 
-        # Cannot groupby on foo_ids.name because it traverse One2many
+        # Cannot groupby on foo_ids.name because it traverses One2many
         with self.assertRaises(ValueError):
             RelatedBar.formatted_read_group([], ["foo_ids.name"])
 
@@ -2615,7 +2615,7 @@ class TestFormattedReadGroup(common.TransactionCase):
 
         for fname_sequence in ["foo_id.bar_id.name", "foo_id.bar_name_sudo"]:
             with self.assertQueries([expected_query]):
-                # foos[0] not accessible, then bar_a is only exist via foos[2]
+                # foos[0] not accessible, then bar_a only exists via foos[2]
                 result = RelatedBase.formatted_read_group(
                     [], [fname_sequence], ["__count"]
                 )
@@ -2849,7 +2849,7 @@ class TestFormattedReadGroupMonetary(common.TransactionCase):
                 },
             ]
         )
-        cls.env["res.currency.rate"].search([]).unlink()  # Avoid demo mess up tests
+        cls.env["res.currency.rate"].search([]).unlink()  # Avoid demo data messing up tests
 
     def test_monetary_fields_agg_in_fields_get(self):
         field_infos = self.MonetaryAgg.fields_get()

@@ -69,8 +69,8 @@ def _route_param_filter(endpoint: Callable) -> tuple[bool, frozenset[str], str]:
 
 def route(route: str | Iterable[str] | None = None, **routing: Any) -> Callable:
     """
-    Decorate a controller method in order to route incoming requests
-    matching the given URL and options to the decorated method.
+    Decorate a controller method to route incoming requests matching the
+    given URL and options to the decorated method.
 
     .. warning::
         It is mandatory to re-decorate any method that is overridden in

@@ -264,9 +264,8 @@ class Query:
         )
 
     def subselect(self, *args: str | SQL) -> SQL:
-        """Similar to :meth:`.select`, but for sub-queries.
-        This one avoids the ORDER BY clause when possible,
-        and includes parentheses around the subquery.
+        """Like :meth:`.select`, but for sub-queries: omit the ORDER BY clause
+        when possible and wrap the query in parentheses.
         """
         if self._ids is not None and not args:
             # inject the known result instead of the subquery
@@ -290,8 +289,8 @@ class Query:
         )
 
     def get_result_ids(self) -> tuple[int, ...]:
-        """Return the result of ``self.select()`` as a tuple of ids. The result
-        is memoized for future use, which avoids making the same query twice.
+        """Return the result of ``self.select()`` as a tuple of ids, memoized to
+        avoid running the same query twice.
         """
         if self._ids is None:
             self._ids = tuple(id_ for (id_,) in self._env.execute_query(self.select()))

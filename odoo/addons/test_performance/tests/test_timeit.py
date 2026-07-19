@@ -65,7 +65,7 @@ class TestPerformanceTimeit(TransactionCase):
         """Get records for testing, give the max size of the recordset"""
         all_records = [p.child_ids for p in cls.get_parents()]
         result = [recs for recs in all_records if len(recs) < max_size]
-        # find the next bigger and trucate it to max size
+        # find the next bigger and truncate it to max size
         if bigger := next((recs for recs in all_records if len(recs) > max_size), None):
             result.append(bigger[:max_size])
         return result

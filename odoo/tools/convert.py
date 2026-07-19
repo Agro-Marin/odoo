@@ -66,15 +66,11 @@ def _get_eval_context(
 
 
 def _fix_multiple_roots(node: etree._Element) -> None:
-    """
-    Surround the children of the ``node`` element of an XML field with a
-    single root "data" element, to prevent having a document with multiple
-    roots once parsed separately.
+    """Wrap the children of ``node`` in a single "data" root element.
 
-    XML nodes should have one root only, but we'd like to support
-    direct multiple roots in our partial documents (like inherited view architectures).
-    As a convention we'll surround multiple root with a container "data" element, to be
-    ignored later when parsing.
+    XML documents must have a single root, but partial documents (like inherited
+    view architectures) may declare multiple roots. By convention we wrap them in a
+    container "data" element, ignored later when parsing.
     """
     real_nodes = [x for x in node if not isinstance(x, SKIPPED_ELEMENT_TYPES)]
     if len(real_nodes) > 1:
@@ -613,9 +609,7 @@ form: module.record_id""" % (xml_id,)
         return self._tag_record(record)
 
     def _tag_asset(self, el: etree._Element) -> tuple[str, int] | None:
-        """
-        Transforms an <asset> element into a <record> and forwards it.
-        """
+        """Transform an <asset> element into a <record> and forward it."""
         asset_id = el.get("id")
         Field = builder.E.field
 
@@ -809,10 +803,12 @@ def convert_csv_import(
     mode: ConvertMode = "init",
     noupdate: bool = False,
 ) -> None:
-    """Import csv file :
+    """Import a CSV file.
+
     quote: "
     delimiter: ,
-    encoding: utf-8"""
+    encoding: utf-8
+    """
     env = env(context=dict(env.context, lang=None))
     filename = Path(fname).stem
     model = filename.split("-")[0]

@@ -16,7 +16,7 @@ from odoo.tools.image import image_to_base64
 from odoo.addons.base.models.ir_attachment import IrAttachment
 from odoo.addons.base.tests.common import TransactionCaseWithUserDemo
 
-HASH_SPLIT = 2  # FIXME: testing implementations detail is not a good idea
+HASH_SPLIT = 2  # FIXME: testing an implementation detail is not a good idea
 
 
 class TestIrAttachment(TransactionCaseWithUserDemo):
@@ -288,8 +288,7 @@ class TestIrAttachment(TransactionCaseWithUserDemo):
     def test_12_gc(self):
         # zero the grace window: this test marks and sweeps immediately
         self.patch(IrAttachment, "_GC_CHECKLIST_GRACE", 0)
-        # the data needs to be unique so that no other attachment link
-        # the file so that the gc removes it
+        # unique data so no other attachment shares the file, letting the gc collect it
         unique_blob = os.urandom(16)
         a1 = self.Attachment.create({"name": "a1", "raw": unique_blob})
         store_path = Path(self.filestore, a1.store_fname)
@@ -301,8 +300,7 @@ class TestIrAttachment(TransactionCaseWithUserDemo):
     def test_13_rollback(self):
         # zero the grace window: this test marks and sweeps immediately
         self.patch(IrAttachment, "_GC_CHECKLIST_GRACE", 0)
-        # the data needs to be unique so that no other attachment link
-        # the file so that the gc removes it
+        # unique data so no other attachment shares the file, letting the gc collect it
         unique_blob = os.urandom(16)
         with contextlib.closing(self.cr.savepoint()):
             a1 = self.env["ir.attachment"].create({"name": "a1", "raw": unique_blob})

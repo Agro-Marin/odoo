@@ -680,7 +680,7 @@ class MockSmtplibCase:
         :param mail_server: used to compare the 'from_filter' as an alternative
           to using the from_filter parameter
         :param from_filter: from_filter of the <ir.mail_server> used to send the
-          email. False means 'match everything';'
+          email. False means 'match everything'.
         :param emails_count: the number of emails which should match the condition
         :param msg_cc_lst: optional check msg_cc value of email;
         :param msg_to_lst: optional check msg_to value of email;

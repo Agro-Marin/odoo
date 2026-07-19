@@ -47,7 +47,7 @@ STANDARD_CONDITION_OPERATORS: Final[frozenset[str]] = frozenset(
 - string pattern comparison
   - `=like` case-sensitive compare to a string using SQL like semantics
   - `=ilike` case-insensitive with `unaccent` comparison to a string
-  - `like`, `ilike` behave like the preceding methods, but add a wildcards
+  - `like`, `ilike` behave like the preceding methods, but add wildcards
     around the value
 """
 

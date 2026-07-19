@@ -1696,12 +1696,12 @@ class PropertiesCase(TestPropertiesMixin):
     def test_properties_field_tags(self):
         """Test the behavior of the tag property.
 
-        The tags properties is basically the same as the selection property,
+        The tags property is the same as the selection property,
         but you can select multiple values. It should work like the selection
         (if we remove a value on the definition record, it should remove the value on each
         child the next time we read, etc).
 
-        Each tags has a color index defined on the definition record.
+        Each tag has a color index defined on the definition record.
         """
         self.discussion_1.attributes_definition = [
             {
@@ -2402,8 +2402,8 @@ class PropertiesCase(TestPropertiesMixin):
     def test_properties_field_update_parent(self):
         """Check that the user does not get an `AccessError` when modifying the
         parent of a record and thereby making it forbidden. The default values
-        of the new property definition should be added should be added even if
-        the record is not accessible.
+        of the new property definition should be added even if the record is
+        not accessible.
         """
         self.env["ir.rule"].sudo().create(
             {
@@ -4246,10 +4246,10 @@ class PropertiesGroupByCase(TestPropertiesMixin):
     def _check_many_falsy_group(self, property_name, result):
         """Check the falsy group from the many2many and tags read group result.
 
-        - if a record is in the falsy group, it can't be in a other group
+        - if a record is in the falsy group, it can't be in another group
           (that sentence is not true for non-falsy group, a record
           with a non-falsy value can be in many other groups)
-        - read the value of all records and check if they belongs to the correct group
+        - read the value of all records and check if they belong to the correct group
         """
         Model = self.env["test_orm.message"]
         falsy_group = result[-1]

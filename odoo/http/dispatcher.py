@@ -307,7 +307,7 @@ class JsonRPCDispatcher(Dispatcher):
 
           <-- {"jsonrpc": "2.0", "result": { "res1": "val1" }, "id": null}
 
-        Request producing a error::
+        Request producing an error::
 
           --> {"jsonrpc": "2.0", "method": "call", "params": {"arg1": "val1" }, "id": null}
 
@@ -352,7 +352,7 @@ class JsonRPCDispatcher(Dispatcher):
         :returns: a WSGI application
         """
         error = {
-            "code": 0,  # we don't care of this code
+            "code": 0,  # we don't care about this code
             "message": "Odoo Server Error",
             "data": serialize_exception(exc),
         }

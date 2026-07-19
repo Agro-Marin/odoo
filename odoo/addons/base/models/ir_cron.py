@@ -867,7 +867,7 @@ class IrCron(models.Model):
         )
 
     def _callback(self, cron_name: str, server_action_id: int) -> None:
-        """Run the method associated to a given job, handling logging and
+        """Run the method associated with a given job, handling logging and
         exceptions. The server action runs as the user calling this method.
         """
         self.ensure_one()

@@ -29,7 +29,7 @@ _SVG_MAGIC_BYTES = frozenset({b"P", b"<"})
 
 
 class Binary(Field[bytes | typing.Literal[False]]):
-    """Encapsulates a binary content (e.g. a file).
+    """Encapsulates binary content (e.g. a file).
 
     :param bool attachment: whether the field should be stored as `ir_attachment`
         or in a column of the model's table (default: ``True``).

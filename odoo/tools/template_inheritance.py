@@ -99,13 +99,8 @@ def apply_inheritance_specs(
     :raise: ValidationError for invalid xpath expressions
     :raise: ValueError for other invalid specs or if nodes cannot be located
     """
-    # We need to wrap locate_node calls to use ValidationError for XPath errors.
-    # The simplest approach is to handle XPath validation before delegating.
-    # However, since apply_inheritance_specs uses locate_node internally,
-    # we need to patch the behavior or re-implement with our locate_node.
-
-    # For now, we catch ValueError from the base implementation and convert
-    # XPath-related errors to ValidationError
+    # Catch ValueError from the base implementation and convert XPath-related
+    # errors to ValidationError.
     try:
         return _apply_inheritance_specs_base(
             source, specs_tree, inherit_branding, pre_locate

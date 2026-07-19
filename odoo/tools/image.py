@@ -71,7 +71,6 @@ class ImageProcess(_ImageProcessBase):
         try:
             super().__init__(source, verify_resolution)
         except ValueError as e:
-            # Convert ValueError to UserError with translated message
             error_msg = str(e)
             if "could not be decoded" in error_msg:
                 raise UserError(_lt("This file could not be decoded as an image file.")) from e
@@ -162,8 +161,7 @@ def base64_to_image(base64_source: str | bytes) -> Image.Image:
 
 
 def get_webp_size(source: bytes) -> tuple[int, int] | None:
-    """
-    Returns the size of the provided webp binary source.
+    """Return the size of the webp binary `source`.
 
     :param source: binary source
     :return: (width, height) tuple, or None if not supported
@@ -178,10 +176,9 @@ def get_webp_size(source: bytes) -> tuple[int, int] | None:
 def is_image_size_above(
     base64_source_1: str | bytes, base64_source_2: str | bytes
 ) -> bool:
-    """Return whether or not the size of the given image `base64_source_1` is
-    above the size of the given image `base64_source_2`.
+    """Return whether image `base64_source_1` is larger than `base64_source_2`.
 
-    This version uses UserError for invalid images.
+    Uses UserError for invalid images.
     """
     try:
         return _is_image_size_above_base(base64_source_1, base64_source_2)

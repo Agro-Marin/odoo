@@ -2,7 +2,7 @@ import mimetypes
 
 
 def patch_module() -> None:
-    # if extension is already knows, the new definition will remplace the existing one
+    # if the extension is already known, the new definition will replace the existing one
     # Add potentially missing (older ubuntu) font mime types using modern IANA types
     mimetypes.add_type("font/woff", ".woff")
     mimetypes.add_type("application/vnd.ms-fontobject", ".eot")

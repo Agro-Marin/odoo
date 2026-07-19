@@ -323,11 +323,10 @@ class ThreadedWSGIServerReloadable(
             super().server_activate()
 
     def process_request(self, request: Any, client_address: tuple[str, int]) -> None:
-        """
-        Start a new thread to process the request.
-        Override the default method of class socketserver.ThreadingMixIn
-        to be able to get the thread object which is instantiated
-        and set its start time as an attribute
+        """Start a request-handling thread.
+
+        Overrides ``socketserver.ThreadingMixIn`` to capture the thread object
+        and stamp its start time as an attribute.
         """
         t = threading.Thread(
             target=self.process_request_thread, args=(request, client_address)

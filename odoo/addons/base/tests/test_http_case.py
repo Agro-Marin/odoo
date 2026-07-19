@@ -28,7 +28,7 @@ class TestHttpCase(HttpCase):
                     return_value=None,
                 ):
                     self.browser_js(url_path="about:blank", code=code)
-            # second line must contains error message
+            # last line must contain the error message
             self.assertEqual(
                 error_catcher.exception.args[0].splitlines()[-1],
                 "test error message",
@@ -45,7 +45,7 @@ class TestHttpCase(HttpCase):
                     return_value=None,
                 ):
                     self.browser_js(url_path="about:blank", code=code)
-            # second line must contains error message
+            # last line must contain the error message
             self.assertEqual(
                 error_catcher.exception.args[0].splitlines()[-2:],
                 ["TypeError: test error message", "    at <anonymous>:1:15"],
@@ -152,7 +152,7 @@ class TestRequestRemainingCommon(HttpCase):
                 assert request.env.cr.__class__.__name__ == "TestCursor"
                 request.env.cr.execute("SELECT 1")
                 request.env.cr.fetchall()
-                # not that the previous queries are not really needed since the http stack will check the registry
+                # note that the previous queries are not really needed since the http stack will check the registry
                 # but this makes the test more clear and robust
                 _logger.info("B finish")
 
@@ -167,7 +167,7 @@ class TestRequestRemainingCommon(HttpCase):
             _logger.info("Waiting for B to start")
             if self.main_lock.acquire(timeout=10):
                 _logger.info("Opening url")
-                # don't use url_open since it simulates a lost request from chrome and url_open would wait to aquire the lock
+                # don't use url_open since it simulates a lost request from chrome and url_open would wait to acquire the lock
                 s = requests.Session()
                 if cookie:
                     s.cookies.set(TEST_CURSOR_COOKIE_NAME, self.canonical_tag)
@@ -260,28 +260,28 @@ class TestRequestRemainingAfterFirstCheck(TestRequestRemainingCommon):
 
         def late_request_thread():
             _logger.info("Opening url")
-            # don't use url_open since it simulates a lost request from chrome and url_open would wait to aquire the lock
+            # don't use url_open since it simulates a lost request from chrome and url_open would wait to acquire the lock
             s = requests.Session()
             s.cookies.set(TEST_CURSOR_COOKIE_NAME, self.http_request_key)
-            # we exceptc the request to be stuck when aquiring the registry lock
+            # we expect the request to be stuck when acquiring the registry lock
             s.get(self.base_url() + "/web/concurrent", timeout=10)
 
         type(self).thread_a = threading.Thread(target=late_request_thread)
         main_lock = self.main_lock
         self.thread_a.start()
-        # we need to ensure that the first check is made and that we are aquiring the lock
+        # we need to ensure that the first check is made and that we are acquiring the lock
         main_lock.acquire()
 
     def assertCanOpenTestCursor(self):
         super().assertCanOpenTestCursor()
-        # the first time we check assertCanOpenTestCursor we need release the lock (lowks ensure we are still inside test_requests_a)
+        # the first time we check assertCanOpenTestCursor we need to release the lock (locks ensure we are still inside test_requests_a)
         if self.main_lock:
             self.main_lock.release()
             self.main_lock = None
 
     def test_requests_b(self):
         _logger.info("B started, waiting for A to finish")
-        # url_open will simulate a enabled request
+        # url_open will simulate an enabled request
         with (
             self.assertLogs("odoo.tests.common") as log_catcher,
             self.allow_requests(),

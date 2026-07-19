@@ -290,7 +290,7 @@ class test_res_lang(TransactionCase):
         ResLang._activate_lang("es_ES")
         self.assertEqual(es_419.url_code, "es_419")
         self.assertEqual(es_ES.url_code, "es")
-        # Activating es_419 should not set it's url_code back to 'es'
+        # Activating es_419 should not set its url_code back to 'es'
         ResLang._activate_lang("es_419")
         self.assertEqual(es_419.url_code, "es_419")
         self.assertEqual(es_ES.url_code, "es")
@@ -301,9 +301,9 @@ class test_res_lang(TransactionCase):
         self.assertEqual(es_419.url_code, "es")
         self.assertEqual(es_ES.url_code, "es_ES")
 
-        # Now, special case if one day a lang receive a short code as default
-        # `code`, it's not the case as of today but there is plan to make it
-        # happen for `es_419`, the code is already ready for it.
+        # Now, special case if one day a lang receives a short code as default
+        # `code`. Not the case today, but there is a plan to make it happen for
+        # `es_419`; the code is already ready for it.
         self.env.cr.execute(
             f""" UPDATE res_lang SET code = 'es' where id = {es_419.id}"""
         )

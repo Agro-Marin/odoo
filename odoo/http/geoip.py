@@ -47,7 +47,7 @@ _GEOIP_BAD_ADDRESS: tuple[type[BaseException], ...] = (ValueError, TypeError)
 
 class GeoIP(collections.abc.Mapping):
     """
-    Ip Geolocalization utility, determine information such as the
+    IP geolocalization utility, determine information such as the
     country or the timezone of the user based on their IP Address.
 
     The instances share the same API as `geoip2.models.City
@@ -61,7 +61,7 @@ class GeoIP(collections.abc.Mapping):
 
     .. note::
 
-        The geoip info for the current request are available at
+        The geoip info for the current request is available at
         :attr:`~odoo.http.request.geoip`.
 
     .. code-block:: python
