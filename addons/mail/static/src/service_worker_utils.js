@@ -49,12 +49,27 @@ export function arrayBufferToBase64Url(buffer) {
  * @returns {{type: string, title?: string, options?: Object, tag?: string}}
  */
 export function planPushNotification(notification, { isAndroid = false } = {}) {
+    const dataType = notification?.options?.data?.type;
+    // A CANCEL push carries no title on purpose (it dismisses an existing
+    // notification rather than showing one). It MUST be classified before the
+    // empty-title guard below, otherwise a cancelled/missed call would fall
+    // through to "generic" and its ringing "Incoming call" notification would
+    // never be dismissed.
+    if (dataType === PUSH_NOTIFICATION_TYPE.CANCEL) {
+        const tag = notification.options?.tag;
+        if (!tag) {
+            // getNotifications({ tag: undefined }) matches everything, so a
+            // tag-less CANCEL would close every notification for this origin
+            // (unrelated calls/messages included). Only act when scoped.
+            return { type: "ignore" };
+        }
+        return { type: "cancel", tag };
+    }
     if (!notification?.title) {
         // Browsers may penalize a push subscription when an event shows nothing,
         // so still surface a generic notification.
         return { type: "generic" };
     }
-    const dataType = notification.options?.data?.type;
     if (dataType === PUSH_NOTIFICATION_TYPE.CALL) {
         let options = notification.options || {};
         if (options.actions && isAndroid) {
@@ -69,16 +84,6 @@ export function planPushNotification(notification, { isAndroid = false } = {}) {
             };
         }
         return { type: "show", title: notification.title, options };
-    }
-    if (dataType === PUSH_NOTIFICATION_TYPE.CANCEL) {
-        const tag = notification.options?.tag;
-        if (!tag) {
-            // getNotifications({ tag: undefined }) matches everything, so a
-            // tag-less CANCEL would close every notification for this origin
-            // (unrelated calls/messages included). Only act when scoped.
-            return { type: "ignore" };
-        }
-        return { type: "cancel", tag };
     }
     return { type: "handshake" };
 }
