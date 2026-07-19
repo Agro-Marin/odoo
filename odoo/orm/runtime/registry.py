@@ -462,6 +462,14 @@ class Registry(
         """
         from .. import models
 
+        model_defs = models.MetaModel._module_to_models__.get(module.name, [])
+        if not model_defs:
+            # nothing to register: leave the caches alone (a module without
+            # Python models cannot invalidate any model-derived state, and the
+            # cleared caches would be rebuilt from scratch — O(all fields) for
+            # the dependency triggers — during this module's data loading)
+            return []
+
         # clear cache to ensure consistency, but do not signal it
         self._caches.clear_all()
 
@@ -471,7 +479,7 @@ class Registry(
         # Instantiate registered classes (via the MetaModel automatic discovery
         # or via explicit constructor call), and add them to the pool.
         model_names = []
-        for model_def in models.MetaModel._module_to_models__.get(module.name, []):
+        for model_def in model_defs:
             # models register themselves in self.models
             model_cls = registration.add_to_registry(self, model_def)
             model_names.append(model_cls._name)
@@ -480,7 +488,11 @@ class Registry(
 
     @locked
     def _setup_models__(
-        self, cr: BaseCursor, model_names: Iterable[str] | None = None
+        self,
+        cr: BaseCursor,
+        model_names: Iterable[str] | None = None,
+        *,
+        skip_if_clean: bool = False,
     ) -> None:
         """Perform the setup of models.
         This must be called after loading modules and before using the ORM.
@@ -488,8 +500,36 @@ class Registry(
         When given ``model_names``, it performs an incremental setup: only the
         models impacted by the given ``model_names`` and all the already-marked
         models will be set up. Otherwise, all models are set up.
+
+        ``skip_if_clean`` lets a caller declare that this call is a
+        synchronization point only: if every model is already set up (and no
+        custom model exists), the call returns without touching the registry.
+        Do not pass it when the database definition of manual models/fields may
+        have changed since the last setup — ``ir.model.create`` relies on an
+        incremental call with an empty ``model_names`` to (re)load custom
+        models, and the fast path would skip exactly that reload.
         """
         from .environment import Environment
+
+        # Fast path (opt-in): an incremental call with nothing to set up.
+        # Module loading calls this once per module (twice for upgraded ones),
+        # and most of those calls find every model already set up.  Proceeding
+        # anyway would clear every ormcache, cached property and model-graph
+        # cache below, forcing an O(all fields) rebuild of the dependency
+        # triggers on the next flush — per module, that dominates `-u` runs.
+        # Registries containing custom models keep the conservative path:
+        # incremental setups unconditionally reload custom models (their
+        # manual-field definitions live in the database and may have changed).
+        if (
+            skip_if_clean
+            and model_names is not None
+            and not model_names
+            and all(
+                model_cls._setup_done__ and not model_cls._custom
+                for model_cls in self.models.values()
+            )
+        ):
+            return
 
         env = Environment(cr, SUPERUSER_ID, {})
         env.invalidate_all()

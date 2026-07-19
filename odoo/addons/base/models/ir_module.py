@@ -286,6 +286,11 @@ class IrModuleModule(models.Model):
     icon_flag = fields.Char(string="Flag", compute="_compute_icon_image")
     to_buy = fields.Boolean("Odoo Enterprise Module", default=False)
     has_iap = fields.Boolean(compute="_compute_has_iap")
+    # Written by odoo.modules.loading.load_data (raw SQL) after each successful
+    # upgrade: {"v": 1, "files": {<filename>: {"sha": ..., "xmlids": [...],
+    # "dyn": bool}}}.  Lets the next upgrade skip converting data files whose
+    # content did not change.  Not meant to be edited through the ORM.
+    data_file_checksums = fields.Json(readonly=True, prefetch=False)
 
     _name_uniq = models.Constraint(
         "UNIQUE (name)",
