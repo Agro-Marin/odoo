@@ -109,7 +109,15 @@ class DisplayDriver(Driver):
             return
 
         origin = helpers.get_odoo_server_url() or http.request.httprequest.origin
-        self.update_url(f"{origin}/pos_customer_display/{data['pos_id']}/{data['access_token']}")
+        # The route is /pos_customer_display/<id_>/<device_uuid> and
+        # authenticates via an access_token QUERY parameter (same shape as
+        # the /pos-self URL built above). Passing the token as the
+        # device_uuid path segment sent no token at all, so the hardened
+        # route answered 404 and the display stayed blank.
+        self.update_url(
+            f"{origin}/pos_customer_display/{data['pos_id']}/{self.device_identifier}"
+            f"?access_token={data['access_token']}"
+        )
 
     def _action_close_customer_display(self, data):
         helpers.update_conf({"browser_url": "", "screen_orientation": ""})
