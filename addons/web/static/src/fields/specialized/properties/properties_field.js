@@ -363,30 +363,43 @@ export class PropertiesField extends Component {
      * @param {string} direction, either "up" or "down"
      */
     async onPropertyMove(propertyName, direction) {
-        const propertiesValues = this.propertiesList || [];
-        const propertyIndex = propertiesValues.findIndex(
-            (property) => property.name === propertyName,
-        );
-
-        const targetIndex = propertyIndex + (direction === "down" ? 1 : -1);
-        if (targetIndex < 0 || targetIndex >= propertiesValues.length) {
-            this.notification.add(
-                direction === "down"
-                    ? _t("This field is already last")
-                    : _t("This field is already first"),
-                { type: "warning" },
+        // Indices are resolved against the list as it stands when the mutation
+        // runs, not against a snapshot taken here — a mutation queued ahead of
+        // this one may have reordered or removed rows.
+        let movedValues = null;
+        let movedTargetIndex = -1;
+        await this._updateRecordProperties((propertiesValues) => {
+            const propertyIndex = propertiesValues.findIndex(
+                (property) => property.name === propertyName,
             );
+            if (propertyIndex < 0) {
+                return null;
+            }
+            const targetIndex = propertyIndex + (direction === "down" ? 1 : -1);
+            if (targetIndex < 0 || targetIndex >= propertiesValues.length) {
+                this.notification.add(
+                    direction === "down"
+                        ? _t("This field is already last")
+                        : _t("This field is already first"),
+                    { type: "warning" },
+                );
+                return null;
+            }
+            this.state.movedPropertyName = propertyName;
+
+            const prop = propertiesValues[targetIndex];
+            propertiesValues[targetIndex] = propertiesValues[propertyIndex];
+            propertiesValues[propertyIndex] = prop;
+            propertiesValues[propertyIndex].definition_changed = true;
+
+            movedValues = propertiesValues;
+            movedTargetIndex = targetIndex;
+            return propertiesValues;
+        });
+        if (!movedValues) {
             return;
         }
-        this.state.movedPropertyName = propertyName;
-
-        const prop = propertiesValues[targetIndex];
-        propertiesValues[targetIndex] = propertiesValues[propertyIndex];
-        propertiesValues[propertyIndex] = prop;
-        propertiesValues[propertyIndex].definition_changed = true;
-
-        await this._updateRecordProperties(propertiesValues);
-        await this._unfoldPropertyGroup(targetIndex, propertiesValues);
+        await this._unfoldPropertyGroup(movedTargetIndex, movedValues);
 
         // move the popover once the DOM is updated
         this.movePopoverToProperty = propertyName;
@@ -400,69 +413,77 @@ export class PropertiesField extends Component {
      *  (null if we move the property to the first index)
      */
     async onPropertyMoveTo(propertyName, toPropertyName, moveBefore) {
-        const propertiesValues = this.propertiesList || [];
-
-        let fromIndex = propertiesValues.findIndex(
-            (property) => property.name === propertyName,
-        );
-        let toIndex = propertiesValues.findIndex(
-            (property) => property.name === toPropertyName,
-        );
-        const columnSize = Math.ceil(
-            propertiesValues.length / this.renderedColumnsCount,
-        );
-
-        // Create separators to preserve the initial column split, but only
-        // when moving across columns (moving inside the same column is a no-op).
-        if (
-            this.renderedColumnsCount > 1 &&
-            !propertiesValues.some(
-                (p, index) => index !== 0 && p.type === "separator",
-            ) &&
-            Math.floor(fromIndex / columnSize) !== Math.floor(toIndex / columnSize)
-        ) {
-            // Unfold the separators directly on the local copy (`value: false`):
-            // `_toggleSeparators` would re-read the record data, which doesn't
-            // contain the spliced separators yet.
-            const newSeparators = [];
-            for (let col = 0; col < this.renderedColumnsCount; ++col) {
-                const separatorIndex = columnSize * col + newSeparators.length;
-
-                if (propertiesValues[separatorIndex]?.type === "separator") {
-                    propertiesValues[separatorIndex].value = false;
-                    newSeparators.push(propertiesValues[separatorIndex].name);
-                    continue;
-                }
-                const newSeparator = {
-                    type: "separator",
-                    string: _t("Group %s", col + 1),
-                    name: this.generatePropertyName("separator"),
-                    value: false,
-                };
-                newSeparators.push(newSeparator.name);
-                propertiesValues.splice(separatorIndex, 0, newSeparator);
-            }
-            toPropertyName = toPropertyName || propertiesValues.at(-1).name;
-
-            // indexes might have changed
-            fromIndex = propertiesValues.findIndex(
+        return this._updateRecordProperties((propertiesValues) => {
+            let fromIndex = propertiesValues.findIndex(
                 (property) => property.name === propertyName,
             );
-            toIndex = propertiesValues.findIndex(
+            let toIndex = propertiesValues.findIndex(
                 (property) => property.name === toPropertyName,
             );
-        }
+            if (fromIndex < 0) {
+                // Removed by a mutation queued ahead of this one.
+                return null;
+            }
+            const columnSize = Math.ceil(
+                propertiesValues.length / this.renderedColumnsCount,
+            );
 
-        if (moveBefore) {
-            toIndex--;
-        }
-        if (toIndex < fromIndex) {
-            // the first splice operation will change the index
-            toIndex++;
-        }
-        propertiesValues.splice(toIndex, 0, propertiesValues.splice(fromIndex, 1)[0]);
-        propertiesValues[0].definition_changed = true;
-        this._updateRecordProperties(propertiesValues);
+            // Create separators to preserve the initial column split, but only
+            // when moving across columns (moving inside the same column is a no-op).
+            if (
+                this.renderedColumnsCount > 1 &&
+                !propertiesValues.some(
+                    (p, index) => index !== 0 && p.type === "separator",
+                ) &&
+                Math.floor(fromIndex / columnSize) !== Math.floor(toIndex / columnSize)
+            ) {
+                // Unfold the separators directly on the working copy
+                // (`value: false`): they are spliced in below and are not in the
+                // record data yet, so `_toggleSeparators` could not find them.
+                const newSeparators = [];
+                for (let col = 0; col < this.renderedColumnsCount; ++col) {
+                    const separatorIndex = columnSize * col + newSeparators.length;
+
+                    if (propertiesValues[separatorIndex]?.type === "separator") {
+                        propertiesValues[separatorIndex].value = false;
+                        newSeparators.push(propertiesValues[separatorIndex].name);
+                        continue;
+                    }
+                    const newSeparator = {
+                        type: "separator",
+                        string: _t("Group %s", col + 1),
+                        name: this.generatePropertyName("separator"),
+                        value: false,
+                    };
+                    newSeparators.push(newSeparator.name);
+                    propertiesValues.splice(separatorIndex, 0, newSeparator);
+                }
+                toPropertyName = toPropertyName || propertiesValues.at(-1).name;
+
+                // indexes might have changed
+                fromIndex = propertiesValues.findIndex(
+                    (property) => property.name === propertyName,
+                );
+                toIndex = propertiesValues.findIndex(
+                    (property) => property.name === toPropertyName,
+                );
+            }
+
+            if (moveBefore) {
+                toIndex--;
+            }
+            if (toIndex < fromIndex) {
+                // the first splice operation will change the index
+                toIndex++;
+            }
+            propertiesValues.splice(
+                toIndex,
+                0,
+                propertiesValues.splice(fromIndex, 1)[0],
+            );
+            propertiesValues[0].definition_changed = true;
+            return propertiesValues;
+        });
     }
 
     /**
@@ -473,43 +494,48 @@ export class PropertiesField extends Component {
      *  (null if we move the group to the first index)
      */
     onGroupMoveTo(propertyName, toPropertyName) {
-        const propertiesValues = this.propertiesList || [];
-        const fromIndex = propertiesValues.findIndex(
-            (property) => property.name === propertyName,
-        );
-        const toIndex = propertiesValues.findIndex(
-            (property) => property.name === toPropertyName,
-        );
-        if (
-            propertiesValues[fromIndex].type !== "separator" ||
-            (toIndex >= 0 && propertiesValues[toIndex].type !== "separator")
-        ) {
-            throw new Error("Something went wrong");
-        }
-
-        const getNextSeparatorIndex = (startIndex) => {
-            const nextSeparatorIndex = propertiesValues.findIndex(
-                (property, index) =>
-                    property.type === "separator" && index > startIndex,
+        return this._updateRecordProperties((propertiesValues) => {
+            const fromIndex = propertiesValues.findIndex(
+                (property) => property.name === propertyName,
             );
-            return nextSeparatorIndex < 0
-                ? propertiesValues.length
-                : nextSeparatorIndex;
-        };
-        const groupSize = getNextSeparatorIndex(fromIndex) - fromIndex;
-        let targetIndex = getNextSeparatorIndex(toIndex);
-        if (targetIndex > fromIndex) {
-            // the size of the array will change after the first splice
-            // so we need to correct the index
-            targetIndex -= groupSize;
-        }
-        propertiesValues.splice(
-            targetIndex,
-            0,
-            ...propertiesValues.splice(fromIndex, groupSize),
-        );
-        propertiesValues[0].definition_changed = true;
-        this._updateRecordProperties(propertiesValues);
+            const toIndex = propertiesValues.findIndex(
+                (property) => property.name === toPropertyName,
+            );
+            if (fromIndex < 0) {
+                // Removed by a mutation queued ahead of this one.
+                return null;
+            }
+            if (
+                propertiesValues[fromIndex].type !== "separator" ||
+                (toIndex >= 0 && propertiesValues[toIndex].type !== "separator")
+            ) {
+                throw new Error("Something went wrong");
+            }
+
+            const getNextSeparatorIndex = (startIndex) => {
+                const nextSeparatorIndex = propertiesValues.findIndex(
+                    (property, index) =>
+                        property.type === "separator" && index > startIndex,
+                );
+                return nextSeparatorIndex < 0
+                    ? propertiesValues.length
+                    : nextSeparatorIndex;
+            };
+            const groupSize = getNextSeparatorIndex(fromIndex) - fromIndex;
+            let targetIndex = getNextSeparatorIndex(toIndex);
+            if (targetIndex > fromIndex) {
+                // the size of the array will change after the first splice
+                // so we need to correct the index
+                targetIndex -= groupSize;
+            }
+            propertiesValues.splice(
+                targetIndex,
+                0,
+                ...propertiesValues.splice(fromIndex, groupSize),
+            );
+            propertiesValues[0].definition_changed = true;
+            return propertiesValues;
+        });
     }
 
     /**
@@ -520,10 +546,17 @@ export class PropertiesField extends Component {
      * @param {object} propertyValue
      */
     onPropertyValueChange(propertyName, propertyValue) {
-        const propertiesValues = this.propertiesList;
-        propertiesValues.find((property) => property.name === propertyName).value =
-            propertyValue;
-        this._updateRecordProperties(propertiesValues);
+        return this._updateRecordProperties((propertiesValues) => {
+            const property = propertiesValues.find(
+                (property) => property.name === propertyName,
+            );
+            if (!property) {
+                // Removed by a mutation queued ahead of this one.
+                return null;
+            }
+            property.value = propertyValue;
+            return propertiesValues;
+        });
     }
 
     /**
@@ -572,19 +605,41 @@ export class PropertiesField extends Component {
                 }
             }
         }
-        const propertiesValues = this.propertiesList;
-        const propertyIndex = this._getPropertyIndex(propertyDefinition.name);
-
-        const oldType = propertiesValues[propertyIndex].type;
         const newType = propertyDefinition.type;
-
-        this._regeneratePropertyName(
-            propertyDefinition,
-            propertiesValues[propertyIndex],
-        );
-
-        propertiesValues[propertyIndex] = propertyDefinition;
-        await this._updateRecordProperties(propertiesValues);
+        // Resolved inside the mutation so the index and the previous type are
+        // read from the list as it stands then, not from a snapshot that a
+        // queued mutation may already have invalidated.
+        let oldType;
+        let applied = false;
+        let previousSeparatorName = null;
+        await this._updateRecordProperties((propertiesValues) => {
+            const propertyIndex = propertiesValues.findIndex(
+                (property) => property.name === propertyDefinition.name,
+            );
+            if (propertyIndex < 0) {
+                return null;
+            }
+            oldType = propertiesValues[propertyIndex].type;
+            if (oldType === "separator" && newType !== "separator") {
+                // Resolve the preceding separator here, while the list and the
+                // index are still in scope and consistent with each other.
+                previousSeparatorName =
+                    propertiesValues.findLast(
+                        (property, index) =>
+                            index < propertyIndex && property.type === "separator",
+                    )?.name ?? null;
+            }
+            this._regeneratePropertyName(
+                propertyDefinition,
+                propertiesValues[propertyIndex],
+            );
+            propertiesValues[propertyIndex] = propertyDefinition;
+            applied = true;
+            return propertiesValues;
+        });
+        if (!applied) {
+            return;
+        }
 
         if (newType === "separator" && oldType !== "separator") {
             // unfold automatically the new separator
@@ -596,13 +651,9 @@ export class PropertiesField extends Component {
             this.movePopoverToProperty = propertyDefinition.name;
         } else if (oldType === "separator" && newType !== "separator") {
             // unfold automatically the previous separator
-            const previousSeperator = propertiesValues.findLast(
-                (property, index) =>
-                    index < propertyIndex && property.type === "separator",
-            );
-            if (previousSeperator) {
+            if (previousSeparatorName) {
                 await this._toggleSeparators(
-                    [previousSeperator.name],
+                    [previousSeparatorName],
                     propertyDefinition.fold_by_default,
                 );
             }
@@ -637,11 +688,16 @@ export class PropertiesField extends Component {
             confirmLabel: _t("Delete Field"),
             cancelLabel: _t("Discard"),
             confirm: () => {
-                const propertiesDefinitions = this.propertiesList;
-                propertiesDefinitions.find(
-                    (property) => property.name === propertyName,
-                ).definition_deleted = true;
-                this._updateRecordProperties(propertiesDefinitions);
+                this._updateRecordProperties((propertiesDefinitions) => {
+                    const property = propertiesDefinitions.find(
+                        (property) => property.name === propertyName,
+                    );
+                    if (!property) {
+                        return null;
+                    }
+                    property.definition_deleted = true;
+                    return propertiesDefinitions;
+                });
             },
             cancel: () => {},
         };
@@ -659,44 +715,56 @@ export class PropertiesField extends Component {
             );
             return;
         }
-        const propertiesDefinitions = this.propertiesList || [];
+        // The incomplete-label check and the append both run against the list
+        // as it stands when the mutation executes, so a property added by a
+        // queued mutation is taken into account.
+        let newName = null;
+        let insertedAt = -1;
+        let appliedValues = null;
+        await this._updateRecordProperties((propertiesDefinitions) => {
+            if (
+                propertiesDefinitions.length &&
+                propertiesDefinitions.some(
+                    (prop) =>
+                        prop.type !== "separator" &&
+                        (!prop.string || !prop.string.length),
+                )
+            ) {
+                // do not allow to add new field until we set a label on the previous one
+                this.propertiesRef.el
+                    .closest(".o_field_properties")
+                    .classList.add("o_field_invalid");
 
-        if (
-            propertiesDefinitions.length &&
-            propertiesDefinitions.some(
-                (prop) =>
-                    prop.type !== "separator" && (!prop.string || !prop.string.length),
-            )
-        ) {
-            // do not allow to add new field until we set a label on the previous one
+                this.notification.add(
+                    _t("Please complete your properties before adding a new one"),
+                    {
+                        type: "warning",
+                    },
+                );
+                return null;
+            }
+            const count = propertiesDefinitions.length;
+
             this.propertiesRef.el
                 .closest(".o_field_properties")
-                .classList.add("o_field_invalid");
+                .classList.remove("o_field_invalid");
 
-            this.notification.add(
-                _t("Please complete your properties before adding a new one"),
-                {
-                    type: "warning",
-                },
-            );
+            newName = this.generatePropertyName("char");
+            propertiesDefinitions.push({
+                name: newName,
+                string: _t("Property %s", count + 1),
+                type: "char",
+                definition_changed: true,
+            });
+            this.initialValues[newName] = { name: newName, type: "char" };
+            insertedAt = count - 1;
+            appliedValues = propertiesDefinitions;
+            return propertiesDefinitions;
+        });
+        if (!appliedValues) {
             return;
         }
-        const count = propertiesDefinitions.length;
-
-        this.propertiesRef.el
-            .closest(".o_field_properties")
-            .classList.remove("o_field_invalid");
-
-        const newName = this.generatePropertyName("char");
-        propertiesDefinitions.push({
-            name: newName,
-            string: _t("Property %s", count + 1),
-            type: "char",
-            definition_changed: true,
-        });
-        this.initialValues[newName] = { name: newName, type: "char" };
-        await this._updateRecordProperties(propertiesDefinitions);
-        await this._unfoldPropertyGroup(count - 1, propertiesDefinitions);
+        await this._unfoldPropertyGroup(insertedAt, appliedValues);
         this.openPropertyDefinition = newName;
     }
 
@@ -765,17 +833,49 @@ export class PropertiesField extends Component {
      * @param {array} propertiesValues
      * @returns {Promise}
      */
-    _updateRecordProperties(propertiesValues) {
-        const knownNames = new Set(propertiesValues.map((property) => property.name));
-        const deletedProperties = (this.props.record.data[this.props.name] || [])
-            .filter(
-                (definition) =>
-                    definition.definition_deleted && !knownNames.has(definition.name),
-            )
-            .map((definition) => ({ ...definition }));
-        return this.props.record.update({
-            [this.props.name]: [...propertiesValues, ...deletedProperties],
-        });
+    _updateRecordProperties(mutate) {
+        // Mutations are DELTAS applied to the list as it stands when they run,
+        // never whole arrays snapshotted by the caller beforehand.
+        //
+        // ``record.update`` defers into ``model.mutex``, so ``record.data`` is
+        // not updated synchronously and most callers here do not await. Two
+        // handlers issued before the first write applied would therefore both
+        // snapshot the same stale array, and the second — being a whole-array
+        // write — silently reverted the first (type into a property, then fold
+        // a group or drag a row before the onchange lands, and the typed value
+        // is gone with no error). Drag-and-drop self-triggered this by firing
+        // a separator toggle per group crossed and then a reorder.
+        //
+        // Serialising on ``_propertiesMutation`` and re-deriving from
+        // ``propertiesList`` inside the chain makes the stale-snapshot state
+        // unrepresentable rather than something each call site must remember.
+        // A mutator returning a falsy value declines the write.
+        this._propertiesMutation = (this._propertiesMutation ?? Promise.resolve())
+            // A failed mutation must not cancel the ones queued behind it; the
+            // caller that issued it still sees its own rejection.
+            .catch(() => {})
+            .then(() => {
+                const propertiesValues = mutate(this.propertiesList);
+                if (!propertiesValues) {
+                    return;
+                }
+                const knownNames = new Set(
+                    propertiesValues.map((property) => property.name),
+                );
+                const deletedProperties = (
+                    this.props.record.data[this.props.name] || []
+                )
+                    .filter(
+                        (definition) =>
+                            definition.definition_deleted &&
+                            !knownNames.has(definition.name),
+                    )
+                    .map((definition) => ({ ...definition }));
+                return this.props.record.update({
+                    [this.props.name]: [...propertiesValues, ...deletedProperties],
+                });
+            });
+        return this._propertiesMutation;
     }
 
     /**
@@ -815,17 +915,18 @@ export class PropertiesField extends Component {
      * @param {boolean} [forceState] force the separator to be folded or open
      */
     _toggleSeparators(separatorNames, forceState) {
-        const propertiesValues = this.propertiesList;
-        for (const separatorName of separatorNames) {
-            const property = propertiesValues.find(
-                (prop) => prop.name === separatorName,
-            );
-            if (property) {
-                property.value =
-                    forceState ?? !(property.value ?? property.fold_by_default);
+        return this._updateRecordProperties((propertiesValues) => {
+            for (const separatorName of separatorNames) {
+                const property = propertiesValues.find(
+                    (prop) => prop.name === separatorName,
+                );
+                if (property) {
+                    property.value =
+                        forceState ?? !(property.value ?? property.fold_by_default);
+                }
             }
-        }
-        return this._updateRecordProperties(propertiesValues);
+            return propertiesValues;
+        });
     }
 
     /**
@@ -982,14 +1083,16 @@ export class PropertiesField extends Component {
      * @param {string} propertyName
      */
     _setDefaultPropertyValue(propertyName) {
-        const propertiesValues = this.propertiesList;
-        const newProperty = propertiesValues.find(
-            (property) => property.name === propertyName,
-        );
-        if (newProperty.default) {
+        return this._updateRecordProperties((propertiesValues) => {
+            const newProperty = propertiesValues.find(
+                (property) => property.name === propertyName,
+            );
+            if (!newProperty?.default) {
+                return null;
+            }
             newProperty.value = newProperty.default;
-        }
-        this._updateRecordProperties(propertiesValues);
+            return propertiesValues;
+        });
     }
 
     /**
