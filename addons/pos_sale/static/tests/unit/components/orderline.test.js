@@ -1,10 +1,10 @@
-import { test, expect } from "@odoo/hoot";
+import { expect, test } from "@odoo/hoot";
 import { setupPosEnv } from "@point_of_sale/../tests/unit/utils";
-import { mountWithCleanup } from "@web/../tests/web_test_helpers";
 import { Orderline } from "@point_of_sale/app/components/orderline/orderline";
-import { definePosModels } from "@point_of_sale/../tests/unit/data/generate_model_definitions";
+import { definePosSaleModels } from "@pos_sale/../tests/unit/data/generate_model_definitions";
+import { mountWithCleanup } from "@web/../tests/web_test_helpers";
 
-definePosModels();
+definePosSaleModels();
 
 test("Displays the table with details of the down payment", async () => {
     const store = await setupPosEnv();
@@ -33,7 +33,7 @@ test("Displays the table with details of the down payment", async () => {
             ],
             qty: 1,
         },
-        order
+        order,
     );
 
     const comp = await mountWithCleanup(Orderline, { props: { line } });

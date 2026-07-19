@@ -98,3 +98,30 @@ test("backLink results are reactive on a warm cache", async () => {
     });
     expect(seen).toBe(2);
 });
+
+test("a throw mid-update must not leave the record out of the store indexes", async () => {
+    await makeMockServer();
+    const models = getRelatedModelsInstance(false);
+    const p1 = models["res.partner"].create({ id: 1, name: "A", barcode: "AAA" });
+
+    // `barcode` is indexed, so _update removes p1 from the indexes before
+    // mutating and re-adds it afterwards. An unknown field throws in between:
+    // without a try/finally the re-add never ran and p1 disappeared from the
+    // store while other records still referenced it by id.
+    let threw = false;
+    try {
+        p1.update({ barcode: "CCC", __nope__: 1 });
+    } catch {
+        threw = true;
+    }
+    expect(threw).toBe(true);
+
+    expect(models["res.partner"].get(1)?.id).toBe(1);
+    expect(models["res.partner"].getAll().map((p) => p.id)).toInclude(1);
+    // Whatever the barcode ended up as, exactly one key must resolve to p1 and
+    // no stale key may survive.
+    const found = ["AAA", "CCC"].filter(
+        (code) => models["res.partner"].getBy("barcode", code)?.id === 1,
+    );
+    expect(found).toHaveLength(1);
+});

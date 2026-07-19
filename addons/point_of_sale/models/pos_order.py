@@ -114,7 +114,21 @@ class PosOrder(models.Model):
         if not existing_order:
             pos_order = self.create(
                 {
-                    **{key: value for key, value in order.items() if key != "name"},
+                    **{
+                        key: value
+                        for key, value in order.items()
+                        # `access_token` is the SOLE credential for the public
+                        # /pos/ticket/validate route (auth="public"), which
+                        # redirects to the customer's portal invoice. It must be
+                        # minted server-side by _ensure_access_token (uuid4 over
+                        # os.urandom), never accepted from the client: the UI
+                        # generates it with Math.random (utils.js uuidv4), and
+                        # _ensure_access_token keeps any value already set, so a
+                        # client-supplied token was persisted verbatim and
+                        # silently downgraded the token's entropy. The update
+                        # path below already pops it; the create path did not.
+                        if key not in ("name", "access_token")
+                    },
                 }
             )
             pos_order = pos_order.with_company(pos_order.company_id)

@@ -31,3 +31,4 @@ from . import test_zzz_audit2
 
 from . import test_js
 from . import test_zzz_audit3
+from . import test_zzz_audit4

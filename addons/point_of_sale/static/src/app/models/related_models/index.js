@@ -442,146 +442,162 @@ export function createRelatedModels(modelDefs, modelClasses = {}, opts = {}) {
                 this[STORE_SYMBOL].remove(record);
             }
 
-            for (const name in vals) {
-                if (name === "id" || (name === "uuid" && ownFields[name])) {
-                    // id can be only updated using loadData
-                    continue;
-                }
-
-                const field = ownFields[name];
-                if (!field) {
-                    if (opts.omitUnknownField) {
+            try {
+                for (const name in vals) {
+                    if (name === "id" || (name === "uuid" && ownFields[name])) {
+                        // id can be only updated using loadData
                         continue;
                     }
-                    throw new Error(
-                        `The field '${name}' does not exist in model '${this.name}'`,
-                    );
-                }
-                const coModelName = field.relation;
-                const coModel = this.models[coModelName];
-                if (field.dummy) {
-                    throw new Error(`The field '${field.name}' cannot be updated`);
-                }
-                if (coModel) {
-                    if (X2MANY_TYPES.has(field.type)) {
-                        const commands = convertToX2ManyCommands(
-                            vals[name],
-                            opts.strict,
-                        );
-                        for (const cmd of commands) {
-                            const [command, ...records] = cmd;
-                            if (command === "unlink") {
-                                for (const record2 of records) {
-                                    models._disconnect(
-                                        field,
-                                        record,
-                                        record2,
-                                        aggregatedUpdates,
-                                    );
-                                }
-                            } else if (command === "clear") {
-                                const linkedRecs = record[name];
-                                for (const record2 of [...linkedRecs]) {
-                                    models._disconnect(
-                                        field,
-                                        record,
-                                        record2,
-                                        aggregatedUpdates,
-                                    );
-                                }
-                            } else if (command === "create") {
-                                const newRecords = records.map((vals) =>
-                                    coModel.create(vals),
-                                );
-                                for (const record2 of newRecords) {
-                                    models._connect(
-                                        field,
-                                        record,
-                                        record2,
-                                        aggregatedUpdates,
-                                    );
-                                }
-                            } else if (command === "link") {
-                                for (const record2 of records) {
-                                    models._connect(
-                                        field,
-                                        record,
-                                        record2,
-                                        aggregatedUpdates,
-                                    );
-                                }
-                            } else if (command === "set") {
-                                const linkedRecs = record[name];
-                                for (const record2 of [...linkedRecs]) {
-                                    models._disconnect(
-                                        field,
-                                        record,
-                                        record2,
-                                        aggregatedUpdates,
-                                    );
-                                }
-                                for (const record2 of records) {
-                                    models._connect(
-                                        field,
-                                        record,
-                                        record2,
-                                        aggregatedUpdates,
-                                    );
-                                }
-                            } else {
-                                throw new Error(
-                                    "Command '" + command + "' not supported",
-                                );
-                            }
+
+                    const field = ownFields[name];
+                    if (!field) {
+                        if (opts.omitUnknownField) {
+                            continue;
                         }
-                    } else if (field.type === "many2one") {
-                        const value = vals[name];
-                        if (value) {
-                            const id = value.id || value;
-                            const exist = coModel.exists(id);
-                            if (exist) {
-                                models._connect(field, record, id, aggregatedUpdates);
-                            } else if (
-                                this.models[field.relation] &&
-                                typeof value === "object"
-                            ) {
-                                const newRecord = coModel.create(value);
-                                models._connect(
+                        throw new Error(
+                            `The field '${name}' does not exist in model '${this.name}'`,
+                        );
+                    }
+                    const coModelName = field.relation;
+                    const coModel = this.models[coModelName];
+                    if (field.dummy) {
+                        throw new Error(`The field '${field.name}' cannot be updated`);
+                    }
+                    if (coModel) {
+                        if (X2MANY_TYPES.has(field.type)) {
+                            const commands = convertToX2ManyCommands(
+                                vals[name],
+                                opts.strict,
+                            );
+                            for (const cmd of commands) {
+                                const [command, ...records] = cmd;
+                                if (command === "unlink") {
+                                    for (const record2 of records) {
+                                        models._disconnect(
+                                            field,
+                                            record,
+                                            record2,
+                                            aggregatedUpdates,
+                                        );
+                                    }
+                                } else if (command === "clear") {
+                                    const linkedRecs = record[name];
+                                    for (const record2 of [...linkedRecs]) {
+                                        models._disconnect(
+                                            field,
+                                            record,
+                                            record2,
+                                            aggregatedUpdates,
+                                        );
+                                    }
+                                } else if (command === "create") {
+                                    const newRecords = records.map((vals) =>
+                                        coModel.create(vals),
+                                    );
+                                    for (const record2 of newRecords) {
+                                        models._connect(
+                                            field,
+                                            record,
+                                            record2,
+                                            aggregatedUpdates,
+                                        );
+                                    }
+                                } else if (command === "link") {
+                                    for (const record2 of records) {
+                                        models._connect(
+                                            field,
+                                            record,
+                                            record2,
+                                            aggregatedUpdates,
+                                        );
+                                    }
+                                } else if (command === "set") {
+                                    const linkedRecs = record[name];
+                                    for (const record2 of [...linkedRecs]) {
+                                        models._disconnect(
+                                            field,
+                                            record,
+                                            record2,
+                                            aggregatedUpdates,
+                                        );
+                                    }
+                                    for (const record2 of records) {
+                                        models._connect(
+                                            field,
+                                            record,
+                                            record2,
+                                            aggregatedUpdates,
+                                        );
+                                    }
+                                } else {
+                                    throw new Error(
+                                        "Command '" + command + "' not supported",
+                                    );
+                                }
+                            }
+                        } else if (field.type === "many2one") {
+                            const value = vals[name];
+                            if (value) {
+                                const id = value.id || value;
+                                const exist = coModel.exists(id);
+                                if (exist) {
+                                    models._connect(
+                                        field,
+                                        record,
+                                        id,
+                                        aggregatedUpdates,
+                                    );
+                                } else if (
+                                    this.models[field.relation] &&
+                                    typeof value === "object"
+                                ) {
+                                    const newRecord = coModel.create(value);
+                                    models._connect(
+                                        field,
+                                        record,
+                                        newRecord,
+                                        aggregatedUpdates,
+                                    );
+                                }
+                            } else if (record[name]) {
+                                models._disconnect(
                                     field,
                                     record,
-                                    newRecord,
+                                    record[name],
                                     aggregatedUpdates,
                                 );
                             }
-                        } else if (record[name]) {
-                            models._disconnect(
-                                field,
-                                record,
-                                record[name],
-                                aggregatedUpdates,
+                        } else {
+                            throw new Error(
+                                `Relation type '${field.type}' not supported`,
                             );
                         }
                     } else {
-                        throw new Error(`Relation type '${field.type}' not supported`);
-                    }
-                } else {
-                    const oldValue = record[RAW_SYMBOL][name];
-                    let newValue = vals[name];
-                    if (DATE_TIME_TYPE.has(field.type)) {
-                        newValue =
-                            field.type === "datetime"
-                                ? convertDateTimeToRaw(newValue)
-                                : convertDateToRaw(newValue);
-                    }
-                    if (newValue !== oldValue) {
-                        record[RAW_SYMBOL][name] = newValue;
-                        aggregatedUpdates.add(record, name);
+                        const oldValue = record[RAW_SYMBOL][name];
+                        let newValue = vals[name];
+                        if (DATE_TIME_TYPE.has(field.type)) {
+                            newValue =
+                                field.type === "datetime"
+                                    ? convertDateTimeToRaw(newValue)
+                                    : convertDateToRaw(newValue);
+                        }
+                        if (newValue !== oldValue) {
+                            record[RAW_SYMBOL][name] = newValue;
+                            aggregatedUpdates.add(record, name);
+                        }
                     }
                 }
-            }
-
-            if (reIndexRecord) {
-                this[STORE_SYMBOL].add(record);
+            } finally {
+                // ALWAYS re-add: five `throw` sites sit between the
+                // remove above and this re-add (unknown field, bad
+                // relation command, a nested coModel.create…). Without
+                // finally, a throw mid-update left the record removed
+                // from every store index while other records still
+                // referenced it by id — it vanished from getAll()/getBy()
+                // and the owning relation silently resolved to undefined.
+                if (reIndexRecord) {
+                    this[STORE_SYMBOL].add(record);
+                }
             }
 
             aggregatedUpdates.fireEventAndDirty({

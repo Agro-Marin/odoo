@@ -1,8 +1,8 @@
-import { test, expect, describe } from "@odoo/hoot";
-import { setupPosEnv, getFilledOrder } from "@point_of_sale/../tests/unit/utils";
-import { definePosModels } from "@point_of_sale/../tests/unit/data/generate_model_definitions";
+import { describe, expect, test } from "@odoo/hoot";
+import { getFilledOrder, setupPosEnv } from "@point_of_sale/../tests/unit/utils";
+import { definePosSaleModels } from "@pos_sale/../tests/unit/data/generate_model_definitions";
 
-definePosModels();
+definePosSaleModels();
 
 describe("saleDetails", () => {
     test("down payment details as array", async () => {
@@ -27,7 +27,7 @@ describe("saleDetails", () => {
                 ],
                 qty: 1,
             },
-            order
+            order,
         );
 
         const saleDetails = line.saleDetails;
@@ -67,7 +67,7 @@ describe("saleDetails", () => {
                 ]),
                 qty: 1,
             },
-            order
+            order,
         );
 
         const saleDetails = line.saleDetails;

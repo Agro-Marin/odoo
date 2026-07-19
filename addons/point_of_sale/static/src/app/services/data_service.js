@@ -519,6 +519,10 @@ export class PosData extends SignalStore {
         await this.initData();
         await this.getLocalDataFromIndexedDB();
         this.initListeners();
+        // Only now is the data layer complete (fields/relations/models assigned
+        // above, records loaded). Replaying the restored offline queue any
+        // earlier destroyed it — see restoreUnsyncQueue.
+        this.drainRestoredQueue();
 
         if (odoo.debug === "assets") {
             window.performance.mark("pos_data_service_init_end");
@@ -933,10 +937,14 @@ export class PosData extends SignalStore {
                     });
                 }
             }
-            if (this.network.unsyncData.length && !this.network.offline) {
-                // Online boot with a restored queue: drain right away.
-                this.syncData().catch(() => {});
-            }
+            // NB: do NOT drain here. This runs from intializeDataRelation
+            // BEFORE `this.fields`/`this.models` are assigned, and syncData ->
+            // execute() dereferences `this.fields[model]`. The resulting
+            // TypeError is not a ConnectionLostError, so syncData's catch
+            // treated it as a hard server rejection and dead-lettered the
+            // entry — every restored offline write was destroyed on the very
+            // reload that was supposed to replay it. The drain now happens in
+            // drainRestoredQueue(), called once the data layer is ready.
         } catch {
             logPosMessage(
                 "DataService",
@@ -945,6 +953,26 @@ export class PosData extends SignalStore {
                 CONSOLE_COLOR,
             );
         }
+    }
+
+    /**
+     * Replay a queue restored from IndexedDB, once the data layer is ready.
+     * Deliberately fire-and-forget (boot must not block on it) but never
+     * silently: a failure here means offline writes are still pending.
+     */
+    drainRestoredQueue() {
+        if (!this.network.unsyncData.length || this.network.offline) {
+            return;
+        }
+        this.syncData().catch((error) => {
+            logPosMessage(
+                "DataService",
+                "drainRestoredQueue",
+                "Could not replay the restored offline queue; entries stay queued",
+                CONSOLE_COLOR,
+                [error],
+            );
+        });
     }
 
     async syncData() {
@@ -969,6 +997,14 @@ export class PosData extends SignalStore {
                     if (error instanceof ConnectionLostError) {
                         // Still offline: keep the entry and stop draining; the
                         // next connectivity check retries it.
+                        throw error;
+                    }
+                    if (!(error instanceof RPCError)) {
+                        // A client-side fault (TypeError from a not-yet-ready
+                        // data layer, a bug in execute, …) is NOT evidence that
+                        // the server refused this write. Dead-lettering it here
+                        // silently destroyed queued offline edits. Keep the
+                        // entry queued and stop draining so it can be retried.
                         throw error;
                     }
                     // Hard server rejection: this entry would fail on every

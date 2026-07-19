@@ -58,7 +58,10 @@ export class PosOrderlineAccounting extends Base {
             this.config.iface_tax_included === "total"
                 ? details.total_amount_no_rounding
                 : details.base_amount;
-        return this.currency.round(raw);
+        // Apply orderSign like every other line price getter (priceIncl/
+        // priceExcl). Without it a refund printed the combo header negative
+        // (-10.00) directly above its own children shown positive (+2.00/+8.00).
+        return this.currency.round(raw * this.order_id.orderSign);
     }
     get displayPrice() {
         if (this.combo_line_ids.length) {

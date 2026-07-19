@@ -1,5 +1,3 @@
-import { patch } from "@web/core/utils/patch";
-import { hootPosModels } from "@point_of_sale/../tests/unit/data/generate_model_definitions";
 import { models } from "@web/../tests/web_test_helpers";
 
 export class SaleOrder extends models.ServerModel {
@@ -30,7 +28,7 @@ export class SaleOrder extends models.ServerModel {
             id: 1,
             name: "S00001",
             state: "sale",
-            order_line: [1, 2],
+            line_ids: [1, 2],
             partner_id: 3,
             pricelist_id: 1,
             fiscal_position_id: 1,
@@ -47,14 +45,16 @@ export class SaleOrder extends models.ServerModel {
     async load_sale_order_from_pos(id, config_id) {
         const order = this.env["sale.order"].find((order) => order.id === id);
         const orderLines = this.env["sale.order.line"].filter((line) =>
-            order.line_ids.includes(line.id)
+            order.line_ids.includes(line.id),
         );
-        const partner = this.env["res.partner"].find((partner) => partner.id === order.partner_id);
+        const partner = this.env["res.partner"].find(
+            (partner) => partner.id === order.partner_id,
+        );
         const productProducts = this.env["product.product"].filter((product) =>
-            orderLines.map((line) => line.product_id).includes(product.id)
+            orderLines.map((line) => line.product_id).includes(product.id),
         );
         const productTemplates = this.env["product.template"].filter((template) =>
-            productProducts.map((p) => p.product_tmpl_id).includes(template.id)
+            productProducts.map((p) => p.product_tmpl_id).includes(template.id),
         );
         return {
             "sale.order": [order],
@@ -65,5 +65,3 @@ export class SaleOrder extends models.ServerModel {
         };
     }
 }
-
-patch(hootPosModels, [...hootPosModels, SaleOrder]);
