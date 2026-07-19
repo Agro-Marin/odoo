@@ -229,6 +229,116 @@ class TestCreation(TransactionCase):
         self.assertEqual(self._index_columns(), [])
 
 
+class TestRebuildSkipAndDeferral(TransactionCase):
+    """init() rebuild policy: hash-based skip and end-of-load deferral."""
+
+    TABLE = "test_bsr_skip"
+
+    def setUp(self):
+        super().setUp()
+        self.mixin = self.env["materialized.view.mixin"]
+        self.env.cr.execute(f"DROP MATERIALIZED VIEW IF EXISTS {self.TABLE} CASCADE")
+        self.addCleanup(
+            lambda: self.env.cr.execute(
+                f"DROP MATERIALIZED VIEW IF EXISTS {self.TABLE} CASCADE"
+            ),
+        )
+
+    def _concrete(self, query_code="SELECT 1 AS id", loaded=True):
+        """Patches emulating a concrete MV model over ``self.TABLE``.
+
+        ``loaded`` pins ``registry.loaded`` for the duration (at_install runs
+        execute inside module loading where it is still False; these tests
+        exercise both states explicitly).  The original value is restored.
+        """
+        cls = type(self.mixin)
+        return (
+            patch.object(cls, "_table", self.TABLE, create=True),
+            patch.object(cls, "_abstract", False, create=True),
+            patch.object(
+                cls,
+                "_build_table_query",
+                lambda self, code=query_code: SQL(code),
+                create=True,
+            ),
+            patch.object(self.env.registry, "loaded", loaded),
+        )
+
+    def _mv_oid(self):
+        self.env.cr.execute(
+            "SELECT oid FROM pg_class WHERE relname = %s AND relkind = 'm'",
+            (self.TABLE,),
+        )
+        row = self.env.cr.fetchone()
+        return row[0] if row else None
+
+    def test_init_skips_rebuild_when_definition_unchanged(self):
+        p1, p2, p3, p4 = self._concrete()
+        with p1, p2, p3, p4:
+            self.mixin.init()
+            oid = self._mv_oid()
+            self.assertIsNotNone(oid)
+            # unchanged definition: the MV must not be dropped/recreated
+            self.mixin.init()
+            self.assertEqual(self._mv_oid(), oid)
+
+    def test_init_rebuilds_when_query_changes(self):
+        p1, p2, p3, p4 = self._concrete()
+        with p1, p2, p3, p4:
+            self.mixin.init()
+            oid = self._mv_oid()
+        p1, p2, p3, p4 = self._concrete("SELECT 2 AS id")
+        with p1, p2, p3, p4:
+            self.mixin.init()
+            self.assertNotEqual(self._mv_oid(), oid)
+            self.env.cr.execute(f"SELECT id FROM {self.TABLE}")
+            self.assertEqual(self.env.cr.fetchone()[0], 2)
+
+    def test_legacy_mv_without_hash_is_rebuilt(self):
+        self.env.cr.execute(f"CREATE MATERIALIZED VIEW {self.TABLE} AS SELECT 1 AS id")
+        oid = self._mv_oid()
+        p1, p2, p3, p4 = self._concrete()
+        with p1, p2, p3, p4:
+            self.assertTrue(self.mixin._mv_needs_rebuild())
+            self.mixin.init()
+            self.assertNotEqual(self._mv_oid(), oid)
+            # rebuilt MV is stamped: a second init() now skips
+            oid = self._mv_oid()
+            self.mixin.init()
+            self.assertEqual(self._mv_oid(), oid)
+
+    def test_init_defers_to_register_hook_while_loading(self):
+        registry = self.env.registry
+        self.addCleanup(
+            lambda: getattr(registry, "_pending_materialized_views", {}).pop(
+                self.mixin._name, None
+            )
+        )
+        p1, p2, p3, p4 = self._concrete()
+        with p1, p2, p3, p4:
+            self.mixin.init()  # first creation is never deferred
+            oid = self._mv_oid()
+            self.assertIsNotNone(oid)
+        p1, p2, p3, p4 = self._concrete("SELECT 2 AS id", loaded=False)
+        with p1, p2, p3, p4:
+            self.mixin.init()
+            # deferred: nothing rebuilt yet, request recorded
+            self.assertEqual(self._mv_oid(), oid)
+            self.assertIn(self.mixin._name, registry._pending_materialized_views)
+        p1, p2, p3, p4 = self._concrete("SELECT 2 AS id")
+        with p1, p2, p3, p4:
+            self.mixin._register_hook()
+            self.assertNotEqual(self._mv_oid(), oid)
+            self.assertNotIn(
+                self.mixin._name,
+                getattr(registry, "_pending_materialized_views", {}),
+            )
+            # hook is idempotent once consumed
+            oid = self._mv_oid()
+            self.mixin._register_hook()
+            self.assertEqual(self._mv_oid(), oid)
+
+
 class TestQueryBridge(TransactionCase):
     """_query() resolution order (C2 + stand-alone regression fence)."""
 

@@ -1,3 +1,4 @@
+import hashlib
 import logging
 
 import psycopg
@@ -7,6 +8,10 @@ from odoo.exceptions import UserError
 from odoo.tools.sql import SQL
 
 _logger = logging.getLogger(__name__)
+
+# Marker prefix for the definition hash stored as the COMMENT of every
+# materialized view managed by this mixin (see _mv_definition_hash).
+_MV_COMMENT_PREFIX = "odoo-mv:v1:"
 
 
 # Transient Postgres errors that are safe to surface as "retry on next cron".
@@ -228,13 +233,102 @@ class MaterializedViewMixin(models.AbstractModel):
 
         No-op for abstract models: ``registry.init_models`` calls ``init()`` on
         every model, including this mixin itself, which has no table.
+
+        Rebuild policy — ``init()`` runs once per upgraded module whose model
+        closure contains this model, which on a ``-u base`` means many times
+        per load, each a full ``CREATE ... WITH DATA`` over the source tables
+        (measured minutes on a production database).  So:
+
+        * view missing: create immediately (data loading and ``at_install``
+          tests may SELECT it before the end-of-load hook runs);
+        * registry still loading: defer to ``_register_hook`` (end of load),
+          where the *final* model definition builds the query exactly once;
+        * otherwise (e.g. ``reload_schema`` on a running server): rebuild only
+          if the stored definition hash differs (see ``_mv_needs_rebuild``).
         """
         if self._abstract:
             return
         with_data = self.env.context.get("with_data", True)
-        self._create_materialized_view(
-            with_data=with_data, index_field=self._mv_index_field
+        if not self._view_exists(self._table):
+            self._create_materialized_view(
+                with_data=with_data, index_field=self._mv_index_field
+            )
+            return
+        if not self.pool.loaded:
+            pending = getattr(self.pool, "_pending_materialized_views", None)
+            if pending is None:
+                pending = self.pool._pending_materialized_views = {}
+            pending[self._name] = with_data
+            return
+        if self._mv_needs_rebuild(with_data=with_data):
+            self._create_materialized_view(
+                with_data=with_data, index_field=self._mv_index_field
+            )
+
+    def _register_hook(self) -> None:
+        """Process a rebuild deferred by ``init()`` during module loading.
+
+        Called once per registry load after all modules are in (and again on
+        incremental setups of a ready registry, where the pending map is
+        normally empty).  Cheap no-op when this model has nothing pending.
+        """
+        super()._register_hook()
+        if self._abstract:
+            return
+        pending = getattr(self.pool, "_pending_materialized_views", None)
+        if pending is None or self._name not in pending:
+            return
+        with_data = pending.pop(self._name)
+        if self._mv_needs_rebuild(with_data=with_data):
+            self._create_materialized_view(
+                with_data=with_data, index_field=self._mv_index_field
+            )
+
+    def _mv_index_cols(self, index_field=None) -> list:
+        """Normalize ``_mv_index_field`` (or an explicit value) to a list."""
+        index_field = index_field if index_field is not None else self._mv_index_field
+        return [index_field] if isinstance(index_field, str) else list(index_field)
+
+    def _mv_definition_hash(self, query_sql: SQL, index_cols: list) -> str:
+        """Return the marker comment identifying this MV definition.
+
+        Hashes the defining SQL (code and parameters) and the unique-index
+        columns; stored as ``COMMENT ON MATERIALIZED VIEW`` by
+        ``_create_materialized_view`` and compared by ``_mv_needs_rebuild``.
+        """
+        payload = "\x00".join(
+            (query_sql.code, repr(query_sql.params), ",".join(index_cols))
         )
+        digest = hashlib.sha256(payload.encode()).hexdigest()
+        return f"{_MV_COMMENT_PREFIX}{digest}"
+
+    def _mv_stored_comment(self):
+        """Return the comment stored on the MV, or None."""
+        self.env.cr.execute(
+            SQL(
+                "SELECT obj_description(c.oid, 'pg_class') FROM pg_class c "
+                "WHERE c.relname = %s AND c.relkind = 'm' "
+                "AND c.relnamespace = current_schema::regnamespace",
+                self._table,
+            )
+        )
+        row = self.env.cr.fetchone()
+        return row[0] if row else None
+
+    def _mv_needs_rebuild(self, with_data=True) -> bool:
+        """Whether the existing relation matches the current definition.
+
+        True when the stored definition hash differs (including legacy MVs
+        created before hashes were stamped, and plain views pending migration),
+        or when the MV is unpopulated while ``with_data`` is requested.
+        """
+        if self._relkind(self._table) != "m":
+            return True
+        query_sql = self._query()
+        index_cols = self._mv_index_cols()
+        if self._mv_stored_comment() != self._mv_definition_hash(query_sql, index_cols):
+            return True
+        return bool(with_data) and not self._is_populated(self._table)
 
     def _create_materialized_view(self, with_data=True, index_field="id"):
         """(Re)create the materialized view and its unique index.
@@ -285,9 +379,7 @@ class MaterializedViewMixin(models.AbstractModel):
                 ),
             )
 
-        index_cols = (
-            [index_field] if isinstance(index_field, str) else list(index_field)
-        )
+        index_cols = self._mv_index_cols(index_field)
         if not index_cols:
             raise ValueError(
                 f"{self._name}: index_field must name at least one column "
@@ -308,6 +400,16 @@ class MaterializedViewMixin(models.AbstractModel):
                 table_name,
                 index_cols_sql,
             ),
+        )
+
+        # Stamp the definition hash so later init() calls can recognize an
+        # up-to-date MV and skip the rebuild (see _mv_needs_rebuild).
+        self.env.cr.execute(
+            SQL(
+                "COMMENT ON MATERIALIZED VIEW %s IS %s",
+                table_name,
+                self._mv_definition_hash(query_sql, index_cols),
+            )
         )
 
     def _drop_existing_relation(self, table_name_sql):
