@@ -182,7 +182,14 @@ export class RecipientsInput extends Component {
                     recipient.email ? "<" + recipient.email + ">" : ""
                 }`.trim();
             tags.push({
-                id: uniqueId("tag_"),
+                // Stable per recipient across re-renders: a fresh uniqueId every
+                // render changed the tag identity, so the downstream tags-list
+                // useEffect re-ran and popover.open() close()d + reopened the
+                // "add email" popover on each render, dropping focus and any
+                // half-typed input.
+                id: `${recipientField}_${
+                    recipient.partner_id ?? recipient.email ?? uniqueId("tag_")
+                }`,
                 resId: recipient.partner_id,
                 canEdit: true,
                 text:
