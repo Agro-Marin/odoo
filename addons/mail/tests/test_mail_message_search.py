@@ -170,3 +170,28 @@ class TestMailMessageSearchChunking(MailCommon):
             domain=domain, search_term="discount today"
         )
         self.assertIn(literal.id, {m["id"] for m in res2["messages"]})
+
+    def test_message_fetch_search_by_attachment_name(self):
+        """Searching a term must still match a message by its attachment name
+        when a thread is given -- the attachment search is scoped to the thread's
+        (reparented) attachments rather than the whole ir_attachment table."""
+        record = self.env["res.partner"].create({"name": "SearchAttach"})
+        with_att = record.message_post(
+            body="please review",
+            message_type="comment",
+            subtype_xmlid="mail.mt_comment",
+            attachments=[("quarterly_report.pdf", b"data")],
+        )
+        plain = record.message_post(
+            body="unrelated note",
+            message_type="comment",
+            subtype_xmlid="mail.mt_comment",
+        )
+        res = self.env["mail.message"]._message_fetch(
+            domain=[("model", "=", "res.partner"), ("res_id", "=", record.id)],
+            thread=record,
+            search_term="quarterly_report",
+        )
+        ids = {m["id"] for m in res["messages"]}
+        self.assertIn(with_att.id, ids, "message must match by its attachment name")
+        self.assertNotIn(plain.id, ids)

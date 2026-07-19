@@ -1307,6 +1307,15 @@ class MailMessage(models.Model):
                 .replace("_", "\\_")
                 .replace(" ", "%")
             )
+            # Message attachments are reparented to their thread, so when a thread
+            # is given, scope the attachment name search to that thread's
+            # attachments instead of an `ilike` over the whole ir_attachment table
+            # (no trigram index -> a full table scan on every in-thread search).
+            attachment_domain = Domain("name", "ilike", search_term)
+            if thread:
+                attachment_domain &= Domain("res_model", "=", thread._name) & Domain(
+                    "res_id", "=", thread.id
+                )
             message_domain = Domain.OR(
                 [
                     # sudo: access to attachment is allowed if you have access to the parent model
@@ -1314,9 +1323,7 @@ class MailMessage(models.Model):
                         (
                             "attachment_ids",
                             "in",
-                            self.env["ir.attachment"]
-                            .sudo()
-                            ._search([("name", "ilike", search_term)]),
+                            self.env["ir.attachment"].sudo()._search(attachment_domain),
                         )
                     ],
                     [("body", "ilike", search_term)],
