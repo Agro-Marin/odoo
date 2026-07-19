@@ -20,7 +20,12 @@ from odoo.tools.convert import IdRef, convert_file
 
 from . import db as modules_db
 from .migration import MigrationManager
-from .module import adapt_version, initialize_sys_path, load_odoo_module
+from .module import (
+    adapt_version,
+    initialize_sys_path,
+    load_odoo_module,
+    module_content_checksum,
+)
 from .module_graph import ModuleGraph
 
 LoadKind = typing.Literal["data", "demo"]
@@ -474,7 +479,15 @@ def load_module_graph(
                 registry.updated_modules.append(package.name)
 
                 ver = adapt_version(package.manifest["version"])
-                module.write({"state": "installed", "db_version": ver})
+                values = {"state": "installed", "db_version": ver}
+                # stamp the directory checksum consumed by button_upgrade's
+                # unchanged-module skip; the column appears with base's own
+                # upgrade, so guard until then
+                if odoo.tools.sql.column_exists(
+                    env.cr, "ir_module_module", "content_checksum"
+                ):
+                    values["content_checksum"] = module_content_checksum(module_name)
+                module.write(values)
 
                 package.state = "installed"
                 module.env.flush_all()

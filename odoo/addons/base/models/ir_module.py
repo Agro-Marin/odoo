@@ -22,9 +22,14 @@ from odoo.exceptions import AccessDenied, UserError, ValidationError
 from odoo.fields import Domain
 from odoo.http import request
 from odoo.libs.parse_version import parse_version
-from odoo.modules.module import Manifest, MissingDependencyError
+from odoo.modules.module import (
+    Manifest,
+    MissingDependencyError,
+    module_content_checksum,
+)
 from odoo.tools import SQL, config
 from odoo.tools.misc import get_flag, topological_sort
+from odoo.tools.sql import column_exists
 from odoo.tools.translate import (
     TranslationImporter,
     get_datafile_translation_path,
@@ -291,6 +296,11 @@ class IrModuleModule(models.Model):
     # "dyn": bool}}}.  Lets the next upgrade skip converting data files whose
     # content did not change.  Not meant to be edited through the ORM.
     data_file_checksums = fields.Json(readonly=True, prefetch=False)
+    # sha256 of the module directory at its last successful install/upgrade
+    # (see odoo.modules.module.module_content_checksum), stamped by
+    # load_module_graph.  button_upgrade uses it to leave unchanged modules
+    # out of upgrade cascades.
+    content_checksum = fields.Char(readonly=True, prefetch=False)
 
     _name_uniq = models.Constraint(
         "UNIQUE (name)",
@@ -1043,7 +1053,44 @@ class IrModuleModule(models.Model):
                     seen_ids.add(dependent.id)
                     todo.append(dependent)
 
-        self.browse(m.id for m in todo).write({"state": "to upgrade"})
+        # Cascaded modules whose directory content is identical to their last
+        # successful upgrade have nothing to re-run: same data files, same
+        # schema, same version (so no migrations), same translations.  Leave
+        # them installed.  Explicitly requested modules (``self``) always
+        # upgrade; modules never stamped (fresh column, NULL) always upgrade.
+        # The traversal above is deliberately unfiltered — a changed module
+        # reachable only through unchanged intermediates must still be found.
+        marked_ids = [m.id for m in todo]
+        if config["skip_unchanged_modules"] and column_exists(
+            self.env.cr, "ir_module_module", "content_checksum"
+        ):
+            self.env.cr.execute(
+                "SELECT id, content_checksum FROM ir_module_module"
+                " WHERE content_checksum IS NOT NULL"
+            )
+            stamped = dict(self.env.cr.fetchall())
+            requested_ids = set(self.ids)
+            marked_ids, skipped = [], 0
+            for module in todo:
+                stored = stamped.get(module.id)
+                if (
+                    module.id not in requested_ids
+                    and stored is not None
+                    and module_content_checksum(module.name) == stored
+                ):
+                    skipped += 1
+                else:
+                    marked_ids.append(module.id)
+            if skipped:
+                _logger.info(
+                    "upgrade cascade: %d modules to upgrade, %d unchanged "
+                    "modules left as installed "
+                    "(--upgrade-unchanged-modules to force)",
+                    len(marked_ids),
+                    skipped,
+                )
+
+        self.browse(marked_ids).write({"state": "to upgrade"})
 
         uninstalled_dep_names = []
         for module in todo:
