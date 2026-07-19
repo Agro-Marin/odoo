@@ -57,14 +57,11 @@ export class StockPackageMany2One extends Component {
     };
 
     get isDone() {
-        // NB: relies on `state` being present in the view arch. The widget is
-        // used on models both with a `state` field (stock.move.line — whose
-        // stock views all declare `<field name="state" column_invisible="True"/>`)
-        // and without one (stock.package, stock.quant, stock.quant.relocate),
-        // so a widget-level `fieldDependencies` on `state` is NOT an option:
-        // it would inject `state` into the read spec of models that don't have
-        // the field and crash those views. When adding this widget to a new
-        // view on a model with `state`, include the field in the arch.
+        // `state` is declared as an *optional* field dependency below: it is
+        // read when the view's arch knows the field (stock.move.line views
+        // declare it) and silently skipped on the models that lack it
+        // (stock.package, stock.quant, stock.quant.relocate), where the
+        // done-trimming behavior simply stays off.
         return ["done", "cancel"].includes(this.props.record?.data?.state);
     }
 
@@ -108,6 +105,7 @@ export class StockPackageMany2One extends Component {
 
 registry.category("fields").add("package_m2o", {
     ...buildM2OFieldDescription(StockPackageMany2One),
+    fieldDependencies: [{ name: "state", type: "selection", optional: true }],
     extractProps(staticInfo, dynamicInfo) {
         const context = dynamicInfo.context;
         return {

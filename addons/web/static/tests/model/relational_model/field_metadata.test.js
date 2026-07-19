@@ -270,4 +270,26 @@ describe("addFieldDependencies", () => {
         addFieldDependencies(activeFields, fields, []);
         expect(Object.keys(activeFields).length).toBe(0);
     });
+
+    test("optional dependency skipped when the view doesn't know the field", () => {
+        const activeFields = {};
+        const fields = {};
+        addFieldDependencies(activeFields, fields, [
+            { name: "state", type: "selection", optional: true },
+        ]);
+        // Not fabricated: a hard dependency would enter the read spec and
+        // crash server-side on models lacking the field.
+        expect("state" in activeFields).toBe(false);
+        expect("state" in fields).toBe(false);
+    });
+
+    test("optional dependency loaded when the view knows the field", () => {
+        const activeFields = {};
+        const fields = { state: { type: "selection", selection: [] } };
+        addFieldDependencies(activeFields, fields, [
+            { name: "state", type: "selection", optional: true },
+        ]);
+        expect("state" in activeFields).toBe(true);
+        expect(activeFields.state.readonly).toBe("True");
+    });
 });

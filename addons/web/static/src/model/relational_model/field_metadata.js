@@ -54,6 +54,16 @@ export function makeActiveField({
 
 export function addFieldDependencies(activeFields, fields, fieldDependencies = []) {
     for (const field of fieldDependencies) {
+        if (field.optional && !fields[field.name]) {
+            // Soft dependency: only load the field when this view's model
+            // description already knows it (it appears in the arch). A hard
+            // dependency on a field the host model lacks would be fabricated
+            // below, enter the read spec, and crash the view server-side —
+            // widgets shared across models (e.g. stock's package_m2o on
+            // move lines, packages and quants) declare `optional: true` so
+            // the dependency degrades to a no-op instead.
+            continue;
+        }
         if (!("readonly" in field)) {
             field.readonly = true;
         }
