@@ -731,3 +731,52 @@ class TestAuditFixesCore(TestStockCommon):
             msg="a draft incoming move must read the incoming forecast key, "
             "not shortcut through the (unprefetched) outgoing one",
         )
+
+
+@tagged("post_install", "-at_install")
+class TestAuditQuantTasksScope(TestStockCommon):
+    """`_quant_tasks` must propagate its recordset to the three scoped
+    maintenance tasks; the former @api.model decorator silently dropped the
+    records and forced every call global."""
+
+    def test_quant_tasks_propagates_recordset(self):
+        from odoo.addons.stock.models import stock_quant as _sq
+
+        product = self.env["product.product"].create(
+            {"name": "QT Scope Product", "is_storable": True},
+        )
+        warehouse = self.env["stock.warehouse"].search(
+            [("company_id", "=", self.env.company.id)],
+            limit=1,
+        )
+        self.env["stock.quant"]._update_available_quantity(
+            product,
+            warehouse.lot_stock_id,
+            quantity=3,
+        )
+        quant = self.env["stock.quant"].search(
+            [("product_id", "=", product.id)],
+            limit=1,
+        )
+        seen_sizes = []
+        orig = _sq.StockQuant._merge_quants
+
+        def spy(records, *args, **kwargs):
+            seen_sizes.append(len(records))
+            return orig(records, *args, **kwargs)
+
+        _sq.StockQuant._merge_quants = spy
+        self.addCleanup(setattr, _sq.StockQuant, "_merge_quants", orig)
+
+        quant._quant_tasks()
+        self.assertEqual(
+            seen_sizes,
+            [1],
+            "a recordset call must reach the scoped tasks with its records",
+        )
+        self.env["stock.quant"]._quant_tasks()
+        self.assertEqual(
+            seen_sizes,
+            [1, 0],
+            "a model-level call must stay global (empty recordset)",
+        )

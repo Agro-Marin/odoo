@@ -1926,8 +1926,12 @@ class StockQuant(models.Model):
                 owner_id=owner,
             )
 
-    @api.model
     def _quant_tasks(self):
+        # Not @api.model: the three tasks scope themselves to `self`'s
+        # product/location pairs when called on a recordset (e.g. package
+        # unpacking); the decorator silently dropped the records and forced
+        # every call global. Model-level callers (cron, report views) still
+        # run global via the empty recordset.
         self._merge_quants()
         self._clean_reservations()
         self._unlink_zero_quants()
