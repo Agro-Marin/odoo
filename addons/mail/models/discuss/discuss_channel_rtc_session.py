@@ -63,9 +63,24 @@ class DiscussChannelRtcSession(models.Model):
                 channel,
                 {"rtc_session_ids": Store.Many(channel_sessions, mode="ADD")},
             ).bus_send()
-        for channel in rtc_sessions.channel_id.filtered(
-            lambda c: len(c.rtc_session_ids) == 1
-        ):
+        # Serialize the "is this the first session of the call?" decision across
+        # concurrent joiners. Without a per-channel lock, two members joining an
+        # empty call in the same instant each see (under READ COMMITTED) only
+        # their own freshly-inserted session, so both evaluate the count below as
+        # 1 -> both post a "call started" notification and both open a
+        # discuss.call.history row for a single call. Locking the channel row
+        # forces the second transaction to wait until the first commits, after
+        # which it sees the first session and correctly skips the call-start.
+        channels = rtc_sessions.channel_id
+        if channels:
+            self.env.cr.execute(
+                "SELECT id FROM discuss_channel WHERE id = ANY(%s) FOR UPDATE",
+                [channels.ids],
+            )
+            # Re-read sessions under the lock so the count reflects the
+            # serialized state rather than a stale one2many cache.
+            channels.invalidate_recordset(["rtc_session_ids"])
+        for channel in channels.filtered(lambda c: len(c.rtc_session_ids) == 1):
             body = Markup('<div data-oe-type="call" class="o_mail_notification"></div>')
             message = channel.message_post(body=body, message_type="notification")
             # sudo - discuss.call.history: can create call history when call is created.

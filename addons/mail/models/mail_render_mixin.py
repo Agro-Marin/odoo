@@ -361,9 +361,25 @@ class MailRenderMixin(models.AbstractModel):
             and not self.env.user.has_group("mail.group_mail_template_editor")
         )
 
+    def _get_dynamic_field_names(self):
+        """Field names whose stored value is rendered as a template, and are thus
+        the only fields subject to the unsafe-expression editor-group gate.
+
+        Concrete template models (mail.template, sms.template, mailing, ...)
+        override this with their exact renderable set. The empty default means
+        "unknown -> scan every field", a safe (over-strict) fallback.
+        """
+        return set()
+
     def _has_unsafe_expression(self):
         for template in self.sudo():
-            for fname, field in template._fields.items():
+            # Restrict the scan to fields that are actually rendered. Scanning
+            # every field wrongly denied non-editors whose *non-rendered*
+            # metadata (name, description, ...) merely contained literal
+            # '{{ ... }}' text that is never evaluated.
+            fnames = template._get_dynamic_field_names() or template._fields.keys()
+            for fname in fnames:
+                field = template._fields[fname]
                 engine = getattr(field, "render_engine", "inline_template")
                 if engine in ("qweb", "qweb_view"):
                     if self._has_unsafe_expression_template_qweb(
@@ -495,7 +511,11 @@ class MailRenderMixin(models.AbstractModel):
         # same HTML for every record is pure overhead on batch/mass rendering.
         template_node = html.fragment_fromstring(template_src, create_parent="div")
 
-        options = options or {}
+        # Copy rather than mutate: injecting the internal
+        # raise_on_forbidden_code_for_model flag into the caller's dict leaked a
+        # non-public option out of this method (and the same dict is reused
+        # across per-language render calls in _render_field).
+        options = dict(options or {})
         if is_restricted:
             options["raise_on_forbidden_code_for_model"] = model
 

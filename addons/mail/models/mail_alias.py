@@ -513,7 +513,12 @@ class MailAlias(models.Model):
             sanitized_name = re.sub(
                 r"[^\w!#$%&\'*+\-/=?^_`{|}~.]+", "-", sanitized_name
             )
-            sanitized_name = sanitized_name.encode("ascii", errors="replace").decode()
+            # Drop (not "?"-replace) any non-ASCII word chars that survived the
+            # filter: \w matches Cyrillic/CJK letters, and encoding them with
+            # errors="replace" produced "?" — a valid atext char — so a purely
+            # non-Latin name yielded a garbage-but-"valid" alias like "???".
+            # Dropping them leaves an empty string, correctly rejected below.
+            sanitized_name = sanitized_name.encode("ascii", errors="ignore").decode()
         if not sanitized_name.strip():
             return False
         return (

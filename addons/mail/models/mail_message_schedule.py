@@ -3,6 +3,7 @@ import logging
 from datetime import UTC, datetime
 
 from odoo import api, fields, models, modules
+from odoo.service.transaction import PG_CONCURRENCY_ERRORS_TO_RETRY
 
 _logger = logging.getLogger(__name__)
 
@@ -70,14 +71,30 @@ class MailMessageSchedule(models.Model):
                 schedule._send_notifications()
                 if auto_commit:
                     self.env.cr.commit()
-            except Exception:
+            except Exception as error:
+                if auto_commit:
+                    self.env.cr.rollback()
+                # Distinguish a *transient* DB error (serialization failure,
+                # deadlock, lock timeout -- realistic in this concurrent-session
+                # workspace) from a deterministic poison pill (broken template,
+                # recipient with a bad lang, uninstalled model). Dropping the row
+                # on a transient error would silently lose a real message's whole
+                # notification fan-out; leave it in place to retry on the next
+                # tick. Only deterministic failures are dropped, so a single bad
+                # row can still never wedge the queue forever.
+                if getattr(error, "sqlstate", None) in PG_CONCURRENCY_ERRORS_TO_RETRY:
+                    _logger.warning(
+                        "Transient DB error sending scheduled notification %s; "
+                        "leaving it to retry on the next tick",
+                        schedule.id,
+                        exc_info=True,
+                    )
+                    continue
                 _logger.warning(
                     "Sending of scheduled notification %s failed; dropping it",
                     schedule.id,
                     exc_info=True,
                 )
-                if auto_commit:
-                    self.env.cr.rollback()
                 try:
                     schedule.unlink()
                 except Exception:

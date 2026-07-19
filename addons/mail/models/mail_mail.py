@@ -38,6 +38,15 @@ class MailMail(models.Model):
     _order = "id desc"
     _rec_name = "subject"
 
+    # The queue cron (process_email_queue) runs
+    #   WHERE state = 'outgoing' AND (scheduled_date due) ORDER BY id LIMIT n
+    # every few minutes. `state` was unindexed, so this seq-scanned the whole
+    # mail_mail table (which grows with every retained exception/notification
+    # mail) even when zero mails were due. A partial index scoped to the
+    # 'outgoing' rows stays tiny (rows leave it as soon as they are sent) and
+    # serves both the FIFO fetch and the search_count of the pending queue.
+    _state_outgoing_id_idx = models.Index("(id) WHERE state = 'outgoing'")
+
     @api.model
     def default_get(self, fields):
         # protection for `default_type` values leaking from menu action context (e.g. for invoices)
@@ -1052,7 +1061,16 @@ class MailMail(models.Model):
                     raise MailDeliveryException(
                         _("Unable to connect to SMTP Server"), exc
                     ) from exc
-                batch = self.browse(batch_ids)
+                # Only flip mails that were actually pending. send() is a public
+                # method callable on arbitrary recordsets (composer force_send,
+                # multi-select "Send" in the list view), so a batch can contain
+                # already-'sent'/'cancel' mails; without this guard an SMTP outage
+                # would flip a delivered mail to 'exception', making it eligible
+                # for action_retry -> re-delivery (duplicate email). _send applies
+                # the same state=='outgoing' guard per mail.
+                batch = self.browse(batch_ids).filtered(
+                    lambda m: m.state == "outgoing"
+                )
                 # Some smtplib errors (e.g. SMTPResponseException(code, msg))
                 # carry several args; str() would render them as an opaque tuple
                 # repr, so join them into a readable multi-line reason.
@@ -1406,33 +1424,9 @@ class MailMail(models.Model):
                 )
                 raise
             except Exception as e:
-                if isinstance(e, OutgoingEmailError):
-                    # Classify sender/recipient validation errors raised while
-                    # preparing the outgoing email. The stable ``.code`` is one
-                    # of IrMailServer's NO_* constants; the message may carry
-                    # extra detail (e.g. the offending address), so it is used
-                    # verbatim as the failure reason.
-                    error_code = e.code
-                    failure_reason = str(e)
-                    if error_code == IrMailServer.NO_VALID_FROM:
-                        failure_type = "mail_from_invalid"
-                    elif error_code in (
-                        IrMailServer.NO_FOUND_FROM,
-                        IrMailServer.NO_FOUND_SMTP_FROM,
-                    ):
-                        failure_type = "mail_from_missing"
-
-                if isinstance(
-                    e, MailDeliveryException
-                ) and "OutboundSpamException" in str(e):
-                    # OutboundSpamException: Outlook spam error
-                    failure_type = "mail_spam"
-
-                # generic (unknown) error as fallback
-                if not failure_reason:
-                    failure_reason = str(e)
-                if not failure_type:
-                    failure_type = "unknown"
+                failure_type, failure_reason = self._classify_send_error(
+                    e, failure_type=failure_type, failure_reason=failure_reason
+                )
 
                 _logger.exception(
                     "failed sending mail (id: %s) due to %s", mail.id, failure_reason
@@ -1465,6 +1459,46 @@ class MailMail(models.Model):
         if post_send_callback:
             post_send_callback(self.ids)
         return True
+
+    def _classify_send_error(self, exception, failure_type=None, failure_reason=None):
+        """Map an exception raised while sending to a ``(failure_type,
+        failure_reason)`` pair, using IrMailServer's stable error codes.
+
+        Extracted from ``_send``'s outer handler so the delivery-failure taxonomy
+        is a single, DB-free, unit-testable place instead of an inline block.
+
+        :param failure_type: a classification already inferred earlier in the
+          send (e.g. from a per-recipient failure); preserved unless a more
+          specific one is found here.
+        :param failure_reason: likewise a reason already recorded; kept unless an
+          OutgoingEmailError (whose message carries the offending detail) or the
+          generic fallback supersedes it.
+        :returns: ``(failure_type, failure_reason)``, both always set.
+        """
+        IrMailServer = self.env["ir.mail_server"]
+        if isinstance(exception, OutgoingEmailError):
+            # The stable ``.code`` is one of IrMailServer's NO_* constants; the
+            # message may carry extra detail (e.g. the offending address), so it
+            # is used verbatim as the failure reason.
+            failure_reason = str(exception)
+            if exception.code == IrMailServer.NO_VALID_FROM:
+                failure_type = "mail_from_invalid"
+            elif exception.code in (
+                IrMailServer.NO_FOUND_FROM,
+                IrMailServer.NO_FOUND_SMTP_FROM,
+            ):
+                failure_type = "mail_from_missing"
+        if isinstance(exception, MailDeliveryException) and (
+            "OutboundSpamException" in str(exception)
+        ):
+            # OutboundSpamException: Outlook spam error
+            failure_type = "mail_spam"
+        # generic (unknown) error as fallback
+        if not failure_reason:
+            failure_reason = str(exception)
+        if not failure_type:
+            failure_type = "unknown"
+        return failure_type, failure_reason
 
     # ============================================================
     # Mail -> Notification Helpers
