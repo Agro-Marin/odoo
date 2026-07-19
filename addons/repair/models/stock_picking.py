@@ -1,10 +1,6 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-import time
-
 from odoo import _, api, fields, models
-from odoo.tools import DEFAULT_SERVER_DATETIME_FORMAT
 from odoo.tools.misc import clean_context
 
 
@@ -158,20 +154,16 @@ class StockPickingType(models.Model):
         other_picking_types = (self - repair_picking_types)
 
         records = super(StockPickingType, other_picking_types)._get_aggregated_records_by_date()
-        repair_records = self.env['repair.order']._read_group(
-            [
-                ('picking_type_id', 'in', repair_picking_types.ids),
-                ('state', '=', 'confirmed')
-            ],
-            ['picking_type_id'],
-            ['schedule_date' + ':array_agg'],
+        counts_by_type = repair_picking_types._get_date_category_counts(
+            'repair.order',
+            'schedule_date',
+            [('state', '=', 'confirmed')],
         )
-        # Make sure that all picking type IDs are represented, even if empty
-        picking_type_id_to_dates = {i: [] for i in repair_picking_types.ids}
-        picking_type_id_to_dates.update({r[0].id: r[1] for r in repair_records})
         label = self.env._('Confirmed')
-        repair_records = [(i, d, label) for i, d in picking_type_id_to_dates.items()]
-        return records + repair_records
+        return records + [
+            (picking_type_id, counts, label)
+            for picking_type_id, counts in counts_by_type.items()
+        ]
 
 
 class StockPicking(models.Model):
@@ -192,7 +184,7 @@ class StockPicking(models.Model):
         ctx.update({
             'default_repair_picking_id': self.id,
             'default_picking_type_id': warehouse.repair_type_id.id,
-            'default_partner_id': self.partner_id and self.partner_id.id or False,
+            'default_partner_id': (self.partner_id and self.partner_id.id) or False,
         })
         return {
             'name': _('Create Repair'),

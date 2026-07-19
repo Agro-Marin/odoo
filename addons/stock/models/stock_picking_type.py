@@ -887,60 +887,72 @@ class StockPickingType(models.Model):
         """
         if not self:
             return []
-        # Bucket in SQL: one grouped COUNT per (picking type, date category) using
-        # the same boundaries as `calculate_date_category`, instead of array_agg-ing
-        # every open picking's datetime out of PostgreSQL and classifying them one
-        # by one in Python on every dashboard render.
-        picking_model = self.env["stock.picking"]
-        picking_model.browse().check_access("read")
-        query = picking_model._search(
-            [
-                ("picking_type_id", "in", self.ids),
-                ("state", "in", ["assigned", "waiting", "confirmed"]),
-                ("date_planned", "!=", False),
-            ]
+        counts_by_type = self._get_date_category_counts(
+            "stock.picking",
+            "date_planned",
+            [("state", "in", ["assigned", "waiting", "confirmed"])],
         )
-        counts_by_type = {picking_type_id: {} for picking_type_id in self.ids}
-        if not query.is_empty():
-            # Stored datetimes are naive UTC; express the tz-aware boundaries the
-            # same way (mirrors `date_category_to_domain`).
-            bounds = {
-                key: value.astimezone(pytz.UTC).replace(tzinfo=None)
-                for key, value in picking_model._date_category_boundaries().items()
-            }
-            picking_type_sql = picking_model._field_to_sql(
-                picking_model._table, "picking_type_id", query
-            )
-            date_planned_sql = picking_model._field_to_sql(
-                picking_model._table, "date_planned", query
-            )
-            category_sql = SQL(
-                """CASE
-                    WHEN %(date_planned)s < %(yesterday)s THEN 'before'
-                    WHEN %(date_planned)s < %(today)s THEN 'yesterday'
-                    WHEN %(date_planned)s < %(day_1)s THEN 'today'
-                    WHEN %(date_planned)s < %(day_2)s THEN 'day_1'
-                    WHEN %(date_planned)s < %(day_3)s THEN 'day_2'
-                    ELSE 'after'
-                END""",
-                date_planned=date_planned_sql,
-                **bounds,
-            )
-            # Group by select-list position: the CASE expression is parametrized,
-            # and the parameters would get distinct placeholders in the SELECT
-            # and GROUP BY renderings, so PostgreSQL could not match them as the
-            # same expression.
-            query.groupby = SQL("1, 2")
-            rows = self.env.execute_query(
-                query.select(picking_type_sql, category_sql, SQL("COUNT(*)"))
-            )
-            for picking_type_id, date_category, count in rows:
-                counts_by_type[picking_type_id][date_category] = count
         label = self.env._("Transfers")
         return [
             (picking_type_id, counts, label)
             for picking_type_id, counts in counts_by_type.items()
         ]
+
+    def _get_date_category_counts(self, model_name, date_field, domain):
+        """Per-date-category counts of ``model_name``'s open records, keyed by
+        picking type: ``{picking_type_id: {date_category: count}}``.
+
+        Buckets in SQL — one grouped COUNT per (picking type, date category)
+        using the same boundaries as `calculate_date_category` — instead of
+        array_agg-ing every record's datetime out of PostgreSQL and classifying
+        them one by one in Python on every dashboard render. Shared by the
+        dashboard sources (stock pickings; mrp productions and repair orders in
+        their overrides): ``model_name`` needs a ``picking_type_id`` field and
+        a datetime ``date_field``.
+        """
+        model = self.env[model_name]
+        model.browse().check_access("read")
+        query = model._search(
+            Domain(domain)
+            & Domain("picking_type_id", "in", self.ids)
+            & Domain(date_field, "!=", False),
+        )
+        counts_by_type = {picking_type_id: {} for picking_type_id in self.ids}
+        if query.is_empty():
+            return counts_by_type
+        # Stored datetimes are naive UTC; express the tz-aware boundaries the
+        # same way (mirrors `date_category_to_domain`).
+        bounds = {
+            key: value.astimezone(pytz.UTC).replace(tzinfo=None)
+            for key, value in self.env[
+                "stock.picking"
+            ]._date_category_boundaries().items()
+        }
+        picking_type_sql = model._field_to_sql(model._table, "picking_type_id", query)
+        date_sql = model._field_to_sql(model._table, date_field, query)
+        category_sql = SQL(
+            """CASE
+                WHEN %(date_value)s < %(yesterday)s THEN 'before'
+                WHEN %(date_value)s < %(today)s THEN 'yesterday'
+                WHEN %(date_value)s < %(day_1)s THEN 'today'
+                WHEN %(date_value)s < %(day_2)s THEN 'day_1'
+                WHEN %(date_value)s < %(day_3)s THEN 'day_2'
+                ELSE 'after'
+            END""",
+            date_value=date_sql,
+            **bounds,
+        )
+        # Group by select-list position: the CASE expression is parametrized,
+        # and the parameters would get distinct placeholders in the SELECT
+        # and GROUP BY renderings, so PostgreSQL could not match them as the
+        # same expression.
+        query.groupby = SQL("1, 2")
+        rows = self.env.execute_query(
+            query.select(picking_type_sql, category_sql, SQL("COUNT(*)"))
+        )
+        for picking_type_id, date_category, count in rows:
+            counts_by_type[picking_type_id][date_category] = count
+        return counts_by_type
 
     def _get_code_report_name(self):
         self.ensure_one()
