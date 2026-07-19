@@ -42,8 +42,7 @@ export class GenerateDialog extends Component {
         // during the await must not emit a second batch (duplicated lines).
         this.state = useState({ busy: false });
         // Debounced (leading edge): rapid repeat clicks on "New" collapse into
-        // one preview computation — the legend-placeholder path consumes a real
-        // sequence number per call, so every avoided call matters.
+        // one preview RPC.
         this.onGenerateCustomSerial = useDebounced(this._onGenerateCustomSerial, 500, {
             immediate: true,
         });
@@ -61,49 +60,15 @@ export class GenerateDialog extends Component {
         });
     }
     async _onGenerateCustomSerial() {
-        // One RPC instead of two sequential ones: fetch the product's lot
-        // sequence and its preview fields through a nested read specification.
-        const { records } = await this.orm.webSearchRead(
-            "product.product",
-            [["id", "=", this.props.move.data.product_id.id]],
-            {
-                specification: {
-                    lot_sequence_id: {
-                        fields: {
-                            prefix: {},
-                            suffix: {},
-                            padding: {},
-                            number_next_actual: {},
-                        },
-                    },
-                },
-                limit: 1,
-            },
-        );
-        const sequence = records[0]?.lot_sequence_id;
-        if (!sequence) {
-            return;
+        // Single read-only RPC: the server interpolates legends and pads the
+        // number without consuming the sequence, so previewing (or discarding
+        // the dialog) never burns a number.
+        const preview = await this.orm.call("product.product", "preview_next_lot", [
+            [this.props.move.data.product_id.id],
+        ]);
+        if (preview) {
+            this.nextSerial.el.value = preview;
         }
-        const prefix = sequence.prefix || "";
-        const suffix = sequence.suffix || "";
-        if (prefix.includes("%") || suffix.includes("%")) {
-            // Legend placeholders (e.g. %(year)s) are interpolated server-side
-            // and have no client equivalent, so a faithful preview requires
-            // next_by_id — which permanently consumes one sequence number even
-            // if the dialog is then discarded. Accepted only for this case.
-            this.nextSerial.el.value = await this.orm.call(
-                "ir.sequence",
-                "next_by_id",
-                [sequence.id],
-            );
-            return;
-        }
-        // Plain prefix/suffix: format the preview locally so previewing (or
-        // discarding the dialog) never consumes the sequence.
-        this.nextSerial.el.value =
-            prefix +
-            String(sequence.number_next_actual).padStart(sequence.padding, "0") +
-            suffix;
     }
     async _onGenerate() {
         if (this.state.busy) {
