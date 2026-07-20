@@ -145,6 +145,9 @@ class SnippetsPowerboxPlugin extends Plugin {
             "snippet_content",
             name,
         );
+        if (!snippet) {
+            return;
+        }
         const content = snippet.content.cloneNode(true);
         this.dependencies.dom.insert(content);
         this.dependencies.history.addStep();

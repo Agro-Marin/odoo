@@ -37,9 +37,10 @@ export class EditInteractionPlugin extends Plugin {
     setup() {
         this.websiteEditService = undefined;
 
+        this._onTransferEditService = this.updateEditInteraction.bind(this);
         window.parent.document.addEventListener(
             "transfer_website_edit_service",
-            this.updateEditInteraction.bind(this),
+            this._onTransferEditService,
             { once: true },
         );
         const event = new CustomEvent("edit_interaction_plugin_loaded");
@@ -47,6 +48,13 @@ export class EditInteractionPlugin extends Plugin {
         window.parent.document.dispatchEvent(event);
     }
     destroy() {
+        // If the plugin is destroyed before the event fires, this {once}
+        // listener (and the bound handler retaining the plugin) would stay on
+        // the long-lived parent document. Removing a spent listener is a no-op.
+        window.parent.document.removeEventListener(
+            "transfer_website_edit_service",
+            this._onTransferEditService,
+        );
         this.websiteEditService?.uninstallPatches?.();
         this.stopInteractions();
     }
