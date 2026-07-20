@@ -527,7 +527,7 @@ class PosConfig(models.Model):
         record = read_records[0]
         record["_server_version"] = exp_version()
         record["_base_url"] = config.get_base_url()
-        # Needed to build the authenticated customer-display URL (t23962 / R6-3).
+        # Needed to build the authenticated customer-display URL.
         record["access_token"] = config.access_token
         record["_data_server_date"] = (
             self.env.context.get("pos_last_server_date") or self.env.cr.now()

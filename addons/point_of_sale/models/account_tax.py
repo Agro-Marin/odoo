@@ -52,10 +52,7 @@ class AccountTax(models.Model):
         # this, a tax used only by an open-session order stayed deletable, and
         # deleting it left the session-closing entry computed without a tax that
         # was already collected from the customer — a fiscal under-declaration.
-        # Restores upstream behavior dropped in the fork; see t23802. Upstream
-        # 19.0 settled the same question in a2e47c4b0f1, which kept the block
-        # and fixed its POS flow test to archive the tax instead of deleting it
-        # — archiving is the supported way to retire a tax that is in use.
+        # Archiving is the supported way to retire a tax that is in use.
         used_taxes = super()._hook_compute_is_used(tax_to_compute)
         tax_to_compute -= used_taxes
         if tax_to_compute:
