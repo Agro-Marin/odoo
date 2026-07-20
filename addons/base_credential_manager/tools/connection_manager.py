@@ -1,23 +1,9 @@
-"""Connection Manager for persistent connections (MQTT, WebSocket, Modbus, etc.).
+"""Registry-based, thread-safe manager for long-lived protocol connections.
 
-STATUS: IN USE — consumed by ``addons/agromarin/remote/models/remote_device.py``.
-(Earlier header claimed "reserved for future use"; that was stale.)
-
-Provides centralized, thread-safe connection lifecycle management with:
-- LRU eviction when connection limit reached
-- Metadata tracking for debugging
-- Graceful connection cleanup
-- Registry-based storage (auto-cleanup on module upgrade)
-
-INTENDED USE CASES:
-- MQTT broker connections for IoT sensors (remote module)
-- WebSocket connections for real-time updates
-- Modbus TCP connections for industrial devices
-- Redis/RabbitMQ persistent connections
-- Any long-lived TCP/UDP connections
-
-NOTE: For HTTP sessions, use SessionCache instead (see session_cache.py).
-ConnectionManager is specifically for persistent protocol connections, not HTTP.
+Handles connection lifecycle (LRU eviction, metadata tracking, graceful
+cleanup) for persistent protocols such as MQTT, WebSocket and Modbus TCP.
+For HTTP sessions use SessionCache instead (see session_cache.py); this
+manager is specifically for persistent protocol connections, not HTTP.
 """
 
 import logging
@@ -32,33 +18,15 @@ _logger = logging.getLogger(__name__)
 class ConnectionManager(BaseLRUCache):
     """Registry-based connection pool for long-lived connections.
 
-    Extends BaseLRUCache with connection-specific functionality:
-    - Graceful connection cleanup (disconnect/close/stop methods)
-    - Metadata tracking (protocol, device name, etc.)
-    - No TTL (connections stay open until evicted or removed)
-
-    Features:
-    - Thread-safe operations with RLock
-    - LRU eviction with configurable size limit
-    - Metadata tracking (created_at, last_used, custom metadata)
-    - Graceful connection cleanup
-    - Registry-based storage (per database, auto-cleanup on module upgrade)
-
-    Usage:
-        >>> from odoo.addons.base_credential_manager.tools import get_connection_manager
-        >>> manager = get_connection_manager(env)
-        >>> manager.set(env, "device:123", mqtt_client, metadata={"protocol": "mqtt"})
-        >>> client = manager.get(env, "device:123")
-        >>> manager.remove(env, "device:123")
+    Extends BaseLRUCache with graceful connection cleanup, metadata tracking,
+    and no TTL (connections stay open until evicted or removed).
     """
 
     def __init__(self, max_connections: int = 1000):
         """Initialize connection manager.
 
-        Args:
-            max_connections: Maximum number of connections to store.
-                            Oldest connections evicted when limit reached.
-
+        :param int max_connections: maximum number of connections to store;
+            oldest connections are evicted when the limit is reached.
         """
         # Use RLock for connection manager (may need reentrant access during cleanup)
         super().__init__(
@@ -70,14 +38,10 @@ class ConnectionManager(BaseLRUCache):
         )
 
     def __del__(self):
-        """Destructor: Cleanup all connections when manager is garbage collected.
-
-        Called automatically when registry is rebuilt or manager is deleted.
-
-        Note: Uses non-blocking cleanup to avoid deadlocks during garbage collection.
-        """
+        """Cleanup all connections when the manager is garbage collected."""
         try:
-            # Try to acquire lock without blocking (non-blocking cleanup)
+            # Non-blocking acquire avoids deadlocks during garbage collection
+            # (triggered when the registry is rebuilt or the manager is deleted).
             if self._lock.acquire(blocking=False):
                 try:
                     connections_to_cleanup = [
@@ -110,24 +74,10 @@ class ConnectionManager(BaseLRUCache):
     ) -> None:
         """Store connection with optional metadata.
 
-        Args:
-            env: Odoo environment (not used but kept for API consistency)
-            key: Unique connection key (e.g., 'device:123', 'mqtt:sensor-001')
-            connection: Connection object (MQTT client, WebSocket app, etc.)
-            metadata: Additional metadata for debugging/tracking
-
-        Example:
-            >>> manager.set(
-            ...     env,
-            ...     "device:123",
-            ...     mqtt_client,
-            ...     metadata={
-            ...         "protocol": "mqtt",
-            ...         "device_name": "Temperature Sensor",
-            ...         "broker": "mqtt.example.com",
-            ...     },
-            ... )
-
+        :param env: Odoo environment (unused; kept for API consistency)
+        :param str key: unique connection key (e.g. 'device:123', 'mqtt:sensor-001')
+        :param connection: connection object (MQTT client, WebSocket app, etc.)
+        :param metadata: additional metadata for debugging/tracking
         """
         evicted = self._set_entry(key, connection, metadata)
 
@@ -150,20 +100,11 @@ class ConnectionManager(BaseLRUCache):
         )
 
     def get(self, env, key: str) -> Any | None:
-        """Get connection and update last_used timestamp.
+        """Get connection and update its last-used timestamp.
 
-        Args:
-            env: Odoo environment (not used but kept for API consistency)
-            key: Connection key
-
-        Returns:
-            Connection object if found, None otherwise
-
-        Example:
-            >>> mqtt_client = manager.get(env, "device:123")
-            >>> if mqtt_client:
-            ...     mqtt_client.publish("topic", "message")
-
+        :param env: Odoo environment (unused; kept for API consistency)
+        :param str key: connection key
+        :return: connection object if found, None otherwise
         """
         with self._lock:
             entry = self._get_entry(key)
@@ -178,16 +119,10 @@ class ConnectionManager(BaseLRUCache):
     def remove(self, env, key: str) -> bool:
         """Remove and cleanup connection.
 
-        Args:
-            env: Odoo environment (not used but kept for API consistency)
-            key: Connection key
-
-        Returns:
-            bool: True if connection was removed, False if not found
-
-        Example:
-            >>> manager.remove(env, "device:123")
-
+        :param env: Odoo environment (unused; kept for API consistency)
+        :param str key: connection key
+        :return: True if the connection was removed, False if not found
+        :rtype: bool
         """
         entry = self._remove(key)
 
@@ -200,20 +135,13 @@ class ConnectionManager(BaseLRUCache):
         return False
 
     def get_metadata(self, env, key: str) -> dict[str, Any] | None:
-        """Get connection metadata without retrieving connection.
+        """Get connection metadata without retrieving the connection.
 
-        Args:
-            env: Odoo environment (not used but kept for API consistency)
-            key: Connection key
-
-        Returns:
-            dict: Metadata including created_at, last_used, custom metadata
-
-        Example:
-            >>> metadata = manager.get_metadata(env, "device:123")
-            >>> print(f"Protocol: {metadata['metadata']['protocol']}")
-            >>> print(f"Last used: {metadata['timestamp']}")
-
+        :param env: Odoo environment (unused; kept for API consistency)
+        :param str key: connection key
+        :return: dict with created_at, last_used and custom metadata, or None
+            if the key is not found
+        :rtype: dict | None
         """
         with self._lock:
             entry = self._get_entry(key)
@@ -231,16 +159,9 @@ class ConnectionManager(BaseLRUCache):
     def list_connections(self, env=None) -> list[str]:
         """List all connection keys.
 
-        Args:
-            env: Odoo environment (not used but kept for API consistency)
-
-        Returns:
-            list: List of connection keys
-
-        Example:
-            >>> keys = manager.list_connections(env)
-            >>> print(f"Active connections: {len(keys)}")
-
+        :param env: Odoo environment (unused; kept for API consistency)
+        :return: list of connection keys
+        :rtype: list
         """
         with self._lock:
             return list(self._cache.keys())
@@ -248,18 +169,9 @@ class ConnectionManager(BaseLRUCache):
     def get_stats(self, env=None) -> dict[str, Any]:
         """Get connection manager statistics.
 
-        Args:
-            env: Odoo environment (not used but kept for API consistency)
-
-        Returns:
-            dict: Statistics (total_connections, max_connections)
-
-        Example:
-            >>> stats = manager.get_stats(env)
-            >>> print(
-            ...     f"Connections: {stats['total_connections']}/{stats['max_connections']}"
-            ... )
-
+        :param env: Odoo environment (unused; kept for API consistency)
+        :return: dict with total_connections and max_connections
+        :rtype: dict
         """
         base_stats = super().get_stats()
         return {
@@ -268,10 +180,8 @@ class ConnectionManager(BaseLRUCache):
         }
 
     def invalidate_all(self) -> None:
-        """Invalidate all connections and cleanup gracefully.
-
-        Called when registry is rebuilt or for manual cleanup.
-        """
+        """Invalidate all connections and cleanup gracefully."""
+        # Called when the registry is rebuilt or for manual cleanup.
         entries = self._clear()
 
         # Cleanup connections OUTSIDE the lock (can take time)
@@ -286,12 +196,9 @@ class ConnectionManager(BaseLRUCache):
     def invalidate_matching(self, filter_func: Callable[[str], bool]) -> int:
         """Invalidate connections matching a filter condition.
 
-        Args:
-            filter_func: Function that takes a key and returns True to invalidate
-
-        Returns:
-            int: Number of connections invalidated
-
+        :param filter_func: callable taking a key and returning True to invalidate it
+        :return: number of connections invalidated
+        :rtype: int
         """
         removed = self._invalidate_matching(filter_func)
 
@@ -305,13 +212,9 @@ class ConnectionManager(BaseLRUCache):
         return len(removed)
 
     def _cleanup_connection(self, connection: Any) -> None:
-        """Gracefully close connection.
+        """Gracefully close a connection by trying common disconnect/close methods.
 
-        Tries common disconnect/close methods. Logs warnings if cleanup fails.
-
-        Args:
-            connection: Connection object to cleanup
-
+        :param connection: connection object to cleanup
         """
         if connection is None:
             return
@@ -347,27 +250,16 @@ class ConnectionManager(BaseLRUCache):
 
 
 def get_connection_manager(env, max_connections: int = 1000) -> ConnectionManager:
-    """Get or create connection manager from registry.
+    """Get or create the connection manager from the registry.
 
-    Registry-based storage ensures:
-    - Automatic cleanup on module upgrade/reload (registry is rebuilt)
-    - Per-database isolation (each registry = one database)
-    - No stale connections after code changes
-    - Thread-safe access (manager handles locking)
-
-    Args:
-        env: Odoo environment (provides access to registry)
-        max_connections: Maximum connections (default: 1000)
-
-    Returns:
-        ConnectionManager: Connection manager instance for this database
-
-    Example:
-        >>> from odoo.addons.base_credential_manager.tools import get_connection_manager
-        >>> manager = get_connection_manager(self.env)
-        >>> manager.set(self.env, "device:123", connection)
-
+    :param env: Odoo environment (provides access to the registry)
+    :param int max_connections: maximum connections (default 1000)
+    :return: connection manager instance for this database
+    :rtype: ConnectionManager
     """
+    # Registry-based storage gives automatic cleanup on module upgrade/reload
+    # (registry is rebuilt), per-database isolation, and no stale connections
+    # after code changes.
     registry = env.registry
 
     # Check if manager exists in registry
@@ -388,18 +280,9 @@ def get_connection_manager(env, max_connections: int = 1000) -> ConnectionManage
 def invalidate_all_connections(env) -> None:
     """Invalidate all connections for the current database.
 
-    WARNING: This will disconnect all active connections!
-
-    Args:
-        env: Odoo environment
-
-    Example:
-        >>> from odoo.addons.base_credential_manager.tools import (
-        ...     invalidate_all_connections,
-        ... )
-        >>> invalidate_all_connections(self.env)  # Emergency cleanup
-
+    :param env: Odoo environment
     """
+    # WARNING: this disconnects all active connections.
     if hasattr(env.registry, "_connection_manager"):
         manager = env.registry._connection_manager
         manager.invalidate_all()

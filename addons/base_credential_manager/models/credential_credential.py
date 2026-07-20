@@ -37,16 +37,11 @@ DAYS_NO_EXPIRY = 999
 def _check_json_depth(obj: Any, current_depth: int = 0) -> int:
     """Check the maximum nesting depth of a JSON-like object.
 
-    Args:
-        obj: The object to check (dict, list, or primitive)
-        current_depth: Current recursion depth
-
-    Returns:
-        int: Maximum depth found
-
-    Raises:
-        ValueError: If depth exceeds MAX_JSON_NESTING_DEPTH
-
+    :param obj: the object to check (dict, list, or primitive)
+    :param current_depth: current recursion depth
+    :return: maximum depth found
+    :rtype: int
+    :raises ValueError: if depth exceeds MAX_JSON_NESTING_DEPTH
     """
     if current_depth > MAX_JSON_NESTING_DEPTH:
         raise ValueError(
@@ -100,7 +95,7 @@ SECRET_NAMED_REGEXES = [
 # invariant: simple (credential_value) or JSON accessor (api_key /
 # bearer_token). Pre-fix this config listed only "credential_value" and the
 # validator rejected JSON-mode credentials whose payload lives under the
-# accessor JSON key rather than a "credential_value" key. See t21134 F1b.
+# accessor JSON key rather than a "credential_value" key.
 CATEGORY_REQUIRED_FIELDS = {
     "api_key": {
         "fields": [("credential_value", "api_key")],
@@ -117,7 +112,7 @@ CATEGORY_REQUIRED_FIELDS = {
     "oauth2": {
         # Either slot satisfies: a client secret alone is valid for a
         # pre-authorization credential (the access token only exists after
-        # the first token exchange writes it back). See t23878.
+        # the first token exchange writes it back).
         "fields": [("oauth_access_token", "oauth_client_secret")],
         "message": "OAuth 2.0 credentials require an access token or a client secret.",
     },
@@ -257,7 +252,7 @@ class CredentialCredential(models.Model):
     # storage_method) all derive from this one rather than each calling
     # _decrypt_value independently. Odoo's compute-cache memoizes this once
     # per transaction, so opening a form triggers one Fernet.decrypt instead
-    # of three. See M1 in the investigation notes.
+    # of three.
     cached_plaintext = fields.Char(
         compute="_compute_cached_plaintext",
         store=False,
@@ -699,17 +694,15 @@ class CredentialCredential(models.Model):
     def _validate_required_fields_for_category(self):
         """Validate that required fields are filled based on credential category.
 
-        This is called from create/write AFTER super() to ensure all inverse
-        methods have completed and credential_value_encrypted is populated.
-
-        Note: We don't use @api.constrains because during create/write the inverse
-        methods for computed fields (bearer_token -> credential_data -> encrypted)
-        may not have completed when constraints run.
-
-        Supports two storage methods:
-        1. Simple storage: direct field values (credential_value, username, etc.)
-        2. JSON storage: computed fields stored via credential_data -> encrypted
+        Called from create/write after super() so all inverse methods have
+        completed and credential_value_encrypted is populated. Supports both
+        simple storage (direct field values) and JSON storage (values stored
+        via credential_data -> encrypted).
         """
+        # Not an @api.constrains: during create/write the inverse chain for
+        # computed fields (bearer_token -> credential_data -> encrypted) may not
+        # have run yet when constraints fire, so we call this explicitly after
+        # super().
         # Invalidate once for the whole recordset (fields populated by inverse chain)
         self.invalidate_recordset(["credential_value_encrypted"])
 
@@ -754,7 +747,7 @@ class CredentialCredential(models.Model):
                 # alternatives where any one satisfies the slot. Tuples
                 # cover the simple-vs-JSON-accessor duality for
                 # single-payload categories (see CATEGORY_REQUIRED_FIELDS
-                # comment and t21134 F1b).
+                # comment).
                 alternatives = (spec,) if isinstance(spec, str) else tuple(spec)
                 satisfied = False
                 for field_name in alternatives:
@@ -1054,13 +1047,12 @@ class CredentialCredential(models.Model):
     def _parse_certificate(self):
         """Parse certificate content and return cert object, private key, and format.
 
-        Returns:
-            tuple: (cert, private_key, format_str, error_msg)
-                - cert: x509 certificate object or None
-                - private_key: private key object or None (from PKCS12)
-                - format_str: 'der', 'pem', 'pkcs12', or None
-                - error_msg: error message string or empty string
-
+        :return: tuple ``(cert, private_key, format_str, error_msg)`` where
+            ``cert`` is an x509 certificate object or None, ``private_key`` is a
+            private key object or None (from PKCS12), ``format_str`` is 'der',
+            'pem', 'pkcs12', or None, and ``error_msg`` is an error message
+            string or empty string
+        :rtype: tuple
         """
         self.ensure_one()
         content = self.with_context(bin_size=False).certificate_content
@@ -1335,8 +1327,7 @@ class CredentialCredential(models.Model):
 
         Decrypt failures (missing key, bad ciphertext) are logged to the
         Python logger only — they do not produce a successful-read audit
-        entry, because no plaintext was exposed. See S2 in the investigation
-        notes.
+        entry, because no plaintext was exposed.
         """
         for record in self:
             encrypted = record.with_context(bin_size=False).credential_value_encrypted
@@ -1519,20 +1510,14 @@ class CredentialCredential(models.Model):
     def _compute_credential_hash(self) -> None:
         """Compute hash of encrypted credentials for cache key generation.
 
-        Security Note:
-            This hash is computed from the ENCRYPTED value, not the plaintext.
-            Since Fernet encryption uses a random 128-bit IV for each operation,
-            two encryptions of the same plaintext produce different ciphertext.
-            This means:
-            - The hash does NOT reveal the plaintext credential
-            - The hash does NOT allow comparison between credentials
-            - Two credentials with identical plaintext will have different hashes
-            - Only re-encrypting the same record produces identical encrypted bytes
-
-        Usage:
-            Used by api_gateway for session cache keys: {service}:{company}:{hash}
-            When credentials change, the hash changes, invalidating cached sessions.
+        Used by api_gateway for session cache keys ``{service}:{company}:{hash}``;
+        when a credential changes, its ciphertext (and thus this hash) changes,
+        invalidating cached sessions.
         """
+        # Hash the ENCRYPTED value, never the plaintext: Fernet uses a random
+        # IV per operation, so the hash cannot reveal the plaintext, and two
+        # credentials with identical plaintext still hash differently (the hash
+        # cannot be used to compare credentials).
         for cred in self:
             if cred.credential_value_encrypted:
                 # Binary fields can return str or bytes
@@ -1599,16 +1584,13 @@ class CredentialCredential(models.Model):
     def _inverse_credential_value(self):
         """Encrypt credential value when set.
 
-        Security validation:
-        - Maximum size: 8KB (prevents DoS via large payloads)
-
-        Storage invariant: this path seals the record to 'simple' storage
-        on first write. Attempting to write credential_value on a record
-        already sealed as 'json' raises ValidationError.
+        Seals the record to 'simple' storage on first write; writing
+        credential_value on a record already sealed as 'json' raises
+        ValidationError.
         """
         for record in self:
             if record.credential_value:
-                # Security: Check size limit
+                # Security: cap size at 8KB to prevent DoS via large payloads
                 value_size = len(record.credential_value.encode("utf-8"))
                 if value_size > MAX_CREDENTIAL_VALUE_SIZE:
                     raise ValidationError(
@@ -1637,14 +1619,8 @@ class CredentialCredential(models.Model):
     def _inverse_credential_data(self):
         """Validate and encrypt JSON credential data.
 
-        Security validations:
-        - Maximum size: 64KB (prevents DoS via large payloads)
-        - Maximum nesting depth: 10 levels (prevents stack overflow)
-        - Valid JSON syntax
-
-        Storage invariant: seals the record to 'json' storage on first
-        write. Attempting to write credential_data on a 'simple' record
-        raises ValidationError.
+        Seals the record to 'json' storage on first write; writing
+        credential_data on a 'simple' record raises ValidationError.
         """
         for record in self:
             if not record.credential_data or record.credential_data == "{}":
@@ -1653,7 +1629,7 @@ class CredentialCredential(models.Model):
                 continue
             record._seal_storage_method("json")
 
-            # Security: Check size limit
+            # Security: cap size at 64KB to prevent DoS via large payloads
             data_size = len(record.credential_data.encode("utf-8"))
             if data_size > MAX_CREDENTIAL_DATA_SIZE:
                 raise ValidationError(
@@ -1671,7 +1647,7 @@ class CredentialCredential(models.Model):
                     % str(e),
                 ) from e
 
-            # Security: Check nesting depth
+            # Security: cap nesting depth to prevent stack overflow
             try:
                 _check_json_depth(parsed_data)
             except ValueError as e:
@@ -2217,12 +2193,10 @@ class CredentialCredential(models.Model):
     def _get_certificate_der_bytes(self, formatting="encodebytes"):
         """Get the DER bytes of the certificate.
 
-        Args:
-            formatting: 'encodebytes' (base64 with newlines), 'base64' (raw), or 'raw'
-
-        Returns:
-            bytes: Formatted certificate DER bytes
-
+        :param formatting: 'encodebytes' (base64 with newlines), 'base64' (raw),
+            or 'raw'
+        :return: formatted certificate DER bytes
+        :rtype: bytes
         """
         self.ensure_one()
         if not self.certificate_pem:
@@ -2237,15 +2211,10 @@ class CredentialCredential(models.Model):
     def get_credential_dict(self) -> dict[str, Any]:
         """Get credential as dictionary (for multi-value credentials).
 
-        Rate limiting AND audit logging are both enforced upstream in
-        _compute_cached_plaintext: reading self.credential_data below triggers
-        the compute cascade, which (a) rate-limits the plaintext access via
-        _enforce_access_rate_limit (raising ValidationError + an out-of-band
-        'read_rate_limited' audit row on denial) and (b) writes exactly one
-        'read' audit entry per (record, transaction). This method therefore no
-        longer duplicates the rate-limit / audit logic — every plaintext path
-        (direct credential_value read, JSON accessors, this method) is gated at
-        the single decrypt choke point.
+        Rate limiting and audit logging are enforced upstream in
+        _compute_cached_plaintext (the single decrypt choke point): reading
+        credential_data below triggers that compute cascade, so this method
+        inherits both and does not re-implement them.
         """
         self.ensure_one()
 
@@ -2280,11 +2249,8 @@ class CredentialCredential(models.Model):
         """Increment credential usage statistics.
 
         Updates usage_count, success_count/error_count, and last_used_at.
-        Called after each credential use to track statistics.
 
-        Args:
-            success: Whether the operation using this credential was successful
-
+        :param success: whether the operation using this credential succeeded
         """
         self.ensure_one()
         vals = {
@@ -2484,13 +2450,7 @@ class CredentialCredential(models.Model):
         self._log_access("use")
 
     def set_credential_dict(self, data_dict: dict[str, Any]):
-        """Set credential from dictionary.
-
-        Note: This method directly encrypts to credential_value_encrypted
-        instead of assigning to credential_data, because when called from
-        within an inverse method, Odoo does not trigger the inverse of
-        computed fields.
-        """
+        """Set credential from a dictionary."""
         self.ensure_one()
 
         if not isinstance(data_dict, dict):
@@ -2531,14 +2491,11 @@ class CredentialCredential(models.Model):
     def _sign(self, message, hashing_algorithm="sha256", formatting="encodebytes"):
         """Sign a message using the certificate's private key.
 
-        Args:
-            message: Message to sign (str or bytes)
-            hashing_algorithm: 'sha256' or 'sha1'
-            formatting: Output format
-
-        Returns:
-            bytes: Formatted signature
-
+        :param message: message to sign (str or bytes)
+        :param hashing_algorithm: 'sha256' or 'sha1'
+        :param formatting: output format
+        :return: formatted signature
+        :rtype: bytes
         """
         self.ensure_one()
 
