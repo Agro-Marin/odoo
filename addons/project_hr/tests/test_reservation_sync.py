@@ -445,7 +445,7 @@ class TestReservationSync(TransactionCase):
     # ------------------------------------------------------------------
 
     # ------------------------------------------------------------------
-    # PMI hours model (t20171): planned / allocated / unallocated
+    # PMI hours model: planned / allocated / unallocated
     # ------------------------------------------------------------------
 
     def test_planned_hours_default_from_range(self):
