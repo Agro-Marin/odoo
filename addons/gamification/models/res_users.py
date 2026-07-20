@@ -69,27 +69,45 @@ class ResUsers(models.Model):
         "Used to rate-limit nudges to at most once per week.",
     )
 
-    @api.depends("karma_tracking_ids.new_value")
-    def _compute_karma(self) -> None:
-        if self.env.context.get("skip_karma_computation"):
-            # do not need to update the user karma
-            # e.g. during the tracking consolidation
-            return
+    @property
+    def SELF_WRITEABLE_FIELDS(self) -> list[str]:
+        """Let users control their own gamification privacy setting.
 
+        Without this the field is rendered on the user's own profile form but
+        rejected on write, so the only person who could not make a profile
+        private was its owner.
+        """
+        return super().SELF_WRITEABLE_FIELDS + ["gamification_visibility"]
+
+    @api.depends("karma_tracking_ids.new_value", "karma_tracking_ids.old_value")
+    def _compute_karma(self) -> None:
+        """Karma is the sum of every recorded gain.
+
+        This deliberately sums ``new_value - old_value`` rather than taking the
+        most recent row's ``new_value``.  "Latest row wins" silently dropped
+        karma in two reachable cases: a row inserted with an older
+        ``tracking_date`` never became the winner, and several rows created in
+        one batch all chained from the same pre-batch value so only the last
+        one counted.  Summing gains is also what every other consumer of this
+        table already does (``_get_tracking_karma_gain_position``, the season
+        leaderboard, the engagement snapshots), so the whole module now agrees
+        on a single definition of karma.
+
+        Consolidation is karma-neutral under this definition: collapsing a
+        month of rows into one whose gain equals their total leaves the sum
+        unchanged, which is why no "skip computation" escape hatch is needed.
+        """
         self.env["gamification.karma.tracking"].flush_model()
 
         select_query = """
-            SELECT DISTINCT ON (user_id) user_id, new_value
+            SELECT user_id, COALESCE(SUM(new_value - COALESCE(old_value, 0)), 0)
               FROM gamification_karma_tracking
              WHERE user_id = ANY(%(user_ids)s)
-          ORDER BY user_id, tracking_date DESC, id DESC
+          GROUP BY user_id
         """
         self.env.cr.execute(select_query, {"user_ids": self.ids})
 
-        user_karma_map = {
-            values["user_id"]: values["new_value"]
-            for values in self.env.cr.dictfetchall()
-        }
+        user_karma_map = dict(self.env.cr.fetchall())
 
         for user in self:
             user.karma = user_karma_map.get(user.id, 0)
@@ -873,27 +891,31 @@ WHERE sub.user_id = ANY(%s)""",
                 ("state", "=", "inprogress"),
                 ("closed", "=", False),
                 ("target_goal", ">", 0),
-                ("user_id.company_id", "=", self.env.company.id),
             ]
         )
-        # Pre-filter goals to nudge-eligible users
-        candidate_users = goals.mapped("user_id")._can_nudge()
+        # Narrow to goals that actually warrant a nudge *before* asking who is
+        # eligible: ``_can_nudge`` marks the users it returns as nudged, so
+        # calling it on every goal owner burned the weekly nudge budget of
+        # users who were nowhere near completion and never got a message —
+        # which also blocked them from the other three nudge types.
+        almost_done = goals.filtered(lambda g: 80 <= g.completeness < 100)
+        if not almost_done:
+            return
+        candidate_users = almost_done.mapped("user_id")._can_nudge()
         if not candidate_users:
             return
-        for goal in goals.filtered(lambda g: g.user_id in candidate_users):
-            pct = goal.completeness
-            if 80 <= pct < 100:
-                goal.user_id._send_gamification_notification(
-                    "badge",
-                    {
-                        "title": _("So Close!"),
-                        "message": _(
-                            "%(goal)s is %(pct)s%% complete!",
-                            goal=goal.definition_id.name,
-                            pct=round(pct),
-                        ),
-                    },
-                )
+        for goal in almost_done.filtered(lambda g: g.user_id in candidate_users):
+            goal.user_id._send_gamification_notification(
+                "badge",
+                {
+                    "title": _("So Close!"),
+                    "message": _(
+                        "%(goal)s is %(pct)s%% complete!",
+                        goal=goal.definition_id.name,
+                        pct=round(goal.completeness),
+                    ),
+                },
+            )
 
     @api.model
     def _nudge_inactive_users(self):

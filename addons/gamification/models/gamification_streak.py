@@ -1,5 +1,7 @@
 import logging
-from datetime import date, timedelta
+from datetime import date, datetime, time, timedelta
+
+import pytz
 
 from odoo import _, api, fields, models
 from odoo.tools.safe_eval import safe_eval
@@ -114,19 +116,64 @@ class GamificationStreakType(models.Model):
         self.ensure_one()
         if not users:
             return set()
+
+        # "Did you show up on day D?" is a calendar-day question, so the window
+        # is built in the *user's* timezone and only then converted to UTC for
+        # the query.  Storage stays UTC throughout — this mirrors
+        # ``lunch.supplier._compute_available_today`` and
+        # ``hr.employee._get_tz``, which resolve the relevant record's tz in
+        # backend/cron code for exactly this reason.
+        #
+        # Note ``fields.Date.context_today`` is deliberately *not* used: it
+        # reads ``env.tz``, which in a cron is the cron user's timezone, not
+        # the streak owner's.
+        active_ids: set[int] = set()
+        users_by_tz: dict[str, list[int]] = {}
+        for user in users:
+            users_by_tz.setdefault(self._get_streak_tz_name(user), []).append(user.id)
+        for tz_name, user_ids in users_by_tz.items():
+            active_ids |= self._check_user_activity_window(
+                users.browse(user_ids), check_date, tz_name
+            )
+        return active_ids
+
+    def _get_streak_tz_name(self, user) -> str:
+        """Return the timezone whose calendar day defines this user's streak.
+
+        Falls back the same way ``hr.employee._get_tz`` does, ending in UTC so
+        the behaviour is unchanged for users with no timezone set.
+        """
+        return user.tz or user.company_id.partner_id.tz or "UTC"
+
+    def _get_day_bounds_utc(self, check_date: date, tz_name: str) -> tuple[str, str]:
+        """Return the naive-UTC ``[start, end]`` strings bounding ``check_date``
+        as that day is experienced in ``tz_name``.
+        """
+        tz = pytz.timezone(tz_name)
+        start_local = tz.localize(datetime.combine(check_date, time.min))
+        end_local = tz.localize(datetime.combine(check_date, time.max))
+        return (
+            fields.Datetime.to_string(
+                start_local.astimezone(pytz.utc).replace(tzinfo=None)
+            ),
+            fields.Datetime.to_string(
+                end_local.astimezone(pytz.utc).replace(tzinfo=None)
+            ),
+        )
+
+    def _check_user_activity_window(
+        self, users: models.Model, check_date: date, tz_name: str
+    ) -> set[int]:
+        """Check activity for users sharing one timezone.
+
+        :param users: ``res.users`` recordset, all resolving to ``tz_name``.
+        :param check_date: calendar day to check, in ``tz_name``.
+        :param tz_name: IANA timezone name.
+        :return: set of user IDs that had qualifying activity.
+        """
+        self.ensure_one()
         Obj = self.env[self.model_id.model].sudo()
-        date_from = fields.Datetime.to_string(
-            fields.Datetime.start_of(
-                fields.Datetime.to_datetime(check_date),
-                "day",
-            )
-        )
-        date_to = fields.Datetime.to_string(
-            fields.Datetime.end_of(
-                fields.Datetime.to_datetime(check_date),
-                "day",
-            )
-        )
+        date_from, date_to = self._get_day_bounds_utc(check_date, tz_name)
         # Build a domain that works for all users in the batch.
         # The safe_eval domain may reference 'user' — we evaluate once
         # with a dummy user to get the base domain, then widen it.
@@ -203,6 +250,13 @@ class GamificationStreak(models.Model):
     current_count = fields.Integer("Current Streak", default=0, readonly=True)
     longest_count = fields.Integer("Longest Streak", default=0, readonly=True)
     last_activity_date = fields.Date("Last Activity", readonly=True)
+    last_checked_date = fields.Date(
+        "Last Checked",
+        readonly=True,
+        index=True,
+        help="Day the streak cron last evaluated this streak, whatever the "
+        "outcome. Used to make the cron idempotent.",
+    )
     freeze_remaining = fields.Integer(
         "Freeze Days Left",
         default=0,
@@ -315,40 +369,69 @@ class GamificationStreak(models.Model):
 
         # Check active and broken streaks — broken ones can revive if the
         # user performed qualifying activity yesterday.
+        #
+        # The re-entry guard is ``last_checked_date``, not
+        # ``last_activity_date``: the latter only advances when activity is
+        # *found*, so the freeze and break branches were not idempotent.  A
+        # second run on the same day (an admin using "Run Manually", or a cron
+        # retry) burned another freeze day, and a third broke a streak the user
+        # had never actually missed.
         active_streaks = self.search(
             [
                 ("state", "in", ["active", "broken"]),
                 "|",
-                ("last_activity_date", "<", today),
-                ("last_activity_date", "=", False),
+                ("last_checked_date", "<", today),
+                ("last_checked_date", "=", False),
             ]
         )
         for streak in active_streaks:
-            had_activity = streak.streak_type_id._check_user_activity(
-                streak.user_id,
-                yesterday,
+            # One bad streak type must not abort the whole run: a malformed or
+            # stale domain raises inside safe_eval/search, which would roll
+            # back every streak already processed and leave the same poison
+            # record blocking the next run too.
+            try:
+                with self.env.cr.savepoint():
+                    self._process_streak_day(streak, yesterday)
+            except Exception:
+                _logger.exception(
+                    "Streak check failed for streak %s (type %s, user %s); "
+                    "skipping it and continuing the run.",
+                    streak.id,
+                    streak.streak_type_id.name,
+                    streak.user_id.login,
+                )
+
+    def _process_streak_day(self, streak, check_date) -> None:
+        """Evaluate a single streak for ``check_date`` and record the outcome."""
+        had_activity = streak.streak_type_id._check_user_activity(
+            streak.user_id,
+            check_date,
+        )
+        if had_activity:
+            streak._record_activity()
+        elif streak.state == "broken":
+            # Already broken — nothing to freeze or break further
+            pass
+        elif streak.freeze_remaining > 0:
+            streak.freeze_remaining -= 1
+            _logger.info(
+                "Streak freeze used: %s for user %s (%s remaining)",
+                streak.streak_type_id.name,
+                streak.user_id.login,
+                streak.freeze_remaining,
             )
-            if had_activity:
-                streak._record_activity()
-            elif streak.state == "broken":
-                # Already broken — nothing to freeze or break further
-                continue
-            elif streak.freeze_remaining > 0:
-                streak.freeze_remaining -= 1
-                _logger.info(
-                    "Streak freeze used: %s for user %s (%s remaining)",
-                    streak.streak_type_id.name,
-                    streak.user_id.login,
-                    streak.freeze_remaining,
-                )
-            else:
-                _logger.info(
-                    "Streak broken: %s for user %s (was %s days)",
-                    streak.streak_type_id.name,
-                    streak.user_id.login,
-                    streak.current_count,
-                )
-                streak._break_streak()
+        else:
+            _logger.info(
+                "Streak broken: %s for user %s (was %s days)",
+                streak.streak_type_id.name,
+                streak.user_id.login,
+                streak.current_count,
+            )
+            streak._break_streak()
+
+        # Mark the day as evaluated whatever the outcome, so a repeat run in
+        # the same day is a no-op.
+        streak.last_checked_date = fields.Date.today()
 
     @api.model
     def _ensure_user_streaks(self, user: models.Model | None = None) -> None:

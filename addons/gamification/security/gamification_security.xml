@@ -57,4 +57,58 @@
             <field name="domain_force">[('sender_id', '=', user.id)]</field>
         </record>
 
+        <!-- Mentorship: an employee may only see and modify pairings they are
+             part of.  Without this rule any employee could rewrite a mentorship
+             between two other users, name themselves mentor and collect the
+             completion payout. -->
+        <record id="mentorship_own_only" model="ir.rule">
+            <field name="name">Users only see mentorships they take part in</field>
+            <field name="model_id" ref="model_gamification_mentorship"/>
+            <field name="groups" eval="[(4, ref('base.group_user'))]"/>
+            <field name="perm_read" eval="True"/>
+            <field name="perm_write" eval="True"/>
+            <field name="perm_create" eval="True"/>
+            <field name="perm_unlink" eval="False"/>
+            <field name="domain_force">[
+                '|',
+                    ('mentor_id','=',user.id),
+                    ('mentee_id','=',user.id)]</field>
+        </record>
+
+        <!-- id must not be "mentorship_manager": that xmlid is already taken by
+             the ir.model.access row of the same name in ir.model.access.csv. -->
+        <record id="mentorship_manager_rule" model="ir.rule">
+            <field name="name">Managers see every mentorship</field>
+            <field name="model_id" ref="model_gamification_mentorship"/>
+            <field name="groups" eval="[(4, ref('base.group_erp_manager'))]"/>
+            <field name="domain_force">[(1, '=', 1)]</field>
+        </record>
+
+        <!-- Activity feed: enforce the profile-visibility promise at the ORM
+             layer.  Filtering only inside get_activity_feed() left the rows
+             readable through a plain search_read/read_group. -->
+        <record id="activity_visibility" model="ir.rule">
+            <field name="name">Activity feed respects profile visibility and company</field>
+            <field name="model_id" ref="model_gamification_activity"/>
+            <field name="groups" eval="[(4, ref('base.group_user'))]"/>
+            <field name="perm_read" eval="True"/>
+            <field name="perm_write" eval="False"/>
+            <field name="perm_create" eval="False"/>
+            <field name="perm_unlink" eval="False"/>
+            <field name="domain_force">[
+                '&amp;',
+                    ('company_id', 'in', company_ids),
+                    '|',
+                        ('user_id', '=', user.id),
+                        ('user_id.gamification_visibility', '!=', 'private')]</field>
+        </record>
+
+        <!-- Engagement snapshots are company-wide analytics; scope them to the
+             companies the reader actually belongs to. -->
+        <record id="engagement_snapshot_multicompany" model="ir.rule">
+            <field name="name">Engagement snapshots are company-scoped</field>
+            <field name="model_id" ref="model_gamification_engagement_snapshot"/>
+            <field name="domain_force">[('company_id', 'in', company_ids)]</field>
+        </record>
+
 </odoo>

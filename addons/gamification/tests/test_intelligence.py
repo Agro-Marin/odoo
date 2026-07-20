@@ -87,7 +87,7 @@ class TestAdaptiveDifficulty(common.TransactionCase):
         self.assertEqual(result, {})
 
     def test_increase_on_consistent_overperformance(self):
-        """Target increases when user consistently exceeds 90%."""
+        """Target increases when the user consistently meets or beats it."""
         challenge = self.env["gamification.challenge"].create(
             {
                 "name": "Monthly Challenge",
@@ -103,7 +103,7 @@ class TestAdaptiveDifficulty(common.TransactionCase):
             }
         )
 
-        # Create 3 past goals with >90% completion
+        # Create 3 past goals the user actually reached
         for i in range(3):
             self.env["gamification.goal"].create(
                 {
@@ -111,7 +111,7 @@ class TestAdaptiveDifficulty(common.TransactionCase):
                     "user_id": self.user.id,
                     "line_id": line.id,
                     "target_goal": 100,
-                    "current": 95 + i,
+                    "current": 105 + i,
                     "state": "reached",
                     "closed": True,
                     "end_date": f"2025-{i + 1:02d}-28",
@@ -122,6 +122,47 @@ class TestAdaptiveDifficulty(common.TransactionCase):
         key = (self.user.id, line.id)
         self.assertIn(key, result)
         self.assertGreater(result[key], 100, "Target should increase")
+
+    def test_no_increase_when_consistently_missing_target(self):
+        """A user who keeps falling just short must not get a harder target.
+
+        Averaging 91% of target means failing every period.  Ramping the
+        target for those users compounds the failure instead of helping.
+        """
+        challenge = self.env["gamification.challenge"].create(
+            {
+                "name": "Monthly Challenge",
+                "period": "monthly",
+                "user_ids": [(6, 0, [self.user.id])],
+            }
+        )
+        line = self.env["gamification.challenge.line"].create(
+            {
+                "challenge_id": challenge.id,
+                "definition_id": self.goal_def.id,
+                "target_goal": 100,
+            }
+        )
+        for i in range(3):
+            self.env["gamification.goal"].create(
+                {
+                    "definition_id": self.goal_def.id,
+                    "user_id": self.user.id,
+                    "line_id": line.id,
+                    "target_goal": 100,
+                    "current": 91,
+                    "state": "failed",
+                    "closed": True,
+                    "end_date": f"2025-{i + 1:02d}-28",
+                }
+            )
+
+        result = challenge._compute_adaptive_targets()
+        adjusted = result.get((self.user.id, line.id))
+        self.assertFalse(
+            adjusted and adjusted > 100,
+            f"User missing the target every period got a harder one: {adjusted}",
+        )
 
     def test_decrease_on_consistent_underperformance(self):
         """Target decreases when user consistently below 50%."""

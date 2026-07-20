@@ -34,9 +34,12 @@ Only admin users (`group_erp_manager`) can create goal definitions.
    If a new module grants karma with a different source model, extend
    `_get_origin_selection_values()`.
 
-3. **Consolidation context:** When deleting tracking records during
-   consolidation, use `with_context(skip_karma_computation=True)` to prevent
-   `_compute_karma` from running and zeroing out user karma.
+3. **Consolidation:** Karma is the sum of all recorded gains, and a
+   consolidated row carries the total gain of the rows it replaces, so
+   consolidation cannot change anyone's karma and needs no special context.
+   Do **not** reintroduce a `skip_karma_computation` flag: an early `return`
+   from a compute does not defer it, it discards it, because the ORM clears the
+   to-compute flag before calling the compute.
 
 ---
 

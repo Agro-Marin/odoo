@@ -1,4 +1,4 @@
-from odoo import _, api, fields, models
+from odoo import _, api, exceptions, fields, models
 
 
 class GamificationSkillTree(models.Model):
@@ -73,7 +73,7 @@ class GamificationSkillNode(models.Model):
         "gamification_skill_node_prereq_rel",
         "prereq_id",
         "node_id",
-        string="Unlocks",
+        string="Unlocked By This",
         readonly=True,
     )
 
@@ -167,22 +167,39 @@ class GamificationSkillNode(models.Model):
         return True
 
     def unlock_for_user(self, user):
-        """Unlock this node for a user, granting rewards.
+        """Unlock this node for a user, granting rewards and cascading.
+
+        Unlocking a node can satisfy the last missing prerequisite of a
+        dependent node, so after granting we retry the newly-reachable
+        dependents (bounded by the tree, which is acyclic — see
+        ``_check_no_prerequisite_cycle``).
+
+        Runs as ``sudo`` throughout: the unlock, the karma grant, the badge and
+        the activity row are all system-awarded, and ``base.group_user`` has no
+        write access to ``gamification.skill.node.unlock``.  The unique index
+        makes it race-safe — a concurrent unlock raises inside the savepoint
+        and is treated as "already unlocked" rather than aborting the caller.
 
         :param user: ``res.users`` record.
-        :return: created unlock record, or False if conditions not met.
+        :return: created unlock record, or ``False`` if conditions not met or
+            it was unlocked concurrently.
         """
         self.ensure_one()
         if not self.check_unlock_for_user(user):
             return False
 
-        Unlock = self.env["gamification.skill.node.unlock"]
-        unlock = Unlock.create(
-            {
-                "node_id": self.id,
-                "user_id": user.id,
-            }
-        )
+        Unlock = self.env["gamification.skill.node.unlock"].sudo()
+        try:
+            with self.env.cr.savepoint():
+                unlock = Unlock.create(
+                    {
+                        "node_id": self.id,
+                        "user_id": user.id,
+                    }
+                )
+        except Exception:
+            # Lost the race on the (user_id, node_id) unique index.
+            return False
 
         # Grant rewards
         if self.karma_reward:
@@ -215,6 +232,64 @@ class GamificationSkillNode(models.Model):
         )
 
         return unlock
+
+    @api.model
+    def _unlock_nodes_for_quest(self, enrollment):
+        """Unlock skill nodes reachable after a quest the user completed.
+
+        This is the link the data model declares (``node.quest_id``) but that
+        nothing consumed, leaving the skill tree inert.  Completing the quest
+        unlocks the directly-gated nodes and then re-scans their trees to a
+        fixpoint, so a node whose *only* remaining requirement was a
+        prerequisite that just unlocked also opens — while a node with its own
+        unmet karma threshold or quest stays locked (``check_unlock_for_user``
+        is re-evaluated for each candidate).
+
+        The cascade lives here rather than in ``unlock_for_user`` on purpose:
+        unlocking a single node is an atomic, non-cascading operation (a caller
+        that unlocks one node must not implicitly unlock half its tree).
+
+        The walk follows prerequisite edges *downstream from the quest-gated
+        seed only* — it will not open an unrelated free-standing node elsewhere
+        in the tree just because a quest in that tree completed.  The
+        prerequisite graph is acyclic (``_check_no_prerequisite_cycle``), so
+        the frontier is finite.
+        """
+        user = enrollment.user_id
+        frontier = self.search([("quest_id", "=", enrollment.quest_id.id)])
+        while frontier:
+            next_frontier = self.browse()
+            for node in frontier:
+                if node.unlock_for_user(user):
+                    # Its dependents may now be reachable — visit them next.
+                    next_frontier |= node.dependent_ids
+            frontier = next_frontier
+
+    @api.constrains("prerequisite_ids")
+    def _check_no_prerequisite_cycle(self):
+        """Reject a node that is its own (in)direct prerequisite.
+
+        A cycle would deadlock ``check_unlock_for_user`` — every node in the
+        loop waits on another that can never unlock first — and could loop the
+        ``unlock_for_user`` cascade.  Detected with an iterative closure over
+        the prerequisite edges.
+        """
+        for node in self:
+            seen = set()
+            frontier = node.prerequisite_ids
+            while frontier:
+                if node in frontier:
+                    raise exceptions.ValidationError(
+                        _(
+                            "Skill node %s cannot be a prerequisite of itself "
+                            "(directly or transitively).",
+                            node.name,
+                        )
+                    )
+                seen |= set(frontier.ids)
+                frontier = frontier.prerequisite_ids.filtered(
+                    lambda n, seen=seen: n.id not in seen
+                )
 
 
 class GamificationSkillNodeUnlock(models.Model):
