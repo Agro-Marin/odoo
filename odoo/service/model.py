@@ -16,12 +16,9 @@ from odoo.modules.registry import Registry
 from odoo.tools import lazy
 from odoo.tools.safe_eval import _UNSAFE_ATTRIBUTES
 
-# ``retrying`` is the project-wide SQL-retry primitive (in ``service.transaction``);
-# ``execute_cr`` runs every RPC call through it.  The PG_CONCURRENCY_* retry
-# vocabulary is re-exported because addons historically catch it via
-# ``odoo.service.model`` (queue_job, sale_amazon/lazada/shopee) — the aliases
-# live in ``transaction`` (see its docstring), this import keeps that public
-# path working.
+# ``retrying`` is the project-wide SQL-retry primitive (``service.transaction``);
+# ``execute_cr`` runs every RPC call through it.  The PG_CONCURRENCY_* aliases
+# are re-exported here because addons catch them via ``odoo.service.model``.
 from .transaction import (
     PG_CONCURRENCY_ERRORS_TO_RETRY,
     PG_CONCURRENCY_EXCEPTIONS_TO_RETRY,
@@ -37,9 +34,8 @@ _logger = logging.getLogger(__name__)
 class Params:
     """Function-call parameters, stringifiable for display/logging.
 
-    Positional args are rendered in their original order (position is semantic).
-    Keyword args are sorted by name so successive log lines with the same call
-    site compare identically regardless of Python's dict ordering.
+    Positional args keep their order; keyword args are sorted by name so log
+    lines from the same call site compare identically.
     """
 
     def __init__(self, args: list, kwargs: dict) -> None:
@@ -67,12 +63,9 @@ def get_public_method(model: BaseModel, name: str) -> Callable:
     cls = type(model)
     method = getattr(cls, name, None)
     if not callable(method):
-        # Use AttributeError (not TypeError per TRY004) because RPC clients
-        # treat AttributeError as the canonical "method not found" signal —
-        # see ``service.common.dispatch`` and ``service.db.dispatch`` for the
-        # uniform error class.  The not-callable case (a public attribute on
-        # the model that isn't a method) is rare enough to merge into the
-        # same surface.
+        # AttributeError (not TypeError, per TRY004): RPC clients treat it as
+        # the canonical "method not found" signal, uniform with
+        # ``service.common.dispatch`` / ``service.db.dispatch``.
         raise AttributeError(f"The method '{model._name}.{name}' does not exist")
 
     if method == getattr(model, name, None):  # classmethod, staticmethod
@@ -80,20 +73,16 @@ def get_public_method(model: BaseModel, name: str) -> Callable:
             f"The method '{model._name}.{name}' cannot be called remotely."
         )
 
-    # Use __dict__.get instead of getattr to avoid re-checking inherited methods:
-    # getattr() returns non-None for every ancestor class (via inheritance), causing
-    # O(MRO depth) redundant _api_private checks on the same function object.
-    # __dict__.get returns non-None only for classes that directly define the method.
+    # ``__dict__.get`` (not getattr) so each class is checked only if it directly
+    # defines the method — getattr would re-check every ancestor via inheritance,
+    # O(MRO depth) redundant ``_api_private`` checks.
     #
-    # SEMANTIC: ``_api_private`` set on ANY ancestor class blocks the method on
-    # every subclass, even when the subclass overrides it with a public version.
-    # This is intentional — preventing accidental promotion to public is part of
-    # the security model — and is pinned by ``test_api_private_blocked_when_defined_in_base_class``
-    # in tests/service/test_model.py. To override a private method as public,
-    # rename it (give the public method a different name).
-    # ``cls.__mro__`` (the cached tuple) rather than ``cls.mro()`` (which builds
-    # a fresh list on every call): ``MetaModel`` does not override ``mro()``, so
-    # the two are identical, and this runs on every RPC call.
+    # SEMANTIC: ``_api_private`` on ANY ancestor blocks the method on every
+    # subclass, even one that overrides it as public — intentional (prevents
+    # accidental promotion to public), pinned by
+    # ``test_api_private_blocked_when_defined_in_base_class``.  To expose it,
+    # rename the public method.  ``cls.__mro__`` (cached) not ``cls.mro()``,
+    # since this runs on every RPC call.
     for mro_cls in cls.__mro__:
         if not (cla_method := mro_cls.__dict__.get(name)):
             continue
@@ -115,10 +104,9 @@ def call_kw(model: BaseModel, name: str, args: list, kwargs: Mapping) -> typing.
         # @api.model -> no ids
         recs = model
     else:
-        # A non-@api.model method (search, write, unlink, …) needs an ids
-        # argument as args[0].  Reject the empty-args case explicitly so
-        # the failure mode is a clear AccessError instead of an opaque
-        # ``IndexError: list index out of range`` from the unpack below.
+        # A non-@api.model method (search, write, unlink, …) needs ids as
+        # args[0].  Reject empty args explicitly for a clear AccessError instead
+        # of an opaque IndexError from the unpack below.
         if not args:
             raise AccessError(
                 f"Method '{model._name}.{name}' requires record ids as its "
@@ -139,11 +127,9 @@ def call_kw(model: BaseModel, name: str, args: list, kwargs: Mapping) -> typing.
 
     # adapt the result
     if name == "create":
-        # special case for method 'create' — ``create`` is @api.model so
-        # ``args`` here is the original (un-shifted) args list and ``args[0]``
-        # is the vals dict / list of vals dicts.  An empty args reaches here
-        # only via a malformed RPC call (``execute_kw`` with no positional
-        # args); raising avoids the bare IndexError further down.
+        # ``create`` is @api.model, so ``args`` is un-shifted and ``args[0]`` is
+        # the vals dict / list of vals dicts.  Empty args means a malformed RPC
+        # call; raise instead of the bare IndexError below.
         if not args:
             raise AccessError(
                 f"Method '{model._name}.create' requires a vals dict or list "
@@ -159,42 +145,31 @@ def call_kw(model: BaseModel, name: str, args: list, kwargs: Mapping) -> typing.
 def dispatch(dispatch_method: str, params: Sequence) -> typing.Any:
     """RPC entry point for the ``object`` service.
 
-    Accepts ``execute`` and ``execute_kw`` as ``dispatch_method``. The caller
-    supplies ``(db, uid, passwd, model, model_method, *args)``; for
-    ``execute_kw`` the last two positional args are ``(args_list,
-    kwargs_dict)``.
+    ``dispatch_method`` is the RPC verb (``execute`` / ``execute_kw``);
+    ``model_method`` is the ORM method to invoke.  The caller supplies
+    ``(db, uid, passwd, model, model_method, *args)``; for ``execute_kw`` the
+    last two positional args are ``(args_list, kwargs_dict)``.
 
-    Performs credential verification (``res.users._check_uid_passwd``) inside
-    the opened cursor, then hands off to ``execute_cr``. The registry's
-    signaling sequence is advanced on success and reset on failure — this is
-    what propagates cache invalidations across workers.
-
-    The two ``method`` names are deliberately distinct: ``dispatch_method``
-    is the RPC verb (``execute`` / ``execute_kw``), ``model_method`` is the
-    ORM method to invoke on the recordset. The legacy form used ``method``
-    and ``method_`` (trailing underscore) for the same distinction, which
-    misleads readers into thinking ``method_`` escapes a Python keyword.
+    Verifies credentials (``res.users._check_uid_passwd``) inside the opened
+    cursor, then hands off to ``execute_cr``.  The registry's signaling sequence
+    advances on success and resets on failure — this propagates cache
+    invalidations across workers.
     """
-    # Validate the RPC verb FIRST (before unpacking ``params``) so an unknown
-    # method raises ``AttributeError`` uniformly with
-    # ``odoo.service.common.dispatch`` and ``odoo.service.db.dispatch``, rather
-    # than a ``ValueError`` from the tuple unpack on a short malformed call.
+    # Validate the verb before unpacking ``params`` so an unknown method raises
+    # ``AttributeError`` (uniform with common/db dispatch) rather than a
+    # ``ValueError`` from the unpack on a short call.
     if dispatch_method not in ("execute", "execute_kw"):
         raise AttributeError(f"Method not found: {dispatch_method}")
     if len(params) < 5:
-        # Reject malformed calls with a typed error rather than letting the
-        # tuple unpack raise ``ValueError`` — callers see a stable shape:
-        # ``TypeError`` for argument-count problems, ``AttributeError`` for
-        # unknown verbs, ``AccessDenied`` for credential failures.
+        # Typed error for a stable surface: TypeError for argument-count,
+        # AttributeError for unknown verbs, AccessDenied for credentials.
         raise TypeError(
             f"{dispatch_method} requires at least 5 positional arguments "
             f"(db, uid, passwd, model, method); got {len(params)}."
         )
     db, uid, passwd, model, model_method, *args = params
-    # ``isinstance(uid, bool)`` rejection: ``int(True) == 1`` would silently
-    # bind a boolean ``uid`` to user-id 1 (admin).  The credential check on
-    # the next line still applies, so this isn't a privilege escalation —
-    # but it's an undocumented type contract worth pinning explicitly.
+    # Reject bool ``uid``: ``int(True) == 1`` would bind it to admin (user-id 1).
+    # The credential check still applies (not an escalation), but pin the type.
     if isinstance(uid, bool):
         raise TypeError(
             f"uid must be an integer, not bool (got {uid!r})"
@@ -216,9 +191,8 @@ def dispatch(dispatch_method: str, params: Sequence) -> typing.Any:
             if len(args) == 1:
                 args += ({},)
             elif len(args) != 2:
-                # Reject (0 args) and (3+ args) with a typed error so
-                # malformed RPC calls produce a stable, diagnostic surface
-                # rather than ``ValueError: not enough/too many values``.
+                # Typed error for (0) or (3+) args instead of a ``ValueError:
+                # not enough/too many values`` from the unpack.
                 raise TypeError(
                     f"execute_kw requires (args, [kw]) after the credentials "
                     f"and model.method; got {len(args)} extra arguments."
@@ -231,18 +205,13 @@ def dispatch(dispatch_method: str, params: Sequence) -> typing.Any:
                 uid, passwd
             )
             res = execute_cr(cr, uid, model, model_method, args, kw)
-        # No ``registry.signal_changes()`` here: ``execute_cr`` runs the call
-        # through ``retrying``, which commits and signals on success — the
-        # invalidation flags are already cleared, so a second signal on the
-        # same registry is a no-op.  The failure path below still needs
-        # ``reset_changes`` (that path is where ``retrying`` re-raised).
+        # No ``signal_changes()`` here: ``retrying`` (inside ``execute_cr``)
+        # already commits and signals on success.  The failure path below still
+        # needs ``reset_changes`` — that's where ``retrying`` re-raised.
     except Exception:
-        # Suppress reset_changes failures so the original exception propagates
-        # cleanly: ``reset_changes`` opens a fresh cursor (see
-        # ``Registry.reset_changes``) which can raise PoolError on a dropped DB
-        # or saturated pool, and a bare call here would shadow the user-facing
-        # exception (the original would survive only as ``__context__``).
-        # Mirrors the protection already in ``retrying``.
+        # Suppress reset_changes failures so the original exception propagates:
+        # ``reset_changes`` opens a fresh cursor that can raise PoolError on a
+        # dropped DB / saturated pool, shadowing the user-facing error.
         with suppress(Exception):
             registry.reset_changes()
         raise
@@ -254,14 +223,10 @@ def execute_cr(
 ) -> typing.Any:
     """Execute ``obj.method(*args, **kw)`` on a prepared cursor.
 
-    Resets the cursor (clears caches from any prior attempt on this
-    cursor), rebuilds the environment under the user's uid, and runs the
-    call through ``retrying`` so serialization failures retry with
-    exponential backoff.
-
-    Also force-evaluates any ``lazy`` values in the result before the
-    cursor closes, because a lazy that lives past the cursor's lifetime
-    would fail to materialise when finally accessed by the RPC marshaller.
+    Resets the cursor (clearing caches from any prior attempt), rebuilds the
+    environment under ``uid``, and runs the call through ``retrying``.  Also
+    force-evaluates any ``lazy`` values in the result before the cursor closes,
+    since a lazy outliving the cursor fails to materialise for the marshaller.
     """
     # clean cache etc if we retry the same transaction
     cr.reset()
@@ -273,12 +238,9 @@ def execute_cr(
             f"Object {obj} doesn't exist"
         )
     # The fragment must outlive the WSGI call: ``CommonRequestHandler.
-    # log_request`` runs *after* the WSGI app returns its response, so any
-    # post-call clear here would empty the value before werkzeug logs it.
-    # ``Application.__call__`` resets ``rpc_model_method = ""`` at the
-    # start of every request, which is the only correct cleanup point —
-    # a non-RPC follow-up (static asset, /web GET) on the same worker
-    # thread cannot inherit a stale fragment.
+    # log_request`` runs after the app returns, so clearing it here would empty
+    # it before werkzeug logs it.  ``Application.__call__`` resets it at the
+    # start of every request — the only correct cleanup point.
     thread = threading.current_thread()
     thread.rpc_model_method = f"{obj}.{method}"
     result = retrying(partial(call_kw, recs, method, args, kw), env)
@@ -291,16 +253,10 @@ def execute_cr(
 def _force_lazy_values(result: typing.Any) -> typing.Any:
     """Force any ``lazy`` values in ``result`` before the cursor closes.
 
-    A lazy that outlives its cursor fails to materialise when the RPC
-    marshaller finally reads it, so every lazy is evaluated here while the
-    cursor is still open.
-
-    A one-shot iterator (generator, ``map`` / ``filter`` / ``zip``,
-    ``iter(...)``) is materialized to a ``list`` FIRST: traversing it to find
-    lazies would otherwise exhaust it, and ``execute_cr`` would hand the
-    marshaller an empty iterator.  Re-iterable containers (lists, dicts, sets,
-    ``dict_values`` views) are returned unchanged.  Recordsets never reach here
-    as iterators — ``call_kw`` already reduces them to ``.ids`` / ``.id``.
+    A one-shot iterator (generator, ``map``/``filter``/``zip``, ``iter(...)``)
+    is materialized to a ``list`` first — traversing it to find lazies would
+    otherwise exhaust it, handing the marshaller an empty iterator.  Re-iterable
+    containers are returned unchanged.
     """
     if isinstance(result, Iterator):
         result = list(result)
@@ -308,15 +264,10 @@ def _force_lazy_values(result: typing.Any) -> typing.Any:
     return result
 
 
-# Exact scalar leaf types: never a ``lazy`` and never a container.  A result
-# from a large ``search_read`` is overwhelmingly these — ints, floats, bools,
-# strings, ``None`` — and for each one the ABC checks below (``Mapping`` /
-# ``Sequence`` / ``Set`` / ``Iterable``) are the dominant cost: ``isinstance``
-# against an ABC dispatches to ``__instancecheck__`` and is an order of
-# magnitude slower than a concrete-type test.  Testing exact-class membership
-# in this frozenset FIRST short-circuits that chain for the common atom.
-# Membership is by class identity, so an ``int`` *subclass* still falls through
-# to the precise checks below.
+# Exact scalar leaf types: never a ``lazy`` and never a container.  A large
+# ``search_read`` result is overwhelmingly these, and an exact-class test here
+# short-circuits the much slower ABC ``isinstance`` chain below for the common
+# atom.  Membership is by identity, so an ``int`` subclass still falls through.
 _SCALAR_LEAF_TYPES = frozenset({int, float, bool, str, bytes, type(None)})
 
 
@@ -325,32 +276,21 @@ def _force_lazy_in(val: typing.Any) -> None:
 
     Walks the container shapes an RPC result can take — ``Mapping`` (keys and
     values), ``Sequence`` / ``Set``, and a generic ``Iterable`` fallback for
-    ``dict_values`` views, generators, and plain ``iter()`` results (none of
-    which are ``Sequence`` / ``Set`` ABC members despite being legitimate
-    return types).  ``Set`` is listed explicitly because a lazy inside a
-    ``{...}`` is reached by neither the ``Sequence`` branch nor — were it
-    dropped — anything before the ``Iterable`` fallback.
+    ``dict_values`` views, generators, and ``iter()`` results.  ``Set`` is
+    listed explicitly because a lazy inside a ``{...}`` is reached by no other
+    branch before the ``Iterable`` fallback.
 
-    Forces each ``lazy`` in place via attribute access rather than yielding
-    matches through a generator: this runs on EVERY RPC result, and in-place
-    forcing is ~2x cheaper than a generator pipeline on a large ``search_read``
-    (measured at 10k rows).  The scalar-leaf fast path stays first so the
-    overwhelmingly common atom — an int/str/None — skips the slower ABC
-    ``isinstance`` chain; the ``str`` / ``bytes`` guard after it catches
-    *subclasses* (e.g. ``markupsafe.Markup``), which would otherwise recurse
-    character-by-character through the ``Sequence`` branch forever.
-
-    For one-shot iterators (generators, ``iter(...)``) this consumes the
-    iterator; the RPC marshaller has to materialize the result to serialize
-    it, so the consumption is never observed in practice.
+    Runs on EVERY RPC result, so the scalar-leaf fast path stays first (skips
+    the slower ABC ``isinstance`` chain for the common int/str/None atom).  The
+    ``str``/``bytes`` guard after it catches subclasses (e.g. ``Markup``) that
+    would otherwise recurse character-by-character forever.  One-shot iterators
+    are consumed, but the marshaller materializes the result anyway.
     """
     if val.__class__ in _SCALAR_LEAF_TYPES:
         return
     if isinstance(val, lazy):
-        # Recurse into the forced value, not just ``val._value``: a lazy can
-        # wrap a container (``lazy(lambda: {"name": lazy(...)})``) or another
-        # lazy, and those inner lazies would otherwise survive uncomputed past
-        # the cursor's lifetime — the exact failure this function prevents.
+        # Recurse into the forced value: a lazy can wrap a container or another
+        # lazy, whose inner lazies would otherwise survive past the cursor.
         _force_lazy_in(val._value)
         return
     if isinstance(val, (str, bytes, BaseModel)):

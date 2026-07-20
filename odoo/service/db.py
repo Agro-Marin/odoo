@@ -28,9 +28,8 @@ from odoo.release import version_info
 from odoo.tools import SQL
 from odoo.tools.misc import exec_pg_environ, find_pg_tool
 
-# Helpers moved to a sibling module so this file stays focused on RPC
-# entry points.  Re-exported below for backward compatibility — every
-# external caller (cli/, addons/web/, tests) imports them from here.
+# Helpers live in a sibling module so this file stays focused on RPC entry
+# points; re-exported below since external callers import them from here.
 from ._db_helpers import (
     DBNAME_MAX_LENGTH,
     DBNAME_PATTERN,
@@ -46,27 +45,24 @@ from ._env import env_float, env_int
 if TYPE_CHECKING:
     from odoo.db import BaseCursor
 else:
-    # PEP 649 lazy annotation evaluation introspects public function
-    # signatures at runtime; ``BaseCursor`` from ``odoo.db`` would cycle
-    # through ``odoo`` import bootstrap, so fall back to ``Any`` for the
-    # runtime symbol while keeping the precise type for static analysis.
+    # PEP 649 introspects annotations at runtime, where importing ``BaseCursor``
+    # from ``odoo.db`` would cycle through bootstrap; fall back to ``Any`` at
+    # runtime while keeping the precise type for static analysis.
     BaseCursor = Any
 
 _logger = logging.getLogger(__name__)
 
-# Re-export under the public name so callers that do
-# ``from odoo.service.db import DBNAME_PATTERN`` keep working.  The actual
-# definitions live in ``_db_helpers``; listing them here makes the public
-# surface explicit (and lets static-analysis tools see what's exported).
+# Re-exported (definitions live in ``_db_helpers``) so ``from odoo.service.db
+# import DBNAME_PATTERN`` etc. keep working; listing them makes the public
+# surface explicit.
 __all__ = (
     "DBNAME_MAX_LENGTH",
     "DBNAME_PATTERN",
     "DatabaseExists",
     # Underscore-prefixed but deliberately exported: the ungated, no-allowlist
-    # DROP/DUPLICATE/RENAME DATABASE primitives for callers that already
-    # establish their own trust boundary (odoo/cli/db.py's local,
-    # shell-access-gated commands; internal create/restore/duplicate rollback).
-    # Not RPC-facing — the exp_* wrappers are the gated public entry points.
+    # DROP/DUPLICATE/RENAME primitives for callers with their own trust boundary
+    # (``cli/db.py``'s shell-gated commands, create/restore rollback).  Not
+    # RPC-facing — the exp_* wrappers are the gated public entry points.
     "_drop_database",
     "_duplicate_database",
     "_rename_database",
@@ -102,15 +98,9 @@ __all__ = (
 def _check_faketime_mode(db_name: str) -> None:
     """Inject a clock-shifting ``public.now()`` into the DB for faketime tests.
 
-    Gated on BOTH the ``ODOO_FAKETIME_TEST_MODE`` env var AND the server
-    running with ``test_enable``. Either gate alone is insufficient:
-
-    * env-var-only means an accidental export in a systemd unit would silently
-      corrupt every subsequent timestamp in production.
-    * ``test_enable``-only would fire during every test run, even when no
-      faketime shift is requested.
-
-    Both must be true, and only for databases explicitly named in ``db_name``.
+    Gated on BOTH ``ODOO_FAKETIME_TEST_MODE`` AND ``test_enable`` (env-var-only
+    would corrupt production timestamps on a stray export; ``test_enable``-only
+    would fire on every test run), and only for databases named in ``db_name``.
     """
     if not os.getenv("ODOO_FAKETIME_TEST_MODE"):
         return
@@ -121,10 +111,8 @@ def _check_faketime_mode(db_name: str) -> None:
             db_name,
         )
         return
-    # ``config['db_name']`` can legitimately be falsy (None or empty list) when
-    # ``--database`` was not passed; ``cron_database_list`` for example treats
-    # that case as "all databases".  Guard membership before the ``in`` check
-    # to avoid ``TypeError: argument of type 'NoneType' is not iterable``.
+    # ``config['db_name']`` can be falsy (None / empty) when ``--database`` was
+    # not passed; ``or ()`` avoids a ``TypeError`` from the ``in`` check below.
     configured_dbs = odoo.tools.config["db_name"] or ()
     if db_name not in configured_dbs:
         return
@@ -157,11 +145,9 @@ def _check_faketime_mode(db_name: str) -> None:
 def _create_empty_database(name: str) -> None:
     """Create an empty database.
 
-    Lets PostgreSQL be the source of truth for existence: a pre-flight
-    ``SELECT datname ...`` is racy — two concurrent creators can both see
-    "does not exist" and one gets a raw ``DuplicateDatabase`` from PG.
-    Instead, attempt ``CREATE DATABASE`` directly and translate PG's
-    ``42P04`` error into the canonical ``DatabaseExists``.
+    Lets PostgreSQL be the source of truth for existence (a pre-flight
+    ``SELECT`` is racy): attempt ``CREATE DATABASE`` directly and translate PG's
+    ``42P04`` (``DuplicateDatabase``) into the canonical ``DatabaseExists``.
     """
     db = odoo.db.db_connect("postgres")
     with closing(db.cursor()) as cr:
@@ -170,10 +156,9 @@ def _create_empty_database(name: str) -> None:
         cr.rollback()
         cr.connection.autocommit = True
 
-        # 'C' collate is only safe with template0 but provides more useful
-        # indexes; skip it on any other template.  Two explicit code paths
-        # are clearer (and harder to break) than one parameterised template
-        # whose validity hinges on a trailing space inside an SQL fragment.
+        # 'C' collate is only safe with template0 (and gives more useful
+        # indexes); skip it on any other template.  Two explicit paths are
+        # clearer than one parameterised fragment.
         if chosen_template == "template0":
             create_sql = SQL(
                 "CREATE DATABASE %s ENCODING 'unicode' LC_COLLATE 'C' TEMPLATE %s",
@@ -188,27 +173,18 @@ def _create_empty_database(name: str) -> None:
             )
         already_exists = False
         try:
-            # log_exceptions=False: DuplicateDatabase is an expected outcome on
-            # the auto-create path used by ``cli/server.py`` (it calls this
-            # function unconditionally and silently catches DatabaseExists).
-            # Letting the cursor log its default ERROR for that case poisons
-            # the test log with a misleading "bad query" line on every run
-            # against a pre-existing DB.
+            # log_exceptions=False: DuplicateDatabase is expected on the
+            # auto-create path (``cli/server.py`` calls this unconditionally and
+            # catches DatabaseExists); the default ERROR log would be misleading.
             cr.execute(create_sql, log_exceptions=False)
         except psycopg.errors.DuplicateDatabase:
             already_exists = True
 
-    # Create the PG extensions Odoo relies on, on BOTH the freshly-created
-    # and the already-existed paths.  ``CREATE EXTENSION IF NOT EXISTS`` is
-    # idempotent, and a pre-created DB (e.g. via ``createdb`` CLI before
-    # ``odoo-bin`` started) will not have ``pg_trgm``/``unaccent`` unless
-    # we install them here — without these, ``has_trigram()`` returns
-    # False, ``Char.condition_to_sql`` skips the trigram-index prefilter,
-    # and trigram-indexed translation searches silently lose their index
-    # coverage (caught by ``test_orm.test_search_ilike``).  Failure here
-    # means search features will silently degrade — escalate to ERROR and
-    # mention the likely cause (missing contrib package, insufficient DB
-    # privileges) so operators can act.
+    # Create the PG extensions Odoo relies on, on both the created and
+    # already-existed paths (``IF NOT EXISTS`` is idempotent).  A DB pre-created
+    # via ``createdb`` would otherwise lack ``pg_trgm``/``unaccent``, silently
+    # degrading trigram-indexed searches.  Log at ERROR with the likely cause
+    # (missing contrib package, insufficient privileges) so operators can act.
     try:
         db = odoo.db.db_connect(name)
         with db.cursor() as cr:
@@ -240,10 +216,9 @@ def _create_empty_database(name: str) -> None:
         )
     _check_faketime_mode(name)
 
-    # PG 15+ revoked CREATE on public schema by default; restore it for Odoo.
-    # Idempotent and runs on the already-existed path too — a DB pre-created
-    # via ``createdb`` CLI inherits PG's default-revoked GRANT, and Odoo
-    # would later fail to create its own functions/types in public.
+    # PG 15+ revokes CREATE on the public schema by default; restore it for Odoo
+    # (idempotent, and needed on the already-existed path too, else Odoo can't
+    # create its own functions/types there).
     try:
         db = odoo.db.db_connect(name)
         with db.cursor() as cr:
@@ -252,24 +227,19 @@ def _create_empty_database(name: str) -> None:
         _logger.warning("Unable to make public schema public-accessible: %s", e)
 
     if already_exists:
-        # Signal "already exists" to the caller (which decides whether to
-        # drop & recreate or reuse as-is — see ``cli/server.py:101``).
-        # Done LAST so all idempotent setup (extensions, faketime, GRANT)
-        # has run on the existing DB before the caller reuses it.
+        # Signal "already exists" to the caller (which decides drop-and-recreate
+        # vs reuse).  Raised LAST so all idempotent setup has run on the existing
+        # DB first.
         raise DatabaseExists(f"database {name!r} already exists!")
 
 
 def _rollback_new_database(db_name: str, what: str) -> None:
     """Drop a half-built database after a create/restore/duplicate failure.
 
-    Call from the ``except`` of the population step, then re-``raise``.  All
-    three paths create an empty (or template-copied) database and then populate
-    it; on any failure the half-built database must be dropped so its name is
-    reusable.  Uses the internal ``_drop_database`` (NOT ``exp_drop``, which
-    re-checks the ``list_db`` flag — a runtime toggle between the initial check
-    and this cleanup would orphan the database).  Drop failures are suppressed
-    so they cannot mask the original error.  ``what`` is an operator-facing tag
-    (``"CREATE DB"`` / ``"RESTORE DB"`` / ``"DUPLICATE DB"``).
+    Call from the population step's ``except``, then re-``raise``.  Uses the
+    internal ``_drop_database`` (not ``exp_drop``, whose ``list_db`` re-check
+    could orphan the DB if the flag toggled).  Drop failures are suppressed so
+    they can't mask the original error.  ``what`` is an operator-facing tag.
     """
     _logger.info("%s: rolling back database %r after failure", what, db_name)
     with suppress(Exception):
@@ -279,11 +249,9 @@ def _rollback_new_database(db_name: str, what: str) -> None:
 def _assert_filestore_dest_free(dest: str, problem: str) -> None:
     """Pre-flight a name-creating op: refuse if its destination filestore exists.
 
-    A leftover ``filestore/<name>/`` (from a failed drop, a manual ``dropdb``, or
-    a crashed restore) would silently bind the new database to foreign
-    attachments.  Run before any DB-level work so a conflict leaves nothing to
-    roll back.  ``problem`` is the operation-specific lead; the shared remedy is
-    appended.
+    A leftover ``filestore/<name>/`` (failed drop, manual ``dropdb``, crashed
+    restore) would silently bind the new database to foreign attachments.  Run
+    before any DB-level work so a conflict leaves nothing to roll back.
     """
     if Path(dest).exists():
         raise RuntimeError(
@@ -304,18 +272,12 @@ def exp_create_database(
 ) -> Literal[True]:
     """Create and initialize a new database.
 
-    Rolls back the empty database on init failure (module install error,
-    missing language, etc.) so the name can be reused for another attempt.
-    Without this, ``initialize_db`` raising would leave a perfectly valid
-    PG database with no Odoo schema — the operator would have to drop it
-    by hand before retrying, mirroring the same bookkeeping ``restore_db``
-    has had for years.
+    Rolls back the empty database on init failure (module install error, missing
+    language, etc.) so the name can be reused, rather than leaving a valid PG
+    database with no Odoo schema for the operator to drop by hand.
     """
     validate_db_name(db_name)
-    # Pre-flight the destination filestore, exactly as duplicate/restore/rename
-    # do: a leftover ``filestore/<name>/`` (failed drop, manual ``dropdb``,
-    # crashed restore) would otherwise silently bind the fresh database to
-    # foreign attachments.  Create was the only name-creating op missing this.
+    # Pre-flight the destination filestore, like duplicate/restore/rename.
     _assert_filestore_dest_free(
         odoo.tools.config.filestore(db_name), f"Cannot create {db_name!r}"
     )
@@ -339,9 +301,9 @@ def exp_duplicate_database(
 ) -> Literal[True]:
     """Duplicate ``db_original_name`` to ``db_name`` (public/RPC-facing).
 
-    Refuses ``db_original_name`` outside ``list_dbs(True)``: with the master
-    password alone an RPC caller could otherwise copy any database owned by this
-    PostgreSQL role. ``db_name`` (the new target) is create-like and not checked.
+    Refuses ``db_original_name`` outside ``list_dbs(True)``, else the master
+    password alone would let an RPC caller copy any database owned by this PG
+    role.  ``db_name`` (the new target) is create-like and not checked.
 
     :raises odoo.exceptions.AccessDenied: if ``db_original_name`` is not exposed
     """
@@ -356,27 +318,15 @@ def _duplicate_database(
 ) -> Literal[True]:
     """Duplicate ``db_original_name`` to ``db_name`` (ungated internal helper).
 
-    No ``@check_db_management_enabled`` and no ``check_db_exposed``: both gates
-    live on the RPC wrapper ``exp_duplicate_database``. The local, shell-access
-    ``odoo db duplicate`` CLI calls this directly — trusted tooling that must
-    not be blocked by the RPC-facing ``list_db`` toggle or the allowlist.
-    Mirrors the ``_drop_database`` / ``exp_drop`` split.
+    No gates here: both live on the RPC wrapper ``exp_duplicate_database``.  The
+    shell-access ``odoo db duplicate`` CLI calls this directly (mirrors the
+    ``_drop_database`` / ``exp_drop`` split).
 
-    Uses PostgreSQL's ``CREATE DATABASE ... TEMPLATE ...`` which requires the
-    source to have no active connections — hence the ``close_db`` +
-    ``_drop_conn`` preamble.
-
-    Forces a new dbuuid (via ``ir.config_parameter.init(force=True)``) so the
-    duplicate can coexist with the original in multi-DB deployments. When
-    ``neutralize_database=True``, sensitive settings (SMTP, outgoing webhook
-    URLs, etc.) are also scrubbed.
-
-    On any failure after the new database is created (registry init, dbuuid
-    write, neutralize, filestore copy) the empty database is dropped so the
-    name is freed for another attempt.  Without this rollback, a failed copy
-    leaves a perfectly valid PG database whose ``ir.attachment`` rows point
-    at a filestore that was never created — a silent data-inconsistency that
-    is easier to fix at create-time than after a user notices missing files.
+    Uses ``CREATE DATABASE ... TEMPLATE ...``, which needs the source to have no
+    active connections — hence the ``close_db`` + ``_drop_conn`` preamble.
+    Forces a new dbuuid so the copy can coexist with the original; with
+    ``neutralize_database=True`` also scrubs sensitive settings (SMTP, webhooks).
+    On any failure after creation the empty database is dropped to free the name.
     """
     validate_db_name(db_name)
 
@@ -390,13 +340,10 @@ def _duplicate_database(
         # database-altering operations cannot be executed inside a transaction
         cr.connection.autocommit = True
 
-        # ``CREATE DATABASE … TEMPLATE …`` requires zero sessions on the
-        # source.  ``_drop_conn`` is best-effort (silent on missing
-        # ``pg_signal_backend`` privilege), and a fresh request landing
-        # between the terminate and the CREATE causes ``ObjectInUse``.
-        # Retry with the same exponential backoff as ``_drop_database``;
-        # this race is exactly the one the drop path was hardened against
-        # and duplicate was overlooked.
+        # ``CREATE DATABASE … TEMPLATE …`` needs zero sessions on the source.
+        # ``_drop_conn`` is best-effort, and a fresh request between terminate
+        # and CREATE causes ``ObjectInUse`` — retry with the same backoff as
+        # ``_drop_database``.
         def _create_from_template() -> None:
             try:
                 cr.execute(
@@ -407,9 +354,8 @@ def _duplicate_database(
                     )
                 )
             except psycopg.errors.DuplicateDatabase as exc:
-                # Same exception type whether the name collision happens at
-                # ``_create_empty_database`` or here.  (``ObjectInUse`` and any
-                # other error propagate to the retry helper / caller.)
+                # Same ``DatabaseExists`` whether the collision happens here or in
+                # ``_create_empty_database``.  (Other errors propagate to retry.)
                 raise DatabaseExists(f"database {db_name!r} already exists!") from exc
 
         _retry_terminate_then_ddl(
@@ -430,10 +376,8 @@ def _duplicate_database(
 
         from_fs = odoo.tools.config.filestore(db_original_name)
         if Path(from_fs).exists():
-            # Race-safe re-check: ``to_fs`` may have appeared between the
-            # pre-flight and now.  ``shutil.copytree`` raises ``FileExistsError``
-            # if ``to_fs`` exists, but we surface a clearer message and let
-            # the outer rollback drop the empty database.
+            # Race-safe re-check: ``to_fs`` may have appeared since the pre-flight.
+            # Surface a clear message and let the outer rollback drop the DB.
             if Path(to_fs).exists():
                 raise RuntimeError(
                     f"Filestore {to_fs!r} appeared between pre-flight and copy (race)."
@@ -445,15 +389,10 @@ def _duplicate_database(
     return True
 
 
-# Max attempts for DROP DATABASE retry loop. A new HTTP request or cron tick
-# can open a connection to the target DB in the window between
-# ``pg_terminate_backend`` and ``DROP DATABASE``; retry several times with
-# exponential backoff before surfacing the error to the operator.
-#
-# The cumulative budget across 5 attempts (0.2 + 0.4 + 0.8 + 1.6 + 3.2 = 6.2s)
-# spans the realistic worst-case for a busy production DB: a connection
-# holder needs to receive ``pg_terminate_backend``, unwind its transaction,
-# commit/rollback, and fully release the connection.
+# Retry budget for the terminate-then-DDL loop.  A new HTTP request or cron tick
+# can reconnect to the target DB between ``pg_terminate_backend`` and the DDL;
+# retry with exponential backoff first.  The cumulative budget across 5 attempts
+# (0.2+0.4+0.8+1.6+3.2 = 6.2s) covers a busy DB's connection-release worst case.
 _DROP_DATABASE_MAX_RETRIES = 5
 _DROP_DATABASE_BACKOFF_BASE = 0.2  # seconds; doubles each attempt
 
@@ -467,19 +406,14 @@ def _retry_terminate_then_ddl(
     """Run a database-level DDL op under the terminate-then-act retry loop
     shared by DROP / DUPLICATE / RENAME.
 
-    ``CREATE … TEMPLATE``, ``DROP DATABASE`` and ``ALTER DATABASE … RENAME`` all
-    require zero sessions on the source/target.  ``_drop_conn`` evicts them
-    best-effort, but a fresh request can connect in the window between the
-    terminate and the DDL, so PostgreSQL raises ``ObjectInUse`` (sqlstate
-    55006).  Each attempt re-terminates and re-runs ``run`` with the shared
-    exponential backoff (0.2, 0.4, 0.8, 1.6, 3.2s).
+    These DDLs need zero sessions on the source/target; ``_drop_conn`` evicts
+    them best-effort, but a fresh request can reconnect before the DDL, so PG
+    raises ``ObjectInUse`` (55006).  Each attempt re-terminates and re-runs
+    ``run`` with exponential backoff.
 
-    ``run`` executes the DDL and returns on success.  It MUST let
-    ``ObjectInUse`` propagate (so this loop can retry) and may raise any other
-    exception — ``DatabaseExists`` for a name collision, ``RuntimeError`` for an
-    operation-specific failure — to abort immediately.  After
-    ``_DROP_DATABASE_MAX_RETRIES`` exhausted attempts the last ``ObjectInUse``
-    is re-raised wrapped in ``RuntimeError``.
+    ``run`` MUST let ``ObjectInUse`` propagate (so this loop retries) and may
+    raise any other exception to abort immediately.  After the retries are
+    exhausted the last ``ObjectInUse`` is re-raised wrapped in ``RuntimeError``.
     """
     last_error: psycopg.errors.ObjectInUse | None = None
     for attempt in range(1, _DROP_DATABASE_MAX_RETRIES + 1):
@@ -495,9 +429,8 @@ def _retry_terminate_then_ddl(
                 _DROP_DATABASE_MAX_RETRIES,
                 e,
             )
-            # Don't sleep after the final attempt — the loop is about to exit
-            # and raise, so the backoff would only delay the error by its
-            # longest interval (3.2s) for no retry.
+            # Don't sleep after the final attempt — it would only delay the
+            # error, with no retry to follow.
             if attempt < _DROP_DATABASE_MAX_RETRIES:
                 time.sleep(_DROP_DATABASE_BACKOFF_BASE * (2 ** (attempt - 1)))
         else:
@@ -511,14 +444,9 @@ def _retry_terminate_then_ddl(
 def _pg_dump_total_timeout() -> float:
     """Wall-clock ceiling (seconds) for any single ``pg_dump`` invocation.
 
-    Single source of truth shared by every dump path — the blocking
-    ``subprocess.run`` calls (zip format, and non-streaming custom format) and
-    the streaming ``Popen`` copy.  Previously only the streaming path was
-    bounded, so a hung ``pg_dump`` on the common web-backup path (zip,
-    ``stream=None``) could block a worker indefinitely (PG-side lock wait, a
-    remote PG that stops responding).  Default 1h is generous for legitimate
-    big-DB dumps but finite; override via ``ODOO_PG_DUMP_TOTAL_TIMEOUT``.
-    A malformed value falls back to the default rather than crashing the dump.
+    Shared by every dump path (blocking and streaming) so a hung ``pg_dump``
+    (PG-side lock wait, unresponsive remote) can't block a worker forever.
+    Default 1h; override via ``ODOO_PG_DUMP_TOTAL_TIMEOUT``.
     """
     return env_float("ODOO_PG_DUMP_TOTAL_TIMEOUT", 3600.0, logger=_logger)
 
@@ -526,42 +454,30 @@ def _pg_dump_total_timeout() -> float:
 def _pg_restore_total_timeout() -> float:
     """Wall-clock ceiling (seconds) for the ``psql``/``pg_restore`` invocation.
 
-    Sibling of ``_pg_dump_total_timeout``.  The restore subprocess was the
-    asymmetric gap: the dump path bounds every ``pg_dump`` call, but a hung
-    ``psql -f`` (PG-side lock wait, disk-full stall, a dump that triggers a
-    slow trigger) would block the worker until the master watchdog SIGKILLs
-    it — a cruder backstop than the clean ``RuntimeError`` the dump path
-    raises.  Default 1h; override via ``ODOO_PG_RESTORE_TOTAL_TIMEOUT``.  A
-    malformed value falls back to the default rather than crashing the restore.
+    Sibling of ``_pg_dump_total_timeout``, so a hung ``psql -f`` (lock wait,
+    disk-full stall) raises a clean ``RuntimeError`` instead of blocking the
+    worker until the master watchdog SIGKILLs it.  Default 1h; override via
+    ``ODOO_PG_RESTORE_TOTAL_TIMEOUT``.
     """
     return env_float("ODOO_PG_RESTORE_TOTAL_TIMEOUT", 3600.0, logger=_logger)
 
 
 def _drop_database(db_name: str) -> bool:
-    """Internal DROP DATABASE helper, used by both ``exp_drop`` and cleanup paths.
+    """Internal DROP DATABASE helper for both ``exp_drop`` and cleanup paths.
 
-    Not decorated with ``@check_db_management_enabled``, and does not check
-    ``list_dbs(True)`` either: both gates live on ``exp_drop`` (the RPC entry
-    point), not here. Cleanup-on-failure callers (e.g. ``restore_db`` rolling
-    back an empty database) must not be blocked by a runtime toggle of
-    ``list_db``, nor by the exposed-databases allowlist — the whole point of
-    this helper existing separately is to drop a half-built database that was
-    never in that allowlist to begin with.
+    Ungated (no ``@check_db_management_enabled``, no ``list_dbs(True)`` check):
+    both gates live on ``exp_drop``.  Cleanup callers (e.g. ``restore_db``
+    rolling back a half-built DB that was never in the allowlist) must be able
+    to bypass them — the reason this helper exists separately.
 
-    Handles the terminate-then-drop race: another thread (cron, HTTP) can
-    open a new connection between ``pg_terminate_backend`` and ``DROP
-    DATABASE``. PostgreSQL signals this via ``ObjectInUse`` (sqlstate 55006).
-    Retry up to ``_DROP_DATABASE_MAX_RETRIES`` times, re-running the
-    terminate step each iteration.
+    Handles the terminate-then-drop race (``ObjectInUse`` / 55006 when another
+    thread reconnects mid-drop) by retrying ``_DROP_DATABASE_MAX_RETRIES`` times.
     """
-    # Existence check against PostgreSQL itself, NOT ``list_dbs(True)``: when
-    # ``--database`` is set without ``--db-filter``, ``list_dbs(True)`` returns
-    # the configured allowlist, so a freshly-created database outside that list
-    # (e.g. a half-built one being rolled back after a failed
-    # create/restore/duplicate) would wrongly look non-existent and this drop
-    # would silently no-op, orphaning it.  The pg_database probe uses an
-    # autocommit cursor on the maintenance DB so it never blocks on the target
-    # database's transaction state.
+    # Existence check against ``pg_database`` itself, NOT ``list_dbs(True)``:
+    # with ``--database`` and no ``--db-filter`` the latter returns the configured
+    # allowlist, so a freshly-created DB outside it (a rollback target) would
+    # look absent and this drop would silently no-op, orphaning it.  Autocommit
+    # cursor on the maintenance DB so it never blocks on the target's txn state.
     try:
         probe = odoo.db.db_connect("postgres")
         with closing(probe.cursor()) as cr:
@@ -572,9 +488,8 @@ def _drop_database(db_name: str) -> bool:
             )
             owner_row = cr.fetchone()
     except Exception:
-        # If we cannot probe (e.g. no access to the maintenance DB), fall
-        # through and let DROP DATABASE below surface the real error rather
-        # than silently returning False.
+        # If the probe fails (e.g. no maintenance-DB access), fall through and
+        # let DROP DATABASE surface the real error instead of returning False.
         _logger.debug("DROP DB %r: existence probe failed", db_name, exc_info=True)
         owner_row = ()  # sentinel: existence unknown -> attempt the drop
 
@@ -601,10 +516,8 @@ def _drop_database(db_name: str) -> bool:
 
         _retry_terminate_then_ddl(cr, db_name, f"DROP DB: {db_name}", _drop)
 
-    # Close pools again: between close_db() above and the actual DROP,
-    # other threads (cron, HTTP) may have re-created a pool for this
-    # database.  Clean them up so they don't try to reconnect to a
-    # database that no longer exists.
+    # Close pools again: between the close_db above and the DROP, another thread
+    # may have re-created a pool for this database.
     odoo.db.close_db(db_name)
 
     fs = odoo.tools.config.filestore(db_name)
@@ -616,17 +529,14 @@ def _drop_database(db_name: str) -> bool:
 def check_db_exposed(db_name: str) -> None:
     """Raise ``AccessDenied`` if ``db_name`` is not an exposed database.
 
-    Shared allowlist gate for the master-password RPC handlers that operate on
-    an existing database by name (``exp_dump``, ``exp_rename``,
-    ``exp_duplicate_database``, ``exp_migrate_databases``). Logs a warning
-    before raising.
+    Shared allowlist gate for the master-password RPC handlers that act on an
+    existing DB by name (``exp_dump``, ``exp_rename``, ``exp_duplicate_database``,
+    ``exp_migrate_databases``).
 
-    :param db_name: database name to check against ``list_dbs(True)``
     :raises odoo.exceptions.AccessDenied: if ``db_name`` is not exposed
     """
-    # Defined here, not beside check_super in _db_helpers: it needs list_dbs
-    # (defined in this module), and db.py imports from _db_helpers, not the
-    # reverse.
+    # Here, not beside check_super in _db_helpers: it needs ``list_dbs`` (this
+    # module), and db.py imports from _db_helpers, not the reverse.
     if db_name not in list_dbs(True):
         _logger.warning(
             "DB management op on %s rejected, not in the list of exposed databases",
@@ -639,13 +549,9 @@ def check_db_exposed(db_name: str) -> None:
 def exp_drop(db_name: str) -> bool:
     """Drop a database (public/RPC-facing, subject to ``list_db`` gate).
 
-    Refuses any ``db_name`` outside ``list_dbs(True)``: with the master
-    password alone, an RPC caller could otherwise ``DROP DATABASE`` any DB
-    owned by this PostgreSQL role, not just the ones this Odoo instance
-    exposes. The allowlist gate lives here, on the RPC entry point — not in
-    ``_drop_database``, which internal callers (create/restore/duplicate
-    rollback) need to keep bypassing to clean up a half-built database that
-    was never in the allowlist to begin with.
+    Refuses any ``db_name`` outside ``list_dbs(True)``, else the master password
+    alone would let an RPC caller drop any DB owned by this PG role.  The gate
+    lives here, not in ``_drop_database``, which rollback callers must bypass.
     """
     if db_name not in list_dbs(True):
         _logger.warning(
@@ -659,26 +565,18 @@ def exp_drop(db_name: str) -> bool:
 def exp_dump(db_name: str, backup_format: str) -> str:
     """Dump the database and return its base64-encoded content.
 
-    Encodes in 3 MiB chunks against an on-disk tempfile, so the raw N bytes
-    never sit in memory.  Peak memory is ``~8N/3``: the ``bytearray``
-    accumulator (``4N/3``) is briefly co-resident with the final ``str``
-    (``4N/3``) during ``decode("ascii")`` (measured 2.68x input at N=30 MiB).
-    A multi-GB dump still doubles process RSS — callers that need true
-    streaming should use ``dump_db(..., stream=...)`` with a writable file
-    or response object.
+    Encodes in 3 MiB chunks against an on-disk tempfile, so the raw bytes never
+    sit in memory; peak is still ~8N/3 (accumulator + final ``str`` during
+    ``decode``), so a multi-GB dump doubles RSS — use ``dump_db(..., stream=...)``
+    for true streaming.
 
-    The web UI at ``/web/database/backup`` does NOT go through this function:
-    it calls ``dump_db(name, None, ...)`` (``stream=None``), which buffers the
-    dump to a ``TemporaryFile`` and hands that file object to werkzeug's
-    ``Response(..., direct_passthrough=True)`` — so the base64 round-trip here
-    is avoided, but the dump is still fully written to a temp file first.  The
-    only true-streaming caller is the ``odoo db dump`` CLI (``stream`` = a real
-    file / ``sys.stdout.buffer``).
+    Note the web backup UI does NOT call this: it uses ``dump_db(name, None, ...)``
+    and hands the temp file to werkzeug directly, avoiding the base64 round-trip.
+    The only true-streaming caller is the ``odoo db dump`` CLI.
     """
     check_db_exposed(db_name)
-    # 3 MiB — a multiple of 3 so each chunk encodes independently (base64
-    # consumes 3 input bytes per 4 output chars; non-3-aligned chunks would
-    # emit padding mid-stream).
+    # Multiple of 3 so each chunk encodes independently (base64 maps 3 bytes → 4
+    # chars; a non-3-aligned chunk would emit padding mid-stream).
     CHUNK_SIZE = 3 * 1024 * 1024
     encoded = bytearray()
     with tempfile.TemporaryFile(mode="w+b") as t:
@@ -717,11 +615,9 @@ def dump_db_manifest(cr: BaseCursor) -> dict[str, Any]:
 def _run_pg_dump_blocking(cmd: list[str], env: dict, *, stdout: Any) -> None:
     """Run ``pg_dump`` to completion, raising ``RuntimeError`` on timeout/error.
 
-    Shared by the two blocking dump paths: the zip path (``stdout`` =
-    ``DEVNULL``; the dump is written via an inserted ``--file=``) and the
-    buffered custom-format path (``stdout`` = a ``TemporaryFile``).  Bounds the
-    run with ``_pg_dump_total_timeout`` so a hung pg_dump cannot block a worker
-    indefinitely — ``subprocess.run`` kills and reaps the child on timeout.
+    Shared by the two blocking dump paths (zip, via ``--file=``; and buffered
+    custom format to a ``TemporaryFile``).  Bounded by ``_pg_dump_total_timeout``
+    so a hung pg_dump can't block a worker — ``subprocess.run`` kills and reaps.
     """
     timeout = _pg_dump_total_timeout()
     try:
@@ -746,24 +642,19 @@ def _run_pg_dump_blocking(cmd: list[str], env: dict, *, stdout: Any) -> None:
         )
 
 
-# Grace (seconds) between the stall timer's SIGTERM and its follow-up SIGKILL
-# in ``_run_pg_dump_streaming``.  A backstop for a pg_dump that ignores SIGTERM,
-# not a user-tuning surface — kept small and fixed so a wedged dump can't hold a
-# worker much past the total timeout.
+# Grace (seconds) between the stall timer's SIGTERM and its follow-up SIGKILL in
+# ``_run_pg_dump_streaming``: a fixed backstop for a pg_dump that ignores SIGTERM.
 _STALL_SIGKILL_GRACE_S = 10.0
 
 
 def _run_pg_dump_streaming(cmd: list[str], env: dict, stream: IO[bytes]) -> None:
     """Stream a custom-format ``pg_dump`` to ``stream`` while draining stderr.
 
-    stdout is copied to ``stream`` as it is produced; a sibling thread drains
-    stderr concurrently so neither pipe blocks when pg_dump emits more than the
-    OS pipe buffer (64 KiB default) of warnings — a model-rich DB clears that
-    cap routinely.  A wall-clock ``Timer`` SIGTERMs a stalled pg_dump, because
-    ``copyfileobj`` is otherwise unbounded if stdout EOF never arrives (PG-side
-    lock wait, a remote PG that stops responding).  After the copy, a bounded
-    post-EOF wait escalates SIGTERM → SIGKILL.  Raises ``RuntimeError`` on
-    stall or non-zero exit.
+    stdout is copied as produced; a sibling thread drains stderr so neither pipe
+    blocks when pg_dump emits more than the OS pipe buffer of warnings.  A
+    wall-clock ``Timer`` SIGTERMs a stalled pg_dump (``copyfileobj`` is otherwise
+    unbounded if stdout EOF never arrives), and a bounded post-EOF wait escalates
+    SIGTERM → SIGKILL.  Raises ``RuntimeError`` on stall or non-zero exit.
     """
     proc = subprocess.Popen(
         cmd,
@@ -794,18 +685,12 @@ def _run_pg_dump_streaming(cmd: list[str], env: dict, stream: IO[bytes]) -> None
         )
         with suppress(ProcessLookupError):
             proc.terminate()
-        # Escalate to SIGKILL if SIGTERM does not unblock the copy.  The
-        # SIGTERM -> wait -> SIGKILL ladder in the ``finally`` below only runs
-        # AFTER ``copyfileobj`` returns — i.e. only after stdout EOFs.  But a
-        # pg_dump wedged uninterruptibly (or ignoring SIGTERM) never EOFs
-        # stdout, so ``copyfileobj`` would block forever and that ladder would
-        # never run, degrading the documented hard wall-clock ceiling to a
-        # single best-effort signal.  Forcing SIGKILL here (from the Timer
-        # thread) makes stdout EOF, unblocking the copy so the ``finally`` can
-        # reap.  Concurrent ``proc.wait`` from the copy thread's ``finally`` is
-        # safe — CPython serialises waits and caches the returncode.  This makes
-        # the streaming path match the blocking path's ``subprocess.run(
-        # timeout=...)`` kill-and-reap guarantee.
+        # Escalate to SIGKILL if SIGTERM doesn't unblock the copy.  The ladder in
+        # the ``finally`` below runs only after ``copyfileobj`` returns (stdout
+        # EOF), but a wedged pg_dump never EOFs, so ``copyfileobj`` would block
+        # forever.  Forcing SIGKILL from this Timer thread makes stdout EOF,
+        # unblocking the copy so the ``finally`` can reap.  Concurrent
+        # ``proc.wait`` is safe — CPython serialises waits and caches returncode.
         try:
             proc.wait(timeout=_STALL_SIGKILL_GRACE_S)
         except subprocess.TimeoutExpired:
@@ -825,11 +710,9 @@ def _run_pg_dump_streaming(cmd: list[str], env: dict, stream: IO[bytes]) -> None
         stall_timer.cancel()
         proc.stdout.close()
         stderr_thread.join()
-        # Bounded post-EOF wait + escalating signals.  Operator-friendly
-        # default 30s; override via env.  Parsed through ``env_float`` so a
-        # malformed value falls back to the default instead of raising
-        # ``ValueError`` from this ``finally`` — which would crash a successful
-        # dump and mask the real error of a failed one.
+        # Bounded post-EOF wait + escalating signals; default 30s, override via
+        # env.  ``env_float`` so a malformed value doesn't raise from this
+        # ``finally`` (which would crash a successful dump / mask a failed one).
         wait_timeout = env_float("ODOO_PG_DUMP_WAIT_TIMEOUT", 30.0, logger=_logger)
         try:
             proc.wait(timeout=wait_timeout)
@@ -848,11 +731,9 @@ def _run_pg_dump_streaming(cmd: list[str], env: dict, stream: IO[bytes]) -> None
     stderr_output = b"".join(stderr_chunks)
     if stall_killed[0] and proc.returncode != 0:
         # ``and proc.returncode != 0``: the stall timer and a clean finish can
-        # race — pg_dump can reach stdout EOF (returncode 0) at the same instant
-        # the timer fires and sets ``stall_killed``.  A genuine stall kill leaves
-        # a signal returncode (negative), so gating on a non-zero exit keeps a
-        # successful dump from being reported as a spurious timeout.
-        # Typed error so callers can distinguish "stalled" from "non-zero exit".
+        # race (EOF at returncode 0 just as the timer sets ``stall_killed``).  A
+        # genuine kill leaves a negative returncode, so this gate avoids
+        # reporting a successful dump as a spurious timeout.
         raise RuntimeError(
             f"pg_dump exceeded {total_timeout:.0f}s wall-clock timeout and was "
             f"terminated.  Set ODOO_PG_DUMP_TOTAL_TIMEOUT for slower DBs."
@@ -875,32 +756,18 @@ def dump_db(
     return a file object with the dump.
 
     .. warning::
-        For the ``zip`` format this is a **best-effort online snapshot**, not
-        a transactional one.  The manifest is written first (it opens a cursor
-        on the source DB, so it doubles as a cheap connectivity/existence check
-        and an unreachable DB fails before the filestore copy), then the
-        filestore is copied (line-of-fire ``shutil.copytree``), then ``pg_dump``
-        runs as a separate process.  Concurrent writes during the
-        copytree→pg_dump window produce inconsistent dumps:
-
-        * a new ``ir.attachment`` row whose binary was written to the filestore
-          AFTER the copytree but BEFORE pg_dump → row in dump.sql, file missing.
-        * a row deleted between the two → file present in the dump's filestore
-          but no row pointing at it.
-
-        For backup-of-record on a busy production DB, freeze writes externally
-        (read-only mode, application pause) before invoking, or use
-        physical-replica snapshots.
+        For the ``zip`` format this is a **best-effort online snapshot**, not a
+        transactional one: the manifest, then the filestore copytree, then
+        ``pg_dump`` run in sequence, so writes during the copytree→pg_dump window
+        yield inconsistent dumps (an attachment row without its file, or vice
+        versa).  For a backup-of-record on a busy DB, freeze writes externally or
+        use physical-replica snapshots.
     """
-    # Enforce the same name shape/length guarantee as create/duplicate/rename/
-    # restore.  ``dump_db`` was the last name-accepting entry point that fed
-    # ``db_name`` straight into the ``pg_dump`` argv (and, for the zip format,
-    # into ``db_connect``) without validation.  Because the name is a *trailing*
-    # positional arg, an unvalidated value like ``--jobs=…`` or ``--version``
-    # is parsed by pg_dump as an option rather than a database (argument
-    # injection — no shell, so not RCE).  The custom-format path has no
-    # ``db_connect`` ahead of it to reject the name first, so the guard belongs
-    # here, before any argv is built.
+    # Same name shape/length guard as create/duplicate/rename/restore.  The name
+    # is a trailing ``pg_dump`` argv positional, so an unvalidated value like
+    # ``--jobs=…`` would be parsed as an option (argument injection — no shell,
+    # not RCE).  The custom-format path has no ``db_connect`` to reject it first,
+    # so guard here before any argv is built.
     validate_db_name(db_name)
 
     _logger.info(
@@ -915,11 +782,9 @@ def dump_db(
 
     if backup_format == "zip":
         with tempfile.TemporaryDirectory() as dump_dir:
-            # Manifest first: ``db_connect`` + cursor here is the cheapest
-            # operation that touches the source DB, so writing the manifest
-            # before the (potentially multi-GB) filestore copytree makes an
-            # unreachable or bogus DB fail fast instead of after the copy.  It
-            # does not widen the consistency window, which is copytree→pg_dump.
+            # Manifest first: its cursor is the cheapest touch of the source DB,
+            # so an unreachable/bogus DB fails fast instead of after the (maybe
+            # multi-GB) copytree.  Doesn't widen the copytree→pg_dump window.
             with Path(dump_dir, "manifest.json").open("w") as fh:
                 db = odoo.db.db_connect(db_name)
                 with db.cursor() as cr:
@@ -945,8 +810,7 @@ def dump_db(
                     )
                     t.seek(0)
                 except BaseException:
-                    # Close on any abnormal exit (zip_dir error, OSError
-                    # mid-write) so the OS fd is not leaked until GC.
+                    # Close on any abnormal exit so the OS fd isn't leaked to GC.
                     t.close()
                     raise
                 return t
@@ -973,16 +837,12 @@ def dump_db(
 def exp_restore(db_name: str, data: str, copy: bool = False) -> Literal[True]:
     """Restore a database from a base64-encoded dump string.
 
-    ``data`` is the base64 body of a zip (v8+ format) or raw pg_dump custom
-    format.  Whitespace inside ``data`` is tolerated: PEM/MIME-style line
-    breaks (``\\n`` every 76 chars) used to crash chunked decoding with
-    ``binascii.Error: Incorrect padding`` because chunk boundaries landed
-    mid-group on the 76-char wrap.  The accumulator below buffers
-    un-decoded chars across chunks so every ``b64decode`` call gets a
-    multiple of 4 chars, and ASCII whitespace is stripped per-chunk.
+    ``data`` is the base64 body of a zip (v8+) or raw pg_dump custom format.
+    Whitespace is tolerated: the accumulator below strips it per-chunk and
+    buffers un-decoded chars so every ``b64decode`` gets a multiple of 4 chars
+    (chunk boundaries landing mid-group on a 76-char wrap used to crash decoding).
 
-    ``copy=True`` forces a new dbuuid so the restored DB can coexist with
-    the original.
+    ``copy=True`` forces a new dbuuid so the restore can coexist with the original.
     """
     # ``str.maketrans('', '', whitespace)`` deletes the listed chars; faster
     # than a regex or per-char filter on a multi-MB string.
@@ -1004,14 +864,11 @@ def exp_restore(db_name: str, data: str, copy: bool = False) -> Literal[True]:
         data_file.close()
         restore_db(db_name, data_file.name, copy=copy)
     finally:
-        # Close before unlinking: on the decode-error path (malformed base64
-        # from an RPC client) the ``data_file.close()`` above is skipped, so the
-        # fd would leak until GC.  ``close()`` is idempotent, so calling it again
-        # on the success path is harmless.
+        # Close before unlinking so the fd isn't leaked on the decode-error path
+        # (which skips the ``close()`` above); ``close()`` is idempotent.
         data_file.close()
-        # ``missing_ok`` so a racing deletion (e.g. tmp cleaner, concurrent
-        # admin action) cannot replace a successful restore with a spurious
-        # FileNotFoundError from the finally block.
+        # ``missing_ok`` so a racing deletion (tmp cleaner, concurrent admin)
+        # doesn't turn a successful restore into a spurious FileNotFoundError.
         Path(data_file.name).unlink(missing_ok=True)
     return True
 
@@ -1025,26 +882,20 @@ def restore_db(
 ) -> None:
     """Restore a database from a file on disk.
 
-    Handles both the v8+ zip format (SQL + filestore + manifest) and the
-    raw pg_dump custom format for pre-v8 dumps. On any failure after the
-    empty database is created, ``_drop_database`` is called to release the
-    name for another restore attempt.
+    Handles the v8+ zip format (SQL + filestore + manifest) and the raw pg_dump
+    custom format.  On any failure after the empty DB is created,
+    ``_drop_database`` frees the name.
 
-    ``copy=True`` forces a new dbuuid. ``neutralize_database=True`` also
-    scrubs external-integration config (SMTP, webhooks, etc.) for use on
-    staging/testing clones.
+    ``copy=True`` forces a new dbuuid; ``neutralize_database=True`` also scrubs
+    external-integration config (SMTP, webhooks) for staging clones.
 
-    Pre-flights the destination filestore.  ``shutil.move(src, dst)`` where
-    ``dst`` is an existing directory silently produces ``dst/<src_basename>/``
-    instead of replacing ``dst`` — a leftover ``filestore/<db>/`` (orphaned
-    by an earlier failed drop, manual ``dropdb``, or crashed restore) would
-    otherwise nest the dumped filestore inside the stale one, leaving
-    ``ir.attachment`` rows resolving against the wrong tree.
+    Pre-flights the destination filestore: ``shutil.move`` into an existing
+    directory would nest the dumped filestore inside a stale ``filestore/<db>/``,
+    leaving ``ir.attachment`` rows resolving against the wrong tree.
     """
     if not isinstance(db, str):
         raise TypeError(f"db must be a str, got {type(db).__name__!r}")
-    # Validate name shape/length (else PG silently truncates a 64+ char name
-    # to 63 bytes), same gate as create/duplicate/rename.
+    # Same name shape/length gate as create/duplicate/rename.
     validate_db_name(db)
     if exp_db_exist(db):
         _logger.warning("RESTORE DB: %s already exists", db)
@@ -1062,14 +913,10 @@ def restore_db(
             if zipfile.is_zipfile(dump_file):
                 # v8 format
                 with zipfile.ZipFile(dump_file, "r") as z:
-                    # Belt-and-suspenders ZipSlip defense: Python 3.6+ strips
-                    # ``..`` components from extractall paths, but an explicit
-                    # check pinned to THIS file holds even if a future
-                    # maintainer switches to ``z.extract(...)`` or another
-                    # library.  Validate member names BEFORE extraction so
-                    # the cost is O(zip-entries) instead of O(extracted-files)
-                    # — a backup with 50k attachments would otherwise pay 50k
-                    # ``Path.resolve()`` syscalls on the restore hot path.
+                    # Explicit ZipSlip defense (belt-and-suspenders over
+                    # extractall's own ``..`` stripping), holding even if a
+                    # future edit switches to ``z.extract``.  Validated over
+                    # member names, not extracted files, to keep it O(entries).
                     dump_dir_resolved = Path(dump_dir).resolve()
                     for member in z.namelist():
                         target = (dump_dir_resolved / member).resolve()
@@ -1087,13 +934,10 @@ def restore_db(
                         filestore_path = str(Path(dump_dir, "filestore"))
 
                 pg_cmd = "psql"
-                # ``-v ON_ERROR_STOP=1`` is REQUIRED: ``psql -f`` otherwise
-                # exits 0 even when individual SQL statements fail, so a
-                # truncated/version-mismatched/disk-full dump would restore a
-                # partially-populated database and the ``r.returncode != 0``
-                # guard below would never trip — a silent partial restore
-                # reported as success.  With the flag psql exits non-zero on
-                # the first ERROR, which propagates to the rollback path.
+                # ``-v ON_ERROR_STOP=1`` is REQUIRED: without it ``psql -f``
+                # exits 0 even when statements fail, so a broken dump would
+                # restore a partial DB reported as success.  With it, psql exits
+                # non-zero on the first ERROR and the rollback path fires.
                 pg_args = [
                     "-q",
                     "-v",
@@ -1105,14 +949,10 @@ def restore_db(
             else:
                 # <= 7.0 format (raw pg_dump output)
                 pg_cmd = "pg_restore"
-                # ``--exit-on-error`` for the same reason the zip path passes
-                # ``psql -v ON_ERROR_STOP=1``: pg_restore's DEFAULT is to
-                # CONTINUE past per-statement errors and still exit 0, which
-                # would restore a partially-populated database that the
-                # ``r.returncode != 0`` guard below never catches — a silent
-                # partial restore reported as success.  The target is a fresh
-                # empty DB (``_create_empty_database`` above), so a clean dump
-                # produces no errors and this only bites a genuinely broken one.
+                # ``--exit-on-error`` for the same reason as the zip path's
+                # ``ON_ERROR_STOP=1``: pg_restore defaults to CONTINUE past
+                # per-statement errors and exit 0, a silent partial restore.  The
+                # target is a fresh empty DB, so this only bites a broken dump.
                 pg_args = ["--no-owner", "--exit-on-error", dump_file]
 
             _timeout = _pg_restore_total_timeout()
@@ -1127,9 +967,8 @@ def restore_db(
                     timeout=_timeout,
                 )
             except subprocess.TimeoutExpired as e:
-                # ``subprocess.run`` has already killed and reaped the child.
-                # The ``except`` below drops the half-restored database so the
-                # name is released for another attempt.
+                # ``subprocess.run`` already killed and reaped the child; the
+                # outer ``except`` drops the half-restored DB to free the name.
                 raise RuntimeError(
                     f"Restore of {db!r} exceeded {_timeout:.0f}s wall-clock "
                     f"timeout and was terminated.  Set "
@@ -1153,10 +992,8 @@ def restore_db(
                 if filestore_path:
                     filestore_dest = env["ir.attachment"]._filestore()
                     # Race-safe re-check: ``filestore_dest`` may have appeared
-                    # between the pre-flight and now.  ``shutil.move(src, dst)``
-                    # with ``dst`` as an existing directory moves ``src`` *into*
-                    # ``dst``, producing ``dst/<src_basename>`` — silent
-                    # corruption that would survive every later check.
+                    # since the pre-flight, and ``shutil.move`` into an existing
+                    # dir would nest ``src`` inside it (silent corruption).
                     if Path(filestore_dest).exists():
                         raise RuntimeError(
                             f"Filestore {filestore_dest!r} appeared between "
@@ -1174,9 +1011,9 @@ def restore_db(
 def exp_rename(old_name: str, new_name: str) -> Literal[True]:
     """Rename ``old_name`` to ``new_name`` (public/RPC-facing).
 
-    Refuses ``old_name`` outside ``list_dbs(True)``: with the master password
-    alone an RPC caller could otherwise rename any database owned by this
-    PostgreSQL role. ``new_name`` (the target) is create-like and not checked.
+    Refuses ``old_name`` outside ``list_dbs(True)``, else the master password
+    alone would let an RPC caller rename any DB owned by this PG role.
+    ``new_name`` (the target) is create-like and not checked.
 
     :raises odoo.exceptions.AccessDenied: if ``old_name`` is not exposed
     """
@@ -1187,31 +1024,18 @@ def exp_rename(old_name: str, new_name: str) -> Literal[True]:
 def _rename_database(old_name: str, new_name: str) -> Literal[True]:
     """Rename a database (ungated internal helper; gates live on ``exp_rename``).
 
-    No ``@check_db_management_enabled`` and no ``check_db_exposed``: the local,
-    shell-access ``odoo db rename`` CLI calls this directly — trusted tooling
-    that must not be blocked by the RPC-facing ``list_db`` toggle or the
-    allowlist. Mirrors the ``_drop_database`` / ``exp_drop`` split.
+    No gates here: the shell-access ``odoo db rename`` CLI calls this directly
+    (mirrors the ``_drop_database`` / ``exp_drop`` split).
 
-    Validates the new name against ``DBNAME_PATTERN`` (same gate as create),
-    tears down the old registry and connection pool, issues ``ALTER
-    DATABASE RENAME`` in autocommit (with the same exponential-backoff
-    retry on ``ObjectInUse`` as ``_drop_database`` and
-    ``exp_duplicate_database``), then renames the filestore directory.
-    No new registry is eagerly built — the next request to ``new_name``
-    lazy-loads it, matching ``exp_create_database`` behavior.
+    Validates ``new_name``, tears down the old registry and pool, issues ``ALTER
+    DATABASE RENAME`` in autocommit (same ``ObjectInUse`` backoff retry as
+    ``_drop_database``), then renames the filestore.  No new registry is built —
+    the next request to ``new_name`` lazy-loads it.  Refuses pre-flight if the
+    destination filestore exists.
 
-    Refuses pre-flight when the destination filestore already exists.  A
-    leftover ``filestore/<new_name>/`` (orphaned by an earlier failed drop,
-    a manual ``dropdb``, or a crashed restore) would silently bind the
-    renamed database to a foreign filestore, serving wrong attachments.
-    Operators must move or delete the stale directory before retrying.
-
-    If ``shutil.move`` fails after the SQL rename succeeded, the database is
-    renamed back to ``old_name`` so DB and filestore stay in sync — the
-    half-done state ("DB at new_name, filestore at old_name") would silently
-    serve attachments to the wrong database after a future rename.  If the
-    rename-back itself fails, the original error is raised wrapped with both
-    failures so operators can intervene manually.
+    If ``shutil.move`` fails after the SQL rename, the DB is renamed back so DB
+    and filestore stay in sync; if the rename-back also fails, both errors are
+    raised together for manual intervention.
     """
     validate_db_name(new_name)
 
@@ -1229,11 +1053,8 @@ def _rename_database(old_name: str, new_name: str) -> Literal[True]:
         # database-altering operations cannot be executed inside a transaction
         cr.connection.autocommit = True
 
-        # Same terminate-then-act race as DROP / DUPLICATE: a fresh request
-        # can land between ``_drop_conn`` and ``ALTER DATABASE … RENAME``.
-        # Retry with the shared exponential backoff so RENAME degrades
-        # gracefully under load instead of one-shot failing where the other
-        # two operations recover.
+        # Same terminate-then-act race as DROP / DUPLICATE (a fresh request can
+        # land between ``_drop_conn`` and the RENAME); retry with shared backoff.
         def _rename() -> None:
             try:
                 cr.execute(
@@ -1244,8 +1065,7 @@ def _rename_database(old_name: str, new_name: str) -> Literal[True]:
                     )
                 )
             except psycopg.errors.DuplicateDatabase as exc:
-                # Same exception type whether the collision happens at
-                # create / duplicate / rename time.
+                # Same ``DatabaseExists`` as the create / duplicate collisions.
                 raise DatabaseExists(f"database {new_name!r} already exists!") from exc
             except psycopg.errors.ObjectInUse:
                 raise  # let _retry_terminate_then_ddl back off and retry
@@ -1261,11 +1081,9 @@ def _rename_database(old_name: str, new_name: str) -> Literal[True]:
         )
 
         if Path(old_fs).exists():
-            # Race-safe re-check: ``new_fs`` may have appeared between the
-            # pre-flight and now.  ``shutil.move(src, dst)`` with ``dst`` as
-            # an existing directory moves ``src`` *into* ``dst``, producing
-            # ``dst/src_basename`` instead of replacing ``dst`` — silent
-            # corruption that would survive the post-condition checks.
+            # Race-safe re-check: ``new_fs`` may have appeared since the
+            # pre-flight, and ``shutil.move`` into an existing dir would nest
+            # ``src`` inside it (silent corruption).
             if Path(new_fs).exists():
                 _rollback_db_rename(cr, old_name, new_name)
                 raise RuntimeError(
@@ -1303,9 +1121,8 @@ def _rename_database(old_name: str, new_name: str) -> Literal[True]:
 def _rollback_db_rename(cr: BaseCursor, old_name: str, new_name: str) -> None:
     """Issue ``ALTER DATABASE new_name RENAME TO old_name``.
 
-    Extracted so the rollback path is identical for both filestore-move
-    failures and the race-window case (``new_fs`` appeared between the
-    pre-flight check and the move).
+    Extracted so the rollback is identical for the filestore-move failure and
+    the race-window case.
     """
     cr.execute(
         SQL(
@@ -1320,35 +1137,25 @@ def _rollback_db_rename(cr: BaseCursor, old_name: str, new_name: str) -> None:
 def exp_change_admin_password(new_password: str) -> Literal[True]:
     """Set the master admin password.
 
-    Enforces a minimum length — the master password authorises every
-    database-level destructive operation (drop, rename, restore) so it
-    is the highest-value credential in the instance.  Default minimum
-    is 8 characters; override via ``ODOO_ADMIN_PASSWORD_MIN_LENGTH`` for
-    deployments under stricter regimes (NIST SP 800-63B → 12+, ISO 27001,
-    etc.).  Compliance owners can raise the floor without code changes.
-
-    Additional complexity checks (character classes, dictionary
-    prohibition, etc.) belong in the HTTP controller when the policy
-    needs to stay configurable per deployment.
+    Enforces a minimum length — the master password authorises every destructive
+    DB operation, so it is the highest-value credential.  Default 8 chars;
+    ``ODOO_ADMIN_PASSWORD_MIN_LENGTH`` can raise (never lower) the floor for
+    stricter regimes.  Further complexity checks belong in the HTTP controller.
     """
     if not isinstance(new_password, str):
         raise TypeError(
             f"new_password must be a str, got {type(new_password).__name__!r}"
         )
-    # Silent (no ``logger``): this credential path deliberately keeps quiet.
-    # ``minimum=8`` is the hard floor — the env var can only RAISE it (stricter
-    # regimes), never weaken it; a malformed value falls back to 8.
+    # Silent (no ``logger``).  ``minimum=8`` is the hard floor: the env var can
+    # only raise it, and a malformed value falls back to 8.
     min_length = env_int("ODOO_ADMIN_PASSWORD_MIN_LENGTH", 8, minimum=8)
     if len(new_password) < min_length:
         raise ValueError(
             f"Master admin password must be at least {min_length} characters long."
         )
-    # Atomic update: capture the previous hash before mutating so a save()
-    # failure can revert in-memory state.  Without this, ``set_admin_password``
-    # would update ``self.options`` to the new hash and ``save`` could still
-    # raise (disk full, EPERM, mount RO) — leaving the running process
-    # accepting the new password while a restart loaded the OLD one from disk.
-    # That divergence is silent and only surfaces after the next restart.
+    # Capture the previous hash so a ``save()`` failure (disk full, RO mount)
+    # can revert the in-memory state — otherwise the process would accept the
+    # new password while a restart loads the OLD one from disk.
     old_hash = odoo.tools.config.options.get("admin_passwd")
     odoo.tools.config.set_admin_password(new_password)
     try:
@@ -1362,9 +1169,7 @@ def exp_change_admin_password(new_password: str) -> Literal[True]:
             "Failed to persist admin password change; reverted in-memory hash"
         )
         raise
-    # Audit trail: the master password authorises every destructive op
-    # (drop, rename, restore).  Pin successful changes at INFO so operators
-    # can correlate with the security incident timeline.
+    # Audit trail at INFO so operators can correlate a change with an incident.
     _logger.info("Master admin password updated")
     return True
 
@@ -1376,8 +1181,8 @@ def exp_migrate_databases(databases: list[str]) -> Literal[True]:
     Used by the HTTP database-manager "Migrate" action to bring several
     databases forward one Odoo version at a time.
     """
-    # Reject the whole call if ANY target is unexposed — before migrating any,
-    # so a mixed list can't leave a partial, half-migrated result.
+    # Reject the whole call if ANY target is unexposed, before migrating any,
+    # so a mixed list can't leave a half-migrated result.
     for db in databases:
         check_db_exposed(db)
     for db in databases:
@@ -1397,18 +1202,13 @@ def exp_migrate_databases(databases: list[str]) -> Literal[True]:
 def exp_db_exist(db_name: str) -> bool:
     """Return True iff a connection to ``db_name`` succeeds.
 
-    This is weaker than "the database exists": a database that exists but
-    is inaccessible (permission denied, pool saturated, etc.) returns False.
-    For the database-manager wizard and XML-RPC callers, the weaker check
-    is the right semantic — they care whether Odoo can actually use it.
+    Weaker than "the database exists": an existing-but-inaccessible DB (perm
+    denied, pool saturated) returns False — the right semantic for the DB-manager
+    wizard and RPC callers, which care whether Odoo can use it.
 
-    The False return is intentionally undifferentiated for the public
-    contract, but the underlying failure mode is logged so operators
-    investigating "why does my UI say the DB doesn't exist?" can distinguish
-    "really doesn't exist" (psycopg ``InvalidCatalogName``, SQLSTATE 3D000,
-    logged at DEBUG) from "transient PG issue" (semaphore saturation, pool
-    timeout, network blip, logged at INFO so it is visible without enabling
-    DEBUG).
+    The False return is undifferentiated, but the cause is logged so operators
+    can tell "really doesn't exist" (``InvalidCatalogName``, DEBUG) from a
+    transient PG issue (INFO, visible without enabling DEBUG).
     """
     try:
         db = odoo.db.db_connect(db_name)
@@ -1419,10 +1219,9 @@ def exp_db_exist(db_name: str) -> bool:
         _logger.debug("exp_db_exist(%r): database does not exist", db_name)
         return False
     except Exception:
-        # Could be transient (pool saturation, PG restart, network).  Log at
-        # INFO so the cause is visible without forcing operators to enable
-        # DEBUG; ``mute_logger("odoo.db")`` decorator suppresses the duplicate
-        # log line from the lower-level connection failure.
+        # Could be transient (pool saturation, PG restart, network).  Log at INFO
+        # so the cause is visible without DEBUG; the ``mute_logger`` decorator
+        # suppresses the duplicate line from the lower-level failure.
         _logger.info(
             "exp_db_exist(%r) returning False after non-existence error; "
             "may be transient (pool saturation, PG restart)",
@@ -1435,26 +1234,21 @@ def exp_db_exist(db_name: str) -> bool:
 def list_dbs(force: bool = False) -> list[str]:
     """List databases visible to this Odoo instance.
 
-    Priority order:
-    1. Fail with ``AccessDenied`` unless ``list_db=True`` or ``force=True``.
-    2. If ``--dbfilter`` is unset and ``-d/--database`` is set, return the
-       configured list as-is (explicit allowlist, PG roundtrip skipped).
-    3. Otherwise, query ``pg_database`` filtered to DBs owned by the
-       current PG role (``datdba = usesysid of current_user``) — this is
-       how shared PG-server setups keep instances from enumerating each
-       other. If two Odoo instances share a PG role, they'll see each
-       other's DBs; give each instance its own role for isolation.
+    1. ``AccessDenied`` unless ``list_db=True`` or ``force=True``.
+    2. If ``--dbfilter`` is unset and ``--database`` is set, return that list
+       as-is (explicit allowlist, PG roundtrip skipped).
+    3. Otherwise query ``pg_database`` for DBs owned by the current PG role —
+       how shared PG servers keep instances from enumerating each other (give
+       each instance its own role for isolation).
 
-    The system database (``postgres``) and the configured template are
-    excluded so they never appear in the manager UI.
+    ``postgres`` and the configured template are excluded from the result.
     """
     if not odoo.tools.config["list_db"] and not force:
         raise odoo.exceptions.AccessDenied
 
     if not odoo.tools.config["dbfilter"] and odoo.tools.config["db_name"]:
-        # In case --db-filter is not provided and --database is passed, Odoo will not
-        # fetch the list of databases available on the postgres server and instead will
-        # use the value of --database as comma seperated list of exposed databases.
+        # No --db-filter but --database set: use it as the exposed-DB list
+        # instead of querying the server (see the docstring).
         return sorted(odoo.tools.config["db_name"])
 
     chosen_template = odoo.tools.config["db_template"]
@@ -1490,10 +1284,9 @@ def list_db_incompatible(databases: list[str]) -> list[str]:
     incompatible_databases = []
     server_version = ".".join(str(v) for v in version_info[:2])
     for database_name in databases:
-        # Isolate each database: a single unreachable / permission-denied DB
-        # (the input often comes from ``list_dbs()``, which can include DBs this
-        # role cannot open) must not abort the whole compatibility scan.  Treat a
-        # DB we cannot probe as incompatible so it surfaces for attention.
+        # Isolate each database: one unreachable / permission-denied DB must not
+        # abort the whole scan.  Treat a DB we can't probe as incompatible so it
+        # surfaces for attention.
         try:
             with closing(odoo.db.db_connect(database_name).cursor()) as cr:
                 if odoo.tools.sql.table_exists(cr, "ir_module_module"):
@@ -1520,10 +1313,9 @@ def list_db_incompatible(databases: list[str]) -> list[str]:
             )
             incompatible_databases.append(database_name)
         finally:
-            # Release the connection pool ``db_connect`` registered for EVERY
-            # database probed, not only the incompatible ones — the previous code
-            # closed pools solely for the incompatible set, leaking one idle pool
-            # per compatible database (the common all-compatible case).
+            # Release the pool ``db_connect`` registered for EVERY probed DB, not
+            # only the incompatible ones (else the common all-compatible case
+            # leaks one idle pool per database).
             odoo.db.close_db(database_name)
     return incompatible_databases
 
@@ -1531,12 +1323,10 @@ def list_db_incompatible(databases: list[str]) -> list[str]:
 def exp_list(document: bool = False) -> list[str]:
     """RPC entry point for ``list_dbs``. Raises ``AccessDenied`` if ``list_db`` is off.
 
-    The ``document`` parameter is kept for backward compatibility with older
-    XML-RPC clients that send it; it has no effect — Odoo no longer ships a
-    document-management module distinct from the regular DB list.
+    ``document`` is kept for backward compatibility with older XML-RPC clients
+    but has no effect.
     """
-    # ``list_dbs()`` enforces the ``list_db`` gate itself (raises AccessDenied
-    # when the config flag is off and force=False).  No pre-check needed here.
+    # ``list_dbs()`` enforces the ``list_db`` gate itself; no pre-check here.
     return list_dbs()
 
 
@@ -1553,9 +1343,8 @@ def exp_list_countries() -> list[list[str]]:
     on the pre-database selector page).
     """
     list_countries = []
-    # Bundled read-only data file, not user input — defusedxml unnecessary.
-    # The path is fixed under the install root; an attacker who could replace
-    # this file already has filesystem write to the Odoo install dir.
+    # Bundled read-only data file at a fixed path, not user input — defusedxml
+    # unnecessary (replacing it already requires write to the install dir).
     root = ET.parse(  # noqa: S314
         Path(odoo.tools.config.root_path, "addons/base/data/res_country_data.xml")
     ).getroot()
@@ -1583,34 +1372,22 @@ def exp_server_version() -> str:
 def dispatch(method: str, params: list[Any]) -> Any:
     """Dispatch a db-service RPC call, enforcing master password for admin ops.
 
-    Single allowlist (``_DISPATCH``) for handler resolution; sister set
-    (``_REQUIRES_MASTER_PASSWORD``) for auth declaration. The two-dict
-    pattern that preceded this kept ``_DISPATCH_PUBLIC`` and
-    ``_DISPATCH_ADMIN`` disjoint by convention — the convention was
-    enforceable only by tests. With one dict, no key can be in both
-    "public" and "admin" simultaneously: it's structurally impossible.
+    Single allowlist (``_DISPATCH``) for handler resolution, sister set
+    (``_REQUIRES_MASTER_PASSWORD``) for auth — so no method can be both public
+    and admin.  Unknown methods raise ``AttributeError``, uniform with
+    ``common.dispatch`` / ``model.dispatch``.
 
-    Raises ``AttributeError`` for unknown methods — matching the exception type
-    raised by ``odoo.service.common.dispatch`` and ``odoo.service.model.dispatch``
-    so callers see uniform behavior across the three RPC services.
-
-    TRUST BOUNDARY: the master-password check lives HERE, at the RPC edge — not
-    on the ``exp_*`` handlers.  A direct in-process call (e.g. ``exp_drop`` from
-    CLI/migration code) is considered trusted and bypasses the password, but is
-    still gated by ``@check_db_management_enabled`` (the ``list_db`` flag) on
-    the handler itself.  Keep destructive handlers decorated so that gate holds
-    for internal callers too.
+    TRUST BOUNDARY: the master-password check lives HERE, at the RPC edge, not on
+    the ``exp_*`` handlers.  A direct in-process call is trusted and bypasses the
+    password, but is still gated by ``@check_db_management_enabled`` on the
+    handler — keep destructive handlers decorated so that gate holds internally too.
     """
     handler = _DISPATCH.get(method)
     if handler is None:
         raise AttributeError(f"Method not found: {method}")
     if method in _REQUIRES_MASTER_PASSWORD:
-        # Validate before unpacking: a bare ``passwd, *params = params`` raises
-        # ``ValueError: not enough values to unpack`` on empty input — different
-        # from the ``TypeError`` that ``odoo.service.model.dispatch`` raises for
-        # the same shape of malformed call. Surface a typed error consistent
-        # with the other dispatchers so RPC clients see one error class for
-        # "argument count wrong" everywhere.
+        # Validate before unpacking so empty params raise ``TypeError`` (uniform
+        # with the other dispatchers) rather than a ``ValueError`` from the unpack.
         if not params:
             raise TypeError(
                 f"{method} requires a master password as its first positional "
@@ -1621,11 +1398,9 @@ def dispatch(method: str, params: list[Any]) -> Any:
     return handler(*params)
 
 
-# Single allowlist for every db-service RPC method.  Whether a method
-# requires the master password is declared in ``_REQUIRES_MASTER_PASSWORD``
-# below — auth is data, not a function decorator, so the underlying
-# handlers stay plain functions that tests and internal callers can
-# invoke without ceremony.
+# Single allowlist for every db-service RPC method; master-password requirement
+# is declared as data in ``_REQUIRES_MASTER_PASSWORD`` below, so the handlers
+# stay plain functions that tests and internal callers can invoke directly.
 _DISPATCH: dict[str, Callable] = {
     "db_exist": exp_db_exist,
     "list": exp_list,
@@ -1642,19 +1417,13 @@ _DISPATCH: dict[str, Callable] = {
     "list_countries": exp_list_countries,
 }
 
-# Methods whose first positional RPC param is the master password.
-# ``frozenset`` so the membership test in ``dispatch`` is O(1) and the
-# set is immutable at module load (a future contributor can't mutate the
-# auth gate from another module).  Every entry MUST also exist in
-# ``_DISPATCH``; ``base/tests/test_server.py::TestDbDispatchAuth`` pins this
-# invariant.
+# Methods whose first positional RPC param is the master password.  ``frozenset``
+# for O(1), immutable membership.  Every entry MUST also exist in ``_DISPATCH``;
+# ``TestDbDispatchAuth`` pins this.
 #
-# ``list_countries`` is intentionally absent: it reads bundled XML
-# (``addons/base/data/res_country_data.xml``) and is invoked by the
-# unauthenticated database-creation wizard before any DB exists.  Gating
-# it would either raise ``ValueError`` on the empty-params unpack or
-# ``AccessDenied`` on a public read; ``TestDbDispatchAuth`` pins that it
-# (and the other public reads) stay unauthenticated.
+# ``list_countries`` is intentionally absent: the unauthenticated DB-creation
+# wizard calls it (reading bundled XML) before any DB exists, so it must stay
+# public — also pinned by ``TestDbDispatchAuth``.
 _REQUIRES_MASTER_PASSWORD: frozenset[str] = frozenset(
     {
         "create_database",

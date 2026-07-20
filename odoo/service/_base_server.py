@@ -2,9 +2,8 @@
 
 ``CommonServer`` is the shared parent of ``ThreadedServer`` / ``EventServer``
 (``_threaded.py``) and ``PreforkServer`` (``_prefork.py``).  It lives in this
-leaf module so those two siblings and the ``server.py`` facade can all import
-it without a cycle (``server.py`` re-exports it for external callers such as
-``odoo.addons.bus`` and ``odoo.tools.sass_embedded``).
+leaf module so both siblings and the ``server.py`` facade can import it without
+a cycle.
 """
 
 from __future__ import annotations
@@ -19,8 +18,7 @@ from odoo.tools import config
 if TYPE_CHECKING:
     from collections.abc import Callable
 
-# ``signal.SIGHUP`` is POSIX-only; gate SIGHUP handling on this rather than
-# monkey-patching a sentinel into the stdlib ``signal`` module.
+# ``signal.SIGHUP`` is POSIX-only.
 _SIGHUP_AVAILABLE = hasattr(signal, "SIGHUP")
 
 # All server classes log under ``odoo.service.server`` so operator log filters
@@ -28,9 +26,8 @@ _SIGHUP_AVAILABLE = hasattr(signal, "SIGHUP")
 _logger = logging.getLogger("odoo.service.server")
 
 
-# Process-global on-stop callbacks: they fire once per process, independent of
-# which server class runs, so they live at module scope rather than on the class
-# (where a subclass reassignment could silently desync from this list).
+# Process-global on-stop callbacks: they fire once per process regardless of
+# which server class runs, so they live at module scope, not on the class.
 _ON_STOP_FUNCS: list[Callable] = []
 
 
@@ -46,12 +43,11 @@ class CommonServer:
 
     @classmethod
     def on_stop(cls, func: Callable) -> None:
-        """Register a cleanup function to be executed when the server stops.
+        """Register a cleanup function to run when the server stops.
 
-        Idempotent: registering the same callable twice is a no-op.  The list is
-        process-global and append-only, so without this a module imported twice
-        — or a server stopped and restarted in-process (tests, embedded use) —
-        would fire the same hook more than once on ``stop()``.
+        Idempotent: the process-global list is append-only, so deduping here
+        keeps a twice-imported module (or an in-process restart) from firing
+        the same hook more than once.
         """
         if func not in _ON_STOP_FUNCS:
             _ON_STOP_FUNCS.append(func)
@@ -62,8 +58,8 @@ class CommonServer:
                 self.logger.debug("on_close call %s", func)
                 func()
             except Exception:
-                # A hook may be a ``functools.partial`` (no ``__name__``); fall
-                # back to ``repr`` so this handler can't raise and abort the
-                # remaining hooks.
+                # A hook may be a ``functools.partial`` (no ``__name__``); the
+                # ``repr`` fallback keeps this handler from raising and aborting
+                # the remaining hooks.
                 name = getattr(func, "__name__", repr(func))
                 self.logger.warning("Exception in %s", name, exc_info=True)

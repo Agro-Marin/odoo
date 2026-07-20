@@ -32,39 +32,32 @@ def exp_authenticate(
 ) -> int | bool:
     """Authenticate a user and return the uid, or False on failure.
 
-    Every failure path collapses into the same ``False`` so an unauthenticated
+    Every failure path collapses to the same ``False`` so an unauthenticated
     caller cannot use the exception type to enumerate which databases exist or
-    which are Odoo-initialized.  The cases each guard collapses:
+    are Odoo-initialized:
 
     * **Missing DB** — ``Registry(db)`` raises ``PoolError`` (or
-      ``psycopg.OperationalError`` on code paths that bypass the pool).
-    * **Existing-but-not-Odoo DB** — ``res.users`` is absent from the
-      registry, so ``env["res.users"]`` would raise ``KeyError`` and leak the
-      DB's existence via an exception type distinct from ``AccessDenied``.
-    * **Empty / non-string DB name** — ``odoo.db.db_connect`` does not validate
-      the name; it is passed through to ``connection_info_for`` and the pool, so
-      a blank name surfaces as a ``PoolError``/connection failure there rather
-      than as an early ``AssertionError``.
-    * **Malformed ``user_agent_env``** — non-dict, non-None values raise
-      ``TypeError`` from ``{**user_agent_env, ...}``.
+      ``psycopg.OperationalError`` on pool-bypassing paths).
+    * **Existing-but-not-Odoo DB** — ``res.users`` absent from the registry, so
+      ``env["res.users"]`` would raise a telltale ``KeyError``.
+    * **Empty / non-string DB name** — ``db_connect`` does not validate it; a
+      blank name surfaces as a ``PoolError`` from the pool.
+    * **Malformed ``user_agent_env``** — non-dict raises ``TypeError`` from
+      ``{**user_agent_env, ...}``.
 
-    The pool layer (``odoo.db.pool.borrow``) wraps every ``getconn`` failure
-    in ``PoolError``: missing DB, dead PG, bad credentials, semaphore
-    saturation.  ``psycopg.OperationalError`` is kept for direct-connect
-    paths used by ``neutralize`` and migrate scripts.
+    The pool (``odoo.db.pool.borrow``) wraps every ``getconn`` failure in
+    ``PoolError``; ``psycopg.OperationalError`` covers the direct-connect paths
+    used by ``neutralize`` and migrate scripts.
     """
-    # Reject malformed inputs upfront so the no-leak invariant holds without
-    # a blanket ``except Exception`` (which would mask programming errors).
-    # Without these guards: empty/non-string ``db`` leaks AssertionError from
-    # db_connect; non-dict ``user_agent_env`` leaks TypeError from {**env, ...}.
+    # Reject malformed inputs upfront so the no-leak invariant holds without a
+    # blanket ``except Exception`` (which would mask programming errors): a
+    # non-str ``db`` / ``user_agent_env`` would otherwise leak an
+    # AssertionError / TypeError distinguishable from AccessDenied.
     if not isinstance(db, str) or not db:
         return False
     if not isinstance(login, str) or not isinstance(password, str):
-        # ``login``/``password`` were the only inputs left unchecked.  A non-str
-        # value can raise a type other than ``AccessDenied`` from deep inside
-        # ``authenticate`` (e.g. a ``TypeError``), which would leak a
-        # distinguishable exception to an unauthenticated caller and break the
-        # "every failure collapses to False" invariant this function documents.
+        # Left unchecked, a non-str login/password can raise a non-AccessDenied
+        # type from deep inside ``authenticate``, breaking the invariant above.
         return False
     if user_agent_env is None:
         user_agent_env = {}
@@ -77,11 +70,10 @@ def exp_authenticate(
             "exp_authenticate: registry unavailable for %r", db, exc_info=True
         )
         return False
-    # ``Registry(db)`` succeeds for any PG database that opens — including
-    # non-Odoo databases (``postgres``, ``template1``, a Rails app's DB).
-    # Without an explicit membership check, ``env["res.users"]`` would raise
-    # ``KeyError`` on those, distinguishing "DB exists but isn't Odoo" from
-    # "DB doesn't exist" via exception type.  Collapse both to ``False``.
+    # ``Registry(db)`` succeeds for any PG database that opens, including
+    # non-Odoo ones (``postgres``, ``template1``, ...).  The explicit membership
+    # check keeps ``env["res.users"]`` from raising a telltale ``KeyError`` that
+    # would distinguish "exists but not Odoo" from "doesn't exist".
     if "res.users" not in registry.models:
         _logger.debug(
             "exp_authenticate: %r is reachable but not an Odoo database", db
@@ -96,10 +88,9 @@ def exp_authenticate(
                 "password": password,
                 "type": "password",
             }
-            # ``interactive=False`` MUST come AFTER the ``**user_agent_env``
-            # unpack so a malicious caller cannot pass ``interactive=True``
-            # and trigger interactive MFA prompts that have no client to
-            # satisfy them. Python dict-merge order: later keys win.
+            # ``interactive=False`` MUST come after the ``**user_agent_env``
+            # unpack (later keys win) so a caller cannot pass ``interactive=True``
+            # and trigger MFA prompts with no client to satisfy them.
             return env["res.users"].authenticate(
                 credential, {**user_agent_env, "interactive": False}
             )["uid"]
@@ -110,9 +101,8 @@ def exp_authenticate(
 def exp_version() -> dict[str, Any]:
     """Return the RPC version information dict.
 
-    Returns a fresh shallow copy: ``RPC_VERSION_1`` is a mutable module global,
-    and a client-facing serializer or middleware that mutates the returned dict
-    would otherwise corrupt the shared version state for every later caller.
+    A fresh shallow copy, since ``RPC_VERSION_1`` is a mutable module global a
+    downstream serializer/middleware could otherwise corrupt for later callers.
     """
     return dict(RPC_VERSION_1)
 
@@ -120,14 +110,12 @@ def exp_version() -> dict[str, Any]:
 def dispatch(method: str, params: list | tuple) -> Any:
     """Dispatch a common-service RPC call to the matching exposed function.
 
-    Only methods present in ``_DISPATCH`` are reachable. A module-level helper
-    named ``exp_foo`` is NOT automatically an RPC endpoint: the allowlist is
-    the single source of truth, which prevents a future maintainer from
-    accidentally exposing a debug helper (or any other ``exp_``-prefixed
-    function) to unauthenticated XML-RPC clients.
+    Only methods in the ``_DISPATCH`` allowlist are reachable — an ``exp_``
+    helper is not automatically an RPC endpoint, so a debug helper can't be
+    exposed to unauthenticated clients by accident.
 
-    Unknown methods raise ``AttributeError`` — matching the exception type
-    raised by ``odoo.service.db.dispatch`` and ``odoo.service.model.dispatch``.
+    Unknown methods raise ``AttributeError``, matching
+    ``odoo.service.db.dispatch`` and ``odoo.service.model.dispatch``.
     """
     handler = _DISPATCH.get(method)
     if handler is None:
@@ -135,9 +123,8 @@ def dispatch(method: str, params: list | tuple) -> Any:
     return handler(*params)
 
 
-# Public allowlist: explicit is safer than reflection.
-# `db.py` uses the same pattern (a single ``_DISPATCH`` dict, plus
-# ``_REQUIRES_MASTER_PASSWORD`` to flag the admin-only methods).
+# Public allowlist: explicit is safer than reflection.  ``db.py`` uses the same
+# pattern (plus ``_REQUIRES_MASTER_PASSWORD`` for its admin-only methods).
 _DISPATCH: dict[str, Callable] = {
     "login": exp_login,
     "authenticate": exp_authenticate,

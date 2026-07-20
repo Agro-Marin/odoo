@@ -85,10 +85,10 @@ _logger = logging.getLogger("odoo.service.server")  # preserve operator log filt
 class CpuTimeLimitExceeded(Exception):
     """Raised by ``Worker.signal_time_expired_handler`` on SIGXCPU.
 
-    A distinct class so log filters can discriminate it from a generic failure.
-    Plain ``Exception`` (not ``SystemExit``): it propagates uncaught to
-    ``worker_spawn``'s ``except BaseException``, which logs it and exits the
-    child via ``os._exit(1)``; the master then replenishes the worker.
+    A distinct class so log filters can tell it from a generic failure.  Plain
+    ``Exception`` (not ``SystemExit``) so it propagates to ``worker_spawn``'s
+    ``except BaseException``, which logs it and exits the child; the master
+    then replenishes the worker.
     """
 
 
@@ -117,10 +117,8 @@ class Worker:
     def close(self) -> None:
         """Close all pipe file descriptors held by this worker.
 
-        Each ``os.close`` is guarded individually: if one fd is already
-        invalid (e.g. double-close via a racing shutdown path) the remaining
-        three must still be released, otherwise the parent process leaks up
-        to three descriptors per dying worker.
+        Each ``os.close`` is guarded individually so an already-invalid fd (e.g.
+        double-close on a racing shutdown) still lets the other three be released.
         """
         for fd in (
             self.watchdog_pipe[0],
@@ -135,11 +133,9 @@ class Worker:
         self.alive = False
 
     def signal_time_expired_handler(self, n: int, stack: Any) -> None:
-        # Async-signal-safe: do NOT log here.  This runs on the main thread
-        # (SIGXCPU is masked in ``_runloop``), and ``logger`` would deadlock if
-        # the interrupted thread already held the logging lock.  The raise
-        # unwinds through ``run`` to ``worker_spawn``, which logs the typed
-        # exception and exits the child — so no information is lost.
+        # Async-signal-safe: do NOT log here — ``logger`` would deadlock if the
+        # interrupted thread held the logging lock.  The raise unwinds to
+        # ``worker_spawn``, which logs the typed exception, so nothing is lost.
         raise CpuTimeLimitExceeded(
             f"CPU time limit ({config['limit_time_cpu']}s) exceeded"
         )
@@ -159,15 +155,13 @@ class Worker:
         if self.ppid != os.getppid():
             self.logger.info("Parent changed")
             self.alive = False
-        # ``limit_request <= 0`` means unlimited (gunicorn ``max_requests``
-        # semantics); without the guard ``0 >= 0`` would kill the worker before
-        # it served anything and the master would respawn it in a tight loop.
+        # ``limit_request <= 0`` means unlimited; the guard stops ``0 >= 0`` from
+        # killing the worker before it serves anything (respawn loop).
         if self.request_max > 0 and self.request_count >= self.request_max:
             self.logger.info("Max request (%s) reached.", self.request_count)
             self.alive = False
-        # Recycle a worker that leaked memory.  ``over_memory_soft_limit`` reads
-        # RSS only when the soft limit is enabled (a per-cycle ``/proc`` read,
-        # wasted when ``limit_memory_soft`` is 0 — a common config).
+        # Recycle a worker that leaked memory (``over_memory_soft_limit`` skips
+        # the ``/proc`` read when ``limit_memory_soft`` is 0).
         memory = over_memory_soft_limit(
             self._process_handle, config["limit_memory_soft"]
         )
@@ -176,8 +170,8 @@ class Worker:
             self.alive = False  # Commit suicide after the request.
 
         # Update RLIMIT_CPU so limit_time_cpu applies per unit of work.  0
-        # disables it (like every limit here): arming the soft limit to the CPU
-        # time already consumed would SIGXCPU the worker at once.
+        # disables it; arming it at the already-consumed CPU time would SIGXCPU
+        # the worker at once.
         limit_time_cpu = config["limit_time_cpu"]
         if limit_time_cpu > 0:
             r = resource.getrusage(resource.RUSAGE_SELF)
@@ -199,8 +193,8 @@ class Worker:
         # Reseed the random number generator
         random.seed()
         # Cache the psutil.Process handle: ``check_limits`` runs every
-        # ``master.beat`` (4s) and constructing a Process each time adds a
-        # ``/proc`` stat read.  PID is constant for the process lifetime.
+        # ``master.beat`` (4s) and a fresh Process each time adds a ``/proc``
+        # read.  PID is constant for the process lifetime.
         self._process_handle = psutil.Process(self.pid)
         if self.multi.socket:
             # Prevent fd inheritance: close_on_exec
@@ -230,16 +224,14 @@ class Worker:
     def run(self) -> None:
         """Entry point for the forked worker process.
 
-        Wraps the join in try/finally so ``self.stop()`` (selector close, and
-        the pg connection close in ``WorkerCron``) runs whether the worker
+        Wraps the join in try/finally so ``self.stop()`` runs whether the worker
         exits cleanly or is interrupted by SIGXCPU / a runloop fault.
         """
         self.start()
-        # A fault in the work loop is *recorded* here for the main thread to
-        # re-raise, not raised from the daemon thread: an exception in a daemon
-        # thread goes to ``threading.excepthook`` and never reaches this joiner,
-        # so the worker would otherwise exit 0 on a crash.  Visible after
-        # ``t.join()`` (join establishes happens-before with thread termination).
+        # A runloop fault is RECORDED here for the main thread to re-raise, not
+        # raised from the daemon thread (where it would go to
+        # ``threading.excepthook`` and the worker would exit 0 on a crash).
+        # Visible after ``t.join()`` (which establishes happens-before).
         self._runloop_exc: BaseException | None = None
         t = threading.Thread(
             name=f"Worker {self.__class__.__name__} ({self.pid}) workthread",
@@ -250,9 +242,8 @@ class Worker:
         try:
             t.join()
             if self._runloop_exc is not None:
-                # Detail already logged by ``_runloop``; surface a bare
-                # SystemExit(1) so ``worker_spawn`` sets exit_code 1 without
-                # double-logging the traceback.
+                # ``_runloop`` already logged the detail; raise a bare
+                # SystemExit(1) so ``worker_spawn`` exits 1 without re-logging.
                 raise SystemExit(1)
             self.logger.info(
                 "Exiting cleanly. request_count: %s, registry count: %s.",
@@ -283,8 +274,8 @@ class Worker:
                     break
                 self.process_work()
         except BaseException as exc:
-            # Record for ``run`` to re-raise on the main thread — raising in
-            # this daemon thread would be swallowed by ``threading.excepthook``.
+            # Record for ``run`` to re-raise on the main thread (a raise here
+            # would be swallowed by ``threading.excepthook``).
             self.logger.exception("Exception occurred, exiting...")
             self._runloop_exc = exc
 
@@ -295,15 +286,11 @@ class WorkerHTTP(Worker):
     def __init__(self, multi: PreforkServer) -> None:
         super().__init__(multi)
 
-        # The ODOO_HTTP_SOCKET_TIMEOUT environment variable allows to control socket timeout for
-        # extreme latency situations. It's generally better to use a good buffering reverse proxy
-        # to quickly free workers rather than increasing this timeout to accommodate high network
-        # latencies & b/w saturation. This timeout is also essential to protect against accidental
-        # DoS due to idle HTTP connections.
-        #
-        # Floor 0.1s: ``0`` would switch the socket to non-blocking and break
-        # every request.  ``env_float`` clamps sub-floor/malformed values
-        # instead of crashing the worker at start.
+        # ODOO_HTTP_SOCKET_TIMEOUT tunes the socket timeout for extreme-latency
+        # setups; it also guards against accidental DoS from idle HTTP
+        # connections (prefer a buffering reverse proxy over a large value).
+        # Floor 0.1s: ``0`` would make the socket non-blocking and break every
+        # request; ``env_float`` clamps sub-floor/malformed values.
         self.sock_timeout = env_float(
             "ODOO_HTTP_SOCKET_TIMEOUT", 2.0, minimum=0.1, logger=_logger
         )
@@ -361,19 +348,18 @@ class WorkerCron(Worker):
     def _sleep_with_watchdog(self, total_seconds: float) -> None:
         """Sleep for ``total_seconds`` while pinging the master watchdog.
 
-        ``_runloop`` pings only once per outer cycle, so a long bare
-        ``time.sleep`` (e.g. a 60s reconnect backoff) would exceed the cron
-        watchdog and trigger the SIGKILL → re-fork loop this machinery exists
-        to prevent.  Splits the wait into ``tick``-sized chunks and pings
-        between each.  Avoids ``time.monotonic`` for the loop guard so tests
-        that no-op ``time.sleep`` still terminate.
+        ``_runloop`` pings once per outer cycle, so a long bare ``time.sleep``
+        (e.g. a 60s reconnect backoff) would trip the cron watchdog into a
+        SIGKILL → re-fork loop.  Splits the wait into ``tick``-sized chunks,
+        pinging between each.  Uses a decrementing counter (not
+        ``time.monotonic``) so tests that no-op ``time.sleep`` still terminate.
         """
         # Half-beat cadence so a ping always lands before the master's next
         # poll; floor 0.5s so a near-zero ``beat`` doesn't burn CPU.
         tick = max(self.multi.beat / 2, 0.5)
         remaining = total_seconds
-        # ``and self.alive``: a graceful stop can land mid-sleep; abort the
-        # remaining chunks so the backoff can't delay the master's drain loop.
+        # ``and self.alive``: abort the remaining chunks on a graceful stop so
+        # the backoff can't delay the master's drain loop.
         while remaining > 0 and self.alive:
             self.multi.pipe_ping(self.watchdog_pipe)
             chunk = min(tick, remaining)
@@ -383,8 +369,7 @@ class WorkerCron(Worker):
     def _process_db(self, db_name: str) -> None:
         """Run this worker's unit of work for one database.
 
-        Deferred import (like the registry machinery everywhere in service/):
-        base models must not load at service import time.
+        Deferred import: base models must not load at service import time.
         """
         from odoo.addons.base.models.ir_cron import IrCron
 
@@ -404,10 +389,8 @@ class WorkerCron(Worker):
             # Wait for an OS signal (wakeup pipe) or a Postgres NOTIFY.
             try:
                 self._pg_selector.select(timeout=interval)
-                # Randomized stagger after wake so concurrent workers reacting
-                # to the same NOTIFY don't all poll PG at once (thundering
-                # herd).  Shared constant keeps it in sync with the threaded
-                # cron path.
+                # Random stagger after wake so concurrent workers don't all poll
+                # PG at once (shared constant with the threaded cron path).
                 time.sleep(random.uniform(0, CRON_NOTIFY_JITTER_MAX_S))
                 empty_pipe(self.wakeup_fd_r)
             except OSError as e:
@@ -429,11 +412,9 @@ class WorkerCron(Worker):
     ) -> None:
         """Warn and sleep with exponential backoff after a failed PG connect.
 
-        Shared by the boot-time connect loop (``start``) and the per-cycle
-        reconnect (``process_work``) so the backoff formula (``min(2**n, 60)``)
-        and the watchdog-pinging sleep cadence cannot drift between the two.
-        The caller owns the attempt counter (a local at boot, the persistent
-        ``self._reconnect_attempts`` mid-run) and the loop/return control flow.
+        Shared by the boot connect loop (``start``) and the per-cycle reconnect
+        (``process_work``) so the backoff (``min(2**n, 60)``) and watchdog-pinging
+        cadence can't drift.  The caller owns the attempt counter and control flow.
         """
         backoff = min(2**attempt, 60)
         self.logger.warning(
@@ -444,23 +425,19 @@ class WorkerCron(Worker):
     def _connect_postgres(self) -> None:
         """Open (or reopen) the persistent postgres connection used for LISTEN.
 
-        Atomic: the new cursor and selector are built in locals and only
-        published to ``self.dbcursor`` / ``self._pg_selector`` once every step
-        (connect, ``arm_cron_listen``, commit, selector registration) has
-        succeeded.  If any step raises (PG restart mid-``LISTEN``), the
-        half-open cursor is torn down and ``self.dbcursor`` keeps its prior
-        value — so the next ``process_work`` cycle sees the old, closed
-        connection, re-enters the reconnect path, and retries, instead of being
-        left with a live-but-not-listening connection paired with a selector
-        watching a stale fd (which would silently drop NOTIFY-driven cron and
-        risk an ``EBADF`` from ``sleep``'s ``select``).
+        Atomic: the new cursor and selector are built in locals and published to
+        ``self.dbcursor`` / ``self._pg_selector`` only once every step succeeds.
+        If any step raises (PG restart mid-``LISTEN``), the half-open cursor is
+        torn down and ``self.dbcursor`` keeps its prior (closed) value, so the
+        next cycle re-enters the reconnect path — rather than being left with a
+        live-but-not-listening connection and a selector on a stale fd.
         """
         dbconn = db.db_connect("postgres")
         cursor = dbconn.cursor()
         try:
-            # Arm LISTEN on our channel (no-op on a replica).  disable_idle_timeout:
-            # this connection sits idle by design waiting for NOTIFY and must
-            # survive PG 18's default idle-session reaper.
+            # Arm LISTEN (no-op on a replica).  disable_idle_timeout: this
+            # connection sits idle waiting for NOTIFY and must survive PG 18's
+            # idle-session reaper.
             arm_cron_listen(
                 cursor,
                 self.logger,
@@ -489,12 +466,11 @@ class WorkerCron(Worker):
         self.logger.debug("polling for jobs")
 
         if not self.db_queue:
-            # Both ``cron_database_list`` (-> ``db_connect("postgres")``) and the
-            # notify drain can fail when PG is unreachable, so both sit inside
-            # the reconnect path: a ``PoolError`` escaping here would reach
-            # ``_runloop`` -> SystemExit(1) and the master would re-fork every
-            # ~4s — a fork storm.  ``PoolError`` is how the pool wraps connection
-            # failures (not an ``OperationalError`` subclass).
+            # ``cron_database_list`` and the notify drain both touch PG, so both
+            # sit inside the reconnect path: a ``PoolError`` escaping here would
+            # reach ``_runloop`` -> SystemExit(1) and the master would re-fork
+            # every ~4s (a fork storm).  ``PoolError`` is how the pool wraps
+            # connection failures (not an ``OperationalError`` subclass).
             try:
                 db_names = OrderedSet(cron_database_list())
                 notified = drain_cron_notifies(
@@ -506,12 +482,10 @@ class WorkerCron(Worker):
                     self.dbcursor.connection.close()
                 with contextlib.suppress(Exception):
                     self.dbcursor.close()
-                # Stay alive and escalate the backoff (up to 60s) instead of
-                # dying for the master to respawn — a respawned worker resets
-                # the counter to 0, so a sustained outage would churn forks
-                # forever.  ``_sleep_with_watchdog`` keeps pinging so the master
-                # doesn't SIGKILL us mid-backoff.  The worker only exits on its
-                # normal lifetime limit (``limit_time_worker_cron``).
+                # Stay alive and escalate the backoff (up to 60s) rather than
+                # dying: a respawn resets the counter, so a sustained outage
+                # would churn forks forever.  ``_sleep_with_watchdog`` keeps
+                # pinging so the master doesn't SIGKILL us mid-backoff.
                 try:
                     self._connect_postgres()
                     self._reconnect_attempts = 0
@@ -534,11 +508,9 @@ class WorkerCron(Worker):
         try:
             self._process_db(db_name)
         except Exception:
-            # Isolate per-database faults: _process_db (IrCron/IrJob
-            # ._process_jobs) re-raises e.g. psycopg.ProgrammingError, which
-            # would otherwise kill this worker mid-queue (dropping the remaining
-            # db_queue entries and triggering a respawn loop). Log and keep
-            # serving the other databases, matching the threaded cron driver.
+            # Isolate per-database faults: ``_process_db`` can re-raise e.g.
+            # psycopg.ProgrammingError, which would otherwise kill this worker
+            # mid-queue.  Log and keep serving the other databases.
             self.logger.warning(
                 "Uncaught error while processing jobs for database %s",
                 db_name,
@@ -564,31 +536,27 @@ class WorkerCron(Worker):
     def start(self) -> None:
         os.nice(10)  # mommy always told me to be nice with others...
         Worker.start(self)
-        # WorkerCron uses _pg_selector for its sleep; _selector (which only
-        # has wakeup_fd_r) is redundant here — release it immediately.
+        # WorkerCron sleeps on _pg_selector; _selector (only wakeup_fd_r) is
+        # redundant here — release it immediately.
         self._selector.close()
         del self._selector
         if self.multi.socket:
             self.multi.socket.close()
-        # ``env_int`` (not a raw ``int(...)``): a malformed or non-positive
-        # value would raise here — ``int("garbage")`` is ``ValueError`` and the
-        # ``LRU.count`` setter rejects <= 0 — killing the worker at boot and
-        # letting the master respawn it in a loop.  Guard-parse like every
-        # other ODOO_* knob; anything that doesn't yield a positive int keeps
-        # the default LRU size.
+        # ``env_int`` (not raw ``int(...)``) so a malformed/non-positive value
+        # doesn't kill the worker at boot; anything invalid keeps the default LRU.
         registries_size = env_int(
             "ODOO_REGISTRY_LRU_SIZE_CRON", 0, minimum=0, logger=self.logger
         )
         if registries_size > 0:
             Registry.registries.count = registries_size
 
-        # Retry the initial PG connect with exponential backoff: booting while
-        # PG is down would otherwise raise straight out of ``Worker.run()`` and
-        # the master would fork-storm replacements until PG returns.
+        # Retry the initial PG connect with exponential backoff, else booting
+        # while PG is down raises out of ``Worker.run()`` and the master
+        # fork-storms replacements until PG returns.
         attempts = 0
         # ``while self.alive`` (not ``while True``) so a graceful stop during a
-        # boot-time PG outage ends the loop and lets the worker exit cleanly,
-        # rather than hanging the master's ``stop_workers_gracefully`` drain.
+        # boot-time PG outage lets the worker exit instead of hanging the
+        # master's drain.
         while self.alive:
             try:
                 self._connect_postgres()
@@ -603,9 +571,9 @@ class WorkerCron(Worker):
         super().stop()
         if hasattr(self, "_pg_selector"):
             self._pg_selector.close()
-        # ``self.dbcursor`` exists only once ``_connect_postgres`` succeeded; if
-        # the boot backoff loop was interrupted it's unset, and an unguarded
-        # access would mask the real exception with an ``AttributeError``.
+        # ``self.dbcursor`` exists only once ``_connect_postgres`` succeeded; the
+        # guard avoids masking the real exception with an ``AttributeError`` if
+        # the boot backoff loop was interrupted.
         if hasattr(self, "dbcursor"):
             with contextlib.suppress(Exception):
                 self.dbcursor.connection.close()
@@ -616,13 +584,11 @@ class WorkerCron(Worker):
 class WorkerJob(WorkerCron):
     """Background job (``ir.job``) workers.
 
-    ``WorkerCron`` with the LISTEN channel and the per-database unit of work
-    swapped out: everything hard — the persistent LISTEN connection with
-    exponential-backoff reconnect, the watchdog-pinging sleeps, the
-    notified-first database queue, the max-age recycling — is inherited
-    unchanged.  Jobs are claimed straight from ``ir_job`` with
-    ``SKIP LOCKED`` and executed in-process, each in its own transaction
-    (see ``IrJob._process_jobs``).
+    ``WorkerCron`` with the LISTEN channel and per-database unit of work swapped
+    out; everything hard (persistent LISTEN connection with backoff reconnect,
+    watchdog-pinging sleeps, notified-first queue, max-age recycling) is
+    inherited unchanged.  Jobs are claimed from ``ir_job`` with ``SKIP LOCKED``
+    and run in-process, each in its own transaction (see ``IrJob._process_jobs``).
     """
 
     listen_channel = JOB_QUEUE_CHANNEL
