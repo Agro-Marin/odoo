@@ -61,17 +61,11 @@ $
 
 
 class OdooTestResult:
-    """
-    This class in inspired from TextTestResult and modifies TestResult
-    Instead of using a stream, we are using the logger.
+    """Holder for test result information, based on unittest's TestResult.
 
-    unittest.TestResult: Holder for test result information.
-
-    Test results are automatically managed by the TestCase and TestSuite
-    classes, and do not need to be explicitly manipulated by writers of tests.
-
-    This version does not hold a list of failure but just a count since the failure is logged immediately
-    This version is also simplied to better match our use cases
+    Logs each failure immediately rather than stashing it, so it keeps only
+    counts, not a list of failures. Results are managed automatically by
+    TestCase and TestSuite; tests never manipulate them directly.
     """
 
     _previousTestClass = None
@@ -187,10 +181,7 @@ class OdooTestResult:
         )
 
     def wasSuccessful(self) -> bool:
-        """Tells whether or not this result was a success."""
-        # The hasattr check is for test_result's OldResult test.  That
-        # way this method works on objects that lack the attribute.
-        # (where would such result intances come from? old stored pickles?)
+        """Return whether the run had no failures and no errors."""
         return self.failures_count == self.errors_count == 0
 
     def _exc_info_to_string(self, err: tuple, test: case.TestCase) -> str:
@@ -245,10 +236,7 @@ class OdooTestResult:
             self._soft_fail = False
 
     def update(self, other: OdooTestResult) -> None:
-        """Merges an other test result into this one, only updates contents
-
-        :type other: OdooTestResult
-        """
+        """Merge another result's counts and stats into this one."""
         self.failures_count += other.failures_count
         self.errors_count += other.errors_count
         self.testsRun += other.testsRun

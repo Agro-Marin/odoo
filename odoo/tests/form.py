@@ -477,7 +477,7 @@ class Form:
         return self._get_values("all")
 
     def __enter__(self) -> Form:
-        """This makes the Form usable as a context manager."""
+        """Return the form for use as a context manager."""
         return self
 
     def __exit__(
@@ -1007,8 +1007,8 @@ class M2MValue(X2MValue):
 
 
 class X2MProxy:
-    """A proxy represents the value of an x2many field, but not directly.
-    Instead, it provides an API to add, remove or edit records in the value.
+    """Proxy for an x2many field's value, exposing an API to add, remove or
+    edit its records rather than the value directly.
     """
 
     _form: Form | None = None  # Form containing the corresponding x2many field
@@ -1094,8 +1094,8 @@ class O2MProxy(X2MProxy):
 class M2MProxy(X2MProxy, collections.abc.Sequence):
     """Proxy object for editing the value of a many2many field.
 
-    Behaves as a :class:`~collection.Sequence` of recordsets, can be
-    indexed or sliced to get actual underlying recordsets.
+    Behaves as a :class:`~collections.abc.Sequence` of recordsets, can be
+    indexed or sliced to get the underlying recordsets.
     """
 
     def __getitem__(self, index: Any) -> BaseModel:
