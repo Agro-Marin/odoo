@@ -232,10 +232,7 @@ export class PosOrder extends PosOrderAccounting {
         return this.lines.some((l) => l.uiState.hasChange);
     }
     /**
-     * This function is called after the order has been successfully sent to the preparation tool(s).
-     * In the future, this status should be separated between the different preparation tools,
-     * so that if one of them returns an error, it is possible to send the information back to it
-     * without impacting the other tools.
+     * Called after the order has been successfully sent to the preparation tool(s).
      */
     updateLastOrderChange() {
         const orderlineIdx = [];

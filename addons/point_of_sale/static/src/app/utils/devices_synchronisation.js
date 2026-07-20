@@ -30,10 +30,8 @@ export default class DevicesSynchronisation {
     }
 
     /**
-     * Dispatch the synchronization of records.
-     * This method will dispatch the synchronization of records to the
-     * backend to inform others devices that a record has been updated,
-     * @param {Object} data - The data that needs to be synchronized.
+     * Notify the backend that records changed, so other devices can sync.
+     * @param {Object} data - The changed records, keyed by model.
      */
     async dispatch(data) {
         const recordIds = Object.entries(data).reduce((acc, [model, records]) => {
@@ -59,9 +57,7 @@ export default class DevicesSynchronisation {
     }
 
     /**
-     * Collect the synchronization of records.
-     * This method will collect the synchronization of records from the backend
-     * to update the records in the frontend.
+     * Handle an incoming sync notification and refresh local records.
      * @param {Object} data - The data that needs to be synchronized.
      * @param {String} data.device_identifier - Session login number.
      * @param {Number} data.session_id - Current session id.
@@ -92,9 +88,7 @@ export default class DevicesSynchronisation {
     }
 
     /**
-     * Read data from the server.
-     * This method will read the data from the server to update the records in the frontend
-     * and synchronize the records with other devices.
+     * Read updated open-order data from the server and apply it locally.
      */
     async readDataFromServer() {
         const { domain, recordIds } = this.constructOrdersDomain();
@@ -156,8 +150,7 @@ export default class DevicesSynchronisation {
     }
 
     /**
-     * Process the static records.
-     * This method will process the static records to update the records in the frontend.
+     * Apply synchronized static records to the frontend.
      * @param {Object} staticRecords - Records data that need to be synchronized.
      */
     processStaticRecords(staticRecords) {
@@ -165,8 +158,7 @@ export default class DevicesSynchronisation {
     }
 
     /**
-     * Process the dynamic records.
-     * This method will process the dynamic records to update the records in the frontend.
+     * Apply synchronized dynamic records to the frontend.
      * @param {Object} dynamicRecords - Record write dates by ids and models.
      */
     async processDynamicRecords(dynamicRecords) {
@@ -174,8 +166,7 @@ export default class DevicesSynchronisation {
     }
 
     /**
-     * Process the deleted records.
-     * This method will process the deleted records to update the records in the frontend.
+     * Remove records deleted on the backend from the frontend and IndexedDB.
      * @param {Object} deletedRecords - Ids of inexisting records in the backend by models.
      */
     processDeletedRecords(deletedRecords) {
@@ -197,8 +188,7 @@ export default class DevicesSynchronisation {
     }
 
     /**
-     * Get the open orders.
-     * This method will get local open orders with a server id.
+     * Build the domain matching local open orders that have a server id.
      * @returns {Array} - Array of domain conditions.
      */
     constructOrdersDomain() {

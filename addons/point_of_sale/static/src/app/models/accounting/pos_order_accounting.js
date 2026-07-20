@@ -61,19 +61,11 @@ export class PosOrderAccounting extends Base {
     }
 
     /**
-     * Remaining due take into account the rounding of the order, the rounding can be configured
-     * in two different ways:
+     * Remaining due, applying the order's cash rounding when within tolerance.
+     * Depending on config, rounding applies either only when a cash payment line
+     * exists, or to every order regardless of payment method.
      *
-     * 1) Rounding applied only on cash payments
-     *    In this case the remaining due is rounded only if there is at least one cash payment line.
-     *    and the remaining due is less than the rounding tolerance.
-     *
-     * 2) Rounding applied on all payment methods
-     *    In this case the remaining due is always rounded even if a card payment method is used.
-     *    The remaining due is rounded if it is less than the rounding tolerance. No payment method
-     *    is rounded in this case, the whole order is rounded instead.
-     *
-     * !!! Keep in mind that from 19.0 only one cash payment line can be used in an order !!!
+     * Note: since 19.0 an order can hold only one cash payment line.
      */
     get remainingDue() {
         const isNegative = this.totalDue < 0;
@@ -144,10 +136,8 @@ export class PosOrderAccounting extends Base {
     }
 
     /**
-     * Getters are preferred to methods because they are cached.
-     * These getters must be used each time the order prices are needed.
-     *
-     * Do not try to make your own price computation outside these getters.
+     * Cached price getters. Always read order prices through these; never
+     * recompute prices elsewhere.
      */
     get prices() {
         return this._constructPriceData();
@@ -258,9 +248,7 @@ export class PosOrderAccounting extends Base {
 
     /**
      * @private
-     *
-     * Private method computing all prices and tax details.
-     * DO NOT USE THIS METHOD OUTSIDE THIS FILE !!!
+     * Compute all prices and tax details. Do not use outside this file.
      */
     _constructPriceData(opts = {}) {
         const data = this._computeAllPrices(opts);
@@ -326,9 +314,7 @@ export class PosOrderAccounting extends Base {
 
     /**
      * @private
-     *
-     * Private method computing all prices and tax details.
-     * DO NOT USE THIS METHOD OUTSIDE THIS FILE !!!
+     * Compute all prices and tax details. Do not use outside this file.
      */
     _computeAllPrices(opts = {}) {
         const currency = this.currency;

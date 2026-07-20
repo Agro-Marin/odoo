@@ -608,13 +608,9 @@ class PosSession(models.Model):
         amount_to_balance=0,
         bank_payment_method_diffs=None,
     ):
-        # Closing is inherently a single-session operation: it creates this
-        # session's account move, pickings and statement lines, and on an
-        # imbalance rolls the *whole transaction* back (see `_validate_session`).
-        # Iterating a recordset here was unsafe — one session's rollback would
-        # discard siblings already closed in the same transaction — and no caller
-        # ever passes more than one session (`_close_session_action` and
-        # `close_session_from_ui` are both single-session). Enforce the contract.
+        # Single-session only: closing rolls the whole transaction back on an
+        # imbalance (see `_validate_session`), so iterating a recordset would
+        # discard siblings already closed in the same transaction.
         self.ensure_one()
         bank_payment_method_diffs = bank_payment_method_diffs or {}
         if any(order.state == "draft" for order in self.get_session_orders()):
@@ -738,13 +734,9 @@ class PosSession(models.Model):
                 with self.move_id._check_balanced({"records": self.move_id.sudo()}):
                     pass
             except UserError:
-                # Creating the account move is just part of a big database transaction
-                # when closing a session. There are other database changes that will happen
-                # before attempting to create the account move, such as, creating the picking
-                # records.
-                # We don't, however, want them to be committed when the account move creation
-                # failed; therefore, we need to roll back this transaction before showing the
-                # close session wizard.
+                # Roll back the earlier closing changes (e.g. picking records) so
+                # they aren't committed when the account move creation fails, before
+                # showing the close session wizard.
                 self.env.cr.rollback()
                 return self._close_session_action(balance)
 
@@ -875,10 +867,10 @@ class PosSession(models.Model):
             Pairs of payment_method_id and diff_amount which will be used to post
             loss/profit when closing the session.
 
-        If successful, it returns {'successful': True}
-        Otherwise, it returns {'successful': False, 'message': str, 'redirect': bool}.
-        'redirect' is a boolean used to know whether we redirect the user to the back end or not.
-        When necessary, error (i.e. UserError, AccessError) is raised which should redirect the user to the back end.
+        Returns ``{'successful': True}`` on success, else
+        ``{'successful': False, 'message': str, 'redirect': bool}`` where
+        ``redirect`` tells whether to send the user to the backend. A raised
+        error (UserError, AccessError) also redirects the user to the backend.
         """
         bank_payment_method_diffs = dict(bank_payment_method_diff_pairs or [])
         self.ensure_one()
@@ -943,15 +935,14 @@ class PosSession(models.Model):
         )
 
     def post_closing_cash_details(self, counted_cash):
-        """
-        Calling this method will try store the cash details during the session closing.
+        """Store the cash details during session closing.
 
         :param counted_cash: float, the total cash the user counted from its cash register
 
-        If successful, it returns ``{'successful': True}``.
-        Otherwise, it returns ``{'successful': False, 'message': str, 'redirect': bool}`` where
-        ``'redirect'`` is a boolean used to know whether we redirect the user to the back end or not.
-        When necessary, error (i.e. UserError, AccessError) is raised which should redirect the user to the back end.
+        Returns ``{'successful': True}`` on success, else
+        ``{'successful': False, 'message': str, 'redirect': bool}`` where
+        ``redirect`` tells whether to send the user to the backend. A raised
+        error (UserError, AccessError) also redirects the user to the backend.
         """
         self.ensure_one()
         check_closing_session = self._cannot_close_session()
@@ -1293,11 +1284,9 @@ class PosSession(models.Model):
         return data
 
     def _accumulate_amounts(self, data):
-        # Accumulate the amounts for each accounting lines group
-        # Each dict maps `key` -> `amounts`, where `key` is the group key.
-        # E.g. `combine_receivables_bank` is derived from pos.payment records
-        # in the self.order_ids with group key of the `payment_method_id`
-        # field of the pos.payment record.
+        # Accumulate amounts per accounting-line group. Each dict maps a group key
+        # to its amounts, e.g. `combine_receivables_bank` groups the session's
+        # pos.payment records by `payment_method_id`.
         AccountTax = self.env["account.tax"]
 
         def amounts():
@@ -1859,11 +1848,8 @@ class PosSession(models.Model):
         )
 
     def _create_cash_statement_lines_and_cash_move_lines(self, data):
-        # Create the split and combine cash statement lines and account move lines.
-        # `split_cash_statement_lines` maps `journal` -> split cash statement lines
-        # `combine_cash_statement_lines` maps `journal` -> combine cash statement lines
-        # `split_cash_receivable_lines` maps `journal` -> split cash receivable lines
-        # `combine_cash_receivable_lines` maps `journal` -> combine cash receivable lines
+        # Create the split and combine cash statement lines and their receivable
+        # move lines. Each returned dict maps a journal to its lines.
         MoveLine = data.get("MoveLine")
         split_receivables_cash = data.get("split_receivables_cash")
         combine_receivables_cash = data.get("combine_receivables_cash")
@@ -2262,40 +2248,19 @@ class PosSession(models.Model):
         round=True,
         force_company_currency=False,
     ):
-        """Responsible for adding `amounts_to_add` to `old_amounts` considering the currency of the session.
+        """Add `amounts_to_add` to `old_amounts`, handling currency conversion.
 
-            old_amounts {                                                       new_amounts {
-                amount                         amounts_to_add {                     amount
-                amount_converted        +          amount               ->          amount_converted
-               [base_amount                       [base_amount]                    [base_amount
-                base_amount_converted]        }                                     base_amount_converted]
-            }                                                                   }
+        `amount` (and `base_amount`) are in the session currency; this method
+        derives `amount_converted` (in company currency), which `amounts_to_add`
+        does not carry.
 
-        NOTE:
-            - Notice that `amounts_to_add` does not have `amount_converted` field.
-                This function is responsible in calculating the `amount_converted` from the
-                `amount` of `amounts_to_add` which is used to update the values of `old_amounts`.
-            - Values of `amount` and/or `base_amount` should always be in session's currency [1].
-            - Value of `amount_converted` should be in company's currency
-
-        [1] Except when `force_company_currency` = True. It means that values in `amounts_to_add`
-            is in company currency.
-
-        :param dict old_amounts:
-            Amounts to update
-        :param dict amounts_to_add:
-            Amounts used to update the old_amounts
-        :param date date:
-            Date used for conversion
-        :param bool round:
-            Same as round parameter of `res.currency._convert`.
-            Defaults to True because that is the default of `res.currency._convert`.
-            We put it to False if we want to round globally.
-        :param bool force_company_currency:
-            If True, the values in amounts_to_add are in company's currency.
-            Defaults to False because it is only used to anglo-saxon lines.
-
-        :returns: new amounts combining the values of `old_amounts` and `amounts_to_add`.
+        :param dict old_amounts: amounts to update
+        :param dict amounts_to_add: amounts to add (no `amount_converted` field)
+        :param date date: date used for conversion
+        :param bool round: as in `res.currency._convert`; set False to round globally
+        :param bool force_company_currency: if True, `amounts_to_add` values are
+            already in company currency (used only for anglo-saxon lines)
+        :returns: new amounts combining `old_amounts` and `amounts_to_add`
         :rtype: dict
         """
         # make a copy of the old amounts
@@ -2339,12 +2304,10 @@ class PosSession(models.Model):
         amount_converted,
         force_company_currency=False,
     ):
-        """`partial_move_line_vals` is completed by `credit`ing the given amounts.
+        """Complete `partial_move_line_vals` by crediting the given amounts.
 
-        NOTE Amounts in PoS are in the currency of journal_id in the session.config_id.
-        This means that amount fields in any pos record are actually equivalent to amount_currency
-        in account module. Understanding this basic is important in correctly assigning values for
-        'amount' and 'amount_currency' in the account.move.line record.
+        Note: POS amounts are in the session journal's currency, i.e. they map to
+        the account module's `amount_currency`, not `amount`.
 
         :param dict partial_move_line_vals:
             initial values in creating account.move.line

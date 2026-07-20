@@ -230,11 +230,10 @@ class PosPayment(models.Model):
         return result
 
     def _get_receivable_lines_for_invoice_reconciliation(self, receivable_account):
-        """
-        If this payment is linked to an account.move, this returns the corresponding receivable lines
-        that should be reconciled with the invoice's receivable lines.
-        The introduced heuristics here is important for cases where the pos receivable account is the same
-        as the receivable account of the customer.
+        """Return the payment's receivable lines to reconcile against the invoice.
+
+        The sign heuristic matters when the POS receivable account equals the
+        customer's receivable account:
 
         - positive payment -> negative balance lines
         - negative payment -> positive balance lines

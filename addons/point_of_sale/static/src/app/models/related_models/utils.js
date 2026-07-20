@@ -24,16 +24,10 @@ export function clone(obj) {
 }
 
 /**
- * Returns a new object with the same keys, but with values transformed by the provided function.
- *
- * @param {Object} obj - The input object whose values will be transformed.
- * @param {Function} fn - A function that takes (key, value, index) and returns a new value.
- * @returns {Object} A new object with the same keys but transformed values.
- *
- * @example
- * const obj = { a: 1, b: 2, c: 3 };
- * const doubled = mapObj(obj, (key, value) => value * 2);
- * console.log(doubled); // { a: 2, b: 4, c: 6 }
+ * Returns a new object with the same keys and values mapped through `fn`.
+ * @param {Object} obj - The input object.
+ * @param {Function} fn - `(key, value, index) => newValue`.
+ * @returns {Object} The new object.
  */
 export function mapObj(obj, fn) {
     return Object.fromEntries(Object.entries(obj).map(([k, v], i) => [k, fn(k, v, i)]));

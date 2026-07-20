@@ -21,39 +21,12 @@ const getDefaultConfig = () => ({
 });
 
 /**
- * This is a singleton.
+ * Singleton, exported pre-instantiated. Only one component holds the buffer at a
+ * time: holders are tracked in a stack (bufferHolderStack), the top one holds it,
+ * and unmounting pops the stack and re-sets up the buffer for the new top.
  *
- * Only one component can `use` the buffer at a time.
- * This is done by keeping track of each component (and its
- * corresponding state and config) using a stack (bufferHolderStack).
- * The component on top of the stack is the one that currently
- * `holds` the buffer.
- *
- * When the current component is unmounted, the top of the stack
- * is popped and NumberBuffer is set up again for the new component
- * on top of the stack.
- *
- * Usage
- * =====
- * - Use the buffer in a child component by calling `NumberBuffer.use(<config>)`
- *   in the constructor of the child component.
- * - The component that `uses` the buffer has access to the following instance
- *   methods of the NumberBuffer:
- *   - get()
- *   - set(val)
- *   - reset()
- *   - getFloat()
- *   - capture()
- *
- * Note
- * ====
- * - No need to instantiate as it is a singleton created before exporting in this module.
- *
- * Possible Improvements
- * =====================
- * - Relieve the buffer from responsibility of handling `Enter` and other control keys.
- * - Make the constants (ALLOWED_KEYS, etc.) more configurable.
- * - Write more integration tests. NumberPopup can be used as test component.
+ * A component uses it by calling `NumberBuffer.use(<config>)` in its constructor,
+ * then has access to get(), set(val), reset(), getFloat() and capture().
  */
 class NumberBuffer extends EventBus {
     static serviceDependencies = ["mail.sound_effects", "localization", "overlay"];

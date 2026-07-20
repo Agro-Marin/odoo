@@ -693,8 +693,8 @@ export class PosStore extends WithLazyGetterTrap {
     }
 
     /**
-     * This method is used to load new products from the server.
-     * It also load pricelists, attributes and packagings
+     * Loads new products from the server, along with their pricelists,
+     * attributes and packagings.
      * @param {Array} domain
      * @param {number} offset
      * @param {number} limit
@@ -972,10 +972,8 @@ export class PosStore extends WithLazyGetterTrap {
             return;
         }
 
-        // In the case of a product with tracking enabled, we need to ask the user for the lot/serial number.
-        // It will return an instance of pos.pack.operation.lot
-        // ---
-        // This actions cannot be handled inside pos_order.js or pos_order_line.js
+        // A tracked product needs the user to supply lot/serial numbers (returns a
+        // pos.pack.operation.lot); this can't be handled in pos_order(_line).js.
         const code = opts.code;
         let pack_lot_ids = {};
         if (values.product_tmpl_id.isTracked() && (configure || code)) {
@@ -1015,10 +1013,8 @@ export class PosStore extends WithLazyGetterTrap {
             }
         }
 
-        // In case of clicking a product with tracking weight enabled a popup will be shown to the user
-        // It will return the weight of the product as quantity
-        // ---
-        // This actions cannot be handled inside pos_order.js or pos_order_line.js
+        // A weight-tracked product prompts the user for its weight (used as
+        // quantity); this can't be handled in pos_order(_line).js.
         if (
             values.product_tmpl_id.to_weight &&
             this.config.iface_electronic_scale &&
@@ -1156,10 +1152,8 @@ export class PosStore extends WithLazyGetterTrap {
         }
     }
 
-    // In case of clicking a combo product a popup will be shown to the user
-    // It will return the combo prices and the selected products
-    // ---
-    // This actions cannot be handled inside pos_order.js or pos_order_line.js
+    // A combo product prompts the user (returns combo prices and selected
+    // products); this can't be handled in pos_order(_line).js.
     async handleComboProduct(values, order, configure = true, { line } = {}) {
         if (values.product_tmpl_id.isCombo() && configure) {
             const payload =
@@ -1222,10 +1216,8 @@ export class PosStore extends WithLazyGetterTrap {
         return true;
     }
 
-    // In case of configurable product a popup will be shown to the user
-    // We assign the payload to the current values object.
-    // ---
-    // This actions cannot be handled inside pos_order.js or pos_order_line.js
+    // A configurable product prompts the user and its payload is merged into
+    // `values`; this can't be handled in pos_order(_line).js.
     async handleConfigurableProduct(
         values,
         productTemplate,

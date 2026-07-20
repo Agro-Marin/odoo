@@ -236,16 +236,12 @@ class PosOrder(models.Model):
     def _process_payment_lines(self, pos_order, order, pos_session, draft):
         """Create account.bank.statement.lines from the dictionary given to the parent function.
 
-        If the payment_line is an updated version of an existing one, the existing payment_line will first be
-        removed before making a new one.
-        :param pos_order: dictionary representing the order.
-        :type pos_order: dict.
-        :param order: Order object the payment lines should belong to.
-        :type order: pos.order
-        :param pos_session: PoS session the order was created in.
-        :type pos_session: pos.session
-        :param draft: Indicate that the pos_order is not validated yet.
-        :type draft: bool.
+        A payment line that updates an existing one replaces it (the old one is
+        removed first).
+        :param dict pos_order: dictionary representing the order.
+        :param pos.order order: order the payment lines should belong to.
+        :param pos.session pos_session: session the order was created in.
+        :param bool draft: whether the pos_order is not validated yet.
         """
         prec_acc = order.currency_id.decimal_places
 
@@ -727,10 +723,9 @@ class PosOrder(models.Model):
             )
 
     def _compute_total_cost_in_real_time(self):
-        """
-        Compute the total cost of the order when it's processed by the server. It will compute the total cost of all the lines
-        if it's possible. If a margin of one of the order's lines cannot be computed (because of session_id.update_stock_at_closing),
-        then the margin of said order is not computed (it will be computed when closing the session).
+        """Compute the order's total cost when processed by the server. Lines
+        whose margin can't yet be computed (session_id.update_stock_at_closing)
+        are skipped; their margin is computed when the session closes.
         """
         for order in self:
             lines = order.lines
@@ -881,10 +876,9 @@ class PosOrder(models.Model):
     def write(self, vals):
         vals = dict(vals)  # never mutate the caller's dict (name/mobile below)
         # `name`, `mobile`, the has_deleted_line guard and the payment-change log
-        # are all derived from the individual order. On a multi-record write they
-        # would be applied through the single shared `vals` (or read a multi
-        # `self.currency_id`), giving every record the last order's value. Route
-        # such writes per record; plain bulk writes stay a single query.
+        # are per-order, so a multi-record write through the shared `vals` would
+        # give every record the last order's value. Route those per record; plain
+        # bulk writes stay a single query.
         if len(self) > 1 and (
             vals.get("mobile")
             or vals.get("payment_ids")
@@ -1160,13 +1154,10 @@ class PosOrder(models.Model):
         )
 
     def _is_refund_order(self):
-        """Whether the order should be treated as a refund for sign/qty purposes.
+        """Whether the order counts as a refund for sign/qty purposes: created
+        through the refund flow (``is_refund``) or with a negative net total.
 
-        An order counts as a refund either when it was explicitly created through
-        the refund flow (``is_refund``) or when its net total is negative. This is
-        the single source of truth for that rule; do not re-spell the expression
-        inline (it was previously duplicated across four call sites, one of which
-        could silently diverge and flip a tax/quantity sign).
+        Single source of truth for that rule — do not re-spell it inline.
         """
         self.ensure_one()
         return self.is_refund or self.amount_total < 0.0
@@ -1521,10 +1512,9 @@ class PosOrder(models.Model):
     ):
         """Apply the configured cash-rounding difference. For ``add_invoice_line``
         a dedicated rounding line is appended; for ``biggest_tax`` the difference
-        is folded into the largest existing tax line in place. (POS forbids the
-        biggest_tax strategy via pos.config._check_rounding_method_strategy, so
-        that branch is currently unreachable for POS orders.) Extracted from
-        ``_prepare_aml_values_list_per_nature``."""
+        is folded into the largest existing tax line in place (POS forbids
+        biggest_tax via pos.config._check_rounding_method_strategy, so that branch
+        is currently unreachable for POS orders)."""
         cash_rounding = self.config_id.rounding_method
         if (
             self.config_id.cash_rounding
@@ -1632,8 +1622,7 @@ class PosOrder(models.Model):
         payment. Combine (non-split) payments to the same receivable account are
         merged into a single partner-less line; split payments book against the
         customer's own receivable with the partner set. Mutates the passed
-        per-nature dict. Extracted verbatim from
-        ``_prepare_aml_values_list_per_nature``."""
+        per-nature dict."""
         for payment_id in self.payment_ids:
             is_split_transaction = payment_id.payment_method_id.split_transactions
             if is_split_transaction:
@@ -1865,14 +1854,12 @@ class PosOrder(models.Model):
 
     @api.model
     def sync_from_ui(self, orders):
-        """Create and update Orders from the frontend PoS application.
+        """Create and update orders from the frontend PoS application.
 
-        Create new orders and update orders that are in draft status. If an order already exists with a status
-        different from 'draft' it will be discarded, otherwise it will be saved to the database. If saved with
-        'draft' status the order can be overwritten later by this function.
+        Creates new orders and updates draft ones; an existing non-draft order is
+        discarded. Orders saved as 'draft' can be overwritten by a later call.
 
-        :param orders: dictionary with the orders to be created.
-        :type orders: dict.
+        :param dict orders: the orders to create.
         :returns: list of db-ids for the created and updated orders.
         :rtype: list
         """
@@ -2260,11 +2247,9 @@ class PosOrder(models.Model):
             ]
         )
 
-        # We will return to the frontend the ids and the date of their last modification
-        # so that it can compare to the last time it fetched the orders and can ask to fetch
-        # orders that are not up-to-date.
-        # The date of their last modification is either the last time one of its orderline has changed,
-        # or the last time a refunded orderline related to it has changed.
+        # Return each order's id and last-modification date so the frontend can
+        # refetch stale ones. That date is the latest write_date among its own
+        # orderlines and any refunded orderline related to it.
         # naive sentinel: compared against Odoo's naive ORM write_date values below
         orders_info = defaultdict(lambda: datetime.min)  # noqa: DTZ901
         for orderline in orderlines:
@@ -2449,17 +2434,12 @@ class PosOrderLine(models.Model):
             orderline.refunded_qty = -sum(refund_order_line.mapped("qty"))
 
     def _prepare_refund_data(self, refund_order, PosPackOperationLot):
-        """
-        This prepares data for refund order line. Inheritance may inject more data here
+        """Prepare the values for a refund order line. Override to inject more.
 
-        @param refund_order: the pre-created refund order
-        @type refund_order: pos.order
-
-        @param PosPackOperationLot: the pre-created Pack operation Lot
-        @type PosPackOperationLot: pos.pack.operation.lot
-
-        @return: dictionary of data which is for creating a refund order line from the original line
-        @rtype: dict
+        :param pos.order refund_order: the pre-created refund order
+        :param pos.pack.operation.lot PosPackOperationLot: the pre-created pack operation lot
+        :returns: values for creating a refund line from this line
+        :rtype: dict
         """
         self.ensure_one()
         return {

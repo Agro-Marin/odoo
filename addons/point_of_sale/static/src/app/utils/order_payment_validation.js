@@ -72,14 +72,14 @@ export default class OrderPaymentValidation {
     }
 
     /**
-     * This method can be overridden to perform checks before starting the order validation process.
+     * Override to run checks after the order has been pushed to the server.
      */
     async beforePostPushOrderResolve(order, order_server_ids) {
         return true;
     }
 
     /**
-     * This method can be overridden to perform checks before starting the order validation process.
+     * Override to control whether the invoice is downloaded.
      */
     shouldDownloadInvoice() {
         if (!this.pos.config.canInvoice) {
@@ -296,7 +296,7 @@ export default class OrderPaymentValidation {
     }
 
     /**
-     * This method can be overridden to perform checks before starting the order validation process.
+     * Override to prompt or run checks before order validation.
      */
     async askBeforeValidation() {
         return true;

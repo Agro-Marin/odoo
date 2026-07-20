@@ -8,17 +8,15 @@ _logger = logging.getLogger(__name__)
 
 
 class ResConfigSettings(models.TransientModel):
-    """
-    NOTES
-    1. Fields with name starting with 'pos_' are removed from the vals before super call to `create`.
-       Values of these fields are written to `pos_config_id` record after the super call.
-       This is done so that these fields are written at the same time to the active pos.config record.
-    2. During `creation` of this record, each related field is written to the source record
-       *one after the other*, so constraints on the source record that are based on multiple
-       fields might not work properly. However, only the *modified* related fields are written
-       to the source field. But the identification of modified fields happen during the super
-       call, not before `create` is called. Because of this, vals contains a lot of field before
-       super call, then the number of fields is reduced after.
+    """POS settings proxy over the active ``pos.config``.
+
+    'pos_'-prefixed fields are stripped from the vals before ``create`` and
+    written to ``pos_config_id`` after it, so they all land on the config at once.
+
+    Related fields are written to the source record one at a time, so multi-field
+    constraints there may not hold. Only *modified* related fields are written,
+    but that set is only known after the super call — so vals is large before it
+    and reduced after.
     """
 
     _inherit = "res.config.settings"

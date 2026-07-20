@@ -9,10 +9,9 @@ import { effect } from "@web/core/utils/reactive";
 
 import { logPosMessage } from "../utils/pretty_console_log.js";
 /**
- * This object interfaces with the local proxy to communicate to the various hardware devices
- * connected to the Point of Sale. As the communication only goes from the POS to the proxy,
- * methods are used both to signal an event, and to fetch information. Maybe could be improved
- * by using the bus for two-way communication?
+ * Interfaces with the local proxy to reach the hardware devices connected to the
+ * Point of Sale. Communication is POS-to-proxy only, so methods both signal
+ * events and fetch information.
  */
 export class HardwareProxy extends EventBus {
     static serviceDependencies = [];

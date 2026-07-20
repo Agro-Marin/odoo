@@ -1,21 +1,12 @@
 /** @odoo-module native */
 /**
- * Implement this interface to support a new payment method in the POS:
+ * Implement this interface to support a new payment method in the POS, then
+ * register it (`'my_payment'` is its technical name in use_payment_terminal):
  *
  * import { PaymentInterface } from "@point_of_sale/app/utils/payment/payment_interface";
+ * import { register_payment_method } from "@point_of_sale/app/store/pos_store";
  * class MyPayment extends PaymentInterface {}
- *
- * To connect the interface to the right payment methods register it:
- *
- * import { register_payment_method } models from "@point_of_sale/app/store/pos_store";
  * register_payment_method('my_payment', MyPayment);
- *
- * my_payment is the technical name of the added selection in
- * use_payment_terminal.
- *
- * If necessary new fields can be loaded on any model:
- * by overriding the loader_params of the models in the back end
- * in the `pos.session` model
  */
 export class PaymentInterface {
     constructor(pos, payment_method_id) {
@@ -40,20 +31,13 @@ export class PaymentInterface {
     }
 
     /**
-     * Called when a user clicks the "Send" button in the
-     * interface. This should initiate a payment request and return a
-     * Promise that resolves when the final status of the payment line
-     * is set with setPaymentStatus.
-     *
-     * For successful transactions setReceiptInfo() should be used
-     * to set info that should to be printed on the receipt. You
-     * should also set card_type and transaction_id on the line for
-     * successful transactions.
+     * Called when the user clicks "Send". Initiates a payment request and sets
+     * the line's final status via setPaymentStatus. On success, set the receipt
+     * info via setReceiptInfo() and set card_type and transaction_id on the line.
      *
      * @param {string} uuid - The uuid of the paymentline
-     * @returns {Promise} resolved with a boolean that is false when
-     * the payment should be retried. Rejected when the status of the
-     * paymentline will be manually updated.
+     * @returns {Promise} resolves to false when the payment should be retried;
+     *   rejects when the paymentline status will be updated manually.
      */
     sendPaymentRequest(uuid) {}
 
