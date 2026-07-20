@@ -1198,6 +1198,16 @@ class WebsiteSlides(WebsiteProfile):
             return fetch_res
         slide = fetch_res['slide']
 
+        # _fetch_slide only proves read access. Editing a quiz is a publisher
+        # action and must be gated like every other mutating route here (see
+        # slide_category_add / slide_archive / slide_preview). Without this, the
+        # only remaining check was the survey.question ACL, which is not scoped
+        # to the courses the caller owns — so anyone holding Survey User rights
+        # could rewrite the quiz of a course they have no publish rights on,
+        # bypassing rule_slide_slide_officer_cw.
+        if not slide.channel_id.can_publish:
+            raise werkzeug.exceptions.Forbidden
+
         # Ensure this slide has a linked survey for questions
         slide._ensure_quiz_survey()
 
@@ -1221,8 +1231,12 @@ class WebsiteSlides(WebsiteProfile):
         except ValidationError as e:
             return {'error': e.args[0]}
 
+        # sudo: same rationale as _ensure_quiz_survey — the questions of a quiz
+        # belong to the slide, and the caller's right to edit them was settled by
+        # the can_publish check above. Scoping the search to `slide.survey_id`
+        # keeps an id from another course out of reach.
         if existing_question_id:
-            request.env['survey.question'].search([
+            request.env['survey.question'].sudo().search([
                 ('survey_id', '=', slide.survey_id.id),
                 ('id', '=', int(existing_question_id)),
             ]).unlink()
@@ -1232,7 +1246,7 @@ class WebsiteSlides(WebsiteProfile):
             ('partner_id', '=', request.env.user.partner_id.id),
         ]).write({'completed': False})
 
-        survey_question = request.env['survey.question'].create(new_question_values)
+        survey_question = request.env['survey.question'].sudo().create(new_question_values)
         # Map survey.question fields to the dict keys expected by the QWeb template
         is_designer = request.env.user.has_group('website.group_website_designer')
         question_data = {

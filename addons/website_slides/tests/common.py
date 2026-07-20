@@ -108,30 +108,26 @@ class SlidesCase(MailCase):
             'sequence': 4,
             'quiz_first_attempt_reward': 42,
         })
-        # Create a lightweight survey for quiz questions on slide_3
-        cls.quiz_survey = cls.env['survey.survey'].with_user(cls.user_officer).create({
-            'title': 'Quiz: How To Cook Humans For Humans',
-            'scoring_type': 'scoring_without_answers',
-            'scoring_success_min': 100.0,
-            'questions_layout': 'one_page',
-            'questions_selection': 'all',
-            'access_mode': 'public',
-            'certification': False,
-            'is_attempts_limited': False,
-        })
-        cls.slide_3.survey_id = cls.quiz_survey
-        cls.question_1 = cls.env['survey.question'].with_user(cls.user_officer).create({
+        # Create a lightweight survey for quiz questions on slide_3, through the
+        # supported path. An eLearning officer holds no direct survey.survey
+        # rights (website_slides_survey confines them to certifications), so
+        # building the fixture as user_officer raised AccessError and took the
+        # whole suite down at setUpClass. _ensure_quiz_survey is the API the
+        # controller uses, and it owns the sudo.
+        cls.slide_3._ensure_quiz_survey()
+        cls.quiz_survey = cls.slide_3.survey_id
+        cls.question_1 = cls.env['survey.question'].sudo().create({
             'title': 'How long should be cooked a human?',
             'survey_id': cls.quiz_survey.id,
             'question_type': 'simple_choice',
         })
-        cls.answer_1 = cls.env['survey.question.answer'].with_user(cls.user_officer).create({
+        cls.answer_1 = cls.env['survey.question.answer'].sudo().create({
             'question_id': cls.question_1.id,
             'value': "25' at 180°C",
             'is_correct': True,
             'answer_score': 1.0,
         })
-        cls.answer_2 = cls.env['survey.question.answer'].with_user(cls.user_officer).create({
+        cls.answer_2 = cls.env['survey.question.answer'].sudo().create({
             'question_id': cls.question_1.id,
             'value': "Raw",
             'is_correct': False,

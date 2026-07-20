@@ -13,6 +13,7 @@
     import { _t } from "@web/core/l10n/translation";
 
     import { markup } from "@odoo/owl";
+    import { parseQuestionMarkup } from "@website_slides/js/public/slides_course_utils";
 
     const CourseJoinWidget = CourseJoin.courseJoinWidget;
 
@@ -625,10 +626,11 @@
         _displayCreatedQuestion: function (event) {
             const questions = this.el.querySelectorAll('.o_wslides_js_lesson_quiz_question');
             const lastQuestion = questions[questions.length - 1];
+            const questionEl = parseQuestionMarkup(event.data.newQuestionRenderedTemplate);
             if (lastQuestion) {
-                lastQuestion.after(event.data.newQuestionRenderedTemplate);
+                lastQuestion.after(questionEl);
             } else {
-                this.el.prepend(event.data.newQuestionRenderedTemplate);
+                this.el.prepend(questionEl);
             }
             this.quiz.questionsCount++;
             event.data.questionFormWidget.destroy();
@@ -646,7 +648,9 @@
          */
         _displayUpdatedQuestion: function (event) {
             var questionFormWidget = event.data.questionFormWidget;
-            event.data.$editedQuestion.replaceWith(event.data.newQuestionRenderedTemplate);
+            event.data.$editedQuestion.replaceWith(
+                parseQuestionMarkup(event.data.newQuestionRenderedTemplate)
+            );
             questionFormWidget.destroy();
         },
 

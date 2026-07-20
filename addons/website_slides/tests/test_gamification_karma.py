@@ -128,7 +128,12 @@ class TestKarmaGain(common.SlidesCase):
         self.assertEqual(len(channel_partners), 4)
 
         # Set courses as completed and update karma
-        with self.assertQueryCount(74):  # com 55; +3 survey; +5 nudge/engagement
+        # Recalibrated: this test could not run at all on the fork (setUpClass
+        # raised AccessError building the quiz survey as an officer), so the old
+        # 74 predated the fork's quiz→survey.question rework. The per-user slide
+        # fields are now correctly keyed per uid (depends_context), so reading
+        # them for two members no longer collides on one shared cache entry.
+        with self.assertQueryCount(76):
             channel_partners._post_completion_update_hook()
 
         computed_karma = self.channel.karma_gen_channel_finish + self.channel_2.karma_gen_channel_finish
@@ -147,7 +152,8 @@ class TestKarmaGain(common.SlidesCase):
             self.assertEqual(user_trackings[1].origin_ref, self.channel)
 
         # now, remove the membership in batch, on multiple users - karma should not move as we only archive membership
-        with self.assertQueryCount(9):
+        # Recalibrated from 9 alongside the count above (resurrected test).
+        with self.assertQueryCount(10):
             (self.channel | self.channel_2)._remove_membership(users.partner_id.ids)
 
         for user in users:
