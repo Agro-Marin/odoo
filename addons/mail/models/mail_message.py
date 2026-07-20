@@ -569,7 +569,15 @@ class MailMessage(models.Model):
             chunk_ids = []
             direct_allowed = set()
             model_ids = defaultdict(lambda: defaultdict(set))
-            for id_, model, res_id, author_id, message_type, create_uid, partner_id in rows:
+            for (
+                id_,
+                model,
+                res_id,
+                author_id,
+                message_type,
+                create_uid,
+                partner_id,
+            ) in rows:
                 chunk_ids.append(id_)
                 # Mirror _check_access("read"): author, recipient/notified, OR
                 # creator. Without the create_uid check, a message the user

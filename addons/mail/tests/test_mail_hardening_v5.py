@@ -82,7 +82,9 @@ class TestPushDeviceOwnership(MailCommon):
         attacker = self.user_employee
 
         Device.with_user(attacker).unregister_devices(endpoint="https://p/ep1")
-        self.assertTrue(device.exists(), "victim device must survive attacker unregister")
+        self.assertTrue(
+            device.exists(), "victim device must survive attacker unregister"
+        )
 
         Device.with_user(attacker).register_devices(
             vapid_public_key=vapid,
@@ -102,9 +104,7 @@ class TestChannelStructuralWriteACL(MailCommon):
         membership; structural writes (rename / archive / re-authorize) must be
         blocked for a non-member internal user, and allowed for a member.
         """
-        channel = self.env["discuss.channel"]._create_channel(
-            name="Sec", group_id=None
-        )
+        channel = self.env["discuss.channel"]._create_channel(name="Sec", group_id=None)
         employee = self.user_employee
         as_attacker = self.env["discuss.channel"].with_user(employee).browse(channel.id)
 
@@ -256,13 +256,17 @@ class TestMailSendPartialFailure(MailCommon):
                 {"name": "P3", "email": "p3@ext.example.com"},
             ]
         )
-        mail = self.env["mail.mail"].sudo().create(
-            {
-                "subject": "s",
-                "body_html": "<p>x</p>",
-                "email_from": "from@example.com",
-                "recipient_ids": [Command.set(partners.ids)],
-            }
+        mail = (
+            self.env["mail.mail"]
+            .sudo()
+            .create(
+                {
+                    "subject": "s",
+                    "body_html": "<p>x</p>",
+                    "email_from": "from@example.com",
+                    "recipient_ids": [Command.set(partners.ids)],
+                }
+            )
         )
 
         attempted = []

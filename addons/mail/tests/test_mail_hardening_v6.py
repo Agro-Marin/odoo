@@ -385,7 +385,9 @@ class TestMessageCreateUidSearchSymmetry(MailCommon):
         )
         message.with_user(creator).check_access("read")  # readable
         found = (
-            self.env["mail.message"].with_user(creator).search([("id", "=", message.id)])
+            self.env["mail.message"]
+            .with_user(creator)
+            .search([("id", "=", message.id)])
         )
         self.assertEqual(found, message, "a created message must be searchable too")
 

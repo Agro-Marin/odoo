@@ -68,7 +68,7 @@ class MailIceServer(models.Model):
                 payload = json.loads(cached)
                 if datetime.datetime.fromisoformat(payload["expiry"]) > now:
                     return payload["servers"]
-            except (ValueError, KeyError, TypeError):
+            except ValueError, KeyError, TypeError:
                 pass  # malformed / legacy cache: refetch below
 
         servers = self._fetch_twilio_ice_servers(account_sid, auth_token)

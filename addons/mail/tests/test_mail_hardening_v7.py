@@ -195,9 +195,7 @@ class TestMessageSearchCountCap(MailCommon):
             )
 
         # fewer matches than the cap -> exact count
-        exact = Message._message_fetch(
-            domain=None, thread=channel, search_term="zzcap"
-        )
+        exact = Message._message_fetch(domain=None, thread=channel, search_term="zzcap")
         self.assertEqual(exact["count"], 8)
 
         # more matches than the cap -> count is bounded, page fetch unaffected
@@ -236,9 +234,7 @@ class TestGatewayReplyCorrelationSudo(MailCommon):
         found = (
             self.env["mail.thread"]
             .with_user(self.user_employee)
-            ._get_parent_message(
-                {"in_reply_to": "<hv7-parent@test>", "references": ""}
-            )
+            ._get_parent_message({"in_reply_to": "<hv7-parent@test>", "references": ""})
         )
         self.assertEqual(
             found,

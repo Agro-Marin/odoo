@@ -36,6 +36,7 @@ class TestFontToImg(HttpCase):
         would raise ValueError on this unauthenticated (auth="none") route."""
         response = self.url_open("/mail/font_to_img/99999999999")
         self.assertEqual(
-            response.status_code, 404,
+            response.status_code,
+            404,
             "out-of-range code point should be a clean 404, not a 500",
         )

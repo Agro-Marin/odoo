@@ -226,7 +226,9 @@ class MailTrackingDurationMixin(models.AbstractModel):
             SQL(
                 query,
                 table=SQL.identifier(self._table),
-                last_update_field=SQL.identifier(self._track_duration_last_update_field),
+                last_update_field=SQL.identifier(
+                    self._track_duration_last_update_field
+                ),
                 stage_table=SQL.identifier(self[self._track_duration_field]._table),
                 stage_table_alias_name=SQL.identifier(stage_table_alias_name),
                 stage_field=SQL.identifier(self._track_duration_field),

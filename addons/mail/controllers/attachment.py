@@ -130,7 +130,7 @@ class AttachmentController(ThreadController):
         """
         try:
             ids_list = list(map(int, file_ids.split(",")))
-        except (TypeError, ValueError):
+        except TypeError, ValueError:
             raise NotFound from None
         attachments = request.env["ir.attachment"].browse(ids_list).exists()
         # Filter to readable attachments up front rather than letting

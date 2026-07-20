@@ -76,8 +76,15 @@ class TestMailHardeningV8(MailCommon):
                 "model": "res.partner",
                 "res_id": partner.id,
                 "tracking_value_ids": [
-                    (0, 0, {"field_id": field.id,
-                            "old_value_char": "x", "new_value_char": "y"}),
+                    (
+                        0,
+                        0,
+                        {
+                            "field_id": field.id,
+                            "old_value_char": "x",
+                            "new_value_char": "y",
+                        },
+                    ),
                     (4, seed_tv.id),
                 ],
             }
@@ -118,8 +125,9 @@ class TestMailHardeningV8(MailCommon):
         # a total failure is surfaced (the persisted state is the caller's to
         # roll back, so it is intentionally not asserted here).
         with (
-            patch.object(IrMailServer, "_connect__",
-                         lambda self, *a, **k: _DummySession()),
+            patch.object(
+                IrMailServer, "_connect__", lambda self, *a, **k: _DummySession()
+            ),
             patch.object(IrMailServer, "_disable_send", lambda self: False),
             patch.object(IrMailServer, "send_email", _raise_no_recipient),
         ):
@@ -145,7 +153,9 @@ class TestMailHardeningV8(MailCommon):
             ),
         ):
             rendered = template._render_field(
-                "subject", res_ids, compute_lang=True,
+                "subject",
+                res_ids,
+                compute_lang=True,
                 res_ids_lang={res_ids[0]: "en_US"},
             )
         self.assertIn(res_ids[0], rendered)
@@ -179,7 +189,8 @@ class TestMailHardeningV8(MailCommon):
             },
         )
         inbox = [
-            r for r in recipients
+            r
+            for r in recipients
             if r["id"] == user.partner_id.id and r["notif"] == "inbox"
         ]
         self.assertTrue(
