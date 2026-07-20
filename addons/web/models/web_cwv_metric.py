@@ -139,8 +139,17 @@ class WebCwvMetric(models.Model):
         The DB-level CHECK constraints still apply, and ``recorded_at`` is
         stamped in UTC to match ``_gc_old_metrics``' cutoff convention.
         """
-        cols = ("url", "user_id", "lcp", "fcp", "cls", "ttfb", "inp",
-                "user_agent", "pageview_id")
+        cols = (
+            "url",
+            "user_id",
+            "lcp",
+            "fcp",
+            "cls",
+            "ttfb",
+            "inp",
+            "user_agent",
+            "pageview_id",
+        )
         params = {
             # ``or None`` maps False → SQL NULL for the id/text columns; the
             # numeric metrics are passed through untouched so a legitimate 0.0

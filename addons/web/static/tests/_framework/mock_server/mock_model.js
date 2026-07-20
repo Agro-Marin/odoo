@@ -3875,7 +3875,7 @@ export class Model extends Array {
                 // field to the read spec whose mock model was not updated).
                 throw new Error(
                     `MockServer: model "${this._name}" has no field ` +
-                        `"${fieldName}" referenced in a web_read specification`
+                        `"${fieldName}" referenced in a web_read specification`,
                 );
             }
             const relatedFields = spec[fieldName].fields;
