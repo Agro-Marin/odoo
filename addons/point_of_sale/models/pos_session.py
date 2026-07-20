@@ -608,57 +608,58 @@ class PosSession(models.Model):
         amount_to_balance=0,
         bank_payment_method_diffs=None,
     ):
+        # Closing is inherently a single-session operation: it creates this
+        # session's account move, pickings and statement lines, and on an
+        # imbalance rolls the *whole transaction* back (see `_validate_session`).
+        # Iterating a recordset here was unsafe — one session's rollback would
+        # discard siblings already closed in the same transaction — and no caller
+        # ever passes more than one session (`_close_session_action` and
+        # `close_session_from_ui` are both single-session). Enforce the contract.
+        self.ensure_one()
         bank_payment_method_diffs = bank_payment_method_diffs or {}
-        results = []
-        for session in self:
-            if any(order.state == "draft" for order in session.get_session_orders()):
-                raise UserError(
-                    _(
-                        "You cannot close the POS while there are still draft orders for the day."
-                    )
-                )
-            if session.state == "closed":
-                raise UserError(_("This session is already closed."))
-            stop_at = session.stop_at or fields.Datetime.now()
-            session.write({"state": "closing_control", "stop_at": stop_at})
-            if not session.config_id.cash_control:
-                results.append(
-                    session.action_pos_session_close(
-                        balancing_account, amount_to_balance, bank_payment_method_diffs
-                    )
-                )
-                continue
-            # If the session is in rescue, we only compute the payments in the cash register
-            # It is not yet possible to close a rescue session through the front end, see `close_session_from_ui`
-            if session.rescue and session.config_id.cash_control:
-                default_cash_payment_method_id = session.payment_method_ids.filtered(
-                    lambda pm: pm.type == "cash"
-                )[0]
-                orders = session._get_closed_orders()
-                total_cash = (
-                    sum(
-                        orders.payment_ids.filtered(
-                            lambda p, default_cash_payment_method_id=default_cash_payment_method_id: (
-                                p.payment_method_id == default_cash_payment_method_id
-                            )
-                        ).mapped("amount")
-                    )
-                    + session.cash_register_balance_start
-                )
-
-                session.cash_register_balance_end_real = total_cash
-
-            results.append(
-                session.action_pos_session_validate(
-                    balancing_account, amount_to_balance, bank_payment_method_diffs
+        if any(order.state == "draft" for order in self.get_session_orders()):
+            raise UserError(
+                _(
+                    "You cannot close the POS while there are still draft orders for the day."
                 )
             )
-        # Preserve the singleton contract: callers (and the front end) expect an
-        # action dict for a single session. For multi-session recordsets return
-        # the list of per-session results.
-        if len(self) == 1:
-            return results[0]
-        return results or None
+        if self.state == "closed":
+            raise UserError(_("This session is already closed."))
+        stop_at = self.stop_at or fields.Datetime.now()
+        self.write({"state": "closing_control", "stop_at": stop_at})
+        if not self.config_id.cash_control:
+            return self.action_pos_session_close(
+                balancing_account, amount_to_balance, bank_payment_method_diffs
+            )
+        # If the session is in rescue, we only compute the payments in the cash register
+        # It is not yet possible to close a rescue session through the front end, see `close_session_from_ui`
+        if self.rescue and self.config_id.cash_control:
+            # `is_cash_count` is the canonical "this is the cash method" predicate
+            # (stored compute of `type == 'cash'`); use it consistently and guard
+            # the empty case instead of an unchecked `[0]` (raw IndexError).
+            default_cash_payment_method_id = self.payment_method_ids.filtered(
+                "is_cash_count"
+            )[:1]
+            if not default_cash_payment_method_id:
+                raise UserError(
+                    _(
+                        "This point of sale has cash control enabled but no cash "
+                        "payment method, so its cash register cannot be counted."
+                    )
+                )
+            orders = self._get_closed_orders()
+            total_cash = (
+                sum(
+                    orders.payment_ids.filtered(
+                        lambda p: p.payment_method_id == default_cash_payment_method_id
+                    ).mapped("amount")
+                )
+                + self.cash_register_balance_start
+            )
+            self.cash_register_balance_end_real = total_cash
+        return self.action_pos_session_validate(
+            balancing_account, amount_to_balance, bank_payment_method_diffs
+        )
 
     def action_pos_session_validate(
         self,

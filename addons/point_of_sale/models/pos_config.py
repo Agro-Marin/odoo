@@ -57,7 +57,17 @@ class PosConfig(models.Model):
         )
 
     def _default_payment_methods(self):
-        """Should only default to payment methods that are compatible to this config's company and currency."""
+        """Default to existing payment methods compatible with this config's
+        company and currency.
+
+        This is a *field default*: it runs on form load / ``new()`` /
+        ``default_get``, not only on real record creation, so it must have NO
+        side effects. When no compatible method exists, ``create()`` provisions
+        the journal and methods instead (``_create_journal_and_payment_methods``,
+        whose own docstring requires it to run only at creation time). Creating
+        journals/methods from here left orphan accounting records behind whenever
+        a new-config form was opened and then abandoned.
+        """
         domain = [
             *self.env["pos.payment.method"]._check_company_domain(self.env.company),
             ("split_transactions", "=", False),
@@ -71,9 +81,6 @@ class PosConfig(models.Model):
         available_cash_pm = self.env["pos.payment.method"].search(
             domain + [("is_cash_count", "=", True), ("config_ids", "=", False)], limit=1
         )
-        if not (non_cash_pm or available_cash_pm):
-            _dummy, payment_methods = self._create_journal_and_payment_methods()
-            return self.env["pos.payment.method"].browse(payment_methods)
         return non_cash_pm | available_cash_pm
 
     def _get_group_pos_manager(self):
@@ -979,6 +986,17 @@ class PosConfig(models.Model):
             self._check_header_footer(vals)
 
         pos_configs = super().create(vals_list)
+        # Provision the journal + payment methods here rather than in the field
+        # default (which fires on mere form load). A config ends up with no
+        # payment method only when `_default_payment_methods` found none existing,
+        # so this reproduces the old default's "create iff none exists" behaviour,
+        # without leaking accounting records from abandoned new-config forms.
+        for config in pos_configs:
+            if not config.payment_method_ids:
+                _dummy, payment_methods = config._create_journal_and_payment_methods()
+                config.payment_method_ids = self.env["pos.payment.method"].browse(
+                    payment_methods
+                )
         pos_configs._create_sequences()
         pos_configs.sudo()._check_modules_to_install()
         pos_configs.sudo()._check_groups_implied()

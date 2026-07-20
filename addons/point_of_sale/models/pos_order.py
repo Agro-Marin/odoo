@@ -1434,7 +1434,10 @@ class PosOrder(models.Model):
 
     def _prepare_aml_values_list_per_nature(self):
         AccountTax = self.env["account.tax"]
-        sign = 1 if self.amount_total < 0 else -1
+        # Single source of truth for refund detection (see `_is_refund_order`):
+        # an `is_refund` order whose net total is >= 0 must still be signed as a
+        # refund, matching the `move_type`/quantity signing used everywhere else.
+        sign = 1 if self._is_refund_order() else -1
         commercial_partner = self.partner_id.commercial_partner_id
         company_currency = self.company_id.currency_id
         rate = self.currency_id._get_conversion_rate(

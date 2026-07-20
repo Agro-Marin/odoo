@@ -27,14 +27,21 @@ class ResCompany(models.Model):
         # would crash validation. Skip those rows — the partial registry
         # cannot represent them, and the provider they come from is not
         # usable in it either.
-        custom_modes = dict(
-            self.env["payment.provider"]._fields["custom_mode"].get_description(
-                self.env
-            )["selection"]
-        )
-        providers_sudo = providers_sudo.filtered(
-            lambda p: not p.custom_mode or p.custom_mode in custom_modes
-        )
+        #
+        # `custom_mode` itself is contributed by `payment_custom`, so it may not
+        # be in the registry at all (base `payment` does not depend on it).
+        # Guard the field access: with no `custom_mode` field there can be no
+        # custom-mode provider rows to filter out.
+        PaymentProvider = self.env["payment.provider"]
+        if "custom_mode" in PaymentProvider._fields:
+            custom_modes = dict(
+                PaymentProvider._fields["custom_mode"].get_description(self.env)[
+                    "selection"
+                ]
+            )
+            providers_sudo = providers_sudo.filtered(
+                lambda p: not p.custom_mode or p.custom_mode in custom_modes
+            )
         for company in companies:
             if company.parent_id:  # The company is a branch.
                 continue  # Only consider top-level companies for provider duplication.

@@ -60,22 +60,17 @@ class AccountTax(models.Model):
         tax_to_compute -= used_taxes
         if tax_to_compute:
             self.env["pos.order.line"].flush_model(["tax_ids"])
-            # `= ANY(%s)` over a list, not `IN %s` over a tuple: this fork runs
-            # psycopg3, which adapts a tuple as a composite row rather than an
-            # IN-list, so the tuple form raised `syntax error at or near "$1"`.
-            # That aborted _compute_is_used for every tax, which broke
-            # TestPoSCommon.setUpClass (_create_taxes) and with it the whole
-            # point_of_sale Python test suite. Mirrors the write() guard above.
+            # Expand the id set with `= ANY(%s)` + a list, mirroring the `write()`
+            # guard above and account's own `_compute_is_used`. The legacy
+            # `IN %s` + tuple form is psycopg2-only; under this fork's psycopg3 it
+            # raises `syntax error at or near "$1"`. A distinct scan of the m2m
+            # relation is equivalent to (and cheaper than) the correlated EXISTS
+            # against account_tax, since every id in the relation is a valid tax.
             self.env.cr.execute(
                 """
-                SELECT id
-                FROM account_tax
-                WHERE EXISTS(
-                    SELECT 1
-                    FROM account_tax_pos_order_line_rel AS pos
-                    WHERE pos.account_tax_id = ANY(%s)
-                      AND account_tax.id = pos.account_tax_id
-                )
+                SELECT DISTINCT account_tax_id
+                FROM account_tax_pos_order_line_rel
+                WHERE account_tax_id = ANY(%s)
                 """,
                 [list(tax_to_compute)],
             )

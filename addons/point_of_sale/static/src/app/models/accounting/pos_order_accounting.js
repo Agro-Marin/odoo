@@ -264,14 +264,22 @@ export class PosOrderAccounting extends Base {
      */
     _constructPriceData(opts = {}) {
         const data = this._computeAllPrices(opts);
-        // baseLineOpts must be MERGED: the unit-price dataset passes
-        // { baseLineOpts: { quantity: 1 } }, and a plain spread would replace
-        // the discount override entirely — every no_discount_* unit price was
-        // computed WITH the discount.
-        const noDiscount = this._computeAllPrices({
-            ...opts,
-            baseLineOpts: { ...(opts.baseLineOpts || {}), discount: 0.0 },
-        });
+        // The "no discount" dataset only differs from `data` when a line actually
+        // carries a discount; it exists to derive the discount amount and the
+        // pre-discount subtotals. When nothing is discounted it equals `data`, so
+        // skip the second full tax computation and reuse it — halving the passes
+        // per recompute in the common (no-discount) case. When it IS needed,
+        // baseLineOpts must be MERGED, not replaced: the unit-price dataset passes
+        // { baseLineOpts: { quantity: 1 } }, and a plain spread would drop that
+        // override — every no_discount_* unit price would then be computed at the
+        // real quantity instead of 1.
+        const lines = opts.lines || this.lines;
+        const noDiscount = lines.some((l) => l.getDiscount() > 0)
+            ? this._computeAllPrices({
+                  ...opts,
+                  baseLineOpts: { ...(opts.baseLineOpts || {}), discount: 0.0 },
+              })
+            : data;
         const currency = this.currency;
 
         for (const key of Object.keys(data.baseLineByLineUuids)) {
