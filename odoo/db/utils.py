@@ -122,16 +122,13 @@ _HEALTH_PARAMS: dict[str, str] = {
 
 
 def connection_info_for(db_or_uri: str, readonly: bool = False) -> tuple[str, dict]:
-    """parse the given `db_or_uri` and return a 2-tuple (dbname, connection_params)
+    """Parse *db_or_uri* into a ``(dbname, connection_params)`` tuple.
 
-    Connection params are either a dictionary with a single key ``dsn``
-    containing a connection URI, or a dictionary containing connection
-    parameter keywords which psycopg can build a key/value connection string
-    (dsn) from
+    ``connection_params`` is either ``{"dsn": <URI>}`` or a dict of psycopg
+    connection keywords.
 
     :param str db_or_uri: database name or postgres dsn
-    :param bool readonly: used to load
-        the default configuration from ``db_`` or ``db_replica_``.
+    :param bool readonly: load defaults from ``db_replica_*`` instead of ``db_*``.
     :rtype: (str, dict)
     """
     global _ODOO_PGAPPNAME_WARNED  # noqa: PLW0603 — process-wide once-flag
@@ -145,7 +142,7 @@ def connection_info_for(db_or_uri: str, readonly: bool = False) -> tuple[str, di
             )
             _ODOO_PGAPPNAME_WARNED = True
         app_name = os.environ["ODOO_PGAPPNAME"]
-    # Using manual string interpolation for security reason and trimming at default NAMEDATALEN=63
+    # Manual interpolation (security), trimmed to the default NAMEDATALEN=63.
     app_name = app_name.replace("{pid}", str(os.getpid()))[:63]
 
     if db_or_uri.startswith(("postgresql://", "postgres://")):

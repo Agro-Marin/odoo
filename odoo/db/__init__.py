@@ -1,18 +1,14 @@
-"""
-Database connectivity layer for Odoo.
+"""PostgreSQL connectivity layer for Odoo.
 
-This package provides the PostgreSQL connectivity layer including:
 - Connection pooling (ConnectionPool, Connection)
 - Cursor management (BaseCursor, Cursor, Savepoint)
-- Utility functions (connection_info_for, categorize_query)
+- Utilities (connection_info_for, categorize_query)
 
-Usage:
-    from odoo.db import db_connect, close_db, close_all
+Usage::
 
-    # Get a connection
-    conn = db_connect('mydb')
+    from odoo.db import db_connect
 
-    # Create a cursor for transactions
+    conn = db_connect("mydb")
     with conn.cursor() as cr:
         cr.execute("SELECT * FROM res_users")
         rows = cr.fetchall()
@@ -72,19 +68,17 @@ def _get_pool(readonly: bool) -> ConnectionPool:
         with _pool_lock:
             pool = _Pool_readonly if readonly else _Pool
             if pool is None:
-                # NB: hasattr(odoo, "evented") is the standard pattern for
-                # detecting gevent mode — set once at startup, never changes.
+                # hasattr(odoo, "evented") detects gevent mode (set at startup).
                 maxconn = (
                     tools.config["db_maxconn_gevent"]
                     if hasattr(odoo, "evented") and odoo.evented
                     else 0
                 ) or tools.config["db_maxconn"]
                 # Lazy by default (0); raise db_minconn to keep connections warm.
-                # ``or 0`` coerces an explicit None/empty back to that default.
+                # ``or 0`` coerces an explicit None/empty back to the default.
                 minconn = tools.config["db_minconn"] or 0
-                # Pool lifecycle tuning is configured here (one place) and passed
-                # in, rather than read from module constants/env inside the pool —
-                # see the db_* options in tools/config.py.
+                # Pool tuning is read from config here and passed in — see the
+                # db_* options in tools/config.py.
                 pool = ConnectionPool(
                     int(maxconn),
                     readonly=readonly,

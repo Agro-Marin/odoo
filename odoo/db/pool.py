@@ -79,22 +79,19 @@ _DEFAULT_MAX_LIFETIME = (
 # getconn() both draw from this window (a shared deadline, so they can't drift).
 _DEFAULT_BORROW_TIMEOUT = 30.0
 # Idle per-DSN pool reaper TTL.  Each database keeps its own psycopg_pool (worker
-# threads + idle connections) until ``close_*``; nothing trims idle pool OBJECTS
-# otherwise, so a host serving many databases accumulates them.  A pool idle
-# longer than this with no checked-out connection is reaped (so a long-lived
-# ``LISTEN``/cron connection is never touched).  Kept well above the borrow
-# timeout so no borrow can be in flight; the residual reap-vs-borrow microrace is
-# recovered by borrow()'s PoolClosed retry.  ``0`` disables it.
+# threads + idle connections) until ``close_*``, so a host serving many databases
+# accumulates them.  A pool idle longer than this with no checked-out connection
+# is reaped (a long-lived ``LISTEN``/cron connection is never touched).  Kept well
+# above the borrow timeout so no borrow can be in flight; the residual
+# reap-vs-borrow microrace is recovered by borrow()'s PoolClosed retry.  ``0``
+# disables it.
 #
-# NB: this default (300s) is BELOW ``_DEFAULT_MAX_IDLE`` (600s) by design — on a
-# multi-database host, reclaiming a quiet pool's ~4 worker threads is worth more
-# than keeping its connections warm, so the pool (and its still-warm idle
-# connections) is reaped before those connections reach their own idle timeout;
-# the next access to that database pays a pool rebuild + reconnect.  A
-# single-database host is unaffected: its only pool is re-stamped active on every
-# give_back, so it is never the idle pool a sweep reaps.  Raise to >=
-# ``_DEFAULT_MAX_IDLE`` to let connections idle out first (fewer reconnects,
-# more lingering pools).
+# This default (300s) is intentionally BELOW ``_DEFAULT_MAX_IDLE`` (600s): on a
+# multi-database host, reclaiming a quiet pool's ~4 worker threads beats keeping
+# its connections warm, so the pool is reaped before its connections idle out (the
+# next access pays a rebuild + reconnect).  A single-database host is unaffected —
+# its only pool is re-stamped active on every give_back.  Raise to >=
+# ``_DEFAULT_MAX_IDLE`` to let connections idle out first.
 _DEFAULT_REAP_IDLE_TTL = 300.0
 
 # Monotonic timestamp stamped on each per-DSN psycopg pool whenever it sees
