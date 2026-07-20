@@ -124,7 +124,7 @@ def determine(
 
     :param needle: callable or name of method to call on ``records``
     :param BaseModel records: recordset to call ``needle`` on or with
-    :params args: additional arguments to pass to the determinant
+    :param args: additional arguments to pass to the determinant
     :returns: the determined value if the determinant is a method name or callable
     :raise TypeError: if ``records`` is not a recordset, or ``needle`` is not
                       a callable or valid method name
@@ -215,9 +215,8 @@ class Field[T](_FieldDescriptionMixin, _FieldConvertMixin, _FieldSqlMixin):
         The method must return a :ref:`reference/orm/domains` that replaces
         ``(field, operator, value)`` in its domain.
 
-        Note that a stored field can actually have a search method. The search
-        method will be invoked to rewrite the condition. This may be useful for
-        sanitizing the values used in the condition, for instance.
+        A stored field can also have a search method; it is invoked to rewrite
+        the condition, which is useful e.g. for sanitizing the values used.
 
         .. code-block:: python
 
@@ -433,11 +432,9 @@ class Field[T](_FieldDescriptionMixin, _FieldConvertMixin, _FieldSqlMixin):
         # fields declared in the database (``ir.model.fields.ttype``) can be
         # instantiated by type name (see ``registration._build``). ``setdefault``
         # keeps the first (canonical) registrant, so a subclass sharing a ttype
-        # never displaces its base. A class that shares a ttype with the
-        # canonical field but must not own it opts out with
-        # ``_register_type = False`` (e.g. ``Id`` shares ``"integer"`` with
-        # ``Integer`` but is the magic ``id`` column, never a DB ttype) — this
-        # removes the former dependency on field-module import order.
+        # never displaces its base. A class sharing a ttype it must not own opts
+        # out with ``_register_type = False`` (e.g. ``Id`` shares ``"integer"``
+        # with ``Integer`` but is the magic ``id`` column, never a DB ttype).
         if cls.type and cls._register_type:
             cls._by_type__.setdefault(cls.type, cls)
 
@@ -1449,20 +1446,16 @@ class Field[T](_FieldDescriptionMixin, _FieldConvertMixin, _FieldSqlMixin):
 
     # Descriptor methods
 
-    # The descriptor protocol is split into three overloads so the type checker
-    # resolves field access correctly: class access (``record is None``,
-    # e.g. ``MyModel._fields`` introspection) returns the field itself
-    # (``Self``), instance access returns the field's value type (``T``), and
-    # the ``object`` fallback covers the type checker seeing a ``Field``-typed
-    # attribute *of another field* (``self.related_field``) as descriptor access
-    # on a non-model owner — resolved to ``Any`` (see the overload below).
-    # ``BaseModel`` matches before ``object``, so model access is unaffected.
-    # Without this, ``record.some_field`` would type as the implementation's
-    # union return (or ``Any`` in subclasses that assign ``__get__``), and the
-    # ``Field[T]`` generic would be decorative. ``owner`` is typed ``Any`` to
-    # avoid the field classes' ``type = "<name>"`` class attribute shadowing the
-    # builtin ``type`` in the annotation; the implementation takes ``record: Any``
-    # so it accepts every overload's argument (the conventional overload idiom).
+    # Three overloads so the type checker resolves field access correctly: class
+    # access (``record is None``) returns the field itself (``Self``), instance
+    # access returns the field's value type (``T``), and the ``object`` fallback
+    # covers a ``Field``-typed attribute *of another field* (``self.related_field``)
+    # seen as descriptor access on a non-model owner — resolved to ``Any``.
+    # ``BaseModel`` matches before ``object``, so model access is unaffected;
+    # without the overloads the ``Field[T]`` generic would be decorative.
+    # ``owner`` is ``Any`` so the field classes' ``type = "<name>"`` attribute
+    # doesn't shadow the builtin ``type``; the implementation takes ``record: Any``
+    # to accept every overload's argument (conventional overload idiom).
     @typing.overload
     def __get__(self, record: None, owner: typing.Any = None) -> Self: ...
     @typing.overload

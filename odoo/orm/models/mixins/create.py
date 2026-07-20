@@ -54,10 +54,9 @@ class CreateMixin(_ModelStubs):
         parent_fields = defaultdict(list)
         ir_defaults = self.env["ir.default"]._get_model_defaults(self._name)
 
-        # Extract the context "default_<name>" overrides once, rather than
-        # building "default_" + name (and a context lookup) for every requested
-        # field: default_get runs per-record on the create hot path and models
-        # have dozens of fields, so the per-field string allocation dominated.
+        # Extract the context "default_<name>" overrides once instead of
+        # building the key per requested field: default_get is on the create
+        # hot path, where the per-field string allocation dominated.
         context_defaults = {
             key[8:]: value
             for key, value in self.env.context.items()
@@ -176,13 +175,13 @@ class CreateMixin(_ModelStubs):
 
         else:
             # Copy: the properties loop below and the caller mutate the result
-            # in place; aliasing ``values`` would leak that back into the
-            # caller's vals_list. (The branch above already builds a fresh dict.)
+            # in place; aliasing ``values`` would leak back into the caller's
+            # vals_list. (The branch above already builds a fresh dict.)
             defaults = dict(values)
 
-        # delegate the default properties to the properties field(s).  Memoize
-        # the (usually empty) set of properties-field names per class instead of
-        # rescanning every field on every record of a create batch.
+        # delegate default properties to the properties field(s). Memoize the
+        # (usually empty) set of properties-field names per class to avoid
+        # rescanning every field per record of a create batch.
         cls = type(self)
         properties_names = own_class_memo(
             cls,
@@ -223,8 +222,8 @@ class CreateMixin(_ModelStubs):
         :raise UserError: if the operation would create a loop in an object
           hierarchy (e.g. setting an object as its own parent)
         """
-        # raise (not assert): the contract must hold under python -O, else a
-        # non-list crashes much later in field classification with an opaque
+        # raise (not assert) so the contract holds under python -O: a non-list
+        # otherwise crashes far later in field classification with an opaque
         # error.
         if not isinstance(vals_list, (list, tuple)):
             raise TypeError(
@@ -330,11 +329,9 @@ class CreateMixin(_ModelStubs):
         prof.mark("sql")
 
         # Two-pass validation: pass 1 (in _create) validates stored fields;
-        # pass 2 (below) validates inversed fields, excluding those also touching
-        # stored (covered by pass 1). Inverses run BETWEEN the two passes (after
-        # pass 1 inside _create, before pass 2) since they write to related
-        # models that pass 2's constraints may need to exist. (write() validates
-        # non-inversed first — its dirty values are already in cache.)
+        # pass 2 (below) validates inversed fields not also touching stored
+        # (those are covered by pass 1). Inverses run between the passes since
+        # they write to related models that pass 2's constraints may need.
 
         # protect fields being written against recomputation
         protected_fields = [(data["protected"], data["record"]) for data in data_list]
@@ -483,11 +480,10 @@ class CreateMixin(_ModelStubs):
     ) -> list[tuple]:
         """Build one column-converted value tuple per record, for INSERT / COPY.
 
-        Applies the rule shared by both branches of :meth:`_create`:
+        Applies the rule shared by both :meth:`_create` branches:
         ``convert_to_column_insert`` for a present column, ``None`` for a missing
-        one (a gap means a NULL-defaulting non-required column, since Python
-        defaults already filled required ones). ``columns`` and ``col_fields``
-        are parallel.
+        one (a NULL-defaulting non-required column, since Python defaults already
+        filled required ones). ``columns`` and ``col_fields`` are parallel.
         """
         return [
             tuple(
@@ -554,7 +550,7 @@ class CreateMixin(_ModelStubs):
                 # binary numeric dumper needs Decimal, so a float->Decimal
                 # conversion makes binary ~2x slower than text for Monetary /
                 # Float-with-digits columns. Text COPY is byte-identical, so this
-                # trades speed only, never correctness. jsonb numerics (company-
+                # trades speed, never correctness. jsonb numerics (company-
                 # dependent / translated) pay no Decimal tax and stay binary.
                 use_binary = not any(
                     field.column_type[0] == "numeric" for field in col_fields

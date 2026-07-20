@@ -272,14 +272,11 @@ def _prepare_setup(model_cls: type[BaseModel]):
     for attr in ("_rec_name", "_active_name"):
         discardattr(model_cls, attr)
 
-    # reset properties memoized on model_cls's own __dict__.  Each memo is
-    # stored under a distinct ``*__`` name read from the class's own __dict__
-    # (via ``helpers.own_class_memo``, used by BaseModel._constraint_methods,
-    # CreateMixin._prepare_create_values and RecomputeMixin._get_stored_computed_fields,
-    # to avoid leaking it to prototype-inheriting children).  The model class
-    # object is reused across re-setup (only ``__bases__`` is reassigned, above),
-    # so these memos are NOT cleared by class recreation — they must be discarded
-    # here, or a re-setup that adds/removes a field keeps serving the stale tuple.
+    # reset properties memoized on model_cls's own __dict__ (via
+    # ``helpers.own_class_memo``). The class object is reused across re-setup
+    # (only ``__bases__`` is reassigned, above), so these memos survive class
+    # recreation — discard them here, or a re-setup that adds/removes a field
+    # keeps serving the stale tuple.
     for _memo in (
         "_constraint_methods__",
         "_ondelete_methods__",

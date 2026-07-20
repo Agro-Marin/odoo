@@ -45,10 +45,8 @@ class TransientModel(Model):
         """Clean the transient records.
 
         Unlinks old records whenever the :attr:`_transient_max_count` or
-        :attr:`_transient_max_hours` conditions (if any) are reached. Actual
-        cleaning happens at most once every 5 minutes, so the method is safe to
-        call frequently (e.g. on every record creation). Rows used within the
-        last 5 minutes are never deleted.
+        :attr:`_transient_max_hours` conditions (if any) are reached. Rows used
+        within the last 5 minutes are never deleted.
         """
         has_remaining = False
         if self._transient_max_hours:

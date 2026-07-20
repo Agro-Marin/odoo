@@ -43,8 +43,8 @@ class TranslationMixin(_ModelStubs):
         digest: Callable[[str], str] | None = None,
         source_lang: str = "",
     ) -> bool:
-        """Update the translations for a given field, with support for handling
-        old terms using an optional digest function.
+        """Update a field's translations, optionally using ``digest`` to
+        identify old terms.
 
         :param field_name: The name of the field to update.
         :param translations: The translations to apply.

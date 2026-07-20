@@ -254,9 +254,7 @@ class BaseModel(
 
     @property
     def _table_sql(self) -> SQL:
-        """Return an :class:`SQL` object that represents SQL table identifier
-        or table query.
-        """
+        """Return the :class:`SQL` object for the table identifier or table query."""
         table_query = self._table_query
         if table_query and isinstance(table_query, SQL):
             table_sql = SQL("(%s)", table_query)
@@ -525,10 +523,10 @@ class BaseModel(
         return result[0]["definition"] if result else {}
 
     def get_base_url(self) -> str:
-        """Return rooturl for a specific record.
+        """Return the root URL for this record.
 
-        By default, it returns the ir.config.parameter of base_url
-        but it can be overridden by model.
+        By default the ``web.base.url`` system parameter; may be overridden
+        per model.
 
         :return: the base url for this record
         """

@@ -195,15 +195,14 @@ class _RegistryFieldsMixin(_RegistryStubs):
         self.field_inverses  # noqa: B018 — trigger lazy build
         self.field_computed  # noqa: B018 — trigger lazy build
 
-        # The trigger graph is now complete. Eagerly populate its derived
-        # caches (trigger trees, modifying-relations, recompute order) so the
-        # process-shared graph is read-only during request handling: reads
-        # become pure lookups instead of lazy first-read rebuilds. On a
-        # free-threaded build that avoids N threads redundantly rebuilding the
-        # same trees on a cold cache (measured ~4x); it is not a corruption fix
-        # (CPython's dicts are thread-safe), but it makes the "static after
-        # construction" contract real. Re-runs whenever the graph is rebuilt
-        # (this is a cached_property reset on registry invalidation).
+        # The trigger graph is now complete. Eagerly populate its derived caches
+        # (trigger trees, modifying-relations, recompute order) so the
+        # process-shared graph is read-only during request handling: reads become
+        # pure lookups, not lazy first-read rebuilds. On a free-threaded build
+        # this avoids N threads redundantly rebuilding the same trees on a cold
+        # cache (~4x); not a corruption fix (CPython dicts are thread-safe), but
+        # it makes the "static after construction" contract real. Re-runs on
+        # every graph rebuild (cached_property reset on registry invalidation).
         self.model_graph.freeze()
 
         return self.model_graph._triggers

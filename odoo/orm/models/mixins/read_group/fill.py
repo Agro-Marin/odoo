@@ -123,16 +123,14 @@ class _ReadGroupFillMixin(_ModelStubs):
         """Parse and snap one ``fill_temporal`` bound to its granularity bucket.
 
         Shared by :meth:`_read_group_fill_temporal` and the web layer's
-        ``_web_read_group_fill_temporal`` so the (previously duplicated, and
-        independently buggy) bound parsing lives in one place.
+        ``_web_read_group_fill_temporal`` to keep bound parsing in one place.
 
-        ``bound`` is a date/datetime *string* (``%Y-%m-%d`` or
-        ``%Y-%m-%d %H:%M:%S``).  It is parsed according to the GROUPED FIELD's
-        type — not the argument's Python type — and kept naive: the group keys
-        are naive local-time values (``date_trunc`` already applied the user's
-        tz in SQL), so a ``date``-typed or tz-aware bound would crash the naive
-        ``datetime`` comparisons that follow (``date < datetime`` /
-        ``can't compare offset-naive and offset-aware``).
+        ``bound`` is a date/datetime string (``%Y-%m-%d`` or
+        ``%Y-%m-%d %H:%M:%S``), parsed by the GROUPED FIELD's type (not the
+        argument's Python type) and kept naive: group keys are naive local-time
+        values (``date_trunc`` already applied the user's tz in SQL), so a
+        ``date``-typed or tz-aware bound would crash the naive ``datetime``
+        comparisons that follow.
         """
         value = (Datetime.to_datetime if field.type == "datetime" else Date.to_date)(
             bound
@@ -237,10 +235,9 @@ class _ReadGroupFillMixin(_ModelStubs):
             days_offset = first_week_day and 7 - first_week_day
         interval = READ_GROUP_TIME_GRANULARITY[granularity]
 
-        # Existing non-null datetimes. Sort defensively: the bounds below assume
+        # Existing non-null datetimes, sorted: the bounds below assume
         # chronological order, but ``data`` follows the caller's ``orderby``,
-        # which may be descending (inverting existing_from/existing_to so the
-        # fill silently produces no gap groups).
+        # which may be descending.
         existing = sorted(d[first_group] for d in data if d[first_group]) or [None]
         existing_from, existing_to = existing[0], existing[-1]
 

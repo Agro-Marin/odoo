@@ -1,23 +1,21 @@
 """Typing-only declaration of the shared ``Field`` surface.
 
 ``_FieldDescriptionMixin`` / ``_FieldConvertMixin`` / ``_FieldSqlMixin`` are
-composed onto :class:`Field` by multiple inheritance (``class Field[T](
-_FieldDescriptionMixin, _FieldConvertMixin, _FieldSqlMixin)``). Each method
-operates on ``self`` — a full ``Field`` at runtime — but a type checker sees only
-the *defining* mixin, which does not declare the cross-cutting ``Field``
-attributes (``self.name``, ``self.store``, …) it reaches through.
+composed onto :class:`Field` by multiple inheritance. Each method runs on a full
+``Field`` at runtime, but a type checker sees only the defining mixin, which does
+not declare the cross-cutting ``Field`` attributes (``self.name``, ``self.store``,
+…) the method reaches through.
 
-:class:`_FieldStubs` collects that surface in one place; the field mixins inherit
-it for a correct, typed view. The model-mixin analogue is ``_ModelStubs``.
+:class:`_FieldStubs` collects that surface so the mixins inherit a correct, typed
+view (the model-mixin analogue is ``_ModelStubs``). It is purely a typing aid —
+``if typing.TYPE_CHECKING:`` declarations and ``__slots__ = ()`` — so at runtime
+it is an empty class contributing only a deduplicated MRO entry; :class:`Field`
+provides the real defaults.
 
-This is purely a typing aid — declarations under ``if typing.TYPE_CHECKING:`` and
-``__slots__ = ()`` — so at runtime it is an empty class contributing only a
-(deduplicated) MRO entry; :class:`Field` provides the real defaults.
-
-Scope: the **plain attributes** ``Field`` declares with a stable type. The
+Scope: only the **plain attributes** ``Field`` declares with a stable type. The
 properties (``column_type``/``is_column``/``base_field``) and the heavily
-subclass-overridden ``convert_to_*`` methods are deliberately left out — their
-many per-field-type overrides make a single shared declaration unsafe.
+overridden ``convert_to_*`` methods are left out — their per-field-type overrides
+make a single shared declaration unsafe.
 """
 
 import typing
@@ -51,8 +49,7 @@ class _FieldStubs:
         inherited_field: typing.Any
         _column_type: tuple[str, str] | None
 
-        # Shared Field method the convert/sql mixins call through ``self``. The
-        # real implementation is the single owner of the cache-shape predicate
-        # (see "The cache shape, owned in one place" in base.py); declaring it
-        # here lets a sibling base use it instead of re-deriving the rule inline.
+        # Shared Field method the convert/sql mixins call through ``self``. Real
+        # implementation owns the cache-shape predicate (see "The cache shape,
+        # owned in one place" in base.py); declared here so siblings reuse it.
         def _is_context_dependent(self, env: Environment) -> bool: ...

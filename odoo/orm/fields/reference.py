@@ -64,9 +64,8 @@ class Reference(Selection):
                     not validate or res_model in self.get_values(record.env)
                 ):
                     if not validate:
-                        # validate=False (bulk/import paths) trusts the input:
-                        # skip the per-record existence query that would
-                        # otherwise hit the database for every write.
+                        # validate=False (bulk/import) trusts input, skipping the
+                        # per-record existence query.
                         return value
                     if record.env[res_model].browse(res_id_int).exists():
                         return value
@@ -128,7 +127,7 @@ class Many2oneReference(Integer):
         self, value: typing.Any, record: BaseModel, validate: bool = True
     ) -> typing.Any:
         # cache format: id or None
-        if is_recordset(value):  # use the canonical recordset TypeGuard
+        if is_recordset(value):
             value = value._ids[0] if value._ids else None
         return super().convert_to_cache(value, record, validate)
 

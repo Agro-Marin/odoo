@@ -262,16 +262,14 @@ class Registry(
         registry.registry_invalidated = bool(update_module)
 
         # Build the field-dependency caches now, single-threaded under the setup
-        # lock (`new` is @locked), instead of lazily on first request. These are
-        # functools.cached_property builds whose compute mutates the shared
-        # model_graph (reset_triggers → add_trigger loop → freeze); since
-        # cached_property has had no internal lock since Py 3.12, leaving them
-        # lazy lets the first concurrent request threads double-compute and race
-        # the shared graph — timing-dependent under the GIL, but a reliable
-        # "RuntimeError: dictionary changed size during iteration" on a
-        # free-threaded build. Accessing `_field_triggers` also forces
-        # field_inverses/field_computed and ModelGraph.freeze(). Mirrors what
-        # ModelTestEnv already does in its own setup.
+        # lock (`new` is @locked), instead of lazily on first request. These
+        # cached_property builds mutate the shared model_graph (reset_triggers →
+        # add_trigger loop → freeze); since cached_property has no internal lock
+        # since Py 3.12, leaving them lazy lets the first concurrent request
+        # threads double-compute and race the shared graph — a reliable
+        # "dictionary changed size during iteration" on a free-threaded build.
+        # Accessing `_field_triggers` also forces field_inverses/field_computed
+        # and ModelGraph.freeze(). Mirrors ModelTestEnv's own setup.
         registry._field_triggers  # noqa: B018 — eager build for thread-safety
 
         # After module upgrades, idle pooled connections may hold
@@ -749,8 +747,7 @@ class Registry(
         return self._caches.lrus
 
     def clear_cache(self, *cache_names: str) -> None:
-        """Clear the caches associated to methods decorated with
-        ``tools.ormcache``if cache is in `cache_name` subset."""
+        """Clear the ``tools.ormcache`` caches in the given ``cache_names`` subset."""
         cache_names = cache_names or ("default",)
         # raise (not assert) — under python -O an invalid composite name like
         # "templates.cached_values" would slip through and produce a less
@@ -775,9 +772,7 @@ class Registry(
             )
 
     def clear_all_caches(self) -> None:
-        """Clear the caches associated to methods decorated with
-        ``tools.ormcache``.
-        """
+        """Clear all caches associated to ``tools.ormcache``-decorated methods."""
         for cache_name in _CACHES_BY_KEY:
             self._clear_cache_group(cache_name)
             self.cache_invalidated.add(cache_name)

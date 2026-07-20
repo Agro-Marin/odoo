@@ -88,17 +88,16 @@ class BaseString(Field[str | typing.Literal[False]]):
         value = _scalar_cache_get(env.__dict__, self, record_id, PENDING, SENTINEL)
         if value is not SENTINEL:
             return False if value is None else value
-        # en_US fallback for non-stored fields and new records without origin:
-        # such records have no DB row, so fall back to en_US before hitting it.
+        # Non-stored fields and origin-less new records have no DB row: fall
+        # back to en_US instead of hitting it.
         if self.translate is True and not (
             self.compute
             or (self.store and (record_id or getattr(record_id, "origin", None)))
         ):
-            # The scalar fast path above reads a per-env memo that a freshly
-            # derived env (via with_context/sudo) may not have warmed yet.
-            # Consult the authoritative per-language cache first, so a value
-            # already stored for the *current* language is never shadowed by the
-            # en_US fallback (which would return the wrong language).
+            # A freshly derived env (with_context/sudo) may not have warmed the
+            # per-env memo read by the scalar fast path above. Check the
+            # per-language cache first, so a value already stored for the current
+            # language isn't shadowed by the en_US fallback.
             cur_val = self._get_cache(env).get(record_id, SENTINEL)
             if cur_val is not SENTINEL:
                 return False if cur_val is None else cur_val
@@ -132,9 +131,8 @@ class BaseString(Field[str | typing.Literal[False]]):
                     "Translated stored fields (%s) cannot depend on context",
                     self,
                 )
-            # Model translation: add depends_context=('lang',) so the cache is
-            # routed per language (flat per-lang dicts), for stored and
-            # non-stored (computed/related) translated fields alike.
+            # Model translation: add depends_context=('lang',) to route the cache
+            # per language (flat per-lang dicts), stored or not.
             if "lang" not in dep_ctx:
                 dep_ctx = ("lang",) + tuple(dep_ctx)
             return dep, dep_ctx
@@ -565,10 +563,9 @@ class BaseString(Field[str | typing.Literal[False]]):
     ) -> None:
         """Non-stored (or all-new-record) path: update the cache only, no SQL."""
         if self.compute and self.inverse and any(records._ids):
-            # invalidate the values in other languages to force their
-            # recomputation — but only for real records. On new records
-            # (onchange) this would wrongly drop the other-language
-            # translations kept in cache, so fall through to a plain update.
+            # Invalidate other languages to force recomputation, but only for
+            # real records. On new records (onchange) this would wrongly drop
+            # their cached other-language translations, so fall through instead.
             if self.translate is True:
                 self._invalidate_cache(records.env, records._ids)
             self._update_cache(
@@ -1011,14 +1008,11 @@ class Html(BaseString):
         if not validate or not self.sanitize:
             return value
 
-        # A validated write always sanitizes. There used to be a fast path here
-        # that skipped sanitization when the incoming value equalled the cached
-        # one ("already sanitized on a previous write"), but the cache is also
-        # populated from raw DB reads: a value stored before a sanitize-rule
-        # change, via SQL, or by a migration would be trusted forever, and on a
-        # multi-record write only the first record's cache was the witness for
-        # all. html_sanitize is idempotent, so re-sanitizing an already-clean
-        # value is a no-op — the safe default is to always run it.
+        # A validated write always sanitizes. No fast path skipping sanitization
+        # when the value equals the cached one: the cache is also filled from raw
+        # DB reads, so a value stored via SQL, migration, or before a sanitize-rule
+        # change would be trusted forever. html_sanitize is idempotent, so always
+        # running it is cheap and safe.
         sanitize_vals = {
             "silent": True,
             "sanitize_tags": self.sanitize_tags,
@@ -1047,10 +1041,8 @@ class Html(BaseString):
                     not original_value_sanitized  # sanitizer could empty it
                     or original_value_normalized != original_value_sanitized
                 ):
-                    # The field contains element(s) that would be removed if
-                    # sanitized. It means that someone who was part of a group
-                    # allowing to bypass the sanitation saved that field
-                    # previously.
+                    # The field contains element(s) that sanitizing would remove:
+                    # someone allowed to bypass sanitation saved it previously.
 
                     diff = unified_diff(
                         original_value_sanitized.splitlines(),

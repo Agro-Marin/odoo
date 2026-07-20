@@ -70,10 +70,9 @@ class BaseDate[T](Field[T | typing.Literal[False]]):
             case "day_of_month":
                 return lambda value: value.day
             case "day_of_week":
-                # Match PostgreSQL date_part('dow', …) used by the SQL/read_group
-                # path (constants.READ_GROUP_NUMBER_GRANULARITY): Sunday=0..Sat=6.
-                # ``tm_wday`` is Monday=0, which made filtered_domain (in-memory)
-                # disagree with search on the same ``date.day_of_week`` term.
+                # Match PostgreSQL date_part('dow', …) used by the SQL path:
+                # Sunday=0..Sat=6. ``tm_wday`` is Monday=0, which made in-memory
+                # filtered_domain disagree with search on ``date.day_of_week``.
                 return lambda value: value.isoweekday() % 7
             case "hour_number" if self.type == "datetime":
                 return lambda value: value.hour
@@ -106,8 +105,8 @@ class BaseDate[T](Field[T | typing.Literal[False]]):
             if tz_name in _get_all_timezones_set():
                 # Embed the timezone as a SQL literal (not a parameter) so the
                 # expression is identical in SELECT and GROUP BY: server-side
-                # binding gives each %s a unique $N, which PostgreSQL would
-                # otherwise treat as different expressions.
+                # binding gives each %s a unique $N, which PostgreSQL treats as
+                # a different expression.
                 sql_expr = SQL(
                     "timezone('%s', timezone('UTC', %%s))" % tz_name, sql_expr
                 )
@@ -350,11 +349,10 @@ class Datetime(BaseDate[datetime]):
             if (
                 tz_name := record.env.context.get("tz")
             ) and tz_name in _get_all_timezones_set():
-                # only use the timezone from the context; the cached value is a
-                # naive UTC datetime, so anchor it to UTC before converting --
-                # a bare ``astimezone`` on a naive value assumes server-local
-                # time and is wrong on non-UTC servers (matches the SQL path's
-                # ``timezone('UTC', ...)`` and ``context_timestamp``).
+                # The cached value is a naive UTC datetime; anchor it to UTC
+                # before converting. A bare ``astimezone`` on a naive value
+                # assumes server-local time, wrong on non-UTC servers (matches
+                # the SQL path and ``context_timestamp``).
                 dt = dt.replace(tzinfo=utc).astimezone(get_timezone(tz_name))
             return get_property(dt)
 
