@@ -253,7 +253,7 @@ class ResPartnerBank(models.Model):
 
     @api.model
     def retrieve_acc_type(self, acc_number: str) -> str:
-        """To be overridden by subclasses in order to support other account_types."""
+        """Override in subclasses to support other account types."""
         return "bank"
 
     @api.depends("acc_number", "bank_id.name")
