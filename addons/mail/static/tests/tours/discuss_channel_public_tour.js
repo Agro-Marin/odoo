@@ -19,10 +19,15 @@ registry.category("web_tour.tours").add("discuss_channel_public_tour.js", {
                 if (!window.location.pathname.startsWith("/discuss/channel")) {
                     console.error("Channel secret token is still present in URL.");
                 }
-                const errors = odoo.loader.findErrors();
-                if (Object.keys(errors).length) {
-                    console.error("Couldn't load all JS modules.", errors);
-                }
+                // The pre-2026 AMD loader exposed `findErrors()` to report
+                // modules that failed dependency resolution. The fork-wide ESM
+                // migration removed that surface (see web/static/src/module_loader.js):
+                // native module-load failures now surface via the pre/post-boot
+                // error beacon (/web/observability/js_error), which the browser
+                // test harness already fails on. Calling the removed method here
+                // threw ("odoo.loader.findErrors is not a function"), breaking
+                // this step before it could flag the page as booted. Reaching
+                // this step at all means the app booted, so just record it.
                 document.body.classList.add("o_discuss_channel_public_modules_loaded");
                 if (
                     !document.title.includes(
