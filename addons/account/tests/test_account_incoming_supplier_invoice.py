@@ -312,13 +312,12 @@ class TestAccountInvoiceImportMixin:
         )
 
     def _get_raw_mail_message_str(self, attachments_vals, email_to, message_id=None):
-        """
+        """Build a raw RFC822 email string with the given attachments.
+
         :param attachments_vals: list of attachment values.
         :param email_to: string that will fill email_to field in the email, probably you'll want to use some journal alias here.
         :param message_id: Optional. Custom message ID for the email. If not provided, a UUID will be generated.
-
-        Returns:
-            Formatted email string.
+        :return: Formatted email string.
         """
         if not message_id:
             message_id = str(uuid.uuid4())
