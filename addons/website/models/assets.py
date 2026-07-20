@@ -19,41 +19,30 @@ class WebsiteAssets(models.AbstractModel):
 
     @api.model
     def reset_asset(self, url, bundle):
-        """
-        Delete the potential customizations made to a given (original) asset.
+        """Delete any customizations made to a given original asset.
 
-        Params:
-            url (str): the URL of the original asset (scss / js) file
-
-            bundle (str):
-                the name of the bundle in which the customizations to delete
-                were made
+        :param str url: the URL of the original asset (scss / js) file
+        :param str bundle: the name of the bundle in which the customizations
+            to delete were made
         """
         custom_url = self._make_custom_asset_url(url, bundle)
 
-        # Simply delete the attachement which contains the modified scss/js file
-        # and the xpath view which links it
+        # Delete both the attachment holding the modified scss/js file and the
+        # ir.asset record which links it.
         self._get_custom_attachment(custom_url).unlink()
         self._get_custom_asset(custom_url).unlink()
 
     @api.model
     def save_asset(self, url, bundle, content, file_type):
-        """
-        Customize the content of a given asset (scss / js).
+        """Customize the content of a given asset (scss / js).
 
-        Params:
-            url (src):
-                the URL of the original asset to customize (whether or not the
-                asset was already customized)
-
-            bundle (src):
-                the name of the bundle in which the customizations will take
-                effect
-
-            content (src): the new content of the asset (scss / js)
-
-            file_type (src):
-                either 'scss' or 'js' according to the file being customized
+        :param str url: the URL of the original asset to customize (whether or
+            not the asset was already customized)
+        :param str bundle: the name of the bundle in which the customizations
+            will take effect
+        :param str content: the new content of the asset (scss / js)
+        :param str file_type: either 'scss' or 'js' according to the file being
+            customized
         """
         custom_url = self._make_custom_asset_url(url, bundle)
         datas = base64.b64encode((content or "\n").encode("utf-8"))
@@ -101,26 +90,21 @@ class WebsiteAssets(models.AbstractModel):
 
     @api.model
     def _get_content_from_url(self, url, url_info=None, custom_attachments=None):
-        """
-        Fetch the content of an asset (scss / js) file. That content is either
-        the one of the related file on the disk or the one of the corresponding
-        custom ir.attachment record.
+        """Fetch the content of an asset (scss / js) file.
 
-        Params:
-            url (str): the URL of the asset (scss / js) file/ir.attachment
+        The content comes either from the related file on disk or from the
+        corresponding custom ir.attachment record.
 
-            url_info (dict, optional):
-                the related url info (see _get_data_from_url) (allows to optimize
-                some code which already have the info and do not want this
-                function to re-get it)
-
-            custom_attachments (ir.attachment(), optional):
-                the related custom ir.attachment records the function might need
-                to search into (allows to optimize some code which already have
-                that info and do not want this function to re-get it)
-
-        Returns:
-            utf-8 encoded content of the asset (scss / js)
+        :param str url: the URL of the asset (scss / js) file/ir.attachment
+        :param dict url_info: (optional) the related url info (see
+            _get_data_from_url); lets a caller that already has it avoid
+            re-fetching
+        :param custom_attachments: (optional) the related custom ir.attachment
+            records to search into; lets a caller that already has them avoid
+            re-fetching
+        :return: the raw bytes of the asset content, or False if a customized
+            attachment is missing
+        :rtype: bytes
         """
         if url_info is None:
             url_info = self._get_data_from_url(url)
@@ -142,25 +126,17 @@ class WebsiteAssets(models.AbstractModel):
 
     @api.model
     def _get_data_from_url(self, url):
-        """
-        Return information about an asset (scss / js) file/ir.attachment just by
-        looking at its URL.
+        """Return information about an asset (scss / js) file/ir.attachment
+        inferred from its URL alone.
 
-        Params:
-            url (str): the url of the asset (scss / js) file/ir.attachment
-
-        Returns:
-            dict:
-                module (str): the original asset's related app
-
-                resource_path (str):
-                    the relative path to the original asset from the related app
-
-                customized (bool): whether the asset is a customized one or not
-
-                bundle (str):
-                    the name of the bundle the asset customizes (False if this
-                    is not a customized asset)
+        :param str url: the url of the asset (scss / js) file/ir.attachment
+        :return: a dict with keys ``module`` (the original asset's related
+            app), ``resource_path`` (the relative path to the original asset
+            from the related app), ``customized`` (whether the asset is a
+            customized one), and ``bundle`` (the name of the bundle the asset
+            customizes, False if not a customized asset); False when the URL
+            does not match an asset
+        :rtype: dict
         """
         m = _match_asset_file_url_regex.match(url)
         if not m:
@@ -174,36 +150,27 @@ class WebsiteAssets(models.AbstractModel):
 
     @api.model
     def _make_custom_asset_url(self, url, bundle_xmlid):
-        """
-        Return the customized version of an asset URL, that is the URL the asset
-        would have if it was customized.
+        """Return the URL a given asset would have if it were customized.
 
-        Params:
-            url (str): the original asset's url
-            bundle_xmlid (str): the name of the bundle the asset would customize
-
-        Returns:
-            str: the URL the given asset would have if it was customized in the
-                 given bundle
+        :param str url: the original asset's url
+        :param str bundle_xmlid: the name of the bundle the asset would customize
+        :return: the URL the given asset would have if customized in the given
+            bundle
+        :rtype: str
         """
         return f"/_custom/{bundle_xmlid}{url}"
 
     @api.model
     def make_scss_customization(self, url, values):
-        """
-        Makes a scss customization of the given file. That file must
-        contain a scss map including a line comment containing the word 'hook',
-        to indicate the location where to write the new key,value pairs.
+        """Customize the given scss file.
 
-        Params:
-            url (str):
-                the URL of the scss file to customize (supposed to be a variable
-                file which will appear in the assets_frontend bundle)
+        The file must contain a scss map including a line comment containing the
+        word 'hook', which marks where to write the new key,value pairs.
 
-            values (dict):
-                key,value mapping to integrate in the file's map (containing the
-                word hook). If a key is already in the file's map, its value is
-                overridden.
+        :param str url: the URL of the scss file to customize (expected to be a
+            variable file appearing in the assets_frontend bundle)
+        :param dict values: key,value mapping to integrate in the file's map. If
+            a key is already present, its value is overridden.
         """
         IrAttachment = self.env["ir.attachment"]
         if "color-palettes-name" in values:
@@ -356,16 +323,14 @@ class WebsiteAssets(models.AbstractModel):
 
     @api.model
     def _get_custom_attachment(self, custom_url, op="="):
-        """
-        Fetch the ir.attachment record related to the given customized asset.
+        """Fetch the ir.attachment record related to the given customized asset.
 
-        Params:
-            custom_url (str): the URL of the customized asset
-            op (str, default: '='): the operator to use to search the records
+        Only attachments related to the current website are returned.
 
-        Returns:
-            ir.attachment()
-        Only return the attachments related to the current website.
+        :param str custom_url: the URL of the customized asset
+        :param str op: the operator used to search the records ('in' or '=')
+        :return: the matching attachment(s)
+        :rtype: ir.attachment
         """
         assert op in ("in", "="), "Invalid operator"
         if self.env.user.has_group("website.group_website_designer"):
@@ -383,16 +348,15 @@ class WebsiteAssets(models.AbstractModel):
 
     @api.model
     def _get_custom_asset(self, custom_url):
-        """
-        Fetch the ir.asset record related to the given customized asset (the
-        inheriting view which replace the original asset by the customized one).
+        """Fetch the ir.asset record related to the given customized asset.
 
-        Params:
-            custom_url (str): the URL of the customized asset
+        The asset is the ``replace`` directive that swaps the original asset for
+        the customized one. Only assets related to the current website are
+        returned.
 
-        Returns:
-            ir.asset()
-        Return the views related to the current website.
+        :param str custom_url: the URL of the customized asset
+        :return: the matching asset record(s)
+        :rtype: ir.asset
         """
         website = self.env["website"].get_current_website()
         url = custom_url[1:] if custom_url.startswith(("/", "\\")) else custom_url
