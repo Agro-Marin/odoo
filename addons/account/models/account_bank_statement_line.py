@@ -890,7 +890,7 @@ class AccountBankStatementLine(models.Model):
         return [liquidity_line_vals, counterpart_line_vals]
 
     def _seek_for_lines(self):
-        """Helper used to dispatch the journal items between:
+        """Dispatch the journal items between:
         - The lines using the liquidity account.
         - The lines using the transfer account.
         - The lines being not in one of the two previous categories.
@@ -1091,10 +1091,7 @@ class AccountBankStatementLine(models.Model):
             st_line.move_id.with_context(skip_readonly_check=True).write(st_line_vals)
 
 
-# For optimization purpose, creating the reverse relation of m2o in _inherits saves
-
-
-# a lot of SQL queries
+# Declaring the reverse relation of the _inherits m2o here saves a lot of SQL queries.
 class AccountMove(models.Model):
     _inherit = "account.move"
 

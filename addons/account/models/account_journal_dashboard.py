@@ -335,7 +335,7 @@ class AccountJournal(models.Model):
         return ["", ""]
 
     def _get_bank_cash_graph_data(self):
-        """Computes the data used to display the graph for bank and cash journals in the accounting dashboard"""
+        """Compute the graph data for bank and cash journals on the accounting dashboard."""
 
         def build_graph_data(date, amount, currency):
             # display date in locale format
@@ -807,7 +807,7 @@ class AccountJournal(models.Model):
             )
 
     def _fill_general_dashboard_data(self, dashboard_data):
-        """Populate all miscelaneous journal's data dict with relevant information for the kanban card."""
+        """Populate all miscellaneous journal's data dict with relevant information for the kanban card."""
         general_journals = self.filtered(lambda journal: journal.type == "general")
         if not general_journals:
             return
@@ -965,9 +965,8 @@ class AccountJournal(models.Model):
         return query, self._get_sale_purchase_aggregation_selects(SQL("TRUE AS to_pay"))
 
     def _count_results_and_sum_amounts(self, results_dict, target_currency):
-        """Loops on a query result to count the total number of invoices and sum
-        their amount_total field (expressed in the given target currency).
-        amount_total must be signed!
+        """Count the invoices in a query result and sum their amount_total, converted
+        into the given target currency. amount_total must be signed!
         """
         if not results_dict:
             return 0, 0
@@ -1277,7 +1276,7 @@ class AccountJournal(models.Model):
             return "action_move_journal_line"
 
     def open_action(self):
-        """return action based on type for related journals"""
+        """Return the action to open, based on the journal type."""
         self.ensure_one()
         action_name = self._select_action_to_open()
 
@@ -1474,7 +1473,7 @@ class AccountJournal(models.Model):
         return action
 
     def create_bank_statement(self):
-        """return action to create a bank statements. This button should be called only on journals with type =='bank'"""
+        """Return the action to create a bank statement. Call only on journals with type == 'bank'."""
         action = self.env["ir.actions.actions"]._for_xml_id(
             "account.action_bank_statement_tree"
         )
@@ -1487,9 +1486,9 @@ class AccountJournal(models.Model):
         return action
 
     def create_customer_payment(self):
-        """return action to create a customer payment"""
+        """Return the action to create a customer payment."""
         return self.open_payments_action("inbound", mode="form")
 
     def create_supplier_payment(self):
-        """return action to create a supplier payment"""
+        """Return the action to create a supplier payment."""
         return self.open_payments_action("outbound", mode="form")

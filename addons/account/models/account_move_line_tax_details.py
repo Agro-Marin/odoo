@@ -28,7 +28,7 @@ class AccountMoveLine(models.Model):
     def _get_query_tax_details(
         self, table_references, search_condition, fallback=True
     ) -> SQL:
-        """Create the tax details sub-query based on the orm domain passed as parameter.
+        """Build the tax details sub-query from raw SQL table references and a WHERE condition.
 
         :param table_references:    The query to inject after the FROM, as an SQL object.
         :param search_condition:    The query to inject in the WHERE clause, as an SQL object.

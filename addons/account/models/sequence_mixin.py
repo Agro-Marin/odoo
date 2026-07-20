@@ -245,7 +245,7 @@ class SequenceMixin(models.AbstractModel):
 
     @api.model
     def _deduce_sequence_number_reset(self, name):
-        """Detect if the used sequence resets yearly, montly or never.
+        """Detect if the used sequence resets yearly, monthly or never.
 
         :param name: the sequence that is used as a reference to detect the resetting
             periodicity. Typically, it is the last before the one you want to give a
@@ -308,9 +308,9 @@ class SequenceMixin(models.AbstractModel):
         return re.sub(r"\?P<\w+>", "?:", regex)
 
     def _get_last_sequence_domain(self, relaxed=False):
-        """Get the sql domain to retreive the previous sequence number.
+        """Get the SQL domain to retrieve the previous sequence number.
 
-        This function should be overriden by models inheriting from this mixin.
+        Override this in models inheriting from this mixin.
 
         :param relaxed: see _get_last_sequence.
 
@@ -332,8 +332,8 @@ class SequenceMixin(models.AbstractModel):
     def _get_starting_sequence(self):
         """Get a default sequence number.
 
-        This function should be overriden by models heriting from this mixin
-        This number will be incremented so you probably want to start the sequence at 0.
+        Override this in models inheriting from this mixin. The returned number is
+        incremented, so start the sequence at 0.
 
         :return: string to use as the default sequence to increment
         """
@@ -601,7 +601,7 @@ class SequenceMixin(models.AbstractModel):
         return format_string, format_values
 
     def _is_last_from_seq_chain(self):
-        """Tells whether or not this element is the last one of the sequence chain.
+        """Return whether this element is the last one of the sequence chain.
 
         :return: True if it is the last element of the chain.
         """
@@ -613,7 +613,7 @@ class SequenceMixin(models.AbstractModel):
         return seq_format.format(**seq_format_values) == self[self._sequence_field]
 
     def _is_end_of_seq_chain(self):
-        """Tells whether or not these elements are the last ones of the sequence chain.
+        """Return whether these elements are the last ones of the sequence chain.
 
         :return: True if self are the last elements of the chain.
         """

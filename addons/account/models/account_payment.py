@@ -281,7 +281,7 @@ class AccountPayment(models.Model):
         return ["asset_receivable", "liability_payable"]
 
     def _seek_for_lines(self):
-        """Helper used to dispatch the journal items between:
+        """Dispatch the journal items between:
         - The lines using the temporary liquidity account.
         - The lines using the counterpart account.
         - The lines being the write-off lines.
@@ -324,9 +324,7 @@ class AccountPayment(models.Model):
         )
 
     def _valid_payment_states(self):
-        """This method is used to know in which edition we are: Community or Enterprise
-        and fetch the payment states accordingly.
-        """
+        """Return the valid payment states for the current edition (Community or Enterprise)."""
         return (
             ["in_process", "paid"]
             if self.env["account.move"]._get_invoice_in_payment_state() == "paid"

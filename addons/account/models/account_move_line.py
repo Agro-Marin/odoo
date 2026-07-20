@@ -876,12 +876,11 @@ class AccountMoveLine(models.Model):
 
     @api.model
     def _search_account_id(self, operator, value):
-        """
-        Search method that can be a drop-in replacement for searching on `account_id`.
-        Resolves the domain and inlines the resulting ids to yield better final queries
-        and avoids joining on the `account.account` model.
-        This should be a net positive on average, under the assertion that the cardinality of
-        `account.account` doesn't grow too large. (e.g. <10k rows)
+        """Drop-in replacement for searching on `account_id`.
+        Resolve the domain and inline the resulting ids to yield better final queries,
+        avoiding a join on the `account.account` model.
+        This should be a net positive on average, assuming the cardinality of
+        `account.account` doesn't grow too large (e.g. <10k rows).
         """
         if operator in ("in", "not in", "any", "not any") and not isinstance(
             value, (tuple, list, OrderedSet)
@@ -1044,7 +1043,7 @@ class AccountMoveLine(models.Model):
         "matched_credit_ids",
     )
     def _compute_amount_residual(self):
-        """Computes the residual amount of a move line from a reconcilable account in the company currency and the line's currency.
+        """Compute the residual amount of a move line from a reconcilable account in the company currency and the line's currency.
         This amount will be 0 for fully reconciled lines or lines from a non-reconcilable account, the original line amount
         for unreconciled lines, and something in-between for partially reconciled lines.
         """
@@ -1696,9 +1695,8 @@ class AccountMoveLine(models.Model):
             )
 
     def _get_analytic_distribution_arguments(self, root_plans):
-        """
-        Get arguments to determine analytic distribution.
-        This function aims to be overridden by partner submodules
+        """Get arguments to determine analytic distribution.
+        Meant to be overridden by partner submodules.
         :param root_plans: account.analytic.plan recordset
         :return: dict
         """
@@ -2108,12 +2106,12 @@ class AccountMoveLine(models.Model):
 
         Shared tags in this context cannot work, as the tags would need to
         be present on both the invoice and cash basis move, leading to the same
-        base amount to be taken into account twice; which is wrong.This is
+        base amount to be taken into account twice; which is wrong. This is
         why we don't support that. A workaround may be provided by the use of
         a group of taxes, whose children are type_tax_use=None, and only one
         of them uses the common tag.
 
-        Note that taxes of the same exigibility are allowed to share tags.
+        Taxes of the same exigibility are allowed to share tags.
         """
 
         def get_base_repartition(base_aml, taxes):
@@ -2752,9 +2750,7 @@ class AccountMoveLine(models.Model):
         at_uninstall=False
     )  # Hashed entres are legally required to not be deleted.
     def _except_hashed_entry_lines(self):
-        """Lines belonginig to a hashed (locked) entry should not be allowed to be deleted in order to protect the
-        hash chain.
-        """
+        """Forbid deleting lines belonging to a hashed (locked) entry, to protect the hash chain."""
         for line in self:
             if line.move_id.inalterable_hash:
                 raise UserError(
@@ -2808,7 +2804,7 @@ class AccountMoveLine(models.Model):
 
     @api.model
     def _format_aml_name(self, line_name, move_ref, move_name=None):
-        """Format the display of an account.move.line record. As its very costly to fetch the account.move.line
+        """Format the display of an account.move.line record. As it's very costly to fetch the account.move.line
         records, only line_name, move_ref, move_name are passed as parameters to deal with sql-queries more easily.
 
         :param line_name:   The name of the account.move.line record.
@@ -2981,7 +2977,7 @@ class AccountMoveLine(models.Model):
         :param aml_values: The values of account.move.line to consider.
         :param counterpart_currency: The currency of the opposite line this line will be reconciled with.
         :param shadowed_aml_values: A mapping aml -> dictionary to replace some original aml values to something else.
-                                    This is usefull if you want to preview the reconciliation before doing some changes
+                                    This is useful if you want to preview the reconciliation before doing some changes
                                     on amls like changing a date or an account.
         :param other_aml_values:    The other aml values to be reconciled with the current one.
         :return: A mapping currency -> dictionary containing:
@@ -3086,7 +3082,7 @@ class AccountMoveLine(models.Model):
         :param debit_values:  The values of account.move.line to consider for a debit line.
         :param credit_values: The values of account.move.line to consider for a credit line.
         :param shadowed_aml_values: A mapping aml -> dictionary to replace some original aml values to something else.
-                                    This is usefull if you want to preview the reconciliation before doing some changes
+                                    This is useful if you want to preview the reconciliation before doing some changes
                                     on amls like changing a date or an account.
         :return: A dictionary:
             * debit_values:     None if the line has nothing left to reconcile.
@@ -3450,7 +3446,7 @@ class AccountMoveLine(models.Model):
 
         :param values_list: A list of dictionaries, one for each aml.
         :param shadowed_aml_values: A mapping aml -> dictionary to replace some original aml values to something else.
-                                    This is usefull if you want to preview the reconciliation before doing some changes
+                                    This is useful if you want to preview the reconciliation before doing some changes
                                     on amls like changing a date or an account.
         :return: a tuple of
             1) list of vals for partial reconciliation creation,
@@ -3534,7 +3530,7 @@ class AccountMoveLine(models.Model):
         :param plan: The plan to know which lines to reconcile in which order.
         :param amls_values_map: A mapping aml => amount_residual/amount_residual_currency
         :param shadowed_aml_values: A mapping aml -> dictionary to replace some original aml values to something else.
-                                    This is usefull if you want to preview the reconciliation before doing some changes
+                                    This is useful if you want to preview the reconciliation before doing some changes
                                     on amls like changing a date or an account.
         :return: A list of all results returned by the '_prepare_reconciliation_amls' method.
         """
@@ -3570,7 +3566,7 @@ class AccountMoveLine(models.Model):
     def _check_amls_exigibility_for_reconciliation(self, shadowed_aml_values=None):
         """Ensure the current journal items are eligible to be reconciled together.
         :param shadowed_aml_values: A mapping aml -> dictionary to replace some original aml values to something else.
-                                    This is usefull if you want to preview the reconciliation before doing some changes
+                                    This is useful if you want to preview the reconciliation before doing some changes
                                     on amls like changing a date or an account.
         """
         not_reconciled_partial_matching_numbers = set(
@@ -3635,10 +3631,10 @@ class AccountMoveLine(models.Model):
     def _optimize_reconciliation_plan(
         self, reconciliation_plan, shadowed_aml_values=None
     ):
-        """Decode the initial reconciliation plan passed as parameter and converted it into a list of tree depicting
+        """Decode the initial reconciliation plan passed as parameter and convert it into a list of trees depicting
         the way the reconciliation should be done.
-        Also, this method is responsible sorting the amls and splitting them by currency.
-        Then, this method checks the parameter to ensure we are not going to perform any invalid reconciliation like
+        Also responsible for sorting the amls and splitting them by currency.
+        Then check the parameter to ensure we are not going to perform any invalid reconciliation like
         a cross-account/cross-company partial.
 
         The split by currencies is made as follows.
@@ -3649,7 +3645,7 @@ class AccountMoveLine(models.Model):
 
         :param reconciliation_plan: A list of reconciliation to perform.
         :param shadowed_aml_values: A mapping aml -> dictionary to replace some original aml values to something else.
-                                    This is usefull if you want to preview the reconciliation before doing some changes
+                                    This is useful if you want to preview the reconciliation before doing some changes
                                     on amls like changing a date or an account.
         :return: A list of dictionaries containing:
             * amls: A recordset.
@@ -3788,7 +3784,7 @@ class AccountMoveLine(models.Model):
     @api.model
     def _reconcile_plan(self, reconciliation_plan):
         """Reconcile the amls following the reconciliation plan.
-        The plan passed as parameter is a list of either a recordset of amls, either another plan.
+        The plan passed as parameter is a list of either a recordset of amls or another plan.
 
         For example:
         [account.move.line(1, 2), account.move.line(3, 4)] means:
@@ -4164,7 +4160,7 @@ class AccountMoveLine(models.Model):
         (self.matched_debit_ids + self.matched_credit_ids).unlink()
 
     def action_unreconcile_match_entries(self):
-        """This method will do the unreconcile action in the list view of the moves"""
+        """Unreconcile the entries selected in the list view of the moves."""
         active_ids = self.env.context.get("active_ids")
         if active_ids:
             move_lines = (
@@ -4173,7 +4169,7 @@ class AccountMoveLine(models.Model):
             move_lines.remove_move_reconcile()
 
     def _reconcile_marked(self):
-        """Process the pending reconciliation of entries marked (i.e. uring imports).
+        """Process the pending reconciliation of entries marked (i.e. during imports).
 
         The entries can be marked using the string `I*` as matching number where `*` can be anything.
         Once all the entries using identical numbers are posted, this function proceeds to do the real matching.
@@ -4501,7 +4497,7 @@ class AccountMoveLine(models.Model):
         return ids
 
     def _reconciled_by_number(self) -> dict:
-        """Get the mapping of all the lines matched with the lines in self grouped by matching number."""
+        """Return the mapping of all the lines matched with the lines in self, grouped by matching number."""
         matching_numbers = [n for n in set(self.mapped("matching_number")) if n]
         if matching_numbers:
             return {
@@ -4515,7 +4511,7 @@ class AccountMoveLine(models.Model):
         return {}
 
     def _filter_reconciled_by_number(self, mapping: dict):
-        """Get all the the lines matched with the lines in self.
+        """Return all the lines matched with the lines in self.
 
         Uses a mapping built with `_reconciled_by_number` to avoid multiple calls to the database.
         """
@@ -4531,7 +4527,7 @@ class AccountMoveLine(models.Model):
         )
 
     def _all_reconciled_lines(self):
-        """Get all the the lines matched with the lines in self."""
+        """Return all the lines matched with the lines in self."""
         return self._filter_reconciled_by_number(self._reconciled_by_number())
 
     def _get_attachment_domains(self):
@@ -4570,9 +4566,7 @@ class AccountMoveLine(models.Model):
 
     @api.model
     def _get_tax_exigible_domain(self):
-        """Returns a domain to be used to identify the move lines that are allowed
-        to be taken into account in the tax report.
-        """
+        """Return a domain identifying the move lines allowed in the tax report."""
         return Domain(
             [
                 # Lines on moves without any payable or receivable line are always exigible
@@ -4610,7 +4604,7 @@ class AccountMoveLine(models.Model):
         return qties
 
     def _get_lock_date_protected_fields(self):
-        """Returns the names of the fields that should be protected by the accounting fiscal year and tax lock dates"""
+        """Return the names of the fields protected by the accounting fiscal year and tax lock dates."""
         tax_fnames = ["balance", "tax_line_id", "tax_ids", "tax_tag_ids"]
         fiscal_fnames = tax_fnames + [
             "account_id",
@@ -4642,9 +4636,9 @@ class AccountMoveLine(models.Model):
         ]
 
     def _prepare_edi_vals_to_export(self):
-        """The purpose of this helper is the same as '_prepare_edi_vals_to_export' but for a single invoice line.
+        """Same purpose as '_prepare_edi_vals_to_export' but for a single invoice line.
         This includes the computation of the tax details for each invoice line or the management of the discount.
-        Indeed, in some EDI, we need to provide extra values depending the discount such as:
+        In some EDI, we need to provide extra values depending on the discount, such as:
         - the discount as an amount instead of a percentage.
         - the price_unit but after subtraction of the discount.
 
@@ -4717,16 +4711,15 @@ class AccountMoveLine(models.Model):
         }
 
     def _filter_aml_lot_valuation(self):
-        """Method used to filter the aml taken into account when computing the invoiced lot value in get_invoiced_lot_values
-        Intended to be overriden in localization.
+        """Filter the amls taken into account when computing the invoiced lot value in get_invoiced_lot_values.
+        Intended to be overridden in localization.
         """
         self.ensure_one()
         return self.move_id.state == "posted"
 
     def _get_child_lines(self):
-        """
-        Return a tax-wise summary of account move lines linked to section.
-        Groups lines by their tax IDs and computes subtotal and total for each group.
+        """Return a tax-wise summary of account move lines linked to the section,
+        grouping lines by their tax IDs and computing subtotal and total per group.
         """
         self.ensure_one()
 
@@ -4869,7 +4862,7 @@ class AccountMoveLine(models.Model):
         return action
 
     def action_add_from_catalog(self):
-        """Will open the catalog view"""
+        """Open the catalog view."""
         move = self.env["account.move"].browse(self.env.context.get("order_id"))
         return move.with_context(child_field="line_ids").action_add_from_catalog()
 

@@ -517,7 +517,7 @@ class AccountPartialReconcile(models.Model):
         _prepare_cash_basis_tax_line_vals.
 
         :param tax_line:            An account.move.line record being a tax line.
-        :param cb_tax_line_vals:    The result of _prepare_cash_basis_counterpart_tax_line_vals.
+        :param cb_tax_line_vals:    The result of _prepare_cash_basis_tax_line_vals.
         :return:                    A python dictionary that could be passed to the create method of
                                     account.move.line.
         """

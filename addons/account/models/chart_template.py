@@ -63,7 +63,7 @@ def get_python_translation(module, lang, value):
 
 
 def preserve_existing_tags_on_taxes(env, module):
-    """This is a utility function used to preserve existing previous tags during upgrade of the module."""
+    """Preserve existing account tags during a module upgrade."""
     xml_records = env["ir.model.data"].search(
         [("model", "=", "account.account.tag"), ("module", "like", module)]
     )
@@ -806,8 +806,8 @@ class AccountChartTemplate(models.AbstractModel):
         An xml_id that doesn't contain a `.` will be treated as being linked to `account` and prefixed
         with the company's id (i.e. `cash` is interpreted as `account.1_cash` if the company's id is 1)
 
-        :param data: Basically all the final data of records to create/update for the chart
-                     of accounts. It is a mapping {model: {xml_id: values}}.
+        :param data: All records to create/update for the chart of accounts,
+                     as a mapping {model: {xml_id: values}}.
         :type data: dict[str, dict[(str, int), dict]]
         """
 
@@ -1326,8 +1326,7 @@ class AccountChartTemplate(models.AbstractModel):
 
         Instantiate the taxes as they would be for the foreign localization only replacing the accounts used by the most
         probable account we can retrieve from the company's localization.
-        This method is intended as a shortcut for instantiation, accelerating it, not as an out-of-the-box solution 100%
-        correct solution.
+        This is a fast shortcut for instantiation, not a guaranteed-correct solution.
         """
         # Implementation:
         # - Check if there is any tax for this country and stop the process if yes

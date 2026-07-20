@@ -1446,10 +1446,11 @@ class AccountJournal(models.Model):
             journal.display_name = name
 
     def action_configure_bank_journal(self):
-        """This function is called by the "configure" button of bank journals,
-        visible on dashboard if no bank statement source has been defined yet
+        """Open the bank-account setup action.
+
+        Triggered by the "configure" button on bank journals, shown on the dashboard when no bank
+        statement source has been defined yet.
         """
-        # We simply call the setup bar function.
         return (
             self.env["res.company"]
             .with_context(default_linked_journal_id=self.id)

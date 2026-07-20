@@ -1326,10 +1326,11 @@ class ResPartner(models.Model):
     # not for standard address management on portal/ecommerce
     @api.model
     def get_partner_localisation_fields_required_to_invoice(self, country_id):
-        """Returns the list of fields that needs to be filled when creating an invoice for the selected country.
-        This is required for some flows that would allow a user to request an invoice from the portal.
-        Using these, we can get their information and dynamically create form inputs based for the fields required legally for the company country_id.
-        The returned fields must be of type ir.model.fields in order to handle translations
+        """Return the fields that must be filled to create an invoice for the selected country.
+
+        Used by portal flows (e.g. a user requesting an invoice) to dynamically build form inputs
+        for the fields legally required in the company's country_id. The fields are ir.model.fields
+        records so translations are handled.
 
         :param country_id: The country for which we want the fields.
         :return: an array of ir.model.fields for which the user should provide values.

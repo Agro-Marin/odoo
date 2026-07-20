@@ -2301,7 +2301,7 @@ class AccountMove(models.Model):
         return non_deductible_lines
 
     def _get_rounded_base_and_tax_lines(self, round_from_tax_lines=True):
-        """Small helper to extract the base and tax lines for the taxes computation from the current move.
+        """Extract the base and tax lines for the taxes computation from the current move.
         The move could be stored or not and could have some features generating extra journal items acting as
         base lines for the taxes computation (e.g. epd, rounding lines).
 
@@ -2429,9 +2429,7 @@ class AccountMove(models.Model):
         "line_ids.amount_currency",
     )
     def _compute_payment_term_details(self):
-        """
-        Returns an [] containing the payment term's information to be displayed on the invoice's PDF.
-        """
+        """Payment term information to be displayed on the invoice's PDF."""
         for invoice in self:
             invoice.payment_term_details = False
             if invoice.show_payment_term_details:
@@ -2449,10 +2447,8 @@ class AccountMove(models.Model):
 
     @api.depends("move_type", "payment_state", "invoice_payment_term_id")
     def _compute_show_payment_term_details(self):
-        """
-        Determines :
-        - whether or not an additional table should be added at the end of the invoice to display the various
-        - whether or not there is an early pay discount in this invoice that should be displayed
+        """Whether to append a table at the end of the invoice showing the payment term
+        breakdown and any early-payment discount to display.
         """
         for invoice in self:
             if (
@@ -2678,7 +2674,7 @@ class AccountMove(models.Model):
         :param float exclude_amount:    The amount to subtract from the partner's `credit_to_invoice`.
                                         Consider the warning on a draft invoice created from a sales order.
                                         After confirming the invoice the (partial) amount (on the invoice)
-                                        stemming from sales orders will be substracted from the `credit_to_invoice`.
+                                        stemming from sales orders will be subtracted from the `credit_to_invoice`.
                                         This will reduce the total credit of the partner.
                                         This parameter is used to reflect this amount.
         :return:                        The warning message to be showed.
@@ -2984,7 +2980,7 @@ class AccountMove(models.Model):
                 move.invoice_incoterm_id = move.company_id.incoterm_id
 
     def _compute_linked_attachment_id(self, attachment_field, binary_field):
-        """Helper to retreive Attachment from Binary fields
+        """Retrieve attachments from Binary fields.
         This is needed because fields.Many2one('ir.attachment') makes all
         attachments available to the user.
         """
@@ -3966,12 +3962,10 @@ class AccountMove(models.Model):
         return product_catalog
 
     def _get_product_price_and_data(self, product):
-        """
-        This function will return a dict containing the price of the product. If the product is a sale document then
-        we return the list price (which is the "Sales Price" in a product) otherwise we return the standard_price
-        (which is the "Cost" in a product).
-        In case of a purchase document, it's possible that we have special price for certain partner.
-        We will check the sellers set on the product and update the price and min_qty for it if needed.
+        """Return a dict containing the price of the product: the list price ("Sales Price")
+        for a sale document, otherwise the standard_price ("Cost").
+        For a purchase document a partner-specific price may exist, so check the sellers
+        set on the product and update the price and min_qty accordingly.
         """
         self.ensure_one()
         product_infos = {
@@ -4070,9 +4064,7 @@ class AccountMove(models.Model):
         return move_line.price_unit
 
     def _is_readonly(self):
-        """
-        Check if the move has been canceled
-        """
+        """Return whether the move has been canceled."""
         self.ensure_one()
         return self.state == "cancel"
 
@@ -4132,9 +4124,9 @@ class AccountMove(models.Model):
         account.payment & account.move
         account.bank.statement.line & account.move
 
-        The idea is to call the method performing the synchronization of the business
-        models regarding their related journal entries. To avoid cycling, the
-        'skip_account_move_synchronization' key is used through the context.
+        Call the method performing the synchronization of the business models
+        regarding their related journal entries. To avoid cycling, the
+        'skip_account_move_synchronization' context key is used.
 
         :param changed_fields: A set containing all modified fields on account.move.
         """
@@ -4245,7 +4237,6 @@ class AccountMove(models.Model):
 
     def _get_copy_message_content(self, default):
         """Hook method to customize the message content when copying a move.
-        This method can be overridden by other modules to add custom logic.
         :param default: The default values dict passed to copy method
         :return: The message content string
         """
@@ -4998,7 +4989,7 @@ class AccountMove(models.Model):
     # -------------------------------------------------------------------------
 
     def _get_invoice_reference_euro_invoice(self):
-        """This computes the reference based on the RF Creditor Reference.
+        """Compute the reference based on the RF Creditor Reference.
         The data of the reference is the journal short code and the database
         id number of the invoice. For instance, if a journal code is INV and
         an invoice is issued with id 37, the check number is 67 so the
@@ -5015,7 +5006,7 @@ class AccountMove(models.Model):
         )
 
     def _get_invoice_reference_euro_partner(self):
-        """This computes the reference based on the RF Creditor Reference.
+        """Compute the reference based on the RF Creditor Reference.
         The data of the reference is the user defined reference of the
         partner or the database id number of the parter.
         For instance, if an invoice is issued for the partner with internal
@@ -5046,7 +5037,7 @@ class AccountMove(models.Model):
         return "".join(char for char in ref if char.isdigit())
 
     def _get_invoice_reference_number_partner(self):
-        """This computes the reference based on the Number format.
+        """Compute the reference based on the Number format.
         The data used is the reference set on the partner or its database
         id otherwise. For instance if the reference of the customer is
         'customer 97', the reference will be '97'.
@@ -5060,7 +5051,7 @@ class AccountMove(models.Model):
         return self.name
 
     def _get_invoice_reference_odoo_partner(self):
-        """This computes the reference based on the Odoo format.
+        """Compute the reference based on the Odoo format.
         The data used is the reference set on the partner or its database
         id otherwise. For instance if the reference of the customer is
         'dumb customer 97', the reference will be 'CUST/dumb customer 97'.
@@ -5089,9 +5080,8 @@ class AccountMove(models.Model):
     # -------------------------------------------------------------------------
     @api.model
     def _get_frequent_account_and_taxes(self, company_id, partner_id, move_type):
-        """
-        Returns the most used accounts and taxes for a given partner and company,
-        eventually filtered according to the move type.
+        """Return the most used accounts and taxes for a given partner and company,
+        optionally filtered by move type.
         """
         if not partner_id:
             return 0, False, False
@@ -5143,12 +5133,10 @@ class AccountMove(models.Model):
         return rows[0] if rows else (0, False, False)
 
     def _get_quick_edit_suggestions(self):
-        """
-        Returns a dictionnary containing the suggested values when creating a new
-        line with the quick_edit_total_amount set. We will compute the price_unit
-        that has to be set in order to match this total amount.
-        If the vendor/customer is set, we will suggest the most frequently used account
-        for that partner as the default one, otherwise the default of the journal.
+        """Return the suggested values for a new line when quick_edit_total_amount is set,
+        computing the price_unit needed to match that total amount.
+        If the vendor/customer is set, suggest the most frequently used account for that
+        partner as the default; otherwise use the journal default.
         """
         self.ensure_one()
         if not self.quick_edit_mode or not self.quick_edit_total_amount:
@@ -5233,9 +5221,8 @@ class AccountMove(models.Model):
 
     @api.onchange("quick_edit_total_amount", "partner_id")
     def _onchange_quick_edit_total_amount(self):
-        """
-        Creates a new line with the suggested values (for the account, the price_unit,
-        and the tax) such that the total amount matches the quick total amount.
+        """Create a new line with the suggested values (account, price_unit, and tax)
+        such that the total amount matches the quick total amount.
         """
         if (
             not self.quick_edit_total_amount
@@ -5271,10 +5258,9 @@ class AccountMove(models.Model):
         self._check_total_amount(self.quick_edit_total_amount)
 
     def _check_total_amount(self, amount_total):
-        """
-        Verifies that the total amount corresponds to the quick total amount chosen as some
-        rounding errors may appear. In such a case, we round up the tax such that the total
-        is equal to the quick total amount set
+        """Verify that the total amount matches the chosen quick total amount, since
+        rounding errors may appear. In that case, round the tax up so the total equals
+        the quick total amount set.
         E.g.: 100€ including 21% tax: base = 82.64, tax = 17.35, total = 99.99
         The tax will be set to 17.36 in order to have a total of 100.00
         """
@@ -5304,7 +5290,7 @@ class AccountMove(models.Model):
 
     @api.model
     def _apply_delta_recurring_entries(self, date, date_origin, period):
-        """Advances date by `period` months, maintaining original day of the month if possible."""
+        """Advance date by `period` months, keeping the original day of the month if possible."""
         deltas = {"monthly": 1, "quarterly": 3, "yearly": 12}
         prev_months = (
             (date.year - date_origin.year) * 12 + date.month - date_origin.month
@@ -5312,7 +5298,7 @@ class AccountMove(models.Model):
         return date_origin + relativedelta(months=deltas[period] + prev_months)
 
     def _copy_recurring_entries(self):
-        """Creates a copy of a recurring (periodic) entry and adjusts its dates for the next period.
+        """Copy a recurring (periodic) entry and adjust its dates for the next period.
         Meant to be called right after posting a periodic entry.
         Copies extra fields as defined by _get_fields_to_copy_recurring_entries().
         """
@@ -5334,7 +5320,7 @@ class AccountMove(models.Model):
                 )
 
     def _get_fields_to_copy_recurring_entries(self, values):
-        """Determines which extra fields to copy when copying a recurring entry.
+        """Determine which extra fields to copy when copying a recurring entry.
         To be extended by modules that add fields with copy=False (implicit or explicit)
         whenever the opposite behavior is expected for recurring invoices.
         """
@@ -5521,7 +5507,7 @@ class AccountMove(models.Model):
     def _get_invoice_counterpart_amls_for_early_payment_discount_per_payment_term_line(
         self,
     ):
-        """Helper to get the values to create the counterpart journal items on the register payment wizard and the
+        """Compute the values to create the counterpart journal items on the register payment wizard and the
         bank reconciliation widget in case of an early payment discount. When the early payment discount computation
         is included, we need to compute the base amounts / tax amounts for each receivable / payable but we need to
         take care about the rounding issues. For others computations, we need to balance the discount you get.
@@ -5784,7 +5770,7 @@ class AccountMove(models.Model):
     def _get_invoice_counterpart_amls_for_early_payment_discount(
         self, aml_values_list, open_balance
     ):
-        """Helper to get the values to create the counterpart journal items on the register payment wizard and the
+        """Compute the values to create the counterpart journal items on the register payment wizard and the
         bank reconciliation widget in case of an early payment discount by taking care of the payment term lines we
         are matching and the exchange difference in case of multi-currencies.
 
@@ -5882,7 +5868,7 @@ class AccountMove(models.Model):
         )
 
     def _get_move_display_name(self, show_ref=False):
-        """Helper to get the display name of an invoice depending of its type.
+        """Return the display name of an invoice depending on its type.
         :param show_ref:    A flag indicating of the display name must include or not the journal entry reference.
         :return:            A string representing the invoice.
         """
@@ -5938,7 +5924,7 @@ class AccountMove(models.Model):
         )
 
     def _get_reconciled_amls(self):
-        """Helper used to retrieve the reconciled move lines on this journal entry"""
+        """Return the reconciled move lines on this journal entry."""
         reconciled_lines = self.line_ids.filtered(
             lambda line: (
                 line.account_id.account_type
@@ -5950,15 +5936,15 @@ class AccountMove(models.Model):
         ) | reconciled_lines.mapped("matched_credit_ids.credit_move_id")
 
     def _get_reconciled_payments(self):
-        """Helper used to retrieve the reconciled payments on this journal entry"""
+        """Return the reconciled payments on this journal entry."""
         return self._get_reconciled_amls().move_id.origin_payment_id
 
     def _get_reconciled_statement_lines(self):
-        """Helper used to retrieve the reconciled statement lines on this journal entry"""
+        """Return the reconciled statement lines on this journal entry."""
         return self._get_reconciled_amls().move_id.statement_line_id
 
     def _get_reconciled_invoices(self):
-        """Helper used to retrieve the reconciled invoices on this journal entry"""
+        """Return the reconciled invoices on this journal entry."""
         return self._get_reconciled_amls().move_id.filtered(
             lambda move: move.is_invoice(include_receipts=True)
         )
@@ -6072,7 +6058,7 @@ class AccountMove(models.Model):
         return partial_values_list
 
     def _get_reconciled_invoices_partials(self):
-        """Helper to retrieve the details about reconciled invoices.
+        """Return the details about reconciled invoices.
         :return A list of tuple (partial, amount, invoice_line).
         """
         self.ensure_one()
@@ -6543,7 +6529,7 @@ class AccountMove(models.Model):
                             # If the draft invoice changed since it was reconciled, in a way that would affect the exchange diff,
                             # any existing reconcilation and draft exchange move would be deleted already (to force the user to
                             # re-do the reconciliation).
-                            # This is ensured by the the checks in env['account.move.line'].write():
+                            # This is ensured by the checks in env['account.move.line'].write():
                             #     see env[account.move.line]._get_lock_date_protected_fields()['reconciliation']
 
                         if (
