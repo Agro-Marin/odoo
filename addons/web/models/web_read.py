@@ -524,8 +524,13 @@ class Base(models.AbstractModel):
         if set(fields_to_read) == {"id"}:
             # id-only spec: ids are already known, so skip self.read()
             # entirely — this also sidesteps the co-model's access rules,
-            # which may differ from self's.
-            values_list = [{"id": id_} for id_ in self._ids]
+            # which may differ from self's. Normalize NewId → origin/False here
+            # too (as ``cleanup`` does for the read() path), so a recursive
+            # id-only sub-spec on unsaved records never leaks a raw NewId.
+            values_list = [
+                {"id": (id_.origin or False) if isinstance(id_, NewId) else id_}
+                for id_ in self._ids
+            ]
         else:
             values_list: list[dict] = self.read(fields_to_read, load=None)
 
@@ -723,6 +728,13 @@ class Base(models.AbstractModel):
                 # self.read(), so record[field_name] is free.
                 co_by_model = defaultdict(list)  # model → [(record_id, co_id)]
                 for record in self:
+                    if record.id not in values_by_id:
+                        # Concurrently unlinked between self.read() and here: it
+                        # never entered values_list, so there is no row to
+                        # annotate. Every downstream ``values_by_id[record.id]``
+                        # (including the many2one_reference reset below and the
+                        # second pass) would otherwise KeyError.
+                        continue
                     if not record[field_name]:
                         continue
                     if field.type == "reference":

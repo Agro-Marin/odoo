@@ -9,8 +9,8 @@ import { useAutoresize } from "@web/core/utils/dom/autoresize";
 import { useSpellCheck } from "@web/core/utils/hooks";
 import { useRenderCounter } from "@web/core/utils/render_instrumentation";
 import { registerField } from "@web/fields/_registry";
+import { parseDimensionAttr } from "@web/fields/field_utils";
 import { useInputField } from "@web/fields/input_field_hook";
-import { parseInteger } from "@web/fields/parsers";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 import { TranslationButton } from "@web/fields/translation_button";
 
@@ -125,7 +125,7 @@ export const textField = {
         dynamicPlaceholder: options?.dynamic_placeholder || false,
         dynamicPlaceholderModelReferenceField:
             options?.dynamic_placeholder_model_reference_field || "",
-        rowCount: attrs.rows && parseInteger(attrs.rows),
+        rowCount: parseDimensionAttr(attrs.rows),
         lineBreaks:
             options?.line_breaks !== undefined ? Boolean(options.line_breaks) : true,
     }),

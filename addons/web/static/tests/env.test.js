@@ -7,6 +7,7 @@ import {
     allowTranslations,
     clearRegistry,
     makeMockEnv,
+    makeMockServer,
     patchWithCleanup,
 } from "@web/../tests/web_test_helpers";
 import { registry } from "@web/core/registry";
@@ -22,8 +23,13 @@ describe.current.tags("headless");
 
 const servicesRegistry = registry.category("services");
 
-beforeEach(() => {
+beforeEach(async () => {
     clearRegistry(servicesRegistry);
+    // Establish the mock server up front so makeMockEnv() does not lazily
+    // create one (a multi-tick operation) on its first call: the async-service
+    // timing tests below observe startup after a single tick and would
+    // otherwise race that setup.
+    await makeMockServer();
     // env.js dedupes cascade-skip warnings by (skipped, missing) tuple
     // for the page's lifetime; clear that between tests so each test
     // starts with a clean dedup cache and the existing test assertions

@@ -351,7 +351,13 @@ export function buildAnimationOptions(mode, labelsCount) {
         };
         animationOptions.delay = (context) => {
             let delay = 0;
-            if ((mode === "bar" || mode === "line" || mode === "scatter") && !delayed) {
+            if (
+                (mode === "bar" || mode === "line" || mode === "scatter") &&
+                !delayed &&
+                labelsCount
+            ) {
+                // Guard labelsCount: an empty dataset gives gap/0 = Infinity and
+                // dataIndex 0 * Infinity = NaN, which Chart.js rejects.
                 delay = context.dataIndex * (gap / labelsCount);
             }
             return delay;

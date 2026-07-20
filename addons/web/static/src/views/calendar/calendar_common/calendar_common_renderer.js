@@ -509,7 +509,11 @@ export class CalendarCommonRenderer extends Component {
                     endTime: this.getEndTime(record),
                 },
             );
-            return { domNodes: fragment.children };
+            // Materialize into a static array: `fragment.children` is a live
+            // HTMLCollection, and FullCalendar moving nodes out of the fragment
+            // would mutate it mid-iteration (a multi-root override template can
+            // then skip nodes).
+            return { domNodes: [...fragment.children] };
         }
         return true;
     }

@@ -14,6 +14,7 @@ from typing import Any
 
 from odoo import api, models
 from odoo.api import DomainType
+from odoo.exceptions import AccessError
 from odoo.fields import Domain
 from odoo.models import regex_order
 from odoo.tools import SQL, unique
@@ -186,19 +187,22 @@ class Base(models.AbstractModel):
             ]
 
             all_records = self.browse().union(*recordset_groups)
-            record_mapped = dict(
-                zip(
-                    all_records._ids,
-                    all_records.web_read(unfold_read_specification or {}),
-                    strict=True,
-                )
-            )
+            # Key on each dict's own id rather than zipping against ``_ids``:
+            # a record unlinked concurrently between the search and this
+            # web_read drops out of the result, so a strict zip would raise
+            # ValueError. Missing ids are simply skipped below.
+            record_mapped = {
+                values["id"]: values
+                for values in all_records.web_read(unfold_read_specification or {})
+            }
 
             for opening, records in zip(
                 records_opening_info, recordset_groups, strict=True
             ):
                 opening["group"]["__records"] = [
-                    record_mapped[record_id] for record_id in records._ids
+                    record_mapped[record_id]
+                    for record_id in records._ids
+                    if record_id in record_mapped
                 ]
 
         # Read additional info of grouped field record and add it to specific groups
@@ -290,13 +294,39 @@ class Base(models.AbstractModel):
                 ]
                 records = self.env[relational_field.comodel_name].browse(group_ids)
 
-                result_read = records.web_read(groupby_read_specification[groupby_spec])
-                result_read_map = dict(zip(records._ids, result_read, strict=True))
+                # web_read enforces the co-model's own access rules. A target
+                # hidden by a record rule would otherwise abort the whole group
+                # read (AccessError) or drop out of the result (tripping a
+                # strict zip). Read defensively and degrade per-record to the
+                # label already carried in the group tuple — mirroring the
+                # many2one fallback in models/web_read.py.
+                spec = groupby_read_specification[groupby_spec]
+                try:
+                    result_read = records.web_read(spec)
+                except AccessError:
+                    result_read = []
+                    for record in records:
+                        try:
+                            result_read += record.web_read(spec)
+                        except AccessError:
+                            continue
+                result_read_map = {values["id"]: values for values in result_read}
                 for group in current_groups:
                     id_label = group[groupby_spec]
-                    group["__values"] = (
-                        result_read_map[id_label[0]] if id_label else {"id": False}
-                    )
+                    if not id_label:
+                        group["__values"] = {"id": False}
+                    elif id_label[0] in result_read_map:
+                        group["__values"] = result_read_map[id_label[0]]
+                    else:
+                        # Inaccessible / concurrently-removed target: expose only
+                        # the id and the already-known label, never the extra
+                        # spec fields the user cannot read.
+                        group["__values"] = {
+                            "id": id_label[0],
+                            "display_name": (
+                                id_label[1] if len(id_label) > 1 else None
+                            ),
+                        }
 
             current_groups = [
                 subgroup

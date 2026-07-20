@@ -117,7 +117,12 @@ class WebJsonController(http.Controller):
         if "domain" in kwargs:
             # User-supplied domain: literal_eval only, never safe_eval, since
             # it comes from the URL and must not be able to run arbitrary code.
-            user_domain = ast.literal_eval(kwargs.get("domain") or "[]")
+            # A malformed value is a client error (400), not a 500 — mirror the
+            # BadRequest raised for bad limit/offset below.
+            try:
+                user_domain = ast.literal_eval(kwargs.get("domain") or "[]")
+            except (ValueError, SyntaxError) as exc:
+                raise BadRequest(f"Invalid domain: {exc}") from exc
             domains.append(user_domain)
         else:
             default_domain = get_default_domain(model, action, context, eval_context)

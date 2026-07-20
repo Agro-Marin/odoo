@@ -15,7 +15,10 @@ import { _t } from "@web/core/l10n/translation";
 function normalize(gb, fields) {
     const [fieldName, interval] = gb.split(":");
     const field = fields[fieldName];
-    if (["date", "datetime"].includes(field.type)) {
+    // A stale favorite / removed-or-renamed field yields no `field`; degrade to
+    // the bare name instead of throwing on `field.type` and blanking the whole
+    // pivot. (Row/col groupBys are not sanitized upstream the way measures are.)
+    if (field && ["date", "datetime"].includes(field.type)) {
         return `${fieldName}:${interval || "month"}`;
     }
     return fieldName;

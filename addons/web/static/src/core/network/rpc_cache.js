@@ -528,8 +528,13 @@ export class RPCCache {
         if (hasPendingRequest) {
             // never do the same call multiple times in parallel => return the same value for all
             // those calls, but store their callback to call them when/if the real value is obtained
-            this.pendingRequests[requestKey].callbacks.push({ callback, shape });
-            return ramValue.then(shape);
+            const pending = this.pendingRequests[requestKey];
+            pending.callbacks.push({ callback, shape });
+            // Fall back to the request's own promise: the RAM entry it wrote can
+            // be LRU-evicted while the fetch is still in flight, leaving
+            // ramValue undefined here even though the request is live — a bare
+            // ``ramValue.then`` would then throw for the joiner.
+            return (ramValue || pending.promise).then(shape);
         }
 
         if (!ramValue || update === "always") {
@@ -760,6 +765,9 @@ export class RPCCache {
             });
             this.ramCache.write(table, key, prom, model);
             ramValue = prom;
+            // Keep a direct handle to the promise so a concurrent joiner can
+            // await it even if this key is evicted from RAM before it resolves.
+            request.promise = prom;
         }
 
         return ramValue.then(shape);

@@ -22,6 +22,22 @@ export function useSpecialData(loadFn) {
     const record = component.props.record;
     const { specialDataCaches } = record.model;
     const orm = component.env.services.orm;
+    // Guard ``result.data`` against out-of-order loads across all three paths
+    // (the record-observer effect, onWillUpdateProps, and the cache "changed"
+    // callback below): a slower earlier load must not clobber a newer one.
+    // Each load takes a monotonic ticket and writes only if no newer load has
+    // already written. This is deliberately NOT a KeepLast: KeepLast abandons a
+    // superseded promise outright, so the first valid result would be dropped
+    // and the update forced to wait for a later refetch — a visible render lag
+    // (e.g. a dynamic-domain status bar not reflecting a re-fetch in time).
+    let loadTicket = 0;
+    let appliedTicket = 0;
+    const apply = (ticket, data) => {
+        if (ticket >= appliedTicket) {
+            appliedTicket = ticket;
+            result.data = data;
+        }
+    };
     const ormWithCache = Object.create(orm);
     ormWithCache.call = (...args) => {
         const key = JSON.stringify(args);
@@ -35,9 +51,9 @@ export function useSpecialData(loadFn) {
                     callback: (res, hasChanged) => {
                         specialDataCaches[key] = Promise.resolve(res);
                         if (status(component) !== "destroyed" && hasChanged) {
-                            assign(
-                                loadFn(ormWithCache, component.props),
-                                component.props.record,
+                            const ticket = ++loadTicket;
+                            loadFn(ormWithCache, component.props).then((res) =>
+                                apply(ticket, res),
                             );
                         }
                     },
@@ -56,30 +72,15 @@ export function useSpecialData(loadFn) {
 
     /** @type {{ data: T }} */
     const result = useState(/** @type {any} */ ({ data: {} }));
-    // Guard every load against navigating away: a load fired for one record
-    // must not clobber ``result.data`` once the component has moved to another
-    // record. We deliberately do NOT serialize with ``KeepLast`` here — that
-    // makes superseded loads hang, so on a same-record change (e.g. a dynamic
-    // domain re-evaluating) only the batched record-observer assignment
-    // survives, and that lone batched write does not schedule a re-render,
-    // leaving the widget showing stale data. Assigning on each (idempotent,
-    // same-record) load keeps the render reactive.
-    const assign = async (promise, forRecord) => {
-        const data = await promise;
-        if (
-            component.props.record.id === forRecord.id &&
-            status(component) !== "destroyed"
-        ) {
-            result.data = data;
-        }
-    };
     useRecordObserver(async (record, props) => {
-        await assign(loadFn(ormWithCache, { ...props, record }), record);
+        const ticket = ++loadTicket;
+        apply(ticket, await loadFn(ormWithCache, { ...props, record }));
     });
     onWillUpdateProps(async (props) => {
         // useRecordObserver callback is not called when the record doesn't change
         if (props.record.id === component.props.record.id) {
-            await assign(loadFn(ormWithCache, props), props.record);
+            const ticket = ++loadTicket;
+            apply(ticket, await loadFn(ormWithCache, props));
         }
     });
     return result;
