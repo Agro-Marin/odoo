@@ -368,8 +368,11 @@ export class CustomizeWebsitePlugin extends Plugin {
     }
     toggleTemplate(action, apply) {
         if (!apply) {
-            // Empty the container and restore the original content
-            action.editingElement.replaceChildren(this.beforePreviewNodes);
+            // Empty the container and restore the original content.
+            // ``beforePreviewNodes`` is an Array (see below); it MUST be spread —
+            // ``replaceChildren(array)`` would stringify it into a single text
+            // node ("[object HTMLElement],…"), destroying the saved content.
+            action.editingElement.replaceChildren(...this.beforePreviewNodes);
             this.beforePreviewNodes = null;
             return;
         }
@@ -380,12 +383,14 @@ export class CustomizeWebsitePlugin extends Plugin {
             this.beforePreviewNodes = [...action.editingElement.childNodes];
         }
 
-        // Empty the container and add the template content
+        // Empty the container and add the template content. Insert every parsed
+        // node (a template may render several top-level elements); taking only
+        // ``firstElementChild`` would silently drop the rest.
         const templateFragment = parseHTML(
             this.document,
             this.getTemplateKey(action.params.view),
         );
-        action.editingElement.replaceChildren(templateFragment.firstElementChild);
+        action.editingElement.replaceChildren(...templateFragment.childNodes);
     }
     getTemplateKey(key) {
         return this.activeTemplateViews[key];

@@ -74,8 +74,22 @@ export function setUtmsHtmlDataset() {
  * @returns {URL|""} URL if the protocol is http(s), empty string otherwise
  */
 export function verifyHttpsUrl(link) {
-    const url = new URL(link, window.location.href);
-    if (!/https?:/.test(url.protocol)) {
+    // Empty/absent input must yield "" (not the current page): callers rely on
+    // a falsy return for their own fallback (e.g. countdown's `|| "/"`).
+    if (!link) {
+        return "";
+    }
+    let url;
+    try {
+        url = new URL(link, window.location.href);
+    } catch {
+        // Malformed author-set URL: don't let it throw inside a click/redirect
+        // handler, just reject it.
+        return "";
+    }
+    // Exact protocol check (the old /https?:/ was unanchored, e.g. "xhttps:")
+    // to keep blocking javascript:/data: while allowing only http(s).
+    if (url.protocol !== "http:" && url.protocol !== "https:") {
         return "";
     }
     return url;

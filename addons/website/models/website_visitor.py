@@ -161,8 +161,11 @@ class WebsiteVisitor(models.Model):
                 continue
             # If the access_token is not a 32 length hexa string, it means that
             # the visitor is linked to a logged in user, in which case its
-            # partner_id is used instead as the token.
-            partner_id = len(visitor.access_token) != 32 and int(visitor.access_token)
+            # partner_id is used instead as the token. Guard the int() parse: a
+            # corrupted or unexpected token must not raise ValueError out of this
+            # stored compute, which would break the whole batch (list/kanban/form).
+            token = visitor.access_token or ""
+            partner_id = int(token) if len(token) != 32 and token.isdigit() else False
             visitor.partner_id = self.env["res.partner"].browse(partner_id)
 
     @api.depends("partner_id.email_normalized", "partner_id.phone")

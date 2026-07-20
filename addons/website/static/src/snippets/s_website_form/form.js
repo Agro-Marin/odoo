@@ -148,7 +148,11 @@ export class Form extends Interaction {
         }
         // Check disabled states
         for (const inputEl of this.inputEls) {
-            this.disabledStates[inputEl] = inputEl.disabled;
+            // Use the Map API: ``map[inputEl] = …`` sets a property keyed on
+            // String(inputEl) ("[object HTMLInputElement]") — every input
+            // collapses to one key and ``.get()`` (in destroy) never sees it, so
+            // the disabled state was silently lost and every field force-enabled.
+            this.disabledStates.set(inputEl, inputEl.disabled);
         }
 
         // Add the files zones where the file blocks will be displayed.
@@ -194,6 +198,9 @@ export class Form extends Interaction {
             for (const el of errorEl.querySelectorAll(".form-control, .form-select")) {
                 el.classList.remove("is-invalid");
             }
+            // Dispose the field's error popover (and its document-level hover
+            // listeners) so it doesn't outlive the interaction on edit-mode entry.
+            Popover.getInstance(errorEl)?.dispose();
         }
 
         // Remove the status message
@@ -665,6 +672,12 @@ export class Form extends Interaction {
             for (const controlEl of controlEls) {
                 controlEl.classList.remove("is-invalid");
             }
+            // Dispose any error popover from a previous validation pass: the
+            // field may now be valid (so it must disappear) or carry a new
+            // server message. Reusing the instance via getOrCreateInstance would
+            // otherwise keep showing the stale FIRST message, and never disposing
+            // leaks a Bootstrap instance + its hover listeners on every submit.
+            Popover.getInstance(fieldEl)?.dispose();
             if (invalidInputs.length || errorFields[fieldName]) {
                 fieldEl.classList.add("o_has_error");
                 for (const controlEl of controlEls) {

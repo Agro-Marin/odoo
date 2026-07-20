@@ -3,7 +3,7 @@
 import functools
 from unittest.mock import patch
 
-from odoo.tests import TransactionCase, tagged
+from odoo.tests import HttpCase, TransactionCase, tagged
 
 
 @tagged("-at_install", "post_install")
@@ -133,3 +133,55 @@ class TestWebsiteSitemap(TransactionCase):
         self.assertEqual(call_count["n"], 1)
         # And the returned loc should be present (normalized already)
         self.assertIn({"loc": "/once"}, locs)
+
+
+@tagged("-at_install", "post_install")
+class TestWebsiteSitemapHost(HttpCase):
+    def test_sitemap_ignores_host_header(self):
+        """A varying (client-controlled) Host must neither mint new sitemap
+        attachments (DoS) nor leak into the emitted URLs. With no configured
+        domain the canonical root is pinned to the server-controlled
+        ``web.base.url`` instead of the request Host."""
+        website = self.env["website"].search([], limit=1)
+        website.domain = False  # exercise the no-domain (pinned) path
+        # Freeze a known canonical base so the assertions are deterministic and
+        # independent of the test server's host/port.
+        ICP = self.env["ir.config_parameter"].sudo()
+        ICP.set_param("web.base.url", "http://canonical.example")
+        ICP.set_param("web.base.url.freeze", "1")
+        self.env["website.page"].create(
+            {
+                "name": "Sitemap Host Test",
+                "website_id": website.id,
+                "url": "/sitemap-host-test",
+                "type": "qweb",
+                "arch": '<t t-call="website.layout"/>',
+                "is_published": True,
+            }
+        )
+        Attachment = self.env["ir.attachment"].sudo()
+        dom = [
+            ("type", "=", "binary"),
+            ("url", "=like", "/sitemap-%d-%%" % website.id),
+        ]
+        Attachment.search(dom).unlink()  # clean slate
+
+        # First crawl with a spoofed Host generates + caches the sitemap.
+        r1 = self.url_open("/sitemap.xml", headers={"Host": "evil-a.example"})
+        self.assertEqual(r1.status_code, 200)
+        n1 = Attachment.search_count(dom)
+        self.assertTrue(n1, "a sitemap should have been generated")
+
+        # A crawl with a DIFFERENT spoofed Host must reuse the same cache: no
+        # new attachments, and neither attacker Host present in the body.
+        r2 = self.url_open("/sitemap.xml", headers={"Host": "evil-b.example"})
+        self.assertEqual(r2.status_code, 200)
+        self.assertEqual(
+            Attachment.search_count(dom),
+            n1,
+            "Varying the Host must not create new sitemap attachments.",
+        )
+        self.assertNotIn(b"evil-a.example", r2.content)
+        self.assertNotIn(b"evil-b.example", r2.content)
+        # The emitted absolute URLs use the server-controlled canonical root.
+        self.assertIn(b"canonical.example", r2.content)

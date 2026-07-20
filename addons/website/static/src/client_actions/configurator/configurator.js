@@ -540,6 +540,12 @@ export class ApplyConfiguratorScreen extends Component {
             // getConfigurationData would crash on WEBSITE_PURPOSES[undefined].name.
             return this.props.navigate(ROUTES.descriptionScreen);
         }
+        if (!this.state.selectedType) {
+            // Same crash class as above: getConfigurationData reads
+            // WEBSITE_TYPES[this.state.selectedType].name, and selectedType is
+            // restored from sessionStorage so it can be undefined here.
+            return this.props.navigate(ROUTES.descriptionScreen);
+        }
 
         const attemptConfiguratorApply = async (data, retryCount = 0) => {
             try {

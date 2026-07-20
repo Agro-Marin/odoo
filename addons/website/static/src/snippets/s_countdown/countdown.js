@@ -293,7 +293,13 @@ export class Countdown extends Interaction {
 
         if (this.isFinished) {
             clearInterval(this.setInterval);
-            this.handleEndCountdownAction();
+            // Run the end action exactly once: render() is re-invoked on every
+            // resize below (to redraw the canvases), and re-running it would
+            // reschedule the redirect timeout and push a new cleanup each time.
+            if (!this.endActionDone) {
+                this.endActionDone = true;
+                this.handleEndCountdownAction();
+            }
             // Re-render on resize when the countdown is finished. rAF-throttled:
             // render() redraws every canvas, and resize can fire rapidly.
             if (!this.onResize) {

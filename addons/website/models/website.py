@@ -2423,30 +2423,6 @@ class Website(models.Model):
                             old_blockquote_asset.active = True
         self.env["ir.asset"].flush_model()
 
-    def _search_build_domain(self, domain_list, search, fields, extra=None):
-        """
-        Builds a search domain AND-combining a base domain with partial matches of each term in
-        the search expression in any of the fields.
-
-        :param domain: base domain combined in the search expression
-        :param search: search expression string
-        :param fields: list of field names to match the terms of the search expression with
-        :param extra: function that returns an additional subdomain for a search term
-
-        :return: domain limited to the matches of the search expression
-        """
-        # just like website.searchable.mixin
-        domain = Domain.AND(domain_list)
-        if search:
-            for search_term in search.split(" "):
-                subdomains = [
-                    Domain(field, "ilike", escape_psql(search_term)) for field in fields
-                ]
-                if extra:
-                    subdomains.append(extra(self.env, search_term))
-                domain &= Domain.OR(subdomains)
-        return domain
-
     def _search_text_from_html(self, html_fragment):
         """
         Returns the plain non-tag text from an html

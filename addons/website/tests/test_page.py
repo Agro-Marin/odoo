@@ -56,6 +56,46 @@ class TestPage(common.TransactionCase):
             }
         )
 
+    def test_homepage_url_sync_is_per_website(self):
+        """Renaming a page URL must sync the ``homepage_url`` of the website
+        that actually points at that page, even when it is NOT the ambient
+        "current" website. Previously the sync used ``get_current_website()``,
+        so in a multi-website DB the owning website's homepage was left
+        dangling (and an unrelated website's could be repointed)."""
+        Website = self.env["website"]
+        website_1 = Website.browse(1)
+        website_2 = Website.create({"name": "Second Website"})
+
+        page = (
+            self.env["website.page"]
+            .with_context(website_id=website_2.id)
+            .create(
+                {
+                    "name": "MW Home",
+                    "type": "qweb",
+                    "arch": "<div>MW Home</div>",
+                    "key": "test.mw_home",
+                    "url": "/mw-home",
+                    "is_published": True,
+                    "website_id": website_2.id,
+                }
+            )
+        )
+        website_2.homepage_url = page.url
+        self.assertEqual(website_2.homepage_url, "/mw-home")
+        self.assertFalse(website_1.homepage_url)
+
+        # Rename the page while website 1 is the ambient "current" website —
+        # the exact scenario the old get_current_website() logic got wrong.
+        with MockRequest(self.env, website=website_1):
+            page.url = "/mw-home-renamed"
+
+        # website 2 owns the page: its homepage must follow the rename.
+        self.assertEqual(website_2.homepage_url, page.url)
+        self.assertEqual(website_2.homepage_url, "/mw-home-renamed")
+        # website 1 never pointed at this page: it must stay untouched.
+        self.assertFalse(website_1.homepage_url)
+
     def test_inverse_is_homepage_keeps_other_page(self):
         """Setting ``is_homepage=False`` on a page that is NOT the current
         homepage must not clear the website's homepage designation of another
@@ -489,11 +529,39 @@ class WithContext(HttpCase):
             )
 
     def test_04_visitor_no_session(self):
+        """Every page embeds a session-bound CSRF token (``window.odoo``), and
+        issuing it persists the session so the token's sid survives to the
+        validating POST (``odoo/http/_csrf.py``). So the FIRST anonymous visit
+        legitimately persists one minimal, unauthenticated session — that is
+        required for CSRF. What must NOT happen is per-render churn: a repeat
+        visit reusing that session must not rewrite it, and an anonymous visit
+        must never authenticate the session."""
+        # Spy on ``save`` while letting it run for real: a pure mock would stop
+        # the session ever reaching the store, so every request would look
+        # brand-new (``is_new``) and re-persist, hiding the churn we assert on.
+        store = root.session_store
         with (
-            patch.object(root.session_store, "save") as session_save,
+            patch.object(store, "save", wraps=store.save) as session_save,
             MockRequest(self.env, website=self.env["website"].browse(1)),
         ):
-            # no session should be saved for website visitor
+            # First visit: a brand-new session is persisted exactly once so the
+            # CSRF token stays valid; it must stay anonymous.
+            self.url_open(self.page.url).raise_for_status()
+            self.assertLessEqual(
+                session_save.call_count,
+                1,
+                "a page view must persist at most one (CSRF) session",
+            )
+            for call in session_save.call_args_list:
+                self.assertFalse(
+                    call.args[0].uid,
+                    "an anonymous page view must not authenticate the session",
+                )
+
+            # Second visit reusing the now-persisted session cookie: nothing
+            # changed, so the session must NOT be rewritten. Guards against
+            # ``csrf_token()`` touching (and thus re-saving) on every render.
+            session_save.reset_mock()
             self.url_open(self.page.url).raise_for_status()
             session_save.assert_not_called()
 

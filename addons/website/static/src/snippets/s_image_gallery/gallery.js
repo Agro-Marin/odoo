@@ -103,6 +103,17 @@ export class Gallery extends Interaction {
         modalBS.show();
     }
 
+    destroy() {
+        // If the interaction is torn down (e.g. entering edit mode) while the
+        // lightbox is still open, ``hidden.bs.modal`` never fires and the
+        // Bootstrap Modal's document/window listeners (ESC, focus-trap, resize)
+        // would leak. Dispose it explicitly; the modal node itself is removed by
+        // insert()'s registered cleanup.
+        if (this.modalEl) {
+            Modal.getInstance(this.modalEl)?.dispose();
+        }
+    }
+
     /**
      * @param {MouseEvent} ev
      */
