@@ -63,14 +63,10 @@ class ReportPoint_Of_SaleReport_Saledetails(models.AbstractModel):
         **kwargs,
     ):
         """Serialise the orders of the requested time period, configs and sessions.
-        :param date_start: The dateTime to start, default today 00:00:00.
-        :type date_start: str.
-        :param date_stop: The dateTime to stop, default date_start + 23:59:59.
-        :type date_stop: str.
-        :param config_ids: Pos Config id's to include.
-        :type config_ids: list of numbers.
-        :param session_ids: Pos Config id's to include.
-        :type session_ids: list of numbers.
+        :param str date_start: start dateTime, default today 00:00:00.
+        :param str date_stop: stop dateTime, default date_start + 23:59:59.
+        :param list config_ids: pos.config ids to include.
+        :param list session_ids: pos.session ids to include.
         :returns: dict -- Serialised sales.
         """
         if not session_ids:

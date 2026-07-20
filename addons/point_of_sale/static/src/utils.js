@@ -124,11 +124,12 @@ export function qrCodeSrc(url, { size = 200 } = {}) {
 }
 
 /**
+ * Returns the entry with the highest `criterion` value (lowest if `inverted`).
  * @template T
- * @param {T[]} entries - The array of objects to search through.
- * @param {Function} [criterion=(x) => x] - A function that returns a number for each entry. The entry with the highest value of this function will be returned. If not provided, defaults to an identity function that returns the entry itself.
- * @param {boolean} [inverted=false] - If true, the entry with the lowest value of the criterion function will be returned instead.
- * @returns {T} The entry with the highest or lowest value of the criterion function, depending on the value of `inverted`.
+ * @param {T[]} entries - The entries to search.
+ * @param {Function} [criterion=(x) => x] - Maps an entry to a comparable number.
+ * @param {boolean} [inverted=false] - Return the minimum instead of the maximum.
+ * @returns {T} The selected entry.
  */
 export function getMax(entries, { criterion = (x) => x, inverted = false } = {}) {
     return entries.reduce((prev, current) => {
@@ -145,11 +146,7 @@ export function getOnNotified(bus, channel) {
 }
 
 /**
- * Loading image is converted to a Promise to allow await when
- * loading an image. It resolves to the loaded image if successful,
- * else, resolves to false.
- *
- * [Source](https://stackoverflow.com/questions/45788934/how-to-turn-this-callback-into-a-promise-using-async-await)
+ * Awaitable image loading: resolves to the loaded image, or false on error.
  */
 export function loadImage(url, options = {}) {
     return new Promise((resolve, reject) => {

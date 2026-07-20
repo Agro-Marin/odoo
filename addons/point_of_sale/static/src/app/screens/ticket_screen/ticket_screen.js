@@ -717,11 +717,8 @@ export class TicketScreen extends Component {
         return true;
     }
     /**
-     * Returns the corresponding toRefundDetail of the given orderline.
-     * SIDE-EFFECT: Automatically creates a toRefundDetail object for
-     * the given orderline if it doesn't exist and returns it.
+     * Returns the orderline's toRefundDetail, creating one if it doesn't exist.
      * @param {models.Orderline} orderline
-     * @returns
      */
     getToRefundDetail(orderline) {
         const lineToRefund = orderline.order_id.uiState.lineToRefund;

@@ -2,44 +2,16 @@
 import { onMounted, onWillUnmount } from "@odoo/owl";
 
 /**
- * `useTimedPress` — A hook to detect and respond to different press durations on a DOM element.
+ * Hook that runs callbacks based on how long an element is pressed. Works with
+ * mouse, touch and stylus via pointer events.
  *
- * It supports two types of interactions:
- * - `"release"` (default): Triggers the callback **after the pointer is released**, if the duration falls within the defined delay range.
- * - `"hold"`: Triggers the callback after a given delay **while the pointer is held down**.
- *
- * This hook is compatible with mouse, touch, and stylus inputs via `pointer` events.
- *
- * @param {Ref} ref - An OWL `useRef` pointing to the target DOM element.
- * @param {Array<Object>} ranges - An array of press range objects defining when and how to trigger callbacks.
- *   Each object supports the following properties:
- *   @param {number} [ranges[].delay=0] - Minimum duration in milliseconds before the callback can be triggered.
- *   @param {number} [ranges[].maxDelay] - Optional maximum duration; if specified, the callback is only triggered if the press duration is less than this value.
- *   @param {Function} ranges[].callback - The function to execute. It receives the original pointer event and the press duration in milliseconds (for `"release"`).
- *     Signature: `(event: PointerEvent, duration: number) => void`
- *   @param {string} [ranges[].type="release"] - Determines when to trigger the callback:
- *     - `"hold"`: triggers while holding the press after `delay`
- *     - `"release"`: triggers after release if the press duration is within `[delay, maxDelay)`
- *
- * @example
- * useTimedPress(myRef, [
- *   {
- *     delay: 600,
- *     callback: (e, duration) => console.log("Long press while holding"),
- *     type: "hold",
- *   },
- *   {
- *     delay: 0,
- *     maxDelay: 200,
- *     callback: (e, duration) => console.log("Tap released", duration),
- *     type: "release",
- *   },
- *   {
- *     delay: 600,
- *     callback: (e, duration) => console.log("Long press released", duration),
- *     type: "release",
- *   },
- * ]);
+ * @param {Ref} ref - OWL `useRef` pointing to the target element.
+ * @param {Array<Object>} ranges - Press ranges, each with:
+ *   @param {number} [ranges[].delay=0] - Minimum press duration (ms) to trigger.
+ *   @param {number} [ranges[].maxDelay] - If set, only triggers below this duration.
+ *   @param {Function} ranges[].callback - `(event: PointerEvent, duration: number) => void`.
+ *   @param {string} [ranges[].type="release"] - `"hold"` fires while held past `delay`;
+ *     `"release"` fires on release if duration is within `[delay, maxDelay)`.
  */
 export function useTimedPress(ref, ranges = []) {
     let timerStart = null;

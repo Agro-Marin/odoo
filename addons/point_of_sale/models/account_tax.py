@@ -60,12 +60,9 @@ class AccountTax(models.Model):
         tax_to_compute -= used_taxes
         if tax_to_compute:
             self.env["pos.order.line"].flush_model(["tax_ids"])
-            # Expand the id set with `= ANY(%s)` + a list, mirroring the `write()`
-            # guard above and account's own `_compute_is_used`. The legacy
-            # `IN %s` + tuple form is psycopg2-only; under this fork's psycopg3 it
-            # raises `syntax error at or near "$1"`. A distinct scan of the m2m
-            # relation is equivalent to (and cheaper than) the correlated EXISTS
-            # against account_tax, since every id in the relation is a valid tax.
+            # `= ANY(%s)` + a list, not `IN %s` + tuple: the latter is psycopg2-only
+            # and raises a syntax error under this fork's psycopg3. Scanning the m2m
+            # relation directly is equivalent to and cheaper than a correlated EXISTS.
             self.env.cr.execute(
                 """
                 SELECT DISTINCT account_tax_id

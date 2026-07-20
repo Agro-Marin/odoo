@@ -90,15 +90,9 @@ export class PosData extends SignalStore {
         try {
             clearTimeout(this.checkConnectivityTimeout);
             this.checkConnectivityTimeout = null;
-            // Runbot tests will soon be run in dockers with no access to the outside world,
-            // so all their interfaces will be disconnected. The problem is that the browser
-            // considers itself offline when no interface is connected. However, in this case,
-            // if the Odoo server is still accessible.
-            //
-            // This method also makes it possible to run local tests when no connection is
-            // available and an Odoo server is running locally.
-            //
-            // A ping is required to verify that the connection to the server is not possible.
+            // The browser reports itself offline when no interface is connected,
+            // even though a local/runbot Odoo server may still be reachable. Ping
+            // it to tell a real outage apart from that case.
             this.network.offline = false;
             this.network.warningTriggered = false;
 

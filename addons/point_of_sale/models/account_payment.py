@@ -25,11 +25,9 @@ class AccountPayment(models.Model):
     def _get_payment_method_codes_to_exclude(self):
         res = super()._get_payment_method_codes_to_exclude()
 
-        # Sepa Credit Transfer is an outgoing payment method. It requires a partner and bank
-        # account. In the context of PoS orders, you can make refunds that are not linked to
-        # a specific customer. We ensure that account.payment are not created using the sepa_ct
-        # account.payment.method.line. If not, closing the session would not be possible unless
-        # having an account.payment.method.line with a smaller sequence than sepa_ct.
+        # SEPA Credit Transfer requires a partner and bank account, but POS refunds
+        # may have no customer. Exclude sepa_ct so account.payment are never created
+        # with it, which would otherwise block session closing.
         if self.env["ir.module.module"]._get("account_iso20022").state == "installed":
             sepa_ct = self.env.ref(
                 "account_iso20022.account_payment_method_sepa_ct",

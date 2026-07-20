@@ -763,8 +763,8 @@ export function createRelatedModels(modelDefs, modelClasses = {}, opts = {}) {
         }
 
         /**
-         * Loads data that is already fully connected, meaning relationships do not need to be computed.
-         * This method is typically used when loading the initial dataset from the backend.
+         * Loads already-connected data (no relationships to compute), typically
+         * the initial dataset from the backend.
          *
          * @param {Object} data - The dataset to load.
          * @param {Array<string>} [modelsToLoad=[]] - The names of the models to be loaded.
@@ -787,8 +787,8 @@ export function createRelatedModels(modelDefs, modelClasses = {}, opts = {}) {
         }
 
         /**
-         * Loads data that is not fully connected, meaning some records have already been loaded,
-         * and relationships need to be computed to maintain consistency.
+         * Loads not-fully-connected data, recomputing relationships against
+         * already-loaded records to keep them consistent.
          *
          * @param {Object} data - The dataset to load.
          * @param {boolean} [serverData=true] - If true, data not declared as a model field is stored as raw.
@@ -1121,9 +1121,8 @@ function setupRecord(record, vals, uiState, isUpdate = false) {
 }
 
 /**
- *  Converts [l1, l2] into [["set", l1, l2]]  or [] to ["clear"] if necessary.
- *  If values are already arrays, they are added as-is.
- *  Otherwise, a default "set" command is created to group individual values.
+ * Wraps values into x2many commands: array values are kept as-is, individual
+ * values are grouped into a "set" command, and [] becomes ["clear"].
  */
 function convertToX2ManyCommands(values, strict = false) {
     const commands = [];

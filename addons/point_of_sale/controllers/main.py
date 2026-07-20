@@ -40,17 +40,12 @@ class PosController(PortalAccount):
         type="http",
     )
     def pos_web(self, config_id=False, from_backend=False, subpath=None, **k):
-        """Open a pos session for the given config.
+        """Open (or create, if none is open) a pos session for the given config.
 
-        The right pos session will be selected to open, if non is open yet a new session will be created.
+        Both /pos/ui and /pos/web reach the POS; on SaaS the former uses HTTPS,
+        the latter HTTP.
 
-        /pos/ui and /pos/web both can be used to access the POS. On the SaaS,
-        /pos/ui uses HTTPS while /pos/web uses HTTP.
-
-        :param debug: The debug mode to load the session in.
-        :type debug: str.
-        :param config_id: id of the config that has to be loaded.
-        :type config_id: str.
+        :param str config_id: id of the config to load.
         :returns: object -- The rendered pos session.
         """
         is_internal_user = request.env.user._is_internal()

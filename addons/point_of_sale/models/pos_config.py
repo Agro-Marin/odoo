@@ -60,13 +60,10 @@ class PosConfig(models.Model):
         """Default to existing payment methods compatible with this config's
         company and currency.
 
-        This is a *field default*: it runs on form load / ``new()`` /
-        ``default_get``, not only on real record creation, so it must have NO
-        side effects. When no compatible method exists, ``create()`` provisions
-        the journal and methods instead (``_create_journal_and_payment_methods``,
-        whose own docstring requires it to run only at creation time). Creating
-        journals/methods from here left orphan accounting records behind whenever
-        a new-config form was opened and then abandoned.
+        As a field default it also runs on form load / ``new()`` / ``default_get``,
+        so it must have NO side effects (creating journals/methods here orphaned
+        accounting records when a new-config form was abandoned). ``create()``
+        provisions the journal and methods when none is compatible.
         """
         domain = [
             *self.env["pos.payment.method"]._check_company_domain(self.env.company),
@@ -1333,9 +1330,6 @@ class PosConfig(models.Model):
 
     def open_ui(self):
         """Open the pos interface with config_id as an extra argument.
-
-        In vanilla PoS each user can only have one active session, therefore it was not needed to pass the config_id
-        on opening a session. It is also possible to login to sessions created by other users.
 
         :returns: dict
         """
