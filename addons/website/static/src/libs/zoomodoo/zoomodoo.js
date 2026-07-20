@@ -135,6 +135,11 @@ ZoomOdoo.prototype._init = function () {
                 () => {
                     this.hide();
                     this._ac.abort();
+                    // The aborted controller is permanently dead (and _init()
+                    // reuses it), so drop the cached instance; the next
+                    // initZoomOdoo(el) rebuilds it with a fresh AbortController
+                    // and listeners instead of returning this dead one.
+                    instanceMap.delete(this.target);
                 },
                 { signal },
             );

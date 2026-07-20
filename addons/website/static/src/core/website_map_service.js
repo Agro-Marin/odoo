@@ -30,8 +30,14 @@ export const websiteMapService = {
             async getGMapAPIKey(refetch) {
                 if (refetch || !gmapAPIKeyProm) {
                     gmapAPIKeyProm = (async () => {
-                        const data = await rpc("/website/google_maps_api_key");
-                        return JSON.parse(data).google_maps_api_key || "";
+                        try {
+                            const data = await rpc("/website/google_maps_api_key");
+                            return JSON.parse(data).google_maps_api_key || "";
+                        } catch {
+                            // Don't cache a failed fetch; allow a later retry.
+                            gmapAPIKeyProm = null;
+                            return "";
+                        }
                     })();
                 }
                 return gmapAPIKeyProm;
@@ -45,25 +51,31 @@ export const websiteMapService = {
                 // library. If the library was loaded with a correct key and that the
                 // key changes meanwhile... it will not work but we can agree the user
                 // can bother to reload the page at that moment.
-                if (refetch || !(await gmapAPILoading)) {
+                // Check `gmapAPILoading` synchronously: `!(await gmapAPILoading)`
+                // meant two concurrent first callers both awaited `undefined`
+                // (falsy) and both entered the loader. Reset the cache when the
+                // load fails so a later call still retries (the previous
+                // await-false guard did).
+                if (refetch || !gmapAPILoading) {
                     gmapAPILoading = (async () => {
-                        const key = await this.getGMapAPIKey(refetch);
-                        lastKey = key;
+                        try {
+                            const key = await this.getGMapAPIKey(refetch);
+                            lastKey = key;
 
-                        if (key) {
-                            if (!promiseKeys[key]) {
-                                promiseKeys[key] = new Promise((resolve) => {
-                                    promiseKeysResolves[key] = resolve;
-                                });
-                                await loadJS(
-                                    `https://maps.googleapis.com/maps/api/js?v=3.exp&libraries=places&callback=odoo_gmap_api_post_load&key=${encodeURIComponent(
-                                        key,
-                                    )}`,
-                                );
+                            if (key) {
+                                if (!promiseKeys[key]) {
+                                    promiseKeys[key] = new Promise((resolve) => {
+                                        promiseKeysResolves[key] = resolve;
+                                    });
+                                    await loadJS(
+                                        `https://maps.googleapis.com/maps/api/js?v=3.exp&libraries=places&callback=odoo_gmap_api_post_load&key=${encodeURIComponent(
+                                            key,
+                                        )}`,
+                                    );
+                                }
+                                await promiseKeys[key];
+                                return key;
                             }
-                            await promiseKeys[key];
-                            return key;
-                        } else {
                             if (!editableMode && user.isAdmin) {
                                 const message = _t("Cannot load google map.");
                                 const urlTitle = _t("Check your configuration.");
@@ -75,6 +87,10 @@ export const websiteMapService = {
                                     { type: "warning", sticky: true },
                                 );
                             }
+                            gmapAPILoading = null;
+                            return false;
+                        } catch {
+                            gmapAPILoading = null;
                             return false;
                         }
                     })();

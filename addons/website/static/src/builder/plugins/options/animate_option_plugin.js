@@ -166,19 +166,24 @@ export class AnimateOptionPlugin extends Plugin {
             // Trigger a DOM reflow (Needed to prevent the animation from
             // being launched twice when previewing the "Intensity" option).
             await new Promise((resolve) => setTimeout(resolve));
+            if (!editingElement.isConnected) {
+                // Element was replaced/removed during the reflow wait.
+                return;
+            }
             editingElement.classList.add("o_animating");
             this.scrollingElement.classList.add("o_wanim_overflow_xy_hidden");
             editingElement.style.animationName = "";
-            editingElement.addEventListener(
-                "animationend",
-                () => {
-                    this.scrollingElement.classList.remove(
-                        "o_wanim_overflow_xy_hidden",
-                    );
-                    editingElement.classList.remove("o_animating");
-                },
-                { once: true },
-            );
+            const clearOverflow = () => {
+                this.scrollingElement.classList.remove("o_wanim_overflow_xy_hidden");
+                editingElement.classList.remove("o_animating");
+            };
+            editingElement.addEventListener("animationend", clearOverflow, {
+                once: true,
+            });
+            // Safety net: if the element is detached before animationend fires,
+            // the overflow-hidden class would otherwise stay stuck on the
+            // scrolling element indefinitely.
+            setTimeout(clearOverflow, 3000);
         }
     }
 
