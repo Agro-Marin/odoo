@@ -79,7 +79,7 @@ POSIX_TO_LDML = {
     "W": "w",
     "y": "yy",
     "Y": "yyyy",
-    # Timezone handling is problematic, see comments in original code
+    # %z/%Z left unmapped on purpose: timezone conversion is unreliable here.
     #'z': 'Z',
     #'Z': 'z',
 }
@@ -88,9 +88,7 @@ POSIX_TO_LDML = {
 def posix_to_ldml(fmt: str, locale: babel.Locale) -> str:
     """Convert a POSIX/strftime pattern into an LDML date format pattern.
 
-    LDML (Locale Data Markup Language) is the Unicode standard for locale data,
-    used by libraries like Babel and ICU. This function converts C-style strftime
-    format strings to LDML patterns.
+    LDML is the Unicode locale-data standard used by Babel and ICU.
 
     :param fmt: non-extended C89/C90 strftime pattern
     :param locale: babel locale used for locale-specific conversions (e.g. %x and %X)

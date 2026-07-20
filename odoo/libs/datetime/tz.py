@@ -130,15 +130,10 @@ _available_timezones: frozenset[str] = available_timezones()
 
 
 def timezone(name: str) -> ZoneInfo:
-    """Get a timezone by name.
+    """Return a cached ``ZoneInfo`` for ``name``.
 
-    This function handles:
-    - Standard IANA timezone names (e.g., 'Europe/Paris')
-    - Deprecated timezone names that were removed in Ubuntu 24.04
-    - Caching of ZoneInfo objects for performance
-
-    If the timezone name exists in available_timezones(), it is used directly.
-    Otherwise, the alias mapping is checked for deprecated names.
+    IANA names are used directly; deprecated names (removed in Ubuntu 24.04)
+    fall back to the alias mapping.
 
     :param name: Timezone name (e.g., 'Europe/Paris', 'US/Eastern')
     :returns: A ZoneInfo timezone object

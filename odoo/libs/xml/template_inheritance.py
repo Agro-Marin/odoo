@@ -44,8 +44,8 @@ def _compile_xpath(expr: str) -> etree.ETXPath:
     return etree.ETXPath(expr)
 
 
-# List of etree._Element subclasses that we choose to ignore when parsing XML.
-# We include the *Base ones just in case, currently they seem to be subclasses of the _* ones.
+# etree._Element subclasses ignored when parsing XML. The *Base classes are the
+# public base types of the corresponding _* ones and are listed for completeness.
 SKIPPED_ELEMENT_TYPES = (
     etree._Comment,
     etree._ProcessingInstruction,

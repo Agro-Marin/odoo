@@ -1,7 +1,6 @@
 """SQL string utilities.
 
 Pure Python SQL helpers with no Odoo dependencies.
-These utilities work with SQL strings and don't require a database connection.
 """
 
 __all__ = [

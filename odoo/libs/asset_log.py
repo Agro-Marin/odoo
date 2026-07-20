@@ -24,13 +24,9 @@ Categories (kept in sync with the JS side):
     fallback   Degraded path activations (prod→debug, try-lock miss)
     lock       Advisory-lock acquire/release for concurrent builds
 
-Event format — when ``log_event`` is used, the formatted record looks
-like (logger name comes from Python's log handler, message is the body)::
+A ``log_event`` record formats as (the body is ``grep``-friendly)::
 
     odoo.assets.esbuild INFO event=invoke bundle=web.assets_web modules=603
-
-The ``event=<name> k1=v1 k2=v2`` body is ``grep``/``awk`` friendly and
-trivially parseable into JSON lines by downstream log aggregators.
 """
 
 import logging
@@ -42,11 +38,7 @@ ASSET_ROOT = "odoo.assets"
 
 
 def get_asset_logger(category: str) -> logging.Logger:
-    """Return the logger for the given asset category.
-
-    All asset loggers are children of ``odoo.assets`` so a single handler
-    can capture the whole pipeline.
-    """
+    """Return the ``odoo.assets.<category>`` logger."""
     if not category:
         return logging.getLogger(ASSET_ROOT)
     return logging.getLogger(f"{ASSET_ROOT}.{category}")
@@ -60,10 +52,8 @@ def log_event(
 ) -> None:
     """Emit a structured ``event=<name> k1=v1 k2=v2`` record.
 
-    Keeps format strings simple (no ``%s`` juggling when fields vary) and
-    produces output that survives raw ``grep`` queries as well as JSON
-    conversion via ``awk '{for(i=2;i<=NF;i++){split($i,a,"=");print a[1]": "a[2]}}'``
-    or similar shell one-liners.
+    The flat ``key=value`` body stays readable across varying fields and is
+    easy to ``grep`` or parse into JSON.
     """
     if not logger.isEnabledFor(level):
         return

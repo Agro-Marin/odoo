@@ -115,12 +115,12 @@ class SetDefinitions:
 
     @property
     def empty(self) -> SetExpression:
-        """Return the empty set expression, that contains nothing."""
+        """Return the empty set expression."""
         return EMPTY_UNION
 
     @property
     def universe(self) -> SetExpression:
-        """Return the universal set expression, that contains every element."""
+        """Return the universal set expression."""
         return UNIVERSAL_UNION
 
     def parse(self, refs: str, raise_if_not_found: bool = True) -> SetExpression:
@@ -185,10 +185,7 @@ class SetDefinitions:
         return None if leaf is None else leaf.id
 
     def __get_leaf(self, ref: str | int, raise_if_not_found: bool = True) -> Leaf:
-        """Return the group object from the string.
-
-        :param str ref: the ref of a leaf
-        """
+        """Return the ``Leaf`` for the reference ``ref``."""
         if ref == "*":
             return UNIVERSAL_LEAF
         if not raise_if_not_found and ref not in self.__leaves:
@@ -248,12 +245,12 @@ class SetExpression(ABC):
 
     @abstractmethod
     def is_empty(self) -> bool:
-        """Return whether ``self`` is the empty set, that contains nothing."""
+        """Return whether ``self`` is the empty set."""
         raise NotImplementedError
 
     @abstractmethod
     def is_universal(self) -> bool:
-        """Return whether ``self`` is the universal set, that contains all possible elements."""
+        """Return whether ``self`` is the universal set."""
         raise NotImplementedError
 
     @abstractmethod
@@ -364,11 +361,11 @@ class Union(SetExpression):
         return result
 
     def is_empty(self) -> bool:
-        """Return whether ``self`` is the empty set, that contains nothing."""
+        """Return whether ``self`` is the empty set."""
         return not self.__inters
 
     def is_universal(self) -> bool:
-        """Return whether ``self`` is the universal set, that contains all possible elements."""
+        """Return whether ``self`` is the universal set."""
         return any(item.is_universal() for item in self.__inters)
 
     def invert_intersect(self, factor: SetExpression) -> Union | None:
@@ -505,7 +502,7 @@ class Union(SetExpression):
         return self != other and self.__le__(other)
 
     def __str__(self) -> str:
-        """Return an intersection union representation of groups using user-readable references.
+        """Return a human-readable ``|`` of ``&``-joined references.
 
         e.g. ('base.group_user' & 'base.group_multi_company') | ('base.group_portal' & ~'base.group_multi_company') | 'base.group_public'
         """
@@ -571,11 +568,11 @@ class Inter:
         return result
 
     def is_empty(self) -> bool:
-        """Return whether ``self`` is the empty set, that contains nothing."""
+        """Return whether ``self`` is the empty set."""
         return any(item.is_empty() for item in self.leaves)
 
     def is_universal(self) -> bool:
-        """Return whether ``self`` is the universal set, that contains all possible elements."""
+        """Return whether ``self`` is the universal set."""
         return not self.leaves
 
     def matches(self, user_group_ids: Collection[int]) -> bool:
@@ -693,11 +690,11 @@ class Leaf:
         return self.inverse
 
     def is_empty(self) -> bool:
-        """Return whether ``self`` is the empty set, that contains nothing."""
+        """Return whether ``self`` is the empty set."""
         return self.ref == "*" and self.negative
 
     def is_universal(self) -> bool:
-        """Return whether ``self`` is the universal set, that contains all possible elements."""
+        """Return whether ``self`` is the universal set."""
         return self.ref == "*" and not self.negative
 
     def isdisjoint(self, other: Leaf) -> bool:

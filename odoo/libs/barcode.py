@@ -76,10 +76,9 @@ def get_barcode_check_digit(numeric_barcode: str) -> int:
     # N1  N2  N3  N4  N5  N6  N7  N8  N9  N10 N11 N12 N13 N14 N15 N16 N17 N18
     # x3  X1  x3  x1  x3  x1  x3  x1  x3  x1  x3  x1  x3  x1  x3  x1  x3  CHECKSUM
     oddsum = evensum = 0
-    code = numeric_barcode[-2::-1]  # Remove the check digit and reverse the barcode.
-    # The CHECKSUM digit is removed because it will be recomputed and it must not interfer with
-    # the computation. Also, the barcode is inverted, so the barcode length doesn't matter.
-    # Otherwise, the digits' group (even or odd) could be different according to the barcode length.
+    # Drop the check digit (it gets recomputed) and reverse, so the odd/even
+    # grouping is anchored at the right and independent of the barcode length.
+    code = numeric_barcode[-2::-1]
     for i, digit in enumerate(code):
         if i % 2 == 0:
             evensum += int(digit)
