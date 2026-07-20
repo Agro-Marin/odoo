@@ -433,10 +433,7 @@ class SaleOrder(models.Model):
 
     @api.depends("company_id")
     def _compute_has_active_pricelist(self):
-        """Check if active pricelists exist for each order's company.
-
-        Uses a single batched query instead of N queries (one per order).
-        """
+        """Check if active pricelists exist for each order's company."""
         # Collect all unique company IDs
         company_ids = set(self.mapped("company_id.id"))
 
@@ -636,9 +633,7 @@ class SaleOrder(models.Model):
 
     @api.depends("company_id", "partner_id", "partner_shipping_id")
     def _compute_fiscal_position_id(self):
-        """
-        Trigger the change of fiscal position when the shipping address is modified.
-        """
+        """Recompute the fiscal position and flag a change when the order already has lines."""
         cache = {}
         for order in self:
             if not order.partner_id:
@@ -748,17 +743,14 @@ class SaleOrder(models.Model):
         "line_ids.display_type",
     )
     def _compute_has_upsell_opportunity(self):
-        """Detect commercial upselling opportunities.
+        """Flag orders with a commercial upselling opportunity.
 
-        An upselling opportunity exists when:
-        - Product has delivery-based invoicing policy
-        - Delivered quantity exceeds ordered quantity
-        - Line is not a display type (section/note)
-
-        This is independent of invoice_state and represents a commercial
-        opportunity to increase the order and capture additional revenue.
+        Set True when a delivery-invoiced, non-display line has delivered more
+        than was ordered.
         """
         for order in self:
+            # Independent of invoice_state: this flags a commercial opportunity to
+            # increase the order, not an invoicing status.
             order.has_upsell_opportunity = any(
                 line.product_id.invoice_policy == "transferred"
                 and line.qty_transferred > line.product_qty
@@ -1129,11 +1121,8 @@ class SaleOrder(models.Model):
     def _merge_validate_selection(self, quotations):
         """Validate the quotation selection for merge.
 
-        Args:
-            quotations: recordset of quotations to validate
-
-        Raises:
-            UserError: If fewer than 2 quotations selected
+        :param quotations: recordset of quotations to validate
+        :raises UserError: if fewer than 2 quotations selected
         """
         if len(quotations) < 2:
             raise UserError(
@@ -1145,11 +1134,9 @@ class SaleOrder(models.Model):
 
         Quotations with the same key can be merged together.
 
-        Args:
-            quotation: sale.order record
-
-        Returns:
-            tuple: Hashable key for grouping
+        :param quotation: sale.order record
+        :return: hashable key for grouping
+        :rtype: tuple
         """
         return (
             quotation.partner_id.id,
@@ -1532,8 +1519,7 @@ class SaleOrder(models.Model):
         return self.partner_invoice_id
 
     def _prepare_invoice_vals(self):
-        """
-        Prepare the dict of values to create the new invoice for a sales order."""
+        """Prepare the dict of values to create the new invoice for a sales order."""
         values = super()._prepare_invoice_vals()
         txs_to_be_linked = self.sudo().transaction_ids.filtered(
             lambda tx: (
@@ -1644,12 +1630,11 @@ class SaleOrder(models.Model):
 
     def _has_to_be_paid(self):
         """A sale order has to be paid when:
-        - its state is 'draft' or `sent`;
+        - its state is 'draft';
         - it's not expired;
         - it requires a payment;
-        - the last transaction's state isn't `done`;
-        - the total amount is strictly positive.
-        - confirmation amount is not reached
+        - the total amount is strictly positive;
+        - the confirmation amount is not reached.
 
         Note: self.ensure_one()
 
@@ -1667,7 +1652,7 @@ class SaleOrder(models.Model):
 
     def _has_to_be_signed(self):
         """A sale order has to be signed when:
-        - its state is 'draft' or `sent`
+        - its state is 'draft';
         - it's not expired;
         - it requires a signature;
         - it's not already signed.
@@ -1779,14 +1764,16 @@ class SaleOrder(models.Model):
     # ------------------------------------------------------------
 
     def _add_base_lines_for_early_payment_discount(self):
-        """
-        When applying a payment term with an early payment discount, and when said payment term computes the tax on the
-        'mixed' setting, the tax computation is always based on the discounted amount untaxed.
-        Creates the necessary line for this behavior to be displayed.
-        :returns: array containing the necessary lines or empty array if the payment term isn't epd mixed
+        """Build the early-payment-discount base lines for the tax computation.
+
+        :return: list of base lines, empty when the payment term isn't EPD 'mixed'.
+        :rtype: list
         """
         self.ensure_one()
         epd_lines = []
+        # On a 'mixed' early-payment-discount term the tax is always computed on
+        # the discounted untaxed amount, so the discount must be represented as
+        # dedicated base lines for the tax engine to pick it up.
         if (
             self.payment_term_id.early_discount
             and self.payment_term_id.early_pay_discount_computation == "mixed"
