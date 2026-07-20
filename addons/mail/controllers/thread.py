@@ -133,18 +133,24 @@ class ThreadController(http.Controller):
         "/mail/thread/recipients", methods=["POST"], type="jsonrpc", auth="user"
     )
     def mail_thread_recipients(self, thread_model, thread_id, message_id=None):
-        """Fetch discussion-based suggested recipients, creating partners on the fly"""
+        """Fetch discussion-based suggested recipients, creating partners on the fly
+        only when the caller can write the record."""
         thread = self._get_thread_with_access(thread_model, thread_id, mode="read")
+        # Only auto-create res.partner rows from the record's email fields when the
+        # caller can actually write the record. This route only needs read access,
+        # so a read-only viewer must not be able to spawn partners as a side effect
+        # of merely fetching suggestions.
+        no_create = not thread.has_access("write")
         if message_id:
             message = self._get_message_with_access(message_id, mode="read")
             suggested = thread._message_get_suggested_recipients(
                 reply_message=message,
-                no_create=False,
+                no_create=no_create,
             )
         else:
             suggested = thread._message_get_suggested_recipients(
                 reply_discussion=True,
-                no_create=False,
+                no_create=no_create,
             )
         return [
             {"id": info["partner_id"], "email": info["email"], "name": info["name"]}
@@ -156,6 +162,11 @@ class ThreadController(http.Controller):
         "/mail/thread/recipients/fields", methods=["POST"], type="jsonrpc", auth="user"
     )
     def mail_thread_recipients_fields(self, thread_model):
+        # Guard the caller-supplied model name like the sibling routes do:
+        # otherwise ``request.env[thread_model]`` raises KeyError -> HTTP 500
+        # (log spam) on any bogus model instead of a clean 404.
+        if thread_model not in request.env:
+            raise NotFound
         return {
             "partner_fields": request.env[thread_model]._mail_get_partner_fields(),
             "primary_email_field": [

@@ -1,10 +1,13 @@
+import logging
 from collections import defaultdict
 from datetime import timedelta
 
-from odoo import _, api, fields, models
+from odoo import api, fields, models
 from odoo.exceptions import UserError
 from odoo.fields import Domain
 from odoo.tools import SQL
+
+_logger = logging.getLogger(__name__)
 
 
 class MailTrackingDurationMixin(models.AbstractModel):
@@ -71,14 +74,17 @@ class MailTrackingDurationMixin(models.AbstractModel):
             self._track_duration_field not in self._track_get_fields()
             or self._fields[self._track_duration_field].type != "many2one"
         ):
-            self.duration_tracking = False
-            raise ValueError(
-                _(
-                    "Field “%(field)s” on model “%(model)s” must be of type Many2one and have tracking=True for the computation of duration.",
-                    field=self._track_duration_field,
-                    model=self._name,
-                )
+            # Misconfiguration is a developer error, but this is a non-stored
+            # compute rendered in list/kanban/form views: raising here would 500
+            # the whole view. Degrade gracefully (no duration) and log loudly.
+            _logger.warning(
+                "Field %r on model %r must be a tracked Many2one for duration "
+                "tracking; leaving duration_tracking empty.",
+                self._track_duration_field,
+                self._name,
             )
+            self.duration_tracking = False
+            return
 
         if self.ids:
             self.env["mail.tracking.value"].flush_model()

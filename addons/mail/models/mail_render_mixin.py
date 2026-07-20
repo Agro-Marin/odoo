@@ -92,6 +92,17 @@ class MailRenderMixin(models.AbstractModel):
                 default,
             )
             batch_size = 0
+        if batch_size < 0:
+            # A negative ICP is as malformed as a non-integer one: it is truthy,
+            # so ``batch_size or default`` would let it through and crash the
+            # mass-send loops (``itertools.batched(res_ids, -5)`` raises
+            # "n must be at least one"). Treat it as "unset".
+            _logger.warning(
+                "Negative ICP 'mail.batch_size' (%s), falling back to default %s",
+                batch_size,
+                default,
+            )
+            batch_size = 0
         return batch_size or default
 
     @api.model
@@ -537,6 +548,15 @@ class MailRenderMixin(models.AbstractModel):
                             group_name=group.name,
                         )
                     ) from e
+                # A genuine access error raised while the render walked to a record
+                # the caller may not read is meaningful and security-relevant:
+                # re-raise it unchanged (whether raised directly or wrapped by
+                # qweb) rather than flattening it into a generic UserError that
+                # also confirms the record and embeds the template source.
+                if isinstance(e, AccessError):
+                    raise
+                if isinstance(e, QWebError) and isinstance(e.__cause__, AccessError):
+                    raise e.__cause__ from e
                 if isinstance(e, QWebError):
                     # We extract the message before the template dump to clean out the full template
                     # source, since it will be added later again
@@ -657,16 +677,18 @@ class MailRenderMixin(models.AbstractModel):
                     raise SyntaxError(f"Invalid expression for the regex mode {expr!r}")
 
                 try:
-                    value = (
-                        reduce(
-                            lambda rec, field: rec[field], expr.split(".")[1:], record
-                        )
-                        or default
+                    value = reduce(
+                        lambda rec, field: rec[field], expr.split(".")[1:], record
                     )
                 except KeyError:
-                    value = default
+                    value = None
+                if isinstance(value, models.BaseModel):
+                    # A relational whitelist expression (e.g. object.partner_id)
+                    # resolves to a recordset; escape() would emit its repr
+                    # ("res.partner(5,)"). Render display_name, matching qweb.
+                    value = value.display_name
 
-                value = escape(value or "")
+                value = escape((value or default) or "")
                 return value if tag.lower() == "t" else f"<{tag}>{value}</{tag}>"
 
             result[record.id] = Markup(
@@ -835,17 +857,18 @@ class MailRenderMixin(models.AbstractModel):
                             f"Invalid expression for the regex mode {expression!r}"
                         )
                     try:
-                        value = (
-                            reduce(
-                                lambda rec, field: rec[field],
-                                expression.split(".")[1:],
-                                record,
-                            )
-                            or default
+                        value = reduce(
+                            lambda rec, field: rec[field],
+                            expression.split(".")[1:],
+                            record,
                         )
                     except KeyError:
-                        value = default
-                    renderer.append(str(value))
+                        value = None
+                    if isinstance(value, models.BaseModel):
+                        # Relational expression -> recordset; str() would emit its
+                        # repr. Render display_name, matching qweb.
+                        value = value.display_name
+                    renderer.append(str((value or default) or ""))
             result[record.id] = "".join(renderer)
         return result
 
@@ -1078,15 +1101,20 @@ class MailRenderMixin(models.AbstractModel):
                 )
             )
         self.ensure_one()
-        if compute_lang:
-            templates_res_ids = self._classify_per_lang(res_ids)
-        elif res_ids_lang:
+        if res_ids_lang:
+            # A caller that already resolved the per-record lang (e.g. the mass
+            # mail composer renders it once for the whole batch) passes it here.
+            # Reuse it in preference to ``compute_lang``, which would re-run the
+            # (identical) lang render via ``_classify_per_lang`` — the docstring
+            # already describes res_ids_lang as "already rendered another way".
             templates_res_ids = {}
             for res_id, lang in res_ids_lang.items():
                 lang_values = templates_res_ids.setdefault(
                     lang, (self.with_context(lang=lang), [])
                 )
                 lang_values[1].append(res_id)
+        elif compute_lang:
+            templates_res_ids = self._classify_per_lang(res_ids)
         elif set_lang:
             templates_res_ids = {set_lang: (self.with_context(lang=set_lang), res_ids)}
         else:

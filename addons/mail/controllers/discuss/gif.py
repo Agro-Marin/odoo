@@ -1,3 +1,4 @@
+import hashlib
 import logging
 from urllib.parse import urlencode
 
@@ -6,13 +7,22 @@ from werkzeug.exceptions import BadRequest
 
 from odoo.http import Controller, request, route
 
-TENOR_CONTENT_FILTER = "medium"
-TENOR_GIF_LIMIT = 8
+# The proxied provider is Klipy (api.klipy.com); the constants kept the Tenor
+# name from a previous integration, which was misleading.
+KLIPY_CONTENT_FILTER = "medium"
+KLIPY_GIF_LIMIT = 8
 
 _logger = logging.getLogger(__name__)
 
 
 class DiscussGifController(Controller):
+    def _gif_client_key(self):
+        """A stable, opaque per-database identifier for the GIF provider's
+        rate-limiting ``client_key``. Previously we sent ``cr.dbname`` verbatim,
+        disclosing the internal database name to a third party; a hash gives the
+        provider the same stable-per-tenant key without leaking the name."""
+        return hashlib.sha256(request.env.cr.dbname.encode()).hexdigest()[:32]
+
     def _request_gifs(self, endpoint):
         response = None
         try:
@@ -35,9 +45,9 @@ class DiscussGifController(Controller):
             {
                 "q": search_term,
                 "key": ir_config.get_param("discuss.klipy_api_key"),
-                "client_key": request.env.cr.dbname,
-                "limit": TENOR_GIF_LIMIT,
-                "contentfilter": TENOR_CONTENT_FILTER,
+                "client_key": self._gif_client_key(),
+                "limit": KLIPY_GIF_LIMIT,
+                "contentfilter": KLIPY_CONTENT_FILTER,
                 "locale": locale,
                 "country": country,
                 "media_filter": "tinygif",
@@ -53,9 +63,9 @@ class DiscussGifController(Controller):
         query_string = urlencode(
             {
                 "key": ir_config.get_param("discuss.klipy_api_key"),
-                "client_key": request.env.cr.dbname,
-                "limit": TENOR_GIF_LIMIT,
-                "contentfilter": TENOR_CONTENT_FILTER,
+                "client_key": self._gif_client_key(),
+                "limit": KLIPY_GIF_LIMIT,
+                "contentfilter": KLIPY_CONTENT_FILTER,
                 "locale": locale,
                 "country": country,
             }
@@ -73,7 +83,7 @@ class DiscussGifController(Controller):
             {
                 "ids": ",".join(ids) or None,
                 "key": ir_config.get_param("discuss.klipy_api_key"),
-                "client_key": request.env.cr.dbname,
+                "client_key": self._gif_client_key(),
                 "media_filter": "tinygif",
             }
         )

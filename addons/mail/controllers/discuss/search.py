@@ -46,6 +46,12 @@ class SearchController(http.Controller):
             )
             channels |= channels.browse(query)
         store.add(channels)
-        request.env["res.partner"]._search_for_channel_invite(
-            store, search_term=search_term, limit=limit
-        )
+        # Only search the internal-user directory (for invitations) for an
+        # authenticated caller. This route is auth="public" so guests can search
+        # *channels* above; the partner ACL already returns nothing to the public
+        # user here, but gating the query makes the intent explicit rather than
+        # leaving directory exposure to rest solely on that ACL.
+        if not request.env.user._is_public():
+            request.env["res.partner"]._search_for_channel_invite(
+                store, search_term=search_term, limit=limit
+            )

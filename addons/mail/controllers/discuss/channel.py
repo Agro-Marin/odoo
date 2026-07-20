@@ -2,11 +2,16 @@ from markupsafe import Markup
 from werkzeug.exceptions import NotFound
 
 from odoo import http
+from odoo.exceptions import UserError
 from odoo.http import request
 
 from odoo.addons.mail.controllers.thread import _to_record_id, _to_record_ids
 from odoo.addons.mail.controllers.webclient import WebclientController
 from odoo.addons.mail.tools.discuss import Store, add_guest_to_context
+
+# Upper bound on the client-supplied base64 channel avatar (a 128px image is
+# tiny); bounds the payload a member can push into image_128.
+MAX_AVATAR_B64_BYTES = 10 * 1024 * 1024
 
 # Upper bound for caller-controlled page sizes on the public channel endpoints:
 # without it an anonymous caller can pass an arbitrarily large ``limit`` and force
@@ -117,6 +122,8 @@ class ChannelController(http.Controller):
         )
         if not channel or not data:
             raise NotFound
+        if len(data) > MAX_AVATAR_B64_BYTES:
+            raise UserError(request.env._("The avatar image is too large."))
         channel.write({"image_128": data})
 
     @http.route(

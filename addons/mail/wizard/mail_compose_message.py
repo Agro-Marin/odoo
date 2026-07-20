@@ -1395,11 +1395,18 @@ class MailComposeMessage(models.TransientModel):
         # langs, used currently only to propagate in comment mode for notification
         # layout translation
         langs = self._render_lang(res_ids)
-        subjects = self._render_field("subject", res_ids, compute_lang=True)
+        # Reuse ``langs`` for the field renders below: without ``res_ids_lang``,
+        # each ``_render_field(compute_lang=True)`` would recompute the very same
+        # lang template (via the composer override *and* ``_classify_per_lang``),
+        # rendering it 5x per batch instead of once.
+        subjects = self._render_field(
+            "subject", res_ids, compute_lang=True, res_ids_lang=langs
+        )
         bodies = self._render_field(
             "body",
             res_ids,
             compute_lang=True,
+            res_ids_lang=langs,
             # We want to preserve comments in emails so as to keep mso conditionals
             options={"preserve_comments": email_mode},
         )
