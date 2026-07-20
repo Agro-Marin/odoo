@@ -196,6 +196,33 @@ class ReportPoint_Of_SaleReport_Saledetails(models.AbstractModel):
             .grouped(lambda p: p.pos_session_id.id)
         )
 
+        # Pre-fetch every (session, non-cash method) closing-difference move in a
+        # single query, instead of one `account.move` search per pair inside the
+        # nested loop below (N sessions x M methods). Iterating the not-yet-mutated
+        # `payments` here is safe: the synthetic cash rows added later via
+        # `payments.insert(0, ...)` are cash lines and never need a diff move.
+        diff_move_by_ref = {}
+        ref_values = {
+            "Closing difference in %s (%s)" % (payment["name"], session.name)
+            for session in sessions
+            for payment in payments
+            if payment["session"] == session.id and not payment["cash"]
+        }
+        if ref_values:
+            for move in self.env["account.move"].search(
+                [("ref", "in", list(ref_values))]
+            ):
+                # Keep the first match per ref (mirrors the old per-ref limit=1).
+                diff_move_by_ref.setdefault(move.ref, move)
+
+        # One query for all sessions' cash statement lines, grouped by session,
+        # instead of a fresh search per session (used in both branches below).
+        statement_lines_by_session = (
+            self.env["account.bank.statement.line"]
+            .search([("pos_session_id", "in", sessions.ids)])
+            .grouped(lambda line: line.pos_session_id.id)
+        )
+
         for session in sessions:
             cash_counted = 0
             if session.cash_register_balance_end_real:
@@ -211,8 +238,8 @@ class ReportPoint_Of_SaleReport_Saledetails(models.AbstractModel):
                             payment["name"],
                             session.name,
                         )
-                        account_move = self.env["account.move"].search(
-                            [("ref", "=", ref_value)], limit=1
+                        account_move = diff_move_by_ref.get(
+                            ref_value, self.env["account.move"]
                         )
                         if account_move:
                             payment_method = self.env["pos.payment.method"].browse(
@@ -307,8 +334,8 @@ class ReportPoint_Of_SaleReport_Saledetails(models.AbstractModel):
                         payment["money_difference"] = (
                             payment["money_counted"] - payment["final_count"]
                         )
-                        cash_moves = self.env["account.bank.statement.line"].search(
-                            [("pos_session_id", "=", session.id)]
+                        cash_moves = statement_lines_by_session.get(
+                            session.id, self.env["account.bank.statement.line"]
                         )
                         cash_in_out_list = []
                         cash_in_count = 0
@@ -351,9 +378,9 @@ class ReportPoint_Of_SaleReport_Saledetails(models.AbstractModel):
                     + session.cash_real_transaction
                 )
                 cash_difference = session.cash_register_balance_end_real - final_count
-                cash_moves = self.env["account.bank.statement.line"].search(
-                    [("pos_session_id", "=", session.id)], order="date asc"
-                )
+                cash_moves = statement_lines_by_session.get(
+                    session.id, self.env["account.bank.statement.line"]
+                ).sorted("date")
                 cash_in_out_list = []
 
                 if previous_session.cash_register_balance_end_real > 0:

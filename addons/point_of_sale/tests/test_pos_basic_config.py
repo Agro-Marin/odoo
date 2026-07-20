@@ -1039,9 +1039,11 @@ class TestPoSBasicConfig(TestPoSCommon):
         )
 
     def test_rounding_method(self):
-        # set the cash rounding method
-        self.config.cash_rounding = True
-        self.config.rounding_method = self.env["account.cash.rounding"].create(
+        # Set the cash rounding method atomically: `_check_rounding_method_strategy`
+        # fires on the `cash_rounding` write, so enabling it before assigning a
+        # valid (add_invoice_line) rounding method trips the constraint on the
+        # intermediate state (the old/empty method). Write both in one call.
+        rounding_method = self.env["account.cash.rounding"].create(
             {
                 "name": "add_invoice_line",
                 "rounding": 0.05,
@@ -1058,6 +1060,9 @@ class TestPoSBasicConfig(TestPoSCommon):
                 .id,
                 "rounding_method": "HALF-UP",
             }
+        )
+        self.config.write(
+            {"cash_rounding": True, "rounding_method": rounding_method.id}
         )
 
         self.open_new_session()
