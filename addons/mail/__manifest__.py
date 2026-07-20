@@ -297,11 +297,27 @@ For more specific needs, you may also assign custom-defined actions
             "mail.assets_lamejs",
             "mail.assets_odoo_sfu",
             "mail.assets_public",
+            # The discuss public-page test-tours overlay contains ES-module
+            # files (hoot-dom, tour helpers) and imports native core modules
+            # (e.g. @web/core/templates). It must be esbuild-compiled as ESM;
+            # otherwise it builds as a non-ESM bundle whose legacy-loader bridge
+            # for those native modules resolves to `undefined` at pre_boot
+            # (Cannot destructure ... checkPrimaryTemplateParents ...), breaking
+            # every discuss public-page browser test.
+            "mail.assets_discuss_public_test_tours",
         ],
         "dynamic_children": {
             "web.assets_web": [
                 "mail.assets_lamejs",
                 "mail.assets_odoo_sfu",
+            ],
+        },
+        # Loaded as a separate <script type="module"> after its parent on the
+        # discuss public page; piggyback on the parent's import map so its native
+        # imports resolve (mirrors web.assets_web -> web.assets_tests).
+        "secondary_import_map_includes": {
+            "mail.assets_public": [
+                "mail.assets_discuss_public_test_tours",
             ],
         },
     },
