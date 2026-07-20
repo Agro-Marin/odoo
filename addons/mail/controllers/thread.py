@@ -250,9 +250,7 @@ class ThreadController(http.Controller):
         "/mail/read_subscription_data", methods=["POST"], type="jsonrpc", auth="user"
     )
     def read_subscription_data(self, follower_id):
-        """Computes:
-        - message_subtype_data: data about document subtypes: which are
-            available, which are followed if any"""
+        """Return the document's message subtypes and which of them are followed."""
         # limited to internal, who can read all followers
         follower = request.env["mail.followers"].browse(follower_id)
         follower.check_access("read")

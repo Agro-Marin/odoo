@@ -14,11 +14,8 @@ class MailMessageSubtype(models.Model):
         "Message Type",
         required=True,
         translate=True,
-        help="Message subtype gives a more precise type on the message, "
-        "especially for system notifications. For example, it can be "
-        "a notification related to a new record (New), or to a stage "
-        "change in a process (Stage change). Message subtypes allow to "
-        "precisely tune the notifications the user want to receive on its wall.",
+        help="Precise message type, mostly for system notifications (e.g. New, "
+        "Stage change). Lets users fine-tune which notifications they receive.",
     )
     description = fields.Text(
         "Description",
@@ -35,9 +32,8 @@ class MailMessageSubtype(models.Model):
         "mail.message.subtype",
         string="Parent",
         ondelete="set null",
-        help="Parent subtype, used for automatic subscription. This field is not "
-        "correctly named. For example on a project, the parent_id of project "
-        "subtypes refers to task-related subtypes.",
+        help="Parent subtype, used for automatic subscription (e.g. a project "
+        "subtype's parent_id points to the related task subtype).",
     )
     relation_field = fields.Char(
         "Relation field",

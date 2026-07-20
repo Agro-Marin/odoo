@@ -78,13 +78,9 @@ class MailRenderMixin(models.AbstractModel):
 
     @api.model
     def _get_mail_batch_size(self, default=50):
-        """Read the ``mail.batch_size`` ICP, tolerating a malformed value.
-
-        A garbage ICP (e.g. ``"50 emails"``) would otherwise crash the
-        mass-send loops with ValueError; a 0 would skip every iteration. Both
-        the template (``send_mail_batch``) and the composer
-        (``_action_send_mail_mass_mail``) go through here so the fallback is
-        applied consistently.
+        """Read the ``mail.batch_size`` ICP, falling back to ``default`` on a
+        malformed or zero value (which would otherwise crash or stall the
+        mass-send loops). Shared by the template and composer send paths.
         """
         try:
             batch_size = int(
@@ -171,9 +167,8 @@ class MailRenderMixin(models.AbstractModel):
          * src of images/v:fill/v:image (base64 hardcoded data will not match the regex)
          * styling using url like background-image: url or background="url"
 
-        It is done using regex because it is shorter than using an html parser
-        to create a potentially complex soupe and hope to have a result that
-        has not been harmed.
+        Uses regex rather than an HTML parser, which is shorter and avoids
+        reserializing (and potentially mangling) the markup.
         """
         if not html:
             return html
@@ -227,14 +222,9 @@ class MailRenderMixin(models.AbstractModel):
     def _render_encapsulate(
         self, layout_xmlid, html, add_context=None, context_record=None
     ):
-        """Encapsulate html content (i.e. an email body) in a layout containing
-        more complex html. Used to generate a 'email friendly' content from
-        simple html content.
-
-        Typical usage: encapsulate content in email layouts like 'mail_notification_layout'
-        or 'mail_notification_light'. Also used for digest layouts. This leads
-        to some default rendering values being computed here, often used in those
-        templates."""
+        """Wrap html body content in an email-friendly layout (e.g.
+        'mail_notification_layout', 'mail_notification_light', digest layouts).
+        Some default rendering values used by those templates are computed here."""
         record_name = (add_context or {}).get(
             "record_name", context_record.display_name if context_record else ""
         )
@@ -326,9 +316,8 @@ class MailRenderMixin(models.AbstractModel):
 
     @api.model
     def _prepend_preview(self, html, preview):
-        """Prepare the email body before sending. Add the text preview at the
-        beginning of the mail. The preview text is displayed bellow the mail
-        subject of most mail client (gmail, outlook...).
+        """Prepend the preview text to the body; mail clients (gmail,
+        outlook...) show it below the subject.
 
         :param html: html content for which we want to prepend a preview
         :param preview: the preview to add before the html content

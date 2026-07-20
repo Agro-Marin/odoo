@@ -91,12 +91,9 @@ class ResUsers(models.Model):
 
     @api.depends("share", "all_group_ids")
     def _compute_notification_type(self):
-        # Because of the `all_group_ids` in the `api.depends`,
-        # this code will be called for any change of group on a user,
-        # even unrelated to the group_mail_notification_type_inbox or share flag.
-        # e.g. if you add HR > Manager to a user, this method will be called.
-        # It should therefore be written to be as performant as possible, and make the less change/write as possible
-        # when it's not `mail.group_mail_notification_type_inbox` or `share` that are being changed.
+        # Triggered by any group change (all_group_ids depends), not just the
+        # inbox group or share flag, so keep it cheap and avoid writes when
+        # neither actually changed.
         inbox_group_id = self.env["ir.model.data"]._xmlid_to_res_id(
             "mail.group_mail_notification_type_inbox"
         )

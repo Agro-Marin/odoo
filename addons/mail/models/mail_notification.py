@@ -108,13 +108,10 @@ class MailNotification(models.Model):
         messages = self.env["mail.message"].browse(
             vals["mail_message_id"] for vals in vals_list
         )
-        # A notification grants its recipient visibility of — and, through the
-        # message access rules, effective read access to — the message. Minting
-        # one must therefore require the right to *modify* that message (author
-        # or document write access), not merely to read it. Otherwise any user
-        # could forge inbox entries for arbitrary partners and self-grant access
-        # to messages on documents they cannot reach. Every legitimate notify
-        # pipeline creates notifications in sudo, where this check is a no-op.
+        # A notification grants its recipient read access to the message, so
+        # creating one requires write access to that message (else users could
+        # forge inbox entries to self-grant access). Legitimate notify pipelines
+        # run in sudo, making this a no-op.
         messages.check_access("write")
         for vals in vals_list:
             if vals.get("is_read"):
@@ -141,16 +138,11 @@ class MailNotification(models.Model):
                 "<",
                 fields.Datetime.now() - relativedelta(days=max_age_days),
             ),
-            # Collect every read, old, terminal-status notification regardless of
-            # recipient type. A prior fix only excused res_partner_id NULL rows
-            # (email-only recipients) from the earlier ``partner_share = False``
-            # clause, but that clause also permanently spared *share* partners
-            # (portal/customer): their delivered-and-read email notifications
-            # matched neither branch and were never garbage collected, so on
-            # portal/e-commerce/helpdesk databases mail_notification -- one of
-            # the largest tables -- grew without bound. The (is_read, read_date,
-            # notification_status) triple already bounds the set safely, so the
-            # partner_share predicate served no purpose beyond that leak.
+            # GC every read, old, terminal-status notification regardless of
+            # recipient type. An earlier partner_share predicate permanently
+            # spared share partners' read email notifications, leaking rows on
+            # portal DBs; the (is_read, read_date, notification_status) triple
+            # already bounds the set safely.
             ("notification_status", "in", ("sent", "canceled")),
         ]
         records = self.search(domain, limit=GC_UNLINK_LIMIT)

@@ -18,14 +18,11 @@ class MailScheduledMessage(models.Model):
     posting of the message). Different from mail.message.schedule that posts the message but
     delays the notification process.
 
-    Todo: when adding support for scheduling messages in mass_mail mode, could add a reference to
-    the "parent" composer (by making 'mail.compose.message' not transient anymore). This reference
-    could then be used to cancel every message scheduled "at the same time" (from one composer),
-    and to get the static 'notification parameters' (mail_server_id, auto_delete,...) instead of
-    duplicating them for each scheduled message.
-    Currently as scheduling is allowed in monocomment only, we don't have duplicates and we only
-    have static notification parameters, but some will become dynamic when adding mass_mail support
-    such as 'email_from' and 'force_email_lang'.
+    Todo: when supporting mass_mail scheduling, reference the parent composer
+    (making 'mail.compose.message' non-transient) to cancel batches together and
+    share the static notification parameters (mail_server_id, auto_delete,...)
+    instead of duplicating them per message. Some, such as 'email_from' and
+    'force_email_lang', will then become dynamic.
     """
 
     _name = "mail.scheduled.message"

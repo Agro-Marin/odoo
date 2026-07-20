@@ -61,9 +61,7 @@ class MailComposerMixin(models.AbstractModel):
 
     @api.depends("template_id")
     def _compute_subject(self):
-        """Computation is coming either from template, either reset. When
-        having a template with a value set, copy it. When removing the
-        template, reset it."""
+        """Copy the value from the template when set; reset it when the template is removed."""
         for composer_mixin in self:
             if composer_mixin.template_id.subject:
                 composer_mixin.subject = composer_mixin.template_id.subject
@@ -72,9 +70,7 @@ class MailComposerMixin(models.AbstractModel):
 
     @api.depends("template_id")
     def _compute_body(self):
-        """Computation is coming either from template, either reset. When
-        having a template with a value set, copy it. When removing the
-        template, reset it."""
+        """Copy the value from the template when set; reset it when the template is removed."""
         for composer_mixin in self:
             if not tools.is_html_empty(composer_mixin.template_id.body_html):
                 composer_mixin.body = composer_mixin.template_id.body_html
@@ -83,9 +79,8 @@ class MailComposerMixin(models.AbstractModel):
 
     @api.depends("body", "template_id")
     def _compute_body_has_template_value(self):
-        """Computes if the current body is the same as the one from template.
-        Both real and sanitized values are considered, to avoid editor issues
-        as much as possible."""
+        """Set whether the body matches the template's, comparing both the raw
+        and sanitized values to avoid editor discrepancies."""
         for composer_mixin in self:
             if (
                 not tools.is_html_empty(composer_mixin.body)
@@ -116,9 +111,7 @@ class MailComposerMixin(models.AbstractModel):
 
     @api.depends("template_id")
     def _compute_lang(self):
-        """Computation is coming either from template, either reset. When
-        having a template with a value set, copy it. When removing the
-        template, reset it."""
+        """Copy the value from the template when set; reset it when the template is removed."""
         for composer_mixin in self:
             if composer_mixin.template_id.lang:
                 composer_mixin.lang = composer_mixin.template_id.lang
@@ -141,12 +134,10 @@ class MailComposerMixin(models.AbstractModel):
             )
 
     def _render_lang(self, res_ids, engine="inline_template"):
-        """Given some record ids, return the lang for each record based on
-        lang field of template or through specific context-based key.
-        This method enters sudo mode to allow qweb rendering (which
-        is otherwise reserved for the 'mail template editor' group')
-        if we consider it safe. Safe means content comes from the template
-        which is a validated master data. As a summary the heuristic is :
+        """Return the lang for each record from the template lang field or a
+        context key. Enters sudo to allow qweb rendering (normally reserved for
+        the 'mail template editor' group) when safe, i.e. the content comes from
+        the validated template. Heuristic:
 
           * if no template, do not bypass the check;
           * if record lang and template lang are the same, bypass the check;
@@ -170,11 +161,10 @@ class MailComposerMixin(models.AbstractModel):
         return super(MailComposerMixin, record)._render_lang(res_ids, engine=engine)
 
     def _render_field(self, field, res_ids, *args, **kwargs):
-        """Render the given field on the given records. This method enters
-        sudo mode to allow qweb rendering (which is otherwise reserved for
-        the 'mail template editor' group') if we consider it safe. Safe
-        means content comes from the template which is a validated master
-        data. As a summary the heuristic is :
+        """Render the given field on the given records. Enters sudo to allow
+        qweb rendering (normally reserved for the 'mail template editor' group)
+        when safe, i.e. the content comes from the validated template.
+        Heuristic:
 
           * if no template, do not bypass the check;
           * if current user is a template editor, do not bypass the check;
@@ -183,10 +173,8 @@ class MailComposerMixin(models.AbstractModel):
           * for body: if current user cannot edit it, force template value back
             then bypass the check;
 
-        Also provide support to fetch translations on the remote template.
-        Indeed translations are often done on the master template, not on the
-        specific composer itself. In that case we need to work on template
-        value when it has not been modified in the composer."""
+        Also fetches translations from the template (translated on the master
+        template, not the composer) when the composer value is unmodified."""
         if field not in self:
             raise ValueError(
                 _(

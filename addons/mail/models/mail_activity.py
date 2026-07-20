@@ -611,18 +611,14 @@ class MailActivity(models.Model):
                 )
 
     def action_done(self):
-        """Wrapper without feedback because web button add context as
-        parameter, therefore setting context to feedback"""
+        """Web-button wrapper: run the feedback flow without asking for feedback."""
         return self.filtered(lambda r: r.active).action_feedback()
 
     def action_done_redirect_to_other(self):
-        """Mark activity as done and return action mail.mail_activity_without_access_action.
-
-        Goal: Unless "keep done" activity is enabled, when marking an activity as done,
-        the activity is deleted and can no more be displayed. To overcome this, we return
-        an action that will launch the list view displaying the activities corresponding
-        to the active_ids from the context (i.e.: the remaining "other activities"). If the
-        right context is not available, we recompute the activities to display.
+        """Mark done, then return the 'without access' list action showing the
+        remaining other activities (from context active_ids, recomputed if
+        missing). Needed because a done activity is deleted unless 'keep done'
+        is enabled.
         """
         self.action_done()
         action = self.env["ir.actions.actions"]._for_xml_id(
@@ -657,8 +653,7 @@ class MailActivity(models.Model):
         return messages[0].id if messages else False
 
     def action_done_schedule_next(self):
-        """Wrapper without feedback because web button add context as
-        parameter, therefore setting context to feedback"""
+        """Web-button wrapper: run the feedback flow without asking for feedback."""
         return self.action_feedback_schedule_next()
 
     def action_feedback_schedule_next(self, feedback=False, attachment_ids=None):

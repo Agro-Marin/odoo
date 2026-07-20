@@ -129,10 +129,9 @@ class ResPartner(models.Model):
             if partners:
                 return partners
 
-        # We don't want to call `super()` to avoid searching twice on the email
-        # Especially when the search `email =ilike` cannot be as efficient as
-        # a search on email_normalized with a btree index
-        # If you want to override `find_or_create()` your module should depend on `mail`
+        # Skip super() to avoid a second, slower `email =ilike` search
+        # (email_normalized is btree-indexed). Overrides of find_or_create should
+        # depend on `mail`.
         create_values = {self._rec_name: parsed_name or parsed_email_normalized}
         if parsed_email_normalized:  # otherwise keep default_email in context
             create_values["email"] = parsed_email_normalized

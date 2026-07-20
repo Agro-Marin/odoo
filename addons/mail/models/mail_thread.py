@@ -706,8 +706,7 @@ class MailThread(models.AbstractModel):
         return self
 
     def _check_can_update_message_content(self, messages):
-        """ " Checks that the current user can update the content of the message.
-        Current heuristic is
+        """Check the current user can update the message content. Heuristic:
 
           * if no tracking;
           * only for user generated content;

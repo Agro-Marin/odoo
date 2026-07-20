@@ -262,9 +262,8 @@ class MailTrackingValue(models.Model):
         return {**tracking_values, "field_info": field_info}
 
     def _tracking_value_format(self):
-        """Return structure and formatted data structure to be used by chatter
-        to display tracking values. Order it according to asked display, aka
-        ascending sequence (and field name).
+        """Return chatter-ready tracking values, sorted by ascending sequence
+        then field name.
 
         :return: for each tracking value in self, their formatted display
           values given as a dict;
@@ -280,9 +279,8 @@ class MailTrackingValue(models.Model):
         return formatted
 
     def _tracking_value_format_model(self, model):
-        """Return structure and formatted data structure to be used by chatter
-        to display tracking values. Order it according to asked display, aka
-        ascending sequence (and field name).
+        """Return chatter-ready tracking values, sorted by ascending sequence
+        then field name.
 
         :returns: for each tracking value in self, their formatted display
           values given as a dict;
