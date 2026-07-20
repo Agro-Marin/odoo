@@ -213,16 +213,25 @@ export class CustomizeWebsitePlugin extends Plugin {
                 finalColors[colorName] = "";
             }
         }
-        this.colorsToCustomize = Object.assign(this.colorsToCustomize, finalColors);
-        await this.debouncedSCSSColorsCusto(url, nullValue);
+        // Accumulate per target ``url``: ``debounce(..., 0)`` coalesces
+        // same-tick calls and keeps only the LAST call's args, so tracking
+        // colors in a single flat map would flush a second color-type's palette
+        // into the first url's SCSS file. Key by url so each SCSS file gets
+        // exactly its own colors.
+        const pending = (this.colorsToCustomize[url] ??= { colors: {}, nullValue });
+        Object.assign(pending.colors, finalColors);
+        pending.nullValue = nullValue;
+        await this.debouncedSCSSColorsCusto();
         if (reloadBundles) {
             await this.reloadBundles();
         }
     }
-    debouncedSCSSColorsCusto = debounce(async (url, nullValue) => {
-        const colors = this.colorsToCustomize;
+    debouncedSCSSColorsCusto = debounce(async () => {
+        const byUrl = this.colorsToCustomize;
         this.colorsToCustomize = {};
-        await this.makeSCSSCusto(url, colors, nullValue);
+        for (const [url, { colors, nullValue }] of Object.entries(byUrl)) {
+            await this.makeSCSSCusto(url, colors, nullValue);
+        }
     }, 0);
     async makeSCSSCusto(url, values, defaultValue = "null") {
         Object.keys(values).forEach((key) => {
@@ -318,6 +327,7 @@ export class CustomizeWebsitePlugin extends Plugin {
                             for (const key of keys) {
                                 this.activeRecords[key] = r.includes(key);
                                 this.resolves[key]();
+                                delete this.resolves[key];
                             }
                         }
                     });
