@@ -141,9 +141,10 @@ class ProductPricelist(models.Model):
         **kwargs,
     ):
         """Low-level method - Mono pricelist, multi products
-        Returns: dict{product_id: (price, suitable_rule) for the given pricelist}
 
-        Note: self and self.ensure_one()
+        Requires self.ensure_one().
+
+        :return: dict{product_id: (price, suitable_rule)} for the given pricelist
 
         :param products: recordset of products (product.product/product.template)
         :param float quantity: quantity of products requested (in given uom)
@@ -235,7 +236,7 @@ class ProductPricelist(models.Model):
         environment is priced (``search([])``); otherwise only the pricelists
         in ``self`` are used.
 
-        Returns: dict{product_id: dict{pricelist_id: (price, suitable_rule)} }
+        :return: dict{product_id: dict{pricelist_id: (price, suitable_rule)}}
         """
         if not self.ids:
             pricelists = self.search([])
