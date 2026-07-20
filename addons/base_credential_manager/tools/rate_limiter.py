@@ -25,25 +25,20 @@ _logger = logging.getLogger(__name__)
 class CredentialAccessRateLimiter:
     """Sliding window rate limiter for credential operations.
 
-    Tracks access attempts per (credential_id, user_id, operation) tuple
-    and enforces configurable rate limits.
-
-    Thread-safe with automatic cleanup of old entries.
-
-    Security: Limits maximum tracked keys to prevent memory exhaustion attacks.
+    Tracks access attempts per (credential_id, user_id, operation) tuple, is
+    thread-safe, and evicts least-recently-used keys once max_keys is reached
+    to bound memory against exhaustion attacks.
     """
 
     # Maximum number of unique keys to track (prevents memory exhaustion)
     DEFAULT_MAX_KEYS = 10000
 
     def __init__(self, max_keys: int = DEFAULT_MAX_KEYS):
-        """Initialize rate limiter.
+        """Initialize the rate limiter.
 
-        Args:
-            max_keys: Maximum number of unique (credential, user, operation) tuples
-                      to track. Oldest entries are evicted when limit is reached.
-                      Default: 10000 keys (~1-5MB memory depending on window size).
-
+        :param int max_keys: maximum number of unique (credential, user,
+            operation) tuples to track; oldest entries are evicted when the
+            limit is reached. Default 10000 keys (~1-5MB depending on window).
         """
         # OrderedDict gives O(1) LRU eviction via popitem(last=False). The
         # previous implementation used a plain defaultdict(list) plus a linear
@@ -66,37 +61,18 @@ class CredentialAccessRateLimiter:
         limit=100,
         window_minutes=60,
     ):
-        """Check if rate limit has been exceeded.
+        """Check whether the sliding-window rate limit has been exceeded.
 
-        Uses sliding window algorithm - only counts attempts within the time window.
+        Only counts attempts within the time window.
 
-        Args:
-            credential_id (int): Credential record ID
-            user_id (int): User record ID
-            operation (str): Operation type (read, write, etc.)
-            limit (int): Maximum attempts allowed in window
-            window_minutes (int): Time window in minutes
-
-        Returns:
-            dict: {
-                'allowed': bool,
-                'attempts': int,
-                'limit': int,
-                'window_minutes': int,
-                'reset_at': datetime (when window resets)
-            }
-
-        Example:
-            >>> result = limiter.check_rate_limit(
-            ...     credential_id=123,
-            ...     user_id=1,
-            ...     operation="read",
-            ...     limit=100,
-            ...     window_minutes=60,
-            ... )
-            >>> if not result["allowed"]:
-            ...     raise Exception("Rate limit exceeded")
-
+        :param int credential_id: credential record ID
+        :param int user_id: user record ID
+        :param str operation: operation type (read, write, etc.)
+        :param int limit: maximum attempts allowed in the window
+        :param int window_minutes: time window in minutes
+        :return: result with keys ``allowed``, ``attempts``, ``limit``,
+            ``window_minutes`` and ``reset_at`` (when the window resets)
+        :rtype: dict
         """
         with self._lock:
             key = (credential_id, user_id, operation)
@@ -164,19 +140,16 @@ class CredentialAccessRateLimiter:
             return result
 
     def _evict_oldest_key(self):
-        """Evict the least-recently-used key from the rate limiter.
+        """Evict the least-recently-used key to bound memory.
 
-        Called when max_keys limit is reached to prevent memory exhaustion.
-        Relies on the LRU ordering maintained by check_rate_limit, which
-        calls move_to_end on every successful record. popitem(last=False)
-        is O(1) — the previous implementation scanned all keys to find the
-        oldest-most-recent timestamp, which was O(n * m).
-
-        Note: Must be called while holding self._lock.
+        Called when max_keys is reached. Must be called while holding self._lock.
         """
         if not self._attempts:
             return
 
+        # popitem(last=False) is O(1) and pops the LRU key, thanks to the
+        # move_to_end that check_rate_limit runs on every successful record.
+        # The previous implementation scanned all keys (O(n * m)) to find it.
         oldest_key, _timestamps = self._attempts.popitem(last=False)
         _logger.debug(
             "Rate limiter evicted LRU key %s (max_keys=%d reached)",
@@ -185,13 +158,11 @@ class CredentialAccessRateLimiter:
         )
 
     def reset_limit(self, credential_id, user_id, operation="read"):
-        """Reset rate limit for a specific key.
+        """Reset the rate limit for a specific key.
 
-        Args:
-            credential_id (int): Credential record ID
-            user_id (int): User record ID
-            operation (str): Operation type
-
+        :param int credential_id: credential record ID
+        :param int user_id: user record ID
+        :param str operation: operation type
         """
         with self._lock:
             key = (credential_id, user_id, operation)
@@ -205,16 +176,11 @@ class CredentialAccessRateLimiter:
                 )
 
     def get_stats(self):
-        """Get rate limiter statistics.
+        """Return rate limiter statistics.
 
-        Returns:
-            dict: {
-                'total_keys': int,
-                'max_keys': int,
-                'total_attempts_tracked': int,
-                'memory_usage_pct': float
-            }
-
+        :return: stats with keys ``total_keys``, ``max_keys``,
+            ``total_attempts_tracked`` and ``memory_usage_pct``
+        :rtype: dict
         """
         with self._lock:
             total_attempts = sum(len(attempts) for attempts in self._attempts.values())
@@ -229,16 +195,13 @@ class CredentialAccessRateLimiter:
             }
 
     def cleanup_old_entries(self, max_age_hours=24):
-        """Cleanup entries older than specified age.
+        """Remove entries older than the given age.
 
-        This is called periodically to prevent memory bloat.
+        Called periodically (cron) to prevent memory bloat.
 
-        Args:
-            max_age_hours (int): Remove entries older than this (hours)
-
-        Returns:
-            int: Number of keys cleaned up
-
+        :param int max_age_hours: remove entries older than this many hours
+        :return: number of keys removed
+        :rtype: int
         """
         with self._lock:
             cutoff = fields.Datetime.now() - timedelta(hours=max_age_hours)

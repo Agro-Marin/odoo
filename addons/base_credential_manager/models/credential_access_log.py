@@ -8,24 +8,16 @@ _logger = logging.getLogger(__name__)
 
 
 class CredentialAccessLog(models.Model):
-    """Audit log for credential access tracking.
+    """Write-once audit log of credential access, for security and compliance."""
 
-    Records all credential access for security auditing, compliance,
-    and debugging purposes.
-
-    Security: This model is write-once (immutable after creation) to ensure
-    audit trail integrity. Records cannot be modified or deleted through
-    normal operations.
-
-    ACL note: ``ir.model.access.csv`` intentionally grants zero write/create/
-    unlink rights to every group, including ``group_credential_admin``. This
-    is deliberate. Log rows are written exclusively by
-    ``credential.credential._log_access`` via ``sudo().create(...)``, and
-    deletion is gated through ``cron_cleanup_old_logs`` which uses the
-    SUPERUSER + context-key bypass above. If you find yourself wanting to
-    grant ORM create rights here, you almost certainly want to call
-    ``_log_access`` from your code instead.
-    """
+    # Immutability model (why ir.model.access.csv grants zero write/create/
+    # unlink to every group, including group_credential_admin): this model is
+    # write-once to keep the audit trail intact. Rows are written only by the
+    # credential.credential audit helpers (_log_access / _log_access_out_of_band)
+    # via sudo().create(), and deletion is gated through cron_cleanup_old_logs,
+    # which uses the sudo() (env.su) + context-key bypass defined below. To
+    # record access, call _log_access from your code rather than granting ORM
+    # create rights here.
 
     _name = "credential.access.log"
     _description = "Credential Access Log"
@@ -115,14 +107,10 @@ class CredentialAccessLog(models.Model):
     # -------------------------------------------------------------------------
 
     def write(self, vals):
-        """Prevent modification of audit log records.
+        """Reject writes to protected fields to keep the audit trail immutable.
 
-        Security: Audit logs must be immutable to ensure trail integrity.
-        Only the 'display_name' field (computed) can change.
-
-        Raises:
-            UserError: If attempting to modify protected fields.
-
+        :raises UserError: if modifying any field other than the computed
+            ``display_name`` without cleanup authorization.
         """
         # Allow display_name recomputation (it's computed, not stored)
         protected_fields = set(vals.keys()) - {"display_name"}
@@ -141,14 +129,9 @@ class CredentialAccessLog(models.Model):
         return super().write(vals)
 
     def unlink(self):
-        """Prevent deletion of audit log records.
+        """Reject deletion to preserve the audit trail; only cron cleanup may delete.
 
-        Security: Audit logs must be preserved for compliance and security auditing.
-        Only automated cleanup (via cron) with special context can delete old records.
-
-        Raises:
-            UserError: If attempting to delete without cleanup context.
-
+        :raises UserError: if deleting without cleanup authorization.
         """
         if not self._is_cleanup_authorized():
             raise UserError(  # pylint: disable=raise-unlink-override,no-raise-unlink,E8503
@@ -169,17 +152,15 @@ class CredentialAccessLog(models.Model):
 
     @api.depends("credential_id", "credential_name", "operation", "timestamp")
     def _compute_display_name(self) -> None:
-        """Compute display name for the log entry.
-
-        Falls back to the denormalized credential_name when credential_id has
-        been nulled (the credential was deleted), so historic rows remain
-        readable instead of rendering as "False - read at ...".
-        """
+        """Compute the display name, using denormalized fields for deleted credentials."""
         for record in self:
             if record.timestamp:
                 timestamp_str = record.timestamp.strftime("%Y-%m-%d %H:%M:%S")
             else:
                 timestamp_str = "Unknown"
+            # Fall back to the denormalized name when credential_id was nulled
+            # (credential deleted) so historic rows stay readable instead of
+            # rendering as "False - read at ...".
             cred_label = (
                 record.credential_id.name or record.credential_name or "(deleted)"
             )
@@ -192,31 +173,24 @@ class CredentialAccessLog(models.Model):
     # -------------------------------------------------------------------------
 
     def cron_cleanup_old_logs(self, retention_days: int = 365):
-        """Clean up audit logs older than retention period.
+        """Delete audit logs older than the retention period (cron entry point).
 
-        This method is designed to be called by a scheduled action (cron).
-        It bypasses the write-once protection using a special context key
-        and runs under ``sudo()`` so an operator who retargets the cron to
-        a non-superuser service account does not silently lose log cleanup.
-        The previous implementation relied on ``self.env.uid == SUPERUSER_ID``
-        via the cron being hard-wired to ``base.user_root``; that made the
-        cleanup invisible-to-break under a normal ops change.
-
-        Args:
-            retention_days: Number of days to retain logs (default: 365)
-
-        Returns:
-            int: Number of records deleted
-
+        :param retention_days: days of logs to retain (default 365)
+        :return: number of records deleted
+        :rtype: int
         """
         cutoff_date = fields.Datetime.now() - timedelta(days=retention_days)
 
+        # Run under sudo() and set the cleanup context key to bypass the
+        # write-once protection. Using sudo() (rather than a cron hard-wired to
+        # base.user_root) keeps cleanup working even if an operator retargets
+        # the cron to a non-superuser service account; the old
+        # env.uid == SUPERUSER_ID gate broke silently under that change.
         sudo_self = self.sudo()
         old_logs = sudo_self.search([("timestamp", "<", cutoff_date)])
         count = len(old_logs)
 
         if old_logs:
-            # Use cleanup context to bypass immutability protection
             old_logs.with_context(**{self._CLEANUP_CONTEXT_KEY: True}).unlink()
 
         return count
@@ -228,22 +202,18 @@ class CredentialAccessLog(models.Model):
     def _is_cleanup_authorized(self) -> bool:
         """Gate the write/unlink bypass used by cron_cleanup_old_logs.
 
-        Two conditions, both necessary:
-        1. The cleanup context key is set (rules out accidental ORM writes).
-        2. The environment is elevated (``env.su`` is True — i.e. the caller
-           went through ``sudo()``). This rules out regular user code paths.
-
-        This used to check ``env.uid == SUPERUSER_ID`` directly, but Odoo 19's
-        ``sudo()`` does NOT change ``env.uid`` — it only sets ``env.su``. So a
-        cleanly-sudoed cron runner (the normal pattern) kept failing the gate
-        and the cleanup silently no-oped. Checking ``env.su`` aligns the gate
-        with Odoo's actual privilege-elevation mechanism and lets the cron
-        work under any user who reaches the method through ``sudo()``.
-
-        This is an accident-prevention gate, not a security boundary —
-        anything running with ``env.su`` can already bypass the Python
-        layer anyway. See the class-level threat-model comment.
+        :return: True only when the cleanup context key is present and the
+            environment is elevated (``env.su``).
+        :rtype: bool
         """
+        # Both conditions are necessary: the context key rules out accidental
+        # ORM writes; env.su rules out regular user code paths.
+        #
+        # Gate on env.su, not env.uid == SUPERUSER_ID: Odoo 19's sudo() does not
+        # change env.uid, it only sets env.su, so the old uid check made a
+        # cleanly-sudoed cron silently fail and no-op. This is an accident-
+        # prevention gate, not a security boundary — anything with env.su can
+        # already bypass the Python layer (see the class-level threat model).
         if not self.env.context.get(self._CLEANUP_CONTEXT_KEY):
             return False
         if not self.env.su:

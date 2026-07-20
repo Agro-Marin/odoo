@@ -114,7 +114,7 @@ class TestCredentialCredential(TransactionCase):
             self.assertIn("Encryption key not configured", str(cm.exception))
 
     def test_basic_auth_json_storage_missing_password_rejected(self):
-        """M4 regression: JSON-storage validator checks specific keys.
+        """JSON-storage validator checks specific keys, not just blob existence.
 
         Previously _validate_required_fields_for_category used a blob-
         existence shortcut: if credential_value_encrypted was non-empty,
@@ -143,7 +143,7 @@ class TestCredentialCredential(TransactionCase):
         self.assertIn("password", str(cm.exception))
 
     def test_basic_auth_json_storage_complete_accepted(self):
-        """Positive M4 case: both username and password in JSON → pass."""
+        """Both username and password in JSON storage pass validation."""
         category_basic_auth = self.env.ref(
             "base_credential_manager.credential_category_basic_auth"
         )
@@ -160,7 +160,7 @@ class TestCredentialCredential(TransactionCase):
         self.assertEqual(credential.password, "correct-horse")
 
     def test_migration_skips_rows_already_at_current_version(self):
-        """action_migrate_encryption_keys must not re-encrypt current rows (N8).
+        """action_migrate_encryption_keys must not re-encrypt current rows.
 
         Re-running the migration after a successful rotation should be a
         near-no-op: credentials already stamped with the current key
@@ -247,7 +247,7 @@ class TestCredentialCredential(TransactionCase):
         self.assertEqual(result["failed"], 0)
 
     def test_form_open_emits_one_audit_log_entry(self):
-        """Reading plaintext-derived fields produces exactly one audit row (S2).
+        """Reading plaintext-derived fields produces exactly one audit row.
 
         Regression: the JSON-accessor compute path used to bypass audit
         logging entirely, so a system admin opening a credential form read
@@ -308,7 +308,7 @@ class TestCredentialCredential(TransactionCase):
         )
 
     def test_list_view_does_not_emit_audit_entries(self):
-        """Reading only non-plaintext fields produces zero audit rows (S2).
+        """Reading only non-plaintext fields produces zero audit rows.
 
         The credential list view displays name / category / health / usage
         stats — never plaintext. Opening the list must not flood the audit
@@ -341,7 +341,7 @@ class TestCredentialCredential(TransactionCase):
         )
 
     def test_single_decrypt_per_form_open(self):
-        """credential_value, credential_data, storage_method share one decrypt (M1).
+        """credential_value, credential_data, storage_method share one decrypt.
 
         Regression: the three compute methods used to each call _decrypt_value
         against the same ciphertext, so opening a credential form caused
@@ -384,7 +384,7 @@ class TestCredentialCredential(TransactionCase):
         )
 
     def test_validation_errors_preserve_cause(self):
-        """Raised ValidationErrors must chain the underlying exception (N2).
+        """Raised ValidationErrors must chain the underlying exception.
 
         Regression: the mixin used to `raise ValidationError(...)` without
         `from e` in six places, losing the original traceback and making
@@ -405,7 +405,7 @@ class TestCredentialCredential(TransactionCase):
             )
 
     def test_missing_key_warning_rate_limit(self):
-        """Missing-key warning in _decrypt_value re-fires after cooldown (N1).
+        """Missing-key warning in _decrypt_value re-fires after cooldown.
 
         Regression: a class-level boolean latch used to silence the warning
         forever after the first occurrence, hiding recovery/re-break cycles
@@ -985,7 +985,7 @@ class TestCredentialCertificates(TransactionCase):
         return base64.b64encode(pkcs12_bytes)
 
     def test_certificate_metadata_preserved_on_wrong_password(self):
-        """Wrong password must not wipe previously loaded cert metadata (M6).
+        """Wrong password must not wipe previously loaded cert metadata.
 
         Regression: _compute_certificate_data used to blank certificate_subject,
         certificate_serial, and the validity dates whenever _parse_certificate
@@ -1131,7 +1131,7 @@ class TestCredentialStatsProtection(TransactionCase):
         self.assertIn("Cannot modify protected statistics", str(cm.exception))
 
     def test_cannot_seed_usage_count_at_create(self):
-        """Protected stats fields must also be rejected at creation time (M7).
+        """Protected stats fields must also be rejected at creation time.
 
         Regression: write() guarded _PROTECTED_STATS_FIELDS but create() did
         not, so a caller could bypass the write guard by seeding the protected
@@ -1627,7 +1627,7 @@ class TestActionTestEncryptionKeys(TransactionCase):
 
 
 class TestBinaryWireFormatCompat(TransactionCase):
-    """Dual-shape support for binary encrypted values (D4/D5 regression).
+    """Dual-shape support for binary encrypted values.
 
     Canonical shape:  raw Fernet token (ASCII, starts with ``gAAAAA``).
     Legacy shape:     ``base64.b64encode(fernet_token)`` — what the
@@ -1737,7 +1737,7 @@ class TestBinaryWireFormatCompat(TransactionCase):
         self.assertEqual(base64.b64decode(got_b64), plaintext)
 
     def test_cron_cleanup_old_logs_works_under_non_superuser(self):
-        """D6 regression: cron_cleanup_old_logs must not depend on uid == SUPERUSER_ID.
+        """cron_cleanup_old_logs must not depend on uid == SUPERUSER_ID.
 
         The cron's XML user_id is ``base.user_root`` today, but an operator
         retargeting the cron to a service account used to silently break
@@ -1787,8 +1787,8 @@ class TestBinaryWireFormatCompat(TransactionCase):
     def test_migration_action_rewrites_legacy_binary_to_canonical(self):
         """action_migrate_encryption_keys promotes legacy-shape binary columns.
 
-        This closes the test gap at the one seam where D4 could silently
-        corrupt: ``_ENCRYPTED_FIELD_PAIRS`` binary fields flowing through
+        This closes the test gap at the one seam where a key migration could
+        silently corrupt: ``_ENCRYPTED_FIELD_PAIRS`` binary fields flowing through
         ``_decrypt_binary_value → _encrypt_binary_value`` during a key
         migration. Existing tests only exercised the char-field half of the
         pairs list, so a mistake in the binary half would have slipped.
@@ -1852,7 +1852,7 @@ class TestBinaryWireFormatCompat(TransactionCase):
 
 
 class TestOAuthClientCredentials(TransactionCase):
-    """OAuth client_id/client_secret JSON accessors and oauth2 validation (t23878)."""
+    """OAuth client_id/client_secret JSON accessors and oauth2 validation."""
 
     @classmethod
     def setUpClass(cls):
