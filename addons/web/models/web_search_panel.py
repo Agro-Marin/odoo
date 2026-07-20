@@ -304,7 +304,12 @@ class Base(models.AbstractModel):
                 group_by_selection[False] = self.env._("Not Set")
 
                 def group_id_name(value):
-                    return value, group_by_selection[value]
+                    # Fall back to the raw value as its own label: ``fields_get``
+                    # only returns currently-defined options, so a stored record
+                    # still holding a since-removed selection value would else
+                    # KeyError here and 500 the whole search panel. Mirrors the
+                    # many2one / default branches, which already fall back.
+                    return value, group_by_selection.get(value, value)
 
             else:
 

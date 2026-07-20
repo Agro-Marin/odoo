@@ -384,10 +384,17 @@ class IrHttp(models.AbstractModel):
 
         Extends ``_base_session_info`` with frontend-specific flags.
         """
-        session_uid = request.session.uid
         info = self._base_session_info()
         info.update(
-            is_website_user=self.env.user._is_public() if session_uid else False,
+            # ``is_website_user`` means "the current user is the public/website
+            # visitor" — True precisely for an ANONYMOUS request (no session
+            # uid). Gating on ``session_uid`` inverted it (returned False for the
+            # public user, contradicting ``is_public`` in the same payload);
+            # ``_is_public()`` is already correct for both the authed and
+            # anonymous cases. (``website`` overrides this with its own
+            # website-scoped notion; this base value serves website-less
+            # frontends.)
+            is_website_user=self.env.user._is_public(),
             is_frontend=True,
         )
         return info

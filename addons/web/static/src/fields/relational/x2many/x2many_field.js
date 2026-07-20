@@ -371,10 +371,13 @@ export class X2ManyField extends Component {
             if (editedRecord) {
                 const proms = [];
                 this.list.model.bus.trigger(ModelEvent.NEED_LOCAL_CHANGES, { proms });
-                await Promise.all([
-                    ...proms,
-                    /** @type {any} */ (editedRecord)._updatePromise,
-                ]);
+                // Flush in-flight input-field commits collected via
+                // NEED_LOCAL_CHANGES before leaving edit mode. (A former
+                // ``editedRecord._updatePromise`` entry here was dead — that
+                // property exists nowhere, so ``Promise.all`` awaited
+                // ``undefined``; ordering for non-input updates is guaranteed by
+                // ``leaveEditMode`` re-taking ``model.mutex``.)
+                await Promise.all(proms);
                 await this.list.leaveEditMode({ canAbandon: false });
             }
             if (!this.list.editedRecord) {
