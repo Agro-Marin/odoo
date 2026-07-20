@@ -18,11 +18,8 @@ class TestGoalDefinition(common.TransactionCase):
     def _create_definition(self, vals=None):
         """Create a goal definition with sensible defaults.
 
-        Args:
-            vals: Optional dict to override default values.
-
-        Returns:
-            A ``gamification.goal.definition`` record.
+        :param vals: Optional dict to override default values.
+        :return: A ``gamification.goal.definition`` record.
         """
         defaults = {
             "name": "Test Definition",
