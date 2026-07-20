@@ -18,6 +18,11 @@ export class AttachmentUploadService {
         this.nextId = -1;
         this.abortByAttachmentId = new Map();
         this.deferredByAttachmentId = new Map();
+        // Object URL of the local blob, kept per upload so it can be revoked
+        // even when no temp attachment record is ever created (an upload that
+        // errors before FILE_UPLOAD_ADDED). Otherwise the blob URL -- which
+        // pins the file in memory -- leaks for the tab's lifetime.
+        this.tmpUrlByAttachmentId = new Map();
         this.uploadingAttachmentIds = new Set();
         this._fileUploadBus = new EventBus();
         /** @type {Map<number, {composer: import("models").Composer, thread: import("models").Thread}>} */
@@ -114,6 +119,11 @@ export class AttachmentUploadService {
         this.deferredByAttachmentId.delete(tmpId);
         this.uploadingAttachmentIds.delete(tmpId);
         this.targetsByTmpId.delete(tmpId);
+        const tmpUrl = this.tmpUrlByAttachmentId.get(tmpId);
+        if (tmpUrl) {
+            URL.revokeObjectURL(tmpUrl);
+            this.tmpUrlByAttachmentId.delete(tmpId);
+        }
         this.store["ir.attachment"].get(tmpId)?.remove();
     }
 
@@ -126,8 +136,13 @@ export class AttachmentUploadService {
             const deferred = this.deferredByAttachmentId.get(attachment.id);
             const abort = this.abortByAttachmentId.get(attachment.id);
             this._cleanupUploading(attachment.id);
-            deferred.resolve();
-            abort();
+            // uploadingAttachmentIds is populated synchronously in _upload,
+            // but the deferred and (especially) the abort handle are only
+            // registered once the FILE_UPLOAD_ADDED bus event fires. A cancel
+            // in that window would hit `undefined.resolve()`/`undefined()`;
+            // guard both so an early discard can't throw.
+            deferred?.resolve();
+            abort?.();
             return;
         }
         await attachment.remove();
@@ -141,6 +156,7 @@ export class AttachmentUploadService {
 
     async _upload(thread, composer, file, options, tmpId, tmpURL) {
         this.targetsByTmpId.set(tmpId, { composer, thread });
+        this.tmpUrlByAttachmentId.set(tmpId, tmpURL);
         this.uploadingAttachmentIds.add(tmpId);
         // Register the deferred BEFORE starting the upload: the file-upload
         // bus can emit FILE_UPLOAD_LOADED/FILE_UPLOAD_ERROR before this

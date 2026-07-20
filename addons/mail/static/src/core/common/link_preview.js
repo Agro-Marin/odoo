@@ -24,9 +24,19 @@ export class LinkPreview extends Component {
         this.videoRef = useRef("video");
         useEffect(
             (el) => {
-                if (el) {
-                    el.onload = () => (this.state.videoLoaded = true);
+                if (!el) {
+                    return;
                 }
+                el.onload = () => (this.state.videoLoaded = true);
+                // Reveal the player even if the embed never fires `load`
+                // (blocked embed, CSP, network error); otherwise the iframe
+                // stays permanently `d-none` and the user clicks play to see
+                // nothing, with no way to recover.
+                el.onerror = () => (this.state.videoLoaded = true);
+                return () => {
+                    el.onload = null;
+                    el.onerror = null;
+                };
             },
             () => [this.videoRef.el],
         );

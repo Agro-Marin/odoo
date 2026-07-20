@@ -4,6 +4,7 @@ import { AND, fields, Record } from "@mail/core/common/record";
 import { applyCounterDelta, snapshotCounter } from "@mail/utils/common/counters";
 import { useSequential } from "@mail/utils/common/hooks";
 import { assignDefined } from "@mail/utils/common/misc";
+import { browser } from "@web/core/browser/browser";
 import { _t } from "@web/core/l10n/translation";
 import { rpc } from "@web/core/network/rpc";
 import { Deferred } from "@web/core/utils/concurrency";
@@ -932,7 +933,7 @@ export class Thread extends Record {
         const newestPersistentMessage = this.newestPersistentOfAllMessage;
         if (!newestPersistentMessage && !this.isLoaded) {
             this.isLoadedDeferred
-                .then(() => new Promise((resolve) => setTimeout(resolve)))
+                .then(() => new Promise((resolve) => browser.setTimeout(resolve)))
                 .then(() => this.markAsRead(options));
             return;
         }
