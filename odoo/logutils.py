@@ -1,13 +1,7 @@
-"""
-Logging utilities for Odoo server.
+"""Logging infrastructure for the Odoo server.
 
-This module provides logging infrastructure including:
-- File and database logging handlers (WatchedFileHandler, PostgreSQLHandler)
-- Colored console output formatters (ColoredFormatter, ColoredPerfFilter)
-- Performance logging filters (PerfFilter)
-- Logger initialization (init_logger)
-
-This is the canonical location for Odoo logging infrastructure.
+Provides the log handlers (file, PostgreSQL), formatters (colored console,
+JSON), performance filters, and the ``init_logger`` setup.
 """
 
 import contextlib
@@ -243,10 +237,8 @@ class JSONFormatter(logging.Formatter):
         if ignore_record_keys is not None:
             self.ignore_record_keys = set(ignore_record_keys)
         else:
-            # keep only the lowest-level key to avoid duplicated information:
-            # 'message' is derived from msg+args, but once the args are
-            # stringified into JSON it can no longer be reformatted, so we keep
-            # the formatted message rather than msg/args.
+            # drop keys derived from others; keep the formatted 'message'
+            # since msg/args can't be reformatted once JSON-serialized
             self.ignore_record_keys = {
                 "msecs",  # derived from created
                 "relativeCreated",  # derived from created
@@ -291,9 +283,8 @@ class JSONFormatter(logging.Formatter):
         return json.dumps(record_json, default=str)
 
     def _get_default_record_keys(self, record: logging.LogRecord) -> list:
-        # parenthesised so ignore_record_keys applies to the whole set (the
-        # unparenthesised upstream form binds '-' before '|', leaving the
-        # ignored msg/args/... keys in the output)
+        # parenthesised so '-' applies after '|'; the unparenthesised upstream
+        # form binds '-' first and leaves the ignored keys in the output
         return list((record.__dict__.keys() | {"message"}) - self.ignore_record_keys)
 
 
@@ -344,8 +335,7 @@ def init_logger() -> None:
     logging.setLogRecordFactory(LogRecord)
 
     logging.captureWarnings(True)
-    # must be after `loggin.captureWarnings` so we override *that* instead of
-    # the other way around
+    # after logging.captureWarnings so we override its hook, not the reverse
     showwarning = warnings.showwarning
     warnings.showwarning = showwarning_with_traceback
 
@@ -536,12 +526,10 @@ PSEUDOCONFIG_MAPPER: Final[dict[str, list[str]]] = {
 
 logging.RUNBOT = 25
 logging.addLevelName(logging.RUNBOT, "INFO")  # displayed as info in log
-# addLevelName also hijacks the name->level mapping ("INFO" -> 25), silently
-# breaking every stdlib lookup by name: assertLogs(level="INFO") and
-# Logger.setLevel("INFO") would resolve to 25 and filter out real INFO (20)
-# records. Keep the level->name display alias above, restore the canonical
-# name->level entry. ("odoo:RUNBOT" handler specs resolve via the module
-# attribute, not this mapping.)
+# addLevelName also remaps name->level ("INFO" -> 25), which would break stdlib
+# lookups by name (assertLogs(level="INFO"), setLevel("INFO")) into filtering out
+# real INFO (20) records. Restore the canonical name->level entry; the display
+# alias above stays. ("odoo:RUNBOT" specs resolve via the module attribute.)
 logging._nameToLevel["INFO"] = logging.INFO
 IGNORE: Final[frozenset[str]] = frozenset(
     {
