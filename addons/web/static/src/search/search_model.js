@@ -271,6 +271,19 @@ export class SearchModel extends EventBus {
         );
         this.canOrderByCount = config.canOrderByCount;
         this.defaultGroupBy = config.defaultGroupBy;
+        // Declared here so the class formally satisfies its own SearchModelLike
+        // contract (the seam the delegates type against): both are seam state
+        // owned by the model but written from delegates —
+        // `defaultGroupByRemoved` is set true by search_query_mutations when the
+        // user dismisses the default group-by, and `_filledPropertyFields` is
+        // lazily filled (`??= new Map()`) by search_properties. Initialising to
+        // undefined here is behaviour-identical to their previous
+        // absent-until-written state, but lets `this` type-check at every
+        // `delegate(this, ...)` call site instead of failing assignability.
+        /** @type {boolean | undefined} */
+        this.defaultGroupByRemoved = undefined;
+        /** @type {any} */
+        this._filledPropertyFields = undefined;
 
         const { irFilters, loadIrFilters, searchViewArch, searchViewId } = config;
         let { searchViewFields } = config;
