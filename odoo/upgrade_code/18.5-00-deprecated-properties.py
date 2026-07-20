@@ -6,6 +6,7 @@ if typing.TYPE_CHECKING:
 
 
 def upgrade(file_manager: FileManager) -> None:
+    """Rewrite deprecated ``._cr``/``._uid``/``._context`` to their ``.env`` equivalents."""
     model_properties_re = re.compile(r"\._(cr|uid|context)\b")
 
     for file in file_manager:

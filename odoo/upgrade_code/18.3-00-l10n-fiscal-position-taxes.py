@@ -2197,6 +2197,11 @@ FP_LOOKUP = {
 
 
 def upgrade(file_manager: FileManager) -> None:
+    """Attach fiscal positions to taxes in l10n CSV data.
+
+    Derives a domestic fiscal position per module and writes the
+    ``fiscal_position_ids``/``original_tax_ids`` columns on the tax files.
+    """
     log = logging.getLogger(__name__)
 
     MODS_WITH_DYNAMIC_DOMESTIC_FP = {"l10n_in"}
@@ -2274,9 +2279,8 @@ def upgrade(file_manager: FileManager) -> None:
             src_tax = row.pop(SRC_FIELD)
             dest_tax = row.pop(DEST_FIELD)
             if row_nb == 1:
-                # copy the first fiscal position to create a generic domestic fiscal position
-                # if the first fiscal position doesn't have a country matching the module
-                # otherwise assume the first one is the domestic fp
+                # Row 1: if its country doesn't match the module, clone it into a
+                # generic domestic FP; otherwise treat it as the domestic FP itself.
                 dom_fp_data = {
                     **row,
                     "id": domestic_fp_id,

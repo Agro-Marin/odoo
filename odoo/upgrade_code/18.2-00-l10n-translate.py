@@ -71,6 +71,8 @@ def data_file_module_name(f: FileManager) -> str:
 
 
 def upgrade(file_manager: FileManager) -> None:
+    """Inline l10n record translations from .po/.pot files into XML/CSV data as
+    ``field@lang`` entries, then drop the now-redundant translation entries."""
     translation_files = [
         f
         for f in file_manager
