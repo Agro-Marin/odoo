@@ -1,9 +1,8 @@
 /** @odoo-module native */
-import { Interaction } from "@web/public/interaction";
-import { registry } from "@web/core/registry";
-
 import { _t } from "@web/core/l10n/translation";
 import { rpc } from "@web/core/network/rpc";
+import { registry } from "@web/core/registry";
+import { Interaction } from "@web/public/interaction";
 import { ConfirmationDialog } from "@web/ui/dialog/confirmation_dialog";
 
 export class SlideArchive extends Interaction {
@@ -24,14 +23,24 @@ export class SlideArchive extends Interaction {
                 /**
                  * Calls 'archive' on slide controller and then visually removes the slide dom element
                  */
-                const isArchived = await this.waitFor(rpc("/slides/slide/archive", { slide_id: slideId, }));
+                const isArchived = await this.waitFor(
+                    rpc("/slides/slide/archive", { slide_id: slideId }),
+                );
                 if (isArchived) {
                     this.el.closest(".o_wslides_slides_list_slide")?.remove();
-                    const categories = document.querySelectorAll(".o_wslides_slide_list_category");
+                    const categories = document.querySelectorAll(
+                        ".o_wslides_slide_list_category",
+                    );
                     for (const category of categories) {
-                        const categoryHeaderEl = category.querySelector(".o_wslides_slide_list_category_header");
-                        const categorySlideEl = category.querySelector(".o_wslides_slides_list_slide:not(.o_not_editable)");
-                        const emptyFlagContainerEl = categoryHeaderEl.querySelector(".o_wslides_slides_list_drag");
+                        const categoryHeaderEl = category.querySelector(
+                            ".o_wslides_slide_list_category_header",
+                        );
+                        const categorySlideEl = category.querySelector(
+                            ".o_wslides_slides_list_slide:not(.o_not_editable)",
+                        );
+                        const emptyFlagContainerEl = categoryHeaderEl.querySelector(
+                            ".o_wslides_slides_list_drag",
+                        );
                         const emptyFlagEl = emptyFlagContainerEl.querySelector("small");
 
                         if (!categorySlideEl && !emptyFlagEl) {
@@ -43,7 +52,7 @@ export class SlideArchive extends Interaction {
                     }
                 }
             },
-            cancel: () => { },
+            cancel: () => {},
         });
     }
 }

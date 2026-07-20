@@ -1,8 +1,7 @@
 /** @odoo-module native */
-import { Interaction } from "@web/public/interaction";
-import { registry } from "@web/core/registry";
-
 import { _t } from "@web/core/l10n/translation";
+import { registry } from "@web/core/registry";
+import { Interaction } from "@web/public/interaction";
 import { CategoryAddDialog } from "@website_slides/js/public/components/category_add_dialog/category_add_dialog";
 
 export class CategoryAdd extends Interaction {
@@ -27,7 +26,7 @@ export class CategoryAdd extends Interaction {
                 return true;
             },
             cancelLabel: _t("Cancel"),
-            cancel: () => { },
+            cancel: () => {},
             channelId,
         });
     }

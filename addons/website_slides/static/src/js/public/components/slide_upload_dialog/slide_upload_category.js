@@ -1,12 +1,13 @@
 /** @odoo-module native */
 import { Component, onMounted, onWillStart, useState } from "@odoo/owl";
-import { loadPDFJS } from "@web/core/utils/pdfjs";
-import { getDataURLFromFile } from "@web/core/utils/urls";
-import { rpc } from "@web/core/network/rpc";
-import { uniqueId } from "@web/core/utils/functions";
 import { DropdownItem } from "@web/components/dropdown/dropdown_item";
 import { SelectMenu } from "@web/components/select_menu/select_menu";
 import { _t } from "@web/core/l10n/translation";
+import { rpc } from "@web/core/network/rpc";
+import { uniqueId } from "@web/core/utils/functions";
+import { loadPDFJS } from "@web/core/utils/pdfjs";
+import { getDataURLFromFile } from "@web/core/utils/urls";
+
 import { SlideUploadSourceTypes } from "./slide_upload_source_types.js";
 
 export class SlideUploadCategory extends Component {
@@ -98,7 +99,9 @@ export class SlideUploadCategory extends Component {
      * To figure when to propose users to create a new category or tag
      */
     choiceExists(input, choices) {
-        return choices.some((choice) => input.toLowerCase() === choice.label.toLowerCase());
+        return choices.some(
+            (choice) => input.toLowerCase() === choice.label.toLowerCase(),
+        );
     }
 
     //--------------------------------------------------------------------------
@@ -145,7 +148,9 @@ export class SlideUploadCategory extends Component {
         this.file.name = file.name;
         this.file.type = file.type;
         if (!isImage && this.file.type !== "application/pdf") {
-            this._alertDisplay(_t("Invalid file type. Please select pdf or image file"));
+            this._alertDisplay(
+                _t("Invalid file type. Please select pdf or image file"),
+            );
             this._fileReset();
             this.state.preview.show = false;
             return;
@@ -311,21 +316,22 @@ export class SlideUploadCategory extends Component {
         // tags
         if (this.state.choices.tagIds.length > 0) {
             const tags = Object.fromEntries(
-                this.state.choices.tags.map((tag) => [tag.value, tag.label])
+                this.state.choices.tags.map((tag) => [tag.value, tag.label]),
             );
             result.tag_ids = this.state.choices.tagIds.map((tagId) =>
-                this._toCreate(tagId) ? [0, 0, { name: tags[tagId] }] : [4, tagId]
+                this._toCreate(tagId) ? [0, 0, { name: tags[tagId] }] : [4, tagId],
             );
         }
         // category
         if (!this.defaultCategoryId) {
             if (this._toCreate(this.state.choices.categoryId)) {
                 const category = this.state.choices.categories.find(
-                    (cat) => cat.value === this.state.choices.categoryId
+                    (cat) => cat.value === this.state.choices.categoryId,
                 );
                 result.category_id = [0, { name: category.label }];
             } else {
-                const categoryId = this.state.choices.categoryId || this._getDefaultCategoryId();
+                const categoryId =
+                    this.state.choices.categoryId || this._getDefaultCategoryId();
                 result.category_id = [categoryId];
             }
         } else {
@@ -340,7 +346,8 @@ export class SlideUploadCategory extends Component {
      */
     _getDefaultCategoryId() {
         return this.state.choices.categories.length > 0
-            ? this.state.choices.categories[this.state.choices.categories.length - 1].value
+            ? this.state.choices.categories[this.state.choices.categories.length - 1]
+                  .value
             : null;
     }
 
@@ -350,9 +357,10 @@ export class SlideUploadCategory extends Component {
     async _fetch_choices(type, domain = [], fields = ["name"]) {
         const results = await rpc(`/slides/${type}/search_read`, { fields, domain });
 
-        return results.read_results.map((choice) => {
-            return { value: choice.id, label: choice.name };
-        });
+        return results.read_results.map((choice) => ({
+            value: choice.id,
+            label: choice.name,
+        }));
     }
 
     /**
@@ -383,7 +391,7 @@ export class SlideUploadCategory extends Component {
      * @param {boolean} forcePublished
      */
     async _formValidateGetValues(forcePublished) {
-        let sourceType = "local_file";
+        let sourceType;
         if (this.props.slideCategory === "video") {
             sourceType = "external"; // force external for videos
         } else {
@@ -401,12 +409,15 @@ export class SlideUploadCategory extends Component {
                 source_type: sourceType,
                 video_url: this.state.form.url,
             },
-            this._getSelectMenuValues()
+            this._getSelectMenuValues(),
         ); // add tags and category
 
         if (this.file.type === "application/pdf") {
             Object.assign(values, {
-                image_1920: document.getElementById("data_canvas").toDataURL().split(",")[1],
+                image_1920: document
+                    .getElementById("data_canvas")
+                    .toDataURL()
+                    .split(",")[1],
                 slide_category: "document",
                 binary_content: this.file.data,
             });

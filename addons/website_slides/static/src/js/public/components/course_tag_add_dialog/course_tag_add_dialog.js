@@ -1,11 +1,11 @@
 /** @odoo-module native */
 import { Component, useState } from "@odoo/owl";
-import { Dialog } from "@web/ui/dialog/dialog";
 import { DropdownItem } from "@web/components/dropdown/dropdown_item";
 import { SelectMenu } from "@web/components/select_menu/select_menu";
 import { _t } from "@web/core/l10n/translation";
-import { uniqueId } from "@web/core/utils/functions";
 import { rpc } from "@web/core/network/rpc";
+import { uniqueId } from "@web/core/utils/functions";
+import { Dialog } from "@web/ui/dialog/dialog";
 
 export class CourseTagAddDialog extends Component {
     static components = { Dialog, DropdownItem, SelectMenu };
@@ -63,7 +63,8 @@ export class CourseTagAddDialog extends Component {
 
     get displayTagGroupValue() {
         return this.choices.tagGroupId
-            ? this.choices.tagGroupIds.find((t) => t.value === this.choices.tagGroupId).label
+            ? this.choices.tagGroupIds.find((t) => t.value === this.choices.tagGroupId)
+                  .label
             : _t("Select or create a tag group");
     }
 
@@ -182,14 +183,18 @@ export class CourseTagAddDialog extends Component {
      * @returns {Object} result
      */
     async _fetchChoices(type, domain = [], fields = ["name"]) {
-        const { read_results, can_create } = await rpc(`/slides/channel/${type}/search_read`, {
-            fields,
-            domain,
-        });
+        const { read_results, can_create } = await rpc(
+            `/slides/channel/${type}/search_read`,
+            {
+                fields,
+                domain,
+            },
+        );
 
-        const choices = read_results.map((choice) => {
-            return { value: choice.id, label: choice.name };
-        });
+        const choices = read_results.map((choice) => ({
+            value: choice.id,
+            label: choice.name,
+        }));
         return { choices, can_create };
     }
 
@@ -206,13 +211,17 @@ export class CourseTagAddDialog extends Component {
             // existing tag
             return { tag_id: [tag.value] };
         }
-        const group = this.choices.tagGroupIds.find((c) => c.value === this.choices.tagGroupId);
+        const group = this.choices.tagGroupIds.find(
+            (c) => c.value === this.choices.tagGroupId,
+        );
         if (!group) {
             return {};
         }
         return {
             tag_id: [0, { name: tag.label }],
-            group_id: this._toCreate(group.value) ? [0, { name: group.label }] : [group.value],
+            group_id: this._toCreate(group.value)
+                ? [0, { name: group.label }]
+                : [group.value],
         };
     }
 

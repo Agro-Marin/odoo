@@ -1,6 +1,6 @@
 /** @odoo-module native */
-import { SearchModal as WebsiteSearchModal } from "@website/interactions/search_modal";
 import { registry } from "@web/core/registry";
+import { SearchModal as WebsiteSearchModal } from "@website/interactions/search_modal";
 
 export class SearchModal extends WebsiteSearchModal {
     static selector = "#o_wslides_search_modal";

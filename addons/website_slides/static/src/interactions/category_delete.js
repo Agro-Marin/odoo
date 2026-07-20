@@ -1,8 +1,7 @@
 /** @odoo-module native */
-import { Interaction } from "@web/public/interaction";
-import { registry } from "@web/core/registry";
-
 import { _t } from "@web/core/l10n/translation";
+import { registry } from "@web/core/registry";
+import { Interaction } from "@web/public/interaction";
 import { ConfirmationDialog } from "@web/ui/dialog/confirmation_dialog";
 
 export class CategoryDelete extends Interaction {
@@ -24,11 +23,13 @@ export class CategoryDelete extends Interaction {
                  * Calls 'unlink' method on slides.slide to delete the category and
                  * reloads page after deletion to re-arrange the content on UI
                  */
-                await this.waitFor(this.services.orm.unlink("slide.slide", [categoryId]));
+                await this.waitFor(
+                    this.services.orm.unlink("slide.slide", [categoryId]),
+                );
                 window.location.reload();
             },
             cancelLabel: _t("Cancel"),
-            cancel: () => { },
+            cancel: () => {},
         });
     }
 }

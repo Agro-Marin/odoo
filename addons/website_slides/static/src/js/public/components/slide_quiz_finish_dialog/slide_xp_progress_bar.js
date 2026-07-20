@@ -1,6 +1,6 @@
 /** @odoo-module native */
-import { browser } from "@web/core/browser/browser";
 import { Component, onMounted, useState } from "@odoo/owl";
+import { browser } from "@web/core/browser/browser";
 
 export class SlideXPProgressBar extends Component {
     static props = {
@@ -56,7 +56,8 @@ export class SlideXPProgressBar extends Component {
             } else {
                 this.state.userKarma = Math.ceil(
                     this.props.previousRank.karma +
-                        (this.props.newRank.karma - this.props.previousRank.karma) * progress
+                        (this.props.newRank.karma - this.props.previousRank.karma) *
+                            progress,
                 );
                 browser.requestAnimationFrame(animateKarma);
             }

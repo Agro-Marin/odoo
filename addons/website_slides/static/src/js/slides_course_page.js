@@ -1,8 +1,8 @@
 /** @odoo-module native */
-import publicWidget from '@web/legacy/js/public/public_widget';
-import { session } from "@web/session";
-import { renderToElement } from "@web/core/utils/render";
 import { rpc } from "@web/core/network/rpc";
+import { renderToElement } from "@web/core/utils/render";
+import publicWidget from "@web/legacy/js/public/public_widget";
+import { session } from "@web/session";
 
 /**
  * Global widget for both fullscreen view and non-fullscreen view of a slide course.
@@ -11,22 +11,26 @@ import { rpc } from "@web/core/network/rpc";
  */
 export const SlideCoursePage = publicWidget.Widget.extend({
     events: {
-        'click button.o_wslides_button_complete': '_onClickComplete',
+        "click button.o_wslides_button_complete": "_onClickComplete",
     },
 
     custom_events: {
-        'slide_completed': '_onSlideCompleted',
-        'slide_mark_completed': '_onSlideMarkCompleted',
+        slide_completed: "_onSlideCompleted",
+        slide_mark_completed: "_onSlideMarkCompleted",
     },
 
     /**
      * Collapse the next category when the current one has just been completed
      */
     collapseNextCategory: function (nextCategoryId) {
-        const categorySection = document.getElementById(`category-collapse-${nextCategoryId}`);
-        if (categorySection?.getAttribute('aria-expanded') === 'false') {
-            categorySection.setAttribute('aria-expanded', true);
-            document.querySelector(`ul[id=collapse-${nextCategoryId}]`).classList.add('show');
+        const categorySection = document.getElementById(
+            `category-collapse-${nextCategoryId}`,
+        );
+        if (categorySection?.getAttribute("aria-expanded") === "false") {
+            categorySection.setAttribute("aria-expanded", true);
+            document
+                .querySelector(`ul[id=collapse-${nextCategoryId}]`)
+                .classList.add("show");
         }
     },
 
@@ -38,15 +42,17 @@ export const SlideCoursePage = publicWidget.Widget.extend({
      * @param {Boolean} completed
      */
     toggleCompletionButton: function (slide, completed = true) {
-        const button = this.el.querySelector(`.o_wslides_sidebar_done_button[data-id="${slide.id}"]`);
+        const button = this.el.querySelector(
+            `.o_wslides_sidebar_done_button[data-id="${slide.id}"]`,
+        );
 
         if (!button) {
             return;
         }
 
-        const newButton = renderToElement('website.slides.sidebar.done.button', {
+        const newButton = renderToElement("website.slides.sidebar.done.button", {
             slideId: slide.id,
-            uncompletedIcon: button.dataset.uncompletedIcon ?? 'fa-regular fa-circle',
+            uncompletedIcon: button.dataset.uncompletedIcon ?? "fa-regular fa-circle",
             slideCompleted: completed ? 1 : 0,
             canSelfMarkUncompleted: slide.canSelfMarkUncompleted,
             canSelfMarkCompleted: slide.canSelfMarkCompleted,
@@ -64,35 +70,39 @@ export const SlideCoursePage = publicWidget.Widget.extend({
     updateProgressbar: function (channelCompletion) {
         const completion = Math.min(100, channelCompletion);
 
-        const completedEls = document.querySelectorAll('.o_wslides_channel_completion_completed');
-        const progressbarEls = document.querySelectorAll('.o_wslides_channel_completion_progressbar');
+        const completedEls = document.querySelectorAll(
+            ".o_wslides_channel_completion_completed",
+        );
+        const progressbarEls = document.querySelectorAll(
+            ".o_wslides_channel_completion_progressbar",
+        );
 
         if (completion < 100) {
             // Hide the "Completed" text and show the progress bar
             for (const el of completedEls) {
-                el.classList.add('d-none');
+                el.classList.add("d-none");
             }
             for (const el of progressbarEls) {
-                el.classList.remove('d-none');
-                el.classList.add('d-flex');
+                el.classList.remove("d-none");
+                el.classList.add("d-flex");
             }
         } else {
             // Hide the progress bar and show the "Completed" text
             for (const el of completedEls) {
-                el.classList.remove('d-none');
+                el.classList.remove("d-none");
             }
             for (const el of progressbarEls) {
-                el.classList.add('d-none');
-                el.classList.remove('d-flex');
+                el.classList.add("d-none");
+                el.classList.remove("d-flex");
             }
         }
 
         for (const el of progressbarEls) {
-            const progressBar = el.querySelector('.progress-bar');
+            const progressBar = el.querySelector(".progress-bar");
             if (progressBar) {
                 progressBar.style.width = `${completion}%`;
             }
-            const percentageEl = el.querySelector('.o_wslides_progress_percentage');
+            const percentageEl = el.querySelector(".o_wslides_progress_percentage");
             if (percentageEl) {
                 percentageEl.textContent = completion;
             }
@@ -113,14 +123,18 @@ export const SlideCoursePage = publicWidget.Widget.extend({
      *     false to mark the slide as not completed
      */
     _toggleSlideCompleted: async function (slide, completed = true) {
-        if (!!slide.completed === !!completed || !slide.isMember || !slide.canSelfMarkCompleted) {
+        if (
+            !!slide.completed === !!completed ||
+            !slide.isMember ||
+            !slide.canSelfMarkCompleted
+        ) {
             // no useless RPC call
             return;
         }
 
         const data = await rpc(
-            `/slides/slide/${completed ? 'set_completed' : 'set_uncompleted'}`,
-            {slide_id: slide.id},
+            `/slides/slide/${completed ? "set_completed" : "set_uncompleted"}`,
+            { slide_id: slide.id },
         );
 
         this.toggleCompletionButton(slide, completed);
@@ -137,7 +151,9 @@ export const SlideCoursePage = publicWidget.Widget.extend({
      * @param {Integer} slideId
      */
     _getSlide: function (slideId) {
-        const el = document.querySelector(`.o_wslides_sidebar_done_button[data-id="${slideId}"]`);
+        const el = document.querySelector(
+            `.o_wslides_sidebar_done_button[data-id="${slideId}"]`,
+        );
         return el ? el.dataset : undefined;
     },
 
@@ -155,7 +171,7 @@ export const SlideCoursePage = publicWidget.Widget.extend({
         ev.stopPropagation();
         ev.preventDefault();
 
-        const button = ev.currentTarget.closest('.o_wslides_sidebar_done_button');
+        const button = ev.currentTarget.closest(".o_wslides_sidebar_done_button");
 
         const slideData = button.dataset;
         const isCompleted = Boolean(parseInt(slideData.completed));
@@ -187,9 +203,10 @@ export const SlideCoursePage = publicWidget.Widget.extend({
      * @param {Event} ev
      */
     _onSlideMarkCompleted: function (ev) {
-        if (!session.is_website_user) { // no useless RPC call
+        if (!session.is_website_user) {
+            // no useless RPC call
             const slide = this._getSlide(ev.data.id);
             this._toggleSlideCompleted(slide, true);
         }
-    }
+    },
 });

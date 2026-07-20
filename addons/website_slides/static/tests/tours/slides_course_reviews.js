@@ -27,7 +27,8 @@ registry.category("web_tour.tours").add("course_reviews", {
             run: "click",
         },
         {
-            trigger: ".modal.modal_shown.show div.o_portal_chatter_composer_body textarea",
+            trigger:
+                ".modal.modal_shown.show div.o_portal_chatter_composer_body textarea",
             run: "edit Great course!",
         },
         {
@@ -45,7 +46,8 @@ registry.category("web_tour.tours").add("course_reviews", {
             run: "click",
         },
         {
-            trigger: "#chatterRoot:shadow .o-mail-Message-textContent:contains(Great course!)",
+            trigger:
+                "#chatterRoot:shadow .o-mail-Message-textContent:contains(Great course!)",
         },
         {
             // If it fails here, it means the system is allowing you to add another review.
@@ -66,7 +68,8 @@ registry.category("web_tour.tours").add("course_reviews", {
             run: "click",
         },
         {
-            trigger: "#chatterRoot:shadow .o-mail-Message-textContent:contains(Mid course!)",
+            trigger:
+                "#chatterRoot:shadow .o-mail-Message-textContent:contains(Mid course!)",
             run: "hover && click",
         },
         {
@@ -86,7 +89,10 @@ registry.category("web_tour.tours").add("course_reviews", {
             trigger: "#chatterRoot:shadow .o-mail-Message .o-mail-MessageReaction",
             run: "click",
         },
-        { trigger: '#chatterRoot:shadow .o-mail-Message button:contains("Comment")', run: "click" },
+        {
+            trigger: '#chatterRoot:shadow .o-mail-Message button:contains("Comment")',
+            run: "click",
+        },
         {
             trigger: "#chatterRoot:shadow .o-mail-Message .o-mail-Composer textarea",
             run: "edit Thanks for enjoying my 'mid' course, you mid student",

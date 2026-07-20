@@ -1,8 +1,8 @@
-import slidesTourTools from "@website_slides/../tests/tours/slides_tour_tools";
 import {
     clickOnEditAndWaitEditMode,
     registerWebsitePreviewTour,
 } from "@website/js/tours/tour_utils";
+import slidesTourTools from "@website_slides/../tests/tours/slides_tour_tools";
 
 /**
  * Global use case:
@@ -45,7 +45,8 @@ registerWebsitePreviewTour(
             },
             {
                 content: "eLearning: set description",
-                trigger: '.o_field_html[name="description"] .odoo-editor-editable div.o-paragraph',
+                trigger:
+                    '.o_field_html[name="description"] .odoo-editor-editable div.o-paragraph',
                 run: "editor Déboulonnate is very common at Fleurus",
             },
             {
@@ -101,7 +102,8 @@ registerWebsitePreviewTour(
             },
             {
                 content: "eLearning: course create with current member",
-                trigger: ':iframe .o_wslides_js_course_join:contains("You\'re enrolled")',
+                trigger:
+                    ':iframe .o_wslides_js_course_join:contains("You\'re enrolled")',
             },
         ].concat(
             slidesTourTools.addExistingCourseTag(true),
@@ -134,6 +136,6 @@ registerWebsitePreviewTour(
                 },
             ],
             slidesTourTools.addImageToSection("Introduction", "Overview", true),
-            slidesTourTools.addPdfToSection("Introduction", "Exercise", true)
-        )
+            slidesTourTools.addPdfToSection("Introduction", "Exercise", true),
+        ),
 );

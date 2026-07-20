@@ -1,6 +1,6 @@
 /** @odoo-module native */
-import { EditWebsiteSystrayItem } from "@website/client_actions/website_preview/edit_website_systray_item";
 import { patch } from "@web/core/utils/patch";
+import { EditWebsiteSystrayItem } from "@website/client_actions/website_preview/edit_website_systray_item";
 
 patch(EditWebsiteSystrayItem.prototype, {
     isSlidePage() {

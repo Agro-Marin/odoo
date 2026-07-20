@@ -37,12 +37,20 @@ def migrate(cr, version):
         _logger.info("No slide_question rows — skipping quiz migration")
         return
 
-    _logger.info("Migrating %d slide.question records to survey.question", question_count)
+    _logger.info(
+        "Migrating %d slide.question records to survey.question", question_count
+    )
 
     # Step 1: Add temp columns for safe ID mapping
-    cr.execute("ALTER TABLE survey_survey ADD COLUMN IF NOT EXISTS _marin_from_slide_id INTEGER")
-    cr.execute("ALTER TABLE survey_question ADD COLUMN IF NOT EXISTS _marin_from_slide_question_id INTEGER")
-    cr.execute("ALTER TABLE survey_question_answer ADD COLUMN IF NOT EXISTS _marin_from_slide_answer_id INTEGER")
+    cr.execute(
+        "ALTER TABLE survey_survey ADD COLUMN IF NOT EXISTS _marin_from_slide_id INTEGER"
+    )
+    cr.execute(
+        "ALTER TABLE survey_question ADD COLUMN IF NOT EXISTS _marin_from_slide_question_id INTEGER"
+    )
+    cr.execute(
+        "ALTER TABLE survey_question_answer ADD COLUMN IF NOT EXISTS _marin_from_slide_answer_id INTEGER"
+    )
 
     # Step 2: Create survey.survey records for quiz slides that have questions but no survey
     cr.execute("""
@@ -139,24 +147,44 @@ def migrate(cr, version):
     """)
 
     # Clean up remaining XML IDs that weren't remapped
-    cr.execute("DELETE FROM ir_model_data WHERE model IN ('slide.question', 'slide.answer')")
+    cr.execute(
+        "DELETE FROM ir_model_data WHERE model IN ('slide.question', 'slide.answer')"
+    )
 
     # Step 6: Clean up ir_model and ir_model_fields
     cr.execute("DELETE FROM ir_model WHERE model IN ('slide.question', 'slide.answer')")
-    cr.execute("DELETE FROM ir_model_fields WHERE model IN ('slide.question', 'slide.answer')")
-    cr.execute("UPDATE ir_model_fields SET relation = 'survey.question' WHERE relation = 'slide.question'")
-    cr.execute("UPDATE ir_model_fields SET relation = 'survey.question.answer' WHERE relation = 'slide.answer'")
+    cr.execute(
+        "DELETE FROM ir_model_fields WHERE model IN ('slide.question', 'slide.answer')"
+    )
+    cr.execute(
+        "UPDATE ir_model_fields SET relation = 'survey.question' WHERE relation = 'slide.question'"
+    )
+    cr.execute(
+        "UPDATE ir_model_fields SET relation = 'survey.question.answer' WHERE relation = 'slide.answer'"
+    )
 
     # Step 7: Drop temp columns and advance sequences
     cr.execute("ALTER TABLE survey_survey DROP COLUMN IF EXISTS _marin_from_slide_id")
-    cr.execute("ALTER TABLE survey_question DROP COLUMN IF EXISTS _marin_from_slide_question_id")
-    cr.execute("ALTER TABLE survey_question_answer DROP COLUMN IF EXISTS _marin_from_slide_answer_id")
+    cr.execute(
+        "ALTER TABLE survey_question DROP COLUMN IF EXISTS _marin_from_slide_question_id"
+    )
+    cr.execute(
+        "ALTER TABLE survey_question_answer DROP COLUMN IF EXISTS _marin_from_slide_answer_id"
+    )
 
-    cr.execute("SELECT setval('survey_survey_id_seq', COALESCE(MAX(id), 1), true) FROM survey_survey")
-    cr.execute("SELECT setval('survey_question_id_seq', COALESCE(MAX(id), 1), true) FROM survey_question")
-    cr.execute("SELECT setval('survey_question_answer_id_seq', COALESCE(MAX(id), 1), true) FROM survey_question_answer")
+    cr.execute(
+        "SELECT setval('survey_survey_id_seq', COALESCE(MAX(id), 1), true) FROM survey_survey"
+    )
+    cr.execute(
+        "SELECT setval('survey_question_id_seq', COALESCE(MAX(id), 1), true) FROM survey_question"
+    )
+    cr.execute(
+        "SELECT setval('survey_question_answer_id_seq', COALESCE(MAX(id), 1), true) FROM survey_question_answer"
+    )
 
     _logger.info(
         "Quiz migration complete: %d surveys, %d questions, %d answers",
-        surveys_created, questions_migrated, answers_migrated,
+        surveys_created,
+        questions_migrated,
+        answers_migrated,
     )

@@ -1,15 +1,19 @@
 /** @odoo-module native */
 import { Component, onMounted, useState } from "@odoo/owl";
-import { Dialog } from "@web/ui/dialog/dialog";
 import { DropdownItem } from "@web/components/dropdown/dropdown_item";
-import { redirect } from "@web/core/utils/urls";
 import { SelectMenu } from "@web/components/select_menu/select_menu";
-import { ModuleToInstallIcon, SlideCategoryIcon } from "./slide_upload_dialog_select.js";
+import { _t } from "@web/core/l10n/translation";
+import { rpc } from "@web/core/network/rpc";
+import { useService } from "@web/core/utils/hooks";
+import { redirect } from "@web/core/utils/urls";
+import { Dialog } from "@web/ui/dialog/dialog";
+
 import { SlideInstallModule } from "./slide_install_module.js";
 import { SlideUploadCategory } from "./slide_upload_category.js";
-import { _t } from "@web/core/l10n/translation";
-import { useService } from "@web/core/utils/hooks";
-import { rpc } from "@web/core/network/rpc";
+import {
+    ModuleToInstallIcon,
+    SlideCategoryIcon,
+} from "./slide_upload_dialog_select.js";
 
 export class SlideUploadDialog extends Component {
     static baseSettings = {
@@ -66,7 +70,10 @@ export class SlideUploadDialog extends Component {
         this.slideCategoryData = this.constructor.categoryData;
         this.state = useState({ ...this.constructor.baseSettings });
         onMounted(() => {
-            if (this.props.openModal && this.props.openModal in this.slideCategoryData) {
+            if (
+                this.props.openModal &&
+                this.props.openModal in this.slideCategoryData
+            ) {
                 // Sets the appropriate category's upload template if one has to be opened on load.
                 this.onClickSlideCategoryIcon(this.props.openModal);
             }
@@ -84,7 +91,9 @@ export class SlideUploadDialog extends Component {
 
     onClickInstallModuleIcon(moduleId) {
         this.state.page = "install_module";
-        this.state.installModuleData = this.props.modulesToInstall.find((m) => m.id === moduleId);
+        this.state.installModuleData = this.props.modulesToInstall.find(
+            (m) => m.id === moduleId,
+        );
         this.state.size = "md";
     }
 

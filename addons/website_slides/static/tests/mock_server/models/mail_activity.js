@@ -1,5 +1,5 @@
-import { mailDataHelpers } from "@mail/../tests/mock_server/mail_mock_server";
 import { mailModels } from "@mail/../tests/mail_test_helpers";
+import { mailDataHelpers } from "@mail/../tests/mock_server/mail_mock_server";
 import { makeKwArgs } from "@web/../tests/web_test_helpers";
 
 export class MailActivity extends mailModels.MailActivity {
@@ -11,7 +11,7 @@ export class MailActivity extends mailModels.MailActivity {
                 store._add_record_fields(this.browse(activity.id), {
                     request_partner_id: mailDataHelpers.Store.one(
                         this.env["res.partner"].browse(activity.request_partner_id),
-                        makeKwArgs({ only_id: true })
+                        makeKwArgs({ only_id: true }),
                     ),
                 });
             }
