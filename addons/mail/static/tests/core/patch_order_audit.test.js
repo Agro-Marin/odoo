@@ -60,6 +60,13 @@ const KNOWN_DOUBLE_PATCHES = new Set([
     "DiscussClientAction.prototype :: setup",
     "DiscussSidebarCategory.prototype :: actions",
     "DiscussSidebarChannel.prototype :: attClassContainer",
+    // sms + snailmail each extend mail's Failure model, type-guarded on
+    // notification type with a super fallback -> order-independent.
+    "Failure.prototype :: body",
+    "Failure.prototype :: iconSrc",
+    // web FormController.setup extended by the chatter (mail) + another module;
+    // super-calling setup patch, order-independent.
+    "FormController.prototype :: setup",
     "MailGuest.prototype :: setup",
     "Message.prototype :: canForward",
     "Message.prototype :: canReplyTo",
@@ -77,7 +84,15 @@ const KNOWN_DOUBLE_PATCHES = new Set([
     "MessagingMenu.prototype :: getFailureNotificationName",
     "MessagingMenu.prototype :: openFailureView",
     "MessagingMenu.prototype :: setup",
+    // bus test mocks (mock_base_worker + mock_websocket) both extend start().
+    "MockServer.prototype :: start",
+    // sms + snailmail each extend mail's Notification model, type-guarded on
+    // notification_type with a super fallback -> order-independent.
+    "Notification.prototype :: failureMessage",
+    "Notification.prototype :: icon",
     "OutOfFocusService.prototype :: onWindowFocus",
+    // html_editor + mail each extend PropertyValue.setup; super-calling.
+    "PropertyValue.prototype :: setup",
     "ResPartner.prototype :: setup",
     "ResPartner.prototype :: voipName",
     "Store.prototype :: _hasFullscreenUrlOnUpdate",
