@@ -66,13 +66,17 @@ export class ChartOption extends BaseOptionComponent {
      */
     prepareData(editingElement) {
         const data = this.getData(editingElement);
-        data.datasets = data.datasets.map((dataset) => {
+        data.datasets = data.datasets.map((dataset, index) => {
             if (dataset.key) {
                 return dataset;
             }
+            // `Date.now()` alone is identical for every keyless dataset produced
+            // in the same synchronous tick, collapsing their keys and making
+            // find()/findIndex() resolve to the wrong series. Disambiguate by
+            // index so each dataset gets a distinct key.
             return {
                 ...dataset,
-                key: DATASET_KEY_PREFIX + Date.now(),
+                key: `${DATASET_KEY_PREFIX}${Date.now()}_${index}`,
             };
         });
         return data;

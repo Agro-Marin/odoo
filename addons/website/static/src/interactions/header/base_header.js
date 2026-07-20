@@ -7,10 +7,13 @@ import { SIZES, utils as uiUtils } from "@web/ui/block/ui_service";
 export class BaseHeader extends Interaction {
     dynamicContent = {
         _document: {
-            "t-on-scroll": this.onScroll,
+            // rAF-throttled: scroll fires many times per frame and every header
+            // variant's onScroll reads layout (header_standard even clones the
+            // header + reads offsetHeight); coalesce to one run per frame.
+            "t-on-scroll": this.throttled(this.onScroll),
         },
         _window: {
-            "t-on-resize": this.onResize,
+            "t-on-resize": this.throttled(this.onResize),
         },
         _body: {
             "t-att-class": () => ({

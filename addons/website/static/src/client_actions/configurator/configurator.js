@@ -535,6 +535,11 @@ export class ApplyConfiguratorScreen extends Component {
         if (!this.state.selectedPalette) {
             return this.props.navigate(ROUTES.paletteSelectionScreen);
         }
+        if (!this.state.selectedPurpose && !this.state.formerSelectedPurpose) {
+            // Neither is set (e.g. browser back/forward through the flow);
+            // getConfigurationData would crash on WEBSITE_PURPOSES[undefined].name.
+            return this.props.navigate(ROUTES.descriptionScreen);
+        }
 
         const attemptConfiguratorApply = async (data, retryCount = 0) => {
             try {

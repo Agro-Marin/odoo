@@ -368,7 +368,11 @@ export const websiteService = {
                         // Precaution in case the util is simply removed without
                         // adapting this method: not critical, we can restore
                         // later and use the fallback until the fix is made.
-                        .catch(() => {});
+                        // Reset on failure so a later call retries instead of
+                        // caching an empty result and returning "Data" forever.
+                        .catch(() => {
+                            modelNamesProm = null;
+                        });
                 }
                 await modelNamesProm;
                 return modelNames[model] || _t("Data");

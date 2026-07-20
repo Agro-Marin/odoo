@@ -4,6 +4,7 @@ import {
     Component,
     onMounted,
     onWillStart,
+    onWillUnmount,
     status,
     useRef,
     useState,
@@ -115,6 +116,13 @@ class AddPageTemplatePreview extends Component {
                 applyTextHighlight(targetEl);
             }
         });
+        // The observer is otherwise only disconnected in select(); a preview
+        // that is never selected (dialog closed / tab switched) leaks it and the
+        // retained iframe DOM. Also stop the adjustHeight poll on teardown.
+        onWillUnmount(() => {
+            this.resizeObserver.disconnect();
+            clearTimeout(this._adjustHeightTimeout);
+        });
 
         onMounted(async () => {
             const holderEl = this.holderRef.el;
@@ -215,7 +223,10 @@ class AddPageTemplatePreview extends Component {
                 imgEl.setAttribute("loading", "eager");
             }
             mainEl.appendChild(wrapEl);
-            await onceAllImagesLoaded(wrapEl);
+            // A single broken image must not reject and abort the rest of the
+            // setup (fonts.ready, o_loading removal, adjustHeight), which would
+            // leave the preview stuck loading.
+            await onceAllImagesLoaded(wrapEl).catch(() => {});
             // Restore image lazy loading.
             for (const imgEl of lazyLoadedImgEls) {
                 imgEl.setAttribute("loading", "lazy");
@@ -227,6 +238,8 @@ class AddPageTemplatePreview extends Component {
             // Wait for fonts.
             await iframeEl.contentDocument.fonts.ready;
             holderEl.classList.remove("o_loading");
+            let lastHeight = -1;
+            let stableCount = 0;
             const adjustHeight = () => {
                 if (!this.previewRef.el) {
                     // Stop ajusting height when preview is removed.
@@ -236,14 +249,21 @@ class AddPageTemplatePreview extends Component {
                 const innerHeight = wrapEl.getBoundingClientRect().height;
                 const innerWidth = wrapEl.getBoundingClientRect().width;
                 const ratio = outerWidth / innerWidth;
-                iframeEl.height = Math.round(innerHeight);
+                const rounded = Math.round(innerHeight);
+                iframeEl.height = rounded;
                 previewEl.style.setProperty(
                     "height",
                     `${Math.round(innerHeight * ratio)}px`,
                 );
-                // Sometimes the final height is not ready yet.
-                setTimeout(adjustHeight, 50);
                 holderEl.classList.add("o_ready");
+                // Sometimes the final height is not ready yet, so keep polling —
+                // but stop once it has settled instead of running 20×/s forever
+                // for the whole life of the dialog (per visible preview).
+                stableCount = rounded === lastHeight ? stableCount + 1 : 0;
+                lastHeight = rounded;
+                if (stableCount < 5) {
+                    this._adjustHeightTimeout = setTimeout(adjustHeight, 50);
+                }
             };
             adjustHeight();
             if (this.props.isCustom) {

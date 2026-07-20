@@ -7,6 +7,7 @@ import { selectElements } from "@html_editor/utils/dom_traversal";
 import { withSequence } from "@html_editor/utils/resource";
 import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
+import { uniqueId } from "@web/core/utils/functions";
 import { renderToElement } from "@web/core/utils/render";
 import { Carousel } from "@web/libs/bootstrap";
 import {
@@ -213,9 +214,16 @@ export class CarouselOptionPlugin extends Plugin {
      * @returns {Promise}
      */
     slide(editingElement, direction) {
-        editingElement.addEventListener("slide.bs.carousel", () => {
-            this.slideTimestamp = window.performance.now();
-        });
+        // `{ once: true }` mirrors the `slid` handler below; without it every
+        // slide()/prev/next call leaves another permanent listener on the
+        // carousel for the whole edit session.
+        editingElement.addEventListener(
+            "slide.bs.carousel",
+            () => {
+                this.slideTimestamp = window.performance.now();
+            },
+            { once: true },
+        );
 
         return new Promise((resolve) => {
             editingElement.addEventListener(
@@ -237,12 +245,11 @@ export class CarouselOptionPlugin extends Plugin {
                             ".carousel-item.active",
                         );
                         const activeIndex = [...itemEls].indexOf(activeItemEl);
-                        const indicatorEls = editingElement.querySelectorAll(
-                            ".carousel-indicators > *",
-                        );
-                        const activeIndicatorEl = [...indicatorEls][activeIndex];
-                        activeIndicatorEl.classList.add("active");
-                        activeIndicatorEl.setAttribute("aria-current", "true");
+                        // Full toggle (guards the index and, crucially, clears
+                        // the previously-active indicator — the manual
+                        // classList.add only ever added, leaving several
+                        // indicators marked active).
+                        updateCarouselIndicators(editingElement, activeIndex);
 
                         // Activate the active item.
                         this.dependencies["builderOptions"].setNextTarget(activeItemEl);
@@ -285,7 +292,10 @@ export class CarouselOptionPlugin extends Plugin {
      * @param {HTMLElement} editingElement the carousel element.
      */
     assignUniqueID(editingElement) {
-        const id = "myCarousel" + Date.now();
+        // uniqueId (not Date.now()) so cloning/dropping several carousels within
+        // the same millisecond can't produce duplicate ids that back
+        // data-bs-target and make controls act on the wrong carousel.
+        const id = uniqueId("myCarousel");
         editingElement.querySelector(".carousel").setAttribute("id", id);
         editingElement.querySelectorAll("[data-bs-target]").forEach((el) => {
             el.setAttribute("data-bs-target", "#" + id);

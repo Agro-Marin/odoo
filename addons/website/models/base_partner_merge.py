@@ -23,11 +23,15 @@ class BasePartnerMergeAutomaticWizard(models.TransientModel):
         # Case 2: there is a visitor only for src_partners.
         # Need to fix the "de-sync" values between `access_token` and
         # `partner_id`.
+        # Compare as text, not `access_token::int`: a still-desynced row can
+        # hold a 32-char hex token (the exact case this repairs), and casting
+        # that to int raises `invalid input syntax for integer`, aborting the
+        # whole merge. Text comparison catches the hex desync too.
         self.env.cr.execute(
             """
             UPDATE website_visitor
-               SET access_token = partner_id
-             WHERE partner_id::int != access_token::int
+               SET access_token = partner_id::text
+             WHERE partner_id::text != access_token
                AND partner_id = %s;
         """,
             (dst_partner.id,),

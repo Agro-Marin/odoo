@@ -10,11 +10,11 @@ from io import BytesIO
 from itertools import islice
 from pathlib import PurePosixPath
 from textwrap import shorten
-from xml.etree import ElementTree as ET
 
 import requests
 import werkzeug.utils
 import werkzeug.wrappers
+from defusedxml.ElementTree import fromstring as defused_fromstring
 from lxml import etree, html
 from markupsafe import escape as markup_escape
 from werkzeug.exceptions import NotFound
@@ -322,6 +322,20 @@ class Website(Home):
         mimetype = "application/xml;charset=utf-8"
         content = None
         url_root = request.httprequest.url_root
+        # `url_root` derives from the (client-controlled) Host header. Left
+        # unpinned, an unauthenticated client can mint unbounded distinct
+        # sitemap attachments and force repeated full-page-walk regenerations by
+        # varying Host. When the website has a configured domain, use it as the
+        # canonical root so every request to that website shares one cached
+        # sitemap (and the emitted absolute URLs are canonical).
+        if current_website.domain:
+            parsed = urllib.parse.urlparse(
+                current_website.domain
+                if "//" in current_website.domain
+                else "https://" + current_website.domain
+            )
+            if parsed.netloc:
+                url_root = f"{parsed.scheme or 'https'}://{parsed.netloc}/"
         # For a same website, each domain has its own sitemap (cache)
         hashed_url_root = md5(url_root.encode()).hexdigest()[:8]
         sitemap_base_url = "/sitemap-%d-%s" % (current_website.id, hashed_url_root)
@@ -723,6 +737,9 @@ class Website(Home):
             - 'fuzzy_search': search term used instead of requested search
         """
         options = options or {}
+        # Public route: clamp the client-supplied limit so an unbounded value
+        # cannot force an arbitrarily large search + render.
+        limit = min(max(int(limit or 0), 0), 100)
         try:
             results_count, search_results, fuzzy_term = (
                 request.website._search_with_fuzzy(
@@ -829,6 +846,9 @@ class Website(Home):
     def pages_list(self, page=1, search="", **kw):
         options = self._get_page_search_options(**kw)
         step = 50
+        # `page` comes straight from the URL; clamp it so a huge value cannot
+        # blow up limit=page*step into an unbounded search.
+        page = min(max(int(page), 1), 100)
         pages_count, details, fuzzy_search_term = request.website._search_with_fuzzy(
             "pages",
             search,
@@ -1156,7 +1176,9 @@ class Website(Home):
         pattern = r"^([a-zA-Z]+)(?:_(\w+))?(?:@(\w+))?$"
         match = re.match(pattern, lang or "")
         language = [match.group(1), match.group(2) or ""] if match else ["en", "US"]
-        url = "http://google.com/complete/search"
+        # HTTPS so the response cannot be tampered with in transit (it is parsed
+        # as XML below).
+        url = "https://www.google.com/complete/search"
         try:
             req = requests.get(
                 url,
@@ -1174,7 +1196,9 @@ class Website(Home):
             response = req.content
         except OSError:
             return json.dumps([])
-        xmlroot = ET.fromstring(response)
+        # defusedxml guards against entity-expansion / XXE attacks in the
+        # (external, therefore untrusted) response body.
+        xmlroot = defused_fromstring(response)
         return json.dumps(
             [
                 sugg[0].attrib["data"]
@@ -1228,6 +1252,13 @@ class Website(Home):
             if not record.has_access("write"):
                 continue
             img["field"] = "arch_db" if img["field"] == "arch" else img["field"]
+            # The field name is client-supplied: only allow rewriting stored
+            # HTML-bearing columns (html/text, e.g. view arch_db), never scalar
+            # or relational fields, to avoid injecting markup where it does not
+            # belong.
+            field = record._fields.get(img["field"])
+            if not field or field.type not in ("html", "text") or not field.store:
+                continue
             tree = html.fromstring(str(record[img["field"]]))
             modified = False
             for index, element in enumerate(tree.xpath("//img")):
@@ -1257,6 +1288,11 @@ class Website(Home):
             if not record.has_access("write"):
                 continue
             link["field"] = "arch_db" if link["field"] == "arch" else link["field"]
+            # See update_alt_images: the field name is client-supplied, restrict
+            # writes to stored HTML-bearing columns only.
+            field = record._fields.get(link["field"])
+            if not field or field.type not in ("html", "text") or not field.store:
+                continue
             tree = html.fromstring(str(record[link["field"]]))
             modified = False
             for element in tree.xpath("//a"):

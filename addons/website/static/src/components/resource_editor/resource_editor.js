@@ -349,7 +349,7 @@ export class ResourceEditor extends Component {
             if (
                 !this.errors
                     .map(({ resource }) => resource.id)
-                    .includes(this.state.currentResource.id)
+                    .includes(this.state.currentResource?.id)
             ) {
                 this.state.currentResource = this.errors[0].resource;
                 this.state.type = this.errors[0].resource.type;

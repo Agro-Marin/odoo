@@ -191,7 +191,12 @@ class TranslateToAction extends BuilderAction {
             if (executing.size >= concurrencyLimit) {
                 await Promise.race(executing);
             }
-            const promise = task().finally(() => executing.delete(promise));
+            // Catch per task: one failed AI chunk must not reject the whole
+            // batch and discard every successfully-translated chunk. A failed
+            // chunk resolves to null and is skipped when applying to the DOM.
+            const promise = task()
+                .catch(() => null)
+                .finally(() => executing.delete(promise));
             executing.add(promise);
             allResults.push(promise);
         }
@@ -209,6 +214,10 @@ class TranslateToAction extends BuilderAction {
     applyTranslationsToDOM(translationMap, responses) {
         let numOfFailedTranslationNodes = 0;
         for (const response of responses) {
+            if (response == null) {
+                // Chunk that failed at the RPC level (caught above); skip it.
+                continue;
+            }
             let translations;
             try {
                 translations = JSON.parse(response);
@@ -292,6 +301,9 @@ export class CustomizeTranslationTabPlugin extends Plugin {
         const el = this.document.createElement("div");
         el.dataset.name = name;
         this.document.body.appendChild(el);
+        // Remove on destroy; otherwise these helper <div>s leak into the edited
+        // document's body on every editor open/close.
+        this._cleanups.push(() => el.remove());
 
         return {
             id: id,

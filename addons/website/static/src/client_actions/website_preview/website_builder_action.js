@@ -310,7 +310,10 @@ export class WebsiteBuilderClientAction extends Component {
         window.document.dispatchEvent(
             new CustomEvent("edit_page", {
                 detail: {
-                    iframeDocument: this.websiteContent.el.contentDocument.document,
+                    // `contentDocument` IS the document; `.document` was always
+                    // undefined (masked only because stopInteractions defaults
+                    // undefined to its own root).
+                    iframeDocument: this.websiteContent.el.contentDocument,
                 },
             }),
         );
@@ -544,7 +547,9 @@ export class WebsiteBuilderClientAction extends Component {
     waitForIframeReady() {
         return new Promise((resolve) => {
             const doc = this.websiteContent.el.contentDocument;
-            if (doc.body.hasAttribute("is-ready")) {
+            // `hasAttribute` is true even while is-ready="false" (set on each
+            // load before the public root finishes); only "true" means ready.
+            if (doc.body.getAttribute("is-ready") === "true") {
                 resolve();
             } else {
                 const observer = new MutationObserver(() => {

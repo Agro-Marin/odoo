@@ -69,8 +69,11 @@ async function checkUrlExists(link) {
 
 const toRelativeIfSameDomain = (url) => {
     // Remove domain from url to keep only the relative path if same domain.
+    // NB: `isAbsoluteURLInCurrentDomain` ignores its second argument; passing
+    // `this.env` from this module-scope arrow threw (top-level `this` is
+    // undefined), silently sending absolute same-domain menu URLs unstripped.
     const urlObj = new URL(url);
-    const isSameDomain = isAbsoluteURLInCurrentDomain(url, this.env);
+    const isSameDomain = isAbsoluteURLInCurrentDomain(url);
     return isSameDomain ? url.replace(urlObj.origin, "") : url;
 };
 

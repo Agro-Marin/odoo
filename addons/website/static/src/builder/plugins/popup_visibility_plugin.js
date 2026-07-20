@@ -95,7 +95,7 @@ export class PopupVisibilityPlugin extends Plugin {
      */
     hidePopupsWithoutTarget(targetEl) {
         const openPopupEls = this.editable.querySelectorAll(
-            ".s_popup:not([data-invisible='1']",
+            ".s_popup:not([data-invisible='1'])",
         );
         if (!openPopupEls.length) {
             return;

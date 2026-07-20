@@ -281,7 +281,15 @@ class WebsiteHTMLTextProcessor(models.AbstractModel):
         if not html_string or not html_string.strip():
             return self, html_string
 
-        tree = etree.fromstring(f"<div>{html_string}</div>")
+        # Translation/AI terms are HTML fragments that legitimately contain
+        # bare `&`, void/unclosed tags (<br>, <img>), entities, etc. The strict
+        # XML parser raises XMLSyntaxError on those and aborts the whole run, so
+        # parse leniently (as tools.text_from_html / mixins already do).
+        tree = etree.fromstring(
+            f"<div>{html_string}</div>", parser=etree.XMLParser(recover=True)
+        )
+        if tree is None:
+            return self, html_string
 
         # Identifying one or more wrapping tags that enclose the entire HTML
         # content e.g., <strong><em>text ...</em></strong>. Store them to

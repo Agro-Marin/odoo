@@ -9,8 +9,11 @@ export class Parallax extends Interaction {
         _bg: () => this.el.querySelector(":scope > .s_parallax_bg"),
     });
     dynamicContent = {
-        _document: { "t-on-scroll": this.onScroll },
-        _window: { "t-on-resize": this.updateBackgroundHeight },
+        // rAF-throttled: each parallax reads getBoundingClientRect on every
+        // scroll event; with N parallax sections that is N layout reads per
+        // event. Coalesce to one run per frame.
+        _document: { "t-on-scroll": this.throttled(this.onScroll) },
+        _window: { "t-on-resize": this.throttled(this.updateBackgroundHeight) },
         _modal: { "t-on-shown.bs.modal": this.updateBackgroundHeight },
         _bg: {
             "t-att-style": () => ({

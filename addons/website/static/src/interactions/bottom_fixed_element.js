@@ -69,7 +69,7 @@ export class BottomFixedElement extends Interaction {
                     ) {
                         bottomFixedEl.style.marginBottom =
                             window.innerHeight -
-                            touchingButtonEl.getBoundingClientRect().top +
+                            touchingButtonEl[0].getBoundingClientRect().top +
                             5 +
                             "px";
                     } else {

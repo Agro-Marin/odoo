@@ -24,11 +24,23 @@ function watch3rdPartyScripts(thirdPartyDomainsBlockList) {
         },
         set(val) {
             const cookiesBarCookie = document.cookie.match(cookieRegex)?.groups.value;
+            // This setter runs for EVERY script.src assignment on the page; a
+            // malformed/tampered cookie must not throw here (it would break all
+            // subsequent script loading). Treat a parse failure as "not
+            // consented".
+            let optionalConsent = false;
+            if (cookiesBarCookie) {
+                try {
+                    optionalConsent = !!JSON.parse(cookiesBarCookie).optional;
+                } catch {
+                    optionalConsent = false;
+                }
+            }
             const host = removeWWW(
                 new URL(val, window.location.origin).host.toLowerCase(),
             );
             if (
-                (!cookiesBarCookie || !JSON.parse(cookiesBarCookie).optional) &&
+                !optionalConsent &&
                 blockList.some(
                     (domain) => host === domain || host.endsWith(`.${domain}`),
                 )

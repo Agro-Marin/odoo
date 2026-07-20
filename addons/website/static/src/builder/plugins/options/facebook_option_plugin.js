@@ -35,7 +35,7 @@ class FacebookOptionPlugin extends Plugin {
             } else {
                 desiredHeight = 150;
             }
-            if (desiredHeight !== element.dataset.height) {
+            if (String(desiredHeight) !== element.dataset.height) {
                 element.dataset.height = desiredHeight;
             }
         }
@@ -159,8 +159,14 @@ export class CheckFacebookLinkAction extends BuilderAction {
     }
 
     async checkFacebookId(id) {
-        const res = await fetch(`https://graph.facebook.com/${id}/picture`);
-        return res.ok;
+        try {
+            const res = await fetch(`https://graph.facebook.com/${id}/picture`);
+            return res.ok;
+        } catch {
+            // Network/CORS failure: report as "not found" instead of leaving an
+            // unhandled rejection and never running the notification.
+            return false;
+        }
     }
 }
 

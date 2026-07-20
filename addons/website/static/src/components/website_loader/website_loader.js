@@ -203,6 +203,10 @@ export class WebsiteLoader extends Component {
             ? progressForAllModules / nbModulesToInstall
             : 0;
 
+        // initProgressBar() is called repeatedly (every ~1s from trackModules()
+        // and from the visibility effect); clear any previous interval first so
+        // orphan timers don't accumulate and fight over state.progressPercentage.
+        clearInterval(this.updateProgressInterval);
         this.updateProgressInterval = setInterval(() => {
             if (this.featuresInstallInfo.nbInstalled !== lastTotalInstalled) {
                 // A module just finished its install.
