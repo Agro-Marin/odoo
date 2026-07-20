@@ -72,6 +72,11 @@ class AccountJournal(models.Model):
             )
 
     def _compute_last_bank_statement(self):
+        # first_line_index is a stored computed field fed by the lines'
+        # internal_index; flush both models so the raw SQL below does not
+        # read stale/NULL indexes for statements written in this transaction.
+        self.env["account.bank.statement.line"].flush_model()
+        self.env["account.bank.statement"].flush_model()
         self.env.cr.execute(
             """
             SELECT journal.id, statement.id
@@ -994,6 +999,10 @@ class AccountJournal(models.Model):
     def _get_journal_dashboard_bank_running_balance(self):
         # In order to not recompute everything from the start, we take the last
         # bank statement and only sum starting from there.
+        # Flush statements/lines first: the query filters on the stored
+        # computed first_line_index (see _compute_last_bank_statement).
+        self.env["account.bank.statement.line"].flush_model()
+        self.env["account.bank.statement"].flush_model()
         self.env.cr.execute(
             """
             SELECT journal.id AS journal_id,
