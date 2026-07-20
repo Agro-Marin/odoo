@@ -5,13 +5,11 @@ Detects repeated single-record create/write/unlink calls from the same call
 site within a transaction — a pattern that is 5-15x slower than batching.
 
 Activation: set ``ODOO_NPLUSONE=1`` in the environment (dev-only, opt-in). The
-flag is read once at import — deliberately mirroring ``ODOO_ORM_PROFILE`` in
-:mod:`odoo.tools.orm_profiler` — so that (a) every entry point (server, shell,
-tests, WSGI) sees it uniformly, and (b) the value that the CRUD mixins and
-:class:`~odoo.orm.runtime.transaction.Transaction` capture via
-``from odoo.tools.nplusone import _n1_enabled`` is already correct. A flag
-rebound *after* those value-imports would not reach their copies, so activation
-must be settled at import time, not via a later ``setup()`` call.
+flag is read once at import (mirroring ``ODOO_ORM_PROFILE`` in
+:mod:`odoo.tools.orm_profiler`): consumers freeze it via
+``from odoo.tools.nplusone import _n1_enabled``, so a rebind after those imports
+would not reach their copies — activation must be settled at import time, not by
+a later ``setup()`` call.
 
 When disabled, overhead is a single boolean check per CRUD call
 (``_n1_enabled``). Violations above the threshold are reported via the

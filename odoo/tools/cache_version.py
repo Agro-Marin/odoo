@@ -1,35 +1,25 @@
-"""Content-hash stamping for cacheable read responses (Plan C).
+"""Content-hash stamping for cacheable read responses.
 
-Endpoints decorated here emit a ``__version`` sha256 hex digest that the
-client-side rpc cache
-(``addons/core/addons/web/static/src/core/network/rpc_cache.js``
-``payloadChanged``) compares in O(1) instead of running the default
-``JSON.stringify(prev) !== JSON.stringify(curr)`` deep compare on every
+Decorated endpoints emit a ``__version`` sha256 hex digest that the client-side
+rpc cache (``web/static/src/core/network/rpc_cache.js`` ``payloadChanged``)
+compares in O(1) instead of the default ``JSON.stringify`` deep compare on every
 ``update: "always"`` revalidation.
 
 Two decorator forms cover all return shapes:
 
-- :func:`versioned` mutates the result in place — for methods returning a
-  ``dict``.  The ``__version`` key rides as a regular payload field.
-- :func:`versioned_envelope` stashes the hash on
-  ``http.request._response_version`` — for methods returning a ``list``,
-  a scalar, or anything where there is no in-payload key to attach.  The
-  JSON-RPC dispatcher (``core/odoo/http/dispatcher.py`` ``_response``)
-  lifts the side-channel value to a ``version`` sibling of ``result`` in
-  the envelope.  The JS rpc layer (``rpc.js``) re-attaches it as
-  ``result.__version`` so the client cache sees the same field name in
-  both cases.
+- :func:`versioned` — for ``dict`` returns; the ``__version`` key rides as a
+  regular payload field.
+- :func:`versioned_envelope` — for ``list``/scalar returns with no in-payload
+  key to attach. It stashes the hash on ``http.request._response_version``; the
+  JSON-RPC dispatcher (``core/odoo/http/dispatcher.py`` ``_response``) lifts it
+  to a ``version`` sibling of ``result``, and the JS rpc layer (``rpc.js``)
+  re-attaches it as ``result.__version`` so the client sees the same field name
+  in both cases.
 
-The hash uses ``sort_keys=True`` so the digest is invariant under Python
-dict insertion order — two interpreter runs over the same query can
-yield different insertion orders and the version must stay stable
-across them.  ``default=str`` lets the canonical-JSON pass survive
-non-JSON-native values (datetimes, sets, Decimals, etc.) that may appear
-in intermediate structures.
-
-See ``addons/core/addons/web/machine_doc_v1/STATE_MANAGEMENT.md``
-"Server-side ``__version`` stamp" for the full contract, currently
-opted-in endpoints, and rollout history.
+Digests use sorted keys (insertion-order invariant) and ``default=str`` to
+survive non-JSON-native values (datetimes, sets, Decimals). See
+``addons/core/addons/web/machine_doc_v1/STATE_MANAGEMENT.md`` "Server-side
+``__version`` stamp" for the full contract, opted-in endpoints, and history.
 """
 
 import hashlib
@@ -71,10 +61,9 @@ def _canonical_bytes(value):
     """Serialize ``value`` to canonical JSON bytes: sorted keys, compact
     separators, ``str``-coerced for non-native types.
 
-    Sorted keys make the output invariant under Python dict insertion order —
-    two interpreter runs over the same query can yield different orders and the
-    version must stay stable across them.  See :data:`_CANONICAL_OPT` for the
-    byte-compatibility contract with the previous stdlib implementation.
+    Sorted keys make the digest invariant under dict insertion order. See
+    :data:`_CANONICAL_OPT` for the byte-compatibility contract with the previous
+    stdlib implementation.
     """
     try:
         return orjson.dumps(value, option=_CANONICAL_OPT, default=str)
@@ -112,21 +101,10 @@ def versioned(method):
 def versioned_envelope(method):
     """Stash a ``__version`` hash for list / scalar returns via a side channel.
 
-    The dict-mutating :func:`versioned` approach does not work for methods
-    that return a ``list`` (no place to attach a key) or a scalar.  Instead,
-    this decorator stamps the hash onto the active HTTP request as
-    ``request._response_version``; the JSON-RPC dispatcher
-    (``core/odoo/http/dispatcher.py`` ``_response``) reads it and adds a
-    ``version`` sibling to the JSON-RPC envelope alongside ``result``.
-
-    The JS rpc layer (``rpc.js``) lifts the sibling back onto the result
-    object so the client cache sees the same ``__version`` field whether
-    the server used :func:`versioned` (in-payload) or
-    :func:`versioned_envelope` (out-of-band).
-
-    Outside an HTTP request (cron jobs, internal Python callers, test
-    fixtures) the side channel is unavailable and the decorator silently
-    no-ops — the result is returned unmodified.
+    Stamps the hash onto the active HTTP request as ``request._response_version``
+    (see the module docstring for how it reaches the client). Outside an HTTP
+    request — cron jobs, internal callers, tests — the side channel is
+    unavailable and the decorator no-ops, returning the result unmodified.
     """
     @wraps(method)
     def wrapper(*args, **kwargs):

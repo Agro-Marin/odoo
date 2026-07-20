@@ -52,17 +52,14 @@ if _orm_profiling_enabled:
 class _OrmProfile:
     """Lightweight phase timer for ORM operation instrumentation.
 
-    Replaces the interleaved ``if _debug: _tN = time.perf_counter()`` checkpoints
-    in the create/write/read/search/cache mixins with a single object: construct
-    it at the start of the operation, call :meth:`mark` at each phase boundary,
-    :meth:`stop` at the end, then read :meth:`ms` / :attr:`elapsed` for the
-    operation-specific debug line and profiler hook.
+    Construct it at the start of the operation, call :meth:`mark` at each phase
+    boundary, :meth:`stop` at the end, then read :meth:`ms` / :attr:`elapsed`
+    for the debug line and profiler hook.
 
-    Active only when the operation's *logger* has DEBUG enabled or aggregate
+    Active only when the operation's logger has DEBUG enabled or aggregate
     profiling is on; otherwise every method is a cheap no-op (no
-    ``perf_counter`` calls). ``debug`` guards the per-phase debug line (phase
-    marks are taken only then, matching the original behaviour); ``agg`` guards
-    the aggregate-profiler hook. Both share the start/stop bounds.
+    ``perf_counter`` calls). ``debug`` guards the per-phase marks and debug line,
+    ``agg`` the aggregate-profiler hook; both share the start/stop bounds.
     """
 
     __slots__ = ("_marks", "agg", "debug")

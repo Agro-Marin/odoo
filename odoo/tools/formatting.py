@@ -26,11 +26,9 @@ DEFAULT_SERVER_DATETIME_FORMAT = (
 
 DATE_LENGTH = len(datetime.date.today().strftime(DEFAULT_SERVER_DATE_FORMAT))
 
-# Python's strftime supports only the format directives
-# that are available on the platform's libc, so in order to
-# be cross-platform we map to the directives required by
-# the C standard (1989 version), always available on platforms
-# with a C standard implementation.
+# strftime only supports the directives available on the platform's libc;
+# map to the C89-standard directives, which are available everywhere, for
+# cross-platform behavior.
 DATETIME_FORMATS_MAP = {
     "%C": "",  # century
     "%D": "%m/%d/%Y",  # modified %y->%Y
@@ -88,27 +86,20 @@ def formatLang(
     """Format ``value`` to the appropriate number format of the language in use.
 
     :param env: The environment.
-    :param value: The value to be formatted.
-    :param digits: The number of decimals digits.
-    :param grouping: Usage of language grouping or not.
-    :param dp: Name of the decimals precision to be used. This will override ``digits``
-                   and ``currency_obj`` precision.
-    :param currency_obj: Currency to be used. This will override ``digits`` precision.
-    :param rounding_method: The rounding method to be used:
-        **'HALF-UP'** will round to the closest number with ties going away from zero,
-        **'HALF-DOWN'** will round to the closest number with ties going towards zero,
-        **'HALF-EVEN'** will round to the closest number with ties going to the closest
-        even number,
-        **'UP'** will always round away from 0,
-        **'DOWN'** will always round towards 0.
-    :param rounding_unit: The rounding unit to be used:
-        **decimals** will round to decimals with ``digits`` or ``dp`` precision,
-        **units** will round to units without any decimals,
-        **thousands** will round to thousands without any decimals,
-        **lakhs** will round to lakhs without any decimals,
-        **millions** will round to millions without any decimals.
+    :param value: The value to format.
+    :param digits: The number of decimal digits.
+    :param grouping: Whether to use language grouping.
+    :param dp: Name of the decimal precision to use; overrides ``digits`` and
+        ``currency_obj`` precision.
+    :param currency_obj: Currency to use; overrides ``digits`` precision.
+    :param rounding_method: The rounding method:
+        **'HALF-UP'**/**'HALF-DOWN'**/**'HALF-EVEN'** round to the closest number,
+        ties going away from zero / towards zero / to the closest even number;
+        **'UP'**/**'DOWN'** always round away from / towards zero.
+    :param rounding_unit: The unit to round to: **decimals** (``digits``/``dp``
+        precision), or **units**/**thousands**/**lakhs**/**millions** (no decimals).
 
-    :returns: The value formatted.
+    :returns: The formatted value.
     """
     # Empty string is a valid "no value" input; pass it through unformatted.
     if value == "":
@@ -260,12 +251,12 @@ def format_datetime(
         time_format = posix_to_ldml(lang.time_format, locale=locale)
         dt_format = f"{date_format} {time_format}"
 
-    # Babel allows to format datetime in a specific language without change locale
-    # So month 1 = January in English, and janvier in French
-    # Be aware that the default value for format is 'medium', instead of 'short'
+    # Babel formats a datetime in a given language without changing locale
+    # (month 1 = January in English, janvier in French). Default is 'medium',
+    # not 'short':
     #     medium:  Jan 5, 2016, 10:20:31 PM |   5 janv. 2016 22:20:31
     #     short:   1/5/16, 10:20 PM         |   5/01/16 22:20
-    # Formatting available here : http://babel.pocoo.org/en/latest/dates.html#date-fields
+    # Formats reference: http://babel.pocoo.org/en/latest/dates.html#date-fields
     return babel.dates.format_datetime(localized_datetime, dt_format, locale=locale)
 
 
@@ -279,8 +270,9 @@ def format_time(
     """Format the given time (hour, minute, second) per the user's preferences (language, format, ...).
 
     :param env:
-    :param value: the time to format
-    :type value: `datetime.time` instance; may be timezoned to display tzinfo in formats that show it (e.g. 'full')
+    :param value: the time to format; a naive ``datetime.time`` is used as-is (may
+        be timezoned to display tzinfo in formats that show it, e.g. 'full'), a
+        ``datetime.datetime`` or string is localized to ``tz`` first
     :param tz: name of the timezone in which the given datetime should be localized
     :param time_format: one of "full", "long", "medium", or "short", or a custom time pattern
     :param lang_code: ISO language code

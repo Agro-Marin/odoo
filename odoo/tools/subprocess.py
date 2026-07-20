@@ -28,10 +28,7 @@ _logger = logging.getLogger(__name__)
 
 
 def find_in_path(name: str) -> str:
-    """Find an executable in the system PATH.
-
-    Searches the system PATH environment variable and the configured
-    `bin_path` option for the given executable name.
+    """Find an executable, searching the system PATH and the configured `bin_path` option.
 
     :param str name: Name of the executable to find
     :return: Full path to the executable
@@ -109,11 +106,8 @@ def exec_pg_environ() -> dict[str, str]:
 
 
 def stripped_sys_argv(*strip_args: str) -> list[str]:
-    """Return sys.argv with specified arguments stripped.
-
-    Creates a filtered copy of sys.argv suitable for re-execution
-    or subprocess spawning, removing arguments that should not be
-    passed through (like -s/--save, -u/--update, etc.).
+    """Return a copy of sys.argv, stripped of args unsuited to re-execution or subprocess
+    spawning (-s/--save, -u/--update, -i/--init, --i18n-overwrite, plus any given here).
 
     :param strip_args: Additional argument flags to strip
     :return: Filtered argument list
@@ -156,7 +150,7 @@ def stripped_sys_argv(*strip_args: str) -> list[str]:
 # Debugging utilities
 # ----------------------------------------------------------
 
-# ensure we have a non patched time for query times when using freezegun
+# ensure we have an unpatched time for query times when using freezegun
 import time  # noqa: E402
 
 real_time = time.time.__call__  # type: ignore[operator]
@@ -168,15 +162,12 @@ def dumpstacks(
     thread_idents: set[int] | None = None,
     log_level: int = logging.INFO,
 ) -> None:
-    """Dump stack traces for running threads.
-
-    Signal handler that logs stack traces, e.g. to diagnose hangs or inspect
-    thread state.
+    """Signal handler that logs stack traces of running threads, e.g. to diagnose hangs
+    or inspect thread state.
 
     :param sig: Signal number (when used as signal handler)
     :param frame: Current stack frame (when used as signal handler)
-    :param thread_idents: Optional sequence of thread IDs to dump
-        (if None, dumps all threads)
+    :param thread_idents: Optional set of thread IDs to dump (if None, dumps all threads)
     :param log_level: Logging level for output (default: INFO)
     """
     code = []

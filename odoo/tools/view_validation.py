@@ -1,4 +1,4 @@
-"""View validation code (using assertions, not the RNG schema)."""
+"""View validation: assertion-based checks plus RelaxNG schema validation."""
 
 import ast
 import collections
@@ -255,7 +255,7 @@ def _get_expression_contextual_values(item_ast: ast.AST) -> set[str]:
 
 
 def get_expression_field_names(expression: str) -> set[str]:
-    """Return all field name used by this expression
+    """Return all field names used by this expression.
 
     Contextual roots listed in ``IGNORED_IN_EXPRESSION`` (``context``, builtins,
     ...) are excluded.
@@ -317,7 +317,7 @@ def valid_view(arch: etree._Element, **kwargs: object) -> bool:
 
 
 def validate(*view_types: str) -> object:
-    """Registers a view-validation function for the specific view types"""
+    """Register a view-validation function for the given view types."""
 
     def decorator(fn):
         for arch in view_types:
@@ -344,7 +344,7 @@ def relaxng(view_type: str) -> etree.RelaxNG | None:
 
 @validate("calendar", "graph", "pivot", "search", "list", "activity")
 def schema_valid(arch, **kwargs):
-    """Get RNG validator and validate RNG file."""
+    """Validate ``arch`` against its RelaxNG schema, logging any errors."""
     validator = relaxng(arch.tag)
     if validator and not validator.validate(arch):
         for error in validator.error_log:

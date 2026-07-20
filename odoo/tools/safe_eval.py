@@ -89,8 +89,8 @@ def to_opcodes(opnames: list[str], _opmap: dict[str, int] = opmap) -> Iterator[i
             yield _opmap[x]
 
 
-# opcodes which absolutely positively must not be usable in safe_eval,
-# explicitly subtracted from all sets of valid opcodes just in case
+# Opcodes that must never be usable in safe_eval; subtracted from every
+# allowed-opcode set as defence-in-depth.
 _BLACKLIST = set(
     to_opcodes(
         [
@@ -149,7 +149,7 @@ _CONST_OPCODES = (
     - _BLACKLIST
 )
 
-# operations which are both binary and inplace, same order as in doc'
+# operations that are both binary and in-place (same order as the docs)
 _operations = [
     "POWER",
     "MULTIPLY",  # 'MATRIX_MULTIPLY', # matrix operator (3.5+)

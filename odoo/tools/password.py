@@ -44,7 +44,7 @@ def _format_hash(rounds: int, salt: bytes, checksum: bytes) -> str:
 
 
 def _parse_hash(hash_str: str) -> tuple[int, bytes, bytes] | None:
-    """Parse MCF hash string, returns (rounds, salt_bytes, checksum_bytes) or None."""
+    """Parse an MCF hash string; return (rounds, salt_bytes, checksum_bytes) or None."""
     m = _MCF_RE.match(hash_str)
     if not m:
         return None
@@ -52,7 +52,7 @@ def _parse_hash(hash_str: str) -> tuple[int, bytes, bytes] | None:
 
 
 def pbkdf2_sha512_hash(password: str, rounds: int = _DEFAULT_ROUNDS) -> str:
-    """Hash a password using PBKDF2-SHA512. Returns MCF-formatted string."""
+    """Hash a password using PBKDF2-SHA512. Return an MCF-formatted string."""
     salt = os.urandom(_SALT_SIZE)
     checksum = _pbkdf2_sha512(password, salt, rounds)
     return _format_hash(rounds, salt, checksum)
@@ -99,8 +99,8 @@ class CryptContext:
     ) -> tuple[bool, str | None]:
         """Verify password and return (valid, replacement_hash_or_None).
 
-        Returns a new hash if the current hash uses deprecated settings
-        (wrong scheme or different round count).
+        The replacement is a freshly computed hash if the current one uses deprecated
+        settings (wrong scheme or different round count), else None.
         """
         if not self.verify(password, hash_str):
             return False, None

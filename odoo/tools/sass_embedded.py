@@ -164,25 +164,17 @@ def _supports_embedded(sass_path: str) -> bool:
 
 
 def find_sass() -> str | None:
-    """Locate an ``--embedded``-capable Dart Sass binary: system ``PATH``
-    first, then the npm-provisioned toolchain in the Odoo root's
-    ``node_modules``.
+    """Locate an ``--embedded``-capable Dart Sass binary.
 
-    Mirrors :func:`odoo.tools.assets.esbuild._find_esbuild`: a documented ``npm
-    install`` provisions the compiler, so discovery must also look in
-    ``node_modules`` — not only ``PATH`` (the historical behaviour, which
-    silently disabled SCSS whenever Dart Sass was not installed system-wide).
-
-    Every candidate is VERIFIED with :func:`_supports_embedded` before being
-    returned — a bare ``shutil.which("sass")`` used to hand back whatever was
-    named ``sass`` on ``PATH``, so a pure-JS ``sass`` (or a wrong-platform
-    bundled binary) silently degraded every compile to the CLI. The first
-    candidate that really speaks the embedded protocol wins; system Dart Sass
-    is preferred (may be newer), then the native binaries shipped by the
-    ``sass-embedded`` package (which lets a wrong-platform build be skipped in
-    favour of the right one). Only when none is embedded-capable does it fall
-    back to the pure-JS ``sass`` CLI in ``node_modules/.bin`` (driven via
-    ``--stdin`` per bundle).
+    Searches system ``PATH`` first (system Dart Sass is preferred as it may be
+    newer), then the npm-provisioned ``sass-embedded-*`` packages under the
+    Odoo root's ``node_modules`` — like
+    :func:`odoo.tools.assets.esbuild._find_esbuild`, since a documented ``npm
+    install`` provisions the compiler and ``PATH`` alone would miss it. Each
+    candidate is verified with :func:`_supports_embedded`, so a pure-JS or
+    wrong-platform ``sass`` is never returned. If none speaks the protocol,
+    fall back to the pure-JS ``sass`` CLI in ``node_modules/.bin`` (driven per
+    bundle via ``--stdin``), then to any system ``sass``.
 
     :return: path to a ``sass`` binary, or ``None`` if none is found.
     """
@@ -425,7 +417,6 @@ class SassEmbeddedCompiler:
         compile_req = request.compile_request
         compile_req.id = compilation_id
 
-        # StringInput
         string_input = compile_req.string
         string_input.source = source
         string_input.syntax = syntax_enum

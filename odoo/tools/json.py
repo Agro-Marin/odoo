@@ -71,19 +71,17 @@ def orjson_default(obj: object) -> object:
         return obj.decode()
     if isinstance(obj, fields.Domain):
         return list(obj)
-    # Support dataclasses (the original use case from
-    # ``[IMP] core: support JSON serialization of dataclasses``: accounting
-    # reports return dataclass instances for line/column rows so the web
-    # client receives them as plain dicts).  Keep the check narrow: a bare
-    # ``getattr(obj, 'as_dict', None)`` was too broad — ``unittest.mock``
-    # auto-generates *any* attribute, so a MagicMock returned by a patched
-    # method makes ``getattr`` return a callable, which orjson then invokes
-    # and recurses into the resulting MagicMock indefinitely (caught by
-    # ``test_http.test_webjson2_url_params_vs_body_params`` as
+    # Support dataclasses (accounting reports return dataclass instances for
+    # line/column rows so the web client gets plain dicts). Keep the check
+    # narrow: a bare ``getattr(obj, 'as_dict', None)`` was too broad —
+    # ``unittest.mock`` auto-generates any attribute, so a MagicMock from a
+    # patched method makes ``getattr`` return a callable that orjson invokes
+    # and recurses into indefinitely (see
+    # ``test_http.test_webjson2_url_params_vs_body_params``:
     # ``TypeError: default serializer exceeds recursion limit``).
-    # ``dataclasses.is_dataclass`` is a structural type check that returns
-    # False on MagicMock; the ``not isinstance(obj, type)`` guard rejects
-    # the dataclass *class* itself (vs an instance).
+    # ``dataclasses.is_dataclass`` is False on MagicMock; the
+    # ``not isinstance(obj, type)`` guard excludes the dataclass class itself
+    # (vs an instance).
     if dataclasses.is_dataclass(obj) and not isinstance(obj, type):
         return dataclasses.asdict(obj)
     return str(obj)

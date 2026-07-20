@@ -68,31 +68,26 @@ _COUNTERS: defaultdict[tuple[str, Callable], ormcache_counter] = defaultdict(
 """Statistic counters, mapping (dbname, method) to counter."""
 
 
-# --------------------------------------------------------------------------
 # Per-transaction hit/miss statistics toggle.
 #
-# The raw hit / miss / error counters, cache sizes and generation time are
-# ALWAYS collected -- they are a couple of integer increments per call.
-#
-# The *per-transaction* statistics (the "TX Hit Ratio" and "TX Call" columns of
-# :func:`log_ormcache_stats`, dumped on SIGUSR1) are OFF by default because they
-# are expensive on the single hottest cache path: for every lookup they hash
-# each element of the cache key and test/insert it into a per-cursor set,
-# roughly DOUBLING the cost of a cache hit (~225 ns/op measured, vs a ~215 ns/op
-# bare hit) and growing an unbounded ``_ormcache_lookups`` set per transaction.
-#
-# Enable them only when you actually need the per-transaction dedup ratio,
-# either from the environment before start-up::
+# Raw hit/miss/error counters, cache sizes and generation time are always
+# collected -- a couple of integer increments per call. The per-transaction
+# stats (the "TX Hit Ratio" and "TX Call" columns dumped by log_ormcache_stats
+# on SIGUSR1) are OFF by default: on the hottest cache path they hash every
+# cache-key element into a per-cursor set, roughly doubling the cost of a hit
+# (~225 vs ~215 ns/op measured) and growing an unbounded _ormcache_lookups set
+# per transaction. Enable only when you need the per-transaction dedup ratio,
+# via the environment before start-up::
 #
 #     ODOO_ORMCACHE_TX_STATS=1
 #
-# or at runtime (e.g. from a debug console, before sending SIGUSR1)::
+# or at runtime before sending SIGUSR1::
 #
 #     import odoo.tools.cache as c
 #     c._TX_STATS_ENABLED = True
 #
-# The lookup closure reads this module-level flag on every call, so a runtime
-# flip takes effect immediately (no restart, no re-decoration).
+# The lookup closure reads this flag on every call, so a runtime flip takes
+# effect immediately (no restart, no re-decoration).
 _TX_STATS_ENABLED: bool = os.environ.get(
     "ODOO_ORMCACHE_TX_STATS", ""
 ).strip().lower() in ("1", "true", "yes", "on")
@@ -161,9 +156,8 @@ class ormcache:
             counter.cache_name = _cache_name
 
             if not _TX_STATS_ENABLED:
-                # Fast path: only the always-on raw counters.  The per-transaction
-                # dedup stats (tx_hit/tx_miss) are skipped -- see _TX_STATS_ENABLED;
-                # they cost ~2x the hit path and are diagnostics-only.
+                # Fast path: always-on raw counters only. The per-transaction
+                # dedup stats (tx_hit/tx_miss) are skipped -- see _TX_STATS_ENABLED.
                 try:
                     r = d[key]
                     counter.hit += 1

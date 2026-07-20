@@ -129,9 +129,8 @@ def _eval_xml(self: Any, node: etree._Element, env: Environment) -> Any:
                 # bytes(n: int) returns a bytestring of n nuls, so we
                 # must stringify the record id explicitly here.
                 s = s.replace(found, str(record_id))
-            return s.replace(
-                "%%", "%"
-            )  # Quite weird but it's for (somewhat) backward compatibility sake
+            # unescape %% to % for (somewhat) backward compatibility
+            return s.replace("%%", "%")
 
         if t == "xml":
             _fix_multiple_roots(node)
@@ -860,11 +859,11 @@ def convert_csv_import(
 
 @functools.cache
 def _get_import_relaxng() -> tuple[str, etree.RelaxNG]:
-    """Compile the import-data RelaxNG schema once per process.
+    """Compile the import-data RelaxNG schema, cached once per process.
 
-    The schema path is a constant, but ``convert_xml_import`` runs once per XML
-    data file -- hundreds of times per ``-i``/``-u`` -- so re-parsing and
-    re-compiling it each call was pure waste.
+    ``convert_xml_import`` runs once per XML data file (hundreds of times per
+    ``-i``/``-u``), so parsing and compiling the constant schema every call
+    would be wasted work.
     """
     schema = str(Path(config.root_path, "import_xml.rng"))
     return schema, etree.RelaxNG(etree.parse(schema))

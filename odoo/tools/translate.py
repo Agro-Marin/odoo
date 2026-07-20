@@ -503,7 +503,7 @@ FIELD_TRANSLATE["xml_translate"] = xml_translate
 
 
 def get_translation(module: str, lang: str, source: str, args: tuple | dict) -> str:
-    """Translate and format using a module, language, source text and args."""
+    """Return `source` translated into `lang` for `module`, formatted with `args`."""
     assert lang, "missing language for translation"
     if lang == "en_US":
         translation = source
@@ -1287,10 +1287,10 @@ def babel_extract_qweb(
 
 
 def extract_formula_terms(formula: str) -> Iterator[str]:
-    """Extract strings passed to '_t' functions in a spreadsheet formula.
+    """Yield the strings passed to `_t()` calls in a spreadsheet formula.
 
-    >>> extract_formula_terms('=_t("Hello") + _t("Raoul")')
-    ["Hello", "Raoul"]
+    >>> list(extract_formula_terms('=_t("Hello") + _t("Raoul")'))
+    ['Hello', 'Raoul']
     """
     tokens = generate_tokens(io.StringIO(formula).readline)
     tokens = (token for token in tokens if token.type not in {NEWLINE, INDENT, DEDENT})
@@ -1537,14 +1537,16 @@ class TranslationReader:
 
 
 class TranslationRecordReader(TranslationReader):
-    """Retrieve translations for specified records, the reader will
-    1. create external ids for records without external ids
-    2. export translations for stored translated and inherited translated fields
-    :param cr: cursor to database to export
-    :param model_name: model_name for the records to export
+    """Retrieve translations for specified records. The reader will:
+
+    1. create external ids for records without one
+    2. export translations for stored and inherited translated fields
+
+    :param cr: cursor to the database to export
+    :param model_name: model of the records to export
     :param ids: ids of the records to export
-    :param field_names: field names to export, if not set, export all translatable fields
-    :param lang: language code to retrieve the translations retrieve source terms only if not set
+    :param field_names: fields to export; if unset, all translatable fields
+    :param lang: language code of translations to retrieve; source terms only if unset
     """
 
     def __init__(
@@ -2150,11 +2152,8 @@ def resetlocale() -> str | None:
 
 
 def load_language(cr: object, lang: str) -> None:
-    """Load translation terms for a language.
+    """Load translation terms for a language (e.g. at db initialization).
 
-    Used mainly to automate language loading at db initialization.
-
-    :param cr:
     :param str lang: language ISO code with optional underscore (``_``) and
         l10n flavor (ex: 'fr', 'fr_BE', but not 'fr-BE')
     """
@@ -2218,12 +2217,11 @@ class CodeTranslations:
     def _read_code_translations_file(
         fileobj: object, filter_func: object
     ) -> dict[str, str]:
-        """read and return code translations from fileobj with filter filter_func
-
-        :param func filter_func: a filter function to drop unnecessary code translations
+        """Read code translations from `fileobj`, keeping rows for which
+        `filter_func` returns true.
         """
-        # We assume fileobj is source code containing only the current module's
-        # translations; don't use this in the import logic.
+        # fileobj is assumed to hold only the current module's translations;
+        # don't use this in the import logic.
         translations = {}
         fileobj.seek(0)
         reader = translation_file_reader(fileobj, fileformat="po")
