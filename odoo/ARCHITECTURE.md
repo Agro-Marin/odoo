@@ -1,9 +1,8 @@
 # Odoo Framework Core — Architecture
 
-High-level structure, layering, and dependency rules for the framework core in
-`odoo/` (the ORM, persistence, HTTP, server, module system, and utilities).
-This is the framework-level counterpart to the per-addon
-`machine_doc_v1/ARCHITECTURE.md` maps.
+Structure, layering, and dependency rules for the framework core in `odoo/` (ORM,
+persistence, HTTP, server, module system, utilities) — the framework-level
+counterpart to the per-addon `machine_doc_v1/ARCHITECTURE.md` maps.
 
 > **This document is enforced.** The dependency rules below are checked
 > mechanically by `tooling/architecture/layer_check.py` and gated in CI
@@ -46,15 +45,13 @@ odoo/
 
 ### Public import surface
 
-Application and addon code imports from the stable façades — **`odoo.api`,
-`odoo.fields`, `odoo.models`** — not from `odoo.orm.*` submodules directly.
-The façades exist as `__init__.py` re-export files specifically to keep the
-ORM's internal layout free to evolve without breaking imports across hundreds
-of addons. Each façade declares an explicit `__all__` (its curated public
-surface), and the boundary is **enforced**: the `facade-boundary` contract
-fails CI if any file under **either** addon tree — `odoo/addons/**` or the
-sibling `addons/**` — imports `odoo.orm.*` at runtime (`if TYPE_CHECKING:`
-imports are exempt). See ADR-0008.
+Addon code imports from the stable façades — **`odoo.api`, `odoo.fields`,
+`odoo.models`** — never from `odoo.orm.*` directly. These `__init__.py` re-export
+shims let the ORM's internal layout evolve without breaking addon imports. Each
+declares an explicit `__all__`, and the boundary is **enforced**: the
+`facade-boundary` contract fails CI if any file under either addon tree
+(`odoo/addons/**` or the sibling `addons/**`) imports `odoo.orm.*` at runtime
+(`if TYPE_CHECKING:` exempt). See ADR-0008.
 
 ## The ORM layer model
 
@@ -73,22 +70,21 @@ Layer 0  primitives parsing validation constants _typing         ─┘
                Pure Python. No odoo imports at runtime. Collaborators injected.
 ```
 
-- **Layer 0** imports no higher *ORM* layer — that is the enforced
-  `orm-layer0-is-foundational` rule. It may still use dependency-free helpers
-  from `odoo.tools`/`odoo_rust` (e.g. the `SQL` builder in `primitives.py`); the
+- **Layer 0** imports no higher *ORM* layer (the enforced
+  `orm-layer0-is-foundational` rule). It may still use dependency-free helpers
+  from `odoo.tools`/`odoo_rust` (e.g. the `SQL` builder in `primitives.py`): the
   invariant is "nothing from `fields`/`models`/`runtime`", not "nothing from
   `odoo`".
 - **Layer 1** (`fields`, `domain`) depends only on Layer 0.
 - **Layer 2** (`models`) builds on Layers 0–1.
 - **Layer 3** (`runtime`) builds on Layers 0–2.
-- **`components/`** is the cache/compute/unit-of-work engine, written as pure
-  Python with zero framework imports so it is unit-testable without an
-  `Environment`, `Registry`, or database. It receives its collaborators by
-  injection. See ADR-0002. Framework code reaches the per-transaction
-  `FieldCache`/`ComputeEngine` through the curated id-level facade
-  **`env._core`** (`OrmCore`); the raw objects are private to `Transaction`
-  (`_cache_store`/`_compute_engine`), and the legacy recordset-level wrapper is
-  `env.cache`. See ADR-0010.
+- **`components/`** is the cache/compute/unit-of-work engine — pure Python, zero
+  framework imports, so it is unit-testable without an `Environment`, `Registry`,
+  or database. Collaborators are injected (ADR-0002). Framework code reaches the
+  per-transaction `FieldCache`/`ComputeEngine` through the curated id-level facade
+  **`env._core`** (`OrmCore`); the raw objects stay private to `Transaction`
+  (`_cache_store`/`_compute_engine`), and `env.cache` is the legacy
+  recordset-level wrapper (ADR-0010).
 
 ## Enforced dependency rules
 
@@ -103,10 +99,10 @@ Layer 0  primitives parsing validation constants _typing         ─┘
 | `orm-seams-stay-below-models-and-runtime` | `orm/_recordset` & `orm/decorators` must not import `orm/models` or `orm/runtime` | ✅ clean |
 | `facade-boundary` | addon code (`odoo/addons/**` **and** the sibling `addons/**`) must not import `odoo.orm.*` (use `odoo.api`/`odoo.fields`/`odoo.models`) | ✅ clean |
 
-**All eight boundaries are clean at zero** — the framework core has no tolerated
-exceptions. The gate is **drift-zero**: any *new* crossing fails CI. Should a
-genuinely unavoidable exception arise, pin it (annotated) in `layer_check.py`'s
-`KNOWN_VIOLATIONS` so it is visible and cannot multiply.
+**All eight boundaries are clean at zero** — no tolerated exceptions. The gate is
+**drift-zero**: any *new* crossing fails CI. A genuinely unavoidable exception must
+be pinned (annotated) in `layer_check.py`'s `KNOWN_VIOLATIONS`, so it stays visible
+and cannot multiply.
 
 ### Seams that keep the layers decoupled
 
@@ -118,11 +114,10 @@ genuinely unavoidable exception arise, pin it (annotated) in `layer_check.py`'s
   `_search` overrides through `orm/_recordset.py`, into which the model layer
   injects `BaseModel` at import time — so Layer 1 never imports Layer 2 (ADR-0001).
 - **CRUD ↔ persistence backend:** the model mixins (`create`/`write`/`read`/
-  `search`/`unlink`) dispatch row I/O through `env.backend`. `None` is the
-  PostgreSQL fast path (SQL emitted inline); a non-`None`
-  `runtime/backend.py::InMemoryBackend` owns the DB-free in-memory variant of
-  each operation — so the test backend is no longer sniffed (`transaction.storage`)
-  inside production CRUD code (ADR-0011).
+  `search`/`unlink`) dispatch row I/O through `env.backend` — `None` takes the
+  PostgreSQL fast path (SQL inline), a non-`None`
+  `runtime/backend.py::InMemoryBackend` owns the DB-free variant. Production CRUD
+  no longer sniffs the test backend via `transaction.storage` (ADR-0011).
 
 ## Request lifecycle (HTTP)
 
@@ -185,8 +180,7 @@ others keep the *non-structural* quality signals from regressing:
 
 - **DB-backed integration gate** (`.github/workflows/integration_tests.yml`,
   ADR-0007) — boots PostgreSQL 18 and runs the `base` suite, so the decomposed
-  pieces are verified to *behave*, not just to import cleanly. This is the
-  behavioural safety net under which the deeper in-layer refactors should land.
+  pieces are verified to *behave*, not just to import cleanly.
 
 See also: `doc/adr/` (architecture decisions) and the `orm/__init__.py`
 module docstring (the canonical statement of the layer model in code).
