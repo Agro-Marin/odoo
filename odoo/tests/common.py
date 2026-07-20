@@ -183,10 +183,9 @@ def release_test_lock() -> Generator[None]:
 
 
 def standalone(*tags: str) -> Callable[[Callable], Callable]:
-    """Decorator for standalone test functions.  This is somewhat dedicated to
-    tests that install, upgrade or uninstall some modules, which is currently
-    forbidden in regular test cases.  The function is registered under the given
-    ``tags`` and the corresponding Odoo module name.
+    """Decorator for standalone test functions, mainly for tests that install,
+    upgrade or uninstall modules (forbidden in regular test cases). Registers the
+    function under the given ``tags`` and its Odoo module name.
     """
 
     def register(func: Callable) -> Callable:
@@ -216,15 +215,12 @@ def test_xsd(url=None, path=None, skip=False):
 
 
 def new_test_user(env, login="", groups="base.group_user", context=None, **kwargs):
-    """Helper function to create a new test user. It allows to quickly create
-    users given its login and groups (being a comma separated list of xml ids).
-    Kwargs are directly propagated to the create to further customize the
-    created user.
+    """Create a new test user given its login and groups (a comma-separated list
+    of xml ids). Kwargs are propagated to ``create`` to further customize the user.
 
-    User creation uses a potentially customized environment using the context
-    parameter allowing to specify a custom context. It can be used to force a
-    specific behavior and/or simplify record creation. An example is to use
-    mail-related context keys in mail tests to speedup record creation.
+    The ``context`` parameter customizes the environment used for creation, e.g.
+    to force a specific behavior or simplify record creation (such as mail-related
+    context keys in mail tests to speed up record creation).
 
     Some specific fields are automatically filled to avoid issues
 
@@ -829,9 +825,8 @@ class BaseCase(case.TestCase):
         *,
         field_names: Iterable[str] | None = None,
     ) -> None:
-        """Compare a recordset with a list of dictionaries representing the expected results.
-        This method performs a comparison element by element based on their index.
-        Then, the order of the expected values is extremely important.
+        """Compare a recordset element-by-element (by index) with a list of dicts
+        of expected values. Order matters.
 
         .. note::
 
@@ -1094,7 +1089,7 @@ class BaseCase(case.TestCase):
             )
 
     def get_method_additional_tags(self, test_method: Callable | None) -> list[str]:
-        """Guess if the test_methods is a query_count and adds an `is_query_count` tag on the test."""
+        """Add an ``is_query_count`` tag if the test method uses assertQueryCount."""
         additional_tags = []
         if (
             odoo.tools.config["test_tags"]
@@ -1228,10 +1223,9 @@ class TransactionCase(BaseCase):
     @classmethod
     def _gc_filestore(cls) -> None:
         """Garbage-collect the filestore outside of the test cursor."""
-        # attachment can be created or unlink during the tests.
-        # they can addup during test and take some disc space.
-        # since cron are not running during tests, we need to gc manually
-        # We need to check the status of the file system outside of the test cursor
+        # Attachments created/unlinked during tests accumulate on disk. Crons
+        # don't run during tests, so gc manually — and check the filesystem
+        # outside the test cursor.
         with Registry(get_db_name()).cursor() as cr:
             gc_env = api.Environment(cr, api.SUPERUSER_ID, {})
             gc_env["ir.attachment"]._gc_file_store_unsafe()
@@ -1317,7 +1311,8 @@ class TransactionCase(BaseCase):
 
         cls.env = api.Environment(cls.cr, api.SUPERUSER_ID, {})
 
-        # speedup CryptContext. Many user an password are done during tests, avoid spending time hasing password with many rounds
+        # Speed up CryptContext: tests create many users/passwords; avoid hashing
+        # with many rounds.
         def _crypt_context(self):
             return CryptContext(
                 ["pbkdf2_sha512", "plaintext"],
@@ -3249,12 +3244,9 @@ def users(*logins: str) -> Callable:
 def warmup(func: Callable, /) -> Callable:
     """Stabilize assertQueries and assertQueryCount assertions.
 
-    Reset the cache to a stable state by flushing pending changes and
-    invalidating the cache.
-
-    Warm up the ORM caches by running the decorated function an extra time
-    before the actual test runs. The extra execution ignores
-    assertQueries and assertQueryCount assertions, and also discards all
+    Flush pending changes and invalidate the cache, then warm up the ORM caches
+    by running the decorated function an extra time before the real run. The extra
+    execution ignores assertQueries/assertQueryCount assertions and discards all
     changes except ORM cache ones.
     """
 

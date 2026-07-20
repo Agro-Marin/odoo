@@ -92,9 +92,9 @@ class _Outcome:
             current_frame = current_frame.f_back
 
         # remove traceback root part (odoo_bin, main, loading, ...), as
-        # everything under the testCase is not useful. Using '_callTestMethod',
-        # '_callSetUp', '_callTearDown', '_callCleanup' instead of the test
-        # method since the error does not comme especially from the test method.
+        # everything above the testCase is not useful. Cut at '_callTestMethod',
+        # '_callSetUp', '_callTearDown' or '_callCleanup' rather than the test
+        # method, since the error may not come from the test method itself.
         while tb:
             code = tb.tb_frame.f_code
             if PurePath(code.co_filename).name == "case.py" and code.co_name in (
@@ -183,13 +183,10 @@ class TestCase(_TestCase):
             self._subtest = parent
 
     def _addError(self, result: Any, test: TestCase, exc_info: tuple | None) -> None:
-        """
-        This method is similar to feed_errors_to_result in python<=3.10
-        but only manage one error at a time
-        This is also inspired from python 3.11 _addError but still manages
-        subtests errors as in python 3.7-3.10 for minimal changes.
-        The method remains on the test to easily override it in test_test_suite
+        """Route a single error/failure to the result.
 
+        Handles subtest errors the 3.7-3.10 way; kept on the test case so
+        test_test_suite can override it.
         """
         if isinstance(test, _SubTest):
             result.addSubTest(test.test_case, test, exc_info)
