@@ -14,11 +14,7 @@ if TYPE_CHECKING:
 
 
 class ProxyAttr:
-    """Descriptor class for wrapping attributes of the wrapped instance.
-
-    Used with the `Proxy` class, this class is used to set exposed attributes of the wrapped instance while providing
-    optional type casting.
-    """
+    """Expose an attribute of the wrapped instance on a `Proxy`, with optional type casting."""
 
     def __init__(self, cast: Callable[..., Any] | bool = False) -> None:
         """Store the optional ``cast`` applied to the attribute on read."""
@@ -45,11 +41,7 @@ class ProxyAttr:
 
 
 class ProxyFunc:
-    """Descriptor class for wrapping functions of the wrapped instance.
-
-    Used with the `Proxy` class, this class is used to set exposed functions of the wrapped instance
-    while also allowing optional type casting on return values.
-    """
+    """Expose a method of the wrapped instance on a `Proxy`, with optional casting of the return value."""
 
     def __init__(self, cast: Callable[..., Any] | bool = False) -> None:
         """Store the optional ``cast`` applied to the function's return value."""

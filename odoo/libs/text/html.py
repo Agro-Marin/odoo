@@ -77,7 +77,6 @@ VOID_ELEMENTS = frozenset(
 )
 """HTML void elements (self-closing tags per the HTML spec)."""
 
-# HTML escape function (markupsafe.escape)
 html_escape = markupsafe.escape
 
 
@@ -735,13 +734,13 @@ _EMPTY_TAG_RE = re.compile(
     r'<\s*\/?(?:p|div|section|span|br|b|i|font)\b(?:(\s+[A-Za-z_-][A-Za-z0-9-_]*(\s*=\s*[\'"][^"\']*[\'"]))*)(?:\s*>|\s*\/\s*>)'
 )
 
-# Pre-compiled regexes for tag_quote (were re.compile'd inside function body)
+# Pre-compiled regexes for tag_quote
 _SIGNATURE_BEGIN_RE = re.compile(r"((?:(?:^|\n)[-]{2}[\s]?$))")
 _TEXT_COMPLETE_RE = re.compile(
     r"((?:\n[>]+[^\n\r]*)+|(?:(?:^|\n)[-]{2}[\s]?[\r\n]{1,2}[\s\S]+))"
 )
 
-# Pre-compiled regex for html_keep_url (was re.compile'd inside function body)
+# Pre-compiled regex for html_keep_url
 _LINK_TAGS_RE = re.compile(
     r"""(?<!["'])((ftp|http|https):\/\/(\w+:{0,1}\w*@)?([^\s<"']+)(:[0-9]+)?(\/|\/([^\s<"']))?)(?![^\s<"']*["']|[^\s<"']*</a>)"""
 )
@@ -750,7 +749,7 @@ _LINK_TAGS_RE = re.compile(
 # ``container_tag`` so it cannot smuggle attributes or extra markup.
 _SIMPLE_TAG_RE = re.compile(r"^[a-zA-Z][a-zA-Z0-9]*$")
 
-# Pre-compiled regex for plaintext2html paragraph splitting (was compiled per call)
+# Pre-compiled regex for plaintext2html paragraph splitting
 _BR_TAGS_RE = re.compile(r"(([<]\s*[bB][rR]\s*/?[>]\s*){2,})")
 
 

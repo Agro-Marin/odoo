@@ -150,12 +150,7 @@ class Intervals[T]:
 
 
 def intervals_overlap[T](interval_a: tuple[T, T], interval_b: tuple[T, T]) -> bool:
-    """Check whether intervals intersect.
-
-    :param interval_a:
-    :param interval_b:
-    :return: True if two non-zero intervals overlap
-    """
+    """Return whether two non-empty intervals overlap."""
     start_a, stop_a = interval_a
     start_b, stop_b = interval_b
     return start_a < stop_b and stop_a > start_b
@@ -166,13 +161,11 @@ def invert_intervals[T](
 ) -> list[tuple[T, T]]:
     """Return the intervals between the intervals that were passed in.
 
-    The expected use case is to turn "available intervals" into "unavailable intervals".
-    :examples:
-    ([(1, 2), (4, 5)], 0, 10) -> [(0, 1), (2, 4), (5, 10)]
+    The expected use case is to turn "available intervals" into "unavailable intervals",
+    e.g. ``([(1, 2), (4, 5)], 0, 10) -> [(0, 1), (2, 4), (5, 10)]``.
 
-    :param intervals:
-    :param first_start: start of whole interval
-    :param last_stop: stop of whole interval
+    :param first_start: start of the whole interval
+    :param last_stop: stop of the whole interval
     """
     items = []
     prev_stop = first_start

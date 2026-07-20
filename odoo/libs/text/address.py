@@ -13,9 +13,7 @@ ADDRESS_REGEX = re.compile(r"^(.*?)(\s[0-9][0-9\S]*)?(?: - (.+))?$", flags=re.DO
 
 
 def street_split(street: str | None) -> dict[str, str]:
-    """Split a street address into its component parts.
-
-    Parses an address string into street name, number, and optional secondary number.
+    """Split a street address into name, number, and optional secondary number.
 
     :param street: Full street address string (e.g., "Main Street 123 - Apt B")
     :returns: Dictionary with keys 'street_name', 'street_number', 'street_number2'

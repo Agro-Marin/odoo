@@ -50,10 +50,6 @@ class ReadonlyDict[K, T](Mapping[K, T]):
     This comes from the fact `frozendict` inherits from `dict`
     while `ReadonlyDict` inherits from `collections.abc.Mapping`.
 
-    So, depending on your needs,
-    whether you absolutely must prevent the dictionary from being updated (e.g., for security reasons)
-    or you require it to be supported by `json.dumps`, you can choose either option.
-
     Example::
 
         >>> data = ReadonlyDict({'foo': 'bar'})

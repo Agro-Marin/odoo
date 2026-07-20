@@ -1,7 +1,6 @@
 """Locale conversion utilities.
 
 Pure Python locale helpers with no Odoo dependencies.
-Uses standard library and babel for format conversions.
 """
 
 from .conversions import (

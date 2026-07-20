@@ -233,7 +233,7 @@ class Speedscope:
         **params: Any,
     ) -> list[_Event]:
         """Turn ``entries`` into a list of speedscope open/close events."""
-        # constant_time parameters is mainly useful to hide temporality when focussing on sql determinism
+        # constant_time hides timing to focus on SQL determinism
         entry_end = previous_end = None
         if not entries:
             return []

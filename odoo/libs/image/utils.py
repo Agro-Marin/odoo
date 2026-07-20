@@ -123,7 +123,6 @@ class ImageProcess:
             excessive before starting to process it. The max allowed resolution is
             defined by `IMAGE_MAX_RESOLUTION`.
         :type verify_resolution: bool
-        :rtype: ImageProcess
 
         :raise: ValueError if `verify_resolution` is True and the image is too large
         :raise: ValueError if the image can't be identified by PIL

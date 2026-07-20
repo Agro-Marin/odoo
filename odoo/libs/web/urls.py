@@ -27,11 +27,8 @@ def urljoin(base: str, extra: str) -> str:
     - merges path/query/fragment
 
     :param base: Trusted base URL or path.
-    :type base: str
     :param extra: Relative URL (`path`, `?query`, `#frag`). No scheme & host allowed unless it matches `base`
-    :type extra: str
     :returns: joined URL.
-    :rtype: str
     :raises TypeError: If inputs are not strings.
     :raises ValueError: `extra` contains dot-segments or is an absolute URL.
 
