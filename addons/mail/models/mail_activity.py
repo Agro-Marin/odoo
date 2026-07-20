@@ -863,7 +863,7 @@ class MailActivity(models.Model):
             # user (e.g. via an HTTP webhook with no authenticated session) and
             # the current reader is in a company that does not share with the
             # Public user, the res.users record rule blocks the read, surfacing
-            # an Access Error on /mail/data. See task t22267.
+            # an Access Error on /mail/data.
             Store.One("create_uid", Store.One("partner_id", "name"), sudo=True),
             "date_deadline",
             "date_done",

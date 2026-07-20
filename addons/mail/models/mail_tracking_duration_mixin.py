@@ -234,17 +234,13 @@ class MailTrackingDurationMixin(models.AbstractModel):
         return [("id", operator, [r["id"] for r in rows])]
 
     def _get_duration_from_tracking(self, trackings):
-        """
-        Calculates the duration spent in each value based on the provided list of trackings.
-        It adds a "fake" tracking at the end of the trackings list to account for the time spent in the current value.
+        """Calculate the duration spent in each value from the given trackings.
 
-        Args:
-            trackings (list): A list of dictionaries representing the trackings with:
-                - 'create_date': The date and time of the tracking.
-                - 'old_value_integer': The ID of the previous value.
+        A "fake" tracking is appended to account for the time spent in the current value.
 
-        Returns:
-            dict: A dictionary where the keys are the IDs of the values, and the values are the durations in seconds
+        :param trackings: list of tracking dicts, each with a ``create_date`` and an
+            ``old_value_integer`` (the ID of the previous value).
+        :return: dict mapping each value ID to its duration in seconds.
         """
         self.ensure_one()
         json = defaultdict(lambda: 0)

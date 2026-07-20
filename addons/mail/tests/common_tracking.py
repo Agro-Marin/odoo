@@ -47,14 +47,13 @@ class MailTrackingDurationMixinCase(MailCommon):
     def _update_duration_tracking(
         self, record_to_tracking_dic, minutes, new_stage=False
     ):
-        """
-        Updates the mock duration_tracking field for multiple records based on the provided minutes.
+        """Update the mock duration_tracking field for multiple records by the given minutes.
+
         If new_stage is defined, the stage of the records is updated as well.
 
-        Args:
-            record_to_tracking_dic (list): A list of tuples mapping records to their respective tracking dictionaries.
-            minutes (int): The number of minutes to be added to the duration tracking, which will be converted to seconds.
-            new_stage (int, optional): Indicated the new stage to be set for the records. Defaults to False.
+        :param record_to_tracking_dic: list of (record, tracking dict) tuples.
+        :param minutes: minutes to add to the duration tracking (converted to seconds).
+        :param new_stage: optional new stage to set for the records. Defaults to False.
         """
         for record, tracking_dic in record_to_tracking_dic:
             tracking_dic[str(record[self.track_duration_field].id)] += minutes * 60
@@ -64,12 +63,10 @@ class MailTrackingDurationMixinCase(MailCommon):
                 self.flush_tracking()
 
     def assertTrackingDuration(self, records, record_to_tracking_dic):
-        """
-        Asserts whether for multiple records their duration_tracking is equal to a dictionary
+        """Assert that each record's duration_tracking equals its expected dictionary.
 
-        Args:
-            records (recordset): all the records that need to be asserted
-            record_to_tracking_dic (list): A list of tuples mapping records to their respective tracking dictionaries.
+        :param records: all the records that need to be asserted.
+        :param record_to_tracking_dic: list of (record, tracking dict) tuples.
         """
         records._compute_duration_tracking()
         for record, tracking_dic in record_to_tracking_dic:
