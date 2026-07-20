@@ -444,6 +444,12 @@ class MailMessage(models.Model):
     # when access filtering rejects enough rows to under-fill a page.
     _SEARCH_ACCESS_CHUNK_MIN = 30
     _SEARCH_ACCESS_CHUNK_MAX = 8192
+    # Upper bound for the in-thread search result count. The count only feeds a
+    # "N messages found" label (pagination is driven by the page fetch, not the
+    # count), so an exact total is not worth an unbounded, Python-access-filtered
+    # scan of the whole thread on every keystroke. Capped, the count scan stops
+    # after this many accessible rows; the client renders "1000+" at the cap.
+    _SEARCH_COUNT_CAP = 1000
 
     @api.model
     def _search(
@@ -1365,7 +1371,7 @@ class MailMessage(models.Model):
                 )
             domain &= message_domain
         if search_term or is_notification is not None:
-            res["count"] = self.search_count(domain)
+            res["count"] = self.search_count(domain, limit=self._SEARCH_COUNT_CAP)
         if around is not None:
             messages_before = self.search(
                 domain & Domain("id", "<=", around), limit=limit // 2, order="id DESC"

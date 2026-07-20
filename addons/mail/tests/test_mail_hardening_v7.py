@@ -18,6 +18,7 @@ cannot silently reintroduce it. Coverage:
 
 import json
 from datetime import timedelta
+from unittest.mock import patch
 
 from odoo import fields
 from odoo.tests import HttpCase, tagged
@@ -168,4 +169,79 @@ class TestNotificationGcSharePartner(MailCommon):
         self.assertFalse(
             internal_notif.exists(),
             "internal-user notification must still be GC'd (control)",
+        )
+
+
+@tagged("-at_install", "post_install", "mail_hardening_v7")
+class TestMessageSearchCountCap(MailCommon):
+    """``_message_fetch`` must cap the in-thread search count instead of running
+    an unbounded, access-filtered scan of the whole thread on every keystroke."""
+
+    def test_search_count_is_capped(self):
+        channel = self.env["discuss.channel"].create(
+            {"name": "cap", "group_public_id": False}
+        )
+        Message = self.env["mail.message"]
+        subtype = self.env.ref("mail.mt_comment").id
+        for i in range(8):
+            Message.create(
+                {
+                    "model": "discuss.channel",
+                    "res_id": channel.id,
+                    "body": f"<p>zzcap {i}</p>",
+                    "message_type": "comment",
+                    "subtype_id": subtype,
+                }
+            )
+
+        # fewer matches than the cap -> exact count
+        exact = Message._message_fetch(
+            domain=None, thread=channel, search_term="zzcap"
+        )
+        self.assertEqual(exact["count"], 8)
+
+        # more matches than the cap -> count is bounded, page fetch unaffected
+        with patch.object(type(Message), "_SEARCH_COUNT_CAP", 5):
+            capped = Message._message_fetch(
+                domain=None, thread=channel, search_term="zzcap"
+            )
+        self.assertEqual(capped["count"], 5, "count must be capped, not exhaustive")
+        self.assertTrue(capped["messages"], "capping the count must not empty the page")
+
+
+@tagged("-at_install", "post_install", "mail_hardening_v7")
+class TestGatewayReplyCorrelationSudo(MailCommon):
+    """Threading an inbound reply/bounce to its referenced message is a header
+    match that must not depend on the gateway user's ACL."""
+
+    def test_parent_correlation_ignores_caller_acl(self):
+        parent = self.env["mail.message"].create(
+            {
+                "model": False,  # pure log: not readable via search by a bystander
+                "message_type": "email",
+                "message_id": "<hv7-parent@test>",
+                "subject": "parent",
+                "body": "<p>parent</p>",
+            }
+        )
+        # Confirm the premise: the employee genuinely cannot read it by search,
+        # so a non-sudo correlation would return empty.
+        self.assertFalse(
+            self.env["mail.message"]
+            .with_user(self.user_employee)
+            .search([("message_id", "=", "<hv7-parent@test>")]),
+            "test premise: message must be unreadable by the bystander",
+        )
+
+        found = (
+            self.env["mail.thread"]
+            .with_user(self.user_employee)
+            ._get_parent_message(
+                {"in_reply_to": "<hv7-parent@test>", "references": ""}
+            )
+        )
+        self.assertEqual(
+            found,
+            parent,
+            "reply correlation must find the parent regardless of caller ACL",
         )
