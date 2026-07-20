@@ -41,18 +41,11 @@ _KEY_STATE: dict[str, Any] = {
 
 
 class CredentialEncryptionMixin(models.AbstractModel):
-    """Abstract mixin providing encryption/decryption for credentials.
+    """Abstract mixin providing Fernet encryption/decryption for credentials."""
 
-    This mixin provides:
-    - _get_encryption_key(): Retrieve encryption key from environment
-    - _encrypt_value(value): Encrypt a string value
-    - _decrypt_value(encrypted_value): Decrypt an encrypted value
-
-    Security:
-    - Encryption key is NEVER stored in database
-    - Uses environment variable: ODOO_API_ENCRYPTION_KEY
-    - Fernet symmetric encryption (AES-128 in CBC mode with HMAC)
-    """
+    # Security invariants: the encryption key is NEVER stored in the database;
+    # it is read from the ODOO_API_ENCRYPTION_KEY environment variable. Fernet
+    # provides AES-128-CBC with an HMAC-SHA256 authentication tag.
 
     _name = "credential.encryption.mixin"
     _description = "Credential Encryption Mixin"
@@ -93,21 +86,12 @@ class CredentialEncryptionMixin(models.AbstractModel):
         target_field: str,
         safe: bool = True,
     ) -> None:
-        """Generic compute method for decrypting a binary field to a char field.
+        """Decrypt encrypted_field into target_field for each record.
 
-        Decrypts the value from encrypted_field and assigns it to target_field.
-
-        Args:
-            encrypted_field: Name of the Binary field containing encrypted data
-            target_field: Name of the Char field to store decrypted value
-            safe: If True (default), use safe decryption (no exceptions).
-                  If False, exceptions propagate to caller.
-
-        Example:
-            @api.depends('oauth_secret_encrypted')
-            def _compute_oauth_secret(self):
-                self._compute_encrypted_char_field('oauth_secret_encrypted', 'oauth_secret')
-
+        :param str encrypted_field: Binary field holding the encrypted data
+        :param str target_field: Char field to receive the decrypted value
+        :param bool safe: when True (default) use exception-free decryption;
+            when False let decryption exceptions propagate
         """
         for record in self:
             encrypted_value = getattr(record, encrypted_field)
@@ -125,22 +109,12 @@ class CredentialEncryptionMixin(models.AbstractModel):
         target_field: str,
         safe: bool = True,
     ) -> None:
-        """Generic compute method for decrypting a binary field to another binary field.
+        """Decrypt encrypted_field into another binary target_field for each record.
 
-        Decrypts the Fernet-encrypted value from encrypted_field and assigns
-        the original binary data to target_field.
-
-        Args:
-            encrypted_field: Name of the Binary field containing encrypted data
-            target_field: Name of the Binary field to store decrypted value
-            safe: If True (default), use safe decryption (no exceptions).
-                  If False, exceptions propagate to caller.
-
-        Example:
-            @api.depends('private_key_encrypted')
-            def _compute_private_key(self):
-                self._compute_encrypted_binary_field('private_key_encrypted', 'private_key')
-
+        :param str encrypted_field: Binary field holding the Fernet-encrypted data
+        :param str target_field: Binary field to receive the decrypted data
+        :param bool safe: when True (default) log and store False on failure;
+            when False let decryption exceptions propagate
         """
         for record in self:
             encrypted_value = getattr(record, encrypted_field)
@@ -149,8 +123,8 @@ class CredentialEncryptionMixin(models.AbstractModel):
                 continue
 
             try:
-                # Fernet decrypt returns bytes, which we return directly
-                # The encrypted_value is already bytes from the Binary field
+                # _decrypt_binary_value returns base64-encoded bytes, the shape
+                # an Odoo Binary field stores.
                 decrypted_bytes = record._decrypt_binary_value(encrypted_value)
                 setattr(record, target_field, decrypted_bytes)
             except Exception as e:
@@ -174,18 +148,10 @@ class CredentialEncryptionMixin(models.AbstractModel):
         source_field: str,
         encrypted_field: str,
     ) -> None:
-        """Generic inverse method for encrypting a char field to a binary field.
+        """Encrypt source_field into encrypted_field for each record.
 
-        Encrypts the value from source_field and stores it in encrypted_field.
-
-        Args:
-            source_field: Name of the Char field containing plain text value
-            encrypted_field: Name of the Binary field to store encrypted data
-
-        Example:
-            def _inverse_oauth_secret(self):
-                self._inverse_encrypted_char_field('oauth_secret', 'oauth_secret_encrypted')
-
+        :param str source_field: Char field holding the plain-text value
+        :param str encrypted_field: Binary field to receive the encrypted data
         """
         for record in self:
             value = getattr(record, source_field)
@@ -199,18 +165,10 @@ class CredentialEncryptionMixin(models.AbstractModel):
         source_field: str,
         encrypted_field: str,
     ) -> None:
-        """Generic inverse method for encrypting a binary field to another binary field.
+        """Encrypt binary source_field into encrypted_field for each record.
 
-        Encrypts the binary value from source_field and stores it in encrypted_field.
-
-        Args:
-            source_field: Name of the Binary field containing plain binary value
-            encrypted_field: Name of the Binary field to store encrypted data
-
-        Example:
-            def _inverse_private_key(self):
-                self._inverse_encrypted_binary_field('private_key', 'private_key_encrypted')
-
+        :param str source_field: Binary field holding the plain binary value
+        :param str encrypted_field: Binary field to receive the encrypted data
         """
         for record in self:
             value = getattr(record, source_field)
@@ -227,33 +185,22 @@ class CredentialEncryptionMixin(models.AbstractModel):
     def _coerce_fernet_token(encrypted_value: bytes) -> bytes:
         """Return a Fernet token regardless of on-disk wire format.
 
-        Two legal shapes can sit in an encrypted Binary column on this
-        model:
-
-        * **Canonical**: the raw Fernet token (ASCII bytes starting with
-          ``b"gAAAAA"``). This is what ``_encrypt_value`` has always
-          produced for char fields, and what ``_encrypt_binary_value``
-          produces after the 19.0.1.0.2 cleanup.
-        * **Legacy double-base64**: ``base64.b64encode(fernet_token)``.
-          This is what ``_encrypt_binary_value`` produced before the
-          cleanup — the outer b64 is redundant since the token is
-          already base64url internally, but existing certificate /
-          PKCS12 / private-key rows on customer databases carry it and
-          a migration would force an all-or-nothing re-encrypt under
-          the current key, which is exactly the cross-key hazard we're
-          trying to avoid.
-
-        Both shapes pass through here. The check is literally "does
-        this start with the Fernet header byte" — anything else is
-        assumed to be the legacy wrap and gets one ``b64decode`` applied.
-        This is the same sniff already used by ``_decrypt_value`` for
-        char fields, hoisted out so the char and binary paths finally
-        agree.
+        :param bytes encrypted_value: stored ciphertext, either a raw Fernet
+            token or the legacy double-base64 wrap
+        :return: the raw Fernet token
+        :rtype: bytes
+        :raises ValidationError: if the value is neither recognized shape
         """
         if isinstance(encrypted_value, str):
             encrypted_value = encrypted_value.encode("utf-8")
         else:
             encrypted_value = bytes(encrypted_value)
+        # Canonical shape: a raw Fernet token (ASCII, starts with b"gAAAAA"),
+        # produced by _encrypt_value and by _encrypt_binary_value since the
+        # 19.0.1.0.2 cleanup. Anything else is assumed to be the legacy
+        # double-base64 wrap (pre-cleanup _encrypt_binary_value output, still
+        # present on customer certificate/PKCS12/private-key rows) and gets one
+        # b64decode. Same sniff _decrypt_value uses, so char and binary agree.
         if encrypted_value.startswith(b"gAAAAA"):
             return encrypted_value
         try:
@@ -278,16 +225,18 @@ class CredentialEncryptionMixin(models.AbstractModel):
         return getattr(self.sudo(), "allow_key_fallback", True)
 
     def _decrypt_binary_value(self, encrypted_value: bytes) -> bytes | bool:
-        """Decrypt binary data using Fernet symmetric encryption.
+        """Decrypt Fernet-encrypted binary data, with key-rotation fallback.
 
-        Mirrors _decrypt_value: supports key rotation AND degrades to False
-        when the encryption key env var is missing, so certificate-type and
-        value-type credentials behave identically under a misconfigured server.
+        Mirrors _decrypt_value: degrades to False when the key env var is
+        missing, so certificate-type and value-type credentials behave
+        identically under a misconfigured server.
 
-        Accepts both the canonical raw-Fernet-token on-disk shape and the
-        legacy double-base64 shape via ``_coerce_fernet_token``; this makes
-        the module robust to existing databases that were written by the
-        pre-cleanup ``_encrypt_binary_value``.
+        :param bytes encrypted_value: stored ciphertext (raw token or legacy
+            double-base64, both handled via ``_coerce_fernet_token``)
+        :return: base64-encoded plaintext bytes, or False if empty or the key
+            is not configured
+        :rtype: bytes | bool
+        :raises ValidationError: if decryption fails with all available keys
         """
         if not encrypted_value:
             return False
@@ -343,27 +292,16 @@ class CredentialEncryptionMixin(models.AbstractModel):
         )
 
     def _decrypt_value(self, encrypted_value: bytes) -> str | bool:
-        """Decrypt an encrypted value using Fernet symmetric encryption.
+        """Decrypt a Fernet-encrypted value, with key-rotation fallback.
 
-        Supports KEY ROTATION: Tries current key first, then falls back to old key versions.
-        This allows seamless decryption during key rotation transitions.
+        Tries the current key first, then (if the record allows fallback) old
+        key versions newest-to-oldest.
 
-        Per-Credential Preference: If the model has an 'allow_key_fallback' field,
-        it will be respected. Set to False to fail fast if current key doesn't work.
-
-        Fallback order:
-        1. Try current key (ODOO_API_ENCRYPTION_KEY)
-        2. Try versioned keys in reverse order (newest to oldest) - if fallback allowed
-
-        Args:
-            encrypted_value (bytes): Encrypted value
-
-        Returns:
-            str: Decrypted plain text value, or False if encrypted_value is empty
-
-        Raises:
-            ValidationError: If decryption fails with all available keys
-
+        :param bytes encrypted_value: the encrypted value
+        :return: decrypted plain text, or False if encrypted_value is empty or
+            the encryption key is not configured
+        :rtype: str | bool
+        :raises ValidationError: if decryption fails with all available keys
         """
         if not encrypted_value:
             return False
@@ -476,19 +414,15 @@ class CredentialEncryptionMixin(models.AbstractModel):
         encrypted_value: bytes,
         default: Any = False,
     ) -> str | Any:
-        """Safely decrypt an encrypted value, returning default on any error.
+        """Decrypt an encrypted value, returning default on any error.
 
-        Unlike _decrypt_value(), this method never raises exceptions.
-        Useful for computed fields where decryption failure should not
-        break the entire record display.
+        Never raises, so a decryption failure in a computed field does not
+        break the whole record display.
 
-        Args:
-            encrypted_value (bytes): Encrypted value to decrypt
-            default: Value to return on decryption failure (default: False)
-
-        Returns:
-            str: Decrypted value, or default if decryption fails
-
+        :param bytes encrypted_value: encrypted value to decrypt
+        :param default: value to return on decryption failure (default False)
+        :return: decrypted value, or default if decryption fails
+        :rtype: str | Any
         """
         if not encrypted_value:
             return default
@@ -535,18 +469,11 @@ class CredentialEncryptionMixin(models.AbstractModel):
     def _encrypt_binary_value(self, value: bytes) -> bytes | bool:
         """Encrypt binary data using Fernet symmetric encryption.
 
-        Args:
-            value: Binary data to encrypt (base64-encoded from Odoo Binary field
-                uploads; ``_inverse_encrypted_binary_field`` passes through
-                whatever Odoo gave it).
-
-        Returns:
-            bytes: Raw Fernet token (ASCII, starts with ``b"gAAAAA"``), stored
-            verbatim in the Binary column. The char and binary paths now agree
-            on wire format; the legacy double-base64 shape produced by earlier
-            versions of this module is still readable via
-            ``_coerce_fernet_token`` on the decrypt side.
-
+        :param bytes value: binary data to encrypt (base64-encoded, as Odoo
+            Binary field uploads arrive)
+        :return: raw Fernet token (ASCII, starts with ``b"gAAAAA"``), stored
+            verbatim in the Binary column, or False if value is empty
+        :rtype: bytes | bool
         """
         if not value:
             return False
@@ -575,20 +502,15 @@ class CredentialEncryptionMixin(models.AbstractModel):
     ) -> bytes | bool:
         """Encrypt a string value using Fernet symmetric encryption.
 
-        Always uses the CURRENT (latest) encryption key for new encryptions.
-        This ensures that newly encrypted data uses the most recent key.
+        Uses the current key by default; pass key_version to encrypt under a
+        specific key (used by the key-rotation migration).
 
-        Args:
-            value (str): Plain text value to encrypt
-            key_version (int, optional): Specific key version to use (for migration).
-                                         If None, uses current key.
-
-        Returns:
-            bytes: Encrypted value as bytes, or False if value is empty
-
-        Raises:
-            ValidationError: If encryption fails
-
+        :param str value: plain text value to encrypt
+        :param int | None key_version: specific key version to use; None means
+            the current (latest) key
+        :return: encrypted value as bytes, or False if value is empty
+        :rtype: bytes | bool
+        :raises ValidationError: if encryption fails
         """
         if not value:
             return False
@@ -604,26 +526,18 @@ class CredentialEncryptionMixin(models.AbstractModel):
             ) from e
 
     def _get_current_encryption_key_version(self) -> int | None:
-        """Get the current encryption key version number.
+        """Return the current encryption key version number.
 
         The current key (ODOO_API_ENCRYPTION_KEY) is always one version higher
-        than the highest numbered old key.
+        than the highest-numbered old key (no Vx keys -> 1, V1 -> 2, V1+V2 -> 3).
 
-        Version numbering:
-        - No Vx keys exist: current version = 1
-        - V1 exists: current version = 2
-        - V1, V2 exist: current version = 3
-        - etc.
-
-        Performance: Result is cached in module-level state (not per concrete
-        class) so every credential-bearing model shares one answer. The
-        previous per-class cache left sibling models with divergent views
-        after a key rotation when only one class' cache was invalidated.
-
-        Returns:
-            int: Current key version (highest_old_version + 1), or None if no key set
-
+        :return: current key version (highest_old_version + 1), or None if no
+            key is set
+        :rtype: int | None
         """
+        # Cached in module-level state (not per concrete class) so every
+        # credential-bearing model shares one answer; a per-class cache left
+        # siblings with divergent views after a key rotation.
         with _KEY_STATE_LOCK:
             if _KEY_STATE["version_cache_checked"]:
                 return _KEY_STATE["version_cache"]
@@ -653,24 +567,18 @@ class CredentialEncryptionMixin(models.AbstractModel):
             return _KEY_STATE["version_cache"]
 
     def _get_encryption_key(self, version: int | None = None) -> bytes | None:
-        """Get encryption key from environment variable.
+        """Return the Fernet encryption key from the environment.
 
-        SECURITY: Key is NEVER stored in the database.
+        Key is NEVER stored in the database. Supports rotation via versioned
+        vars: ODOO_API_ENCRYPTION_KEY (current) and ODOO_API_ENCRYPTION_KEY_V1,
+        V2, ... (old keys for decrypting legacy data).
 
-        Supports key rotation via versioned environment variables:
-        - ODOO_API_ENCRYPTION_KEY: Current/latest key (used for new encryptions)
-        - ODOO_API_ENCRYPTION_KEY_V1, V2, etc.: Old keys (for decrypting legacy data)
-
-        Args:
-            version (int, optional): Specific key version to retrieve.
-                                     If None, returns current (latest) key.
-
-        Returns:
-            bytes: Fernet encryption key
-
-        Raises:
-            ValidationError: If environment variable not set or invalid
-
+        :param int | None version: specific key version to retrieve; None
+            returns the current (latest) key
+        :return: the Fernet key, or None if an old version's var is not set
+        :rtype: bytes | None
+        :raises ValidationError: if the current-key var is unset, or a var
+            holds an invalid Fernet key
         """
         if version is None:
             # Get current/latest key
@@ -759,9 +667,8 @@ class CredentialEncryptionMixin(models.AbstractModel):
         ciphertext directly — never the user-facing plaintext computes — so
         it does not trip the access rate limiter or the audit log.
 
-        Returns:
-            bool: True if at least one column was rewritten.
-
+        :return: True if at least one column was rewritten
+        :rtype: bool
         """
         self.ensure_one()
         touched = False

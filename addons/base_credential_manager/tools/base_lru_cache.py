@@ -1,13 +1,7 @@
-"""Base LRU Cache implementation for registry-based caches.
+"""Base LRU cache for registry-based caches.
 
-Provides thread-safe LRU (Least Recently Used) eviction with optional TTL support.
-This base class is extended by SessionCache and ConnectionManager.
-
-Features:
-- Thread-safe operations with configurable lock type
-- Max size limit with automatic LRU eviction
-- Optional TTL (Time To Live) expiration
-- Memory-efficient OrderedDict implementation
+Thread-safe LRU (Least Recently Used) eviction with optional TTL support.
+Extended by SessionCache and ConnectionManager.
 """
 
 import logging
@@ -25,18 +19,9 @@ _logger = logging.getLogger(__name__)
 class BaseLRUCache:
     """Thread-safe LRU cache with optional TTL support.
 
-    This is a base class providing common LRU caching functionality.
-    Subclasses can extend for specific use cases (sessions, connections, etc.).
-
-    Features:
-    - Max size limit with automatic eviction of least recently used entries
-    - Optional TTL (Time To Live) for automatic expiration
-    - Thread-safe operations with configurable lock type
-    - Memory-efficient OrderedDict implementation
-
-    Usage:
-        This class should NOT be instantiated directly.
-        Use subclasses like SessionCache or ConnectionManager.
+    Base class providing common LRU caching functionality; extend it via
+    subclasses like SessionCache or ConnectionManager rather than
+    instantiating directly.
     """
 
     def __init__(
@@ -47,11 +32,9 @@ class BaseLRUCache:
     ):
         """Initialize LRU cache.
 
-        Args:
-            max_size: Maximum number of entries to cache
-            ttl_hours: Time-to-live in hours (None for no expiration)
-            use_reentrant_lock: If True, use RLock instead of Lock
-
+        :param max_size: Maximum number of entries to cache
+        :param ttl_hours: Time-to-live in hours (None for no expiration)
+        :param use_reentrant_lock: If True, use RLock instead of Lock
         """
         self._cache: OrderedDict[str, dict[str, Any]] = OrderedDict()
         self._max_size = max_size
@@ -61,12 +44,9 @@ class BaseLRUCache:
     def _is_expired(self, entry: dict[str, Any]) -> bool:
         """Check if cache entry has expired.
 
-        Args:
-            entry: Cache entry dict containing 'timestamp' key
-
-        Returns:
-            bool: True if expired, False otherwise
-
+        :param entry: Cache entry dict containing 'timestamp' key
+        :return: True if expired, False otherwise
+        :rtype: bool
         """
         if not self._ttl:
             return False
@@ -80,12 +60,9 @@ class BaseLRUCache:
 
         Does NOT update LRU ordering or check expiration.
 
-        Args:
-            key: Cache key
-
-        Returns:
-            dict: Cache entry or None if not found
-
+        :param key: Cache key
+        :return: Cache entry or None if not found
+        :rtype: dict
         """
         return self._cache.get(key)
 
@@ -97,14 +74,11 @@ class BaseLRUCache:
     ) -> dict[str, Any] | None:
         """Set cache entry with LRU eviction.
 
-        Args:
-            key: Cache key
-            value: Value to cache
-            metadata: Optional metadata dict
-
-        Returns:
-            dict: Evicted entry if eviction occurred, None otherwise
-
+        :param key: Cache key
+        :param value: Value to cache
+        :param metadata: Optional metadata dict
+        :return: Evicted entry if eviction occurred, None otherwise
+        :rtype: dict
         """
         evicted = None
 
@@ -141,9 +115,7 @@ class BaseLRUCache:
     def _touch(self, key: str) -> None:
         """Update entry's last-used timestamp and LRU position.
 
-        Args:
-            key: Cache key
-
+        :param key: Cache key
         """
         with self._lock:
             if key in self._cache:
@@ -153,12 +125,9 @@ class BaseLRUCache:
     def _remove(self, key: str) -> dict[str, Any] | None:
         """Remove entry from cache.
 
-        Args:
-            key: Cache key
-
-        Returns:
-            dict: Removed entry or None if not found
-
+        :param key: Cache key
+        :return: Removed entry or None if not found
+        :rtype: dict
         """
         with self._lock:
             return self._cache.pop(key, None)
@@ -166,9 +135,8 @@ class BaseLRUCache:
     def _clear(self) -> list[tuple[str, dict[str, Any]]]:
         """Clear all entries from cache.
 
-        Returns:
-            list: List of (key, entry) tuples that were cleared
-
+        :return: List of (key, entry) tuples that were cleared
+        :rtype: list
         """
         with self._lock:
             entries = list(self._cache.items())
@@ -181,12 +149,9 @@ class BaseLRUCache:
     ) -> list[tuple[str, dict[str, Any]]]:
         """Invalidate entries matching a filter condition.
 
-        Args:
-            filter_func: Function that takes a key and returns True to invalidate
-
-        Returns:
-            list: List of (key, entry) tuples that were invalidated
-
+        :param filter_func: Function that takes a key and returns True to invalidate
+        :return: List of (key, entry) tuples that were invalidated
+        :rtype: list
         """
         with self._lock:
             keys_to_remove = [key for key in self._cache if filter_func(key)]
@@ -200,9 +165,8 @@ class BaseLRUCache:
     def get_stats(self) -> dict[str, Any]:
         """Get cache statistics.
 
-        Returns:
-            dict: Cache statistics (size, max_size, ttl_hours, usage_pct)
-
+        :return: Cache statistics (size, max_size, ttl_hours, usage_pct)
+        :rtype: dict
         """
         with self._lock:
             size = len(self._cache)

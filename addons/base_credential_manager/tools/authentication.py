@@ -20,16 +20,16 @@ def _looks_like_epoch(value):
 def _get_param_with_legacy(env, suffix, default):
     """Read a config parameter, honouring the legacy api_communication name.
 
-    This module is the canonical copy of what used to live in
-    ``api_communication.tools.authentication`` (now a re-export shim of this
-    file). Databases configured before the promotion may still carry the
-    parameter under the old ``api_communication.*`` key, so the canonical
-    ``base_credential_manager.*`` key wins and the legacy key is the
-    fallback. Returns ``default`` when neither is set.
+    :return: the parameter value, or ``default`` when neither key is set
     """
     icp = env["ir.config_parameter"].sudo()
     value = icp.get_param(f"base_credential_manager.{suffix}", default=None)
     if value is None:
+        # This module is the canonical copy of what used to live in
+        # api_communication.tools.authentication (now a re-export shim of this
+        # file). Databases configured before the promotion may still carry the
+        # parameter under the old api_communication.* key, so the canonical
+        # base_credential_manager.* key wins and the legacy key is only the fallback.
         value = icp.get_param(f"api_communication.{suffix}", default=None)
     return default if value is None else value
 
@@ -60,23 +60,17 @@ def _get_future_tolerance(env=None):
 
 
 def _handle_none_signature(env=None):
-    """Handle 'none' signature type with security check.
+    """Handle the 'none' signature type, gated by a security kill switch.
 
-    When the ``base_credential_manager.allow_none_signature`` system parameter is
-    not explicitly set to ``"True"``, the request is rejected by returning
-    ``False`` — the controller is responsible for turning that into a clean
-    401 response. Raising a ``UserError`` from here would bubble up as a
-    500 Internal Server Error, which is the wrong signal to send the caller.
-
-    Returns:
-        True only if the kill switch is explicitly enabled; False otherwise.
-
+    :return: True only if the kill switch is explicitly enabled, False otherwise
     """
     env = _resolve_env(env)
 
     if env:
         allow_none = _get_param_with_legacy(env, "allow_none_signature", "False")
         if allow_none != "True":
+            # Reject by returning False so the controller can emit a clean 401;
+            # raising UserError here would surface as a 500, the wrong signal.
             _logger.warning(
                 "Signature type 'none' is disabled. "
                 "Set base_credential_manager.allow_none_signature = True to enable "
@@ -89,15 +83,11 @@ def _handle_none_signature(env=None):
 
 
 def verify_bearer_token(headers, expected_token):
-    """Verify bearer token in Authorization header.
+    """Verify a bearer token in the Authorization header.
 
-    Args:
-        headers: HTTP headers dict
-        expected_token: Expected token value
-
-    Returns:
-        True if token matches
-
+    :param dict headers: HTTP headers
+    :param expected_token: expected token value
+    :return: True if the token matches
     """
     if not isinstance(headers, dict):
         _logger.error("Headers must be dict, got %s", type(headers).__name__)
@@ -124,14 +114,7 @@ def verify_bearer_token(headers, expected_token):
 
 
 def _verify_custom(verification_method, headers, body, env=None):
-    """Execute custom verification method.
-
-    SECURITY: the configured method MUST be named ``verify_*`` or
-    ``_verify_*``. The method is invoked with ``sudo()``, so without this
-    naming gate a ``verification_method`` config value could invoke ANY
-    model method with superuser rights (e.g. ``res.users.unlink``) —
-    turning endpoint-config write access into arbitrary ORM execution.
-    """
+    """Execute custom verification method."""
     if not verification_method:
         return False
 
@@ -146,6 +129,10 @@ def _verify_custom(verification_method, headers, body, env=None):
             raise ValueError("Invalid method format")
 
         model_name, method_name = parts
+        # SECURITY: the method is invoked with sudo(), so gate it on a verify_*
+        # / _verify_* name. Without this, a verification_method config value could
+        # invoke ANY model method with superuser rights (e.g. res.users.unlink),
+        # turning endpoint-config write access into arbitrary ORM execution.
         if not method_name.lstrip("_").startswith("verify_"):
             _logger.error(
                 "Custom verification method %r rejected: method name must "
@@ -177,17 +164,13 @@ def verify_hmac_signature(
 ):
     """Verify HMAC signature with constant-time comparison.
 
-    Args:
-        headers: HTTP headers dict
-        body: Request body string
-        secret: Shared secret
-        hash_func: Hash function (hashlib.sha256 or hashlib.sha512)
-        signature_header: Header containing signature
-        signature_prefix: Prefix to remove from signature
-
-    Returns:
-        True if signature matches
-
+    :param dict headers: HTTP headers
+    :param body: request body (str or bytes)
+    :param secret: shared secret
+    :param hash_func: hash function (hashlib.sha256 or hashlib.sha512)
+    :param signature_header: header containing the signature
+    :param signature_prefix: prefix to remove from the signature
+    :return: True if the signature matches
     """
     if not isinstance(headers, dict):
         _logger.error("Headers must be dict, got %s", type(headers).__name__)
@@ -230,16 +213,12 @@ def verify_hmac_signature(
 def verify_signature(signature_type, headers, body, secret=None, **kwargs):
     """Verify request signature based on type.
 
-    Args:
-        signature_type: Type of signature (bearer, hmac_sha256, hmac_sha512, custom, none)
-        headers: HTTP request headers dict
-        body: Raw request body string
-        secret: Shared secret for verification
-        **kwargs: Additional parameters (signature_header, signature_prefix, verification_method)
-
-    Returns:
-        True if signature is valid
-
+    :param signature_type: scheme (bearer/api_key, hmac_sha256, hmac_sha512, custom, none)
+    :param dict headers: HTTP request headers
+    :param body: raw request body (str or bytes)
+    :param secret: shared secret for verification
+    :param kwargs: extra params (signature_header, signature_prefix, verification_method, env)
+    :return: True if the signature is valid
     """
     try:
         if signature_type == "hmac_sha256":
@@ -287,16 +266,12 @@ def verify_timestamp(
 ):
     """Verify timestamp is within acceptable window (replay attack prevention).
 
-    Args:
-        timestamp_value: Timestamp (Unix int/float or ISO string)
-        max_age_seconds: Maximum age in seconds (default: 300)
-        timestamp_format: Format string if parsing custom format
-        future_tolerance_seconds: Clock skew tolerance
-        env: Odoo environment (optional, for reading config)
-
-    Returns:
-        True if timestamp is valid
-
+    :param timestamp_value: timestamp (Unix int/float or ISO/epoch string)
+    :param max_age_seconds: maximum age in seconds (default 300)
+    :param timestamp_format: format string for parsing a custom format
+    :param future_tolerance_seconds: clock-skew tolerance
+    :param env: Odoo environment (optional, for reading config)
+    :return: True if the timestamp is valid
     """
     try:
         # Convert to datetime (UTC)
