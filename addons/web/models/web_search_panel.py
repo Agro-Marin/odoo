@@ -247,7 +247,7 @@ class Base(models.AbstractModel):
                 {
                     'values': a list of possible values, each being a dict with keys
                         'id' (value),
-                        'name' (value label),
+                        'display_name' (value label),
                         '__count' (how many records with that value),
                         'group_id' (value of group), set if a group_by has been provided,
                         'group_name' (label of group), set if a group_by has been provided
