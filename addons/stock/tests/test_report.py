@@ -72,17 +72,12 @@ class TestReportsCommon(TransactionCase):
         return report_values, docs, lines
 
     def sum_dicts(self, dicts, key):
-        """
-        Aggregate the values of a specified key from a collection of dictionaries.
+        """Aggregate the values of a specified key across a dict of dicts.
 
-        Args:
-            dicts (dict): A dictionary whose values are dictionaries.
-            key (str): The key to look for in each inner dictionary.
-
-        Returns:
-            dict: A dictionary with keys from the aggregated inner dictionaries and values being the sum of corresponding values.
+        :param dicts: a dict whose values are dicts.
+        :param key: the key to look for in each inner dict.
+        :return: a dict mapping inner keys to the sum of their values.
         """
-        """ Sum the values of a key in a list of dictionaries. """
         res = {}
         for d in dicts.values():
             for k, v in d.get(key, {}).items():
