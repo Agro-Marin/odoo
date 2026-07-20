@@ -192,7 +192,7 @@ class AccountMove(models.Model):
         )
 
     def _get_automatic_balancing_account(self):
-        """Small helper for special cases where we want to auto balance a move with a specific account."""
+        """Return the account to use when auto-balancing a move."""
         self.ensure_one()
         if self.journal_id.default_account_id:
             return self.journal_id.default_account_id.id

@@ -6,7 +6,7 @@ from odoo.tools.xml_utils import remove_control_characters
 def dict_to_xml(
     node, *, nsmap=None, template=None, render_empty_nodes=False, tag=None, path=None
 ):
-    """Helper to render a Python dict as an XML node.
+    """Render a Python dict as an XML node.
 
     The dict is expected to be of the form:
     {

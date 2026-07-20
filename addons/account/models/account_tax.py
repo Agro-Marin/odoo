@@ -666,8 +666,8 @@ class AccountTax(models.Model):
 
     @api.model
     def _prepare_tax_line_for_taxes_computation(self, record, **kwargs):
-        """Convert any representation of an accounting tax line ('record') into a python
-        dictionary that will be used to use by `_prepare_tax_lines` to detect which tax line
+        """Convert any representation of an accounting tax line ('record') into a
+        dictionary used by `_prepare_tax_lines` to detect which tax line
         could be updated, the ones to be created and the ones to be deleted.
         We can't use directly an account.move.line because this is also used by
         - expense (to create the journal entry)
@@ -998,7 +998,7 @@ class AccountTax(models.Model):
         :param company:             The company owning the base lines.
         :param tax_lines:           A optional list of base lines generated using the '_prepare_tax_line_for_taxes_computation'
                                     method. If specified, this method will indicate which tax lines must be deleted or updated instead
-                                    of creating again all tax lines everytime.
+                                    of creating again all tax lines every time.
         :return: The base amounts for base lines and the full diff about tax lines as a dictionary containing:
             tax_lines_to_add:       A list of values to be passed to account.move.line's create function.
             tax_lines_to_delete:    The list of tax lines to be removed.

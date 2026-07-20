@@ -19,7 +19,7 @@ _logger = logging.getLogger(__name__)
 
 
 def _can_commit():
-    """Helper to know if we can commit the current transaction or not.
+    """Return whether committing the current transaction is acceptable.
 
     :returns: True if commit is acceptable, False otherwise.
     """
@@ -502,10 +502,10 @@ class AccountDocumentImportMixin(models.AbstractModel):
 
     @api.model
     def _to_files_data(self, attachments):
-        """Helper method to convert an ir.attachment recordset into an intermediate `files_data` format
+        """Convert an ir.attachment recordset into the intermediate `files_data` format
         used by the import framework.
 
-        :return: a list of dicts, each dict representing one of the attachments in `self`.
+        :return: a list of dicts, each dict representing one of `attachments`.
         """
         files_data = []
         for attachment in attachments:
@@ -524,9 +524,9 @@ class AccountDocumentImportMixin(models.AbstractModel):
 
     @api.model
     def _from_files_data(self, files_data):
-        """Helper method to convert a `files_data` list-of-dicts back into an ir.attachment recordset.
-        This only returns those elements in `files_data` which correspond to an ir.attachment
-        (thus, embedded files that were never turned into ir.attachments are omitted).
+        """Convert a `files_data` list-of-dicts back into an ir.attachment recordset.
+        Only elements of `files_data` that correspond to an ir.attachment are returned
+        (embedded files that were never turned into ir.attachments are omitted).
         """
         return self.env["ir.attachment"].union(
             *(

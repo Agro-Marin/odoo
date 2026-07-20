@@ -1026,7 +1026,7 @@ class AccountMoveSend(models.AbstractModel):
 
     @api.model
     def _can_commit(self):
-        """Helper to know if we can commit the current transaction or not.
+        """Return whether committing the current transaction is acceptable.
         :return: True if commit is accepted, False otherwise.
         """
         return not (tools.config["test_enable"] or modules.module.current_test)
