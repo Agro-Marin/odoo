@@ -228,7 +228,8 @@ class Observability(Controller):
 
         Payload fields (all optional, all clamped to per-field length caps):
         ``phase`` (``"pre_boot"`` | ``"post_boot"``), ``kind`` (``"error"`` |
-        ``"unhandledrejection"``), ``message``, ``filename``, ``line``,
+        ``"unhandledrejection"`` | ``"module_rebind"``), ``message``, ``filename``,
+        ``line``,
         ``col``, ``stack``, ``url``, ``user_agent``.
 
         Logs each beacon as ``[js_error]`` at WARNING.  Persistence
