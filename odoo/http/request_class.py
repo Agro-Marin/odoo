@@ -40,19 +40,14 @@ _logger = logging.getLogger(__name__)
 
 @functools.lru_cache(maxsize=1)
 def _all_dbs_cached(_ttl_bucket: int) -> tuple[str, ...]:
-    # The unfiltered ``list_dbs(force=True)`` is the expensive half of monodb
-    # detection (a ``pg_database`` roundtrip) AND it is host-INDEPENDENT — the
-    # host only feeds the cheap ``db_filter`` regex applied afterwards. Caching it
-    # here (host-independent, a single entry) means a burst of db-less requests
-    # spread across many distinct ``Host`` values triggers ONE catalog query per
-    # TTL bucket, not one per host as a host-keyed cache did — a query-amplification
-    # vector under ``--dbfilter`` + anonymous traffic, where attacker-varied hosts
-    # (``a.x``, ``b.x``, ``:port`` …) each missed the old cache.
-    # ``_ttl_bucket`` (``int(time()//DB_MONODB_CACHE_TTL)``) is the sole key so the
-    # entry expires every TTL seconds; ``maxsize=1`` keeps only the live bucket. A
-    # tuple is cached so the shared entry can't be mutated. ``_list_all_dbs`` is
-    # resolved from this module's namespace, keeping the
-    # ``request_class._list_all_dbs`` test monkeypatch effective.
+    # Host-independent catalog read cached under a single entry (see
+    # :data:`DB_MONODB_CACHE_TTL`): a burst of db-less requests across many Hosts
+    # costs one ``pg_database`` query per TTL bucket, not one per host. The key
+    # ``_ttl_bucket`` (``int(time()//DB_MONODB_CACHE_TTL)``) expires the entry
+    # every TTL seconds; ``maxsize=1`` keeps only the live bucket; a tuple is
+    # cached so the shared entry can't be mutated. ``_list_all_dbs`` resolves from
+    # this module's namespace, keeping the ``request_class._list_all_dbs`` test
+    # monkeypatch effective.
     return tuple(_list_all_dbs(force=True))
 
 
