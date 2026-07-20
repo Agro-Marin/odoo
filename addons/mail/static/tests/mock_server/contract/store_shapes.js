@@ -17,7 +17,7 @@
  * parses it with json.loads); only this comment may precede it.
  */
 export default {
-    "gated_models": [
+    gated_models: [
         "DataResponse",
         "MessageReactions",
         "Store",
@@ -27,14 +27,11 @@ export default {
         "mail.followers",
         "mail.message",
         "mail.thread",
-        "res.partner"
+        "res.partner",
     ],
-    "scenarios": {
-        "channel_members": {
-            "discuss.channel": [
-                "id",
-                "member_count"
-            ],
+    scenarios: {
+        channel_members: {
+            "discuss.channel": ["id", "member_count"],
             "discuss.channel.member": [
                 "channel_id",
                 "create_date",
@@ -42,7 +39,7 @@ export default {
                 "id",
                 "last_seen_dt",
                 "partner_id",
-                "seen_message_id"
+                "seen_message_id",
             ],
             "res.partner": [
                 "active",
@@ -55,17 +52,17 @@ export default {
                 "main_user_id",
                 "mention_token",
                 "name",
-                "write_date"
-            ]
+                "write_date",
+            ],
         },
-        "channel_messages": {
-            "MessageReactions": [
+        channel_messages: {
+            MessageReactions: [
                 "content",
                 "count",
                 "guests",
                 "message",
                 "partners",
-                "sequence"
+                "sequence",
             ],
             "ir.attachment": [
                 "checksum",
@@ -82,7 +79,7 @@ export default {
                 "thumbnail_access_token",
                 "type",
                 "url",
-                "voice_ids"
+                "voice_ids",
             ],
             "mail.message": [
                 "attachment_ids",
@@ -113,14 +110,14 @@ export default {
                 "subtype_id",
                 "thread",
                 "trackingValues",
-                "write_date"
+                "write_date",
             ],
             "mail.thread": [
                 "display_name",
                 "has_mail_thread",
                 "id",
                 "model",
-                "module_icon"
+                "module_icon",
             ],
             "res.partner": [
                 "avatar_128_access_token",
@@ -128,17 +125,17 @@ export default {
                 "is_company",
                 "main_user_id",
                 "name",
-                "write_date"
-            ]
+                "write_date",
+            ],
         },
-        "channels_as_member": {
-            "MessageReactions": [
+        channels_as_member: {
+            MessageReactions: [
                 "content",
                 "count",
                 "guests",
                 "message",
                 "partners",
-                "sequence"
+                "sequence",
             ],
             "discuss.channel": [
                 "avatar_cache_key",
@@ -160,7 +157,7 @@ export default {
                 "name",
                 "parent_channel_id",
                 "rtc_session_ids",
-                "uuid"
+                "uuid",
             ],
             "discuss.channel.member": [
                 "channel_id",
@@ -178,7 +175,7 @@ export default {
                 "partner_id",
                 "rtc_inviting_session_id",
                 "seen_message_id",
-                "unpin_dt"
+                "unpin_dt",
             ],
             "mail.message": [
                 "attachment_ids",
@@ -209,14 +206,14 @@ export default {
                 "subtype_id",
                 "thread",
                 "trackingValues",
-                "write_date"
+                "write_date",
             ],
             "mail.thread": [
                 "display_name",
                 "has_mail_thread",
                 "id",
                 "model",
-                "module_icon"
+                "module_icon",
             ],
             "res.partner": [
                 "active",
@@ -229,10 +226,10 @@ export default {
                 "main_user_id",
                 "mention_token",
                 "name",
-                "write_date"
-            ]
+                "write_date",
+            ],
         },
-        "chatter_thread": {
+        chatter_thread: {
             "ir.attachment": [
                 "checksum",
                 "create_date",
@@ -248,7 +245,7 @@ export default {
                 "thumbnail_access_token",
                 "type",
                 "url",
-                "voice_ids"
+                "voice_ids",
             ],
             "mail.followers": [
                 "display_name",
@@ -257,7 +254,7 @@ export default {
                 "is_active",
                 "name",
                 "partner_id",
-                "thread"
+                "thread",
             ],
             "mail.thread": [
                 "areAttachmentsLoaded",
@@ -272,7 +269,7 @@ export default {
                 "model",
                 "recipients",
                 "recipientsCount",
-                "selfFollower"
+                "selfFollower",
             ],
             "res.partner": [
                 "active",
@@ -284,15 +281,11 @@ export default {
                 "is_company",
                 "main_user_id",
                 "name",
-                "write_date"
-            ]
-        },
-        "get_or_create_chat": {
-            "DataResponse": [
-                "_resolve",
-                "channel",
-                "id"
+                "write_date",
             ],
+        },
+        get_or_create_chat: {
+            DataResponse: ["_resolve", "channel", "id"],
             "discuss.channel": [
                 "channel_type",
                 "create_uid",
@@ -307,7 +300,7 @@ export default {
                 "message_needaction_counter_bus_id",
                 "name",
                 "rtc_session_ids",
-                "uuid"
+                "uuid",
             ],
             "discuss.channel.member": [
                 "channel_id",
@@ -325,7 +318,7 @@ export default {
                 "partner_id",
                 "rtc_inviting_session_id",
                 "seen_message_id",
-                "unpin_dt"
+                "unpin_dt",
             ],
             "res.partner": [
                 "active",
@@ -338,17 +331,13 @@ export default {
                 "main_user_id",
                 "mention_token",
                 "name",
-                "write_date"
-            ]
+                "write_date",
+            ],
         },
-        "init_messaging": {
-            "Store": [
-                "inbox",
-                "initChannelsUnreadCounter",
-                "starred"
-            ]
+        init_messaging: {
+            Store: ["inbox", "initChannelsUnreadCounter", "starred"],
         },
-        "message_post": {
+        message_post: {
             "mail.message": [
                 "attachment_ids",
                 "author_guest_id",
@@ -378,14 +367,14 @@ export default {
                 "subtype_id",
                 "thread",
                 "trackingValues",
-                "write_date"
+                "write_date",
             ],
             "mail.thread": [
                 "display_name",
                 "has_mail_thread",
                 "id",
                 "model",
-                "module_icon"
+                "module_icon",
             ],
             "res.partner": [
                 "avatar_128_access_token",
@@ -393,8 +382,8 @@ export default {
                 "is_company",
                 "main_user_id",
                 "name",
-                "write_date"
-            ]
-        }
-    }
+                "write_date",
+            ],
+        },
+    },
 };
