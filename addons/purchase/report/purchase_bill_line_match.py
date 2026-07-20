@@ -4,15 +4,7 @@ from odoo.tools import SQL
 
 
 class PurchaseBillLineMatch(models.Model):
-    """Line-level matching view for Purchase Order lines and Account Move lines.
-
-    This model provides a unified view enabling granular matching between:
-    - Purchase Order lines awaiting invoicing
-    - Vendor Bill lines not yet linked to a purchase order
-
-    It supports matching operations, bill creation from PO lines,
-    and adding bill lines to existing purchase orders.
-    """
+    """Line-level matching view between Purchase Order lines and Vendor Bill lines."""
 
     _name = "purchase.bill.line.match"
     _description = "Purchase Order Line & Vendor Bill Line Matching"
@@ -164,8 +156,9 @@ class PurchaseBillLineMatch(models.Model):
             if line.aml_id:
                 line.aml_id.quantity = line.product_uom_qty
             else:
-                # on POL, setting product_qty will recompute price_unit to have the old value
-                # this prevents the price to revert by saving the previous price and re-setting them again
+                # Setting product_qty on the POL recomputes price_unit (e.g. from
+                # supplier pricelist quantity breaks); save and restore the previous
+                # price so the user's price is not reverted.
                 previous_price_unit = line.pol_id.price_unit
                 line.pol_id.product_qty = line.product_uom_qty
                 line.pol_id.price_unit = previous_price_unit
@@ -311,15 +304,10 @@ class PurchaseBillLineMatch(models.Model):
 
     @property
     def _table_query(self):
-        """Generate SQL UNION query combining PO lines and vendor bill lines.
+        """Combine PO lines and vendor bill lines into a unified matching view.
 
-        This creates a unified view of:
-        - Purchase order lines awaiting invoicing
-        - Vendor bill lines not yet linked to a purchase order
-
-        Returns:
-            SQL: Combined query with PO lines (positive IDs) and
-                 bill lines (negative IDs to avoid collision)
+        :return: UNION ALL of PO lines (positive ids) and bill lines (negative ids)
+        :rtype: SQL
         """
         return SQL(
             "%s UNION ALL %s",
@@ -329,15 +317,10 @@ class PurchaseBillLineMatch(models.Model):
 
     @api.model
     def _query_po_line(self):
-        """Select purchase order lines awaiting invoicing.
+        """Select confirmed purchase order lines awaiting invoicing.
 
-        Includes:
-        - Lines with quantities not yet invoiced
-        - Lines with non-zero qty_to_invoice
-        - Downpayment lines that have been invoiced
-
-        Returns:
-            SQL: Query for purchase order lines from confirmed POs
+        :return: query for uninvoiced, over-invoiced, or invoiced-downpayment PO lines
+        :rtype: SQL
         """
         return SQL(
             """
@@ -357,8 +340,8 @@ class PurchaseBillLineMatch(models.Model):
     def _select_po_line(self):
         """Define field selection for purchase order lines.
 
-        Returns:
-            SQL: Field list for PO line selection
+        :return: field list for PO line selection
+        :rtype: SQL
         """
         return SQL(
             """
@@ -384,8 +367,8 @@ class PurchaseBillLineMatch(models.Model):
     def _from_po_line(self):
         """Define FROM clause for purchase order lines.
 
-        Returns:
-            SQL: FROM clause with PO line and PO join
+        :return: FROM clause joining PO line to its PO
+        :rtype: SQL
         """
         return SQL(
             """
@@ -398,8 +381,8 @@ class PurchaseBillLineMatch(models.Model):
     def _where_po_line(self):
         """Build WHERE clause for purchase order line selection.
 
-        Returns:
-            SQL: Conditions for selecting uninvoiced, over-invoiced, or downpayment PO lines
+        :return: conditions selecting uninvoiced, over-invoiced, or downpayment PO lines
+        :rtype: SQL
         """
         return SQL(
             """
@@ -427,17 +410,10 @@ class PurchaseBillLineMatch(models.Model):
 
     @api.model
     def _query_am_line(self):
-        """Select vendor bill lines not linked to purchase orders.
+        """Select vendor bill product lines not yet linked to a purchase order.
 
-        Includes only:
-        - Product lines (display_type = 'product')
-        - Lines from vendor invoices/refunds
-        - Lines in draft or posted state
-        - Lines not yet linked to a purchase order line
-
-        Returns:
-            SQL: Query for unlinked account move lines. Uses negative IDs
-                 to prevent collision with PO line IDs.
+        :return: query for unlinked account move lines (ids negated to avoid collision with PO line ids)
+        :rtype: SQL
         """
         return SQL(
             """
@@ -457,8 +433,8 @@ class PurchaseBillLineMatch(models.Model):
     def _select_am_line(self):
         """Define field selection for account move lines.
 
-        Returns:
-            SQL: Field list for account move line selection
+        :return: field list for account move line selection
+        :rtype: SQL
         """
         return SQL(
             """
@@ -484,8 +460,8 @@ class PurchaseBillLineMatch(models.Model):
     def _from_am_line(self):
         """Define FROM clause for account move lines.
 
-        Returns:
-            SQL: FROM clause with account move line and move join
+        :return: FROM clause joining account move line to its move
+        :rtype: SQL
         """
         return SQL(
             """
@@ -498,8 +474,8 @@ class PurchaseBillLineMatch(models.Model):
     def _where_am_line(self):
         """Build WHERE clause for account move line selection.
 
-        Returns:
-            SQL: Conditions for selecting unlinked vendor bill lines
+        :return: conditions selecting unlinked vendor bill lines
+        :rtype: SQL
         """
         return SQL(
             """

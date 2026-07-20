@@ -141,21 +141,11 @@ class PurchaseReport(models.Model):
     # ------------------------------------------------------------
 
     def _get_select_fields(self) -> dict:
-        """Registry of fields for SELECT clause.
+        """Registry of fields for the SELECT clause.
 
-        Returns:
-            dict: Mapping of {field_name: SQL_expression}
-                  Keys are field names (without AS clause)
-                  Values are SQL expressions (can be multi-line strings)
-                  Order is preserved (Python 3.7+ dict behavior)
-
-        Example inheritance:
-            def _get_select_fields(self):
-                fields = super()._get_select_fields()
-                fields['custom_field'] = 'o.custom_column'  # Add
-                fields['price_unit'] = 'CUSTOM_CALCULATION'  # Modify
-                del fields['unwanted_field']  # Remove
-                return fields
+        :return: order-preserving mapping of field name (without AS clause) to
+            SQL expression (may be a multi-line string)
+        :rtype: dict
         """
         return {
             "id": "MIN(l.id)",
@@ -227,24 +217,13 @@ class PurchaseReport(models.Model):
         }
 
     def _get_from_tables(self) -> list:
-        """Registry of tables and joins for FROM clause.
+        """Registry of tables and joins for the FROM clause.
 
-        Returns:
-            list: List of tuples defining tables and joins.
-                  Each tuple is: (table_name, alias, join_type, on_condition)
-                  - table_name: Table name or SQL object (for subqueries/CTEs)
-                  - alias: Table alias (or None for base table)
-                  - join_type: None (base table), 'LEFT JOIN', 'INNER JOIN', etc.
-                  - on_condition: JOIN condition string (or None for base table)
-
-        Example inheritance:
-            def _get_from_tables(self):
-                tables = super()._get_from_tables()
-                # Add new join
-                tables.append(('custom_table', 'ct', 'LEFT JOIN', 'o.custom_id=ct.id'))
-                # Remove a join (filter by alias)
-                tables = [t for t in tables if t[1] != 'unwanted_alias']
-                return tables
+        :return: list of ``(table_name, alias, join_type, on_condition)`` tuples.
+            ``table_name`` is a table name or SQL object (subqueries/CTEs);
+            ``join_type`` is ``None`` for the base table or ``'LEFT JOIN'`` /
+            ``'INNER JOIN'`` etc.; ``on_condition`` is ``None`` for the base table.
+        :rtype: list
         """
         currency_table = self.env["res.currency"]._get_simple_currency_table(
             self.env.companies,
@@ -268,39 +247,21 @@ class PurchaseReport(models.Model):
         ]
 
     def _get_where_conditions(self) -> list:
-        """Registry of conditions for WHERE clause.
+        """Registry of conditions for the WHERE clause.
 
-        Returns:
-            list: List of SQL condition strings that will be AND'ed together
-
-        Example inheritance:
-            def _get_where_conditions(self):
-                conditions = super()._get_where_conditions()
-                # Add new condition
-                conditions.append("o.state != 'cancel'")
-                # Remove condition
-                conditions = [c for c in conditions if 'display_type' not in c]
-                return conditions
+        :return: SQL condition strings that are AND'ed together
+        :rtype: list
         """
         return [
             "l.display_type IS NULL",
         ]
 
     def _get_group_by_fields(self) -> list:
-        """Registry of fields for GROUP BY clause.
+        """Registry of fields for the GROUP BY clause.
 
-        Returns:
-            list: List of field expressions for GROUP BY clause.
-                  These should be all non-aggregated fields from SELECT.
-
-        Example inheritance:
-            def _get_group_by_fields(self):
-                fields = super()._get_group_by_fields()
-                # Add new field
-                fields.append('o.custom_field')
-                # Remove field
-                fields = [f for f in fields if 'unwanted' not in f]
-                return fields
+        :return: field expressions for the GROUP BY clause; these are all the
+            non-aggregated fields from the SELECT clause
+        :rtype: list
         """
         return [
             "o.company_id",
@@ -330,7 +291,7 @@ class PurchaseReport(models.Model):
         ]
 
     def _read_group_select(self, aggregate_spec: str, query: Query) -> SQL:
-        """This override allows us to correctly calculate the average price of products."""
+        """Compute the ``price_average:avg`` aggregate as a weighted average price."""
         if aggregate_spec != "price_average:avg":
             return super()._read_group_select(aggregate_spec, query)
         return SQL(
