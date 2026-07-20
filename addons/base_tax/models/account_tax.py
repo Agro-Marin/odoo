@@ -757,7 +757,7 @@ class AccountTax(models.Model):
 
         [!] Only added python-side.
 
-        :param field_names: A set of fields returned by '_eval_taxes_computation_get_product_fields'.
+        :param field_names: A set of fields returned by '_eval_taxes_computation_prepare_product_fields'.
         :return: A mapping <field_name> => <field_info> where field_info is a dict containing:
             * type: the type of the field.
             * default_value: the default value in case there is no product.
@@ -847,7 +847,7 @@ class AccountTax(models.Model):
 
         [!] Only added python-side.
 
-        :param field_names: A set of fields returned by '_eval_taxes_computation_get_product_uom_fields'.
+        :param field_names: A set of fields returned by '_eval_taxes_computation_prepare_product_uom_fields'.
         :return: A mapping <field_name> => <field_info> where field_info is a dict containing:
             * type: the type of the field.
             * default_value: the default value in case there is no product.
@@ -2378,7 +2378,7 @@ class AccountTax(models.Model):
 
     @api.model
     def _round_base_lines_tax_details(self, base_lines, company, tax_lines=None):
-        """Round the 'tax_details' added to base_lines with the '_add_accounting_data_to_base_line_tax_details'.
+        """Round the 'tax_details' added to base_lines with the '_add_tax_details_in_base_line'.
         This method performs all the rounding and take care of rounding issues that could appear when using the
         'round_globally' tax computation method, specially if some price included taxes are involved.
 
