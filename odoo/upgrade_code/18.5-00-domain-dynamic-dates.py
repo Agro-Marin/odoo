@@ -20,7 +20,7 @@ class NoChange(Exception):
 
 
 class InvertUnaryTransformer(ast.NodeTransformer):
-    """Inline constant value "-X" which is a unary operator into the constant value."""
+    """Fold a unary minus on a constant (``-X``) into the constant itself."""
 
     def visit_UnaryOp(self, node: ast.UnaryOp) -> ast.expr:
         if isinstance(node.op, ast.USub) and isinstance(
@@ -242,6 +242,7 @@ class UpgradeDomainTransformer(ast.NodeTransformer):
 
 
 def upgrade(file_manager: FileManager) -> None:
+    """Rewrite dynamic-date domains in XML views/data to the modern string syntax."""
     upgrade_domain = UpgradeDomainTransformer()
     no_whitespace = functools.partial(re.compile(r"\s", re.MULTILINE).sub, "")
     for file in file_manager:

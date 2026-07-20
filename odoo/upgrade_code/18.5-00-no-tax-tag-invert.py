@@ -106,6 +106,7 @@ def remove_sign(
 
 
 def upgrade(file_manager: FileManager) -> None:
+    """Move +/- signs off tax-tag ``tag_ids`` onto the tax-report expression formulas."""
     tax_template_files = [
         f
         for f in file_manager

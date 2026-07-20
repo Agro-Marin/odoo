@@ -5,6 +5,7 @@ if typing.TYPE_CHECKING:
 
 
 def upgrade(file_manager: FileManager) -> None:
+    """Rename controller route ``type="json"`` to ``type="jsonrpc"``."""
     files = [
         f
         for f in file_manager

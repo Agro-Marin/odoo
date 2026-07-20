@@ -9,6 +9,7 @@ if typing.TYPE_CHECKING:
 
 
 def upgrade(file_manager: FileManager) -> None:
+    """Convert ``_sql_constraints = [...]`` lists into ``models.Constraint`` fields."""
     log = logging.getLogger(__name__)
     sql_expression_re = re.compile(r"\b_sql_constraints\s*=\s*\[([^\]]+)]")
     ind = " " * 4
