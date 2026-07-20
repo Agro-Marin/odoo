@@ -2699,9 +2699,7 @@ class ProjectTask(models.Model):
         However, if the search isn't filtered on any comodel's field, the result shouldn't be affected,
         which explains why we return `False` if `filtered_domain` is empty.
 
-        Returns:
-            False or recordset of the comodel given in parameter.
-
+        :return: False, or a recordset of the comodel given in parameter.
         """
 
         def _change_operator(domain) -> str:
