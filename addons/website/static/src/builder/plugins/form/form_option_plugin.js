@@ -305,7 +305,7 @@ export class FormOptionPlugin extends Plugin {
      */
     addHiddenField(el, value, fieldName) {
         for (const hiddenEl of el.querySelectorAll(
-            `.s_website_form_dnone:has(input[name="${fieldName}"])`,
+            `.s_website_form_dnone:has(input[name="${CSS.escape(fieldName)}"])`,
         )) {
             hiddenEl.remove();
         }
