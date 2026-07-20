@@ -357,8 +357,9 @@ class BridgeShimManager:
                 importing_specifier=specifier,
                 _exports_cache=exports_cache,
             )
-            # ``kinds={"__default__"}`` forces the shared generator's
-            # default-export branch: most bare-specifier imports are
+            # ``kinds={"__default__"}`` marks this as a default import so the
+            # generator's star-fallback telemetry flag stays False; the default
+            # export itself is always emitted.  Most bare-specifier imports are
             # ``import X from "@foo/bar"`` where X is either the module's
             # real default or the namespace as a whole.
             shim, _star = _bridge_shim_source(
@@ -467,9 +468,9 @@ class BridgeShimManager:
 
         ``specifiers`` must be cross-bundle specifiers (not this bundle's own
         native modules); each shim re-exports the target's names from
-        ``odoo.loader.modules``.  Import kinds are read from this bundle's
-        actual imports so the shim emits a default export exactly when a
-        consumer uses one.
+        ``odoo.loader.modules``.  Every shim emits a default export
+        unconditionally (matching the runtime bridge counterpart); the import
+        kinds read from this bundle only feed the star-fallback telemetry flag.
         """
         if not specifiers:
             return {}

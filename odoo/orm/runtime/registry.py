@@ -1040,6 +1040,5 @@ class DummyRLock:
         self.release()
 
 
-# TriggerTree has been moved to odoo.orm.components.model_graph.
-# It is imported at the top of this module and re-exported via __init__.py
-# for backward compatibility.
+# TriggerTree has been moved to odoo.orm.components.model_graph and is
+# re-exported via odoo/orm/runtime/__init__.py for backward compatibility.

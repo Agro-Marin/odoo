@@ -986,12 +986,13 @@ class IrQweb(models.AbstractModel):
         :param debug: debug flags (``'assets'`` rebuilds without cache)
         :return: ``(pre_nodes, post_nodes)`` flanking the legacy bundle
         """
-        # ``pre_nodes`` go BEFORE the legacy bundle:
+        # ``pre_nodes`` go BEFORE the legacy bundle, in this DOM order:
         #   1. ``<script type="importmap">`` with specifier → URL mappings
         #      (OWL resolves through its ``@odoo/owl`` entry — no separate script)
-        #   2. the ``odoo.loader`` bootstrap shim (``_build_loader_shim_js``)
-        #   3. ``<link rel="modulepreload">`` hints — only on the esbuild-declined
+        #   2. ``<link rel="modulepreload">`` hints — only on the esbuild-declined
         #      fallback path (``_esm_debug_nodes``); the esbuild prod path emits none
+        #   3. the ``odoo.loader`` bootstrap shim (``_build_loader_shim_js``),
+        #      appended after the preload hints
         # ``post_nodes`` go AFTER: the ``<script type="module">`` bridge, which
         # imports native modules and registers them via ``registerNativeModules()``
         # (runs after the bundle — ``defer`` and ``type="module"`` share one
@@ -1882,7 +1883,7 @@ class IrQweb(models.AbstractModel):
                 )
             )
 
-        # 3. Modulepreload hints for faster loading (skip in debug mode
+        # 2. Modulepreload hints for faster loading (skip in debug mode
         #    to reduce noise and allow individual file debugging)
         if not debug_assets:
             pre_nodes.extend(

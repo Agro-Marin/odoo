@@ -1274,8 +1274,9 @@ class WeasyPrintEngine:
         """Build the user-facing error for a WeasyPrint layout/serialization failure.
 
         Appends the CSS/HTML warnings captured during this render (see
-        :func:`_capture_weasyprint_warnings`): they usually name the exact
-        broken rule, turning "rendering failed" into a fixable diagnosis.
+        :class:`_WeasyWarningCapture` and ``_weasy_warning_capture.capture``):
+        they usually name the exact broken rule, turning "rendering failed"
+        into a fixable diagnosis.
         """
         message = _(
             "PDF rendering failed. Please check the report template.\n\nDetails: %s",

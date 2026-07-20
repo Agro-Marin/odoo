@@ -139,7 +139,7 @@ def nary_condition_optimization(
                         ):
                             merge_conditions.append(domain)
                             continue
-                        # we are changing (field, operator), save the previous group
+                        # field changed (or first condition), save the previous group
                         flush()
                         merge_conditions = [domain]
                         continue

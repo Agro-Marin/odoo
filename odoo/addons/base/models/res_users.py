@@ -1326,7 +1326,8 @@ class ResUsers(models.Model):
         }
         self._check_credentials(credential, {"interactive": True})
 
-        # use self.env.user here, because it has uid=SUPERUSER_ID
+        # ``self`` is empty in this @api.model method; operate on
+        # ``self.env.user`` to change the current (calling) user's own password.
         self.env.user._change_password(new_passwd)
         return True
 

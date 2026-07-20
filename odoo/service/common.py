@@ -136,7 +136,8 @@ def dispatch(method: str, params: list | tuple) -> Any:
 
 
 # Public allowlist: explicit is safer than reflection.
-# `db.py` uses the same pattern (``_DISPATCH_PUBLIC``/``_DISPATCH_ADMIN``).
+# `db.py` uses the same pattern (a single ``_DISPATCH`` dict, plus
+# ``_REQUIRES_MASTER_PASSWORD`` to flag the admin-only methods).
 _DISPATCH: dict[str, Callable] = {
     "login": exp_login,
     "authenticate": exp_authenticate,

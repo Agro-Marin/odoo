@@ -1403,11 +1403,12 @@ def exp_db_exist(db_name: str) -> bool:
     is the right semantic — they care whether Odoo can actually use it.
 
     The False return is intentionally undifferentiated for the public
-    contract, but the underlying failure mode is logged at DEBUG level so
-    operators investigating "why does my UI say the DB doesn't exist?" can
-    distinguish "really doesn't exist" (psycopg ``InvalidCatalogName``,
-    SQLSTATE 3D000) from "transient PG issue" (semaphore saturation, pool
-    timeout, network blip).
+    contract, but the underlying failure mode is logged so operators
+    investigating "why does my UI say the DB doesn't exist?" can distinguish
+    "really doesn't exist" (psycopg ``InvalidCatalogName``, SQLSTATE 3D000,
+    logged at DEBUG) from "transient PG issue" (semaphore saturation, pool
+    timeout, network blip, logged at INFO so it is visible without enabling
+    DEBUG).
     """
     try:
         db = odoo.db.db_connect(db_name)

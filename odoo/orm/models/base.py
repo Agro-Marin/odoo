@@ -592,7 +592,6 @@ class BaseModel(
 
 
 collections.abc.Set.register(BaseModel)
-# not exactly true as BaseModel doesn't have index or count
 collections.abc.Sequence.register(BaseModel)
 
 # Inject BaseModel into the Layer-1 inversion seam so fields/ and domain/ can
