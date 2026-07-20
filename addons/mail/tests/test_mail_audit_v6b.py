@@ -44,7 +44,9 @@ class TestInboxNotificationPayload(MailCommon):
                 message_type="comment",
                 subtype_xmlid="mail.mt_comment",
             )
-        self.assertEqual(len(inbox_events), 1, "the follower should get one inbox event")
+        self.assertEqual(
+            len(inbox_events), 1, "the follower should get one inbox event"
+        )
         self.assertNotIn(
             "notification_ids",
             json.dumps(inbox_events, default=str),

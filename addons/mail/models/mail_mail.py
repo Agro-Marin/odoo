@@ -462,7 +462,7 @@ class MailMail(models.Model):
             else:
                 try:
                     parsed_datetime = parsed_datetime.astimezone(pytz.utc)
-                except (ValueError, OverflowError, OSError):
+                except ValueError, OverflowError, OSError:
                     # Do not silently keep a non-UTC value: callers strip tzinfo
                     # right after and store it as if it were UTC, sending the mail
                     # at the wrong time with no trace. Treat it as unparseable.
@@ -1065,9 +1065,7 @@ class MailMail(models.Model):
                 # would flip a delivered mail to 'exception', making it eligible
                 # for action_retry -> re-delivery (duplicate email). _send applies
                 # the same state=='outgoing' guard per mail.
-                batch = self.browse(batch_ids).filtered(
-                    lambda m: m.state == "outgoing"
-                )
+                batch = self.browse(batch_ids).filtered(lambda m: m.state == "outgoing")
                 # Some smtplib errors (e.g. SMTPResponseException(code, msg))
                 # carry several args; str() would render them as an opaque tuple
                 # repr, so join them into a readable multi-line reason.

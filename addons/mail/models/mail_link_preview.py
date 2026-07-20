@@ -92,7 +92,9 @@ class MailLinkPreview(models.Model):
                 break
         new_link_preview_by_url = {
             link_preview.source_url: link_preview
-            for link_preview in self.env["mail.link.preview"]._create_from_values_race_safe(
+            for link_preview in self.env[
+                "mail.link.preview"
+            ]._create_from_values_race_safe(
                 [values for sequence, values in link_previews_values]
             )
         }

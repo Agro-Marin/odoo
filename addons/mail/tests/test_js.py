@@ -158,9 +158,7 @@ class MobileMailSuite(web_test_js.HOOTCommon):
     @odoo.tests.no_retry
     def test_discuss(self):
         """@mail/discuss under the mobile preset (chat windows, calls, …)."""
-        self._run_hoot(
-            "@mail/discuss", preset="mobile", tag="-headless", timeout=900
-        )
+        self._run_hoot("@mail/discuss", preset="mobile", tag="-headless", timeout=900)
 
     @odoo.tests.no_retry
     def test_rest(self):

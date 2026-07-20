@@ -709,8 +709,8 @@ class MailThread(models.AbstractModel):
     def _check_can_update_message_content(self, messages):
         """Check the current user can update the message content. Heuristic:
 
-          * if no tracking;
-          * only for user generated content;
+        * if no tracking;
+        * only for user generated content;
         """
         if messages.tracking_value_ids:
             raise exceptions.UserError(
@@ -1560,7 +1560,9 @@ class MailThread(models.AbstractModel):
         return False
 
     @api.model
-    def _detect_write_to_catchall(self, msg_dict, catchall_aliases=None, match_any=False):
+    def _detect_write_to_catchall(
+        self, msg_dict, catchall_aliases=None, match_any=False
+    ):
         """Return True if directly contacts catchall.
 
         :param catchall_aliases: pre-fetched catchall emails to test against; if
@@ -2762,10 +2764,14 @@ class MailThread(models.AbstractModel):
             # otherwise a bounce for a message on a restricted record is not
             # recognized and message_bounce is never incremented. Mirrors the
             # sudo'd reply-correlation search in message_route.
-            bounced_message = self.env["mail.message"].sudo().search(
-                [("message_id", "in", reference_ids)],
-                order="create_date DESC, id DESC",
-                limit=1,
+            bounced_message = (
+                self.env["mail.message"]
+                .sudo()
+                .search(
+                    [("message_id", "in", reference_ids)],
+                    order="create_date DESC, id DESC",
+                    limit=1,
+                )
             )
 
             if bounced_message:
@@ -2796,8 +2802,10 @@ class MailThread(models.AbstractModel):
         # Mirrors the sudo'd reply-correlation search in message_route.
         in_reply_to = msg_dict["in_reply_to"]
         if in_reply_to:
-            parent = self.env["mail.message"].sudo().search(
-                [("message_id", "=", in_reply_to)], order="id DESC", limit=1
+            parent = (
+                self.env["mail.message"]
+                .sudo()
+                .search([("message_id", "=", in_reply_to)], order="id DESC", limit=1)
             )
             if parent:
                 return parent
@@ -2809,8 +2817,12 @@ class MailThread(models.AbstractModel):
             # find a match just with the last entry (equal to `In-Reply-To`). 32 refs seems large enough,
             # we've seen performance degrade with 100+ refs.
             msg_references = msg_references[-32:]
-            parent = self.env["mail.message"].sudo().search(
-                [("message_id", "in", msg_references)], order="id DESC", limit=1
+            parent = (
+                self.env["mail.message"]
+                .sudo()
+                .search(
+                    [("message_id", "in", msg_references)], order="id DESC", limit=1
+                )
             )
             if parent:
                 return parent
@@ -6978,7 +6990,10 @@ class MailThread(models.AbstractModel):
             original_id_set = set(original_ids._ids)
             res = res.filtered(
                 lambda attachment: (
-                    (attachment.id in svg_id_set and attachment.id not in original_id_set)
+                    (
+                        attachment.id in svg_id_set
+                        and attachment.id not in original_id_set
+                    )
                     or (
                         attachment.id in non_svg_id_set
                         and attachment.original_id.id not in non_svg_id_set

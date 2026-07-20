@@ -55,7 +55,9 @@ class TestMailMessageSearchChunking(MailCommon):
         return self.env["mail.message"].sudo().create(vals)
 
     def _search_emp(self, domain, **kw):
-        return self.env["mail.message"].with_user(self.user_employee).search(domain, **kw)
+        return (
+            self.env["mail.message"].with_user(self.user_employee).search(domain, **kw)
+        )
 
     def test_full_scan_returns_only_accessible(self):
         pattern = [True, False, True, False, True]
@@ -66,7 +68,9 @@ class TestMailMessageSearchChunking(MailCommon):
         res = self._search_emp([("id", "in", msgs.ids)], order="id desc")
         self.assertEqual(res.ids, expected)
         # limit=None (unbounded) goes through the single-pass branch
-        res_none = self._search_emp([("id", "in", msgs.ids)], order="id desc", limit=None)
+        res_none = self._search_emp(
+            [("id", "in", msgs.ids)], order="id desc", limit=None
+        )
         self.assertEqual(res_none.ids, expected)
 
     def test_pagination_past_long_inaccessible_run(self):
@@ -74,7 +78,9 @@ class TestMailMessageSearchChunking(MailCommon):
         90 inaccessible rows (several growing chunks) before filling the page."""
         pattern = [True] * 10 + [False] * 90
         msgs = self._make_messages(pattern)
-        accessible = sorted((m.id for m, acc in zip(msgs, pattern, strict=True) if acc), reverse=True)
+        accessible = sorted(
+            (m.id for m, acc in zip(msgs, pattern, strict=True) if acc), reverse=True
+        )
 
         domain = [("id", "in", msgs.ids)]
         self.assertEqual(
@@ -100,7 +106,9 @@ class TestMailMessageSearchChunking(MailCommon):
         scan sliced identically."""
         pattern = [i % 3 == 0 for i in range(100)]
         msgs = self._make_messages(pattern)
-        accessible = sorted((m.id for m, acc in zip(msgs, pattern, strict=True) if acc), reverse=True)
+        accessible = sorted(
+            (m.id for m, acc in zip(msgs, pattern, strict=True) if acc), reverse=True
+        )
         domain = [("id", "in", msgs.ids)]
 
         # walk the whole set page by page and rebuild it

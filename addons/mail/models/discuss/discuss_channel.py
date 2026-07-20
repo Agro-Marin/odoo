@@ -96,9 +96,7 @@ class DiscussChannel(models.Model):
     # ran a sha512 per read. It only changes with its stored roots
     # (channel_type / image_128 / uuid via avatar_128), so store it once and read
     # it back instead of recomputing on every serialization.
-    avatar_cache_key = fields.Char(
-        compute="_compute_avatar_cache_key", store=True
-    )
+    avatar_cache_key = fields.Char(compute="_compute_avatar_cache_key", store=True)
     channel_partner_ids = fields.Many2many(
         "res.partner",
         string="Partners",
