@@ -141,13 +141,16 @@ class MailNotification(models.Model):
                 "<",
                 fields.Datetime.now() - relativedelta(days=max_age_days),
             ),
-            # Also collect email-only notifications (res_partner_id NULL, created
-            # for non-partner recipients): the bare ``partner_share = False``
-            # clause required a partner, so those rows were never garbage
-            # collected and mail_notification grew unbounded.
-            "|",
-            ("res_partner_id", "=", False),
-            ("res_partner_id.partner_share", "=", False),
+            # Collect every read, old, terminal-status notification regardless of
+            # recipient type. A prior fix only excused res_partner_id NULL rows
+            # (email-only recipients) from the earlier ``partner_share = False``
+            # clause, but that clause also permanently spared *share* partners
+            # (portal/customer): their delivered-and-read email notifications
+            # matched neither branch and were never garbage collected, so on
+            # portal/e-commerce/helpdesk databases mail_notification -- one of
+            # the largest tables -- grew without bound. The (is_read, read_date,
+            # notification_status) triple already bounds the set safely, so the
+            # partner_share predicate served no purpose beyond that leak.
             ("notification_status", "in", ("sent", "canceled")),
         ]
         records = self.search(domain, limit=GC_UNLINK_LIMIT)

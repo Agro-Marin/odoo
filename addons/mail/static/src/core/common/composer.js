@@ -209,8 +209,14 @@ export class Composer extends Component {
                     this.editor.shared.selection.selectAroundNonEditable();
                 }
             },
+            // Track the two focus triggers as separate dependencies: summing
+            // them let an offsetting change in the same tick (the boolean prop
+            // going true->false while the record counter increments) collapse
+            // to an unchanged key, so the effect would skip and the composer
+            // would silently never focus.
             () => [
-                this.props.autofocus + this.props.composer.autofocus,
+                this.props.autofocus,
+                this.props.composer.autofocus,
                 this.props.placeholder,
             ],
         );

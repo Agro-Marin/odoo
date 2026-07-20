@@ -69,9 +69,11 @@ export class Call extends Component {
         this.store = useService("mail.store");
         this.callActions = useCallActions({ thread: () => this.channel });
         onMounted(() => {
-            this.resizeObserver = new ResizeObserver(() => this.arrangeTiles());
+            this.resizeObserver = new ResizeObserver(() =>
+                this.arrangeTiles({ remeasure: true }),
+            );
             this.resizeObserver.observe(this.grid.el);
-            this.arrangeTiles();
+            this.arrangeTiles({ remeasure: true });
         });
         onPatched(() => this.arrangeTiles());
         onWillUnmount(() => {
@@ -212,20 +214,31 @@ export class Call extends Component {
         }, 3000);
     }
 
-    arrangeTiles() {
+    arrangeTiles({ remeasure = false } = {}) {
         if (!this.grid.el) {
             return;
         }
+        const aspectRatio = this.minimized ? 1 : 16 / 9;
+        const tileCount = this.grid.el.children.length;
+        // onPatched fires on every render during a call (talking indicators,
+        // overlays, raised hands) and calls this without `remeasure`. Container
+        // *size* changes arrive separately through the ResizeObserver (which
+        // passes remeasure=true), so when neither the tile count nor the aspect
+        // ratio changed there is nothing to recompute -- return before touching
+        // getBoundingClientRect(), which otherwise forces a synchronous layout
+        // on every render even though the memo below would discard the result.
+        const cheapKey = `${aspectRatio},${tileCount}`;
+        if (!remeasure && cheapKey === this._lastCheapKey) {
+            return;
+        }
+        this._lastCheapKey = cheapKey;
         // measure BEFORE writing: zeroing --width/--height first forced two
         // layouts per call to compute the same numbers (the grid size does
         // not depend on the tile custom properties)
         const { width, height } = this.grid.el.getBoundingClientRect();
-        const aspectRatio = this.minimized ? 1 : 16 / 9;
-        const tileCount = this.grid.el.children.length;
         const inputsKey = `${width},${height},${aspectRatio},${tileCount}`;
         if (inputsKey === this._lastTileInputsKey) {
-            // onPatched fires on every render during a call (talking
-            // indicators, overlays): same inputs → same layout, skip the
+            // size unchanged (e.g. a remeasure from a no-op resize): skip the
             // loop and the style writes
             return;
         }

@@ -150,6 +150,7 @@ class ChannelController(http.Controller):
     )
     @add_guest_to_context
     def discuss_channel_pins(self, channel_id):
+        channel_id = _to_record_id(channel_id)
         channel = request.env["discuss.channel"].search([("id", "=", channel_id)])
         if not channel:
             raise NotFound
@@ -163,7 +164,7 @@ class ChannelController(http.Controller):
     def discuss_channel_mark_as_read(self, channel_id, last_message_id):
         member = request.env["discuss.channel.member"].search(
             [
-                ("channel_id", "=", channel_id),
+                ("channel_id", "=", _to_record_id(channel_id)),
                 ("is_self", "=", True),
             ]
         )
@@ -181,7 +182,7 @@ class ChannelController(http.Controller):
     def discuss_channel_set_new_message_separator(self, channel_id, message_id):
         member = request.env["discuss.channel.member"].search(
             [
-                ("channel_id", "=", channel_id),
+                ("channel_id", "=", _to_record_id(channel_id)),
                 ("is_self", "=", True),
             ]
         )
@@ -197,6 +198,7 @@ class ChannelController(http.Controller):
     )
     @add_guest_to_context
     def discuss_channel_notify_typing(self, channel_id, is_typing):
+        channel_id = _to_record_id(channel_id)
         channel = request.env["discuss.channel"].search([("id", "=", channel_id)])
         if not channel:
             raise request.not_found()
@@ -229,6 +231,7 @@ class ChannelController(http.Controller):
         :param limit: maximum number of attachments to return
         :param before: id of the attachment from which to load older attachments
         """
+        channel_id = _to_record_id(channel_id)
         channel = request.env["discuss.channel"].search([("id", "=", channel_id)])
         if not channel:
             raise NotFound
@@ -254,7 +257,9 @@ class ChannelController(http.Controller):
     )
     @add_guest_to_context
     def discuss_channel_join(self, channel_id):
-        channel = request.env["discuss.channel"].search([("id", "=", channel_id)])
+        channel = request.env["discuss.channel"].search(
+            [("id", "=", _to_record_id(channel_id))]
+        )
         if not channel:
             raise NotFound
         channel._find_or_create_member_for_self()
@@ -271,7 +276,7 @@ class ChannelController(http.Controller):
         self, parent_channel_id, from_message_id=None, name=None
     ):
         channel = request.env["discuss.channel"].search(
-            [("id", "=", parent_channel_id)]
+            [("id", "=", _to_record_id(parent_channel_id))]
         )
         if not channel:
             raise NotFound
@@ -292,7 +297,7 @@ class ChannelController(http.Controller):
         self, parent_channel_id, search_term=None, before=None, limit=30
     ):
         channel = request.env["discuss.channel"].search(
-            [("id", "=", parent_channel_id)]
+            [("id", "=", _to_record_id(parent_channel_id))]
         )
         if not channel:
             raise NotFound
@@ -320,7 +325,7 @@ class ChannelController(http.Controller):
     )
     def discuss_delete_sub_channel(self, sub_channel_id):
         channel = request.env["discuss.channel"].search_fetch(
-            [("id", "=", sub_channel_id)]
+            [("id", "=", _to_record_id(sub_channel_id))]
         )
         if (
             not channel

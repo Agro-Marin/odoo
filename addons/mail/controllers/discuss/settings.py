@@ -5,6 +5,8 @@ from dateutil.relativedelta import relativedelta
 from odoo import fields
 from odoo.http import Controller, request, route
 
+from odoo.addons.mail.controllers.thread import _to_record_id
+
 
 class DiscussSettingsController(Controller):
     @route("/discuss/settings/mute", methods=["POST"], type="jsonrpc", auth="user")
@@ -17,7 +19,9 @@ class DiscussSettingsController(Controller):
         # so a non-existent/inaccessible id would slip past the guard and 500 in
         # member creation instead of returning a clean 404 (as the sibling
         # /custom_notifications route does).
-        channel = request.env["discuss.channel"].search([("id", "=", channel_id)])
+        channel = request.env["discuss.channel"].search(
+            [("id", "=", _to_record_id(channel_id))]
+        )
         if not channel:
             raise request.not_found()
         member = channel._find_or_create_member_for_self()
@@ -55,7 +59,9 @@ class DiscussSettingsController(Controller):
         if custom_notifications not in allowed:
             raise request.not_found()
         if channel_id:
-            channel = request.env["discuss.channel"].search([("id", "=", channel_id)])
+            channel = request.env["discuss.channel"].search(
+                [("id", "=", _to_record_id(channel_id))]
+            )
             if not channel:
                 raise request.not_found()
             member = channel._find_or_create_member_for_self()

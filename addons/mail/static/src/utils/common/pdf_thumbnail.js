@@ -10,7 +10,7 @@ export async function generatePdfThumbnail(
         // rendering runs in a real worker instead of hanging the tab.
         pdfjsLib = await loadPDFJS();
     } catch {
-        return { thumbnail, pdfEnabled: false };
+        return { isPdfValid: false, thumbnail, pdfEnabled: false };
     }
     try {
         // pdfjs' getDocument accepts a URL string directly, including a

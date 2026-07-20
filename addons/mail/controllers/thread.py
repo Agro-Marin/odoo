@@ -81,6 +81,8 @@ class ThreadController(http.Controller):
         access on mail.message, aka rights to post on the document. Default
         behavior is to rely on _mail_post_access but it might be customized.
         See '_mail_get_operation_for_mail_message_operation'."""
+        if thread_model not in request.env:
+            raise NotFound
         thread_su = request.env[thread_model].sudo().browse(_to_record_id(thread_id))
         access_mode = thread_su._mail_get_operation_for_mail_message_operation(
             "create"
@@ -97,6 +99,8 @@ class ThreadController(http.Controller):
     def _get_thread_with_access(cls, thread_model, thread_id, mode="read", **kwargs):
         """Simplified getter that filters access params only, making model methods
         using strong parameters."""
+        if thread_model not in request.env:
+            raise NotFound
         return request.env[thread_model]._get_thread_with_access(
             _to_record_id(thread_id),
             mode=mode,
@@ -414,8 +418,10 @@ class ThreadController(http.Controller):
         "/mail/thread/unsubscribe", methods=["POST"], type="jsonrpc", auth="user"
     )
     def mail_thread_unsubscribe(self, res_model, res_id, partner_ids):
-        thread = request.env[res_model].browse(res_id)
-        thread.message_unsubscribe(partner_ids)
+        if res_model not in request.env:
+            raise NotFound
+        thread = request.env[res_model].browse(_to_record_id(res_id))
+        thread.message_unsubscribe(_to_record_ids(partner_ids))
         return (
             Store()
             .add(
@@ -429,8 +435,10 @@ class ThreadController(http.Controller):
 
     @http.route("/mail/thread/subscribe", methods=["POST"], type="jsonrpc", auth="user")
     def mail_thread_subscribe(self, res_model, res_id, partner_ids):
-        thread = request.env[res_model].browse(res_id)
-        thread.message_subscribe(partner_ids)
+        if res_model not in request.env:
+            raise NotFound
+        thread = request.env[res_model].browse(_to_record_id(res_id))
+        thread.message_subscribe(_to_record_ids(partner_ids))
         return (
             Store()
             .add(

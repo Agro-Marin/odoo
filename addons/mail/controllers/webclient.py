@@ -3,7 +3,7 @@ from collections import defaultdict
 from odoo import http
 from odoo.http import request
 
-from odoo.addons.mail.controllers.thread import ThreadController
+from odoo.addons.mail.controllers.thread import ThreadController, _to_record_id
 from odoo.addons.mail.tools.discuss import Store, add_guest_to_context
 
 
@@ -66,8 +66,13 @@ class WebclientController(ThreadController):
                 **params.get("access_params", {}),
             )
             if not thread:
+                # thread_model is already validated by _get_thread_with_access
+                # above; coerce the raw client thread_id so the browse + Store
+                # serialization can't surface an InvalidTextRepresentation 500.
                 store.add(
-                    request.env[params["thread_model"]].browse(params["thread_id"]),
+                    request.env[params["thread_model"]].browse(
+                        _to_record_id(params["thread_id"])
+                    ),
                     {"hasReadAccess": False, "hasWriteAccess": False},
                     as_thread=True,
                 )
