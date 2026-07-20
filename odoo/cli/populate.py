@@ -64,9 +64,9 @@ class Populate(DatabaseCommand):
         parser.add_argument(
             "--factors",
             dest="factors",
-            help="Comma separated list of factors for each model, or just a single factor."
-            "(Ex: a factor of 3 means the given model will be copied 3 times, reaching 4x it's original size)"
-            "The last factor is propagated to the remaining models without a factor.",
+            help="Comma-separated factors, one per model, or a single factor "
+            "(a factor of 3 copies the model 3 times, reaching 4x its original "
+            "size). The last factor propagates to any remaining models.",
             default=DEFAULT_FACTOR,
         )
         parser.add_argument(

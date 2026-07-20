@@ -22,7 +22,7 @@ from .command import (
 
 # Both set by main() before dispatch (None otherwise). COMMAND lets framework
 # code (odoo.tests.common/.shell) gate behavior on the running subcommand.
-# BOOTSTRAP_ADDONS_PATH is the raw --addons-path main() extracted from argv in
-# any position, so a command like `start` can tell whether the user passed one.
+# BOOTSTRAP_ADDONS_PATH is the raw --addons-path main() pulled from argv, so a
+# command like `start` can tell whether the user passed one.
 COMMAND: str | None = None
 BOOTSTRAP_ADDONS_PATH: str | None = None
