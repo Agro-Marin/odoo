@@ -145,8 +145,9 @@ class MailThread(models.AbstractModel):
      - ``tracking_disable``: at create and write, perform no MailThread features
        (auto subscription, tracking, post, ...);
     # Posting process
-     - ``mail_notify_force_send``: if less than 50 email notifications to send,
-       send them directly instead of using the queue i.e. controls 'force_send'
+     - ``mail_notify_force_send``: if fewer than mail.mail.force.send.limit
+       (default 100) email notifications to send, send them directly instead of
+       using the queue i.e. controls 'force_send'
        parameter of '_notify_thread_by_email'. True by default as it is
        the desired behavior;
      - ``mail_notify_author``: notify author if they are in potential notified
@@ -4702,7 +4703,7 @@ class MailThread(models.AbstractModel):
             SafeNotification.create(notif_create_values)
 
         # NOTE:
-        #   1. for more than 50 followers, use the queue system
+        #   1. above the mail.mail.force.send.limit (default 100) recipients, use the queue system
         #   2. do not send emails immediately if the registry is not loaded,
         #      to prevent sending email during a simple update of the database
         #      using the command-line.
@@ -6653,9 +6654,9 @@ class MailThread(models.AbstractModel):
         """
         Transfer the list of the mail thread messages from an model to another
 
-        :param id : the old res_id of the mail.message
-        :param new_res_id : the new res_id of the mail.message
-        :param new_model : the name of the new model of the mail.message
+        :param new_thread: the target record to transfer the messages to
+            (its ``id``/``_name`` become the messages' new ``res_id``/``model``)
+        :param new_parent_message: optional message to set as the new ``parent_id``
 
         Example :   my_lead.message_change_thread(my_project_task)
                     will transfer the context of the thread of my_lead to my_project_task

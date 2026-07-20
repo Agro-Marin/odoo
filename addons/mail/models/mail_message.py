@@ -294,8 +294,7 @@ class MailMessage(models.Model):
     @api.depends("body")
     def _compute_preview(self):
         """Returns an un-formatted version of the message body. Output is capped
-        at 100 chars with a ' [...]' suffix if applicable. It is the longest
-        known mail client preview length (Outlook 2013)."""
+        at 190 chars with a ' [...]' suffix if applicable."""
         for message in self:
             plaintext_ct = tools.mail.html_to_inner_content(message.body)
             message.preview = textwrap.shorten(plaintext_ct, 190)
