@@ -152,17 +152,12 @@ class ReadMixin(_ModelStubs):
     def _read_format(
         self, fnames: Sequence[str], load: str = "_classic_read"
     ) -> list[ValuesType]:
-        """Return a list of dictionaries mapping field names to their values,
-        with one dictionary per record that exists.
+        """Return a list of dicts (one per existing record) mapping field names to
+        values, in the format expected by :meth:`read`.  Unlike ``read`` this
+        reads from cache, avoiding a query when possible.
 
-        The output format is the one expected from the `read` method, which uses
-        this method as its implementation for formatting values.
-
-        For the properties fields, call convert_to_read_multi instead of convert_to_read
-        to prepare everything (record existences, display name, etc) in batch.
-
-        The current method is different from `read` because it retrieves its
-        values from the cache without doing a query when it is avoidable.
+        Properties fields use ``convert_to_read_multi`` to batch record
+        existence, display names, etc.
         """
         use_display_name = load == "_classic_read"
         env = self.env
@@ -324,9 +319,7 @@ class ReadMixin(_ModelStubs):
         return [vals for record, vals in data if vals]
 
     def _fetch_field(self, field: Field) -> None:
-        """Read from the database in order to fetch ``field`` (:class:`Field`
-        instance) for ``self`` in cache.
-        """
+        """Fetch ``field`` for ``self`` from the database into cache."""
         # determine which fields can be prefetched
         if self.env.context.get("prefetch_fields", True) and field.prefetch:
             fnames = [
@@ -347,8 +340,7 @@ class ReadMixin(_ModelStubs):
     def fetch(self, field_names: Collection[str] | None = None) -> None:
         """Make sure the given fields are in memory for the records in ``self``,
         by fetching what is necessary from the database.  Non-stored fields are
-        mostly ignored, except for their stored dependencies. This method should
-        be called to optimize code.
+        mostly ignored, except for their stored dependencies.
 
         :param field_names: a collection of field names to fetch, or ``None`` for
             all accessible fields marked with ``prefetch=True``
@@ -468,8 +460,8 @@ class ReadMixin(_ModelStubs):
         return fields_to_fetch
 
     def _fetch_query(self, query: Query, fields: Sequence[Field]) -> Self:
-        """Fetch the given fields (iterable of :class:`Field` instances) from
-        the given query, put them in cache, and return the fetched records.
+        """Fetch the given fields from the given query, cache them, and return
+        the fetched records.
 
         This method may be overridden to change what fields to actually fetch,
         or to change the values that are put in cache.

@@ -49,18 +49,11 @@ class LifecycleMixin(_ModelStubs):
         return {record.id: result[record._origin.id] for record in self}
 
     def get_external_id(self) -> dict[IdType, str]:
-        """Retrieve the External ID of any database record, if there
-        is one. This method works as a possible implementation
-        for a function field, to be able to add it to any
-        model object easily, referencing it as ``Model.get_external_id``.
+        """Retrieve one External ID per record (chosen arbitrarily when several
+        exist). Usable as a function field via ``Model.get_external_id``.
 
-        When multiple External IDs exist for a record, only one
-        of them is returned (randomly).
-
-        :return: map of ids to their fully qualified XML ID,
-                 defaulting to an empty string when there's none
-                 (to be usable as a function field),
-                 e.g.::
+        :return: map of ids to their fully qualified XML ID, defaulting to an
+                 empty string when there's none, e.g.::
 
                      {"id": "module.ext_id", "id2": ""}
         """
@@ -117,14 +110,10 @@ class LifecycleMixin(_ModelStubs):
         """Clean up what :meth:`_register_hook` has done."""
 
     def _get_redirect_suggested_company(self) -> typing.Any:
-        """Return the suggested company to be set on the context
-        in case of a URL redirection to the record. To avoid multi
-        company issues when clicking on a shared link, this
-        could be called to try setting the most suited company on
-        the allowed_company_ids in the context. This method can be
-        overridden, for example on the hr.leave model, where the
-        most suited company is the company of the leave type, as
-        specified by the ir.rule.
+        """Return the company to set on the context when redirecting to this
+        record via a shared link, to avoid multi-company issues. Override to
+        pick a better-suited company (e.g. hr.leave uses the leave type's
+        company, per its ir.rule).
         """
         if "company_id" in self:
             return self.company_id

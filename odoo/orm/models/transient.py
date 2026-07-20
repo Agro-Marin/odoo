@@ -60,8 +60,7 @@ class TransientModel(Model):
         if self._transient_max_count:
             # Count-based expiration
             has_remaining |= self._transient_clean_old_rows(self._transient_max_count)
-        # Shared by all transient models: return the model name to log and
-        # whether more rows remain to process.
+        # autovacuum contract: (model name to log, whether rows remain)
         return self._name, has_remaining
 
     def _transient_clean_old_rows(self, max_count: int) -> bool:

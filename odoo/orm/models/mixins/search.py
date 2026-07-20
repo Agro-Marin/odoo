@@ -513,8 +513,7 @@ class SearchMixin(_ModelStubs):
         return query
 
     def _as_query(self, ordered: bool = True) -> Query:
-        """Return a :class:`Query` that corresponds to the recordset ``self``.
-        This method is convenient for making a query object with a known result.
+        """Return a :class:`Query` corresponding to the recordset ``self``.
 
         :param ordered: whether the recordset order must be enforced by the query
         """

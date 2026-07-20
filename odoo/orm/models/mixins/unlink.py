@@ -95,11 +95,9 @@ class UnlinkMixin(_ModelStubs):
             ir_attachment_unlink |= attachments
         prof.mark("sql")
 
-        # Invalidate the *whole* cache, since the ORM does not handle all
-        # changes made in the database, like cascading delete, and targeted
-        # invalidation misses non-stored computed/related fields that depend
-        # on FK fields through multi-hop chains (a non-stored computed/related
-        # field reached across a chain of foreign-key fields).
+        # Invalidate the *whole* cache: the ORM doesn't track all DB-side
+        # changes (e.g. cascading deletes), and targeted invalidation misses
+        # non-stored computed/related fields reached through multi-hop FK chains.
         self.env.invalidate_all(flush=False)
 
         if ir_model_data_unlink:

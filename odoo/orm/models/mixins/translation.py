@@ -238,10 +238,8 @@ class TranslationMixin(_ModelStubs):
                 self.with_context(prefetch_langs=True), new_values, dirty=True
             )
 
-        # the following write is incharge of
-        # 1. mark field as modified
-        # 2. execute logics in the override `write` method
-        # even if the value in cache is the same as the value written
+        # re-assign (even a no-op write) to mark the field modified and run
+        # any overridden write() logic
         self[field_name] = self[field_name]
         return True
 
