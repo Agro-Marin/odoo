@@ -198,7 +198,7 @@ class Obfuscate(DatabaseCommand):
     def _prefetch_field_kinds(self, tables: set[str] | list[str]) -> None:
         """Cache the obfuscation kind of every text/varchar/jsonb column of
         ``tables`` in one catalog query, so ``check_field`` becomes a dict
-        lookup instead of two ``information_schema`` probes per field. The
+        lookup instead of an ``information_schema`` probe per field. The
         cache holds only string/json columns, so a miss reads the same as the
         per-field query's "absent or unsupported".
         """

@@ -8,7 +8,6 @@ This module provides logging infrastructure including:
 - Logger initialization (init_logger)
 
 This is the canonical location for Odoo logging infrastructure.
-The odoo.netsvc module is a backward-compatibility shim that re-exports from here.
 """
 
 import contextlib

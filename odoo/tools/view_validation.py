@@ -190,7 +190,7 @@ def _get_expression_contextual_values(item_ast: ast.AST) -> set[str]:
                 and bool(context.get('c'))
             )
         )
-        returns {'parent', 'parent.truc', 'context', 'bool'}
+        returns {'id', 'field_a', 'parent.truc', 'field_b', 'context.get', 'bool'}
 
     :param item_ast: ast
     :return: set(str)

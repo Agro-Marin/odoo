@@ -1394,8 +1394,8 @@ class Field[T](_FieldDescriptionMixin, _FieldConvertMixin, _FieldSqlMixin):
 
     def _insert_cache(self, records: BaseModel, values: Iterable) -> None:
         """Update the cache of the given records with the corresponding values,
-        ignoring the records that don't have a value in cache already.  This
-        enables to keep the pending updates of records, and flush them later.
+        ignoring the records that already have a value in cache.  This enables
+        to keep the pending updates of those records, and flush them later.
         """
         field_cache = self._get_cache(records.env)
         # bulk setdefault looping in C (~15% faster than a Python for-loop).

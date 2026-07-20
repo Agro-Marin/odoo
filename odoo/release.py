@@ -9,7 +9,7 @@ RELEASE_LEVELS_DISPLAY: Final[dict[str, str]] = {
     FINAL: "",
 }
 
-# version_info format: (MAJOR, MINOR, MICRO, RELEASE_LEVEL, SERIAL)
+# version_info format: (MAJOR, MINOR, MICRO, RELEASE_LEVEL, SERIAL, SUFFIX)
 # inspired by Python's own sys.version_info, in order to be
 # properly comparable using normal operators, for example:
 #  (6,1,0,'beta',0) < (6,1,0,'candidate',1) < (6,1,0,'candidate',2)

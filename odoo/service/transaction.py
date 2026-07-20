@@ -150,7 +150,8 @@ def retrying[T](func: Callable[[], T], env: Environment) -> T:
 
     It calls the function up to ``MAX_TRIES_ON_CONCURRENCY_FAILURE``
     (5) times. The time it waits between calls is random with an
-    exponential backoff: ``random.uniform(0.0, 2 ** i)`` where ``i``
+    exponential backoff: ``random.uniform(0.0, min(2 ** i,
+    MAX_CONCURRENCY_BACKOFF_SECONDS))`` (a 2.0 s ceiling) where ``i``
     is the number of the current attempt and starts at 1.
 
     :param func: The function to call; pass arguments using
