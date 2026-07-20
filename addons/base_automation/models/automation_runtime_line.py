@@ -7,17 +7,7 @@ _logger = logging.getLogger(__name__)
 
 
 class AutomationRuntimeLine(models.Model):
-    """Execution tracking for individual workflow actions.
-
-    Each line represents one execution of an ir.actions.server within
-    a automation.runtime workflow instance.
-
-    Tracks:
-    - Which action was executed
-    - Current state (waiting/ready/in_progress/done/cancel)
-    - Results (created moves, payments, etc.)
-    - Dependencies (DAG structure)
-    """
+    """Execution tracking for one server action within an automation.runtime workflow instance."""
 
     _name = "automation.runtime.line"
     _description = "Automation Runtime Action Line"
@@ -118,11 +108,8 @@ class AutomationRuntimeLine(models.Model):
 
     @api.model
     def _selection_created_record_models(self):
-        """Return available models for created_record_ref.
-
-        Override this method in inheriting modules to add specific models.
-        Base implementation returns common workflow models.
-        """
+        """Return the models selectable for created_record_ref."""
+        # Inheriting modules override to add their own workflow models.
         return [
             ("automation.runtime", "Workflow Runtime"),
         ]
@@ -207,14 +194,13 @@ class AutomationRuntimeLine(models.Model):
         """Execute the server action for this line.
 
         Transitions the line from 'ready' (or 'in_progress') to 'done' on
-        success, or to 'error' on failure. Callers should not manually set
-        state to 'in_progress' before calling this method.
+        success, or to 'error' on failure.
 
-        Returns:
-            Action dict or True
+        :return: the server action's result, or ``True`` if it returned nothing
         """
         self.ensure_one()
 
+        # Callers should not pre-set 'in_progress'; this method owns that transition.
         if self.state not in ("ready", "in_progress"):
             raise UserError(_("Action is not ready to execute"))
 
@@ -226,19 +212,23 @@ class AutomationRuntimeLine(models.Model):
             ctx = dict(self.env.context)
             runtime = self.runtime_id
             if runtime.res_model and runtime.res_id:
-                ctx.update({
-                    "active_model": runtime.res_model,
-                    "active_id": runtime.res_id,
-                    "active_ids": [runtime.res_id],
-                    "runtime_line_id": self.id,
-                })
+                ctx.update(
+                    {
+                        "active_model": runtime.res_model,
+                        "active_id": runtime.res_id,
+                        "active_ids": [runtime.res_id],
+                        "runtime_line_id": self.id,
+                    }
+                )
             else:
-                ctx.update({
-                    "active_model": "automation.runtime",
-                    "active_id": runtime.id,
-                    "active_ids": [runtime.id],
-                    "runtime_line_id": self.id,
-                })
+                ctx.update(
+                    {
+                        "active_model": "automation.runtime",
+                        "active_id": runtime.id,
+                        "active_ids": [runtime.id],
+                        "runtime_line_id": self.id,
+                    }
+                )
 
             # Execute the server action
             _logger.info(
@@ -259,11 +249,10 @@ class AutomationRuntimeLine(models.Model):
 
         except Exception as e:
             error_msg = str(e)
-            _logger.error(
+            _logger.exception(
                 "✗ Action '%s' failed: %s",
                 self.name,
                 error_msg,
-                exc_info=True,
             )
 
             self.action_mark_error(error_msg)
@@ -274,9 +263,10 @@ class AutomationRuntimeLine(models.Model):
     # =========================================================================
 
     def action_view_document(self):
-        """Open created document.
+        """Open the record stored in created_record_ref.
 
-        Returns action to view the record stored in created_record_ref.
+        :return: an act_window action opening the created record
+        :rtype: dict
         """
         self.ensure_one()
 
