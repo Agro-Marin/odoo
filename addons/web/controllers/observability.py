@@ -51,6 +51,18 @@ def _rate_limited(key: str) -> bool:
             cutoff = now - _RATE_LIMIT_WINDOW_S
             for stale in [k for k, v in _rate_state.items() if v[0] < cutoff]:
                 del _rate_state[stale]
+            # Pruning stale entries is not enough on its own: a flood of
+            # distinct *fresh* keys (e.g. spoofed X-Forwarded-For, all within
+            # the window) leaves nothing stale to evict. Hard-cap by dropping
+            # the oldest windows so the map size is bounded unconditionally.
+            # Evicting a live key merely resets that client's counter — an
+            # acceptable trade for a best-effort limiter that must stay bounded.
+            if len(_rate_state) > _RATE_LIMIT_MAX_KEYS:
+                overflow = len(_rate_state) - _RATE_LIMIT_MAX_KEYS
+                for k in sorted(_rate_state, key=lambda k: _rate_state[k][0])[
+                    :overflow
+                ]:
+                    del _rate_state[k]
         state = _rate_state.get(key)
         if state is None or now - state[0] >= _RATE_LIMIT_WINDOW_S:
             _rate_state[key] = [now, 1]
@@ -199,20 +211,13 @@ class Observability(Controller):
             "pageview_id": pageview_id or False,
         }
         # Upsert on pageview_id: a single pageview beacons several times as
-        # INP/CLS keep growing (web_vitals_service), so update the existing row
-        # to the latest values instead of accumulating one row per beacon. A
-        # spoofed/duplicated pageview_id can only overwrite its own row, never
-        # another session's data. Empty pageview_id (old clients) always
-        # creates, preserving prior behavior.
-        existing = (
-            Metric.search([("pageview_id", "=", pageview_id)], limit=1)
-            if pageview_id
-            else Metric.browse()
-        )
-        if existing:
-            existing.write(values)
-        else:
-            Metric.create(values)
+        # INP/CLS keep growing (web_vitals_service), so the latest values
+        # replace the existing row instead of accumulating one row per beacon.
+        # ``_record_beacon`` does this atomically (INSERT ... ON CONFLICT on the
+        # partial unique index), so two workers beaconing the same pageview
+        # cannot race into duplicate rows. Empty pageview_id (old clients)
+        # stores NULL and never conflicts, so it always inserts as before.
+        Metric._record_beacon(values)
         return Response("", status=204)
 
     @route(

@@ -102,8 +102,13 @@ export function formatAST(ast, lbp = 0) {
             return "None";
         case ASTType.String:
             return JSON.stringify(ast.value);
-        case ASTType.Number:
-            return String(ast.value);
+        case ASTType.Number: {
+            const str = String(ast.value);
+            // A negative literal groups like unary minus: `(-2) ** 2` must keep
+            // its parens, else it re-parses as `-(2 ** 2)` (** binds tighter).
+            // Mirrors the UnaryOperator case (abp = 130 for a leading sign).
+            return ast.value < 0 && 130 < lbp ? `(${str})` : str;
+        }
         case ASTType.Boolean:
             return ast.value ? "True" : "False";
         case ASTType.List:

@@ -693,8 +693,17 @@ export class KanbanRenderer extends Component {
         const groups = isGrouped
             ? [...area.querySelectorAll(".o_kanban_group")]
             : [area];
+        // Exclude the non-focusable filler cards that also carry
+        // ``.o_kanban_record``: the "add" button and the ghost cards. Counting
+        // them would let arrow navigation step onto a tabindex-less <div>
+        // (focus() is a no-op) while still reporting the key as handled, which
+        // strands keyboard focus at the end of a column/row.
         const cards = [...groups]
-            .map((group) => [...group.querySelectorAll(".o_kanban_record")])
+            .map((group) => [
+                ...group.querySelectorAll(
+                    ".o_kanban_record:not(.o_kanban_ghost):not(.o-kanban-button-new)",
+                ),
+            ])
             .filter((group) => group.length);
 
         let iGroup;

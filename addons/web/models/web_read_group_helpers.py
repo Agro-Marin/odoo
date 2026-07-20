@@ -222,6 +222,13 @@ class Base(models.AbstractModel):
             return groups
 
         granularity = groupby_name.split(":")[1]
+        if granularity not in READ_GROUP_TIME_GRANULARITY:
+            # Number granularities (month_number, day_of_week, ...) yield integer
+            # buckets with no contiguous temporal interval to fill — there are no
+            # periodic "holes" to complete. Guard here so a crafted read_group
+            # with such a granularity degrades to a no-op instead of raising
+            # KeyError below at ``READ_GROUP_TIME_GRANULARITY[granularity]``.
+            return groups
         days_offset = 0
         if granularity == "week":
             # _read_group week groups are dependent on the

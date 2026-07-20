@@ -6,7 +6,6 @@ consumed by ``WebJsonController`` in ``json.py``.
 """
 
 import ast
-import re
 from collections import defaultdict
 from datetime import date
 from typing import Literal
@@ -19,6 +18,41 @@ from odoo.fields import Domain
 from odoo.http import request
 from odoo.models import check_object_name
 from odoo.tools.safe_eval import safe_eval
+
+
+class _UidSubstitutor(ast.NodeTransformer):
+    """Replace the bare ``uid`` *identifier* with the current user id.
+
+    Operates on the parsed AST so only identifier positions are rewritten;
+    a ``uid`` occurring inside a string literal (e.g. ``('ref', '=', 'uid')``)
+    is left untouched — unlike a textual ``re.sub`` over the domain string,
+    which corrupted such values.
+    """
+
+    def __init__(self, uid: int) -> None:
+        self._uid = uid
+
+    def visit_Name(self, node: ast.Name) -> ast.AST:
+        if node.id == "uid":
+            return ast.copy_location(ast.Constant(self._uid), node)
+        return node
+
+
+def _eval_stored_domain(domain_str: str, uid: int):
+    """Parse a stored ``ir.filters`` domain, substituting the ``uid`` name.
+
+    Uses ``literal_eval`` semantics (no arbitrary code execution): only
+    literals plus the single ``uid`` identifier are accepted.  A malformed
+    stored domain raises ``BadRequest`` rather than escaping as a 500.
+    """
+    try:
+        tree = ast.parse((domain_str or "[]").strip() or "[]", mode="eval")
+        tree = _UidSubstitutor(uid).visit(tree)
+        return ast.literal_eval(tree)
+    except (ValueError, SyntaxError, TypeError) as exc:
+        raise BadRequest(
+            request.env._("Malformed stored filter domain: %s", exc)
+        ) from exc
 
 
 def get_view_id_and_type(
@@ -57,11 +91,10 @@ def get_default_domain(model, action, context, eval_context):
         model._name, action._origin.id
     ):
         if ir_filter["is_default"]:
-            # Stored filter domain: substitute uid textually, then parse with
-            # literal_eval only — no arbitrary code execution.
-            domain_str = ir_filter["domain"]
-            domain_str = re.sub(r"\buid\b", str(model.env.uid), domain_str)
-            default_domain = ast.literal_eval(domain_str)
+            # Stored filter domain: substitute the ``uid`` identifier, then
+            # parse with literal_eval semantics only — no arbitrary code
+            # execution, and string values are never rewritten.
+            default_domain = _eval_stored_domain(ir_filter["domain"], model.env.uid)
             break
     else:
 

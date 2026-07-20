@@ -100,13 +100,76 @@ class WebCwvMetric(models.Model):
         string="Pageview ID",
         size=64,
         readonly=True,
-        index=True,
+        # No plain ``index=True``: a *partial unique* index is created in
+        # ``init`` instead (covers both lookup and the upsert conflict target).
         help="Client-generated id, stable for one page load. Metrics arrive "
         "across several beacons as INP/CLS keep growing after the first "
         "tab-switch; the controller upserts on this key so a pageview "
         "contributes one row (updated to the latest values) instead of "
         "accumulating duplicates.",
     )
+
+    _PAGEVIEW_UNIQUE_INDEX = "web_cwv_metric__pageview_id_uniq"
+
+    def init(self):
+        # Partial UNIQUE index on non-null pageview_id. It doubles as the
+        # lookup index (replacing the former non-unique one) and, crucially, as
+        # the conflict target for the atomic upsert in ``_record_beacon`` — so
+        # two workers beaconing the same pageview can never race into duplicate
+        # rows the way a search-then-create sequence could. Empty pageview_ids
+        # are stored as NULL and therefore never conflict (each inserts).
+        self.env.cr.execute(
+            f"""
+            CREATE UNIQUE INDEX IF NOT EXISTS {self._PAGEVIEW_UNIQUE_INDEX}
+            ON {self._table} (pageview_id)
+            WHERE pageview_id IS NOT NULL
+            """
+        )
+
+    @api.model
+    def _record_beacon(self, values):
+        """Atomically insert a beacon, upserting on ``pageview_id``.
+
+        A single ``INSERT ... ON CONFLICT`` replaces the previous
+        search-then-write: it is race-free (the partial unique index is the
+        arbiter) and one round-trip instead of two. A NULL/empty pageview_id
+        never matches the partial index, so those always insert (preserving the
+        legacy "one row per beacon" behavior for pre-upsert clients).
+
+        The DB-level CHECK constraints still apply, and ``recorded_at`` is
+        stamped in UTC to match ``_gc_old_metrics``' cutoff convention.
+        """
+        cols = ("url", "user_id", "lcp", "fcp", "cls", "ttfb", "inp",
+                "user_agent", "pageview_id")
+        params = {
+            # ``or None`` maps False → SQL NULL for the id/text columns; the
+            # numeric metrics are passed through untouched so a legitimate 0.0
+            # is preserved (it is falsy but a real value).
+            "url": values["url"],
+            "user_id": values.get("user_id") or None,
+            "lcp": values.get("lcp"),
+            "fcp": values.get("fcp"),
+            "cls": values.get("cls"),
+            "ttfb": values.get("ttfb"),
+            "inp": values.get("inp"),
+            "user_agent": values.get("user_agent") or None,
+            "pageview_id": values.get("pageview_id") or None,
+        }
+        assignments = ", ".join(f"{c} = EXCLUDED.{c}" for c in cols)
+        self.env.cr.execute(
+            f"""
+            INSERT INTO {self._table}
+                (url, user_id, lcp, fcp, cls, ttfb, inp, user_agent,
+                 pageview_id, recorded_at)
+            VALUES
+                (%(url)s, %(user_id)s, %(lcp)s, %(fcp)s, %(cls)s, %(ttfb)s,
+                 %(inp)s, %(user_agent)s, %(pageview_id)s,
+                 (now() AT TIME ZONE 'UTC'))
+            ON CONFLICT (pageview_id) WHERE pageview_id IS NOT NULL
+            DO UPDATE SET {assignments}, recorded_at = EXCLUDED.recorded_at
+            """,
+            params,
+        )
 
     # ------------------------------------------------------------------ #
     # Integrity                                                          #

@@ -73,13 +73,12 @@ function formatValue(val, disambiguate, fieldDef, displayNames) {
  * @param {boolean} [lookInSubTrees=false] - whether to recurse into sub-expression trees
  * @returns {any[]} unique field paths found in the tree
  */
-function getPathsInTree(tree, lookInSubTrees = false) {
+function collectPaths(tree, lookInSubTrees = false) {
     const paths = [];
     if (tree.type === "condition") {
         paths.push(tree.path);
         if (typeof tree.path === "string" && lookInSubTrees && isTree(tree.value)) {
-            const subTreePaths = getPathsInTree(tree.value, lookInSubTrees);
-            for (const p of subTreePaths) {
+            for (const p of collectPaths(tree.value, lookInSubTrees)) {
                 if (typeof p === "string") {
                     paths.push(`${tree.path}.${p}`);
                 }
@@ -88,10 +87,17 @@ function getPathsInTree(tree, lookInSubTrees = false) {
     }
     if (tree.type === "connector" && tree.children) {
         for (const child of tree.children) {
-            paths.push(...getPathsInTree(child, lookInSubTrees));
+            paths.push(...collectPaths(child, lookInSubTrees));
         }
     }
-    return unique(paths);
+    return paths;
+}
+
+function getPathsInTree(tree, lookInSubTrees = false) {
+    // Dedupe once at the top rather than at every recursion frame: the old
+    // per-level unique() rescanned the growing accumulator at each node,
+    // making this O(depth²) on deeply nested connectors.
+    return unique(collectPaths(tree, lookInSubTrees));
 }
 
 /**
@@ -386,9 +392,12 @@ export const treeProcessorService = {
             let values;
             if (operator === "in range") {
                 const valueType = value[1];
-                values = [
-                    IN_RANGE_OPTIONS.find(([t]) => t === valueType)[1].toString(),
-                ];
+                // A saved/legacy domain can carry a range key no longer in
+                // IN_RANGE_OPTIONS (renamed/removed): fall back to the raw key
+                // instead of throwing on `.find(...)[1]` and aborting the whole
+                // facet/tooltip render.
+                const opt = IN_RANGE_OPTIONS.find(([t]) => t === valueType);
+                values = [(opt ? opt[1] : valueType).toString()];
             } else {
                 const rawValues = Array.isArray(value) ? value : [value];
                 // Only truncate (append "...") when the list is longer than
@@ -516,7 +525,6 @@ export const treeProcessorService = {
                 );
                 return [connector, ...childrenTooltipLines].flat();
             }
-            const getFieldDef = await makeGetFieldDef(resModel, tree);
             const getConditionDescription = await makeGetConditionDescription(
                 resModel,
                 tree,
@@ -535,6 +543,10 @@ export const treeProcessorService = {
             }
             descr.push(`${tabs}${stringDescriptions.join(" ")}`);
             if (isTree(tree.value)) {
+                // Resolve field defs only here (the rare sub-tree branch): the
+                // per-condition description above already resolves them
+                // internally, so an eager call for every node was redundant.
+                const getFieldDef = await makeGetFieldDef(resModel, tree);
                 const _fieldDef = getFieldDef(/** @type {any} */ (tree).path);
                 const _resModel = getResModel(_fieldDef);
                 const _tree = /** @type {any} */ (tree.value);
