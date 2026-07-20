@@ -115,7 +115,7 @@ def generate_hash(test_string: str) -> str:
 # --------------------------------------------------------------------------- #
 # PostgreSQL role: honor $PGUSER (the standard libpq env var), else the OS user
 # — Unix-socket peer auth maps to the same-named role. Never hardcode a role: a
-# hardcoded 'marin' broke the runner on machines whose PG role differs (t23795).
+# hardcoded 'marin' broke the runner on machines whose PG role differs.
 # Set PGUSER if your role is not your OS username. The former 'odoo' TCP role
 # was dropped; see config/*.conf and the workspace CLAUDE.md.
 PG_USER = os.environ.get("PGUSER") or getpass.getuser()
