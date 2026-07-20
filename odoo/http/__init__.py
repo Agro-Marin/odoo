@@ -6,17 +6,12 @@ requests to their corresponding controllers: from a raw http request
 arriving on the WSGI entrypoint to a :class:`~http.Request` arriving at
 a module controller with a fully setup ORM available.
 
-Application developers mostly know this module thanks to the
-:class:`~odoo.http.Controller` class and its companion the
-:func:`~odoo.http.route` method decorator. Together they are used to
-register methods responsible for delivering web content to matching URLs.
+Application developers know this module through the
+:class:`~odoo.http.Controller` class and the :func:`~odoo.http.route`
+decorator, which register methods that deliver web content to matching URLs.
 
-Those two are only the tip of the iceberg, below is a call graph that
-shows the various processing layers each request passes through before
-ending at the @route decorated endpoint. Hopefully, this call graph and
-the attached function descriptions will help you understand this module.
-
-Here be dragons::
+The call graph below shows the processing layers each request passes through
+before reaching the ``@route``-decorated endpoint::
 
     Application.__call__
         if path is like '/<module>/static/<path>':

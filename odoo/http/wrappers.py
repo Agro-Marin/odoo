@@ -287,10 +287,8 @@ class _Response(werkzeug.wrappers.Response):
         cookie_type: str = "required",
     ) -> None:
         """
-        The default expires in Werkzeug is None, which means a session cookie.
-        We want to continue to support the session cookie, but not by default.
-        Now the default is arbitrary 1 year.
-        So if you want a cookie of session, you have to explicitly pass expires=None.
+        Werkzeug defaults ``expires`` to ``None`` (a session cookie); we default
+        to 1 year instead. Pass ``expires=None`` explicitly for a session cookie.
 
         ``secure`` and ``samesite`` default to ``None`` (let
         :func:`_apply_cookie_defaults` pick the right values based on

@@ -88,18 +88,15 @@ def db_list(force: bool = False, host: str | None = None) -> list[str]:
 
 
 def _normalize_dbfilter_host(host: str) -> str:
-    """Reduce a raw ``Host`` header to the form the dbfilter regex matches
-    (strip ``:port``, lowercase, then strip a leading ``www.``).
+    """Reduce a raw ``Host`` header to the form the dbfilter regex matches:
+    strip ``:port``, lowercase, then strip a leading ``www.`` (idempotent).
 
-    Normalising before the cache lookup collapses equivalent spellings
-    (``example.com``, ``www.example.com``, ``example.com:443``, ``EXAMPLE.com``)
-    onto a single :func:`_compiled_dbfilter` entry. Hostnames are
-    case-insensitive (RFC 4343), so a mixed-case ``Host`` (sent by a client or
-    forwarded verbatim by a proxy) must resolve to the same database — and must
-    not each spawn a distinct compiled-regex entry, which is the same
-    attacker-varied-host cache-amplification vector :data:`DB_MONODB_CACHE_TTL`
-    documents closing for the catalog read. Lowercasing precedes ``removeprefix``
-    so an upper-case ``WWW.`` is stripped too. The operation is idempotent.
+    Collapsing equivalent spellings (``www.example.com``, ``example.com:443``,
+    ``EXAMPLE.com``) onto one :func:`_compiled_dbfilter` entry both routes a
+    case-insensitive Host (RFC 4343) to the same database and prevents an
+    attacker-varied Host from amplifying the regex cache — the same vector
+    :data:`DB_MONODB_CACHE_TTL` closes for the catalog read. Lowercasing precedes
+    ``removeprefix`` so an upper-case ``WWW.`` is stripped too.
     """
     return host.partition(":")[0].lower().removeprefix("www.")
 
@@ -126,14 +123,11 @@ def db_filter(dbs: Iterable[str], host: str | None = None) -> list[str]:
     server configuration. In case neither are configured, return ``dbs``
     as-is.
 
-    ``--database`` (``db_name``) is treated as an explicit allowlist that
-    *further constrains* the ``dbfilter`` result when both are set — NOT as a
-    mutually-exclusive alternative that ``dbfilter`` overrides. Otherwise a
-    permissive ``dbfilter`` (e.g. ``.*``) would silently re-expose databases the
-    operator pinned away with ``-d``, so a ``-d X`` run on a host that has
-    several databases resolves ambiguously (``db_monodb`` returns ``None``) and
-    every db-bound route 404s — which is exactly what broke HttpCase tests and
-    would break any single-DB deployment that also sets a dbfilter.
+    When both are set, ``--database`` (``db_name``) is an explicit allowlist that
+    *further constrains* the ``dbfilter`` result — not a mutually-exclusive
+    alternative. Otherwise a permissive ``dbfilter`` (``.*``) would re-expose
+    databases the operator pinned away with ``-d``, making a multi-db host
+    resolve ambiguously (``db_monodb`` → ``None``) so every db-bound route 404s.
 
     Result ordering depends on which mode is active:
 
