@@ -60,7 +60,8 @@ registerWebsitePreviewTour(
         },
         {
             content: "Check that the highlight was applied",
-            trigger: ":iframe .o_wslides_lesson_content_type p span.o_text_highlight > svg",
+            trigger:
+                ":iframe .o_wslides_lesson_content_type p span.o_text_highlight > svg",
         },
         {
             content: "Check that the highlight was applied",
@@ -82,5 +83,5 @@ registerWebsitePreviewTour(
             trigger:
                 ":iframe .o_wslides_fs_content p span.o_text_highlight > svg.o_text_highlight_svg",
         },
-    ]
+    ],
 );

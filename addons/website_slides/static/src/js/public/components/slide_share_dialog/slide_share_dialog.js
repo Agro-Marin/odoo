@@ -1,11 +1,11 @@
 /** @odoo-module native */
-import { _t } from "@web/core/l10n/translation";
-import { browser } from "@web/core/browser/browser";
-import { CopyButton } from "@web/components/copy_button/copy_button";
-import { Dialog } from "@web/ui/dialog/dialog";
-import { EmailSharingInput } from "./email_sharing_input.js";
-
 import { Component, useRef } from "@odoo/owl";
+import { CopyButton } from "@web/components/copy_button/copy_button";
+import { browser } from "@web/core/browser/browser";
+import { _t } from "@web/core/l10n/translation";
+import { Dialog } from "@web/ui/dialog/dialog";
+
+import { EmailSharingInput } from "./email_sharing_input.js";
 
 export class SlideShareDialog extends Component {
     static template = "website_slides.SlideShareDialog";
@@ -36,7 +36,10 @@ export class SlideShareDialog extends Component {
 
     onPageChange(event) {
         const page = event.currentTarget.value;
-        const newEmbedCodeValue = this.codeInput.el.value.replace(/(page=).*?([^\d]+)/, "$1" + page + "$2");
+        const newEmbedCodeValue = this.codeInput.el.value.replace(
+            /(page=).*?([^\d]+)/,
+            "$1" + page + "$2",
+        );
         this.codeInput.el.value = newEmbedCodeValue;
     }
 }

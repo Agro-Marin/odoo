@@ -1,7 +1,6 @@
 /** @odoo-module native */
-import { Interaction } from "@web/public/interaction";
 import { registry } from "@web/core/registry";
-
+import { Interaction } from "@web/public/interaction";
 import { SlideUploadDialog } from "@website_slides/js/public/components/slide_upload_dialog/slide_upload_dialog";
 
 export class SlideUpload extends Interaction {
@@ -31,7 +30,9 @@ export class SlideUpload extends Interaction {
             channelId: parseInt(data.channelId),
             canPublish: data.canPublish === "True",
             canUpload: data.canUpload === "True",
-            modulesToInstall: data.modulesToInstall ? JSON.parse(data.modulesToInstall) : [],
+            modulesToInstall: data.modulesToInstall
+                ? JSON.parse(data.modulesToInstall)
+                : [],
             openModal: data.openModal,
         });
     }

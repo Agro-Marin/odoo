@@ -1,8 +1,8 @@
 /** @odoo-module native */
 import { Component, useState } from "@odoo/owl";
+import { _t } from "@web/core/l10n/translation";
 import { useService } from "@web/core/utils/hooks";
 import { redirect } from "@web/core/utils/urls";
-import { _t } from "@web/core/l10n/translation";
 
 export class SlideInstallModule extends Component {
     static components = {};
@@ -35,12 +35,16 @@ export class SlideInstallModule extends Component {
             ]);
         } catch {
             this.state.hasFailed = "failure";
-            this.state.message = _t('Failed to install "%s"', this.props.moduleData.name);
+            this.state.message = _t(
+                'Failed to install "%s"',
+                this.props.moduleData.name,
+            );
             return;
         }
         let redirectUrl = window.location.origin + window.location.pathname;
         if (this.props.moduleData.default_slide_category) {
-            redirectUrl += "?enable_slide_upload=" + this.props.moduleData.default_slide_category;
+            redirectUrl +=
+                "?enable_slide_upload=" + this.props.moduleData.default_slide_category;
         }
         redirect(redirectUrl);
     }

@@ -1,5 +1,5 @@
-import { delay } from "@web/core/utils/concurrency";
 import { registry } from "@web/core/registry";
+import { delay } from "@web/core/utils/concurrency";
 
 /**
  * Global use case:
@@ -78,7 +78,8 @@ registry.category("web_tour.tours").add("course_member", {
             run: "press ArrowLeft",
         },
         {
-            trigger: ".o_wslides_fs_sidebar_list_item.active:contains(Gardening: The Know-How)",
+            trigger:
+                ".o_wslides_fs_sidebar_list_item.active:contains(Gardening: The Know-How)",
         },
         {
             trigger: '.o_wslides_progress_percentage:contains("40")',
@@ -153,7 +154,8 @@ registry.category("web_tour.tours").add("course_member", {
             expectUnloadPage: true,
         },
         {
-            trigger: 'button[data-bs-target="#ratingpopupcomposer"]:contains("Add Review")',
+            trigger:
+                'button[data-bs-target="#ratingpopupcomposer"]:contains("Add Review")',
             run: "click",
         },
         {
@@ -174,7 +176,8 @@ registry.category("web_tour.tours").add("course_member", {
         },
         // eLearning: edit the review
         {
-            trigger: 'button[data-bs-target="#ratingpopupcomposer"]:contains("Edit Review")',
+            trigger:
+                'button[data-bs-target="#ratingpopupcomposer"]:contains("Edit Review")',
             run: "click",
         },
         {

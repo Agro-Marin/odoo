@@ -11,9 +11,7 @@ import { defineWebsiteSlidesModels } from "@website_slides/../tests/website_slid
 class Partner extends models.Model {
     lines = fields.One2many({ relation: "lines_sections" });
 
-    _records = [
-        { id: 1, lines: [1, 2] },
-    ];
+    _records = [{ id: 1, lines: [1, 2] }];
 }
 
 class LinesSections extends models.Model {
@@ -41,7 +39,7 @@ class LinesSections extends models.Model {
     ];
 
     _views = {
-        form: /*xml*/`
+        form: /*xml*/ `
             <form>
                 <field name="display_name"/>
             </form>
@@ -74,8 +72,13 @@ test("basic rendering", async () => {
     expect(".o_data_row:eq(0)").toHaveClass("o_is_section fw-bold");
     expect(".o_data_row:eq(0)").toHaveText("firstSectionTitle");
     expect(".o_data_row:eq(1)").toHaveText("recordTitle recordName 5");
-    expect(".o_data_row:eq(0) td[name=name]:nth-child(1)").toHaveAttribute("colspan", "3");
-    expect(".o_data_row:eq(1) td[name=name]:nth-child(1)").not.toHaveAttribute("colspan");
+    expect(".o_data_row:eq(0) td[name=name]:nth-child(1)").toHaveAttribute(
+        "colspan",
+        "3",
+    );
+    expect(".o_data_row:eq(1) td[name=name]:nth-child(1)").not.toHaveAttribute(
+        "colspan",
+    );
 });
 
 test("click on section behaves as usual in readonly mode", async () => {

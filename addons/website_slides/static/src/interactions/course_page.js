@@ -1,8 +1,7 @@
 /** @odoo-module native */
-import { Interaction } from "@web/public/interaction";
-
 import { rpc } from "@web/core/network/rpc";
 import { renderToElement } from "@web/core/utils/render";
+import { Interaction } from "@web/public/interaction";
 import { session } from "@web/session";
 
 export class CoursePage extends Interaction {
@@ -20,10 +19,14 @@ export class CoursePage extends Interaction {
      * @param {Integer} nextCategoryId
      */
     collapseNextCategory(nextCategoryId) {
-        const categorySectionEl = document.getElementById(`category-collapse-${nextCategoryId}`);
-        if (categorySectionEl.getAttribute('aria-expanded') === 'false') {
-            categorySectionEl.setAttribute('aria-expanded', true);
-            document.querySelector(`ul[id=collapse-${nextCategoryId}]`).classList.add('show');
+        const categorySectionEl = document.getElementById(
+            `category-collapse-${nextCategoryId}`,
+        );
+        if (categorySectionEl.getAttribute("aria-expanded") === "false") {
+            categorySectionEl.setAttribute("aria-expanded", true);
+            document
+                .querySelector(`ul[id=collapse-${nextCategoryId}]`)
+                .classList.add("show");
         }
     }
 
@@ -32,34 +35,41 @@ export class CoursePage extends Interaction {
      */
     updateProgressbar(channelCompletion) {
         const completion = Math.min(100, channelCompletion);
-        const isCompleted = completion == 100;
+        const isCompleted = completion === 100;
 
-        const completedEl = document.querySelector('.o_wslides_channel_completion_completed');
-        const progressbarEl = document.querySelector('.o_wslides_channel_completion_progressbar');
+        const completedEl = document.querySelector(
+            ".o_wslides_channel_completion_completed",
+        );
+        const progressbarEl = document.querySelector(
+            ".o_wslides_channel_completion_progressbar",
+        );
 
-        completedEl.classList.toggle('d-none', !isCompleted);
-        progressbarEl.classList.toggle('d-flex', !isCompleted);
-        progressbarEl.classList.toggle('d-none', isCompleted);
+        completedEl.classList.toggle("d-none", !isCompleted);
+        progressbarEl.classList.toggle("d-flex", !isCompleted);
+        progressbarEl.classList.toggle("d-none", isCompleted);
 
-        progressbarEl.querySelector('.progress-bar').style.width = `${completion}%`;
-        progressbarEl.querySelector('.o_wslides_progress_percentage').textContent = completion;
+        progressbarEl.querySelector(".progress-bar").style.width = `${completion}%`;
+        progressbarEl.querySelector(".o_wslides_progress_percentage").textContent =
+            completion;
     }
-
 
     /**
      * @param {Object} slideData
      * @param {Boolean} completed
      */
     toggleCompletionButton(slideData, completed = true) {
-        const buttonEl = this.el.querySelector(`.o_wslides_sidebar_done_button[data-id="${slideData.id}"]`);
+        const buttonEl = this.el.querySelector(
+            `.o_wslides_sidebar_done_button[data-id="${slideData.id}"]`,
+        );
 
-        if (!!buttonEl) {
+        if (buttonEl) {
             return;
         }
 
-        const newButton = renderToElement('website.slides.sidebar.done.button', {
+        const newButton = renderToElement("website.slides.sidebar.done.button", {
             slideId: slideData.id,
-            uncompletedIcon: buttonEl.getAttribute('uncompletedIcon') ?? 'fa-circle-thin',
+            uncompletedIcon:
+                buttonEl.getAttribute("uncompletedIcon") ?? "fa-circle-thin",
             slideCompleted: completed ? 1 : 0,
             canSelfMarkUncompleted: slideData.canSelfMarkUncompleted,
             canSelfMarkCompleted: slideData.canSelfMarkCompleted,
@@ -75,16 +85,17 @@ export class CoursePage extends Interaction {
      */
     async toggleSlideCompleted(slideData, completed = true) {
         if (
-            !!slideData.completed === !!completed
-            || !slideData.isMember
-            || !slideData.canSelfMarkCompleted
+            !!slideData.completed === !!completed ||
+            !slideData.isMember ||
+            !slideData.canSelfMarkCompleted
         ) {
             return;
         }
-        const data = await this.waitFor(rpc(
-            `/slides/slide/${completed ? 'set_completed' : 'set_uncompleted'}`,
-            { slide_id: slideData.id },
-        ));
+        const data = await this.waitFor(
+            rpc(`/slides/slide/${completed ? "set_completed" : "set_uncompleted"}`, {
+                slide_id: slideData.id,
+            }),
+        );
         this.toggleCompletionButton(slideData, completed);
         this.updateProgressbar(data.channel_completion);
         if (data.next_category_id) {
@@ -96,14 +107,18 @@ export class CoursePage extends Interaction {
      * @param {Integer} slideId
      */
     getSlide(slideId) {
-        return document.querySelector(`.o_wslides_sidebar_done_button[data-id="${slideId}"]`).dataset;
+        return document.querySelector(
+            `.o_wslides_sidebar_done_button[data-id="${slideId}"]`,
+        ).dataset;
     }
 
     /**
      * @param {MouseEvent} ev
      */
     onClickComplete(ev) {
-        const slideData = ev.currentTarget.closest('.o_wslides_sidebar_done_button').dataset;
+        const slideData = ev.currentTarget.closest(
+            ".o_wslides_sidebar_done_button",
+        ).dataset;
         const isCompleted = Boolean(slideData.completed);
         this.toggleSlideCompleted(slideData, !isCompleted);
     }

@@ -1,49 +1,62 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-from odoo.addons.website_slides.tests import common
 from odoo.tests import tagged
 from odoo.tests.common import users
 from odoo.tools import mute_logger
 
+from odoo.addons.website_slides.tests import common
 
-@tagged('gamification')
+
+@tagged("gamification")
 class TestKarmaGain(common.SlidesCase):
-
     def setUp(self):
-        super(TestKarmaGain, self).setUp()
+        super().setUp()
 
-        self.channel_2 = self.env['slide.channel'].with_user(self.user_officer).create({
-            'name': 'Test Channel 2',
-            'channel_type': 'training',
-            'promote_strategy': 'most_voted',
-            'enroll': 'public',
-            'visibility': 'public',
-            'is_published': True,
-            'karma_gen_channel_finish': 100,
-            'karma_gen_channel_rank': 10,
-        })
+        self.channel_2 = (
+            self.env["slide.channel"]
+            .with_user(self.user_officer)
+            .create(
+                {
+                    "name": "Test Channel 2",
+                    "channel_type": "training",
+                    "promote_strategy": "most_voted",
+                    "enroll": "public",
+                    "visibility": "public",
+                    "is_published": True,
+                    "karma_gen_channel_finish": 100,
+                    "karma_gen_channel_rank": 10,
+                }
+            )
+        )
 
-        self.slide_2_0, self.slide_2_1 = self.env['slide.slide'].with_user(self.user_officer).create([
-            {'name': 'How to travel through space and time',
-             'channel_id': self.channel_2.id,
-             'slide_category': 'document',
-             'is_published': True,
-             'completion_time': 2.0,
-            },
-            {'name': 'How to duplicate yourself',
-             'channel_id': self.channel_2.id,
-             'slide_category': 'document',
-             'is_published': True,
-             'completion_time': 2.0,
-            }
-        ])
+        self.slide_2_0, self.slide_2_1 = (
+            self.env["slide.slide"]
+            .with_user(self.user_officer)
+            .create(
+                [
+                    {
+                        "name": "How to travel through space and time",
+                        "channel_id": self.channel_2.id,
+                        "slide_category": "document",
+                        "is_published": True,
+                        "completion_time": 2.0,
+                    },
+                    {
+                        "name": "How to duplicate yourself",
+                        "channel_id": self.channel_2.id,
+                        "slide_category": "document",
+                        "is_published": True,
+                        "completion_time": 2.0,
+                    },
+                ]
+            )
+        )
 
-    @mute_logger('odoo.models')
-    @users('user_emp', 'user_portal', 'user_officer')
+    @mute_logger("odoo.models")
+    @users("user_emp", "user_portal", "user_officer")
     def test_karma_gain(self):
         user = self.env.user
-        user.write({'karma': 0})
+        user.write({"karma": 0})
         computed_karma = 0
 
         # Add the user to the course
@@ -104,27 +117,36 @@ class TestKarmaGain(common.SlidesCase):
         self.assertTrue(self.channel_2.with_user(user).completed)
         self.assertEqual(user.karma, computed_karma)
 
-    @mute_logger('odoo.models')
-    @users('user_emp', 'user_portal', 'user_officer')
+    @mute_logger("odoo.models")
+    @users("user_emp", "user_portal", "user_officer")
     def test_karma_gain_multiple_course(self):
         user = self.env.user
-        user.write({'karma': 0})
+        user.write({"karma": 0})
         computed_karma = 0
 
         # Finish two course at the same time (should not ever happen but hey, we never know)
         (self.channel | self.channel_2)._action_add_members(user.partner_id)
 
-        computed_karma += self.channel.karma_gen_channel_finish + self.channel_2.karma_gen_channel_finish
-        (self.slide | self.slide_2 | self.slide_3 | self.slide_2_0 | self.slide_2_1).with_user(user)._action_mark_completed()
+        computed_karma += (
+            self.channel.karma_gen_channel_finish
+            + self.channel_2.karma_gen_channel_finish
+        )
+        (
+            self.slide | self.slide_2 | self.slide_3 | self.slide_2_0 | self.slide_2_1
+        ).with_user(user)._action_mark_completed()
         self.assertEqual(user.karma, computed_karma)
 
-    @mute_logger('odoo.models')
+    @mute_logger("odoo.models")
     def test_karma_gain_multiple_course_multiple_users(self):
         users = self.user_emp | self.user_portal
-        users.write({'karma': 0})
+        users.write({"karma": 0})
 
         (self.channel | self.channel_2)._action_add_members(users.partner_id)
-        channel_partners = self.env['slide.channel.partner'].sudo().search([('partner_id', 'in', users.partner_id.ids)])
+        channel_partners = (
+            self.env["slide.channel.partner"]
+            .sudo()
+            .search([("partner_id", "in", users.partner_id.ids)])
+        )
         self.assertEqual(len(channel_partners), 4)
 
         # Set courses as completed and update karma
@@ -136,7 +158,10 @@ class TestKarmaGain(common.SlidesCase):
         with self.assertQueryCount(76):
             channel_partners._post_completion_update_hook()
 
-        computed_karma = self.channel.karma_gen_channel_finish + self.channel_2.karma_gen_channel_finish
+        computed_karma = (
+            self.channel.karma_gen_channel_finish
+            + self.channel_2.karma_gen_channel_finish
+        )
 
         for user in users:
             self.assertEqual(user.karma, computed_karma)
@@ -144,10 +169,14 @@ class TestKarmaGain(common.SlidesCase):
             self.assertEqual(len(user_trackings), 2)
 
             self.assertEqual(user_trackings[0].new_value, computed_karma)
-            self.assertEqual(user_trackings[0].old_value, self.channel_2.karma_gen_channel_finish)
+            self.assertEqual(
+                user_trackings[0].old_value, self.channel_2.karma_gen_channel_finish
+            )
             self.assertEqual(user_trackings[0].origin_ref, self.channel_2)
 
-            self.assertEqual(user_trackings[1].new_value, self.channel.karma_gen_channel_finish)
+            self.assertEqual(
+                user_trackings[1].new_value, self.channel.karma_gen_channel_finish
+            )
             self.assertEqual(user_trackings[1].old_value, 0)
             self.assertEqual(user_trackings[1].origin_ref, self.channel)
 
@@ -162,9 +191,13 @@ class TestKarmaGain(common.SlidesCase):
             self.assertEqual(len(user_trackings), 2)
 
             self.assertEqual(user_trackings[0].new_value, computed_karma)
-            self.assertEqual(user_trackings[0].old_value, self.channel.karma_gen_channel_finish)
+            self.assertEqual(
+                user_trackings[0].old_value, self.channel.karma_gen_channel_finish
+            )
             self.assertEqual(user_trackings[0].origin_ref, self.channel_2)
 
-            self.assertEqual(user_trackings[1].new_value, self.channel.karma_gen_channel_finish)
+            self.assertEqual(
+                user_trackings[1].new_value, self.channel.karma_gen_channel_finish
+            )
             self.assertEqual(user_trackings[1].old_value, 0)
             self.assertEqual(user_trackings[1].origin_ref, self.channel)

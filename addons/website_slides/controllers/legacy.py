@@ -7,15 +7,21 @@ from odoo.tools.urls import keep_query
 
 class WebsiteSlidesLegacy(http.Controller):
     """
-        Retro compatibility layer for legacy endpoint
+    Retro compatibility layer for legacy endpoint
     """
 
-    @http.route(['/slides/all', '/slides/all/tag/<string:slug_tags>'], type='http', auth="public", website=True,
-                sitemap=True, readonly=True)
+    @http.route(
+        ["/slides/all", "/slides/all/tag/<string:slug_tags>"],
+        type="http",
+        auth="public",
+        website=True,
+        sitemap=True,
+        readonly=True,
+    )
     def slides_channel_all(self, slug_tags=None, **post):
         """ "All" in < 19 was different from "Home". Both have been merged, but we keep
         some backward compatibility for saved links, even if the display is going to
-        change a bit. """
+        change a bit."""
         if slug_tags:
             return request.redirect(f"/slides/tag/{slug_tags}?{keep_query('*')}")
         return request.redirect(f"/slides?{keep_query('*')}")

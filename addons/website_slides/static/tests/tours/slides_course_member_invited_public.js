@@ -53,7 +53,8 @@ registry.category("web_tour.tours").add("invite_check_channel_preview_as_public"
             content: "Check that user is enrolled",
         },
         {
-            trigger: '.o_wslides_js_slides_list_slide_link:contains("Gardening: The Know-How")',
+            trigger:
+                '.o_wslides_js_slides_list_slide_link:contains("Gardening: The Know-How")',
             content: "Check that slides are now accessible",
         },
     ],

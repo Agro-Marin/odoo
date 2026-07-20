@@ -1,6 +1,7 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 from odoo import tests
+
 from odoo.addons.website_slides.tests.test_ui_wslides import TestUiMemberInvited
 
 

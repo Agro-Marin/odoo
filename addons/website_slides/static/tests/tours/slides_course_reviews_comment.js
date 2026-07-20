@@ -26,7 +26,8 @@ registry.category("web_tour.tours").add("course_reviews_comment", {
             run: "click",
         },
         {
-            trigger: "#chatterRoot:shadow .o-mail-Message:not(:has(.o-mail-Composer-input))",
+            trigger:
+                "#chatterRoot:shadow .o-mail-Message:not(:has(.o-mail-Composer-input))",
         },
         {
             trigger: "#chatterRoot:shadow .o-mail-Message button:contains('comment')",
@@ -63,7 +64,8 @@ registry.category("web_tour.tours").add("course_reviews_comment", {
             run: "click",
         },
         {
-            trigger: "#chatterRoot:shadow .o-mail-Message:contains(Editing the comment...)",
+            trigger:
+                "#chatterRoot:shadow .o-mail-Message:contains(Editing the comment...)",
         },
         {
             trigger:
@@ -75,7 +77,8 @@ registry.category("web_tour.tours").add("course_reviews_comment", {
             run: "click",
         },
         {
-            trigger: "#chatterRoot:shadow .o-mail-Message:not(:contains(Editing the comment...)",
+            trigger:
+                "#chatterRoot:shadow .o-mail-Message:not(:contains(Editing the comment...)",
         },
         {
             trigger: "#chatterRoot:shadow .o-mail-Message button:contains(comment)",

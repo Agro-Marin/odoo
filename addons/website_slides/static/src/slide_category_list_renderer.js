@@ -1,7 +1,7 @@
 /** @odoo-module native */
+import { useEffect } from "@odoo/owl";
 import { makeContext } from "@web/core/context";
 import { ListRenderer } from "@web/views/list/list_renderer";
-import { useEffect } from "@odoo/owl";
 
 export class SlideCategoryListRenderer extends ListRenderer {
     setup() {
@@ -16,7 +16,7 @@ export class SlideCategoryListRenderer extends ListRenderer {
                     table.classList.add("o_section_list_view");
                 }
             },
-            () => [this.tableRef.el]
+            () => [this.tableRef.el],
         );
     }
 
@@ -51,7 +51,7 @@ export class SlideCategoryListRenderer extends ListRenderer {
         const sectionColumns = columns.filter((col) => col.widget === "handle");
         const colspan = columns.length - sectionColumns.length;
         const titleCol = columns.find(
-            (col) => col.type === "field" && col.name === this.titleField
+            (col) => col.type === "field" && col.name === this.titleField,
         );
         sectionColumns.push({ ...titleCol, colspan });
         return sectionColumns;

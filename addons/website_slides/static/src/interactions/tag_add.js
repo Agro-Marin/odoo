@@ -1,7 +1,6 @@
 /** @odoo-module native */
-import { Interaction } from "@web/public/interaction";
 import { registry } from "@web/core/registry";
-
+import { Interaction } from "@web/public/interaction";
 import { CourseTagAddDialog } from "@website_slides/js/public/components/course_tag_add_dialog/course_tag_add_dialog";
 
 export class TagAdd extends Interaction {
@@ -21,6 +20,4 @@ export class TagAdd extends Interaction {
     }
 }
 
-registry
-    .category("public.interactions")
-    .add("website_slides.tag_add", TagAdd);
+registry.category("public.interactions").add("website_slides.tag_add", TagAdd);

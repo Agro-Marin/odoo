@@ -1,5 +1,5 @@
-import { registry } from "@web/core/registry";
 import { inputFiles } from "@web/../tests/utils";
+import { registry } from "@web/core/registry";
 
 registry.category("web_tour.tours").add("course_review_modification", {
     url: "/slides",
@@ -31,7 +31,8 @@ registry.category("web_tour.tours").add("course_review_modification", {
             run: "click",
         },
         {
-            trigger: ".o_wslides_course_header .o_website_rating_static[title='4 stars on 5']",
+            trigger:
+                ".o_wslides_course_header .o_website_rating_static[title='4 stars on 5']",
         },
         {
             trigger: "a[id=review-tab]:contains(Reviews (1))",
@@ -54,10 +55,12 @@ registry.category("web_tour.tours").add("course_review_modification", {
                 "#chatterRoot:shadow .o-mail-Chatter:not(:has(.o_website_rating_card_container))",
         },
         {
-            trigger: "#chatterRoot:shadow .o-mail-Thread:contains(The conversation is empty.)",
+            trigger:
+                "#chatterRoot:shadow .o-mail-Thread:contains(The conversation is empty.)",
         },
         {
-            trigger: ".o_wslides_course_header .o_website_rating_static[title='0 stars on 5']",
+            trigger:
+                ".o_wslides_course_header .o_website_rating_static[title='0 stars on 5']",
         },
         {
             trigger: "a[id=review-tab]:contains(Reviews):not(:contains(1))",
@@ -81,7 +84,8 @@ registry.category("web_tour.tours").add("course_review_modification", {
             run: "click",
         },
         {
-            trigger: ".o_wslides_course_header .o_website_rating_static[title='3 stars on 5']",
+            trigger:
+                ".o_wslides_course_header .o_website_rating_static[title='3 stars on 5']",
         },
         {
             trigger: "a[id=review-tab]:contains(Reviews (1))",
@@ -113,7 +117,8 @@ registry.category("web_tour.tours").add("course_review_modification", {
             run: "click",
         },
         {
-            trigger: ".o_wslides_course_header .o_website_rating_static[title='2 stars on 5']",
+            trigger:
+                ".o_wslides_course_header .o_website_rating_static[title='2 stars on 5']",
         },
         {
             trigger: "a[id=review-tab]:contains(Reviews (1))",
@@ -194,7 +199,8 @@ registry.category("web_tour.tours").add("course_review_modification", {
             run: "click",
         },
         {
-            trigger: ".modal.modal_shown.show .o-mail-Composer-starCard:has(input[value='4'])",
+            trigger:
+                ".modal.modal_shown.show .o-mail-Composer-starCard:has(input[value='4'])",
         },
         {
             trigger:
@@ -267,7 +273,8 @@ registry.category("web_tour.tours").add("course_review_modification_by_admin", {
             run: "click",
         },
         {
-            trigger: "#chatterRoot:shadow .o-mail-Message-body:contains(Admin edited this review.)",
+            trigger:
+                "#chatterRoot:shadow .o-mail-Message-body:contains(Admin edited this review.)",
         },
         // If it fails here, it means that the default values have changed after the admin edited someone else's review.
         {
@@ -291,7 +298,8 @@ registry.category("web_tour.tours").add("course_review_modification_by_admin", {
             trigger: ".o_rating_popup_composer span:text(Edit Review)",
         },
         {
-            trigger: "#chatterRoot:shadow .o-mail-Message-body:contains(Admin edited this review.)",
+            trigger:
+                "#chatterRoot:shadow .o-mail-Message-body:contains(Admin edited this review.)",
             run: "hover && click #chatterRoot:shadow .o-mail-Message:contains(Admin edited this review.) [title='Expand']",
         },
         {
