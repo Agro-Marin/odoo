@@ -549,7 +549,7 @@ export class SearchArchParser {
             );
         }
 
-        return false; // we do not want to let the parser keep visiting children
+        return false; // stop the parser from visiting children
     }
 
     /** Process a `<separator/>` node: flush the current group. */

@@ -159,9 +159,9 @@ import { getGroupBySpecs, getGroupDomain } from "./pivot_value_utils.js";
  *
  * Thus the above group g is fully determined by [[v1,...,vi], [w1,...,wj]].
  *
- * When j=0, g corresponds to a row group (or also row header) and is of the form [[v1,...,vi], []] or more simply [v1,...vi]
+ * When j=0, g corresponds to a row group (or also row header) and is of the form [[v1,...,vi], []] or [v1,...vi]
  * (not forgetting the list [v1,...vi] comes from left).
- * When i=0, g corresponds to a col group (or col header) and is of the form [[], [w1,...,wj]] or more simply [w1,...,wj].
+ * When i=0, g corresponds to a col group (or col header) and is of the form [[], [w1,...,wj]] or [w1,...,wj].
  *
  * A generic group g as above [[v1,...,vi], [w1,...,wj]] corresponds to the two headers [[v1,...,vi], []]
  * and [[], [w1,...,wj]].
@@ -614,7 +614,7 @@ export class PivotModel extends Model {
     }
     /**
      * Export model data in a form suitable for an easy encoding of the pivot
-     * table in excell.
+     * table in Excel.
      *
      * @returns {Object}
      */

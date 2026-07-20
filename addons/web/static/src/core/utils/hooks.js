@@ -16,10 +16,8 @@ import { hasTouch, isMobileOS } from "@web/core/browser/feature_detection";
 
 /**
  * This file contains various custom hooks.
- * Their inner working is rather simple:
- * Each custom hook simply hooks itself to any number of owl lifecycle hooks.
- * You can then use them just like an owl hook in any Component
- * e.g.:
+ * Each custom hook attaches itself to any number of owl lifecycle hooks.
+ * Use them like any owl hook in a Component, e.g.:
  * import { useBus } from "@web/core/utils/hooks";
  * ...
  * setup() {

@@ -94,9 +94,8 @@ function isValidPath2(ast, options) {
  */
 function _getConditionFromComparator(ast, options) {
     if (["is", "is not"].includes(ast.op)) {
-        // we could do something smarter here
-        // e.g. if left is a boolean field and right is a boolean
-        // we can create a condition based on "="
+        // could be smarter: if left is a boolean field and right is a
+        // boolean, build a condition based on "="
         return null;
     }
 
@@ -163,8 +162,7 @@ function _getConditionFromIntersection(ast, options, negate = false) {
         return condition(left.value, negate ? "=" : "!=", false);
     }
 
-    // try to extract the ast of an iterable
-    // we only make simple conversions here
+    // try to extract the ast of an iterable; only simple conversions here
     if (isSet(right)) {
         if (!right.args[0]) {
             right = { type: ASTType.List, value: [] };

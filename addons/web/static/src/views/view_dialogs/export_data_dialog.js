@@ -318,7 +318,7 @@ export class ExportDataDialog extends Component {
                 export_id: Number(value),
             }),
         );
-        // Don't safe the result in this.knownFields because, the result is only partial
+        // Don't save the result in this.knownFields: it's only partial
         this.state.exportList = fields;
     }
 
@@ -497,7 +497,7 @@ export class ExportDataDialog extends Component {
         let lookupResult = fuzzyLookup(
             value,
             Object.values(this.knownFields),
-            // because fuzzyLookup gives an higher score if the string starts with the pattern,
+            // fuzzyLookup gives a higher score if the string starts with the pattern,
             // reversing the string makes the search more reliable in this context
             (field) => field.string.split("/").reverse().join("/"),
         );

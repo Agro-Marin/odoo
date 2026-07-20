@@ -281,13 +281,12 @@ export function parsePercentage(value, { allowOperation = false } = {}) {
 
 /**
  * Try to extract a monetary value from a string. The localization is considered in the process.
- * This is a very lenient function such that it ignores everything before we encounter a substring consisting of either
+ * This function is lenient: it ignores everything before a substring starting with either
  * - a sign (- or +)
  * - an equals sign (signaling the start of a mathematical expression)
  * - a decimal point
  * - a number
- * We then remove any non-numeric characters at the end
- *
+ * Any non-numeric characters at the end are then removed.
  *
  * @param {string} value
  * @param {{ allowOperation?: boolean }} [options]

@@ -55,10 +55,9 @@
  *      ``handleAssetLoadError`` reacts with ONE rate-limited reload so
  *      the page re-renders with fresh URLs (see its docstring).
  *
- * Everything else the old AMD-era loader did (dependency-graph resolution,
- * cycle detection, lazy jobs, a visual-banner error reporter) is provably
- * unused across the fork and was removed; the remaining surface is
- * exercised end-to-end by ``static/tests/modules/module_loader.test.js``.
+ * Everything else the old loader did is provably unused across the fork
+ * and was removed; the remaining surface is exercised end-to-end by
+ * ``static/tests/modules/module_loader.test.js``.
  */
 (function () {
     "use strict";

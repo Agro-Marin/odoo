@@ -503,11 +503,10 @@ function removeFalseTrueLeaves(tree) {
  * @param {Options} [options={}]
  * @returns {Tree}
  */
-// Patchable object for functions that need to be extended by other modules.
-// ESM namespace objects are non-configurable, so patch() cannot redefine
-// their properties. This object provides a patchable indirection layer.
-// The exported functions below delegate to this object, so patching it
-// affects ALL consumers — even those using direct named imports.
+// Patchable indirection layer: ESM namespace objects are non-configurable, so
+// patch() cannot redefine their properties directly. The exported functions
+// below delegate to this object, so patching it affects ALL consumers — even
+// those using direct named imports.
 export const virtualOperatorFunctions = {
     /**
      * @param {Tree} tree

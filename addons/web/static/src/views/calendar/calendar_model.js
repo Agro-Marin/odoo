@@ -395,7 +395,7 @@ export class CalendarModel extends Model {
         const info = this.meta.filtersInfo[fieldName];
         const section = this.data.filterSections[fieldName];
         if (section) {
-            // remove the filter directly, to provide a direct feedback to the user
+            // remove the filter immediately, for instant feedback to the user
             // Cancel any in-flight load so it won't overwrite this optimistic
             // update; bumping the epoch releases its awaiting caller cleanly.
             this.currentLoadId++;
@@ -430,7 +430,7 @@ export class CalendarModel extends Model {
     }
 
     async updateFilters(fieldName, filters, active) {
-        // update filters directly, to provide a direct feedback to the user
+        // update filters immediately, for instant feedback to the user
         // Cancel any in-flight load so it won't overwrite this optimistic
         // update; bumping the epoch releases its awaiting caller cleanly.
         this.currentLoadId++;

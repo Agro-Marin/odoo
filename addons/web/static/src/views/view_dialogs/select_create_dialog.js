@@ -61,7 +61,7 @@ export class SelectCreateDialog extends Component {
         this.dialogService = useService("dialog");
         this.state = useState({ resIds: [] });
         const noContentHelp = this.props.noContentHelp || getDefaultNoContentHelp();
-        this.busy = false; // flag used to ensure we only call once the onSelected/onUnselect props
+        this.busy = false; // ensures onSelected/onUnselect fires at most once
         this.baseViewProps = {
             display: { searchPanel: false },
             noBreadcrumbs: true,

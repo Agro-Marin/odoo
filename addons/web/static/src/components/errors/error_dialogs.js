@@ -108,21 +108,17 @@ export class ErrorDialog extends Component {
     }
 }
 
-// Client Error Dialog
 export class ClientErrorDialog extends ErrorDialog {}
 ClientErrorDialog.title = _t("Odoo Client Error");
 
-// Network Error Dialog
 export class NetworkErrorDialog extends ErrorDialog {}
 NetworkErrorDialog.title = _t("Odoo Network Error");
 
-// Request Entity Too Large Dialog
 export class RequestEntityTooLargeErrorDialog extends ErrorDialog {}
 RequestEntityTooLargeErrorDialog.title = _t(
     "The request sent to the server was too large",
 );
 
-// RPC Error Dialog
 export class RPCErrorDialog extends ErrorDialog {
     setup() {
         super.setup();
@@ -168,7 +164,6 @@ export class RPCErrorDialog extends ErrorDialog {
     }
 }
 
-// Warning Dialog
 export class WarningDialog extends Component {
     static template = "web.WarningDialog";
     static components = { Dialog };
@@ -200,7 +195,6 @@ export class WarningDialog extends Component {
     }
 }
 
-// Redirect Warning Dialog
 export class RedirectWarningDialog extends Component {
     static template = "web.RedirectWarningDialog";
     static components = { Dialog };
@@ -230,14 +224,12 @@ export class RedirectWarningDialog extends Component {
     }
 }
 
-// Error 504 Dialog
 export class Error504Dialog extends Component {
     static template = "web.Error504Dialog";
     static components = { Dialog };
     static props = { ...standardErrorDialogProps };
 }
 
-// Expired Session Error Dialog
 export class SessionExpiredDialog extends Component {
     static template = "web.SessionExpiredDialog";
     static components = { Dialog };

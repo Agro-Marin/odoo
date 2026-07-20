@@ -18,10 +18,9 @@ export const reloadCompanyService = {
     start(env, { action }) {
         rpcBus.addEventListener(RpcEvent.RESPONSE, (ev) => {
             // Defensive: malformed payloads (null detail, missing data) can
-            // be dispatched to the global rpcBus by tests or by intentional
-            // synthetic fires. Destructuring ``ev.detail`` directly throws
-            // when detail is null. Use optional chaining first, then a safe
-            // destructure once we know the shape is good.
+            // be dispatched to the global rpcBus by tests or synthetic fires;
+            // destructuring ``ev.detail`` directly would throw, so optional-chain
+            // first.
             if (!ev.detail?.data?.params) {
                 return;
             }

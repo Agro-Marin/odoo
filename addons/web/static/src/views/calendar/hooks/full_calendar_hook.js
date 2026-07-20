@@ -233,7 +233,7 @@ function eventSetFingerprint(instance) {
             .join("|");
     } catch {
         // Never let the fingerprint break the patch cycle — an error here
-        // just forces the rebuild.
+        // forces the rebuild.
         return `error:${Date.now()}`;
     }
 }

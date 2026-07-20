@@ -871,7 +871,7 @@ function _rpcOnce(url, params, settings) {
 
     /**
      * @param {boolean} rejectError Returns an error if true. Allows you to cancel
-     *                  ignored rpc's in order to unblock the ui and not display an error.
+     *                  ignored rpc's to unblock the ui and not display an error.
      */
     /** @type {RpcPromise<any>} */ (promise).abort = function (rejectError = true) {
         if (settled || aborted) {

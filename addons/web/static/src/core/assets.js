@@ -387,8 +387,8 @@ export const assets = {
     },
 
     /**
-     * Loads the given js/css libraries and asset bundles. Note that no library or
-     * asset will be loaded if it was already done before.
+     * Loads the given js/css libraries and asset bundles. Already-loaded
+     * libraries or assets are not reloaded.
      *
      * @param {string} bundleName
      * @param {Object} options

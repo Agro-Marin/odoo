@@ -218,8 +218,8 @@ export function humanNumber(number, options = { decimals: 0, minDigits: 1 }) {
         number = Math.round(number * 10 ** (decimals - numberMagnitude)) / d2;
         return `${number}e+${numberMagnitude}`;
     }
-    // note: we need to call toString here to make sure we manipulate the resulting
-    // string, not an object with a toString method.
+    // Call toString to manipulate the resulting string, not an object with a
+    // toString method.
     const unitSymbols = _t("kMGTPE").toString();
     const sign = Math.sign(number);
     number = Math.abs(number);

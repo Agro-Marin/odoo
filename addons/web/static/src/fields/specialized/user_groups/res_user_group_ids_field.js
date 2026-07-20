@@ -17,7 +17,7 @@ import { x2ManyCommands } from "@web/model/relational_model/commands";
 /**
  * This widget is only used for the 'group_ids' field of the 'res.users'
  * form view or the 'implied_ids' field of the 'res.groups' form view,
- * in order to visualize and configure access rights.
+ * to visualize and configure access rights.
  */
 const viewRegistry = registry.category("views");
 

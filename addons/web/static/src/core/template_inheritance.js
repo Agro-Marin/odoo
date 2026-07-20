@@ -316,8 +316,8 @@ function modifyAttributes(target, operation) {
 }
 
 /**
- * Remove node and normalize surrounding text nodes (if any)
- * Note: we assume that node has a parent element
+ * Remove node and normalize surrounding text nodes (if any).
+ * Assumes node has a parent element.
  * @param {Node} node
  */
 function removeNode(node) {

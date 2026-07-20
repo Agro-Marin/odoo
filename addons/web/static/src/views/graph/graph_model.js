@@ -691,9 +691,9 @@ export class GraphModel extends Model {
     }
 
     /**
-     * Process metaData.groupBy in order to keep only the finest interval option for
+     * Process metaData.groupBy to keep only the finest interval option for
      * elements based on date/datetime field (e.g. 'date:year'). This means that
-     * 'week' is prefered to 'month'. The field stays at the place of its first occurence.
+     * 'week' is preferred to 'month'. The field stays at the place of its first occurrence.
      * For instance,
      * ['foo', 'date:month', 'bar', 'date:week'] becomes ['foo', 'date:week', 'bar'].
      * @protected

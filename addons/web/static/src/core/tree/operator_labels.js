@@ -118,7 +118,7 @@ export function toKey(operator, negate = false) {
         typeof operator === "string" &&
         Object.hasOwn(OPERATOR_DESCRIPTIONS, operator)
     ) {
-        // this case is the main one. We keep it simple
+        // main case; keep it simple
         return operator;
     }
     return JSON.stringify([formatValue(operator), negate]);

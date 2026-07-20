@@ -494,10 +494,7 @@ class Binary(http.Controller):
         readonly=True,
     )
     def get_fonts(self, fontname: str | None = None) -> list[bytes]:
-        """Return base64-encoded signature fonts for the 'auto' signing mode.
-
-        :return: base64-encoded font files
-        """
+        """Return base64-encoded signature fonts for the 'auto' signing mode."""
         supported_exts = (".ttf", ".otf", ".woff", ".woff2")
         fonts = []
         fonts_dir = Path(file_path("web/static/fonts/sign"))

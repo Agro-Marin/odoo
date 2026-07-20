@@ -259,9 +259,8 @@ export const commandService = {
             const token = nextToken++;
             registeredCommands.set(token, registration);
             if (!(/** @type {any} */ (options).activeElement)) {
-                // Due to the way elements are mounted in the DOM by Owl (bottom-to-top),
-                // we need to wait the next micro task tick to set the context activate
-                // element of the subscription.
+                // Owl mounts elements bottom-to-top, so wait a microtask tick before
+                // setting the subscription's active element.
                 queueMicrotask(() => {
                     registration.activeElement = ui.activeElement;
                 });

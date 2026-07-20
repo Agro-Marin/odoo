@@ -56,9 +56,7 @@ class WebJsonController(http.Controller):
           canonical URL with that parameter made explicit.
 
         :param subpath: Path to the (window) action to execute
-        :param view_type: Requested view type
         :param domain: The domain for searches
-        :param offset: Result offset
         :param limit: Result limit; falls back to the action's limit when
                       unset or 0
         :param groupby: Comma-separated string; when set, executes a `web_read_group`

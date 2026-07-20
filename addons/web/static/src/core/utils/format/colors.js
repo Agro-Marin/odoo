@@ -259,10 +259,9 @@ export function convertCSSColorToRgba(cssColor = "") {
         };
     }
 
-    // TODO maybe implement a support for receiving css color like 'red' or
-    // 'transparent' (which are now considered non-css color by isCSSColor...)
-    // Note: however, if ever implemented be careful of 'white'/'black' which
-    // actually are color names for our color system...
+    // TODO maybe support css color names like 'red' or 'transparent' (currently
+    // treated as non-css colors by isCSSColor). If implemented, watch out for
+    // 'white'/'black', which are also names in our own color system.
 
     // Check for the color() functional notation (implicit sRGB colorspace),
     // e.g. color(srgb 1 0 0 / 0.5).

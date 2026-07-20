@@ -354,9 +354,8 @@ export class TreeEditor extends Component {
         const previousNode = cloneTree(node);
         await operation();
         if (areEquivalentTrees(node, previousNode)) {
-            // no interesting changes for parent
-            // this means that the parent might not render the domain selector
-            // but we need to udpate editors
+            // No interesting changes for parent, so it might not re-render
+            // the domain selector — but editors still need updating.
             await this.prepareInfo(this.props);
             this.render();
         }

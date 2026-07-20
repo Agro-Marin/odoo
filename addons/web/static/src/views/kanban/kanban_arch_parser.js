@@ -192,7 +192,7 @@ export class KanbanArchParser {
                 node.setAttribute("widget_id", widgetId);
             }
 
-            // Keep track of last update so images can be reloaded when they may have changed.
+            // Track last update so images reload when they may have changed.
             if (node.tagName === "img") {
                 const attSrc = node.getAttribute("t-att-src");
                 if (

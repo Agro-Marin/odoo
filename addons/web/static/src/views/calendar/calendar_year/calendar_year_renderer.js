@@ -63,7 +63,7 @@ export class CalendarYearRenderer extends Component {
         // v7 dropped v6's ``windowResize`` option (ResizeObserver only);
         // listen on ``window`` directly. One resize means one layout update:
         // the root height is shared by all 12 mini calendars, so a
-        // per-instance fan-out would just repeat the same forced
+        // per-instance fan-out would repeat the same forced
         // layout (getBoundingClientRect + style write) 12 times.
         useExternalListener(window, "resize", () => this.onWindowResize());
     }

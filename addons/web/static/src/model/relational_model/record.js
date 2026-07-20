@@ -790,17 +790,10 @@ export class RelationalRecord extends DataPoint {
     }
 
     /**
-     * Given a possibily incomplete value for a many2one field (i.e. a object { id, display_name } but
-     * with id and/or display_name being undefined), return the complete value as follows:
-     *  - if a display_name is given but no id, perform a name_create to get an id
-     *  - if an id is given but display_name is undefined, call web_read to get the display_name
-     *  - if both id and display_name are given, return the value as is
-     *  - in any other cases, return false
+     * Build the eval context for this record's current data, in both
+     * virtual-id and real-id variants.
      *
-     * @param {{ id?: number; display_name?: string }} value
-     * @param {string} fieldName
-     * @param {string} resModel
-     * @returns {Promise<false | { id: number; display_name: string; }>} the completed record { id, display_name } or false
+     * @returns {{ withVirtualIds: Object, withoutVirtualIds: Object }}
      */
     _computeDataContext() {
         return computeDataContext(

@@ -145,8 +145,8 @@ export function parseFieldNode(node, models, modelName, viewType, jsClass) {
                 /** @type {{ ArchParser: new () => { parse: (n: Element, m: any, r?: string) => any } }} */ (
                     viewRegistry.get(viewType)
                 );
-            // We copy and hence isolate the subview from the main view's tree
-            // This way, the subview's tree is autonomous and CSS selectors will work normally
+            // Copy to isolate the subview's tree from the main view, so its
+            // CSS selectors work normally
             const childCopy = /** @type {Element} */ (child.cloneNode(true));
             const archInfo = new ArchParser().parse(
                 childCopy,

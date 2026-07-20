@@ -206,7 +206,6 @@ class Base(models.AbstractModel):
             fill_temporal range (should be >= 1)
         :type min_groups: int | bool
         :rtype: list[tuple]
-        :return: list
         """
         groupby_name = groupby[0]
         field_name = groupby_name.split(":")[0].split(".")[0]

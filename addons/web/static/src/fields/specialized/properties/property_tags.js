@@ -217,7 +217,7 @@ export class PropertyTags extends Component {
             return;
         }
 
-        // cycle trough colors
+        // cycle through colors
         let tagColor =
             this.props.tags && this.props.tags.length
                 ? (this.props.tags[this.props.tags.length - 1][2] + 1) %

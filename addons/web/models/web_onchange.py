@@ -40,7 +40,7 @@ class Base(models.AbstractModel):
         onchange methods to them, and return all the fields in ``fields_spec``.
 
         The result is a dictionary with two optional keys. The key ``"value"``
-        is used to return field values that should be modified on the caller.
+        returns field values that should be modified on the caller.
         The corresponding value is a dict mapping field names to their value,
         in the format of :meth:`web_read`, except for x2many fields, where the
         value is a list of commands to be applied on the caller's field value.
@@ -307,8 +307,8 @@ class Base(models.AbstractModel):
 
     def web_override_translations(self, values: dict[str, str]) -> None:
         """
-        This method is used to override all the modal translations of the given fields
-        with the provided value for each field.
+        Override all the modal translations of the given fields with the
+        provided value for each field.
 
         :param values: dictionary of the translations to apply for each field name
             ex: ``{ "field_name": "new_value" }``

@@ -183,9 +183,8 @@ formatFloatFactor.extractOptions = ({ attrs, options }) => ({
 });
 
 /**
- * Returns a string representing a time value, from a float.  The idea is that
- * we sometimes want to display something like 1:45 instead of 1.75, or 0:15
- * instead of 0.25.
+ * Returns a string representing a time value, from a float, e.g. displaying
+ * 1:45 instead of 1.75, or 0:15 instead of 0.25.
  *
  * @param {number | false} value
  * @param {Object} [options]

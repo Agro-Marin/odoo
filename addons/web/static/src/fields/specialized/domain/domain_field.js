@@ -143,9 +143,8 @@ export class DomainField extends Component {
         }
         try {
             const domain = new Domain(domainStringRepr).toList(evalContext);
-            // Here, there is still some incertitude on the domain validity.
-            // we could improve this check but a complete (async) check is done
-            // when loading the record count associated with the domain.
+            // Some uncertainty about domain validity remains here; a complete
+            // (async) check happens when loading the record count.
             return domain;
         } catch (error) {
             if (error instanceof InvalidDomainError) {
@@ -284,8 +283,8 @@ export class DomainField extends Component {
                 context: this.getContext(),
             },
             {
-                // The counter is reloaded "on close" because some modal allows
-                // to modify data that can impact the counter
+                // Reloaded on close because the dialog may modify data that
+                // affects the counter.
                 onClose: () => this.checkProps(),
             },
         );

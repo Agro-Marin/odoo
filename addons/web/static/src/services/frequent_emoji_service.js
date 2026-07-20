@@ -40,8 +40,8 @@ export const frequentEmojiService = {
                         JSON.stringify(state.all),
                     );
                 } catch {
-                    // localStorage unavailable/full: usage tracking simply
-                    // isn't persisted; picking the emoji must still work.
+                    // localStorage unavailable/full: usage tracking isn't
+                    // persisted; picking the emoji must still work.
                 }
             },
             /**

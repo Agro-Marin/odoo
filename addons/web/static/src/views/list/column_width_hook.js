@@ -434,7 +434,7 @@ export function useMagicColumnWidths(tableRef, getState) {
                 active.blur();
             }
         };
-        // We have to listen to several events to properly stop the resizing function. Those are:
+        // Several events can stop the resize:
         // - pointerdown (e.g. pressing right click)
         // - pointerup : logical flow of the resizing feature (drag & drop)
         // - keydown : (e.g. pressing 'Alt' + 'Tab' or 'Windows' key)

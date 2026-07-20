@@ -309,7 +309,7 @@ export function fromUnityToServerValues(
                 }
             } catch {
                 // if the readonly expression depends on other fields, we can't evaluate it as we
-                // didn't read the record, so we simply ignore it
+                // didn't read the record, so we ignore it
             }
         }
         switch (fields[fieldName].type) {

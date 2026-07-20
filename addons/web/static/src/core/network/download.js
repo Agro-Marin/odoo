@@ -158,7 +158,7 @@ function configureBlobDownloadXHR(
             /;$/,
             "",
         );
-        // replace because apparently we send some C-D headers with a trailing ";"
+        // replace because some C-D headers are sent with a trailing ";"
         let filename = null;
         if (header) {
             try {

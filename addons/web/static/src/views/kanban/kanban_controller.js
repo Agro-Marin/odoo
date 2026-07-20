@@ -84,8 +84,8 @@ export class KanbanController extends MultiRecordController {
         class KanbanSampleModel extends Model {
             hasData() {
                 if (this.root.groups && !this.root.groups.length) {
-                    // While we don't have any data, we want to display the column quick create and
-                    // example background. Return true so that we don't get sample data instead
+                    // No groups yet: show the column quick-create and example
+                    // background instead of sample data.
                     return true;
                 }
                 return super.hasData();

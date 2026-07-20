@@ -255,8 +255,8 @@ export class ListRenderer extends Component {
 
         this.activeRowId = null;
         onMounted(async () => {
-            // Due to the way elements are mounted in the DOM by Owl (bottom-to-top),
-            // we need to wait the next micro task tick to set the activeElement.
+            // Owl mounts elements bottom-to-top, so wait one microtask tick
+            // before reading activeElement.
             await Promise.resolve();
             this.activeElement = this.uiService.activeElement;
         });

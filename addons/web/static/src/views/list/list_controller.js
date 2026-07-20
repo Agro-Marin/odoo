@@ -347,8 +347,8 @@ export class ListController extends MultiRecordController {
      */
     async createRecord({ group } = /** @type {any} */ ({})) {
         if (!this.model.isReady && !this.model.config.groupBy.length && this.editable) {
-            // If the view isn't grouped and the list is editable, a new record row will be added,
-            // in edition. In this situation, we must wait for the model to be ready.
+            // If the view isn't grouped and the list is editable, a new record row will be
+            // added in edition, so wait for the model to be ready first.
             await this.model.whenReady;
         }
         const list = group?.list || this.model.root;

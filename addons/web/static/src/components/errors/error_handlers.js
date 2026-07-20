@@ -304,8 +304,8 @@ const defaultDialogs = new Map([
 ]);
 
 /**
- * Handles the errors based on the very general error categories emitted by the
- * error service. Notice how we do not look at the original error at all.
+ * Handles errors based on the general error categories emitted by the error
+ * service; the original error is not inspected here.
  *
  * @param {OdooEnv} env
  * @param {UncaughtError} error

@@ -111,8 +111,8 @@ export class ActionMenus extends Component {
             active_model: this.props.resModel,
         };
         if (this.props.domain) {
-            // keep active_domain in context for backward compatibility
-            // reasons, and to allow actions to bypass the active_ids_limit
+            // keep active_domain in context for backward compatibility,
+            // and to allow actions to bypass the active_ids_limit
             activeIdsContext.active_domain = this.props.domain;
         }
         const context = makeContext([this.props.context, activeIdsContext]);

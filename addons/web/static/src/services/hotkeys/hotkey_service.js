@@ -335,9 +335,8 @@ export const hotkeyService = {
 
                 let overlayParent;
                 if (item.el.tagName.toUpperCase() === "INPUT") {
-                    // special case for the search input that has an access key
-                    // defined. We cannot set the overlay on the input itself,
-                    // only on its parent.
+                    // Special case: the search input has an accesskey, but the
+                    // overlay can only go on its parent, not the input itself.
                     overlayParent = item.el.parentElement;
                 } else {
                     overlayParent = item.el;
@@ -431,8 +430,8 @@ export const hotkeyService = {
                 withOverlay: options?.withOverlay,
             };
 
-            // Due to the way elements are mounted in the DOM by Owl (bottom-to-top),
-            // we need to wait the next micro task tick to set the context owner of the registration.
+            // Owl mounts elements bottom-to-top, so wait a microtask tick before
+            // setting the registration's context owner.
             queueMicrotask(() => {
                 registration.activeElement = ui.activeElement;
             });

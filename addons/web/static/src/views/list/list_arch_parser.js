@@ -226,8 +226,8 @@ export class ListArchParser {
 
                 const widgetProps = {
                     name: widgetInfo.name,
-                    // FIXME: this is dumb, we encode it into a weird object so that the widget
-                    // can decode it later...
+                    // FIXME: encoded into a weird object so the widget can decode it
+                    // later...
                     node: encodeObjectForTemplate({
                         attrs: widgetInfo.attrs,
                     }).slice(1, -1),

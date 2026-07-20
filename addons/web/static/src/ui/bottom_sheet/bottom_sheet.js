@@ -105,7 +105,7 @@ export class BottomSheet extends Component {
         // Tracks whether OUR entry is still on the stack. Two lifetimes consume
         // it, each exactly once:
         //  - Back pressed → popstate fires, the browser has already popped our
-        //    entry, so we just mark it consumed and dismiss (the old code
+        //    entry, so we mark it consumed and dismiss (the old code
         //    pushed ANOTHER entry here — that was the leak, re-trapping the user
         //    behind a fresh entry every Back press).
         //  - Closed by any other means (escape, scroll, close()) → onWillUnmount

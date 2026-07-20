@@ -131,9 +131,9 @@ export class FormRenderer extends Component {
         }
 
         if (this.env.inDialog) {
-            // try to ensure ids unicity by temporarily removing similar ids that could already
-            // exist in the DOM (e.g. in a form view displayed below this dialog which contains
-            // same field names as this form view)
+            // Ensure id uniqueness by temporarily removing ids that already exist
+            // elsewhere in the DOM (e.g. a form view displayed below this dialog
+            // with the same field names).
             const fieldNodeIds = new Set(Object.keys(this.props.archInfo.fieldNodes));
             const elementsByNodeIds = {};
             onMounted(() => {

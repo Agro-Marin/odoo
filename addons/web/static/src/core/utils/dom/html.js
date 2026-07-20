@@ -217,9 +217,8 @@ export function htmlTrim(content) {
  * Checks if a html content is empty. If there are only formatting tags
  * with style attributes or a void content. Famous use case is
  * '<p style="..." class=".."><br></p>' added by some web editor(s).
- * Note that because the use of this method is limited, we ignore the cases
- * like there's one <img> tag in the content. In such case, even if it's the
- * actual content, we consider it empty.
+ * Because this method's use is limited, edge cases like a single <img> tag
+ * are ignored: such content is still considered empty even though it's real.
  *
  * @param {string | Markup} [content]
  * @returns {boolean} true if no content found or if containing only formatting tags

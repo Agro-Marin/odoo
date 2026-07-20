@@ -46,10 +46,8 @@ export const currencyService = {
         }
         rpcBus.addEventListener(RpcEvent.RESPONSE, (ev) => {
             // Defensive: malformed payloads (null detail, missing data) can
-            // be dispatched to the global rpcBus by tests or by intentional
-            // synthetic fires. Optional-chain the detail before destructuring
-            // so this listener does not turn a malformed event into a thrown
-            // exception that pollutes other tests via the shared bus.
+            // be dispatched to the global rpcBus by tests or synthetic fires;
+            // don't let that throw and pollute other tests via the shared bus.
             if (!ev.detail?.data?.params) {
                 return;
             }
