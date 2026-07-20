@@ -666,7 +666,7 @@ class DiscussChannelMember(models.Model):
         """Get the domain used to get the members to invite to and RTC call on
         the member's channel.
 
-        :param list member_ids: List of the partner ids to invite.
+        :param list member_ids: List of the discuss.channel.member ids to invite.
         """
         self.ensure_one()
         domain = Domain.AND(
@@ -692,7 +692,7 @@ class DiscussChannelMember(models.Model):
         """Sends invitations to join the RTC call to all connected members of the thread who are not already invited,
         if member_ids is set, only the specified ids will be invited.
 
-        :param list member_ids: list of the partner ids to invite
+        :param list member_ids: list of the discuss.channel.member ids to invite
         """
         self.ensure_one()
         members = self.env["discuss.channel.member"].search(

@@ -91,7 +91,7 @@ class ResUsers(models.Model):
 
     @api.depends("share", "all_group_ids")
     def _compute_notification_type(self):
-        # Because of the `group_ids` in the `api.depends`,
+        # Because of the `all_group_ids` in the `api.depends`,
         # this code will be called for any change of group on a user,
         # even unrelated to the group_mail_notification_type_inbox or share flag.
         # e.g. if you add HR > Manager to a user, this method will be called.

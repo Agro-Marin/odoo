@@ -20,8 +20,8 @@ class MailActivity(models.Model):
     """An actual activity to perform. Activities are linked to
     documents using res_id and res_model_id fields. Activities have a deadline
     that can be used in kanban view to display a status. Once done activities
-    are unlinked and a message is posted. This message has a new activity_type_id
-    field that indicates the activity linked to the message."""
+    are archived (to keep history) and a message is posted. This message has a
+    new activity_type_id field that indicates the activity linked to the message."""
 
     _name = "mail.activity"
     _description = "Activity"

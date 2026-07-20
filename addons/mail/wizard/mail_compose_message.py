@@ -818,7 +818,7 @@ class MailComposeMessage(models.TransientModel):
     @api.depends("composition_mode", "composition_comment_option")
     def _compute_notify_skip_followers(self):
         """Used only in 'comment' mode, controls 'notify_skip_followers' notification
-        parameter. 'Reply-All' behavior triggers skipping followers."""
+        parameter. 'Forward' behavior triggers skipping followers."""
         self.filtered(
             lambda c: c.composition_mode != "comment"
         ).notify_skip_followers = False

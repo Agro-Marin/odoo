@@ -167,7 +167,7 @@ class MailFollowers(models.Model):
             'share': if partner is a customer (no user or share user);
             'ushare': if partner has users, whether all are shared (public or portal);
             'type': summary of partner 'usage' (a string among 'portal', 'customer',
-                'internal user');
+                'user');
             'uid': linked 'res.users' ID. If several users exist preference is
                 given to internal user, then share users;
           }
