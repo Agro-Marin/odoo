@@ -14,19 +14,11 @@
     import { loadJS } from "@web/core/assets";
 
     import { markup } from "@odoo/owl";
-
-    /**
-     * Helper: Get the slide dict matching the given criteria
-     *
-     * @private
-     * @param {Array<Object>} slideList List of dict reprensenting a slide
-     * @param {[string] : any} matcher
-     */
-    var findSlide = function (slideList, matcher) {
-        return slideList.find((slide) => {
-            return Object.keys(matcher).every((key) => matcher[key] === slide[key]);
-        });
-    };
+    import {
+        parseSlideBoolean,
+        parseSlideDataset,
+        findSlide,
+    } from "@website_slides/js/public/slides_course_utils";
 
     /**
      * This widget is responsible of display Youtube Player
@@ -314,9 +306,9 @@
         _onClickTab: function (ev) {
             ev.stopPropagation();
             const elem = ev.currentTarget.closest('.o_wslides_fs_sidebar_list_item');
-            if (elem.dataset.canAccess === 'True') {
-                var isQuiz = elem.dataset.isQuiz === '1' || elem.dataset.isQuiz === 'true';
-                var slideID = parseInt(elem.dataset.id);
+            if (parseSlideBoolean(elem.dataset.canAccess)) {
+                var isQuiz = parseSlideBoolean(elem.dataset.isQuiz);
+                var slideID = Number(elem.dataset.id);
                 var slide = findSlide(this.slideEntries, {id: slideID, isQuiz: isQuiz});
                 this._updateSlideEntry(slide);
             }
@@ -337,7 +329,12 @@
             if (active) {
                 active.classList.remove('active');
             }
-            var selector = '.o_wslides_fs_sidebar_list_item[data-id="' + slide.id + '"][data-is-quiz!="1"]';
+            // `[attr!=value]` is a jQuery/Sizzle extension, not valid CSS: native
+            // querySelector throws a SyntaxError on it. The throw landed after the
+            // `active` class had already been removed above and before
+            // trigger_up('change_slide') below, so the highlight vanished and the
+            // slide never changed.
+            var selector = '.o_wslides_fs_sidebar_list_item[data-id="' + slide.id + '"]:not([data-is-quiz="1"])';
             const newActive = this.el.querySelector(selector);
             if (newActive) {
                 newActive.classList.add('active');
@@ -721,7 +718,12 @@
         start: function (){
             var proms = [this._super.apply(this, arguments)];
             var fullscreen = new Fullscreen(this, this._getSlides(), this._getCurrentSlideID(), this._extractChannelData());
-            proms.push(fullscreen.attachTo(".o_wslides_fs_main"));
+            // Must be the element, not a selector string: attachTo() forwards its
+            // argument straight to setElement(), which assigns it to `this.el`
+            // without resolving selectors. A string then blows up in
+            // _delegateEvents() ("this.el.addEventListener is not a function")
+            // and the whole fullscreen player silently never binds a handler.
+            proms.push(fullscreen.attachTo(this.el));
             // To prevent double scrollbar due to footer overflow
             document.querySelector('.o_footer')?.classList.add('d-none');
             return proms;
@@ -740,7 +742,7 @@
         _getSlides: function (){
             var slideList = [];
             for (const el of this.el.querySelectorAll('.o_wslides_fs_sidebar_list_item[data-can-access="True"]')) {
-                slideList.push(el.dataset);
+                slideList.push(parseSlideDataset(el.dataset));
             }
             return slideList;
         },

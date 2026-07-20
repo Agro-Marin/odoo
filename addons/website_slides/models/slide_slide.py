@@ -410,7 +410,7 @@ class SlideSlide(models.Model):
                 slide.slide_type = False
 
     @api.depends('slide_partner_ids.partner_id', 'slide_partner_ids.vote', 'slide_partner_ids.completed')
-    @api.depends('uid')
+    @api.depends_context('uid')
     def _compute_user_membership_id(self):
         slide_partners = self.env['slide.slide.partner'].sudo().search([
             ('slide_id', 'in', self.ids),
@@ -592,11 +592,19 @@ class SlideSlide(models.Model):
 
     @api.model_create_multi
     def create(self, vals_list):
-        channel_ids = [vals['channel_id'] for vals in vals_list]
-        can_publish_channel_ids = self.env['slide.channel'].browse(channel_ids).filtered(lambda c: c.can_publish).ids
-        for vals in vals_list:
+        # `channel_id` may legitimately come from the context rather than the
+        # vals: `default_channel_id` is how slide_channel.py and the backend
+        # views create slides. Reading vals['channel_id'] directly raised a
+        # KeyError on that documented path, since defaults are only applied
+        # inside super().create().
+        default_channel_id = self.env.context.get('default_channel_id')
+        channel_ids = [vals.get('channel_id') or default_channel_id for vals in vals_list]
+        can_publish_channel_ids = self.env['slide.channel'].browse(
+            [channel_id for channel_id in channel_ids if channel_id]
+        ).filtered(lambda c: c.can_publish).ids
+        for vals, channel_id in zip(vals_list, channel_ids, strict=True):
             # Do not publish slide if user has not publisher rights
-            if vals['channel_id'] not in can_publish_channel_ids:
+            if channel_id not in can_publish_channel_ids:
                 # 'website_published' is handled by mixin
                 vals['date_published'] = False
 
@@ -624,7 +632,13 @@ class SlideSlide(models.Model):
 
             if slide.is_published and not slide.is_category:
                 slide._post_publication()
-                slide.channel_id.channel_partner_ids._recompute_completion()
+
+        # Recompute once for the whole batch rather than per slide: this walks
+        # every member of every touched channel, so importing N slides into a
+        # course with M members did N read_groups and up to N*M writes over the
+        # same rows. write() already batches it this way.
+        published_slides = slides.filtered(lambda s: s.is_published and not s.is_category)
+        published_slides.channel_id.channel_partner_ids._recompute_completion()
         return slides
 
     def write(self, vals):
@@ -642,25 +656,38 @@ class SlideSlide(models.Model):
             elif values['slide_category'] != 'article':
                 values = {'html_content': False, **values}
 
+        # Capture before super(): afterwards every record reads as published and
+        # we can no longer tell which ones actually changed state. Re-publishing
+        # an already-live slide used to reset date_published (scrambling the
+        # "New" badge and the `latest` ordering) and re-notify every channel
+        # follower — one bulk "Publish" on a list view spammed the whole course.
+        newly_published = self.filtered(lambda slide: not slide.is_published) if values.get('is_published') else self.browse()
+
         res = super().write(values)
 
-        if values.get('is_published'):
-            self.date_published = datetime.datetime.now()
-            self._post_publication()
+        if newly_published:
+            newly_published.date_published = datetime.datetime.now()
+            newly_published._post_publication()
 
         # avoid fetching external metadata when installing the module (i.e. for demo data)
         # we also support a context key if you don't want to fetch the metadata when modifying a slide
         if any(values.get(url_param) for url_param in ['url', 'video_url', 'document_google_url', 'image_google_url']) \
            and not self.env.context.get('install_mode') \
            and not self.env.context.get('website_slides_skip_fetch_metadata'):
-            slide_metadata, _error = self._fetch_external_metadata()
-            if slide_metadata:
-                # only update keys that are not set in the incoming values and for which we don't have a value yet
-                self.update({
-                    key: value
-                    for key, value in slide_metadata.items()
-                    if key not in values.keys() and not any(slide[key] for slide in self)
-                })
+            # Per record: _fetch_external_metadata() is ensure_one(), so a
+            # multi-record write touching a url field raised "Expected
+            # singleton" (reachable from list-view multi-edit). Applying one
+            # slide's fetched title/duration to the whole set would be wrong
+            # anyway, as would skipping a key because *any* record already has it.
+            for slide in self:
+                slide_metadata, _error = slide._fetch_external_metadata()
+                if slide_metadata:
+                    # only update keys that are not set in the incoming values and for which we don't have a value yet
+                    slide.update({
+                        key: value
+                        for key, value in slide_metadata.items()
+                        if key not in values.keys() and not slide[key]
+                    })
 
         if 'is_published' in values or 'active' in values:
             # archiving a channel unpublishes its slides
@@ -954,8 +981,14 @@ class SlideSlide(models.Model):
         no attempt limit. They exist solely to store questions as
         ``survey.question`` records, unifying the data model with certifications.
         """
+        # sudo: the backing survey is an implementation detail of the slide, not
+        # a survey the user owns. website_slides_survey confines eLearning
+        # officers to `certification = True` surveys, so an officer creating a
+        # quiz on their *own* course hit an AccessError here. Authorization for
+        # editing a quiz belongs to the slide's channel and is enforced by the
+        # can_publish check in the controller before we ever get here.
         for slide in self.filtered(lambda s: not s.survey_id):
-            survey = self.env['survey.survey'].create({
+            survey = self.env['survey.survey'].sudo().create({
                 'title': slide.name or _("Quiz"),
                 'scoring_type': 'scoring_without_answers',
                 'scoring_success_min': 100.0,
