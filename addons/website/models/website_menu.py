@@ -310,10 +310,9 @@ class WebsiteMenu(models.Model):
                 ):
                     # correct path but query arguments does not match
                     return False
-                if menu_url.netloc and menu_url.netloc != request_url.netloc:
-                    # correct path but not correct domain
-                    return False
-                return True
+                # Correct path and matching query; the menu's netloc (if it
+                # sets one) must also match the request's domain.
+                return not (menu_url.netloc and menu_url.netloc != request_url.netloc)
         # Child match (dropdown menu), `self` is just a parent/container,
         # don't check its URL, consider only its children
         elif any(child._is_active() for child in self.child_id):

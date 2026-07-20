@@ -174,8 +174,11 @@ class IrModel(models.Model):
                                     property_definition["domain"] = list(
                                         Domain(property_definition["domain"])
                                     )
-                                except Exception:
-                                    # Ignore non-fully defined properties
+                                except Exception:  # noqa: S112
+                                    # Intentionally ignore properties whose
+                                    # domain is not fully defined yet (e.g. one
+                                    # being edited); they are simply skipped from
+                                    # the form's available fields.
                                     continue
                             fields_get[property_definition.get("name")] = (
                                 property_definition

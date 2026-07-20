@@ -242,9 +242,7 @@ class WebsiteAssets(models.AbstractModel):
 
                     def fetch_google_font(src):
                         statement = src.group()
-                        match = re.match(
-                            r"src: url\(([^\)]+)\) (.+)", statement
-                        )
+                        match = re.match(r"src: url\(([^\)]+)\) (.+)", statement)
                         if not match:
                             # Google changed its @font-face CSS shape: leave the
                             # statement untouched instead of crashing the whole

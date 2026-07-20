@@ -1,6 +1,4 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
-from ast import literal_eval
-
 from odoo import api, fields, models
 from odoo.exceptions import ValidationError
 

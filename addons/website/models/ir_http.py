@@ -81,9 +81,9 @@ class IrHttp(models.AbstractModel):
 
     @classmethod
     def _slug_matching(cls, adapter, endpoint, **kw):
-        for arg in kw:
-            if isinstance(kw[arg], models.BaseModel):
-                kw[arg] = kw[arg].with_context(slug_matching=True)
+        for arg, value in kw.items():
+            if isinstance(value, models.BaseModel):
+                kw[arg] = value.with_context(slug_matching=True)
         qs = request.httprequest.query_string.decode("utf-8")
         return adapter.build(endpoint, kw) + ((qs and "?%s" % qs) or "")
 
@@ -149,13 +149,15 @@ class IrHttp(models.AbstractModel):
                 rewrite = rewrites[url]
                 url_to = rewrite.url_to
                 if rewrite.redirect_type == "308":
-                    logger.debug("Add rule %s for %s" % (url_to, website_id))
+                    logger.debug("Add rule %s for %s", url_to, website_id)
                     yield url_to, endpoint  # yield new url
 
                     if url != url_to:
                         logger.debug(
-                            "Redirect from %s to %s for website %s"
-                            % (url, url_to, website_id)
+                            "Redirect from %s to %s for website %s",
+                            url,
+                            url_to,
+                            website_id,
                         )
                         # duplicate the endpoint to only register the redirect_to for this specific url
                         redirect_endpoint = functools.partial(endpoint)
@@ -171,7 +173,7 @@ class IrHttp(models.AbstractModel):
                             redirect_endpoint,
                         )  # yield original redirected to new url
                 elif rewrite.redirect_type == "404":
-                    logger.debug("Return 404 for %s for website %s" % (url, website_id))
+                    logger.debug("Return 404 for %s for website %s", url, website_id)
                     continue
             else:
                 yield url, endpoint
@@ -271,7 +273,7 @@ class IrHttp(models.AbstractModel):
                     # unpublished `event.event` due to ir.rule, return
                     # 403 instead of using `sudo()` for perfs as this is
                     # low level.
-                    raise werkzeug.exceptions.Forbidden
+                    raise werkzeug.exceptions.Forbidden from None
 
     @classmethod
     def _get_editor_context(cls):

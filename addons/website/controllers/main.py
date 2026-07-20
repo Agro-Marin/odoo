@@ -1345,7 +1345,7 @@ class Website(Home):
                 record = request.env[res_model].browse(res_id)
                 record.check_access("write")
             except AccessError:
-                raise werkzeug.exceptions.Forbidden
+                raise werkzeug.exceptions.Forbidden from None
 
         fields = [
             "website_meta_title",
@@ -1432,7 +1432,7 @@ class Website(Home):
             # unauthenticated caller rewrite the stored verification token
             # (``request.website.sudo().google_search_console = ...``) just by
             # requesting a longer ``/google<token><extra>.html`` path.
-            logger.warning("Google Search Console %s not recognize" % key)
+            logger.warning("Google Search Console %s not recognize", key)
             raise werkzeug.exceptions.NotFound
 
         return request.make_response(
