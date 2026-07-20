@@ -350,13 +350,10 @@ class RecomputeMixin(_ModelStubs):
         """Cached tuple of stored-computed fields for this model.
 
         Memoized per-class via :func:`own_class_memo` (own-``__dict__`` read, so a
-        prototype-inheriting child never reuses its parent's tuple — which would
-        silently drop the child's extra stored-computed fields from recompute).
-        The model class is *reused* across re-setup (registration reassigns
-        ``__bases__`` in place rather than recreating the class), so the memo
-        does not clear itself — it is explicitly discarded by
-        ``registration._prepare_setup`` alongside the other per-class memos,
-        forcing a recompute after fields change.
+        child never reuses a parent's tuple and drop its own stored-computed
+        fields). The class is reused across re-setup (``__bases__`` reassigned in
+        place), so the memo is cleared explicitly by
+        ``registration._prepare_setup`` when fields change.
         """
         return own_class_memo(
             cls,
@@ -469,10 +466,8 @@ class RecomputeMixin(_ModelStubs):
         if fnames is None or any(
             core.has_dirty_field(self._fields[fname]) for fname in fnames
         ):
-            # Flush ALL dirty fields, not just the requested ones.  Partial
-            # flushes would leave computed dependents stale — e.g. flushing
-            # 'amount' without 'tax_amount' that depends on it could write
-            # an inconsistent row.  The "at least fnames" contract is correct.
+            # Flush ALL dirty fields (see the dirty-guard note in the docstring):
+            # a partial flush could write a row with stale computed dependents.
             self._flush()
 
         prof.stop()

@@ -450,9 +450,7 @@ class CreateMixin(_ModelStubs):
         return result_vals_list
 
     def _add_precomputed_values(self, vals_list: list[ValuesType]) -> None:
-        """Add missing precomputed fields to ``vals_list`` values.
-        Only applies for precompute=True fields.
-        """
+        """Add missing ``precompute=True`` fields to ``vals_list``."""
         precomputable = {
             fname: field for fname, field in self._fields.items() if field.precompute
         }
@@ -485,12 +483,11 @@ class CreateMixin(_ModelStubs):
     ) -> list[tuple]:
         """Build one column-converted value tuple per record, for INSERT / COPY.
 
-        The COPY and INSERT branches of :meth:`_create` apply the *same* rule --
+        Applies the rule shared by both branches of :meth:`_create`:
         ``convert_to_column_insert`` for a present column, ``None`` for a missing
-        one (Python defaults already filled required gaps, so a gap means a
-        NULL-defaulting non-required column) -- and differ only in row vs column
-        orientation. This keeps that single rule in one place. ``columns`` and
-        ``col_fields`` are parallel.
+        one (a gap means a NULL-defaulting non-required column, since Python
+        defaults already filled required ones). ``columns`` and ``col_fields``
+        are parallel.
         """
         return [
             tuple(
@@ -677,8 +674,7 @@ class CreateMixin(_ModelStubs):
     ) -> tuple[Self, dict]:
         """Populate the ORM cache for newly created records.
 
-        Fills cache slots for all stored fields, converts values to cache
-        format, and collects many2one inverse updates.
+        Fills cache slots for all stored fields and collects M2O inverse updates.
 
         :param ids: list of newly created record IDs
         :param data_list: list of data dicts with 'stored' and 'inherited' keys
