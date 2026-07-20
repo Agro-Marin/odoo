@@ -31,30 +31,18 @@ class MaterializedViewMixin(models.AbstractModel):
     a fallback between CONCURRENTLY and blocking variants, and a cron entry
     point.  Introspection queries are scoped to ``current_schema`` so multi-
     schema databases are handled correctly.
-
-    Combining with ``sql.report.mixin``
-    -----------------------------------
-    The two mixins are designed to compose:
-
-        _inherit = ["sql.report.mixin", "materialized.view.mixin"]
-
-    The ``_materialized = True`` marker set by this mixin makes
-    ``sql.report.mixin._table_query`` return ``None``, so the ORM reads the
-    physical materialized view at ``self._table`` (fast) instead of inlining
-    the analytical query as a subquery (slow).  ``_create_materialized_view``
-    still uses the registry-built SQL via ``_query()`` to populate the MV.
-
-    Stand-alone usage
-    -----------------
-    When inherited without ``sql.report.mixin``, the subclass must override
-    ``_query()`` to return the defining SQL.
     """
 
     _name = "materialized.view.mixin"
     _description = "Materialized View Mixin"
 
-    # Consumed by sql.report.mixin._table_query: True makes the ORM read
-    # from the physical relation rather than re-inlining the analytical query.
+    # Composition marker for `_inherit = ["sql.report.mixin",
+    # "materialized.view.mixin"]`.  Consumed by sql.report.mixin._table_query:
+    # True makes the ORM read the physical MV at self._table (fast) instead of
+    # re-inlining the analytical query as a subquery (slow).
+    # _create_materialized_view still populates the MV from the registry-built
+    # SQL via _query().  Stand-alone (no sql.report.mixin) requires overriding
+    # _query().
     _materialized = True
 
     # Column (or list of columns) for the UNIQUE index that REFRESH ...
@@ -70,15 +58,13 @@ class MaterializedViewMixin(models.AbstractModel):
     def _query(self):
         """Return the defining ``SQL`` for the materialized view.
 
-        Resolution order (so ``_inherit`` order between the two mixins doesn't
-        matter):
+        Resolves from ``_build_table_query`` (``sql.report.mixin``) when
+        present, else the ``_table_query`` attribute; stand-alone subclasses
+        (no ``sql.report.mixin``) must override this method.
 
-        1. ``_build_table_query`` if present — from ``sql.report.mixin``.
-        2. ``_table_query`` attribute if it's a non-empty ``SQL`` or ``str``.
-        3. Otherwise raise ``NotImplementedError``.
-
-        Stand-alone usage (no ``sql.report.mixin``) requires overriding this
-        method.
+        :return: non-empty defining SQL
+        :rtype: SQL
+        :raises NotImplementedError: if no source query is available
         """
         build = getattr(self, "_build_table_query", None)
         if callable(build):
@@ -165,24 +151,9 @@ class MaterializedViewMixin(models.AbstractModel):
     def refresh(self) -> bool:
         """Refresh the materialized view.
 
-        Falls back to a blocking (non-concurrent) refresh on the first call
-        because PostgreSQL rejects CONCURRENTLY on unpopulated MVs with
-        ``FeatureNotSupported``.
-
-        Returns True on success, False if the view doesn't exist or a
-        transient error occurred.  Non-transient errors propagate so the
-        cron's error log actually shows them.
-
-        The REFRESH runs inside a SAVEPOINT.  A failed statement aborts the
-        whole PostgreSQL transaction, so without the savepoint a swallowed
-        transient error would leave the cursor in ``InFailedSqlTransaction``
-        state — every later statement (e.g. the next MV in a loop-over-many
-        cron) would then fail even though this method returned ``False``.
-        ``ROLLBACK TO SAVEPOINT`` localises the failure to this one refresh.
-
-        Pending ORM writes are not flushed before the refresh (``flush=False``):
-        the MV is defined over committed data, and callers that need in-flight
-        writes reflected must flush explicitly beforehand.
+        :return: True on success; False if the view doesn't exist or a
+            transient error occurred.  Non-transient errors propagate so the
+            cron's error log records them.
         """
         if not self._view_exists(self._table):
             _logger.warning(
@@ -193,8 +164,18 @@ class MaterializedViewMixin(models.AbstractModel):
             return False
 
         table_name = SQL.identifier(self._table)
+        # First refresh must be blocking: PostgreSQL rejects REFRESH ...
+        # CONCURRENTLY on an unpopulated MV with ObjectNotInPrerequisiteState.
         concurrently = self._is_populated(self._table)
         try:
+            # Run inside a SAVEPOINT: a failed statement aborts the whole
+            # transaction, so a swallowed transient error would otherwise leave
+            # the cursor in InFailedSqlTransaction and break every later
+            # statement (e.g. the next MV in a loop-over-many cron).  ROLLBACK
+            # TO SAVEPOINT localises the failure to this one refresh.
+            # flush=False: the MV is defined over committed data, so pending ORM
+            # writes are intentionally not flushed here; callers needing them
+            # reflected must flush explicitly beforehand.
             with self.env.cr.savepoint(flush=False):
                 if concurrently:
                     _logger.info("Refreshing %s (CONCURRENTLY)", self._table)
@@ -226,40 +207,35 @@ class MaterializedViewMixin(models.AbstractModel):
     def init(self):
         """Default schema hook: (re)create the MV on install / upgrade.
 
-        Reads ``with_data`` from context (default True — the safe choice; see
-        ``_create_materialized_view``) and uses ``_mv_index_field`` for the
-        unique index.  A concrete model only needs to set ``_mv_index_field``;
-        override this method directly only for non-default ``with_data`` logic.
-
-        No-op for abstract models: ``registry.init_models`` calls ``init()`` on
-        every model, including this mixin itself, which has no table.
-
-        Rebuild policy — ``init()`` runs once per upgraded module whose model
-        closure contains this model, which on a ``-u base`` means many times
-        per load, each a full ``CREATE ... WITH DATA`` over the source tables
-        (measured minutes on a production database).  So:
-
-        * view missing: create immediately (data loading and ``at_install``
-          tests may SELECT it before the end-of-load hook runs);
-        * registry still loading: defer to ``_register_hook`` (end of load),
-          where the *final* model definition builds the query exactly once;
-        * otherwise (e.g. ``reload_schema`` on a running server): rebuild only
-          if the stored definition hash differs (see ``_mv_needs_rebuild``).
+        Reads ``with_data`` from context (default True) and uses
+        ``_mv_index_field`` for the unique index.  A concrete model normally
+        only sets ``_mv_index_field``; override this method directly only for
+        non-default ``with_data`` logic.
         """
+        # registry.init_models calls init() on every model, including this
+        # abstract mixin, which has no table.
         if self._abstract:
             return
         with_data = self.env.context.get("with_data", True)
+        # View missing: create immediately — data loading and at_install tests
+        # may SELECT it before the end-of-load hook runs.
         if not self._view_exists(self._table):
             self._create_materialized_view(
                 with_data=with_data, index_field=self._mv_index_field
             )
             return
+        # Registry still loading: defer to _register_hook (end of load), where
+        # the final model definition builds the query exactly once.  init() runs
+        # once per upgraded module in the closure, so on `-u base` it fires many
+        # times per load, each a full CREATE ... WITH DATA (minutes on prod).
         if not self.pool.loaded:
             pending = getattr(self.pool, "_pending_materialized_views", None)
             if pending is None:
                 pending = self.pool._pending_materialized_views = {}
             pending[self._name] = with_data
             return
+        # Ready registry (e.g. reload_schema on a running server): rebuild only
+        # if the stored definition hash differs.
         if self._mv_needs_rebuild(with_data=with_data):
             self._create_materialized_view(
                 with_data=with_data, index_field=self._mv_index_field
@@ -333,22 +309,17 @@ class MaterializedViewMixin(models.AbstractModel):
     def _create_materialized_view(self, with_data=True, index_field="id"):
         """(Re)create the materialized view and its unique index.
 
-        Args:
-            with_data: If True (default), populate immediately (``WITH DATA``).
-                Default changed from False — PostgreSQL rejects SELECT on
-                unpopulated MVs with ``ObjectNotInPrerequisiteState``, which
-                would make reports fail hard between install and first cron
-                refresh.  Pass ``with_data=False`` only for MVs so large that
-                install latency outweighs availability, and queue a refresh
-                immediately after module install.
-            index_field: Column (``str``) or columns (list/tuple of ``str``)
-                for the UNIQUE index required by REFRESH MATERIALIZED VIEW
-                CONCURRENTLY.  Defaults to ``"id"``.  A composite key must be
-                unique across the MV rows.
-
-        Raises:
-            UserError: if ``self._table`` is already used by a regular table
-                or any relation kind other than view / materialized view.
+        :param with_data: If True (default), populate immediately
+            (``WITH DATA``).  PostgreSQL rejects SELECT on unpopulated MVs with
+            ``ObjectNotInPrerequisiteState``, which would make reports fail hard
+            between install and the first cron refresh.  Pass ``False`` only for
+            MVs so large that install latency outweighs availability, and queue
+            a refresh immediately after module install.
+        :param index_field: Column (``str``) or columns (list/tuple of ``str``)
+            for the UNIQUE index required by REFRESH MATERIALIZED VIEW
+            CONCURRENTLY.  A composite key must be unique across the MV rows.
+        :raises UserError: if ``self._table`` is already used by a regular table
+            or any relation kind other than view / materialized view.
         """
         table_name = SQL.identifier(self._table)
         query_sql = self._query()
