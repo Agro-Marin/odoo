@@ -113,7 +113,7 @@ ref_re = re.compile(
 
 
 def _hasclass(context: Any, *cls: str) -> bool:
-    """Checks if the context node has all the classes passed as arguments"""
+    """Return whether the context node has all the given classes."""
     node_classes = set(context.context_node.attrib.get("class", "").split())
     return node_classes.issuperset(cls)
 
@@ -1014,7 +1014,7 @@ class IrUiView(models.Model):
 
     @api.model
     def _get_filter_xmlid_query(self) -> str:
-        """This method is meant to be overridden by other modules."""
+        """Overridable hook for other modules."""
         return """SELECT res_id FROM ir_model_data
                   WHERE res_id IN %(res_ids)s AND model = 'ir.ui.view' AND module IN %(modules)s
                """

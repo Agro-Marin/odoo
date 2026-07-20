@@ -488,7 +488,7 @@ class BasePartnerMergeAutomaticWizard(models.TransientModel):
         )
 
     def _get_summable_fields(self) -> list[str]:
-        """Returns the list of fields that should be summed when merging partners"""
+        """Return the fields to sum when merging partners."""
         return []
 
     @api.model

@@ -3392,7 +3392,7 @@ class IrQweb(models.AbstractModel):
     def _compile_directive_call_assets(
         self, el: etree._Element, compile_context: dict[str, Any], level: int
     ) -> list[str]:
-        """This special 't-call-assets' tag can be used in order to aggregate/minify javascript and css assets"""
+        """Aggregate and minify the JS/CSS assets for the ``t-call-assets`` tag."""
         if len(el) > 0:
             msg = "t-call-assets cannot contain children nodes"
             raise SyntaxError(msg)

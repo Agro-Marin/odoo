@@ -1494,7 +1494,7 @@ class ResPartner(models.Model):
         return self.browse()
 
     def open_commercial_entity(self) -> dict[str, Any]:
-        """Utility method used to add an "Open Company" button in partner views"""
+        """Open the partner's commercial entity (the "Open Company" button)."""
         self.ensure_one()
         return {
             "type": "ir.actions.act_window",
