@@ -79,14 +79,11 @@ class PurchaseBillUnion(models.Model):
     def _table_query(self):
         """Generate SQL UNION query combining vendor bills and purchase orders.
 
-        This creates a unified view of:
-        - Posted vendor bills (invoices and refunds)
-        - Purchase orders awaiting invoicing
-        - Additional sources from _get_additional_queries() hook
-
-        Returns:
-            SQL: Combined query with vendor bills (positive IDs) and
-                 purchase orders (negative IDs to avoid collision)
+        :return: combined query over posted vendor bills, purchase orders
+            awaiting invoicing, and any sources added via
+            ``_get_additional_queries``. Vendor bills carry positive IDs and
+            purchase orders negative IDs to avoid collision.
+        :rtype: SQL
         """
         queries = [
             self._query_vendor_bills(),
@@ -109,20 +106,10 @@ class PurchaseBillUnion(models.Model):
 
     @api.model
     def _get_additional_queries(self):
-        """Hook for other modules to add queries to the UNION.
+        """Hook for inheriting modules to add data sources to the UNION.
 
-        This method should be overridden by inheriting modules to add
-        additional data sources to the purchase.bill.match view.
-
-        Example:
-            @api.model
-            def _get_additional_queries(self):
-                queries = super()._get_additional_queries()
-                queries.append(self._query_templates())
-                return queries
-
-        Returns:
-            list[SQL]: List of SQL queries to add to the UNION
+        :return: SQL queries to append to the purchase.bill.match view.
+        :rtype: list[SQL]
         """
         return []
 
@@ -130,8 +117,8 @@ class PurchaseBillUnion(models.Model):
     def _query_vendor_bills(self):
         """Select posted vendor bills from account_move.
 
-        Returns:
-            SQL: Query for posted vendor bills (in_invoice, in_refund)
+        :return: query for posted vendor bills (in_invoice, in_refund).
+        :rtype: SQL
         """
         return SQL(
             """
@@ -151,8 +138,8 @@ class PurchaseBillUnion(models.Model):
     def _select_vendor_bills(self):
         """Define field selection for vendor bills.
 
-        Returns:
-            SQL: Field list for vendor bill selection
+        :return: field list for vendor bill selection.
+        :rtype: SQL
         """
         return SQL(
             """
@@ -173,8 +160,8 @@ class PurchaseBillUnion(models.Model):
     def _from_vendor_bills(self):
         """Define FROM clause for vendor bills.
 
-        Returns:
-            SQL: FROM clause for vendor bill selection
+        :return: FROM clause for vendor bill selection.
+        :rtype: SQL
         """
         return SQL("account_move am")
 
@@ -182,8 +169,8 @@ class PurchaseBillUnion(models.Model):
     def _where_vendor_bills(self):
         """Define WHERE clause for vendor bills.
 
-        Returns:
-            SQL: Conditions for selecting posted vendor bills
+        :return: conditions for selecting posted vendor bills.
+        :rtype: SQL
         """
         return SQL(
             """
@@ -196,10 +183,10 @@ class PurchaseBillUnion(models.Model):
     def _query_purchase_orders(self):
         """Select purchase orders awaiting invoicing.
 
-        Returns:
-            SQL: Query for confirmed purchase orders with invoice_status
-                 'to invoice' or 'no'. Uses negative IDs to prevent
-                 collision with vendor bill IDs.
+        :return: query for purchase orders in state 'done' whose invoice_state
+            is 'to do', 'no', or 'partial'. Uses negative IDs to prevent
+            collision with vendor bill IDs.
+        :rtype: SQL
         """
         return SQL(
             """
@@ -219,8 +206,8 @@ class PurchaseBillUnion(models.Model):
     def _select_purchase_orders(self):
         """Define field selection for purchase orders.
 
-        Returns:
-            SQL: Field list for purchase order selection
+        :return: field list for purchase order selection.
+        :rtype: SQL
         """
         return SQL(
             """
@@ -241,8 +228,8 @@ class PurchaseBillUnion(models.Model):
     def _from_purchase_orders(self):
         """Define FROM clause for purchase orders.
 
-        Returns:
-            SQL: FROM clause for purchase order selection
+        :return: FROM clause for purchase order selection.
+        :rtype: SQL
         """
         return SQL("purchase_order po")
 
@@ -250,8 +237,8 @@ class PurchaseBillUnion(models.Model):
     def _where_purchase_orders(self):
         """Define WHERE clause for purchase orders.
 
-        Returns:
-            SQL: Conditions for selecting POs awaiting invoicing
+        :return: conditions for selecting POs awaiting invoicing.
+        :rtype: SQL
         """
         # Over-invoiced POs are already covered here: an over-billed line has
         # qty_to_invoice < 0 and is classified 'to do' (credit note needed), so
