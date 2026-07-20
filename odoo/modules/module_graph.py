@@ -132,14 +132,8 @@ _logger = logging.getLogger(__name__)
 
 
 class ModuleNode:
-    """Loading and upgrade info for an Odoo module.
-
-    Reviewed 2026-03: holds manifest, DB state, load state, and graph edges in
-    a single object — this is cohesive (all aspects of a module's participation
-    in the loading process), not a "god object".  Splitting would require
-    multiple correlated objects with no practical benefit for a one-shot
-    startup data structure.
-    """
+    """Loading and upgrade info for an Odoo module: manifest, DB state, load
+    state, and dependency edges."""
 
     def __init__(self, name: str, module_graph: ModuleGraph) -> None:
         # manifest data
@@ -262,9 +256,8 @@ class ModuleGraph:
 
     @functools.cached_property
     def _imported_modules(self) -> OrderedSet[str]:
-        # Reviewed 2026-03: "studio_customization" is hardcoded because it's an
-        # "imported" module without a physical addon directory — Odoo-specific
-        # infrastructure knowledge, not extractable to configuration.
+        # "studio_customization" is an imported module with no addon directory,
+        # so it is not discoverable from the addons path.
         result = ["studio_customization"]
         if column_exists(self._cr, "ir_module_module", "imported"):
             self._cr.execute("SELECT name FROM ir_module_module WHERE imported")
@@ -304,18 +297,9 @@ class ModuleGraph:
     def _find_cycle_members(self) -> set[str]:
         """Return names of modules that participate in any dependency cycle.
 
-        Uses Tarjan's strongly connected components algorithm.  A node is on a
-        cycle iff it lies in a non-singleton SCC, or it has a self-loop.
-
-        The previous single-pass DFS was incomplete: in topologies like
-        ``A → B → D → A`` and ``A → C → D → A`` (two cycles sharing A and D),
-        the DFS marks A, B, D when it finds the first back edge but reaches D
-        again from C only after D is ``DONE``, missing C.  Tarjan's SCC walks
-        the whole graph and groups nodes by reachability, so every cycle
-        member is detected regardless of traversal order.
-
-        Iterative implementation; safe on graphs deeper than Python's
-        recursion limit.
+        Uses Tarjan's strongly connected components algorithm: a node is on a
+        cycle iff it lies in a non-singleton SCC or has a self-loop.  Iterative,
+        so it is safe on graphs deeper than Python's recursion limit.
         """
         indices: dict[str, int] = {}
         lowlinks: dict[str, int] = {}
@@ -408,9 +392,8 @@ class ModuleGraph:
             module.load_state = state
 
     def _remove(self, name: str, log_dependents: bool = True) -> None:
-        # Reviewed 2026-03: O(n) scan per removal is acceptable — removals are rare
-        # (broken/missing modules only) and n ≈ 500.  A reverse-dependency index
-        # would add complexity to the common path for negligible gain.
+        # O(n) scan per removal, but removals are rare (broken/missing modules
+        # only), so a reverse-dependency index is not worth its complexity.
         module = self._modules.pop(name)
         for another, another_module in list(self._modules.items()):
             if (

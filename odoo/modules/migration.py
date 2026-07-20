@@ -22,9 +22,8 @@ if typing.TYPE_CHECKING:
 _logger = logging.getLogger(__name__)
 
 
-# Reviewed 2026-03: pre-7.0 patterns (6.1, saas~) are intentionally kept — multi-version
-# upgrade scripts and odoo.upgrade paths may contain historical version folders.
-# The regex is compiled once; zero runtime cost.
+# Pre-7.0 patterns (6.1, saas~) are kept: multi-version upgrade scripts and
+# odoo.upgrade paths may contain historical version folders.
 VERSION_RE = re.compile(
     r"""^
         # Optional prefix with Odoo version
@@ -270,8 +269,8 @@ class MigrationManager:
                     )
 
 
-# Reviewed 2026-03: _cr/_version variants are kept for backward compatibility
-# with existing migration scripts.  Zero cost, removing would break silently.
+# _cr/_version variants are kept for backward compatibility with existing
+# migration scripts.
 VALID_MIGRATE_PARAMS = list(
     itertools.product(
         ["cr", "_cr"],

@@ -136,20 +136,16 @@ The value follows a small state machine driven by ``odoo.tests``:
   ``current_test.get_log_metadata()``.  Consumers that dereference attributes
   must guard against the bool form (e.g. with ``contextlib.suppress``).
 
-Reviewed 2026-03: a plain global is correct here — Odoo uses fork-based
-concurrency (--workers=N), so each process gets an independent copy.  Tests
-require --workers=0 (single-threaded).  Replacing with ContextVar would break
-30+ consumers that read this as a simple attribute.
+A plain global is correct: Odoo uses fork-based concurrency, so each worker
+gets its own copy, and tests require ``--workers=0``.
 """
 
 
 class UpgradeHook:
     """Make the legacy `migrations` package resolve to `odoo.upgrade`.
 
-    Reviewed 2026-03: uses PEP 451 loader protocol (create_module/exec_module)
-    instead of the deprecated load_module (DeprecationWarning since 3.12,
-    removal unscheduled but expected).  This path is only triggered by
-    multi-version upgrade scripts importing from the legacy name.
+    Uses the PEP 451 loader protocol (create_module/exec_module). Triggered
+    only by multi-version upgrade scripts importing from the legacy name.
     """
 
     def find_spec(
@@ -215,20 +211,16 @@ def initialize_sys_path() -> None:
     sys.modules["odoo.addons.base.maintenance"] = maintenance_pkg
     sys.modules["odoo.addons.base.maintenance.migrations"] = odoo.upgrade
 
-    # The addons path may have just gained (or changed) entries, so drop any
-    # memoized manifests: a previously-negative lookup must not mask a module
-    # that is now reachable, and an edited manifest on disk must be re-read.
-    # Only clear when the path actually changed, though: this runs on every
-    # config.parse_config / Registry.new / cross-worker reload, and re-parsing
-    # ~1600 manifests each time is pure waste when the path is stable.
+    # If the addons path changed, drop memoized manifests so a now-reachable
+    # module is no longer masked by a negative lookup and edited manifests are
+    # re-read. Only on change: this runs often, and re-parsing ~1600 manifests
+    # when the path is stable is pure waste.
     current_addons_path = tuple(odoo.addons.__path__)
     if getattr(initialize_sys_path, "_last_addons_path", None) != current_addons_path:
         Manifest.clear_caches()
         initialize_sys_path._last_addons_path = current_addons_path
 
-    # hook for upgrades and namespace freeze
-    # Reviewed 2026-03: function attribute guard is a valid Python pattern —
-    # compact, scoped to the function, and called once during single-threaded startup.
+    # hook for upgrades and namespace freeze (once, at single-threaded startup)
     if not getattr(initialize_sys_path, "called", False):  # only initialize once
         odoo.addons.__path__._path_finder = lambda *a: None  # prevent path invalidation
         odoo.upgrade.__path__._path_finder = lambda *a: (
@@ -311,26 +303,21 @@ class Manifest(Mapping[str, typing.Any]):
         # Immutable types need no defensive copy
         if isinstance(val, (str, int, bool, float)):
             return val
-        # Reviewed 2026-03: deepcopy is intentional — __getitem__ returns mutable
-        # containers (list/dict) that callers could modify, corrupting the
-        # cached_property cache.  Performance is negligible (~30 keys, small
-        # structures, called once per module during startup).
+        # deepcopy so callers mutating the returned list/dict cannot corrupt the
+        # cached_property cache.
         return copy.deepcopy(val)
 
     def raw_value(self, key: str) -> typing.Any:
         return copy.deepcopy(self.__manifest_cached.get(key))
 
     def _force_parse(self) -> None:
-        """Trigger parsing of the manifest content eagerly.
+        """Parse the manifest now instead of on first access.
 
-        ``__manifest_cached`` is a ``cached_property`` and parsing is normally
-        deferred to the first attribute read.  Call this when a caller wants
-        the parse to happen now (e.g. during graph construction, so that
-        manifest validation errors surface up-front rather than mid-loop).
+        Parsing is normally deferred (``__manifest_cached`` is a
+        ``cached_property``). Force it during graph construction so manifest
+        validation errors surface up-front rather than mid-loop.
         """
-        # Reading the cached_property is sufficient to populate it; the value
-        # is discarded because the side effect (caching) is what we need.
-        self.__manifest_cached  # noqa: B018 — intentional cached_property trigger
+        self.__manifest_cached  # noqa: B018 — populate the cached_property
 
     def __iter__(self) -> typing.Iterator[str]:
         manifest = self.__manifest_cached
@@ -364,21 +351,15 @@ class Manifest(Mapping[str, typing.Any]):
         return True
 
     def __len__(self) -> int:
-        # Reviewed 2026-03: O(n) with n≈30 keys — microseconds, rarely called.
         return sum(1 for _ in self)
 
     def __repr__(self) -> str:
         return f"Manifest({self.name})"
 
-    # Cache only *found* manifests, keyed by module name.  Misses are NOT
-    # cached: a name that currently resolves to None must be re-scanned on the
-    # next lookup, otherwise a module appearing later on the addons path (or a
-    # manifest edited on disk) would stay masked by a stale negative result --
-    # while all_addon_manifests(), which rescans, would already see it.  The
-    # cache is dropped by clear_caches() whenever the addons path is
-    # (re)configured (see initialize_sys_path()).  Memory is bounded by the
-    # number of real modules on disk: misses never grow it, and callers
-    # validate the name with MODULE_NAME_RE before reaching here.
+    # Cache of *found* manifests, keyed by module name. Misses are not cached, so
+    # a module appearing later on the path (or an edited manifest) is not masked
+    # by a stale negative result. Dropped by clear_caches() when the addons path
+    # is (re)configured (see initialize_sys_path()).
     _manifest_cache: dict[str, Manifest] = {}
 
     @staticmethod
@@ -620,9 +601,8 @@ def _load_manifest(module: str, manifest_content: dict) -> dict:
         manifest["depends"] = ["base"]
 
     depends = manifest["depends"]
-    # Reviewed 2026-03: assert is correct — depends comes from ast.literal_eval of
-    # __manifest__.py, authored by module developers.  A non-Collection is a
-    # programmer error (the exact use case for assert), not user input.
+    # depends comes from the developer-authored manifest; a non-Collection is a
+    # programmer error, so assert is appropriate.
     assert isinstance(depends, Collection)
 
     # auto_install is either `False` (by default) in which case the module

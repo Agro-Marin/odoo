@@ -40,34 +40,22 @@ if typing.TYPE_CHECKING:
 
 _logger = logging.getLogger(__name__)
 
-# Loading the whole module graph runs with automatic garbage collection
-# disabled (see Registry.new / odoo.libs.gc.disabling_gc), so cyclic garbage
-# from imports, registry rebuilds and data loading accumulates until the load
-# finishes.  Instead of a full ``gc.collect()`` per module (100-500ms each on a
-# large heap), :func:`load_module_graph` sweeps only once the young-generation
-# backlog crosses this threshold, and collects generation 1 only (young objects
-# plus one increment of the old space on Python 3.14's incremental collector),
-# which keeps both the per-sweep cost and the memory high-water mark bounded.
+# The module graph loads with automatic GC disabled (Registry.new /
+# disabling_gc), so cyclic garbage accumulates until the load finishes. Rather
+# than a full gc.collect() per module (100-500ms each), load_module_graph sweeps
+# only once the young-generation backlog crosses this threshold, and collects
+# generation 1 (young objects plus one old-space increment on 3.14's incremental
+# collector) to bound both per-sweep cost and peak memory.
 #
-# After each sweep the survivors are moved to the permanent generation
-# (``gc.freeze``): almost everything that survives is module code, manifests
-# and registry structures that live for the rest of the load anyway, and
-# re-traversing that ever-growing heap made each sweep cost ~0.8s at ~250
-# sweeps on a 470-module production upgrade (~3min of pure GC).  Frozen
-# objects are excluded from collection, so each sweep only traverses objects
-# allocated since the previous one.  ``load_module_graph`` unfreezes in a
-# ``finally`` when the graph is done: the permanent generation returns to the
-# old space, and the server's normal (re-enabled) GC sees the full heap again
-# — nothing stays exempt at runtime, and registry rebuilds remain collectable.
+# Survivors are then gc.freeze()'d: most are module code, manifests and registry
+# structures that live for the whole load, and re-traversing that growing heap
+# cost ~0.8s/sweep (~3min of pure GC on a 470-module upgrade). Freezing excludes
+# them, so each sweep only scans objects allocated since the last one.
+# load_module_graph unfreezes in a finally once the graph is done.
 #
-# Freezing alone is not enough, though: cyclic garbage that is *alive at* a
-# sweep and dies later (registry re-setup leftovers, env/field cycles) gets
-# frozen too and would accumulate for the whole load — measured ~8GB extra
-# peak RSS on a 470-module production upgrade, because the baseline's
-# incremental old-space sweeps used to reclaim it progressively.  Every
-# ``_GC_FULL_CYCLE_EVERY``-th sweep therefore unfreezes, runs a full
-# collection, and refreezes: memory stays bounded to a few sweep windows of
-# garbage, at the cost of ~15 full collections per large upgrade.
+# But cyclic garbage alive at one sweep and dying later gets frozen too and would
+# accumulate (~8GB extra peak RSS on that upgrade). So every _GC_FULL_CYCLE_EVERY-th
+# sweep unfreezes, runs a full collection, and refreezes.
 _GC_YOUNG_BACKLOG_LIMIT = 100_000
 _GC_FULL_CYCLE_EVERY = 16
 
@@ -317,12 +305,7 @@ def load_module_graph(
     models_to_check: OrderedSet[str] | None = None,
     install_demo: bool = True,
 ) -> None:
-    """Load, upgrade and install not loaded module nodes in the ``graph`` for ``env.registry``.
-
-    Reviewed 2026-03: this is a long linear function by design — each step
-    depends on the previous one's side effects (env, cr, registry state).
-    Extracting sub-functions would require passing 6+ mutable parameters and
-    scatter the sequential flow.  The inline structure is more readable.
+    """Load, upgrade and install not-yet-loaded module nodes in ``graph`` for ``env.registry``.
 
     :param env:
     :param graph: graph of module nodes to load
@@ -557,18 +540,14 @@ def load_module_graph(
             # skip_if_clean fast path no longer does.
             env.invalidate_all()
 
-            # free accumulated cyclic garbage once the backlog is large enough
-            # (a no-op sized check for the vast majority of modules), then
-            # freeze the survivors so the next sweep does not re-traverse them
-            # (see _GC_YOUNG_BACKLOG_LIMIT above).  The ormcaches are emptied
-            # first: the setup fast path no longer wipes them per module, and
-            # left alone they accumulate every xmlid/translation looked up by
-            # every module (gigabytes on a full production upgrade) and get
-            # pinned by the freeze.  They refill on demand from cheap point
-            # queries — unlike the model-graph/trigger structures, whose
-            # retention is the point of the fast path.  Every Nth sweep runs
-            # a full unfreeze/collect/freeze cycle to reclaim cyclic garbage
-            # frozen by earlier sweeps (see _GC_FULL_CYCLE_EVERY above).
+            # Once the young-gen backlog is large enough, sweep cyclic garbage
+            # and freeze the survivors so the next sweep skips them (see
+            # _GC_YOUNG_BACKLOG_LIMIT). Clear the ormcaches first: the setup fast
+            # path no longer wipes them per module, so left alone they accumulate
+            # every xmlid/translation lookup (gigabytes on a full upgrade) and get
+            # pinned by the freeze; they refill on demand from cheap queries. Every
+            # Nth sweep runs a full unfreeze/collect/freeze cycle to reclaim
+            # garbage frozen by earlier sweeps (see _GC_FULL_CYCLE_EVERY).
             if gc.get_count()[0] > _GC_YOUNG_BACKLOG_LIMIT:
                 registry._caches.clear_all()
                 gc_sweeps += 1
@@ -702,15 +681,12 @@ def load_modules(
             install_demo=new_db_demo,
         )
 
-        # Read load_language from ALL config layers, not just argv. The old code
-        # popped ``_cli_options`` only, so a value written to the runtime layer
-        # (``initialize_db`` via ``config[...] = lang``) or set in the config file
-        # was silently ignored here, while ``res_lang._install_lang`` -- which
-        # reads ``config.get()`` -- saw it: two readers, two answers. Track
-        # application per registry (rather than mutating the shared config
-        # source) so a multi-DB ``-d db1,db2`` run loads the language into every
-        # database, and a later signaling-triggered reload of the same registry
-        # does not re-import it.
+        # Read load_language from ALL config layers, not just argv: a value
+        # written to the runtime layer (initialize_db) or the config file was
+        # silently ignored here while res_lang._install_lang saw it. Track
+        # application per registry so a multi-DB run loads the language into
+        # every database and a later reload of the same registry does not
+        # re-import it.
         load_lang = tools.config.get("load_language")
         lang_pending = bool(load_lang) and not getattr(
             registry, "_load_language_done", False
