@@ -9,12 +9,8 @@ _logger = logging.getLogger(__name__)
 
 
 class MailMessageSchedule(models.Model):
-    """Mail message notification schedule queue.
-
-    This model is used to store the mail messages scheduled. So we can
-    delay the sending of the notifications. A scheduled date field already
-    exists on the <mail.mail> but it does not allow us to delay the sending
-    of the <bus.bus> notifications.
+    """Queue to delay a message's notifications. Unlike mail.mail's
+    scheduled_date, this also delays the <bus.bus> notifications.
     """
 
     _name = "mail.message.schedule"

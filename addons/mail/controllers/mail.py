@@ -24,9 +24,7 @@ class MailController(http.Controller):
     # Maps legacy Twitter codes to their X replacement and lists new icons that
     # require the odoo_ui_icons font instead of FontAwesome.
     _OI_FONT_CHAR_CODES = {
-        # Replacement of existing Twitter icons by X icons (the route here
-        # receives the old icon code always, but the replacement one is also
-        # considered for consistency anyway).
+        # Old Twitter codes map to X icons; new codes map to themselves.
         "61569": "59464",  # F081 -> E848: fa-twitter-square
         "61593": "59418",  # F099 -> E81A: fa-twitter
         # Addition of new icons
@@ -250,22 +248,11 @@ class MailController(http.Controller):
 
     @http.route("/mail/view", type="http", auth="public")
     def mail_action_view(self, model=None, res_id=None, access_token=None, **kwargs):
-        """Generic access point from notification emails. The heuristic to
-           choose where to redirect the user is the following :
-
-        - find a public URL
-        - if none found
-         - users with a read access are redirected to the document
-         - users without read access are redirected to the Messaging
-         - not logged users are redirected to the login page
-
-           models that have an access_token may apply variations on this.
+        """Redirect target for notification emails: public URL if any, else the
+        document (read access), Messaging (no read access), or login (anonymous).
+        Models with an access_token may vary this.
         """
-        # ==============================================================================================
-        # This block of code disappeared on saas-11.3 to be reintroduced by TBE.
-        # This is needed because after a migration from an older version to saas-11.3, the link
-        # received by mail with a message_id no longer work.
-        # So this block of code is needed to guarantee the backward compatibility of those links.
+        # Backward compat: resolve model/res_id from a legacy message_id link.
         if kwargs.get("message_id"):
             try:
                 message = (
@@ -278,7 +265,6 @@ class MailController(http.Controller):
                 message = request.env["mail.message"]
             if message:
                 model, res_id = message.model, message.res_id
-        # ==============================================================================================
 
         if res_id and isinstance(res_id, str):
             try:

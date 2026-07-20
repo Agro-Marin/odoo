@@ -4,24 +4,11 @@ from odoo.tools import SQL
 
 
 class MailThreadBlacklist(models.AbstractModel):
-    """Mixin that is inherited by all model with opt out. This mixin stores a normalized
-    email based on primary_email field.
-
-    A normalized email is considered as :
-        - having a left part + @ + a right part (the domain can be without '.something')
-        - being lower case
-        - having no name before the address. Typically, having no 'Name <>'
-    Ex:
-        - Formatted Email : 'Name <NaMe@DoMaIn.CoM>'
-        - Normalized Email : 'name@domain.com'
-
-    The primary email field can be specified on the parent model, if it differs from the default one ('email')
-    The email_normalized field can than be used on that model to search quickly on emails (by simple comparison
-    and not using time consuming regex anymore).
-
-    Using this email_normalized field, blacklist status is computed.
-
-    Mail Thread capabilities are required for this mixin."""
+    """Mixin for models supporting opt out. Stores in ``email_normalized`` a
+    normalized email (lowercased, address only, no 'Name <>') derived from
+    ``_primary_email`` (default 'email', overridable on the parent model). This
+    enables fast blacklist lookups by equality instead of a costly regex.
+    Requires mail.thread."""
 
     _name = "mail.thread.blacklist"
     _inherit = ["mail.thread"]

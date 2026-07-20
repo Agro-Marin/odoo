@@ -186,10 +186,7 @@ class MailMail(models.Model):
 
     @api.depends("attachment_ids")
     def _compute_restricted_attachments(self):
-        """We might not have access to all the attachments of the emails.
-        Compute the attachments we have access to,
-        and the number of attachments we do not have access to.
-        """
+        """Compute the accessible attachments and count the inaccessible ones."""
         for mail_sudo, mail in zip(self.sudo(), self, strict=False):
             mail.unrestricted_attachment_ids = mail_sudo.attachment_ids.sudo(
                 False
@@ -514,8 +511,8 @@ class MailMail(models.Model):
         )
 
     def _prepare_outgoing_body(self):
-        """Return a specific ir_email body. The main purpose of this method
-        is to be inherited to add custom content depending on some module."""
+        """Return the email body; meant to be overridden to inject
+        module-specific content."""
         self.ensure_one()
         if tools.is_html_empty(self.body_html):
             return ""

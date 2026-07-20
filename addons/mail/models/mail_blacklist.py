@@ -40,7 +40,7 @@ class MailBlacklist(models.Model):
             new_value = dict(value, email=email)
             new_values.append(new_value)
 
-        """ To avoid crash during import due to unique email, return the existing records if any """
+        # return existing records to avoid a unique-email crash during import
         to_create = []
         bl_entries = {}
         if new_values:

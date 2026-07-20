@@ -309,19 +309,10 @@ class MailTrackingDurationMixin(models.AbstractModel):
         return Domain(f"{self._track_duration_field}.rotting_threshold_days", "!=", 0)
 
     def _is_rotting_feature_enabled(self):
-        """
-        To enable the rotting behavior, the following must be present:
-
-        * Stage-like model (linked by '_track_duration_field') must have a 'rotting_threshold_days' integer field
-            modeling the number of days before a record rots
-
-        * Model inheriting from duration mixin must have a 'date_last_stage_update' field tracking the last stage change
-
-
-        Also consider overriding _get_rotting_depends_fields() and _get_rotting_domain().
-
-        Certain views have access to widgets to display rotting status:
-            'rotting' for kanbans, 'rotting_statusbar_duration' for forms, 'badge_rotting' for lists.
+        """Rotting requires the '_track_duration_field' target model to have an
+        integer 'rotting_threshold_days' (days before a record rots), and this
+        model to have a stage-change tracking field
+        ('_track_duration_last_update_field').
 
         :return: bool: whether the rotting feature has been configured for this model
         """

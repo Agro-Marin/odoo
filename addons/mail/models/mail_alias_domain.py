@@ -5,11 +5,9 @@ from odoo.addons.mail.models.mail_alias import dot_atom_text
 
 
 class MailAliasDomain(models.Model):
-    """Model alias domains, now company-specific. Alias domains are email
-    domains used to receive emails through catchall and bounce aliases, as
-    well as using mail.alias records to redirect email replies.
-
-    This replaces ``mail.alias.domain`` configuration parameter use until v16.
+    """Company-specific email domains used by catchall/bounce aliases and
+    mail.alias reply redirection. Replaces the pre-v16 ``mail.alias.domain``
+    config parameter.
     """
 
     _name = "mail.alias.domain"

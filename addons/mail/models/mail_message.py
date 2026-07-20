@@ -274,12 +274,10 @@ class MailMessage(models.Model):
     email_layout_xmlid = fields.Char("Layout", copy=False)  # xml id of layout
     email_add_signature = fields.Boolean(default=True)
     # `test_adv_activity`, `test_adv_activity_full`, `test_message_assignation_inbox`,...
-    # By setting an inverse for mail.mail_message_id, the number of SQL queries done by `modified` is reduced.
-    # 'mail.mail' inherits from `mail.message`: `_inherits = {'mail.message': 'mail_message_id'}`
-    # Therefore, when changing a field on `mail.message`, this triggers the modification of the same field on `mail.mail`
-    # By setting up the inverse one2many, we avoid to have to do a search to find the mails linked to the `mail.message`
-    # as the cache value for this inverse one2many is up-to-date.
-    # Besides for new messages, and messages never sending emails, there was no mail, and it was searching for nothing.
+    # Explicit inverse for `mail.mail_message_id`: since `mail.mail` _inherits from
+    # `mail.message`, `modified` would otherwise search for the linked mails on every
+    # field change. The inverse keeps that mapping in cache and avoids searching when
+    # there is no mail.
     mail_ids = fields.One2many(
         "mail.mail", "mail_message_id", string="Mails", groups="base.group_system"
     )
@@ -455,16 +453,14 @@ class MailMessage(models.Model):
     def _search(
         self, domain, offset=0, limit=None, order=None, *, bypass_access=False, **kwargs
     ):
-        """Override that adds specific access rights of mail.message, to remove
-        ids uid could not see according to our custom rules. Please refer to
-        _check_access() for more details about those rules.
+        """Apply mail.message access rules to drop ids uid cannot see (see
+        _check_access()).
 
-        Non employees users see only message with subtype, and cannot see
-        internal messages, either coming from message 'is_internal' flag,
-        subtype 'internal' flag, or being pure logs (no subtype). See
-        `_get_search_domain_share` which generates the domain.
+        Non-employees only see messages with a non-internal subtype: this
+        excludes the 'is_internal' flag, the 'internal' subtype flag, and pure
+        logs (no subtype). See `_get_search_domain_share` for the domain.
 
-        After having received ids of a classic search, keep only:
+        After a classic search, keep only:
         - if author_id == pid, uid is the author, OR
         - uid belongs to a notified channel, OR
         - uid is in the specified recipients, OR

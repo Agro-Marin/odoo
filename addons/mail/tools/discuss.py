@@ -93,10 +93,9 @@ ids_by_model.update(
 
 
 class Store:
-    """Helper to build a dict of data for sending to web client.
-    It supports merging of data from multiple sources, either through list extend or dict update.
-    The keys of data are the name of models as defined in mail JS code, and the values are any
-    format supported by store.insert() method (single dict or list of dict for each model name)."""
+    """Build mergeable data (by list extend or dict update) for the web client,
+    keyed by JS model name with store.insert()-compatible values (dict or list
+    of dicts)."""
 
     def __init__(self, bus_channel=None, bus_subchannel=None):
         self.data = {}
@@ -139,10 +138,7 @@ class Store:
         return self
 
     def add_global_values(self, **values):
-        """Add global values to the store. Global values are stored in the Store singleton
-        (mail.store service) in the client side.
-
-        Use case: to add global values."""
+        """Add global values to the store singleton (client-side mail.store service)."""
         self.add_singleton_values("Store", values)
         return self
 
@@ -319,8 +315,7 @@ class Store:
         return tuple(values[i] for i in ids)
 
     class Target:
-        """Target of the current store. Useful when information have to be added contextually
-        depending on who is going to receive it."""
+        """Store target: lets data be added contextually based on the recipient."""
 
         def __init__(self, channel=None, subchannel=None):
             assert channel is None or isinstance(channel, models.Model), (
@@ -375,9 +370,8 @@ class Store:
             )
 
         def get_guest(self, env):
-            """Return target guest (if any). Target guest is either the current bus target if the
-            bus is actually targetting a guest, or the current guest from env if there is no bus
-            target at all but there is a guest in the env.
+            """Return the target guest: the bus target if it is a guest, else
+            the env guest if there is no bus target.
             """
             records = self.channel
             if self.channel is None and self.subchannel is None:
@@ -389,9 +383,8 @@ class Store:
             )
 
         def get_user(self, env):
-            """Return target user (if any). Target user is either the current bus target if the
-            bus is actually targetting a user, or the current user from env if there is no bus
-            target at all but there is a user in the env."""
+            """Return the target user: the bus target if it is a user, else
+            env.user if there is no bus target."""
             records = self.channel
             if self.channel is None and self.subchannel is None:
                 records = env.user

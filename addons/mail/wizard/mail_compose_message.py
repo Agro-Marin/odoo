@@ -335,7 +335,7 @@ class MailComposeMessage(models.TransientModel):
         "composition_mode", "model", "parent_id", "res_domain", "res_ids", "template_id"
     )
     def _compute_subject(self):
-        """Computation is coming either form template, either from context.
+        """Computation is coming either from template, either from context.
         When having a template with a value set, copy it (in batch mode) or
         render it (in monorecord comment mode) on the composer. Otherwise
         it comes from the parent (if set), or computed based on the generic
@@ -369,10 +369,8 @@ class MailComposeMessage(models.TransientModel):
 
     @api.depends("composition_mode", "model", "res_domain", "res_ids", "template_id")
     def _compute_body(self):
-        """Computation is coming either from template, either reset. When
-        having a template with a value set, copy it (in batch mode) or render
-        it (in monorecord comment mode) on the composer. When removing the
-        template, reset it."""
+        """Copy (batch mode) or render (monorecord comment mode) the template
+        value onto the composer; reset when the template is removed."""
         for composer in self:
             if composer.template_id:
                 composer._set_value_from_template("body_html", "body")
@@ -449,9 +447,7 @@ class MailComposeMessage(models.TransientModel):
 
     @api.depends("template_id")
     def _compute_email_layout_xmlid(self):
-        """Computation is coming either from template, either reset. When
-        having a template with a value set, set it on composer.When removing
-        the template, reset it."""
+        """Set from the template value when present, reset when the template is removed."""
         for composer in self:
             if composer.template_id.email_layout_xmlid:
                 composer.email_layout_xmlid = composer.template_id.email_layout_xmlid
@@ -467,16 +463,10 @@ class MailComposeMessage(models.TransientModel):
         "template_id",
     )
     def _compute_authorship(self):
-        """Computation is coming either from template, either from context.
-        When having a template with a value set, copy it (in batch mode) or
-        render it (in monorecord comment mode) on the composer. Otherwise
-        try to take current user's email. When removing the template, fallback
-        on default thread behavior (which is current user's email).
-
-        Author is not controllable from the template currently. We therefore
-        try to synchronize it with the given email_from (in rendered mode to
-        avoid trying to find partner based on qweb expressions), or fallback
-        on current user."""
+        """Author/email_from come from the template (copied in batch, rendered
+        in monorecord comment mode) else from the current user. Author is not
+        template-driven: it is synced from email_from (in rendered mode to avoid
+        resolving qweb expressions) or falls back to the current user."""
         Thread = self.env["mail.thread"].with_context(active_test=False)
         for composer in self:
             rendering_mode = (
@@ -624,10 +614,8 @@ class MailComposeMessage(models.TransientModel):
 
     @api.depends("composition_mode", "model", "res_domain", "res_ids", "template_id")
     def _compute_reply_to(self):
-        """Computation is coming either from template, either reset. When
-        having a template with a value set, copy it (in batch mode) or render
-        it (in monorecord comment mode) on the composer. When removing the
-        template, reset it."""
+        """Copy (batch mode) or render (monorecord comment mode) the template
+        value onto the composer; reset when the template is removed."""
         for composer in self:
             if composer.template_id:
                 composer._set_value_from_template("reply_to")
@@ -758,10 +746,8 @@ class MailComposeMessage(models.TransientModel):
 
     @api.depends("composition_mode", "auto_delete")
     def _compute_auto_delete_keep_log(self):
-        """Keep logs is used only in email mode. It is used to keep the core
-        message when unlinking sent emails. It allows to keep the message as
-        a trace in the record's chatter. In other modes it has no use and
-        can be set to False. When auto_delete is turned off it has no usage."""
+        """Email mode only: keep the chatter message when unlinking sent emails.
+        False in other modes or when auto_delete is off."""
         toreset = self.filtered(
             lambda comp: comp.composition_mode != "mass_mail" or not comp.auto_delete
         )
@@ -831,10 +817,8 @@ class MailComposeMessage(models.TransientModel):
 
     @api.depends("composition_mode", "model", "res_ids", "template_id")
     def _compute_scheduled_date(self):
-        """Computation is coming either from template, either reset. When
-        having a template with a value set, copy it (in batch mode) or render
-        it (in monorecord comment mode) on the composer. When removing the
-        template, reset it."""
+        """Copy (batch mode) or render (monorecord comment mode) the template
+        value onto the composer; reset when the template is removed."""
         for composer in self:
             if composer.template_id:
                 composer._set_value_from_template("scheduled_date")
@@ -844,10 +828,8 @@ class MailComposeMessage(models.TransientModel):
     # Overrides of mail.compose.mixin
     @api.depends("template_id")
     def _compute_lang(self):
-        """Computation is coming either from template, either reset. When
-        having a template with a value set, copy it (in batch mode) or render
-        it (in monorecord comment mode) on the composer. When removing the
-        template, reset it."""
+        """Copy (batch mode) or render (monorecord comment mode) the template
+        value onto the composer; reset when the template is removed."""
         for composer in self:
             if composer.template_id:
                 composer._set_value_from_template("lang")

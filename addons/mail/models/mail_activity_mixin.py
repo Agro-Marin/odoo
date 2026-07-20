@@ -17,14 +17,9 @@ class MailActivityMixin(models.AbstractModel):
     Various related / computed fields are also added to have a global status of
     activities on documents.
 
-    Activities come with a new JS widget for the form view. It is integrated in the
-    Chatter widget although it is a separate widget. It displays activities linked
-    to the current record and allow to schedule, edit and mark done activities.
-
-    There is also a kanban widget defined. It defines a small widget to integrate
-    in kanban vignettes. It allow to manage activities directly from the kanban
-    view. Use widget="kanban_activity" on activitiy_ids field in kanban view to
-    use it.
+    A form-view widget (embedded in the Chatter) lets users schedule, edit and
+    mark activities done. A kanban widget (widget="kanban_activity" on
+    activity_ids) manages activities directly from kanban vignettes.
 
     Some context keys allow to control the mixin behavior. Use those in some
     specific cases like import
