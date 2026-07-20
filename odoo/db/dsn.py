@@ -1,23 +1,21 @@
 """Connection-string normalization and connect-phase error classification.
 
-Split out of :mod:`odoo.db.pool` so this security-sensitive, **pure** logic
-(no pool/socket/thread state) lives in a small, independently testable unit.
-Two concerns, and only these:
+Split out of :mod:`odoo.db.pool` so this security-sensitive, **pure** logic (no
+pool/socket/thread state) is independently testable. Two concerns:
 
 * **DSN normalization** (:func:`_expand_conninfo`, :func:`_normalize_dsn_key`):
-  flatten a URI/conninfo string or dict into discrete keywords and fold them
-  into a hashable pool key whose password is an opaque fingerprint.  Every DSN
-  consumer routes through :func:`_expand_conninfo`, so the password can never
-  leak into a dict key or log artifact from a drifted copy.
+  flatten a URI/conninfo string or dict into discrete keywords, folded into a
+  hashable pool key whose password is an opaque fingerprint. Every DSN consumer
+  routes through :func:`_expand_conninfo`, so the password can never leak into a
+  dict key or log.
 
 * **Connect-error classification** (:data:`_NON_RETRYABLE_CONNECT_ERRORS`,
   :func:`_translate_connect_error`): decide whether a connect *attempt* failed
-  permanently (missing database, bad auth).  The pool's pre-flight probe uses
-  this to surface the precise psycopg class in ms instead of a ~30s retry.
+  permanently (missing database, bad auth), so the pool's probe can surface the
+  precise psycopg class in ms instead of a ~30s retry.
 
-The network-touching probe orchestration stays in :mod:`odoo.db.pool`, which
-re-imports the names below (so ``from odoo.db.pool import _normalize_dsn_key``
-keeps working).
+The network-touching probe stays in :mod:`odoo.db.pool`, which re-imports these
+names (so ``from odoo.db.pool import _normalize_dsn_key`` keeps working).
 """
 
 from __future__ import annotations
@@ -45,15 +43,14 @@ def _translate_connect_error(exc: psycopg.OperationalError) -> psycopg.Error | N
 
     A connect failure crosses libpq before a SQLSTATE is parsed, so the precise
     subclass is never raised; the server's English FATAL text is the only
-    discriminator left.  Matching fails SAFE: an unrecognised or localised
-    message returns ``None`` and is left to the pool's retry, so a transient
-    "connection refused"/timeout is never mistaken for permanent.  Returning the
-    precise class lets ``exp_db_exist`` keep matching ``InvalidCatalogName``.
+    discriminator. Matching fails SAFE: an unrecognised or localised message
+    returns ``None`` (left to the pool's retry), so a transient connection
+    refused/timeout is never mistaken for permanent. Returning the precise class
+    lets ``exp_db_exist`` keep matching ``InvalidCatalogName``.
 
-    .. note::
-        Locale-dependent and intentionally only the *fast* path: a non-English
-        ``lc_messages`` returns ``None`` here, and the gap is closed by
-        :meth:`ConnectionPool._database_absent` (catalog lookup, any locale).
+    This is only the *fast*, English path; a non-English ``lc_messages`` returns
+    ``None`` here and the gap is closed by :meth:`ConnectionPool._database_absent`
+    (catalog lookup, any locale).
     """
     msg = str(exc).lower()
     if 'database "' in msg and "does not exist" in msg:

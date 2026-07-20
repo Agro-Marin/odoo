@@ -26,22 +26,16 @@ _savepoint_counter = itertools.count()
 
 
 class Savepoint:
-    """Reifies an active savepoint, allows :meth:`BaseCursor.savepoint` users
-    to internally rollback the savepoint (as many times as they want) without
-    having to implement their own savepointing, or triggering exceptions.
+    """Reifies an active savepoint so callers can roll it back repeatedly
+    without managing their own savepoint SQL or handling exceptions.
 
-    Should normally be created using :meth:`BaseCursor.savepoint` rather than
-    directly.
+    Normally created via :meth:`BaseCursor.savepoint`, not directly.  As a
+    context manager it rolls back on an exceptional exit and releases
+    ("commits") on a clean one; wrap it in ``contextlib.closing`` to roll back
+    unconditionally.  It may also be closed explicitly inside the body (rolls
+    back by default).
 
-    The savepoint will be rolled back on unsuccessful context exits
-    (exceptions). It will be released ("committed") on successful context exit.
-    The savepoint object can be wrapped in ``contextlib.closing`` to
-    unconditionally roll it back.
-
-    The savepoint can also safely be explicitly closed during context body. This
-    will rollback by default.
-
-    :param BaseCursor cr: the cursor to execute the `SAVEPOINT` queries on
+    :param BaseCursor cr: the cursor to execute the ``SAVEPOINT`` queries on
     """
 
     __slots__ = ("_cr", "closed", "name")

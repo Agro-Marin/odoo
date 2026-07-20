@@ -9,24 +9,22 @@ One owner with an explicit ``get`` / ``set`` / ``clear`` contract keeps three
 correctness rules in one place:
 
 * **dbname keying** — one process serves several databases whose same-named
-  tables may diverge (staggered versions), so every key is prefixed with the
-  database name; a stale cross-DB entry can't poison another database's COPY.
-* **never cache temp relations** — temp tables live in a session-local
-  ``pg_temp_*`` schema but the keys are name-based, so a cached temp entry could
-  be fed to another session's same-named (different) temp or the permanent table
-  it shadows.  ``set_*`` silently refuses them so the rule can't be forgotten.
-* **race-free per-db clear** — invalidation runs concurrently with population.
-  :meth:`SchemaCache.clear` snapshots keys with ``list()`` before filtering (no
-  "dictionary changed size") and pops with ``pop(k, None)`` (no ``KeyError`` on
-  a concurrent clear of the same db).
+  tables may diverge, so every key is prefixed with the database name; a stale
+  cross-DB entry can't poison another database's COPY.
+* **never cache temp relations** — ``pg_temp_*`` tables are session-local but the
+  keys are name-based, so a cached temp entry could be fed to another session's
+  same-named temp or the permanent table it shadows.  ``set_*`` silently refuses
+  them so the rule can't be forgotten.
+* **race-free per-db clear** — invalidation runs concurrently with population, so
+  :meth:`SchemaCache.clear` snapshots keys with ``list()`` before filtering and
+  pops with ``pop(k, None)``.
 
-Thread-safety relies only on individual dict ops being atomic — which holds both
-under the GIL and on a free-threaded build (PEP 703 keeps per-dict operations
-atomic via internal critical sections).  The get-then-set on a miss may race two
-populators, but both compute the same schema-derived value, so last-write-wins is
-correct (not corruption).  No lock is taken (it would span ``clear``'s iteration
-and could deadlock against pool callbacks).  Verified free-threaded (24 threads
-running get/set/clear on overlapping keys: zero exceptions, zero wrong-value reads).
+Thread-safety relies only on individual dict ops being atomic, which holds under
+the GIL and on free-threaded builds (PEP 703).  A get-then-set miss may race two
+populators, but both compute the same value, so last-write-wins is correct.  No
+lock is taken (it would span ``clear``'s iteration and could deadlock against
+pool callbacks).  Verified free-threaded (24 threads on overlapping keys: zero
+exceptions, zero wrong-value reads).
 """
 
 from __future__ import annotations

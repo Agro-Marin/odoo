@@ -483,11 +483,8 @@ class Cursor(_BulkAccessMixin, _MetricsMixin, BaseCursor):
         # Detect DDL once.  It drives two decisions: every DDL keyword needs
         # client-side param inlining ($N is rejected in DDL positions), but only
         # schema-changing DDL (CREATE/ALTER/DROP/DO) invalidates the caches.
-        # ``query`` is always a str here: an SQL object was unwrapped to its str
-        # ``.code`` and a psycopg Composable was resolved via ``as_string``
-        # above; the public contract is ``str | SQL | Composable``, so there is
-        # nothing left to coerce — a ``str(query)`` fallback would only mask a
-        # contract violation (and mangle a stray bytes query into its repr).
+        # ``query`` is always a str here (SQL unwrapped to ``.code``, Composable
+        # resolved via ``as_string`` above), so nothing is left to coerce.
         qs = query
         ddl_kw = _ddl_keyword(qs)  # uppercase keyword, or None when not DDL
         is_ddl = ddl_kw is not None
