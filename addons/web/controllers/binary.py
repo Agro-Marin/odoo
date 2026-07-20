@@ -80,7 +80,7 @@ class Binary(http.Controller):
         unique: str | bool = False,
         download: str | bool = False,
         access_token: str | None = None,
-        nocache: bool = False,
+        nocache: str | bool = False,
     ) -> Response:
         with replace_exceptions(UserError, by=request.not_found()):
             record = request.env["ir.binary"]._find_record(
@@ -92,11 +92,14 @@ class Binary(http.Controller):
             if request.httprequest.args.get("access_token"):
                 stream.public = True
 
-        send_file_kwargs = {"as_attachment": str2bool(download)}
-        if unique:
+        # Query-string booleans arrive as strings: coerce so ``?unique=0`` /
+        # ``?nocache=false`` are falsy (a bare truthiness test treats "0"/"false"
+        # as True). str2bool also tolerates the bool defaults and bad input.
+        send_file_kwargs = {"as_attachment": str2bool(download, False)}
+        if str2bool(unique, False):
             send_file_kwargs["immutable"] = True
             send_file_kwargs["max_age"] = http.STATIC_CACHE_LONG
-        if nocache:
+        if str2bool(nocache, False):
             send_file_kwargs["max_age"] = None
 
         return stream.get_response(**send_file_kwargs)
@@ -305,10 +308,15 @@ class Binary(http.Controller):
         download: str | bool = False,
         width: int | str = 0,
         height: int | str = 0,
-        crop: bool = False,
+        crop: str | bool = False,
         access_token: str | None = None,
-        nocache: bool = False,
+        nocache: str | bool = False,
     ) -> Response:
+        # ``crop`` is consumed below as a bool; query params arrive as raw
+        # strings, so coerce it (``?crop=0`` must be falsy — a bare truthiness
+        # test treats "0"/"false" as True and would crop against the caller's
+        # intent). ``unique``/``nocache`` are coerced at their use site below.
+        crop = str2bool(crop, False)
         try:
             record = request.env["ir.binary"]._find_record(
                 xmlid, model, id and int(id), access_token, field=field
@@ -341,11 +349,14 @@ class Binary(http.Controller):
             )
             stream.public = False
 
-        send_file_kwargs = {"as_attachment": str2bool(download)}
-        if unique:
+        # Query-string booleans arrive as strings: coerce so ``?unique=0`` /
+        # ``?nocache=false`` are falsy (a bare truthiness test treats "0"/"false"
+        # as True). str2bool also tolerates the bool defaults and bad input.
+        send_file_kwargs = {"as_attachment": str2bool(download, False)}
+        if str2bool(unique, False):
             send_file_kwargs["immutable"] = True
             send_file_kwargs["max_age"] = http.STATIC_CACHE_LONG
-        if nocache:
+        if str2bool(nocache, False):
             send_file_kwargs["max_age"] = None
 
         return stream.get_response(**send_file_kwargs)

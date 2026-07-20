@@ -185,9 +185,21 @@ class Base(models.AbstractModel):
                 # into the singleton check, where the record-id key matches no
                 # field name so the guard silently no-opped and a concurrent
                 # edit was lost. Field names are identifiers and record ids are
-                # numeric, so membership in ``self._fields`` separates the two
-                # shapes unambiguously.
-                if known_values and all(k in self._fields for k in known_values):
+                # numeric, so key numericness separates the two shapes.
+                #
+                # Disambiguate on that numericness, NOT on ``k in self._fields``:
+                # the latter misroutes a *singleton* whose keys include a stale
+                # field name (an outdated cached form view still referencing a
+                # removed field) into the multi branch, where every field-name
+                # key fails ``int()`` coercion -> empty baselines -> the
+                # lost-update check silently no-ops and a concurrent edit is
+                # lost. Record ids are always numeric; field names never are, so
+                # this tolerates unknown field names, which the singleton check
+                # already skips (see ``_concurrency_checkable_fields``).
+                is_multi = known_values and all(
+                    str(k).lstrip("-").isdigit() for k in known_values
+                )
+                if known_values and not is_multi:
                     self._check_concurrent_field_changes(vals, known_values)
                 else:
                     self._check_concurrent_field_changes_multi(vals, known_values)
@@ -579,9 +591,15 @@ class Base(models.AbstractModel):
                 # raise AccessError and abort the WHOLE parent read — the
                 # x2many branch below already does this; the many2one branch
                 # used to abort instead of degrading to a name-only fallback.
-                # Only filter sub-fields (extra_fields); display_name is read
-                # under sudo() below and stays available for every target.
-                if extra_fields and co_records:
+                #
+                # display_name is read from this SAME accessible subset, NOT
+                # from ``co_records.sudo()``: reading the name of a target the
+                # user cannot see leaks record-rule-restricted data (e.g. a
+                # partner hidden by a multi-company rule is directly
+                # AccessError, yet its name would still surface here). A
+                # restricted target instead degrades to an empty value (the
+                # ``or False`` below), the same as any other unreadable m2o.
+                if co_records:
                     # _filtered_access already returns an order-preserving
                     # accessible subset, so no manual browse rebuild is needed.
                     readable_records = co_records.with_context(
@@ -596,7 +614,7 @@ class Base(models.AbstractModel):
                 }
 
                 if "display_name" in field_spec["fields"]:
-                    for rec in co_records.sudo():
+                    for rec in readable_records:
                         many2one_data.setdefault(rec.id, {"id": rec.id})[
                             "display_name"
                         ] = rec.display_name

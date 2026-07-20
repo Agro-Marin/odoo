@@ -111,7 +111,9 @@ class ResUsers(models.Model):
                 user.login,
                 user.id,
             )
-            user.active = True
+        if deactivated_users:
+            # Single write for the whole recordset instead of one per user.
+            deactivated_users.active = True
         # Dedup against both normalised emails AND logins: a user matched only by
         # login above may have an empty or different ``email_normalized``, and
         # since ``create`` below sets ``login=email_normalized`` we must also skip
@@ -124,9 +126,10 @@ class ResUsers(models.Model):
         new_emails = [
             e for e, n in zip(emails, emails_normalized, strict=True) if n not in done
         ]
+        vals_list = []
         for email in new_emails:
             name, email_normalized = tools.mail.parse_contact_from_email(email)
-            self.with_context(signup_valid=True).create(
+            vals_list.append(
                 {
                     "login": email_normalized,
                     "name": name or email_normalized,
@@ -134,5 +137,12 @@ class ResUsers(models.Model):
                     "active": True,
                 }
             )
+        if vals_list:
+            # One batched create instead of N: res.users.create is heavy
+            # (partner creation, group defaults, optional signup mail), so a
+            # multi-vals create collapses N round-trips into one. Failure
+            # semantics are unchanged — the loop had no per-record try/except,
+            # so any invalid row already rolled back the whole call.
+            self.with_context(signup_valid=True).create(vals_list)
 
         return True

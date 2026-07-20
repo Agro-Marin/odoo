@@ -733,6 +733,18 @@ export class ActionManager {
             });
             try {
                 await def;
+            } catch (error) {
+                if (!(error instanceof SupersededError)) {
+                    throw error;
+                }
+                // A newer inline dispatch rejected this skeleton's Deferred
+                // (see the reject above) because our SkeletonView is about to be
+                // destroyed-before-mount by its swap. That newer dispatch now
+                // owns the UI, so abort this one gracefully instead of
+                // propagating the (redundant, KeepLast-signalled) SupersededError
+                // as an unhandled rejection. Same rationale as the
+                // currentActionProm await below.
+                return;
             } finally {
                 // Clear only if still ours: a superseding dispatch may have
                 // already rejected and replaced it with its own skeleton def.
@@ -752,7 +764,25 @@ export class ActionManager {
         // eslint-disable-next-line no-restricted-syntax -- service-internal code: useService is component-only, and `dialog` is a declared dependency (started before us)
         this.env.services.dialog.closeAll({ noReload: true });
         this.env.bus.trigger(AppEvent.ACTION_MANAGER_UPDATE, controller.__info__);
-        await currentActionProm;
+        try {
+            await currentActionProm;
+        } catch (error) {
+            // A newer navigation superseded this dispatch before its controller
+            // mounted: onWillDestroy rejected currentActionProm with a
+            // SupersededError purely to unblock this await (else it would hang
+            // forever). Supersession is already signalled to callers by
+            // KeepLast (rejectSuperseded), so this is a redundant control-flow
+            // signal — swallow it HERE, at the source. Re-throwing merely
+            // re-creates an unhandled rejection on the switchView()/restore()
+            // entry paths, which return _updateUI() WITHOUT routing it through
+            // KeepLast; the old code relied on the error service asynchronously
+            // swallowing that rejection, which is too late in debug=assets mode
+            // (the browser and tour runner have already reported it). Real
+            // errors still propagate.
+            if (!(error instanceof SupersededError)) {
+                throw error;
+            }
+        }
     }
 
     // ---------------------------------------------------------------------------

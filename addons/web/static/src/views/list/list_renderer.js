@@ -866,23 +866,30 @@ export class ListRenderer extends Component {
                 // row might have changed position after resequence — look up by id
                 record =
                     this.props.list.records.find((r) => r.id === recordId) || record;
-                await this.props.list.enterEditMode(record);
-                this.nav.cellToFocus = { column, record };
-                if (
-                    column.type === "field" &&
-                    record.fields[column.name].type === "boolean" &&
-                    (!column.widget || column.widget === "boolean")
-                ) {
+                // enterEditMode returns false when the currently-edited row
+                // cannot be left (e.g. it has an invalid required field): the
+                // clicked ``record`` then never entered edit mode, so skip
+                // focusing it and — crucially — skip the boolean auto-toggle,
+                // which would otherwise mutate and dirty a row the user is not
+                // editing while the edit stays pinned to the invalid row.
+                if (await this.props.list.enterEditMode(record)) {
+                    this.nav.cellToFocus = { column, record };
                     if (
-                        !this.isCellReadonly(column, record) &&
-                        !this.evalInvisible(
-                            /** @type {string} */ (column.invisible),
-                            record,
-                        )
+                        column.type === "field" &&
+                        record.fields[column.name].type === "boolean" &&
+                        (!column.widget || column.widget === "boolean")
                     ) {
-                        await record.update({
-                            [column.name]: !record.data[column.name],
-                        });
+                        if (
+                            !this.isCellReadonly(column, record) &&
+                            !this.evalInvisible(
+                                /** @type {string} */ (column.invisible),
+                                record,
+                            )
+                        ) {
+                            await record.update({
+                                [column.name]: !record.data[column.name],
+                            });
+                        }
                     }
                 }
             }

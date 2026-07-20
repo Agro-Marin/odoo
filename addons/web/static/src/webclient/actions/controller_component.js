@@ -118,8 +118,12 @@ export function makeControllerComponent(am) {
             // resolves) or onError (which rejects). onWillDestroy DOES fire for
             // a destroyed-before-mount component, so settle the outer
             // currentActionProm here — otherwise every doAction awaiter of the
-            // superseded action would hang forever. The error service swallows
-            // the SupersededError, so this surfaces no dialog.
+            // superseded action would hang forever. ``_dispatchInline`` catches
+            // this SupersededError at its ``await currentActionProm`` (the sole
+            // awaiter) and terminates that dispatch quietly, so the rejection is
+            // contained at the source and never reaches the global error service
+            // as an unhandled rejection (which the service swallows only
+            // asynchronously — too late in debug=assets mode, and too fragile).
             if (!controller.isMounted && status(this) !== "mounted") {
                 reject(new SupersededError());
             }

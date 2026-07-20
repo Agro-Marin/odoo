@@ -263,8 +263,15 @@ class ResUsers(models.Model):
         inactive_users = self.search([('state', '=', 'new'), '|', ('login', 'in', emails), ('email', 'in', emails)])
         new_emails = set(emails) - set(inactive_users.mapped('email'))
         res = super(ResUsers, self).web_create_users(list(new_emails))
-        if inactive_users:
-            inactive_users.with_context(create_user=True).action_reset_password()
+        # Only (re)send the signup invite to inactive users that HAVE an email:
+        # action_reset_password raises "user has no email address" for an
+        # email-less user, which would abort the WHOLE batch invite over a single
+        # login-only match (e.g. a user whose login is an email but whose email
+        # field is empty). Mirror the create() override below, which likewise
+        # filters ``users.filtered('email')`` before resetting.
+        invitable_users = inactive_users.filtered('email')
+        if invitable_users:
+            invitable_users.with_context(create_user=True).action_reset_password()
         return res
 
     @api.model_create_multi

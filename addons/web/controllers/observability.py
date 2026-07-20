@@ -135,11 +135,20 @@ class Observability(Controller):
         write-only and the validation drops malformed input, so the lack of
         CSRF here does not expand the attack surface meaningfully.
 
-        Beacons are rate-limited per client (remote address) so an anonymous
-        caller cannot amplify DB inserts; ``navigator.sendBeacon`` ignores the
-        response, so a 429 is invisible to legitimate senders.
+        Beacons are rate-limited per client so an anonymous caller cannot
+        amplify DB inserts; ``navigator.sendBeacon`` ignores the response, so a
+        429 is invisible to legitimate senders. The key prefers the
+        authenticated ``session.uid`` (the CWV population is the backend
+        webclient, where every user is logged in) so that many users behind one
+        shared egress IP — corporate NAT, or a reverse proxy without
+        ``proxy_mode`` collapsing ``remote_addr`` to the proxy — each get their
+        own budget instead of starving a single shared bucket. Genuinely
+        anonymous callers fall back to ``remote_addr``.
         """
-        client_key = request.httprequest.remote_addr or "anon"
+        uid = request.session.uid
+        client_key = (
+            f"uid:{uid}" if uid else f"ip:{request.httprequest.remote_addr or 'anon'}"
+        )
         if _rate_limited(client_key):
             return Response("", status=429, mimetype="text/plain")
 
@@ -248,8 +257,14 @@ class Observability(Controller):
         lifetime), but a hostile caller ignores that, so the server also
         applies the same per-client fixed-window cap as ``cwv`` — each beacon
         emits a WARNING log line and must not be amplifiable without bound.
+        The client key prefers ``session.uid`` (see ``cwv``) so users sharing an
+        egress IP don't collapse into one bucket; anonymous callers fall back to
+        ``remote_addr``.
         """
-        client_key = request.httprequest.remote_addr or "anon"
+        uid = request.session.uid
+        client_key = (
+            f"uid:{uid}" if uid else f"ip:{request.httprequest.remote_addr or 'anon'}"
+        )
         if _rate_limited(client_key):
             return Response("", status=429, mimetype="text/plain")
 

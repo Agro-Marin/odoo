@@ -44,6 +44,13 @@ export class Domain {
      * @returns {Domain}
      */
     static combine(domains, operator) {
+        // NOTE on empty operands: an empty domain `[]` is dropped for BOTH AND
+        // and OR. This diverges from the server-side `Domain.OR` (where `[]` is
+        // match-all, so `OR(X, [])` is match-all), but it is deliberate,
+        // long-standing upstream behavior: a `[]`-domain filter in a facet is a
+        // context-only "no constraint" operand, and OR-ing it as match-all would
+        // wipe out its sibling filters. Kept intentionally (see domain.test.js
+        // "combining two domains").
         const nonEmpty = domains
             .map((d) => (d instanceof Domain ? d : new Domain(d)))
             .filter((d) => d.ast.value.length);

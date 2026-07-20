@@ -190,7 +190,7 @@ Services are registered in `registry.category("services")` and injected via `use
 |---------|------|---------|
 | `localization` | `services/localization_service.js` | Translation loader (IndexedDB cached, versioned by `registry_hash`) |
 | `error` | `services/error_service.js` | Global error handler (`sequence: 1` — starts first, only sequenced service in core) |
-| `scss_error_display` | `services/scss_error_display.js` | SCSS compilation error display. Detects a `css_error_message` marker rule in same-origin backend stylesheets and shows a sticky danger notification. **Not group-gated** — there is no admin check in the code; the notification renders for every user whose page loaded a failed-compilation stylesheet (the message text merely *says* it is an administrator/developer error to fix). |
+| `scss_error_display` | `services/scss_error_display.js` | SCSS compilation error display. Detects a `css_error_message` marker rule in same-origin backend stylesheets and shows a sticky danger notification. **Gated to admins / debug mode** — the service early-returns unless `user.isAdmin` or `odoo.debug` is truthy (`scss_error_display.js:28`), so a regular user in a non-debug session never sees the toast (matching the message text, which addresses an administrator/developer). |
 | `title` | `services/title_service.js` | Document title management |
 | `pwa` | `services/pwa/pwa_service.js` | PWA install prompt |
 | `sortable` | `services/sortable_service.js` | Drag-and-drop sorting |
