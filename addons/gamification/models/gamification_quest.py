@@ -332,6 +332,10 @@ class GamificationQuestEnrollment(models.Model):
             }
         )
 
+        # Unlock any skill-tree nodes gated on this quest.  This is the link
+        # (node.quest_id) that previously left the skill tree inert.
+        self.env["gamification.skill.node"].sudo()._unlock_nodes_for_quest(self)
+
     def action_abandon(self):
         """Abandon the quest."""
         self.filtered(lambda e: e.state == "in_progress").write(

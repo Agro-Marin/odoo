@@ -1086,10 +1086,15 @@ class GamificationChallenge(models.Model):
                 avg_rate = sum(rates) / len(rates)
                 base_target = line.target_goal
 
-                if avg_rate > 0.9:
-                    # Consistently beating the target — make it 15% harder.
-                    # Harder means a bigger target for 'higher', a smaller one
-                    # for 'lower'.
+                if avg_rate >= 1.0:
+                    # Consistently *meeting or beating* the target — make it
+                    # 15% harder.  Harder means a bigger target for 'higher', a
+                    # smaller one for 'lower'.
+                    #
+                    # The threshold must not dip below 1.0: at > 0.9 a user
+                    # averaging 91% of target — i.e. failing every single
+                    # period — was handed a 15% harder target each round, so
+                    # the people already struggling got the steepest ramp.
                     factor = 1.15 if is_higher else 0.85
                 elif avg_rate < 0.5:
                     # Consistently missing — make it 15% easier.

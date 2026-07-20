@@ -141,14 +141,19 @@ class GamificationAchievement(models.Model):
             return Unlock.browse()
 
         Obj = self.env[self.model_id.model].sudo()
-        # Note: safe_eval references 'user' per candidate so each domain
-        # is unique — cannot be batched into a single query.  We batch the
-        # unlock *creation* instead to reduce INSERT round-trips.
+        # safe_eval references 'user' per candidate so each domain is unique —
+        # it cannot be collapsed into a single query.  But the per-user count
+        # only needs to know whether the threshold is *reached*, so it is
+        # capped at ``trigger_count``: for the default ``trigger_count = 1`` the
+        # database stops at the first matching row instead of scanning every
+        # row the user owns (a full COUNT(*) over e.g. account.move.line).  The
+        # unlock creation is batched into one INSERT.
+        trigger_count = max(self.trigger_count, 1)
         unlock_vals = []
         for user in candidates:
             domain = safe_eval(self.trigger_domain, {"user": user})
-            count = Obj.search_count(domain)
-            if count >= self.trigger_count:
+            count = Obj.search_count(domain, limit=trigger_count)
+            if count >= trigger_count:
                 unlock_vals.append(
                     {
                         "achievement_id": self.id,
@@ -171,9 +176,24 @@ class GamificationAchievement(models.Model):
         """
         achievements = self.search([("active", "=", True)])
         for achievement in achievements:
-            new_unlocks = achievement._check_achievement_for_users()
-            for unlock in new_unlocks:
-                unlock._grant_rewards()
+            # Isolate each achievement in a savepoint.  A single malformed
+            # ``trigger_domain`` (bad syntax, or a field dropped by a module
+            # upgrade) otherwise raised out of the cron, rolling back every
+            # achievement already processed in this run.  Because ``_order`` is
+            # stable, the same poison record blocked the same achievements on
+            # every subsequent night, silently and indefinitely.
+            try:
+                with self.env.cr.savepoint():
+                    new_unlocks = achievement._check_achievement_for_users()
+                    for unlock in new_unlocks:
+                        unlock._grant_rewards()
+            except Exception:
+                _logger.exception(
+                    "Achievement %r (id %s) failed to evaluate; skipping it "
+                    "and continuing the run.",
+                    achievement.name,
+                    achievement.id,
+                )
 
 
 class GamificationAchievementUnlock(models.Model):
@@ -218,40 +238,60 @@ class GamificationAchievementUnlock(models.Model):
     )
 
     def _grant_rewards(self) -> None:
-        """Grant badge and karma rewards for this unlock."""
-        for unlock in self:
-            achievement = unlock.achievement_id
-            user = unlock.user_id
+        """Grant badge and karma rewards for a batch of unlocks.
 
-            # Grant karma
+        Karma is granted through ``_add_karma_batch`` and badges through a
+        single ``create`` per achievement, instead of one INSERT +
+        ``_compute_karma`` + ``_recompute_rank`` cycle per unlock.  With the
+        daily cron unlocking many users at once this is the difference between
+        O(unlocks) and O(distinct achievements) write cycles.
+        """
+        Users = self.env["res.users"].sudo()
+        BadgeUser = self.env["gamification.badge.user"].sudo()
+        Activity = self.env["gamification.activity"]
+
+        # Group by achievement: karma source/reason and the badge differ per
+        # achievement, and within one achievement the (user, achievement)
+        # unique index guarantees users are distinct, so a per-user dict cannot
+        # collide.  Karma and badges are batched (one write cycle per
+        # achievement instead of per unlock); the bus notification and activity
+        # log stay per user because each targets that user's own feed.
+        badge_vals = []
+        for achievement, unlocks in self.grouped("achievement_id").items():
             if achievement.karma_reward:
-                user.sudo()._add_karma(
-                    achievement.karma_reward,
-                    source=unlock,
-                    reason=_("Achievement: %s", achievement.name),
-                )
-
-            # Grant badge
-            if achievement.badge_id:
-                self.env["gamification.badge.user"].sudo().create(
+                Users._add_karma_batch(
                     {
-                        "user_id": user.id,
+                        unlock.user_id: {
+                            "gain": achievement.karma_reward,
+                            "source": unlock,
+                            "reason": _("Achievement: %s", achievement.name),
+                        }
+                        for unlock in unlocks
+                    }
+                )
+            if achievement.badge_id:
+                badge_vals += [
+                    {
+                        "user_id": unlock.user_id.id,
                         "badge_id": achievement.badge_id.id,
                     }
-                )._send_badge()
+                    for unlock in unlocks
+                ]
 
-            # Bus notification
-            user._send_gamification_notification(
-                "achievement",
-                {
-                    "title": _("Achievement Unlocked!"),
-                    "message": achievement.name,
-                    "rarity": achievement.rarity,
-                },
-            )
-            # Log to unified activity feed
-            self.env["gamification.activity"]._log_achievement(
-                user,
-                achievement,
-                achievement.karma_reward,
-            )
+            for unlock in unlocks:
+                unlock.user_id._send_gamification_notification(
+                    "achievement",
+                    {
+                        "title": _("Achievement Unlocked!"),
+                        "message": achievement.name,
+                        "rarity": achievement.rarity,
+                    },
+                )
+                Activity._log_achievement(
+                    unlock.user_id,
+                    achievement,
+                    achievement.karma_reward,
+                )
+
+        if badge_vals:
+            BadgeUser.create(badge_vals)._send_badge()

@@ -153,26 +153,45 @@ class GamificationGoal(models.Model):
         return {"to_update": True}
 
     def _get_write_values(self, new_value: float) -> dict[Any, ValuesType]:
-        """Generate values to write after recomputation of a goal score"""
-        if new_value == self.current:
-            # avoid useless write if the new value is the same as the old one
-            return {}
+        """Generate values to write after recomputation of a goal score.
 
-        result = {"current": new_value}
-        if (
-            self.definition_id.condition == "higher" and new_value >= self.target_goal
-        ) or (
-            self.definition_id.condition == "lower" and new_value <= self.target_goal
-        ):
-            # success, do no set closed as can still change
-            result["state"] = "reached"
+        State is evaluated from the goal's current situation, *not* from
+        whether the measured value happened to move.  Skipping the whole method
+        when ``new_value == self.current`` meant a goal whose metric was simply
+        flat could never change state: an expired, unmet goal stayed
+        ``inprogress`` and un-``closed`` for ever, was re-evaluated by the cron
+        on every run, and permanently blocked resetting its challenge to draft.
+        """
+        result = {}
+        if new_value != self.current:
+            result["current"] = new_value
 
+        # Draft goals have not started and cancelled ones were closed by hand;
+        # neither should be moved by an automatic recomputation.
+        if self.state not in ("inprogress", "reached"):
+            return {self: result} if result else {}
+
+        condition = self.definition_id.condition
+        reached = (condition == "higher" and new_value >= self.target_goal) or (
+            condition == "lower" and new_value <= self.target_goal
+        )
+
+        if reached:
+            # success, do not set closed as it can still change
+            if self.state != "reached":
+                result["state"] = "reached"
         elif self.end_date and fields.Date.today() > self.end_date:
-            # check goal failure
+            # deadline passed without the target being met
             result["state"] = "failed"
             result["closed"] = True
+        elif self.state == "reached":
+            # the value fell back below the target before the deadline, so the
+            # goal is in progress again — matching what ``action_reach``
+            # documents ("will be reset to In Progress at the next goal update
+            # until the end date").
+            result["state"] = "inprogress"
 
-        return {self: result}
+        return {self: result} if result else {}
 
     def update_goal(self) -> bool:
         """Update the goals to recomputes values and change of states
@@ -295,6 +314,20 @@ class GamificationGoal(models.Model):
                         "float",
                         "monetary",
                     }
+                    if definition.computation_mode == "sum" and not sum_supported:
+                        # Deliberate, upstream-tested behaviour: summing a
+                        # non-numeric field degrades to counting matching rows
+                        # (see test_40_create_challenge_with_sum_goal, which
+                        # asserts the field is non-numeric on purpose).  Logged
+                        # because it is surprising when hit by accident.
+                        _logger.info(
+                            "Goal definition %s sums %r on %s, which is not "
+                            "numeric (type %r): counting rows instead.",
+                            definition.name,
+                            field_name,
+                            definition.model_id.model,
+                            field.type if field else None,
+                        )
                     for goal in goals:
                         # eval the domain with user replaced by goal user object
                         domain = safe_eval(definition.domain, {"user": goal.user_id})

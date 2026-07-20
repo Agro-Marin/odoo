@@ -86,20 +86,33 @@ Manual / write() ─────────────────────
                                     └─────────────┘
 ```
 
-**Key invariant:** `res.users.karma` is always computed from the latest
-`gamification.karma.tracking` record via `DISTINCT ON (user_id) ... ORDER BY user_id, tracking_date DESC, id DESC`.
-Direct writes to `karma` field trigger `_add_karma_batch` (via `res.users.write()`)
-which creates a tracking record, which then triggers `_compute_karma` via
-`@api.depends("karma_tracking_ids.new_value")`.
+**Key invariant:** `res.users.karma` is the **sum of every recorded gain** —
+`SUM(new_value - old_value)` over that user's `gamification.karma.tracking`
+rows. Direct writes to the `karma` field trigger `_add_karma_batch` (via
+`res.users.write()`) which creates a tracking record, which then triggers
+`_compute_karma` via `@api.depends("karma_tracking_ids.new_value",
+"karma_tracking_ids.old_value")`.
+
+This replaces an earlier "latest row wins" rule
+(`DISTINCT ON (user_id) ... ORDER BY tracking_date DESC, id DESC`), which
+silently dropped karma in two reachable cases: a row inserted with an older
+`tracking_date` never became the winner, and rows created together in one
+`create()` batch all chained from the same pre-batch value so only the last
+counted. Summing gains also matches what every other consumer of this table
+already did (`_get_tracking_karma_gain_position`, the season leaderboard, the
+engagement snapshots), so the whole module now shares one definition of karma.
 
 **Caveat:** When karma is set via `write()`, the tracking record has no `source`
 or `reason` metadata — it defaults to the current user and `_("Add Manually")`.
 Always prefer `_add_karma(gain, source, reason)` for traceable karma changes.
 
-**Safety guard:** `_compute_karma` exits early when `skip_karma_computation=True`
-is in the context. This is critical during monthly consolidation — without it,
-deleting old tracking records would zero out user karma before the consolidated
-record triggers recomputation.
+**Consolidation is karma-neutral by construction:** the consolidated row's gain
+equals the total gain of the rows it replaces, so collapsing a month cannot
+change any user's karma. No `skip_karma_computation` escape hatch exists any
+more — it was actively harmful, because Odoo clears a field's to-compute flag
+*before* invoking the compute, so the old early-`return` consumed pending karma
+recomputes instead of deferring them, and its `flush_all()` did so across the
+entire transaction.
 
 ---
 
@@ -168,7 +181,30 @@ _cron_update_streaks()
                     streak._break_streak()
                         ├── current_count = 0
                         └── state = broken
+
+            (every branch ends with: last_checked_date = today)
 ```
+
+**Idempotency:** the cron's re-entry guard is `last_checked_date`, not
+`last_activity_date`. The latter only advances when activity is *found*, so
+the freeze and break branches used to repeat: a second run on the same day
+burned another freeze day and a third broke an intact streak. Each streak is
+also processed inside its own savepoint, so one malformed `domain` cannot roll
+back the whole run (and, since `_order` is stable, block the same streaks every
+following night).
+
+**Timezone:** a streak day is the *user's* calendar day. `_check_user_activity`
+resolves `user.tz → company partner tz → UTC` (`_get_streak_tz_name`, mirroring
+`hr.employee._get_tz`), builds the `[00:00, 23:59:59]` window in that zone, and
+converts it to UTC for the query — so **storage and the query stay UTC**; only
+the window boundaries are local. Users are bucketed by timezone so a batch
+still issues one query per zone rather than one per user.
+
+Do **not** substitute `fields.Date.context_today` here: it reads `env.tz`,
+which in a cron is the *cron user's* timezone, not the streak owner's. This
+follows the same convention as `lunch.supplier._compute_available_today`, which
+answers a per-record calendar-day question in that record's zone from cron
+code.
 
 ---
 
