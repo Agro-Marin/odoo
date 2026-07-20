@@ -8,6 +8,7 @@ import {
 import { Plugin } from "@html_editor/plugin";
 import { withSequence } from "@html_editor/utils/resource";
 import { registry } from "@web/core/registry";
+import { uniqueId } from "@web/core/utils/functions";
 
 export const POPUP = SNIPPET_SPECIFIC;
 export const COOKIES_BAR = SNIPPET_SPECIFIC_END;
@@ -105,7 +106,7 @@ class PopupOptionPlugin extends Plugin {
     }
 
     assignUniqueID(editingElement) {
-        editingElement.closest(".s_popup").id = `sPopup${Date.now()}`;
+        editingElement.closest(".s_popup").id = uniqueId("sPopup");
     }
 }
 

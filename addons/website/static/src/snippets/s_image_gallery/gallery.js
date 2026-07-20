@@ -78,6 +78,10 @@ export class Gallery extends Interaction {
             const slideshowEl = this.modalEl.querySelector(".modal-body.o_slideshow");
             this.services["public.interactions"].stopInteractions(slideshowEl);
             this.modalEl.removeEventListener("keydown", this.onModalKeydownBound);
+            // Dispose the Bootstrap instance before dropping the node, else
+            // Bootstrap keeps it (and its document-level listeners) in its
+            // internal map for the detached element — a leak per lightbox open.
+            modalBS.dispose();
             this.modalEl.remove();
             this.modalEl = undefined;
         });

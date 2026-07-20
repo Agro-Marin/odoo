@@ -12,7 +12,10 @@ export class Animation extends Interaction {
         _windowUnlessDropdown: () => this.windowUnlessDropdown,
     };
     dynamicContent = {
-        _window: { "t-on-resize": this.scrollWebsiteAnimate },
+        // rAF-throttled like the scroll handler below: resize can fire rapidly
+        // (and every .o_animate element's animationend dispatches a synthetic
+        // global "resize"), so coalesce this heavy relayout to one run/frame.
+        _window: { "t-on-resize": this.throttled(this.scrollWebsiteAnimate) },
         _windowUnlessDropdown: {
             "t-on-shown.bs.modal": this.scrollWebsiteAnimate,
             "t-on-slid.bs.carousel": this.scrollWebsiteAnimate,

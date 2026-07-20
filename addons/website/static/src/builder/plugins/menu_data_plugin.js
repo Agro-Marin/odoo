@@ -23,7 +23,7 @@ export class MenuDataPlugin extends Plugin {
                 isAvailable: (linkElement) =>
                     linkElement &&
                     linkElement.closest(
-                        ".top_menu, o_extra_menu_items, [data-content_menu_id]",
+                        ".top_menu, .o_extra_menu_items, [data-content_menu_id]",
                     ) &&
                     !linkElement.closest(
                         ".dropdown-toggle, li.o_header_menu_button a, [data-toggle], .o_offcanvas_logo, .o_mega_menu",

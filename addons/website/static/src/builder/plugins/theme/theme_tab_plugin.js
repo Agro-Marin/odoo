@@ -263,6 +263,9 @@ export class ThemeTabPlugin extends Plugin {
         const el = this.document.createElement("div");
         el.dataset.name = name;
         this.document.body.appendChild(el); // Currently editingElement needs to be isConnected
+        // Remove it on plugin destroy, otherwise these helper <div>s pile up in
+        // the edited document's body on every editor open/close.
+        this._cleanups.push(() => el.remove());
 
         options.selector = "*";
 

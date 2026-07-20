@@ -49,6 +49,10 @@ export class SocialMediaLinks extends BaseOptionComponent {
                 const nextId = next?.dataset.id;
 
                 const oldIdx = this.ids.findIndex((id) => id === elId);
+                if (oldIdx < 0) {
+                    // Not found: `splice(-1, 1)` would drop the wrong (last) row.
+                    return;
+                }
                 this.ids.splice(oldIdx, 1);
                 const oldNext = this.ids
                     .slice(oldIdx)
@@ -144,6 +148,10 @@ export class SocialMediaLinks extends BaseOptionComponent {
         this.ids = [];
         this.elIdsMap = new Map();
         this.idsMediaMap = new Map();
+        // Reset the reverse maps too, otherwise stale id→(detached element)
+        // entries accumulate across every recompute (detached-DOM leak).
+        this.idsElMap = new Map();
+        this.mediaIdsMap = new Map();
 
         for (const item of items) {
             this.ids.push(item.id);

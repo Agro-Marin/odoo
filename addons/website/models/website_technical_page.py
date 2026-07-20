@@ -45,6 +45,13 @@ class WebsiteTechnicalPage(models.Model):
     @property
     def _table_query(self):
         routes = self.get_static_routes()
+        if not routes:
+            # `FROM (VALUES )` is a syntax error; return an empty-shaped result
+            # when no endpoint declares a listable route.
+            return SQL(
+                "SELECT NULL::int AS id, NULL::text AS name, "
+                "NULL::text AS website_url WHERE FALSE"
+            )
         values = SQL(", ").join(
             SQL("(%s, %s)", route_title, route_path)
             for route_title, route_path in routes

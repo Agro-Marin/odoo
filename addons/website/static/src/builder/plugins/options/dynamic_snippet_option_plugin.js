@@ -307,9 +307,12 @@ class DynamicSnippetOptionPlugin extends Plugin {
         return defaultRecrod[0]?.id || "";
     }
     getDefaultSnippetFilterId(modelName) {
-        return this.fetchedDynamicFilters.find(
-            ({ model_name }) => model_name === modelName,
-        ).id;
+        // Guard the lookup: no matching filter would otherwise throw on `.id`.
+        return (
+            this.fetchedDynamicFilters.find(
+                ({ model_name }) => model_name === modelName,
+            )?.id || ""
+        );
     }
     getSnippetModelName(snippetData) {
         return (

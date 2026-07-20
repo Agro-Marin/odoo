@@ -88,10 +88,13 @@ export function checkXML(xml) {
         errorEl.querySelectorAll(".o_we_source_text_origin").forEach((el, i) => {
             el.after(codeEls[i]);
         });
+        // Some browsers format the <parsererror> text without a "line N", so
+        // the match can be null — fall back to line 1 instead of throwing.
+        const lineMatch = errorEl.innerHTML.match(/[Ll]ine[^\d]+(\d+)/);
         return {
             isValid: false,
             error: {
-                line: parseInt(errorEl.innerHTML.match(/[Ll]ine[^\d]+(\d+)/)[1], 10),
+                line: lineMatch ? parseInt(lineMatch[1], 10) : 1,
                 message: errorEl.textContent,
             },
         };

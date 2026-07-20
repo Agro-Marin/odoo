@@ -6,6 +6,7 @@ import { after } from "@html_builder/utils/option_sequence";
 import { Plugin } from "@html_editor/plugin";
 import { withSequence } from "@html_editor/utils/resource";
 import { registry } from "@web/core/registry";
+import { uniqueId } from "@web/core/utils/functions";
 import { CONTAINER_WIDTH } from "@website/builder/option_sequence";
 
 import { BaseWebsiteBackgroundOption } from "./background_option.js";
@@ -65,7 +66,7 @@ export class ChangeConnectorAction extends ClassAction {
             );
             // The arrowhead id is set here so that they are different per snippet
             if (!arrowHeadEl.id) {
-                arrowHeadEl.id = "s_process_steps_arrow_head" + Date.now();
+                arrowHeadEl.id = uniqueId("s_process_steps_arrow_head");
             }
             markerEnd = `url(#${arrowHeadEl.id})`;
         }

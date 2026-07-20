@@ -128,12 +128,14 @@ export class ImageShapeHoverEffect extends Interaction {
         );
         svg.classList.remove(previousRandomClass);
         svg.classList.add("o_shape_anim_random_" + Date.now());
-        // Convert the SVG element to a data URI.
-        const svg64 = btoa(new XMLSerializer().serializeToString(svg));
+        // Convert the SVG element to a data URI. Percent-encode as UTF-8 rather
+        // than btoa(), which throws (InvalidCharacterError) on any non-Latin1
+        // glyph in the SVG (e.g. a Unicode character in a <text>).
+        const svgString = new XMLSerializer().serializeToString(svg);
         // The image is preloaded to avoid a flickering when it is added to the
         // DOM.
         const preloadedImg = new Image();
-        preloadedImg.src = `data:image/svg+xml;base64,${svg64}`;
+        preloadedImg.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svgString)}`;
         preloadedImg.onload = () => {
             if (this.isDestroyed) {
                 // In some cases, it is possible for the "preloadedImg" to

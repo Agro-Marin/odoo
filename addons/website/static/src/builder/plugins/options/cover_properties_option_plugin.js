@@ -97,11 +97,14 @@ class CoverPropertiesOptionPlugin extends Plugin {
 
         // TODO: `o_record_has_cover` should be handled using model field, not
         // resize_class to avoid all of this.
-        let coverClass = Object.keys(coverSizeClassLabels).find((e) =>
-            el.classList.contains(e),
-        );
+        let coverClass =
+            Object.keys(coverSizeClassLabels).find((e) => el.classList.contains(e)) ||
+            "";
         if (bg && bg !== "none") {
-            coverClass += " o_record_has_cover";
+            // Guard the default "": otherwise a missing size class made this
+            // `undefined + " o_record_has_cover"` → the literal string
+            // "undefined o_record_has_cover" was persisted to resize_class.
+            coverClass = (coverClass ? coverClass + " " : "") + "o_record_has_cover";
         }
         coverProperties.resize_class = coverClass;
 

@@ -1,5 +1,4 @@
 /** @odoo-module native */
-/* eslint-disable no-async-promise-executor */
 
 import { markup } from "@odoo/owl";
 import { loadJS } from "@web/core/assets";
@@ -26,10 +25,19 @@ registry.category("services").add("google_maps", {
              */
             async getGMapsAPIKey(refetch) {
                 if (refetch || !gMapsAPIKeyProm) {
-                    gMapsAPIKeyProm = new Promise(async (resolve) => {
-                        const data = await rpc("/website/google_maps_api_key");
-                        resolve(JSON.parse(data).google_maps_api_key || "");
-                    });
+                    // An async Promise executor that rejects leaves the promise
+                    // pending forever; cached, that bricks every later lookup.
+                    // Use an async IIFE and reset the cache on failure so a
+                    // later call can retry.
+                    gMapsAPIKeyProm = (async () => {
+                        try {
+                            const data = await rpc("/website/google_maps_api_key");
+                            return JSON.parse(data).google_maps_api_key || "";
+                        } catch {
+                            gMapsAPIKeyProm = null;
+                            return "";
+                        }
+                    })();
                 }
                 return gMapsAPIKeyProm;
             },
@@ -43,24 +51,29 @@ registry.category("services").add("google_maps", {
                 // that the key changes meanwhile... it will not work but we can
                 // agree the user can bother to reload the page at that moment.
                 if (refetch || !gMapsAPILoading) {
-                    gMapsAPILoading = new Promise(async (resolve) => {
-                        const key = await this.getGMapsAPIKey(refetch);
-                        lastKey = key;
+                    // Async IIFE (not `new Promise(async …)`): a rejection in an
+                    // async executor hangs the cached promise forever. On
+                    // failure, reset the cache and resolve `false` so the caller
+                    // degrades gracefully instead of awaiting a dead promise.
+                    gMapsAPILoading = (async () => {
+                        try {
+                            const key = await this.getGMapsAPIKey(refetch);
+                            lastKey = key;
 
-                        if (key) {
-                            if (!promiseKeys[key]) {
-                                promiseKeys[key] = new Promise((resolve) => {
-                                    promiseKeysResolves[key] = resolve;
-                                });
-                                await loadJS(
-                                    `https://maps.googleapis.com/maps/api/js?v=3.exp&libraries=places&callback=odoo_gmaps_api_post_load&key=${encodeURIComponent(
-                                        key,
-                                    )}`,
-                                );
+                            if (key) {
+                                if (!promiseKeys[key]) {
+                                    promiseKeys[key] = new Promise((resolve) => {
+                                        promiseKeysResolves[key] = resolve;
+                                    });
+                                    await loadJS(
+                                        `https://maps.googleapis.com/maps/api/js?v=3.exp&libraries=places&callback=odoo_gmaps_api_post_load&key=${encodeURIComponent(
+                                            key,
+                                        )}`,
+                                    );
+                                }
+                                await promiseKeys[key];
+                                return key;
                             }
-                            await promiseKeys[key];
-                            resolve(key);
-                        } else {
                             if (!editableMode && user.isAdmin) {
                                 const message = _t("Cannot load google map.");
                                 const urlTitle = _t("Check your configuration.");
@@ -72,9 +85,12 @@ registry.category("services").add("google_maps", {
                                     { type: "warning", sticky: true },
                                 );
                             }
-                            resolve(false);
+                            return false;
+                        } catch {
+                            gMapsAPILoading = null;
+                            return false;
                         }
-                    });
+                    })();
                 }
                 return gMapsAPILoading;
             },

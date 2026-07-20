@@ -19,10 +19,12 @@ export const translationAttributeSelector =
 
 export function getTranslationAttributeEls(rootEl) {
     const translationSavableEls = rootEl.querySelectorAll(translationAttributeSelector);
-    const textAreaEls = Array.from(rootEl.querySelectorAll("textarea")).find((el) =>
+    // filter, not find: a page can have several translatable textareas and all
+    // of them need the o_editable_attribute / readonly handling, not just one.
+    const textAreaEls = Array.from(rootEl.querySelectorAll("textarea")).filter((el) =>
         el.textContent.includes("data-oe-translation-source-sha"),
     );
-    return Array.from(translationSavableEls).concat(textAreaEls || []);
+    return Array.from(translationSavableEls).concat(textAreaEls);
 }
 
 /**
@@ -205,9 +207,11 @@ export class TranslationPlugin extends Plugin {
                     translatedAttr,
                 );
                 const match = translation.match(translationRegex);
-                filteredEditableEl.setAttribute(translatedAttr, match[2]);
-                if (translatedAttr === "value") {
-                    filteredEditableEl.value = match[2];
+                if (match) {
+                    filteredEditableEl.setAttribute(translatedAttr, match[2]);
+                    if (translatedAttr === "value") {
+                        filteredEditableEl.value = match[2];
+                    }
                 }
                 filteredEditableEl.classList.add("o_translatable_attribute");
             }
@@ -221,9 +225,11 @@ export class TranslationPlugin extends Plugin {
             const translation = textEditEl.textContent;
             this.updateTranslationMap(textEditEl, translation, "textContent");
             const match = translation.match(translationRegex);
-            textEditEl.value = match[2];
-            // Update the text content of textarea too
-            textEditEl.innerText = match[2];
+            if (match) {
+                textEditEl.value = match[2];
+                // Update the text content of textarea too
+                textEditEl.innerText = match[2];
+            }
             textEditEl.classList.add("o_translatable_text");
             textEditEl.classList.remove("o_text_content_invisible");
         }

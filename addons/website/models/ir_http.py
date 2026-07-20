@@ -328,19 +328,28 @@ class IrHttp(models.AbstractModel):
         # route, hence the default True. Elsewhere, request.is_frontend
         # is set.
         website_id = False
-        if getattr(request, "is_frontend", True):
+        # ``request`` is None for non-HTTP callers (cron, tests, plain RPC);
+        # the base method is request-independent, so only take the frontend
+        # branch when there actually is a request. ``request.website_routing``
+        # must also be read lazily (``dict.get`` evaluates its default eagerly).
+        if request and getattr(request, "is_frontend", True):
             # ``self.env.get`` resolves a *model name*, so "website_id" would
             # never be found and the fallback was always used. Read the context
             # key so an explicit ``website_id`` (e.g. multi-website rendering)
             # is honored, falling back to the routed website.
-            website_id = self.env.context.get("website_id", request.website_routing)
+            website_id = self.env.context.get("website_id") or getattr(
+                request, "website_routing", False
+            )
         return super(IrHttp, self.with_context(website_id=website_id)).get_nearest_lang(
             lang_code
         )
 
     @classmethod
     def _get_default_lang(cls):
-        if getattr(request, "is_frontend", True):
+        # `getattr(request, "is_frontend", True)` is truthy when request is None
+        # (cron/test/RPC); guard on `request` first so we don't dereference
+        # `request.env` and crash instead of delegating to super().
+        if request and getattr(request, "is_frontend", True):
             website = request.env["website"].sudo().get_current_website()
             return request.env["res.lang"]._get_data(
                 id=website._get_cached("default_lang_id")

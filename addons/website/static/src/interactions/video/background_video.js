@@ -58,6 +58,10 @@ export class BackgroundVideo extends Interaction {
         // both inner and outer element are observed for any resizing.
         resizeObserver.observe(this.el.parentElement);
         resizeObserver.observe(this.el);
+        // The observer (and the iframe/closure it retains) must be torn down
+        // when the interaction is destroyed (edit-mode toggle, preview restart),
+        // otherwise it leaks on every re-init.
+        this.registerCleanup(() => resizeObserver.disconnect());
     }
 
     adjustIframe() {

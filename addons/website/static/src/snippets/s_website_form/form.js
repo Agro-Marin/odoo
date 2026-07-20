@@ -30,12 +30,17 @@ export class Form extends Interaction {
         _endMessage: () =>
             this.el.parentNode.querySelector(".s_website_form_end_message"),
     };
+    // One shared lock wrapper for both the button click and the form submit:
+    // two separate `this.locked(...)` wrappers keep independent `pending` flags,
+    // so a path firing both (programmatic submit, some IME/Enter sequences)
+    // could enter send() twice concurrently.
+    sendLocked = this.locked(this.send, true);
     dynamicContent = {
         ".s_website_form_send, .o_website_form_send": {
-            "t-on-click.prevent": this.locked(this.send, true),
+            "t-on-click.prevent": this.sendLocked,
         }, // !compatibility
         _root: {
-            "t-on-submit.prevent": this.locked(this.send, true),
+            "t-on-submit.prevent": this.sendLocked,
             "t-att-class": () => ({
                 "d-none": this.isHidden,
             }),

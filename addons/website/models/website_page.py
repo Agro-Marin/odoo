@@ -9,7 +9,6 @@ from pathlib import PurePosixPath
 from odoo import api, fields, http, models, tools
 from odoo.fields import Domain
 from odoo.tools import SQL, escape_psql
-from odoo.tools.translate import _
 
 from odoo.addons.base.models.ir_http import EXTENSION_TO_WEB_MIMETYPES
 from odoo.addons.website.tools import text_from_html
@@ -192,49 +191,61 @@ class WebsitePage(models.Model):
         return super().unlink()
 
     def write(self, vals):
-        for page in self:
-            website_id = False
-            if vals.get("website_id") or page.website_id:
-                website_id = vals.get("website_id") or page.website_id.id
+        if "visibility" in vals and vals["visibility"] != "restricted_group":
+            vals["group_ids"] = False
 
-            # If URL has been edited, slug it
-            if "url" in vals:
-                url = vals["url"] or ""
-                url = "/" + self.env["ir.http"]._slugify(
-                    url, max_length=1024, path=True
-                )
-                if page.url != url:
-                    url = (
+        # `url` and `key` are slugified and made unique *per record*. Mutating a
+        # single shared `vals` inside the loop and writing it once would give
+        # every record of a multi-record set the last page's url/key (duplicate
+        # URLs and keys). Derive and write them per page instead; keep a single
+        # write for the common case where neither is edited.
+        if "url" in vals or "name" in vals:
+            shared_vals = {k: v for k, v in vals.items() if k not in ("url", "key")}
+            for page in self:
+                page_vals = dict(shared_vals)
+                website_id = vals.get("website_id") or page.website_id.id or False
+
+                # If URL has been edited, slug it
+                if "url" in vals:
+                    url = vals["url"] or ""
+                    url = "/" + self.env["ir.http"]._slugify(
+                        url, max_length=1024, path=True
+                    )
+                    if page.url != url:
+                        url = (
+                            self.env["website"]
+                            .with_context(website_id=website_id)
+                            .get_unique_path(url)
+                        )
+                        page.menu_ids.write({"url": url})
+                        # Sync website's homepage URL
+                        website = self.env["website"].get_current_website()
+                        page_url_normalized = {"homepage_url": page.url}
+                        website._handle_homepage_url(page_url_normalized)
+                        if website.homepage_url == page_url_normalized["homepage_url"]:
+                            website.homepage_url = url
+                    page_vals["url"] = url
+
+                # If name has changed, check for key uniqueness
+                if "name" in vals and page.name != vals["name"]:
+                    page_vals["key"] = (
                         self.env["website"]
                         .with_context(website_id=website_id)
-                        .get_unique_path(url)
+                        .get_unique_key(
+                            self.env["ir.http"]._slugify(vals["name"] or "")
+                        )
                     )
-                    page.menu_ids.write({"url": url})
-                    # Sync website's homepage URL
-                    website = self.env["website"].get_current_website()
-                    page_url_normalized = {"homepage_url": page.url}
-                    website._handle_homepage_url(page_url_normalized)
-                    if website.homepage_url == page_url_normalized["homepage_url"]:
-                        website.homepage_url = url
-                vals["url"] = url
-
-            # If name has changed, check for key uniqueness
-            if "name" in vals and page.name != vals["name"]:
-                vals["key"] = (
-                    self.env["website"]
-                    .with_context(website_id=website_id)
-                    .get_unique_key(self.env["ir.http"]._slugify(vals["name"] or ""))
-                )
-            if "visibility" in vals:
-                if vals["visibility"] != "restricted_group":
-                    vals["group_ids"] = False
+                super(WebsitePage, page).write(page_vals)
+            res = True
+        else:
+            res = super().write(vals)
 
         if "url" in vals or "visibility" in vals or "group_ids" in vals:
             self.env.registry.clear_cache(
                 "templates"
             )  # Clear cache because the response depends on the path and the rendering of the view changes.
 
-        return super().write(vals)
+        return res
 
     def get_website_meta(self):
         self.ensure_one()

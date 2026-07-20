@@ -1089,7 +1089,11 @@ export class OptimizeSEODialog extends Component {
                 data.seo_name = seoContext.seoName;
             }
         }
-        data.website_meta_og_img = seoContext.metaImage;
+        // Gate like every other field above: don't write og image when SEO
+        // isn't editable or the model doesn't even have the field.
+        if (this.canEditSeo && "website_meta_og_img" in this.data) {
+            data.website_meta_og_img = seoContext.metaImage;
+        }
         await this.orm.write(this.object.model, [this.object.id], data, {
             context: {
                 lang: this.website.currentWebsite.metadata.lang,

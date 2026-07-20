@@ -91,14 +91,17 @@ class WebsiteSnippetFilter(models.Model):
         if search_domain is None:
             search_domain = []
 
+        # Return [] (not "") on the guard branches: the normal path returns a
+        # list of html strings, and the controller passes this straight to the
+        # JSON-RPC client, which shouldn't have to handle two shapes.
         if (
             self.website_id
             and self.env["website"].get_current_website() != self.website_id
         ):
-            return ""
+            return []
 
         if self.model_name and self.model_name.replace(".", "_") not in template_key:
-            return ""
+            return []
 
         records = self._prepare_values(
             limit=limit, search_domain=search_domain, res_model=res_model, res_id=res_id
