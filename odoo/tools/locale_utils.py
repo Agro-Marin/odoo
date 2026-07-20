@@ -37,10 +37,9 @@ def get_iso_codes(lang: str) -> str:
 
 
 def scan_languages() -> list[tuple[str, str]]:
-    """Returns all languages supported by Odoo for translation
+    """Return all languages supported by Odoo for translation.
 
     :returns: a list of (lang_code, lang_name) pairs
-    :rtype: list[tuple[str, str]]
     """
     try:
         # read (code, name) from languages in base/data/res.lang.csv
@@ -58,13 +57,12 @@ def scan_languages() -> list[tuple[str, str]]:
 
 
 def get_lang(env: Environment, lang_code: str | None = None) -> LangData:
-    """
-    Retrieve the first lang object installed, by checking the parameter lang_code,
-    the context and then the company. If no lang is installed from those variables,
-    fallback on english or on the first lang installed in the system.
+    """Return the first installed lang, checking lang_code, then the context, then the company.
 
-    :param env:
-    :param str lang_code: the locale (i.e. en_US)
+    Defaults to English, or the first installed lang, if none of those match.
+
+    :param env: environment used to look up installed languages
+    :param str lang_code: the locale (e.g. en_US)
     :return LangData: the first lang found that is installed on the system.
     """
     langs = [code for code, _ in env["res.lang"].get_installed()]

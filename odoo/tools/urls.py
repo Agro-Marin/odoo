@@ -15,16 +15,10 @@ from odoo.libs.web.urls import (
 def keep_query(*keep_params: str, **additional_params: object) -> str:
     """Generate a query string keeping current request parameters.
 
-    Keeps the current request querystring's parameters specified
-    in ``keep_params`` and also adds the parameters specified in
-    ``additional_params``.
-
-    Query-string parameters with multiple values are kept as repeated
-    parameters.
-
-    The ``keep_params`` arguments can use wildcards too, eg::
-
-        keep_query("search", "shop_*", page=4)
+    Keeps querystring parameters listed in ``keep_params`` (wildcards
+    allowed, e.g. ``keep_query("search", "shop_*", page=4)``) and adds
+    ``additional_params``. Parameters with multiple values are kept as
+    repeated params.
     """
     if not keep_params and not additional_params:
         keep_params = ("*",)

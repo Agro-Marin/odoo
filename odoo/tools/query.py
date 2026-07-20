@@ -347,15 +347,12 @@ class Query:
         return len(self.get_result_ids())
 
     def count_matching(self, limit: int | None = None) -> int:
-        """Return the count of all matching rows, ignoring ORDER BY, LIMIT, OFFSET.
+        """Return the count of rows matching the FROM/WHERE clauses, ignoring
+        ORDER BY, LIMIT, OFFSET.
 
-        Unlike ``len(query)`` which respects the query's own LIMIT/OFFSET,
-        this counts ALL rows matching the FROM/WHERE clauses.  Optionally
-        applies ``limit`` as an upper bound on the count.
-
-        This is useful for pagination: the data query uses LIMIT/OFFSET for
-        the current page, while count_matching() returns the total across
-        all pages using the same FROM/WHERE (same joins, same filters).
+        Unlike ``len(query)``, which respects the query's own LIMIT/OFFSET, this
+        counts all matching rows (useful for pagination totals). ``limit``
+        optionally caps the count.
         """
         if self.groupby or self.having or limit:
             # Need subquery wrapper for GROUP BY / HAVING / LIMIT

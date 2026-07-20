@@ -47,7 +47,6 @@ class odoo_resolver(etree.Resolver):
 
 
 def _validate_xml(env: object, url: str | None, path: str | None, xmls: object) -> None:
-    # Get the XSD data
     xsd_attachment = env["ir.attachment"]
     if path:
         with file_open(path, filter_ext=(".xsd",)) as file:
@@ -60,7 +59,6 @@ def _validate_xml(env: object, url: str | None, path: str | None, xmls: object) 
     elif url:
         xsd_attachment = load_xsd_files_from_url(env, url)
 
-    # Validate the XML against the XSD
     if not isinstance(xmls, list):
         xmls = [xmls]
 
@@ -132,15 +130,13 @@ def cleanup_xml_node(
     """
     xml_node = xml_node_or_string
 
-    # Convert str/bytes to etree._Element
     if isinstance(xml_node, str):
         xml_node = xml_node.encode()  # misnomer: fromstring actually reads bytes
     if isinstance(xml_node, bytes):
         parser = etree.XMLParser(recover=True, resolve_entities=False)
         xml_node = etree.fromstring(remove_control_characters(xml_node), parser=parser)
 
-    # Process leaf nodes iteratively
-    # Depth-first, so any inner node may become a leaf too (if children are removed)
+    # Depth-first: an inner node may become a leaf itself once its children are removed
     def leaf_iter(parent_node, node, level):
         for child_node in node:
             leaf_iter(node, child_node, level if level < 0 else level + 1)
@@ -190,9 +186,8 @@ def load_xsd_files_from_url(
     For ZIP archives, the contained XSD files are saved as attachments, filtered by the provided list of XSD names.
     The ZIP archives themselves are not saved.
 
-    The XSD files content can be modified by providing the `modify_xsd_content` function as argument.
-    Typically, this is used when XSD files depend on each other (with the schemaLocation attribute),
-    but it can be used for any purpose.
+    The `modify_xsd_content` function, if given, is applied to each XSD's content before saving —
+    typically to rewrite cross-references between XSD files (the schemaLocation attribute).
 
     :param odoo.api.Environment env: environment of calling module
     :param str url: URL of XSD file/ZIP archive
@@ -327,6 +322,8 @@ def validate_xml_from_attachment(
     :param xml_content: the XML content to validate
     :param xsd_name: the XSD file name in database
     :param reload_files_function: Deprecated.
+    :param prefix: if given, prefixes `xsd_name` and is forwarded to `_check_with_xsd`
+        to resolve the schema's own imports (see `odoo_resolver`)
     """
 
     prefixed_xsd_name = f"{prefix}.{xsd_name}" if prefix else xsd_name

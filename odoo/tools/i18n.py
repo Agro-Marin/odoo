@@ -58,7 +58,7 @@ def format_list(
     :param env: the current environment.
     :param lst: the iterable of items to format into a list.
     :param style: the style to format the list with.
-    :param lang_code: the locale (i.e. en_US).
+    :param lang_code: the locale (e.g. en_US).
     :return: the formatted list.
     """
     locale = babel_locale_parse(lang_code or get_lang(env).code)

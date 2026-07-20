@@ -42,7 +42,6 @@ def hmac(
     :param message: message to authenticate
     :param hash_function: hash function to use for HMAC (default: SHA-256)
     :return: hexadecimal digest of the HMAC
-    :rtype: str
     :raises ValueError: if scope is empty
     """
     if not scope:
@@ -79,7 +78,6 @@ def hash_sign(
     :param expiration_hours: optional number of hours before expiration
         (cannot be set at the same time as expiration)
     :return: URL-safe base64-encoded signed token
-    :rtype: str
     :raises AssertionError: if both expiration and expiration_hours are set,
         or if message_values is None
     """
@@ -167,14 +165,13 @@ def limited_field_access_token(
     thundering herd problems.
 
     :param record: the record to generate the token for
-    :type record: odoo.models.Model
+    :type record: odoo.models.BaseModel
     :param field_name: the field name to generate the token for
     :param timestamp: optional expiration timestamp (hex format),
         or None to generate automatically
     :param scope: scope of the authentication, to have different
         signatures for the same record/field in different contexts
     :return: the token, which includes the timestamp in hex format
-    :rtype: str
     """
     record.ensure_one()
     if not timestamp:
@@ -202,14 +199,13 @@ def verify_limited_field_access_token(
     """Verify a field access token.
 
     :param record: the record to verify the token for
-    :type record: odoo.models.Model
+    :type record: odoo.models.BaseModel
     :param field_name: the field name to verify the token for
     :param access_token: the access token to verify
     :param scope: scope of the authentication (must match the scope
         used when the token was created)
     :return: whether the token is valid for the record/field at
         the current date and time
-    :rtype: bool
     """
     *_, timestamp = access_token.rsplit("o", 1)
     return consteq(

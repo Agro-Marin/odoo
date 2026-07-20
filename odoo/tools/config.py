@@ -170,10 +170,8 @@ def _deduplicate_loggers(loggers: list[str]) -> Generator[str]:
     """Drop duplicate logger levels so repeated ``--save`` doesn't grow the
     config file's log_handler list unboundedly.
     """
-    # Parse each ``logger:level`` spec; a token with no colon (e.g. a bare
-    # ``"werkzeug"``) is malformed and is skipped rather than crashing the whole
-    # config load/save with a ValueError from ``dict()``.  ``rpartition`` keeps
-    # the level (last segment); last value wins per logger.
+    # A token with no colon (a bare ``"werkzeug"``) is malformed and skipped.
+    # ``rpartition`` keeps the level (last segment); last value wins per logger.
     seen: dict[str, str] = {}
     for spec in loggers:
         logger, sep, level = spec.rpartition(":")
@@ -653,8 +651,8 @@ class configmanager:
             help="JSON logging configuration file, in dictConfig format "
             "(https://docs.python.org/3/library/logging.config.html#logging-config-dictschema).",
         )
-        # For backward-compatibility, map the old log levels to something
-        # quite close.
+        # Accepted --log-level values, including legacy aliases; each maps to a
+        # set of log handlers via logutils.PSEUDOCONFIG_MAPPER.
         levels = [
             "info",
             "debug_rpc",

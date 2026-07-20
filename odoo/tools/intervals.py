@@ -1,8 +1,4 @@
-"""
-Backward compatibility shim.
-
-This module re-exports from odoo.libs.intervals.
-New code should import from odoo.libs.intervals directly.
+"""Backward compatibility shim re-exporting odoo.libs.intervals.
 
 .. deprecated:: 19.0
    Import from ``odoo.libs.intervals`` instead.

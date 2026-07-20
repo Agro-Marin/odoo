@@ -98,7 +98,7 @@ class SQL:
         )
 
     The combined SQL code is given by ``sql.code``, while the corresponding
-    combined parameters are given by the list ``sql.params``. This allows to
+    combined parameters are given by the tuple ``sql.params``. This allows to
     combine any number of SQL terms without having to separately combine their
     parameters, which can be tedious, bug-prone, and is the main downside of
     `psycopg.sql <https://www.psycopg.org/psycopg3/docs/basic/adapt.html>`.
@@ -856,15 +856,13 @@ def create_index(
     comment: str | None = None,
     unique: bool = False,
 ) -> None:
-    """Create the given index unless it exists.
+    """Create the given index unless it already exists.
 
-    :param cr: The cursor
-    :param indexname: The name of the index
-    :param tablename: The name of the table
-    :param method: The type of the index (default: btree)
-    :param where: WHERE clause for the index (default: '')
-    :param comment: The comment to set on the index
-    :param unique: Whether the index is unique or not (default: False)
+    :param expressions: the indexed expressions/columns
+    :param method: the index type (default: btree)
+    :param where: WHERE clause for a partial index (default: none)
+    :param comment: comment to set on the index
+    :param unique: whether the index is unique (default: False)
     """
     assert expressions, "Missing expressions"
     if index_exists(cr, indexname):

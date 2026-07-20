@@ -392,15 +392,14 @@ def get_diff(
     :param data_to: tuple(text, name), name will be used as table header
     :param custom_style: CSS string including <style> tag, or False for default style
     :param dark_color_scheme: True if dark color scheme is used
-    :return: a string containing the diff in an HTML table format.
+    :return: the diff as an HTML table.
     """
 
     def handle_style(
         html_diff: str, custom_style: str | bool, dark_color_scheme: bool
     ) -> str:
-        """The HtmlDiff lib will add some useful classes on the DOM to
-        identify elements. Append some BS4 classes to those.
-        For the table to fit the modal width, some custom style is needed.
+        """Append BS4 classes to the identifying classes HtmlDiff puts on the
+        DOM, and add custom style so the table fits the modal width.
         """
         to_append = {
             "diff_header": "bg-600 text-light text-center align-top px-2",

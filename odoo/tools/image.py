@@ -64,9 +64,10 @@ class ImageProcess(_ImageProcessBase):
     def __init__(self, source: bytes | None, verify_resolution: bool = True) -> None:
         """Initialize the ``source`` image for processing.
 
-        :param bytes source: the original image binary
+        :param source: the original image binary, or None
         :param verify_resolution: if True, verify the image resolution is acceptable
-        :raise: UserError if the image can't be decoded or is too large
+        :raise UserError: translated from any ValueError raised by the base implementation
+            (decode failure, oversized image, or other)
         """
         try:
             super().__init__(source, verify_resolution)

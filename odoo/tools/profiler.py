@@ -92,11 +92,11 @@ def force_hook() -> None:
 
 
 class Collector:
-    """Base class for objects that collect profiling data.
+    """Base class for profiling-data collectors.
 
-    A collector gathers profiling data for a profiler — usually stack traces
-    with timing and context added by ExecutionContext on the current thread.
-    Meant to be inherited; defines default entry-creation behavior.
+    A collector gathers entries for a profiler — usually stack traces with
+    timing and the ExecutionContext of the current thread. Subclassed; provides
+    the default entry-creation behavior.
     """
 
     name = None  # symbolic name of the collector
@@ -870,15 +870,13 @@ class Profiler:
 
 
 class Nested:
-    """
-    Utility to nest another context manager inside a profiler.
+    """Nest another context manager inside a profiler.
 
-    The profiler should only be called directly in the "with" without nesting it
-    with ExitStack. If not, the retrieval of the 'init_frame' may be incorrect
-    and lead to an error "Limit frame was not found" when profiling. Since the
-    stack will ignore all stack frames inside this file, the nested frames will
-    be ignored, too. This is also why Nested() does not use
-    contextlib.contextmanager.
+    The profiler must be entered directly by the ``with``, not wrapped in an
+    ExitStack: otherwise ``init_frame`` retrieval can be wrong and profiling
+    fails with "Limit frame was not found". Frames inside this file are ignored
+    by the stack walk, so the nested frames are skipped too — which is also why
+    this does not use ``contextlib.contextmanager``.
     """
 
     def __init__(self, profiler: Profiler, context_manager: Any = None) -> None:
