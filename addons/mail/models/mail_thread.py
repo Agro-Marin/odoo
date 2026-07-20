@@ -22,6 +22,7 @@ import lxml
 import pytz
 from lxml import etree, html
 from markupsafe import Markup, escape
+from psycopg import IntegrityError
 from requests import Session
 
 from odoo import Command, _, api, exceptions, fields, models, tools
@@ -6609,7 +6610,23 @@ class MailThread(models.AbstractModel):
                 self.env["mail.followers"].sudo().with_context(default_partner_id=False)
             )
             if new_vals_list:
-                sudo_followers.create(new_vals_list)
+                try:
+                    with self.env.cr.savepoint():
+                        sudo_followers.create(new_vals_list)
+                except IntegrityError:
+                    # A concurrent transaction auto-subscribing the same partner
+                    # to the same record (e.g. two posts / a double-submitted
+                    # assignment on an existing record) races the
+                    # unique(res_model, res_id, partner_id) index. The follower we
+                    # want exists either way, so retry row by row and treat
+                    # "already there" as success -- mirroring the write path's
+                    # _insert_followers and the reaction add/remove race handling.
+                    for vals in new_vals_list:
+                        try:
+                            with self.env.cr.savepoint():
+                                sudo_followers.create(vals)
+                        except IntegrityError:
+                            pass
             for fol_id, values in updates.items():
                 sudo_followers.browse(fol_id).write(values)
 
