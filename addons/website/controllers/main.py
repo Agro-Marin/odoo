@@ -45,6 +45,11 @@ LOC_PER_SITEMAP = 45000
 SITEMAP_CACHE_TIME = datetime.timedelta(hours=12)
 MAX_FONT_FILE_SIZE = 10 * 1024 * 1024
 SUPPORTED_FONT_EXTENSIONS = ["ttf", "woff", "woff2", "otf"]
+# Upper bound on results returned by the public ``autocomplete`` route. It
+# doubles as the full-search page's page-through limit (``hybrid_list``), so the
+# two cannot drift: the route must never clamp below what the search page asks
+# for, otherwise results are silently truncated.
+MAX_PAGE_SEARCH_RESULTS = 500
 
 
 class QueryURL:
@@ -321,13 +326,17 @@ class Website(Home):
         View = request.env["ir.ui.view"].sudo()
         mimetype = "application/xml;charset=utf-8"
         content = None
-        url_root = request.httprequest.url_root
-        # `url_root` derives from the (client-controlled) Host header. Left
-        # unpinned, an unauthenticated client can mint unbounded distinct
-        # sitemap attachments and force repeated full-page-walk regenerations by
-        # varying Host. When the website has a configured domain, use it as the
-        # canonical root so every request to that website shares one cached
-        # sitemap (and the emitted absolute URLs are canonical).
+        # `url_root` must be pinned to a SERVER-controlled canonical root, never
+        # the (client-controlled) Host header. Left deriving from Host, an
+        # unauthenticated client can, by varying Host: (a) mint unbounded
+        # distinct sitemap attachments, (b) bust the 12h cache and force a full
+        # page-walk regeneration on every hit, and (c) poison the emitted
+        # absolute URLs served to crawlers. The website's configured domain is
+        # the canonical root when set; otherwise fall back to the `web.base.url`
+        # system parameter (via get_base_url) — both are server-controlled, so a
+        # crafted Host changes nothing and every request shares one cached
+        # sitemap. Behaviour is unchanged for domain-configured websites.
+        canonical = current_website.get_base_url()
         if current_website.domain:
             parsed = urllib.parse.urlparse(
                 current_website.domain
@@ -335,8 +344,9 @@ class Website(Home):
                 else "https://" + current_website.domain
             )
             if parsed.netloc:
-                url_root = f"{parsed.scheme or 'https'}://{parsed.netloc}/"
-        # For a same website, each domain has its own sitemap (cache)
+                canonical = f"{parsed.scheme or 'https'}://{parsed.netloc}"
+        url_root = (canonical or request.httprequest.url_root).rstrip("/") + "/"
+        # For a same website, each canonical root has its own sitemap (cache)
         hashed_url_root = md5(url_root.encode()).hexdigest()[:8]
         sitemap_base_url = "/sitemap-%d-%s" % (current_website.id, hashed_url_root)
 
@@ -361,12 +371,14 @@ class Website(Home):
                 content = base64.b64decode(sitemap.datas)
 
         if not content:
-            # Remove all sitemaps in ir.attachments as we're going to regenerated them
+            # Purge every stored sitemap for THIS website (any canonical-root
+            # hash), not only the current base: this reclaims stale variants a
+            # previously-unpinned, Host-derived url_root could have accumulated,
+            # and keeps a single sitemap set per website. The trailing "-" after
+            # the id prevents "/sitemap-1-" from matching "/sitemap-12-...".
             dom = [
                 ("type", "=", "binary"),
-                "|",
-                ("url", "=like", "%s-%%.xml" % sitemap_base_url),
-                ("url", "=", "%s.xml" % sitemap_base_url),
+                ("url", "=like", "/sitemap-%d-%%" % current_website.id),
             ]
             sitemaps = Attachment.search(dom)
             sitemaps.unlink()
@@ -736,10 +748,17 @@ class Website(Home):
             - 'parts' (dict): presence of fields across all results
             - 'fuzzy_search': search term used instead of requested search
         """
-        options = options or {}
         # Public route: clamp the client-supplied limit so an unbounded value
-        # cannot force an arbitrarily large search + render.
-        limit = min(max(int(limit or 0), 0), 100)
+        # cannot force an arbitrarily large search + render. The ceiling is the
+        # full-search page's own limit (``hybrid_list`` passes ``MAX_PAGE_SEARCH_RESULTS``)
+        # — that page is itself public, so exposing that many results here is no
+        # new exposure, while ``limit=<huge>`` is still bounded. NB: don't lower
+        # this below what ``hybrid_list`` requests, or the search page silently
+        # truncates; and don't bypass this route from ``hybrid_list`` either, or
+        # sub-classes overriding ``autocomplete`` (e.g. website_sale's
+        # ``display_currency``, website_appointment's result naming) are skipped.
+        limit = min(max(int(limit or 0), 0), MAX_PAGE_SEARCH_RESULTS)
+        options = options or {}
         try:
             results_count, search_results, fuzzy_term = (
                 request.website._search_with_fuzzy(
@@ -905,11 +924,14 @@ class Website(Home):
             return request.render("website.list_hybrid")
 
         options = self._get_hybrid_search_options(**kw)
+        # Call ``autocomplete`` (not a private worker) so sub-class overrides
+        # still apply on the search page. The route clamps ``limit`` to
+        # ``MAX_PAGE_SEARCH_RESULTS``, which is exactly what we request here.
         data = self.autocomplete(
             search_type=search_type,
             term=search,
             order="name asc",
-            limit=500,
+            limit=MAX_PAGE_SEARCH_RESULTS,
             max_nb_chars=200,
             options=options,
         )

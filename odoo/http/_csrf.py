@@ -52,9 +52,16 @@ class _RequestCsrfMixin:
         # request. A brand-new anonymous session is never dirtied by a plain GET,
         # so without this touch it is never written to disk and the next
         # request's ``renew_missing`` hands out a fresh sid whose prefix no longer
-        # matches the token (spurious "Session expired"). Touching only on
-        # issuance keeps pure API/asset hits from creating session files.
-        self.session.touch()
+        # matches the token (spurious "Session expired").
+        #
+        # Gate on ``is_new``: a session already loaded from the store is durably
+        # persisted, so its sid already survives — re-touching it would rewrite
+        # the session file on *every* page render (the CSRF token is embedded in
+        # every page, and re-injected even on cache hits), turning each anonymous
+        # page view into a session write. Persisting the sid exactly once, on the
+        # request that mints the session, is sufficient and avoids that churn.
+        if self.session.is_new:
+            self.session.touch()
         return f"{hm}o{max_ts}"
 
     def validate_csrf(self, csrf: str | None) -> bool:

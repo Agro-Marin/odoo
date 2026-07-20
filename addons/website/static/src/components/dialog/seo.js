@@ -977,6 +977,14 @@ export class OptimizeSEODialog extends Component {
         this.contentClass = "oe_seo_configuration";
 
         onWillStart(async () => {
+            // ``seoContext`` is a module-level singleton reused by every dialog
+            // instance. The block below re-seeds all fields EXCEPT these two,
+            // which are filled asynchronously by the SeoChecks tab. Without an
+            // explicit reset, a previous page's scan results survive and Save
+            // would POST /website/update_broken_links & /update_alt_images
+            // against the wrong record.
+            seoContext.updatedAlts = [];
+            seoContext.brokenLinks = [];
             // Wait for the preview iframe because this dialog reads directly
             // from the iframe DOM.
             await this.waitForIframe();

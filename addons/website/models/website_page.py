@@ -35,6 +35,12 @@ class WebsitePage(models.Model):
     # for how long a cache entry is considered valid (in seconds)
     _CACHE_DURATION = 3600
 
+    # Fields whose write must NOT invalidate the full-page response cache
+    # (see ``write``): they never reach the rendered HTML. Kept deliberately
+    # small — any field not listed here clears the cache, so a new rendered
+    # field is covered by default.
+    _NON_RENDERING_FIELDS = frozenset({"view_write_uid", "view_write_date"})
+
     url = fields.Char("Page URL", required=True)
     view_id = fields.Many2one(
         "ir.ui.view", string="View", required=True, index=True, ondelete="cascade"
@@ -218,12 +224,18 @@ class WebsitePage(models.Model):
                             .get_unique_path(url)
                         )
                         page.menu_ids.write({"url": url})
-                        # Sync website's homepage URL
-                        website = self.env["website"].get_current_website()
-                        page_url_normalized = {"homepage_url": page.url}
-                        website._handle_homepage_url(page_url_normalized)
-                        if website.homepage_url == page_url_normalized["homepage_url"]:
-                            website.homepage_url = url
+                        # Sync the homepage URL of *every* website whose homepage
+                        # points at this page's old URL. Using the ambient
+                        # ``get_current_website()`` was wrong: in a multi-website
+                        # DB it is frequently not the website that owns the page
+                        # (and is meaningless for a shared ``website_id=False``
+                        # page), so a rename could leave one site's homepage
+                        # dangling or repoint an unrelated site's homepage.
+                        old_url_normalized = {"homepage_url": page.url}
+                        self.env["website"]._handle_homepage_url(old_url_normalized)
+                        self.env["website"].search(
+                            [("homepage_url", "=", old_url_normalized["homepage_url"])]
+                        ).homepage_url = url
                     page_vals["url"] = url
 
                 # If name has changed, check for key uniqueness
@@ -240,10 +252,20 @@ class WebsitePage(models.Model):
         else:
             res = super().write(vals)
 
-        if "url" in vals or "visibility" in vals or "group_ids" in vals:
-            self.env.registry.clear_cache(
-                "templates"
-            )  # Clear cache because the response depends on the path and the rendering of the view changes.
+        # The full-page response cache (``templates.cached_values``, keyed by
+        # path/website/lang and only refreshed every ``_CACHE_DURATION`` = 1h)
+        # embeds the rendered page: SEO metadata, publication/indexing state, the
+        # view, ... Any write that changes rendered output must drop it, or the
+        # edit stays invisible for up to an hour. A ``write_date``-based cache key
+        # can't self-invalidate here — ``now()`` is transaction-constant, so two
+        # edits (or an edit + a same-transaction read, as in tests) share a
+        # write_date — so clearing the cache group is the reliable lever.
+        # Invalidate unless the write touches ONLY bookkeeping fields that never
+        # reach the rendered HTML; enumerating those (a short, stable set) rather
+        # than the rendered fields keeps a newly-added rendered field covered by
+        # default, which is precisely how the SEO-metadata staleness slipped in.
+        if not vals.keys() <= self._NON_RENDERING_FIELDS:
+            self.env.registry.clear_cache("templates")
 
         return res
 

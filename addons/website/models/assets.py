@@ -2,7 +2,7 @@
 
 import base64
 import re
-from urllib.parse import urlsplit
+from urllib.parse import quote, urlsplit
 
 import requests
 
@@ -235,16 +235,22 @@ class WebsiteAssets(models.AbstractModel):
                 else:
                     font_family_attachments = IrAttachment
                     font_content = requests.get(
-                        f"https://fonts.googleapis.com/css?family={font_name}:300,300i,400,400i,700,700i&display=swap",
+                        f"https://fonts.googleapis.com/css?family={quote(font_name)}:300,300i,400,400i,700,700i&display=swap",
                         timeout=5,
                         headers=headers_woff2,
                     ).content.decode()
 
                     def fetch_google_font(src):
                         statement = src.group()
-                        url, font_format = re.match(
+                        match = re.match(
                             r"src: url\(([^\)]+)\) (.+)", statement
-                        ).groups()
+                        )
+                        if not match:
+                            # Google changed its @font-face CSS shape: leave the
+                            # statement untouched instead of crashing the whole
+                            # settings save on ``None.groups()``.
+                            return statement
+                        url, font_format = match.groups()
                         req = requests.get(url, timeout=5, headers=headers_woff2)
                         # https://fonts.gstatic.com/s/modak/v18/EJRYQgs1XtIEskMB-hRp7w.woff2
                         # -> s-modak-v18-EJRYQgs1XtIEskMB-hRp7w.woff2
