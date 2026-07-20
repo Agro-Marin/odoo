@@ -294,9 +294,10 @@ export class Countdown extends Interaction {
         if (this.isFinished) {
             clearInterval(this.setInterval);
             this.handleEndCountdownAction();
-            // Re-render on resize when the countdown is finished.
+            // Re-render on resize when the countdown is finished. rAF-throttled:
+            // render() redraws every canvas, and resize can fire rapidly.
             if (!this.onResize) {
-                this.onResize = () => this.render();
+                this.onResize = this.throttled(this.render);
                 window.addEventListener("resize", this.onResize);
             }
         }

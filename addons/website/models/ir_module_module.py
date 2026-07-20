@@ -11,7 +11,7 @@ from odoo.exceptions import MissingError
 from odoo.http import request
 from odoo.libs.constants import PREFETCH_MAX
 from odoo.modules import Manifest
-from odoo.tools import SQL, escape_psql
+from odoo.tools import SQL
 
 from odoo.addons.base.models.ir_model_common import MODULE_UNINSTALL_FLAG
 
