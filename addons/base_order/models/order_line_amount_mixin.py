@@ -5,24 +5,17 @@ from odoo.tools import float_compare
 
 
 class OrderLineAmountMixin(models.AbstractModel):
-    """Line-level amount computation and tax calculation.
-
-    Provides:
-    - Standard pricing fields (``product_qty``, ``price_unit``, ``discount``,
-      ``tax_ids``)
-    - Batched tax computation (``_compute_amounts``, grouped by company)
-    - UoM quantity conversion (``product_uom_qty``)
-    - Base line preparation for the tax engine
-
-    Pricing fields are defined **without** compute — each concrete model
-    provides its own (pricelist vs supplier info, sale vs purchase taxes).
-
-    Requires ``order_id``, ``company_id``, ``currency_id``, ``display_type``,
-    ``price_unit_auto`` from the concrete model or ``order.line.fields.mixin``.
-    """
+    """Line-level amount computation and tax calculation."""
 
     _name = "order.line.amount.mixin"
     _description = "Order Line Amount Computation"
+
+    # Computes live here (``_compute_amounts``, ``_compute_product_qty``,
+    # ``_compute_price_and_discount``); concrete models override the pricing hooks
+    # (``_get_auto_price_and_discount``, ``_get_default_product_qty``), extend the
+    # ``@api.depends`` sets, and supply their own sale/purchase tax fields.
+    # Requires ``order_id``, ``company_id``, ``currency_id``, ``display_type`` and
+    # ``price_unit_auto`` from the concrete model or ``order.line.fields.mixin``.
 
     # ─── Currency (required for Monetary fields) ───────────────────
     # Structural, not composition-defensive: this abstract mixin owns Monetary
@@ -32,7 +25,7 @@ class OrderLineAmountMixin(models.AbstractModel):
 
     currency_id = fields.Many2one("res.currency")
 
-    # ─── Pricing Fields (compute provided by concrete models) ──────
+    # ─── Pricing Fields ────────────────────────────────────────────
 
     product_qty = fields.Float(
         string="Quantity",
@@ -169,20 +162,11 @@ class OrderLineAmountMixin(models.AbstractModel):
 
     @api.depends("product_id", "product_id.uom_id", "product_uom_id", "product_qty")
     def _compute_product_uom_qty(self):
-        """Convert ``product_qty`` to the product's reference UoM.
-
-        Example: 2 Cases where 1 Case = 12 Units →
-        ``product_qty = 2`` (Cases), ``product_uom_qty = 24`` (Units).
-
-        A vendor (or customer) may transact in a UoM outside the product's own
-        category — e.g. buying a product measured in ``Units`` from a vendor who
-        quotes in ``L``. There is no meaningful reference-UoM quantity in that
-        case, so fall back to the raw quantity rather than letting the
-        conversion raise on incompatible units.
-        """
+        """Convert ``product_qty`` to the product's reference UoM."""
         for line in self:
             if line.display_type:
                 line.product_uom_qty = False
+            # e.g. 2 Cases where 1 Case = 12 Units → product_qty 2 → product_uom_qty 24
             elif (
                 line.product_uom_id
                 and line.product_id
@@ -193,6 +177,9 @@ class OrderLineAmountMixin(models.AbstractModel):
                     line.product_qty,
                     line.product_id.uom_id,
                 )
+            # A vendor/customer may transact in a UoM outside the product's category
+            # (e.g. buying a Units product from a vendor quoting in L): no meaningful
+            # reference-UoM qty, so fall back to raw rather than raise on incompatible units.
             else:
                 line.product_uom_qty = line.product_qty
 
@@ -217,14 +204,7 @@ class OrderLineAmountMixin(models.AbstractModel):
 
     @api.depends("product_id", "product_uom_id", "product_qty", "display_type")
     def _compute_price_and_discount(self):
-        """Refresh price/discount from the automatic price unless overridden.
-
-        The shadow-price loop is shared: compute the automatic price/discount,
-        track it in ``price_unit_auto``, and apply it only when the price was
-        not manually overridden.  Where the price comes from (pricelist vs
-        seller/cost) is the model-specific ``_get_auto_price_and_discount``.
-        Subclasses extend the ``@api.depends`` trigger set accordingly.
-        """
+        """Refresh price/discount from the automatic price unless overridden."""
         force_recompute = self.env.context.get("force_price_recomputation")
         for line in self:
             if line.display_type:
@@ -234,6 +214,10 @@ class OrderLineAmountMixin(models.AbstractModel):
                 continue
             if not line.product_id:
                 continue
+            # Shadow-price loop: track the auto price in ``price_unit_auto`` and apply
+            # it to ``price_unit`` only when not manually overridden. The price source
+            # (pricelist vs seller/cost) is model-specific ``_get_auto_price_and_discount``;
+            # subclasses extend the ``@api.depends`` trigger set accordingly.
             auto_price, auto_discount = line._get_auto_price_and_discount()
             old_shadow = line.price_unit_auto
             line.price_unit_auto = auto_price
