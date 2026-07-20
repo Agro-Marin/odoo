@@ -23,14 +23,10 @@ def get_installed_modules(cursor: Cursor) -> list[str]:
 
 
 def get_neutralization_queries(modules: Iterable[str]) -> Iterator[str]:
-    # neutralization for each module
     for module in modules:
-        # An installed module whose code is absent from the current addons path
-        # (e.g. running `neutralize` without the enterprise dir configured) would
-        # have its neutralize.sql silently skipped by the FileNotFoundError
-        # suppression below — a hole in a command whose whole contract is a
-        # safety guarantee. Warn loudly so the operator knows the neutralization
-        # is incomplete.
+        # An installed module missing from the addons path (e.g. neutralize run
+        # without the enterprise dir) would have its neutralize.sql silently
+        # skipped below; warn so the operator knows neutralization is incomplete.
         if Manifest.for_addon(module, display_warning=False) is None:
             _logger.warning(
                 "Module %r is installed but not found on the addons path; its "
