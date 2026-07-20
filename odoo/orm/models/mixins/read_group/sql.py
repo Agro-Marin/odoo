@@ -30,11 +30,9 @@ def _safe_sql_str_literal(value: str) -> str:
 
     Embedded into the SQL text (not parameter-bound) because the expression
     appears in both SELECT and GROUP BY and PG matches them by byte-identical
-    text — server-side prepared statements give each bound param a distinct
-    ``$N``, so the same value bound twice looks like two expressions and
-    GROUP BY validation fails. Callers pass allow-listed values (timezone,
-    granularity); this adds a defense-in-depth check, raising on a quote or
-    backslash rather than emitting malformed SQL.
+    text; a bound param gets a distinct ``$N`` each time, so GROUP BY
+    validation fails. Callers pass allow-listed values (timezone, granularity);
+    the quote/backslash check is defense-in-depth.
 
     :raises TypeError: when *value* is not a :class:`str`
     :raises ValueError: when *value* contains ``'`` or ``\\``
@@ -212,12 +210,11 @@ class _ReadGroupSQLMixin(_ModelStubs):
             else:
                 access_model = self
 
-            # Grouping by a field requires read access to it. The other groupby
-            # branches obtain this via ``_field_to_sql``; this branch builds the
-            # join directly (returning ``field.column2`` below) and never calls
-            # ``_field_to_sql``, so the check must be made explicitly. Without
-            # it, a ``groups``-restricted stored many2many could be grouped by a
-            # user who cannot read it — leaking its distinct values and counts.
+            # This branch builds the join directly (returning field.column2
+            # below) and never calls _field_to_sql, so the read-access check the
+            # other branches get from it must be made explicitly. Without it a
+            # groups-restricted stored many2many could be grouped — leaking its
+            # distinct values and counts — by a user who cannot read it.
             access_model._check_field_access(field, "read")
 
             if not field.store:
@@ -324,10 +321,9 @@ class _ReadGroupSQLMixin(_ModelStubs):
             first_week_day = int(get_lang(self.env).week_start) - 1
             days_offset = first_week_day and 7 - first_week_day
             # Embed days_offset as a SQL int literal for GROUP BY consistency
-            # (bound params get distinct $N, splitting SELECT and GROUP BY).
-            # ``%d`` forces int formatting — a non-int raises TypeError, so
-            # no malformed INTERVAL can be produced. The leading ``-`` is
-            # part of the format string (interval was always ``-{n} DAY``).
+            # (bound params get distinct $N). ``%d`` forces int formatting, so a
+            # non-int raises TypeError rather than producing malformed SQL. The
+            # leading ``-`` is part of the format string (interval was ``-{n} DAY``).
             sql_expr = SQL(
                 "(date_trunc('week', %%s::timestamp - INTERVAL '-%d DAY')"
                 " + INTERVAL '-%d DAY')" % (days_offset, days_offset),

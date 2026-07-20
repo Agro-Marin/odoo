@@ -83,7 +83,7 @@ class SearchMixin(_ModelStubs):
         limit: int | None = None,
         order: str | None = None,
     ) -> Self:
-        """Search for the records that satisfy the given ``domain``
+        """Search for the records that satisfy the given
         :ref:`search domain <reference/orm/domains>`.
 
         :param domain: :ref:`A search domain <reference/orm/domains>`. Use an empty
@@ -110,11 +110,10 @@ class SearchMixin(_ModelStubs):
         limit: int | None = None,
         order: str | None = None,
     ) -> Self:
-        """Search for the records that satisfy the given ``domain``
+        """Search for records satisfying the given
         :ref:`search domain <reference/orm/domains>`, and fetch the given fields
-        to the cache.  This method is like a combination of methods :meth:`search`
-        and :meth:`fetch`, but it performs both tasks with a minimal number of
-        SQL queries.
+        into the cache. Combines :meth:`search` and :meth:`fetch` in a minimal
+        number of SQL queries.
 
         :param domain: :ref:`A search domain <reference/orm/domains>`. Use an empty
                      list to match all records.
@@ -371,11 +370,11 @@ class SearchMixin(_ModelStubs):
                 sql_field = self._field_to_sql(alias, field_name, query)
 
             if coorder == "id":
-                # Mirror the scalar branch below: under _any_value_orderby the
-                # column must be wrapped in ANY_VALUE() rather than merely kept
-                # out of GROUP BY, otherwise a bare column reaches ORDER BY in a
-                # grouped query and PostgreSQL raises 42803 (must appear in GROUP
-                # BY or be used in an aggregate).
+                # Mirror the scalar branch below: under _any_value_orderby, wrap
+                # the column in ANY_VALUE() rather than just keeping it out of
+                # GROUP BY, else a bare column in ORDER BY of a grouped query
+                # triggers PostgreSQL error 42803 (must appear in GROUP BY or an
+                # aggregate).
                 if query._any_value_orderby:
                     sql_field = SQL("ANY_VALUE(%s)", sql_field)
                 else:

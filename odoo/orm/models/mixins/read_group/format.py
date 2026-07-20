@@ -127,8 +127,8 @@ class _ReadGroupFormatMixin(_ModelStubs):
     def _read_group_format_result(
         self, rows_dict: list[dict], lazy_groupby: list[str]
     ) -> None:
-        """Add per-group ``__domain``/``__context`` and format date/datetime
-        values in *rows_dict*."""
+        """Refine each row's ``__domain`` and format date/datetime values
+        (adding ``__range`` for date/datetime groups) in *rows_dict*."""
         # imported here to avoid a circular import
         from .mixin import ReadGroupMixin
 

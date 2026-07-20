@@ -127,16 +127,15 @@ class Json(Field):
     def convert_to_export(self, value: typing.Any, record: BaseModel) -> str:
         if not value:
             return ""
-        # pass default=orjson_default like convert_to_cache, so a value
-        # carrying a non-native type (date, Decimal) serialises instead of
-        # raising on the export path.
+        # default=orjson_default (as in convert_to_cache) lets non-native types
+        # (date, Decimal) serialise instead of raising.
         return _fast_dumps(value, default=orjson_default)
 
 
 class Id(Field[IdType | typing.Literal[False]]):
     """Special case for field 'id'."""
 
-    # Note: This field type is not necessarily an integer!
+    # The value is not necessarily an integer (may be a NewId).
     # ``type`` is "integer" so the client/views see the id column as integer,
     # but Integer owns the "integer" ttype in _by_type__: Id is the magic id
     # column, never instantiated from a DB ttype, so it opts out of registration.

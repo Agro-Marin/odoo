@@ -60,17 +60,15 @@ class LoadMixin(_ModelStubs):
 
         cr = self.env.cr
         # Savepoint strategy (three roles, see ``CheckSavepoint`` tests):
-        #   1. this load-wide savepoint -- the whole load is atomic, so any
-        #      recorded error rolls *everything* back (``ids`` becomes False);
+        #   1. this load-wide savepoint: the whole load is atomic, so any
+        #      recorded error rolls everything back (``ids`` becomes False);
         #   2. one savepoint around each batch's fast-path bulk create (below);
-        #   3. on bulk-create failure only, one savepoint per record in the
-        #      row-by-row recovery. That per-record savepoint is required for
-        #      correctness -- it lets each record see the true prior state (so
-        #      conflicts are detected and attributed to the right row) and rolls
-        #      a failed record back in isolation (keeping valid ids on the
-        #      warning path). It is *not* a constant cost, but the conflict-free
+        #   3. on bulk-create failure, one savepoint per record in the row-by-row
+        #      recovery -- lets each record see the true prior state (so conflicts
+        #      are attributed to the right row) and rolls a failed record back in
+        #      isolation (keeping valid ids on the warning path). The conflict-free
         #      path never reaches it, and base_import bounds each load() to a
-        #      batch, so the recovery cost stays bounded per transaction.
+        #      batch, so recovery cost stays bounded per transaction.
         savepoint = cr.savepoint()
 
         fields = [fix_import_export_id_paths(f) for f in fields]
@@ -150,14 +148,11 @@ class LoadMixin(_ModelStubs):
                 )
 
             errors = 0
-            # try again, this time record by record.  Each record runs in its
-            # OWN savepoint so a failure rolls back only that record's partial
-            # work, leaving already-succeeded records (and their ids) intact.
-            # Rolling back the load-wide ``savepoint`` here (the previous
-            # behaviour) undid earlier rows while their ids stayed in ``ids`` —
-            # harmless for the error path (``ids`` is reset to ``False`` below
-            # when any error is recorded) but wrong for the psycopg.Warning path,
-            # which records no 'error' and so returned ids of rolled-back rows.
+            # Retry record by record. Each record runs in its OWN savepoint, so a
+            # failure rolls back only that record's partial work and leaves
+            # already-succeeded records (and their ids) intact. Rolling back the
+            # load-wide ``savepoint`` instead would keep ids of undone rows on the
+            # psycopg.Warning path (which records no 'error').
             for i, rec_data in enumerate(data_list, 1):
                 try:
                     with cr.savepoint():
@@ -218,8 +213,8 @@ class LoadMixin(_ModelStubs):
                 # 1-by-1 also failed: surface the original batch-create error
                 messages.insert(0, global_error_message)
 
-        # make 'flush' available to the methods below, in the case where XMLID
-        # resolution fails, for instance
+        # make 'flush' available to the methods below (e.g. when XMLID
+        # resolution fails)
         flush_recordset = self.with_context(import_flush=flush, import_cache=LRU(1024))
 
         # Import limit comes via context: load()'s public (fields, data) API has
@@ -276,19 +271,17 @@ class LoadMixin(_ModelStubs):
         log: Callable = lambda a: None,
         limit: float = float("inf"),
     ) -> Generator[tuple[dict, dict]]:
-        """Generates record dicts from the data sequence.
+        """Generate record dicts from the data sequence.
 
-        The result is a generator of dicts mapping field names to raw
-        (unconverted, unvalidated) values.
+        Yields dicts mapping field names to raw (unconverted, unvalidated)
+        values. For relational fields with sub-fields, the value is a list of
+        sub-records.
 
-        For relational fields, if sub-fields were provided the value will be
-        a list of sub-records
+        Special sub-field keys:
 
-        The following sub-fields may be set on the record (by key):
-
-        * None is the display_name for the record (to use with name_create/name_search)
-        * "id" is the External ID for the record
-        * ".id" is the Database ID for the record
+        * None: the display_name (for name_create/name_search)
+        * "id": the External ID
+        * ".id": the Database ID
         """
         fields = self._fields
 
@@ -432,9 +425,9 @@ class LoadMixin(_ModelStubs):
         log: Callable = lambda a: None,
         savepoint: typing.Any,
     ) -> Generator[tuple[int | bool, str | bool, dict, dict]]:
-        """Convert records from the source iterable (recursive dicts of
-        strings) into forms which can be written to the database (via
-        ``self.create`` or ``(ir.model.data)._update``).
+        """Convert source records (recursive dicts of strings) into forms
+        writable to the database (via ``self.create`` or
+        ``(ir.model.data)._update``).
 
         :returns: generator of ``(id, xid, converted_record, info)`` tuples
         """

@@ -262,16 +262,15 @@ class Environment(Mapping[str, "BaseModel"]):
         in terms of *records* and *fields* (``contains`` / ``get_values`` /
         ``update_raw`` / ``set`` / …) and resolving the per-context cache shape,
         so callers holding a recordset never manipulate ``{id: value}`` dicts
-        directly. Used for low-level cache access by addon and framework code,
-        plus ``check()`` (cache-vs-database validation in tests).
+        directly. Used by addon and framework code, plus ``check()``
+        (cache-vs-database validation in tests).
 
-        This is a *different abstraction level* from ``env._core`` — the
-        framework's id-level handle (ADR-0010) — not a deprecated alias for it:
-        recordset-holding code uses ``env.cache``; ``(field, id)`` framework code
-        uses ``env._core``. A mechanical ``env._core`` rewrite of these call
-        sites would mishandle context-dependent fields (whose raw cache is
-        ``{cache_key: {id: value}}``) and couple callers to private field
-        helpers, so they stay on this wrapper.
+        A *different abstraction level* from ``env._core`` — the framework's
+        id-level handle (ADR-0010) — not a deprecated alias: recordset-holding
+        code uses ``env.cache``, ``(field, id)`` framework code uses
+        ``env._core``. Rewriting these call sites onto ``env._core`` would
+        mishandle context-dependent fields (whose raw cache is
+        ``{cache_key: {id: value}}``) and couple callers to private field helpers.
         """
         return self.transaction.cache
 
@@ -280,13 +279,12 @@ class Environment(Mapping[str, "BaseModel"]):
         """The id-level cache/compute facade — the single internal handle.
 
         ``env._core`` is the sanctioned way for framework ORM code to reach the
-        transaction's :class:`FieldCache` and :class:`ComputeEngine`. It is an
-        *intentionally curated* surface (ADR-0010): field-value reads,
-        dirty/patch tracking, recompute scheduling and field protection live
-        here. Cache *mutation* and *lifecycle* (clear / invalidate) deliberately
-        do not — those belong to :class:`Transaction`, which owns the private
-        ``_cache_store`` / ``_compute_engine``; recordset-level access belongs to
-        the legacy ``env.cache`` wrapper.
+        transaction's :class:`FieldCache` and :class:`ComputeEngine`. A curated
+        surface (ADR-0010): field-value reads, dirty/patch tracking, recompute
+        scheduling and field protection live here. Cache *mutation* and
+        *lifecycle* (clear / invalidate) do not — those belong to
+        :class:`Transaction`, which owns the private ``_cache_store`` /
+        ``_compute_engine``; recordset-level access belongs to ``env.cache``.
         """
         return self.transaction.core
 

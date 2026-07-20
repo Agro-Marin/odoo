@@ -987,11 +987,9 @@ class DomainCustom(Domain):
 
     def __iter__(self) -> typing.Iterator[object]:
         # Raw-SQL custom domains have no legacy polish-notation form. Yield an
-        # opaque placeholder leaf so list()/repr() of an n-ary domain that
-        # contains a custom domain do not crash — this is reached whenever such
-        # a domain is logged or interpolated into an error message (purchase,
-        # mrp, sale_renting, ... build ``cond & Domain.custom(...)``). The
-        # placeholder does NOT round-trip back to a Domain.
+        # opaque placeholder leaf so list()/repr() of an n-ary domain containing
+        # a custom domain does not crash (e.g. when the domain is logged or
+        # interpolated into an error message). It does NOT round-trip to a Domain.
         yield ("<custom_sql>", "", "")
 
     def _to_sql(self, model: BaseModel, alias: str, query: Query) -> SQL:

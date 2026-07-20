@@ -102,7 +102,7 @@ class Constraint(TableObject):
         definition: str,
         message: ConstraintMessageType = "",
     ) -> None:
-        """SQL table constraint.
+        """Declare an SQL table constraint.
 
         ``definition`` is the SQL added to the table; ``message`` is shown on
         violation (empty for a default message). Example definitions::

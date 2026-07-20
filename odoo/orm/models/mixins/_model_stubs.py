@@ -1,31 +1,25 @@
 """Typing-only declaration of the shared ``BaseModel`` surface.
 
-The model mixins (``WriteMixin``, ``CacheMixin``, …) are written as stateless
-``__slots__ = ()`` fragments that are composed onto :class:`BaseModel` by
-multiple inheritance. Each mixin method operates on ``self`` — a full recordset
-at runtime — but a type checker sees only the *defining* mixin class, which does
-not declare the cross-cutting members (``self.env``, ``self._fields``, …) that
-live on ``BaseModel``. That produced hundreds of spurious ``[attr-defined]``
-errors, previously suppressed by re-declaring the same handful of stubs inside
-six individual mixins (``access``/``export``/``load``/``schema``/``search``/
-``translation``).
+The model mixins (``WriteMixin``, ``CacheMixin``, …) are stateless
+``__slots__ = ()`` fragments composed onto :class:`BaseModel` by multiple
+inheritance. A type checker sees only the *defining* mixin class, which does not
+declare the cross-cutting members (``self.env``, ``self._fields``, …) that live
+on ``BaseModel``, producing spurious ``[attr-defined]`` errors.
 
-:class:`_ModelStubs` collects that shared surface in **one** place. Mixins that
-inherit it gain a correct, typed view of the recordset members they reach
-through. It is *purely* a typing aid:
+:class:`_ModelStubs` collects that shared surface in **one** place, giving mixins
+that inherit it a typed view of the recordset members they reach through. It is
+*purely* a typing aid:
 
-* ``__slots__ = ()`` — it adds no instance layout, so composing it onto a
-  ``__slots__``-based mixin does not introduce ``__dict__`` and costs nothing.
-* the declarations live under ``if typing.TYPE_CHECKING:`` — at runtime the class
-  body is empty, so it contributes nothing but a (deduplicated) MRO entry.
+* ``__slots__ = ()`` — adds no instance layout, so it introduces no ``__dict__``
+  and costs nothing.
+* declarations live under ``if typing.TYPE_CHECKING:`` — at runtime the class body
+  is empty, contributing only a (deduplicated) MRO entry.
 
-``BaseModel`` provides the real values during model setup; the types here match
-what ``BaseModel`` declares (or the looser, override-compatible types the
-pre-existing mixin stubs used for the slots ``BaseModel`` leaves unannotated).
-The shared recordset *methods* (``browse``, ``filtered``, …) are declared too, so
-a mixin can call them on ``self`` and chain on the ``Self`` result. Each signature
-mirrors the single real implementation on its owning mixin, so that method stays a
-valid override.
+The types here match what ``BaseModel`` declares (or the looser,
+override-compatible types the pre-existing mixin stubs used). Shared recordset
+*methods* (``browse``, ``filtered``, …) are declared too, so a mixin can call
+them on ``self`` and chain on the ``Self`` result; each signature mirrors the
+real implementation, keeping it a valid override.
 """
 
 import typing

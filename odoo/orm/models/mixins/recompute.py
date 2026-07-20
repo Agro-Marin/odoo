@@ -1,13 +1,14 @@
 """Field recomputation and flush mixin for BaseModel.
 
-The DB-coupled half of the cache subsystem: the ``modified`` trigger-tree
+The DB-coupled half of the cache subsystem: ``modified`` trigger-tree
 traversal, recompute scheduling, and the batched flush of dirty fields to the
-database.  The pure in-memory record cache and invalidation live in the sibling
+database. The in-memory record cache and invalidation live in the sibling
 :class:`~odoo.orm.models.mixins.cache.CacheMixin`.
 
-This mixin drives the pure-Python :class:`~odoo.orm.components.recompute.RecomputeScheduler`
-(``components/recompute.py``); the two are distinct -- the scheduler is the
-DB-free accumulator, this mixin performs the model-/DB-side traversal and SQL.
+This mixin drives the pure-Python
+:class:`~odoo.orm.components.recompute.RecomputeScheduler` (``components/recompute.py``):
+the scheduler is the DB-free accumulator, this mixin does the model-/DB-side
+traversal and SQL.
 """
 
 import itertools
@@ -57,9 +58,9 @@ class RecomputeMixin(_ModelStubs):
         :param fnames: iterable of field names modified on records ``self``
         :param create: whether called in the context of record creation
         :param before: whether called BEFORE the modification takes place.
-            When ``True``, uses the current (old) dependency graph to capture
-            what needs recomputation before values change.  When ``False``
-            (default), marks fields to recompute based on the new state.
+            ``True`` uses the old dependency graph to capture what needs
+            recomputation before values change; ``False`` (default) marks
+            fields based on the new state.
         """
         if not self or not fnames:
             return
@@ -95,11 +96,11 @@ class RecomputeMixin(_ModelStubs):
         Calls ``self.modified(fnames, before=True)`` (via the method, so
         subclass overrides are respected), using the OLD dependency graph.
 
-        Scope asymmetry by design: ``write()`` passes only relational fields
-        (a scalar change doesn't move who depends on it, so the post pass
-        suffices; relational changes move the dependency path and need both).
-        ``unlink()`` passes ALL fields, since deletion breaks every path and
-        there is no post-modification pass afterwards.
+        Callers pass different scopes: ``write()`` passes only relational fields
+        (a scalar change doesn't move who depends on it; a relational change
+        moves the dependency path and needs both passes). ``unlink()`` passes
+        ALL fields, since deletion breaks every path and has no
+        post-modification pass.
 
         :param fnames: iterable of field names about to be modified
         """
@@ -250,13 +251,11 @@ class RecomputeMixin(_ModelStubs):
         ``(field, records, created)`` triples to recompute.
         """
 
-        # The fields' trigger trees are merged in order to evaluate all triggers
-        # at once. For non-stored computed fields, `_modified_triggers` might
-        # traverse the tree (at the cost of extra queries) only to know which
-        # records to invalidate in cache. But in many cases, most of these
-        # fields have no data in cache, so they can be ignored from the start.
-        # This allows us to discard subtrees from the merged tree when they
-        # only contain such fields.
+        # Merge the fields' trigger trees to evaluate all triggers at once.
+        # For non-stored computed fields, `_modified_triggers` may traverse the
+        # tree (extra queries) only to learn which cached records to invalidate.
+        # Fields with no cache data can be ignored, so `select` discards
+        # subtrees that only contain them.
         def select(field):
             return field.is_stored_computed or bool(field._get_all_cache_ids(self.env))
 
@@ -278,9 +277,9 @@ class RecomputeMixin(_ModelStubs):
     def _modified_triggers(
         self, tree: TriggerTree, create: bool = False
     ) -> Iterable[tuple[Field, Self, bool]]:
-        """Return an iterator traversing a tree of field triggers on ``self``,
-        traversing backwards field dependencies along the way, and yielding
-        tuple ``(field, records, created)`` to recompute.
+        """Iterate a tree of field triggers on ``self``, walking backwards along
+        field dependencies and yielding ``(field, records, created)`` triples to
+        recompute.
         """
         if not self:
             return
@@ -315,11 +314,9 @@ class RecomputeMixin(_ModelStubs):
                         except MissingError:
                             records = self.exists()[invf.name]
 
-                    # When self contains new records (NewId), the inverse
-                    # lookup returns real IDs, but we need NewId-wrapped
-                    # versions so that cache lookups work correctly for
-                    # unsaved records.  This wrapping is the simplest fix
-                    # given that NewId records don't exist in the database.
+                    # When self holds new records (NewId), the inverse lookup
+                    # returns real IDs; re-wrap them as NewId so cache lookups
+                    # work for unsaved records (which have no DB row).
                     if field.model_name == records._name:
                         if not any(self._ids):
                             # if self are new, records should be new as well
@@ -349,11 +346,10 @@ class RecomputeMixin(_ModelStubs):
     def _get_stored_computed_fields(cls) -> tuple[Field, ...]:
         """Cached tuple of stored-computed fields for this model.
 
-        Memoized per-class via :func:`own_class_memo` (own-``__dict__`` read, so a
-        child never reuses a parent's tuple and drop its own stored-computed
-        fields). The class is reused across re-setup (``__bases__`` reassigned in
-        place), so the memo is cleared explicitly by
-        ``registration._prepare_setup`` when fields change.
+        Memoized per-class via :func:`own_class_memo` (own-``__dict__`` read, so
+        a child never reuses a parent's tuple). The class survives re-setup
+        (``__bases__`` reassigned in place), so ``registration._prepare_setup``
+        clears the memo explicitly when fields change.
         """
         return own_class_memo(
             cls,
@@ -569,11 +565,10 @@ class RecomputeMixin(_ModelStubs):
                             }
                         )
                 except KeyError as e:
-                    # AssertionError was misleading — this is a runtime
-                    # data-integrity failure, not a broken assertion.  Some
-                    # test frameworks catch AssertionError generically and
-                    # would treat it as a failed test rather than a fatal
-                    # ORM error.  RuntimeError is the right semantic class.
+                    # RuntimeError, not AssertionError: this is a runtime data-
+                    # integrity failure, and test frameworks that catch
+                    # AssertionError generically would misreport it as a test
+                    # failure rather than a fatal ORM error.
                     raise RuntimeError(
                         f"Could not find all values of {self._name}({id_}) to flush them\n"
                         f"    Context: {env.context}\n"

@@ -72,9 +72,8 @@ class Integer(Field[int]):
     def convert_to_read(
         self, value, record: BaseModel, use_display_name: bool = True
     ) -> typing.Any:
-        # Integer values outside the signed 32-bit range [-2^31, 2^31-1] are not
-        # supported in pure XMLRPC (i4), so we have to pass them as floats :-(
-        # Guard both ends: a value below -2^31 also overflows i4 marshalling.
+        # XML-RPC's i4 can't marshal values outside [-2^31, 2^31-1]; pass those
+        # as floats. Guard both ends.
         if value and not (-MAXINT - 1 <= value <= MAXINT):
             return float(value)
         return value
@@ -160,9 +159,8 @@ class Float(Field[float]):
 
     @property
     def _column_type(self) -> tuple[str, str]:
-        # falsy digits (0, False) -> NUMERIC with no fixed precision (all
-        # significant digits kept). float8 is the default (no precision) since
-        # it is faster for most operations (sums, etc.).
+        # digits set (incl. falsy 0/False) -> NUMERIC, keeping all significant
+        # digits. digits=None -> float8 (default): faster for sums etc.
         return (
             ("numeric", "numeric")
             if self._digits is not None
@@ -202,12 +200,12 @@ class Float(Field[float]):
             _precision, scale = digits
             value = float_round(value, precision_digits=scale)
         elif self._digits is not None and self.column_type[0] == "numeric":
-            # digits=0: NUMERIC column with unlimited precision. Send a
-            # Decimal so the value round-trips exactly; a float parameter
-            # would go through PostgreSQL's float8->numeric cast, which keeps
-            # only 15 significant digits (e.g. a uom factor of 1/60 comes
-            # back as a different float). Company-dependent floats also have
-            # falsy digits but live in a JSONB column: keep those as float.
+            # digits=0: NUMERIC column with unlimited precision. Send a Decimal
+            # so the value round-trips exactly; a float would go through
+            # PostgreSQL's float8->numeric cast, which keeps only 15 significant
+            # digits (e.g. a uom factor of 1/60 comes back changed).
+            # Company-dependent floats also have falsy digits but live in a
+            # JSONB column: keep those as float.
             return Decimal(repr(value))
         return value
 
@@ -312,13 +310,11 @@ class Monetary(Field[float]):
     def _currency_record(self, record: BaseModel):
         """Return ``record[:1]``'s currency for this monetary field (or empty).
 
-        ``prefetch_fields=False`` is load-bearing and must never be dropped: the
-        monetary ``value`` being converted may already sit in cache, and
-        prefetching sibling fields here could overwrite it with the stale DB
-        value before it is flushed. ``sudo()`` because the currency may be
-        ACL-restricted. Centralised so this invariant cannot drift between the
-        column-conversion methods. (``convert_to_cache`` keeps its own variant:
-        it must scan *all* records for a single currency, not just ``[:1]``.)
+        ``prefetch_fields=False`` is load-bearing: the ``value`` being converted
+        may already sit in cache, and prefetching siblings here could overwrite
+        it with the stale DB value before flush. ``sudo()`` because the currency
+        may be ACL-restricted. (``convert_to_cache`` keeps its own variant: it
+        scans *all* records for a single currency, not just ``[:1]``.)
         """
         currency_field_name = self.get_currency_field(record)
         if not currency_field_name:
@@ -383,10 +379,10 @@ class Monetary(Field[float]):
             dummy = record.new({related_field_name: values[related_field_name]})
             currency = dummy[currency_field_name]
         else:
-            # Note: this is wrong if 'record' is several records with different
-            # currencies, which is functional nonsense and should not happen.
-            # _currency_record encapsulates the no-prefetch invariant (BEWARE:
-            # prefetching here could overwrite the in-cache 'value').
+            # Wrong if 'record' spans several currencies, but that is functional
+            # nonsense and should not happen. _currency_record keeps the
+            # no-prefetch invariant (prefetching could overwrite the cached
+            # 'value').
             currency = self._currency_record(record).with_env(record.env)
 
         value = float(value or 0.0)

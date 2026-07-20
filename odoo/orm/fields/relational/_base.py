@@ -27,14 +27,11 @@ def _domain_depend_paths(domain: Domain) -> Iterator[str]:
     """Yield the dotted field paths a field ``domain`` depends on, descending
     into ``any`` / ``not any`` sub-domains.
 
-    :meth:`Domain.iter_conditions` does not recurse into sub-domains, so a
-    condition written with ``any`` — ``('partner_id', 'any', [('country_id',
-    '=', x)])`` — would contribute only ``partner_id`` and silently miss
-    ``partner_id.country_id``, whereas the equivalent dotted form
-    ``('partner_id.country_id', '=', x)`` contributes the full path. Recursing
-    here makes dependency tracking independent of which form the domain uses (the
-    ``any`` form yields the dotted leaf paths plus each intermediate relation
-    hop). ``any!`` values that are SQL/Query rather than sub-domains are skipped.
+    :meth:`Domain.iter_conditions` does not recurse, so an ``any`` condition
+    ``('partner_id', 'any', [('country_id', '=', x)])`` would contribute only
+    ``partner_id`` and miss ``partner_id.country_id``. Recursing makes dependency
+    tracking independent of whether the domain uses the ``any`` or the dotted
+    form. ``any!`` values that are SQL/Query rather than sub-domains are skipped.
     """
     for condition in domain.iter_conditions():
         yield condition.field_expr
@@ -93,32 +90,24 @@ class _Relational(Field["BaseModel"]):
         if records is None or len(records._ids) <= 1:
             return super().__get__(records, owner)
 
-        # Inlined ACL short-circuit (matches the scalar __get__ fast path in
-        # _make_scalar_get): for an ungrouped field or superuser — the
-        # overwhelmingly common case on this batch read path — skip the
-        # _check_field_access call (and its @api.model dispatch) entirely.
+        # Inlined ACL short-circuit (matches _make_scalar_get): skip
+        # _check_field_access for an ungrouped field or superuser, the common case.
         env = records.env
         if not (not self.groups or env.su or records._has_field_access(self, "read")):
             records._check_field_access(self, "read")
 
         # multi-record case
         if self.is_stored_computed and env._core.has_pending_field(self):
-            # cheap pending-guard (matches Many2one.__get__ / base Field.__get__):
-            # skip the recompute call entirely on the common no-pending path.
+            # pending-guard: skip recompute on the common no-pending path
             self.recompute(records)
 
         # get the cache
         field_cache = self._get_cache(env)
 
-        # retrieve values in cache, and fetch missing ones
-        #
-        # Fast happy path: read each value with a plain subscript.  A genuine
-        # cache miss raises KeyError (handled below); zero-cost exceptions make
-        # the no-miss case as cheap as the bytecode subscript itself, with no
-        # per-record bound-method call.  The PENDING marker can only sit in cache
-        # for a *stored computed* field, so the identity guard short-circuits away
-        # entirely for the common non-computed relational field (e.g. a plain
-        # many2one) — this is the path exercised by ``records.mapped('partner_id')``.
+        # Retrieve values from cache and fetch missing ones. Reading each with a
+        # plain subscript keeps the no-miss case cheap (a genuine miss raises
+        # KeyError, handled below). PENDING can only sit in cache for a stored
+        # computed field, so the guard short-circuits away for a plain many2one.
         check_pending = self.is_stored_computed
         vals = []
         _append = vals.append
@@ -132,10 +121,10 @@ class _Relational(Field["BaseModel"]):
                     _append(value)
                     continue
                 # A stored computed field can leave PENDING in cache when its
-                # compute skipped this record.  Mirror base Field.__get__: evict
-                # the sentinel so the fetch below sees a genuine miss (and never
-                # leaks PENDING into the resulting recordset), and short-circuit
-                # to the falsy default while the field is being computed.
+                # compute skipped this record. Mirror base Field.__get__: evict
+                # the sentinel so the fetch below sees a genuine miss (never
+                # leaking PENDING into the recordset), and fall back to the falsy
+                # default while the field is being computed.
                 field_cache.pop(record_id, None)
                 record = records.browse(record_id)
                 if env.is_protected(self, record):

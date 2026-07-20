@@ -286,13 +286,11 @@ class WriteMixin(_ModelStubs):
             self._parent_store_update_prepare(vals_list) if self._parent_store else None
         )
 
-        # Group rows by their (sorted) field-name set: each distinct set of
-        # columns becomes one batched UPDATE. This subsumes the "uniform" case
-        # (rows sharing a single dict all land in one group), while aliased
-        # inputs like [a, b, a] stay correct because each id is paired with its
-        # own vals via the zip below.
-        # Pipeline batches multiple UPDATE statements in a single round-trip.
-        # Nesting is safe — psycopg3 reuses the active pipeline as a no-op.
+        # Group rows by their (sorted) field-name set (see docstring). Aliased
+        # inputs like [a, b, a] stay correct because the zip below pairs each id
+        # with its own vals.
+        # Pipeline batches multiple UPDATE statements in a single round-trip;
+        # nesting is safe — psycopg3 reuses the active pipeline as a no-op.
         with self.env.cr.pipeline():
             if self._log_access:
                 log_vals = {

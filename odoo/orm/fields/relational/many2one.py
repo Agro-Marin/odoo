@@ -77,8 +77,7 @@ class Many2one(_Relational):
         ids = record._ids
         if len(ids) != 1:
             # multi-record or empty: delegate to the _Relational batch path,
-            # which performs the access check and pending guard itself — doing
-            # them here too would just repeat that work on every mapped() call.
+            # which performs the access check and pending guard itself.
             return super().__get__(record, owner)
         env = record.env
         if not (not self.groups or env.su or record._has_field_access(self, "read")):

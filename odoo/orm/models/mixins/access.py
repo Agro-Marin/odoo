@@ -162,10 +162,9 @@ class AccessMixin(_ModelStubs):
 
         """
         if not self.env.su and (result := self._check_access(operation)):
-            # _check_access returns (records, partial_factory); call it to
-            # build the AccessError, then raise.  Raising the bare partial
-            # would TypeError out ("must derive from BaseException").
-            raise result[1]()  # noqa: RSE102  # result[1] is a partial factory; the call builds the exception
+            # result[1] is a factory partial; call it to build the AccessError.
+            # Raising the bare partial would TypeError (not a BaseException).
+            raise result[1]()  # noqa: RSE102
 
     def has_access(self, operation: str) -> bool:
         """Return whether the current user is allowed to perform ``operation``
@@ -186,22 +185,20 @@ class AccessMixin(_ModelStubs):
         return self
 
     def _check_access(self, operation: str) -> tuple[Self, Callable] | None:
-        """Return ``None`` if the current user has permission to perform
-        ``operation`` on the records ``self``. Otherwise, return a pair
-        ``(records, function)`` where ``records`` are the forbidden records, and
-        ``function`` can be used to create some corresponding exception.
+        """Return ``None`` if the current user may perform ``operation`` on
+        ``self``. Otherwise return ``(records, function)`` where ``records`` are
+        the forbidden records and ``function`` builds the corresponding exception.
 
         Two checks run in sequence:
 
         1. **Model-level ACL** (``ir.model.access``): always runs, even on an
-           empty recordset — so ``self.browse().check_access(op)`` verifies
+           empty recordset, so ``self.browse().check_access(op)`` checks
            permission before records exist (e.g. at the start of ``create()``).
-        2. **Record-level rules** (``ir.rule``): runs only against real record
-           ids, via :meth:`filtered_domain`. ``NewId`` records always pass:
-           they have no database row for the rule's domain to filter against,
-           and evaluating it against the cache (often field defaults) is not a
-           meaningful permission decision. Data access on a NewId still goes
-           through ``Field.__get__`` / ``_fetch_field``, which checks the origin.
+        2. **Record-level rules** (``ir.rule``): runs only against real ids, via
+           :meth:`filtered_domain`. ``NewId`` records always pass: they have no
+           row to filter, and their cache (often defaults) is not a meaningful
+           permission decision. NewId data access still checks the origin via
+           ``Field.__get__`` / ``_fetch_field``.
 
         Base implementation of :meth:`check_access`, :meth:`has_access` and
         :meth:`_filtered_access`; override to restrict access to ``self``.
@@ -311,13 +308,11 @@ class AccessMixin(_ModelStubs):
             return
 
         inconsistencies = []
-        # Company that owns property / company-dependent values; loop-invariant
-        # (depends only on the environment, not the record), so resolve once.
+        # Company owning property values; loop-invariant, so resolve once.
         property_company = self.env.company
         for record in self:
-            # ``record.sudo()`` is invariant across the field loops below; build
-            # it once per record instead of re-allocating a sudo recordset for
-            # every checked field (was O(records x checked-fields) allocations).
+            # sudo() is invariant across the field loops; build it once per
+            # record instead of re-allocating for every checked field.
             record_su = record.sudo()
             # Part 1: records linked via relation fields must match the origin
             # document's company, i.e. self.account_id.company_id == self.company_id
@@ -329,8 +324,8 @@ class AccessMixin(_ModelStubs):
                 elif "company_ids" in self:
                     companies = record.company_ids
                 else:
-                    # developer diagnostic: log with %-args (not translated) so
-                    # logging stays lazy and the message isn't run through _().
+                    # developer diagnostic: %-args, not translated, so logging
+                    # stays lazy.
                     _logger.warning(
                         "Skipping a company check for model %s. Its fields %s "
                         "are set as company-dependent, but the model doesn't "

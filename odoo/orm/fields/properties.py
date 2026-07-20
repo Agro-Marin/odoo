@@ -38,12 +38,9 @@ def check_property_field_value_name(property_name: str) -> None:
         raise ValueError(f"Wrong property field value name {property_name!r}.")
 
 
-# Property pseudo-types whose value references comodel records (and so carry a
-# ``comodel``, contribute res_ids to prefetch, and gain display_names). Single
-# source of truth for the "is this property relational?" test that the
-# read/write ladders below would otherwise spell out as scattered string
-# literals. The single- vs multi-value distinction (many2one vs many2many) stays
-# explicit where the handling genuinely differs.
+# Property pseudo-types whose value references comodel records: they carry a
+# ``comodel``, contribute res_ids to prefetch, and gain display_names. The
+# many2one/many2many distinction stays explicit where handling differs.
 RELATIONAL_PROPERTY_TYPES = frozenset(("many2one", "many2many"))
 
 
@@ -238,8 +235,8 @@ class Properties(Field):
     ) -> list[typing.Any]:
         if not records:
             return values
-        # raise (not assert): asserts are stripped under python -O, and this
-        # gives a clearer message than the strict-zip below
+        # raise (not assert): asserts are stripped under -O, and this gives a
+        # clearer message than the strict-zip below
         if len(values) != len(records):
             raise ValueError(
                 f"convert_to_read_multi: expected {len(records)} values, got {len(values)}"

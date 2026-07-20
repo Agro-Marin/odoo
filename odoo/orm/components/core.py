@@ -35,15 +35,11 @@ if TYPE_CHECKING:
 
 
 class OrmCore:
-    """Curated Layer 1 facade over FieldCache + ComputeEngine.
+    """Curated Layer 1 facade over FieldCache + ComputeEngine (see module docstring).
 
-    The id-level entry point used by framework ORM code via ``env._core`` (see
-    the module docstring and ADR-0010 for the contract). Each pass-through method
-    delegates to the identically-named method of the underlying ``FieldCache`` /
-    ``ComputeEngine``; :meth:`new_scheduler` builds a recompute scheduler bound to
-    the engine. The exposed surface is an intentional subset
-    (reads/dirty/patches/schedule/protect); cache mutation and lifecycle live on
-    :class:`~odoo.orm.runtime.transaction.Transaction` / ``env.cache`` by design.
+    Each pass-through method delegates to the identically-named method of the
+    underlying ``FieldCache`` / ``ComputeEngine``; :meth:`new_scheduler` builds a
+    recompute scheduler bound to the engine.
     """
 
     __slots__ = ("cache", "engine")

@@ -39,14 +39,13 @@ PYTHON_INEQUALITY_OPERATOR: dict[str, Callable[[object, object], bool]] = {
 
 # Above this many values, an ``in``/``not in`` condition is emitted as
 # ``= ANY(%s)`` / ``!= ALL(%s)`` (one array parameter) instead of
-# ``IN (%s, %s, ...)`` (one bound parameter per value).  ``IN <tuple>`` makes
-# psycopg parse a query string that grows O(N): a realistic multi-column read of
-# 1k/10k rows measured ~48% faster end-to-end (execute+fetchall) with ANY, and a
-# 10k-id ``browse().read()`` otherwise builds a ~40 KB statement.  The win is
-# concentrated at large N (sub-0.1 ms below ~100 values), so small conditions
-# keep the plain ``IN`` form: no measurable benefit there, and it preserves the
-# size-invariant canonical SQL that the test-suite asserts (one ``IN (%s)``
-# snapshot matching reads of any batch size).
+# ``IN (%s, %s, ...)`` (one bound parameter per value). ``IN <tuple>`` makes
+# psycopg parse a query string growing O(N): a 1k/10k-row multi-column read
+# measured ~48% faster end-to-end with ANY, and a 10k-id ``browse().read()``
+# otherwise builds a ~40 KB statement. The win is concentrated at large N
+# (sub-0.1 ms below ~100 values), so small conditions keep plain ``IN``: no
+# measurable benefit, and it keeps the size-invariant canonical SQL the
+# test-suite asserts.
 IN_TO_ANY_THRESHOLD = 100
 
 

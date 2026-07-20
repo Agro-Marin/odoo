@@ -22,9 +22,8 @@ if typing.TYPE_CHECKING:
 # Binary data is returned as memoryview by psycopg.
 _BINARY = memoryview
 
-# First byte of SVG-ish content: 'P' is the first 6 bits of '<' (0x3C) base64
-# encoded, '<' is a plaintext XML tag opening. Detected to restrict SVG upload
-# to system users. Module-level so it is not rebuilt on every conversion.
+# First byte of SVG-ish content: 'P' is '<' (0x3C) base64-encoded, '<' is a
+# plaintext XML tag opening. Used to restrict SVG upload to system users.
 _SVG_MAGIC_BYTES = frozenset({b"P", b"<"})
 
 
@@ -62,8 +61,8 @@ class Binary(Field[bytes | typing.Literal[False]]):
         validate: bool = True,
     ) -> bytes | None:
         # Binaries are transferred/stored as base64 strings (legacy convention),
-        # sometimes as unicode, hence the str() cast below. It only works for
-        # pure-ASCII strings on purpose: raw binary must be passed as bytes.
+        # sometimes as unicode, hence the str() cast below. ASCII-only on
+        # purpose: raw binary must be passed as bytes.
         if not value:
             return None
         # Detect SVG content to restrict its upload to system users.
@@ -212,11 +211,10 @@ class Binary(Field[bytes | typing.Literal[False]]):
 
     @override
     def mark_dirty(self, records: BaseModel, value: typing.Any) -> None:
-        # Reset BOTH the global and the per-field bin_size keys before touching
-        # the cache: convert_to_cache honors either, so leaving bin_size_<name>
-        # active would size-convert an int value (the "client returned the bin
-        # size instead of the content" case) into a human_size string and cache
-        # it as content. Mirrors get_column_update / compute_value.
+        # Reset BOTH the global and per-field bin_size keys before touching the
+        # cache: convert_to_cache honors either, so leaving bin_size_<name>
+        # active would size-convert an int value into a human_size string and
+        # cache it as content. Mirrors get_column_update / compute_value.
         records = records.with_context(
             **{"bin_size": False, "bin_size_" + self.name: False}
         )
@@ -351,9 +349,8 @@ class Image(Binary):
     def mark_dirty(self, records: BaseModel, value: typing.Any) -> None:
         # Reset the bin_size context up front so the cache writes below land in
         # the (False,) sub-cache (unprocessed content), not size strings.
-        # Binary.mark_dirty resets its OWN local records, which does not
-        # propagate back to the `records` used for our local conversion/cache
-        # write, so do it here once.
+        # Binary.mark_dirty resets its own local records, which doesn't
+        # propagate back to the `records` we convert/cache here.
         records = records.with_context(
             **{"bin_size": False, "bin_size_" + self.name: False}
         )

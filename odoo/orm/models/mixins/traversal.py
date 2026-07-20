@@ -221,10 +221,9 @@ class TraversalMixin(_ModelStubs):
                 )
             if func == "id":
                 # 'id' is never stored in the field cache (Id.__get__ reads
-                # record._ids directly), so the cache-scan fast path below would
-                # report every record as a miss and fall back to per-record
-                # __get__. Keeping truthy ids is exactly this comprehension;
-                # falsy ids are unsaved (NewId) or 0, matching `if record.id`.
+                # record._ids directly), so the cache-scan below would miss every
+                # record. Keep truthy ids directly; falsy ids are unsaved (NewId)
+                # or 0, matching `if record.id`.
                 return self.browse([id_ for id_ in self._ids if id_])
             # Fast path: batch ACL + recompute, then C-level cache scan.
             # Falls back to __get__ for missed indices (list(self) preserves

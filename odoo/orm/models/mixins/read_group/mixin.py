@@ -226,10 +226,9 @@ class ReadGroupMixin(_ReadGroupSQLMixin, _ReadGroupFormatMixin, _ReadGroupFillMi
             *aggregates_terms,
         ]
 
-        # grouping_select_sql and select_args above snapshot groupby_terms.values()
-        # *before* this call: _read_group_orderby may fold ORDER BY columns into a
-        # term, but only by replacing dict values in place, so positions (and thus
-        # the positional GROUPING() masks and select_args order) stay aligned.
+        # grouping_select_sql and select_args snapshotted groupby_terms.values()
+        # above; _read_group_orderby only replaces dict values in place, so
+        # positions (and the positional GROUPING() masks) stay aligned.
         query._grouping_sets = True
         query.order = self._read_group_orderby(order, groupby_terms, query)
         # GROUPING SET ((a, b), (a), ())
@@ -300,8 +299,7 @@ class ReadGroupMixin(_ReadGroupSQLMixin, _ReadGroupFormatMixin, _ReadGroupFillMi
         it belongs to; this maps every mask to its target result list and the
         column extractor, then dispatches the (column-transposed) rows.
         """
-        # Result post-processing: the integer from GROUPING() keys each row to
-        # the correct user grouping set.
+        # The GROUPING() integer keys each row to its user grouping set.
         aggregates_indexes = tuple(
             range(len(all_groupby_specs), len(all_groupby_specs) + len(aggregates))
         )
@@ -408,8 +406,8 @@ class ReadGroupMixin(_ReadGroupSQLMixin, _ReadGroupFormatMixin, _ReadGroupFillMi
             matches all records.
         :param groupby: list of groupby descriptions. Each is a field name or
             ``'field:granularity'``. Granularities (date/datetime only) are
-            ``'day'``, ``'week'``, ``'month'``, ``'quarter'``, ``'year'``, and
-            integer date parts: ``'year_number'``, ``'quarter_number'``,
+            ``'hour'``, ``'day'``, ``'week'``, ``'month'``, ``'quarter'``,
+            ``'year'``, and integer date parts: ``'year_number'``, ``'quarter_number'``,
             ``'month_number'``, ``'iso_week_number'``, ``'day_of_year'``,
             ``'day_of_month'``, ``'day_of_week'``, ``'hour_number'``,
             ``'minute_number'``, ``'second_number'``.
@@ -442,9 +440,8 @@ class ReadGroupMixin(_ReadGroupSQLMixin, _ReadGroupFormatMixin, _ReadGroupFillMi
 
         if groupby:
             # Without a groupby, PostgreSQL returns exactly one aggregate row;
-            # applying limit/offset there would wrongly slice that single row
-            # away (e.g. offset=1 -> []), breaking the documented single-row
-            # contract. Only paginate when there are groups.
+            # limit/offset would wrongly slice it away (offset=1 -> []). Only
+            # paginate when there are groups.
             query.limit = limit
             query.offset = offset
 
@@ -461,11 +458,9 @@ class ReadGroupMixin(_ReadGroupSQLMixin, _ReadGroupFormatMixin, _ReadGroupFillMi
         if groupby_terms:
             query.order = self._read_group_orderby(order, groupby_terms, query)
             query.groupby = SQL(", ").join(groupby_terms.values())
-        # HAVING filters aggregate groups and is valid without GROUP BY too
-        # (PostgreSQL applies it to the single implicit aggregate group), so
-        # honour a supplied ``having`` even when ``groupby`` is empty rather than
-        # silently dropping it.  ``_read_group_having([])`` returns ``SQL.EMPTY``,
-        # so guarding on ``having`` preserves the grouped no-having behaviour.
+        # HAVING is valid without GROUP BY (PostgreSQL applies it to the single
+        # implicit aggregate group), so honour ``having`` even when ``groupby``
+        # is empty. Guarding on ``having`` preserves the no-having behaviour.
         if having:
             query.having = self._read_group_having(list(having), query)
 
@@ -671,9 +666,8 @@ class ReadGroupMixin(_ReadGroupSQLMixin, _ReadGroupFormatMixin, _ReadGroupFillMi
         if (lazy_groupby and (rows_dict and fill_temporal)) or isinstance(
             fill_temporal, dict
         ):
-            # fill_temporal = {} is equivalent to fill_temporal = True. When it
-            # is a dict with no data, we may still want empty columns, so apply
-            # the fill logic.
+            # fill_temporal = {} means True; even an empty dict may want empty
+            # columns, so apply the fill logic.
             if not isinstance(fill_temporal, dict):
                 fill_temporal = {}
             # Filling date gaps may produce more rows than ``limit``; in practice
@@ -686,10 +680,9 @@ class ReadGroupMixin(_ReadGroupSQLMixin, _ReadGroupFormatMixin, _ReadGroupFillMi
             )
 
         if lazy_groupby and lazy:
-            # read_group only fills results in lazy mode (the default); eager
-            # mode would need _read_group_fill_results reimplemented. Filling may
-            # produce more rows than ``limit``, but fill views (kanban, chart)
-            # don't use limits.
+            # read_group only fills in lazy mode (the default); eager mode would
+            # need _read_group_fill_results reimplemented. Filling may exceed
+            # ``limit``, but fill views (kanban, chart) don't set one.
             rows_dict = self._read_group_fill_results(
                 domain,
                 lazy_groupby[0],

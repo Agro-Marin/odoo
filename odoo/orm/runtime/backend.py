@@ -5,18 +5,14 @@ Production CRUD targets PostgreSQL: it emits SQL inline in the model mixins
 (:mod:`odoo.orm.model_test_env`) instead keeps rows in an in-memory
 :class:`~odoo.orm.components.storage.DictBackend`.
 
-Historically the in-memory variant was inlined into every CRUD mixin behind
-``if self.env.transaction.storage is not None:`` guards — a second persistence
-implementation smeared across six hot-path files, naming a test-only concept in
-production code.  :class:`InMemoryBackend` collects that variant in one place;
-the mixins now ask :pyattr:`Environment.backend` for it and fall back to the SQL
-path when it is ``None``.
+:class:`InMemoryBackend` collects the in-memory variant of each operation in one
+place; the mixins ask :pyattr:`Environment.backend` for it and fall back to the
+SQL path when it is ``None``.
 
 ``env.backend is None`` is the **PostgreSQL fast path**: production never
-allocates a backend object, so the dispatch is a single attribute load with no
-indirection.  An explicit backend object overrides the SQL default and owns the
-in-memory equivalent of each operation.  This keeps the ORM hot path free while
-giving the in-memory store a real, testable home and a clear extension point.
+allocates a backend object, so dispatch is a single attribute load. An explicit
+backend object overrides the SQL default and owns the in-memory equivalent of
+each operation.
 """
 
 from __future__ import annotations
@@ -42,14 +38,13 @@ _logger = logging.getLogger("odoo.orm.backend")
 class StorageBackend(typing.Protocol):
     """The persistence contract the CRUD mixins dispatch to.
 
-    ``Environment.backend`` is ``None`` for the PostgreSQL fast path (the mixins
-    then run SQL inline -- production never allocates a backend object) or a
-    concrete :class:`StorageBackend` for the in-memory test tier. Making the
-    contract explicit lets the type checker flag a backend that forgets a method,
-    and lets ``test_backend_protocol`` assert every method has a dispatch site --
-    the safeguard that turns "a new persistence op silently runs SQL against the
-    in-memory store" from a latent bug into a failed test (as it did for the
-    row-lock methods). ``supports_parent_store`` is an attribute, not a method.
+    ``Environment.backend`` is ``None`` for the PostgreSQL fast path (SQL inline,
+    no backend object) or a concrete :class:`StorageBackend` for the in-memory
+    test tier. Making the contract explicit lets the type checker flag a backend
+    that forgets a method, and lets ``test_backend_protocol`` assert every method
+    has a dispatch site -- so a new persistence op that silently runs SQL against
+    the in-memory store fails a test instead of being a latent bug (as it did for
+    the row-lock methods). ``supports_parent_store`` is an attribute, not a method.
 
     ``supports_record_rules`` declares whether ``search()`` enforces ``ir.rule``
     record rules. The SQL path always does (via the security domain in

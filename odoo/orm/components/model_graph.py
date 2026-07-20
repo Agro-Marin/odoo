@@ -247,13 +247,11 @@ class ModelGraph:
     def set_triggers(self, triggers: defaultdict) -> None:
         """Publish a fully-built trigger map atomically, then drop derived caches.
 
-        The caller builds the ``{dep_field: {path: [targets]}}`` map into a local
-        structure and hands it over here; swapping ``_triggers`` with a single
-        assignment (rather than ``reset_triggers`` + incremental ``add_trigger``
-        on the live graph) means a concurrent reader — or a second thread racing
-        the ``Registry._field_triggers`` ``cached_property`` — never observes an
-        empty or partial map.  Derived caches are cleared *after* the swap, so any
-        rebuild they trigger reads the complete new map.
+        Swapping ``_triggers`` in one assignment (rather than ``reset_triggers`` +
+        incremental ``add_trigger`` on the live graph) means a concurrent reader —
+        or a thread racing the ``Registry._field_triggers`` ``cached_property`` —
+        never observes an empty or partial map. Derived caches are cleared *after*
+        the swap, so any rebuild they trigger reads the complete new map.
         """
         self._triggers = triggers
         self.clear_caches()
@@ -261,19 +259,17 @@ class ModelGraph:
     def reset_field_metadata(self) -> None:
         """Reset all field metadata collections to empty state.
 
-        Called during full registry setup (``setup_models(model_names=None)``)
-        to clear stale metadata before rebuilding.  Does NOT clear triggers
-        or caches — those are handled separately.
+        Called during full registry setup (``setup_models(model_names=None)``) to
+        clear stale metadata before rebuilding. Does NOT clear triggers or caches.
 
         Clears **in place** rather than rebinding fresh objects, so live
-        references survive the rebuild.  In particular ``_depends_context`` is
+        references survive the rebuild — notably ``_depends_context``, which is
         never reassigned elsewhere and is cached by
-        ``Environment._field_depends_context`` (read on the hot
-        ``Field._get_cache`` path): rebinding it here would orphan that cache,
-        making context-dependence membership tests stale until every env is
-        recreated.  (``_inverses``/``_computed`` are additionally rebound by the
-        registry's ``field_inverses``/``field_computed`` cached_properties; no
-        env caches them, so either reset style is fine.)
+        ``Environment._field_depends_context`` (hot ``Field._get_cache`` path):
+        rebinding it would orphan that cache, making context-dependence tests
+        stale until every env is recreated. (``_inverses``/``_computed`` are also
+        rebound by the registry's ``field_inverses``/``field_computed``
+        cached_properties, so either style works for them.)
         """
         self._inverses.clear()
         self._depends.clear()
@@ -532,38 +528,23 @@ class ModelGraph:
     def freeze(self) -> None:
         """Eagerly populate the lazy caches, making the graph truly read-only.
 
-        The class contract is that the graph is *static after construction*
-        (see the module docstring), but the trigger-tree, modifying-relations
-        and recompute-order caches are nonetheless filled lazily on first
-        query — so the first read of each *mutates* the process-shared graph.
-        This is not a corruption hazard: on free-threaded CPython (PEP 703)
-        the built-in dict operations involved are individually thread-safe, so
-        concurrent first-reads produce correct results. The cost is *redundant
-        computation* — N threads racing a cold cache each rebuild the same
-        trigger tree before the last write wins (measured ~4x for 40 fields
-        across 24 threads on 3.14t), plus repeated write-last-wins churn on the
-        shared dicts.
+        The class contract is that the graph is *static after construction* (see
+        the module docstring), yet the trigger-tree, modifying-relations and
+        recompute-order caches fill lazily on first query — so the first read of
+        each *mutates* the process-shared graph. On free-threaded CPython (PEP
+        703) this stays correct (the dict operations are individually
+        thread-safe), but N threads racing a cold cache each redundantly rebuild
+        the same entries before the last write wins.
 
-        Calling ``freeze()`` once, right after the registry finishes building
-        the trigger graph (see ``Registry._field_triggers``), precomputes every
-        cache entry that runtime queries can produce, so subsequent reads are
-        pure lookups with no rebuild and no mutation. That removes the
-        redundant concurrent work, makes the documented "static after
-        construction" contract literally true, and keeps the read path
-        write-free should a future field type introduce non-atomic
-        mutation-on-read. Concretely, reads become:
-
-        * ``get_field_trigger_tree`` / ``get_dependent_fields`` only write for
-          fields in ``_triggers`` (others return a fresh empty tree, uncached);
-        * ``is_modifying_relations`` only caches fields in ``_triggers`` (others
-          short-circuit to ``False`` uncached);
-        * ``get_trigger_tree`` never writes — it merges already-cached subtrees
-          into a new local tree;
-        * ``recompute_order`` is a single precomputed dict.
+        Calling ``freeze()`` once, right after the registry builds the trigger
+        graph (see ``Registry._field_triggers``), precomputes every entry runtime
+        queries can produce, so subsequent reads are pure lookups with no rebuild
+        and no mutation — removing the redundant work and making the "static
+        after construction" contract literally true.
 
         Idempotent. Must be re-run after any cache invalidation
-        (``clear_caches`` / ``reset_triggers`` / ``discard_fields``); the
-        registry does this by re-running it whenever it rebuilds the graph.
+        (``clear_caches`` / ``reset_triggers`` / ``discard_fields``); the registry
+        does this whenever it rebuilds the graph.
         """
         for field in self._triggers:
             # Order matters: prime the trigger tree first so the
