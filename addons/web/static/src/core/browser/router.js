@@ -328,8 +328,8 @@ export function startRouter() {
 /**
  * When the user navigates history using the back/forward button, the browser
  * dispatches a popstate event with the state that was in the history for the
- * corresponding history entry. We just adopt that state so that the webclient
- * can use that previous state without forcing a full page reload.
+ * corresponding history entry. We adopt that state directly so the webclient
+ * can reuse it without a full page reload.
  */
 browser.addEventListener("popstate", (ev) => {
     browser.clearTimeout(pushTimeout);
@@ -352,11 +352,10 @@ browser.addEventListener("popstate", (ev) => {
 });
 
 /**
- * When the user navigates the history using the back/forward button, some browsers (Safari iOS and
- * Safari MacOS) can restore the page using the `bfcache` (especially when we come back from an
- * external website). Unfortunately, Odoo wasn't designed to be compatible with this cache, which
- * leads to inconsistencies. When the `bfcache` is used to restore a page, we reload the current
- * page, to be sure that all the elements have been rendered correctly.
+ * Safari (iOS and macOS) can restore the page from the `bfcache` on back/forward
+ * navigation (especially when returning from an external website). Odoo isn't
+ * compatible with this cache, so when it's used to restore a page, reload it to
+ * ensure everything is rendered correctly.
  */
 browser.addEventListener("pageshow", (ev) => {
     if (ev.persisted) {

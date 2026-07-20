@@ -115,7 +115,7 @@ export function preprocessAction(action, context, am) {
         delete action._originalAction;
         action._originalAction = JSON.stringify(action);
     } catch {
-        // do nothing, the action might simply not be serializable
+        // do nothing, the action might not be serializable
     }
     action.context = makeContext([context, action.context], user.context);
     const domain = action.domain || [];

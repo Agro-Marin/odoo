@@ -38,7 +38,7 @@ const NUMBERING_SYSTEMS = [
  * Last-resort `lang_parameters` (en-US-like) applied when the very first
  * translation fetch fails with nothing cached: without them `localization`
  * stays empty and every date/number formatter on the page throws or renders
- * garbage. Terms simply remain untranslated (English source strings).
+ * garbage. Terms remain untranslated (English source strings).
  */
 const FALLBACK_LANG_PARAMETERS = {
     date_format: "%m/%d/%Y",

@@ -249,8 +249,8 @@ export class Registry extends EventBus {
     }
 
     /**
-     * Get a list of all elements in the registry. Note that it is ordered
-     * according to the sequence numbers.
+     * Get a list of all elements in the registry, ordered by sequence
+     * number.
      *
      * Returns a frozen cached array — callers that need a mutable copy
      * should spread it: ``[...registry.getAll()]``.

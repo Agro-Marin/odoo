@@ -441,7 +441,7 @@ export class FormCompiler extends ViewCompiler {
                     mainSlot.setAttribute("subType", "'item_component'");
                 }
             } else {
-                // TODO: When every apps will be revamp, we could remove the condition using 'o_td_label' in favor of 'o_wrap_label'
+                // TODO: remove the 'o_td_label' condition in favor of 'o_wrap_label' once every app is revamped
                 if (
                     child.classList.contains("o_wrap_label") ||
                     child.classList.contains("o_td_label") ||
@@ -778,8 +778,8 @@ export class FormCompiler extends ViewCompiler {
                 continue;
             }
             if (compiled.nodeName === "ButtonBox") {
-                // in form views with a sheet, the button box is moved to the
-                // control panel, and in dialogs, there's no button box
+                // In form views with a sheet, the button box is moved to the
+                // control panel; dialogs have no button box at all.
                 continue;
             }
             if (getTag(child, true) === "field") {

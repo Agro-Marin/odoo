@@ -134,7 +134,7 @@ export function buildFacets({
             values: defaultGroupBy.map((gb) => {
                 const [fieldName, interval] = gb.split(":");
                 // A default groupBy may reference a field absent from the search
-                // view (dotted/related, or simply removed); fall back to the raw
+                // view (dotted/related, or removed); fall back to the raw
                 // name instead of throwing and poisoning the whole control panel.
                 const string = searchViewFields[fieldName]?.string ?? fieldName;
                 if (interval) {

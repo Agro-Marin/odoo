@@ -23,7 +23,7 @@ import { getDefaultConfig } from "@web/views/view";
 import { FormViewDialog } from "@web/views/view_dialogs/form_view_dialog";
 
 const DEFAULT_QUICK_CREATE_VIEW = {
-    // note: the required modifier is written in the format returned by the server
+    // the required modifier is written in the format returned by the server
     arch: /* xml */ `
         <form>
             <field name="display_name" placeholder="Title" required="True" />

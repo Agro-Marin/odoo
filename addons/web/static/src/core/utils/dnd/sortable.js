@@ -33,7 +33,7 @@ import {
  * @property {string | (() => string)} [ignore] selector targetting elements that
  *  must initiate a drag.
  * @property {boolean | (() => boolean)} [connectGroups] whether elements can be
- *  dragged accross different parent groups. Note that it requires a `groups` param to work.
+ *  dragged accross different parent groups. Requires a `groups` param to work.
  * @property {string | (() => string)} [cursor] cursor style during the dragging
  *  sequence.
  * @property {boolean} [clone] the placeholder is a clone of the drag element.

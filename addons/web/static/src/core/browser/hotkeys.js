@@ -75,7 +75,7 @@ export function getActiveHotkey(ev) {
             key = ev.code.slice(-1).toLowerCase();
         }
     }
-    // Make sure we do not duplicate a modifier key
+    // Avoid duplicating a modifier key
     if (!MODIFIERS.includes(key)) {
         hotkey.push(key);
     }

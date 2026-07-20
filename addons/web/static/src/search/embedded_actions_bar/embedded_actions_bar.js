@@ -358,7 +358,7 @@ export class EmbeddedActions {
                     embedded_visibility: true,
                     embedded_actions_order: [],
                 };
-                // If there is no visible embedded actions, the current action (if it exists) is put by default
+                // If no embedded action is visible yet, default to the current action (if any)
                 if (this.embeddedInfos.embeddedActions?.length > 0) {
                     const embeddedActionKey =
                         this.embeddedInfos.currentEmbeddedAction?.id || false;

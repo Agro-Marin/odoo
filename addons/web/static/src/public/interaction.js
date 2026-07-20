@@ -52,7 +52,7 @@ export class Interaction {
 
     /**
      * A dynamic selector may return a falsy value (e.g. a missed
-     * querySelector); the directive is then simply ignored.
+     * querySelector); the directive is then ignored.
      *
      * @type {Object.<string, Function>}
      */

@@ -373,7 +373,7 @@ export class Popover extends Component {
             /** @type {any} */ (variant),
         );
 
-        // Update the bootstrap popper placement, in order to give the arrow its shape
+        // Update the bootstrap popper placement, to give the arrow its shape
         el.dataset.popperPlacement = direction;
 
         // Update arrow position

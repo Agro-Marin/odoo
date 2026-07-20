@@ -6,7 +6,7 @@
 /**
  * Converts a locale from JavaScript to Python format.
  *
- * Most of the time the conversion is simply to replace - with _.
+ * Most of the time, the conversion replaces - with _.
  * Example: fr-BE → fr_BE
  *
  * Exceptions:
@@ -58,7 +58,7 @@ export function jsToPyLocale(locale) {
 /**
  * Converts a locale from Python to JavaScript format.
  *
- * Most of the time the conversion is simply to replace _ with -.
+ * Most of the time, the conversion replaces _ with -.
  * Example: fr_BE → fr-BE
  *
  * Exception: Serbian can be written in both Latin and Cyrillic scripts

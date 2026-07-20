@@ -101,7 +101,7 @@ export class CalendarController extends Component {
         });
 
         // Both flags are boolean-only, persisted via String(value). Reading back with
-        // JSON.parse is brittle (a stray "undefined" string throws), so just check
+        // JSON.parse is brittle (a stray "undefined" string throws), so check
         // whether the stored value is the string "false".
         const storedWeekendVisible = browser.localStorage.getItem(
             "calendar.isWeekendVisible",

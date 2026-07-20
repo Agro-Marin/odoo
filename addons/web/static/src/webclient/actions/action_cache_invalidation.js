@@ -36,7 +36,7 @@ export function installActionCacheInvalidation(am) {
             UPDATE_METHODS.includes(method)
         ) {
             // Any action-type write (server/report/client/act_url/act_window)
-            // staleness the /web/action/load disk cache, which has no
+            // stales the /web/action/load disk cache, which has no
             // background revalidation — a stale descriptor was served from
             // IndexedDB on every execution, surviving page reloads, until an
             // unrelated act_window write happened to flush it. Clear on all

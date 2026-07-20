@@ -146,10 +146,8 @@ def get_date_domain(start_date, end_date, view_tree):
 
 
 def get_groupby(view_tree, groupby=None, fields=None):
-    """Parse the given groupby and fields, falling back to the view definition.
-
-    Return the groupby as a list when given.  Otherwise find groupby and
-    fields from the view.
+    """Parse the given groupby and fields, falling back to the view
+    definition when not given. Returns groupby as a list.
 
     :param view_tree: The xml tree of the view
     :param groupby: string or None

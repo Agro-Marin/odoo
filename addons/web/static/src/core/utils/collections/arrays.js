@@ -36,8 +36,8 @@ function _cartesian(...args) {
 }
 
 /**
- * Helper function returning an extraction handler to use on array elements to
- * return a certain attribute or mutated form of the element.
+ * Returns an extraction handler that pulls a given attribute (or mutated
+ * form) from an array element.
  *
  * @private
  * @template T
@@ -153,14 +153,13 @@ export function sortBy(iterable, criterion, order = "asc") {
 }
 
 /**
- * Returns an array containing all the elements of arrayA
- * that are not in arrayB and vice-versa.
+ * Returns the elements present in exactly one of the two iterables (the
+ * symmetric difference).
  *
  * @template T
  * @param {Iterable<T>} iter1
  * @param {Iterable<T>} iter2
- * @returns {T[]} an array containing all the elements of iter1
- * that are not in iter2 and vice-versa.
+ * @returns {T[]}
  */
 export function symmetricalDifference(iter1, iter2) {
     const set1 = new Set(iter1);
@@ -251,7 +250,7 @@ export function zipWith(iter1, iter2, mapFn) {
     return zip(iter1, iter2).map(([e1, e2]) => mapFn(e1, e2));
 }
 /**
- * Creates an sliding window over an array of a given width. Eg:
+ * Creates a sliding window over an array of a given width. Eg:
  * slidingWindow([1, 2, 3, 4], 2) => [[1, 2], [2, 3], [3, 4]]
  *
  * @template T

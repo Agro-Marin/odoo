@@ -22,7 +22,7 @@ import { evaluate } from "./py_js/py_interpreter.js";
 
 /**
  * Create an evaluated context from an arbitrary list of context representations.
- * The evaluated context in construction is used along the way to evaluate further parts.
+ * The context being built is fed back in to evaluate subsequent expressions.
  *
  * @param {ContextDescription[]} contexts
  * @param {Context} [initialEvaluationContext] optional evaluation context to start from.

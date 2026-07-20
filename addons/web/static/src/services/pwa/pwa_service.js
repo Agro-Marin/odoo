@@ -18,11 +18,10 @@ import { InstallPrompt } from "./install_prompt.js";
 
 const serviceRegistry = registry.category("services");
 
-/* Ideally, the service would directly add the event listener. Unfortunately, it happens sometimes that
- * the browser would trigger the event before the webclient (services, components, etc.) is even ready.
- * In that case, we have to get this event as soon as possible. The service can then verify if the event
- * is already stored in this variable, or add an event listener itself, to make sure the `_handleBeforeInstallPrompt`
- * function is called at the right moment, and can give the correct information to the service.
+/* The browser can fire `beforeinstallprompt` before the webclient (services, components, etc.) is
+ * ready, so this listener is registered at module load instead of by the service. It stores the
+ * event here; once started, the service checks this variable or adds its own listener, so
+ * `_handleBeforeInstallPrompt` is always called at the right moment with the correct event.
  */
 /** @type {Event | null} */
 let BEFOREINSTALLPROMPT_EVENT;
@@ -145,10 +144,9 @@ export const pwaService = {
             }
         }
 
-        // The PWA can only be installed if the app is not already launched (display-mode standalone)
-        // For Apple devices, PWA are supported on any mobile version of Safari, or in desktop since version 17
-        // On Safari devices, the check is also done on the display-mode and we rely on the installationState to
-        // decide whether we must show the prompt or not
+        // The PWA can only be installed if it isn't already launched (display-mode standalone).
+        // Apple devices: supported on any mobile Safari, and on desktop Safari from version 17.
+        // On Safari, display-mode is checked too, and installationState decides whether to show the prompt.
         state.isSupportedOnBrowser =
             browser.BeforeInstallPromptEvent !== undefined ||
             (isBrowserSafari() &&
@@ -169,7 +167,7 @@ export const pwaService = {
                 );
                 BEFOREINSTALLPROMPT_EVENT = null; // clear this variable as it is no longer useful
             }
-            // If a user declines the prompt, the browser would triggered it once again. We must be able to catch it
+            // If the user declines, the browser triggers this event again — catch it here.
             REGISTER_BEFOREINSTALLPROMPT_EVENT = (ev) => {
                 // Re-read the persisted state: the boot-time snapshot predates
                 // a dismissal recorded by show()/decline(), and using it here

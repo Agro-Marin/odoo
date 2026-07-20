@@ -27,10 +27,10 @@ import {
  * model_field prop.
  *
  * 1) Reference field is a char field
- * We have to fetch the display name (name_get) of the referenced record.
+ * Fetch the display name (name_get) of the referenced record.
  *
  * 2) Reference widget has model_field prop
- * We have to fetch the technical name of the co model.
+ * Fetch the technical name of the co model.
  *
  * 3) Standard case
  * The value is already in record.data[fieldName]

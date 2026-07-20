@@ -14,7 +14,6 @@ import {
 import { normalizedMatch } from "@web/core/l10n/utils";
 import { HighlightText } from "@web/views/settings/highlight_text/highlight_text";
 
-/** Collapsible group of settings within an app tab, with search-based visibility. */
 export class SettingsBlock extends Component {
     static template = "web.SettingsBlock";
     static components = {

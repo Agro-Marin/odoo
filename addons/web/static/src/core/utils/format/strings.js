@@ -96,9 +96,8 @@ export function escapeRegExp(pattern) {
 }
 
 /**
- * Parse the string to check if the value is true or false
- * If the string is empty, 0, False or false it's considered as false
- * The rest is considered as true
+ * Parses the string as a boolean: empty, "0", "False" or "false" are false;
+ * everything else is true.
  *
  * @param {string | null | undefined} str
  * @param {boolean} [trueIfEmpty=false]
