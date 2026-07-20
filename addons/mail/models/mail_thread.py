@@ -2757,7 +2757,12 @@ class MailThread(models.AbstractModel):
             reference_ids.extend([reference.strip() for reference in references])
 
         if reference_ids:
-            bounced_message = self.env["mail.message"].search(
+            # sudo: correlating an inbound bounce to the original message is a
+            # header match that must not depend on the gateway user's ACL --
+            # otherwise a bounce for a message on a restricted record is not
+            # recognized and message_bounce is never incremented. Mirrors the
+            # sudo'd reply-correlation search in message_route.
+            bounced_message = self.env["mail.message"].sudo().search(
                 [("message_id", "in", reference_ids)],
                 order="create_date DESC, id DESC",
                 limit=1,
@@ -2785,9 +2790,13 @@ class MailThread(models.AbstractModel):
         :param msg_dict: The dict values already parsed
         :return: The <mail.message> or None if nothing has been found
         """
+        # sudo: threading an inbound reply to its parent is a Message-Id header
+        # match that must not depend on the gateway user's ACL (a reply to a
+        # message on a restricted record would otherwise lose its parent_id).
+        # Mirrors the sudo'd reply-correlation search in message_route.
         in_reply_to = msg_dict["in_reply_to"]
         if in_reply_to:
-            parent = self.env["mail.message"].search(
+            parent = self.env["mail.message"].sudo().search(
                 [("message_id", "=", in_reply_to)], order="id DESC", limit=1
             )
             if parent:
@@ -2800,7 +2809,7 @@ class MailThread(models.AbstractModel):
             # find a match just with the last entry (equal to `In-Reply-To`). 32 refs seems large enough,
             # we've seen performance degrade with 100+ refs.
             msg_references = msg_references[-32:]
-            parent = self.env["mail.message"].search(
+            parent = self.env["mail.message"].sudo().search(
                 [("message_id", "in", msg_references)], order="id DESC", limit=1
             )
             if parent:
