@@ -32,8 +32,10 @@ class TestTax(TestTaxCommon):
                 "total_included": 100.0,
                 "total_excluded": 83.33,
                 "taxes": (
-                    (83.333333, 8.33),
-                    (83.333333, 8.33),
+                    # per-tax base is currency-rounded since the fork made
+                    # round_base default to True in compute_all
+                    (83.33, 8.33),
+                    (83.33, 8.33),
                 ),
             },
             100.0,
