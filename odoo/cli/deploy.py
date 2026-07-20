@@ -63,9 +63,9 @@ _UPLOAD_TIMEOUT = (10, None)
 
 def _should_skip(filepath: Path, module_dir: Path) -> bool:
     """Return True if ``filepath`` should be excluded from the deploy zip."""
-    # Test only the *parent* components against EXCLUDED_DIR_NAMES, never the
-    # basename: a module file named `build`/`dist` must still ship. Belt-and-
-    # braces — zip_module's walk already prunes excluded dirs in place.
+    # Match parent components against EXCLUDED_DIR_NAMES, never the basename: a
+    # module file named `build`/`dist` must still ship. Redundant with
+    # zip_module's walk, which already prunes excluded dirs in place.
     rel_parts = filepath.relative_to(module_dir).parts
     if any(p in EXCLUDED_DIR_NAMES for p in rel_parts[:-1]):
         return True

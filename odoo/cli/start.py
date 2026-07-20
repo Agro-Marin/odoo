@@ -41,7 +41,7 @@ class Start(Command):
             "--database",
             dest="db_name",
             default=None,
-            help="Specify the database name (default to project's directory name",
+            help="database name (default: project directory name)",
         )
 
         args, _unknown = self.parser.parse_known_args(args=cmdargs)

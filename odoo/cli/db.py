@@ -203,17 +203,15 @@ class Db(Command):
             "dump_path",
             nargs="?",
             default="-",
-            help="if provided, database is dumped to specified path, otherwise "
-            "or if `-`, dumped to stdout",
+            help="path to dump to; omit or pass `-` to dump to stdout",
         )
         dump.add_argument(
             "--format",
             dest="dump_format",
             choices=("zip", "dump"),
             default="zip",
-            help="if provided, database is dumped used the specified format, "
-            "otherwise defaults to `zip`.\n"
-            "Supported formats are `zip`, `dump` (pg_dump format) ",
+            help="format to dump in (default: `zip`).\n"
+            "Supported formats: `zip`, `dump` (pg_dump format).",
         )
         dump.add_argument(
             "--no-filestore",
@@ -221,8 +219,7 @@ class Db(Command):
             dest="filestore",
             default=True,
             const=False,
-            help="if passed, zip database is dumped without filestore "
-            "(default: filestore is included)",
+            help="dump the zip without the filestore (default: included)",
         )
 
         # DUPLICATE -----------------------------

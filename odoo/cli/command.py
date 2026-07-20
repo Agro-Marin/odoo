@@ -144,7 +144,7 @@ class Command:
         """Validate and register the command subclass.
 
         :param bool register: pass ``False`` for abstract helper bases
-            (``class DbCommand(Command, register=False)``) that exist to
+            (e.g. ``class DatabaseCommand(Command, register=False)``) that
             share behavior between commands. Unregistered bases skip the
             name/module and ``run``-override checks; their concrete
             subclasses are validated and registered as usual.
@@ -161,9 +161,8 @@ class Command:
             raise ValueError(
                 f"Command name {cls.name!r} must match Module name {module!r}"
             )
-        # Identity check catches a missing override at import, not first run.
-        # Transitive: an inherited valid override (Leaf <- Mid) is Mid.run, not
-        # Command.run, so it is correctly accepted.
+        # Catch a missing override at import, not first run. An inherited
+        # override (Leaf <- Mid) is Mid.run, not Command.run, so it passes.
         if cls.run is Command.run:
             raise TypeError(
                 f"Command subclass {cls.__qualname__!r} must override "
@@ -201,13 +200,11 @@ class Command:
 class DatabaseCommand(Command, register=False):
     """Base for commands that operate on a single configured database.
 
-    Owns the bootstrap shared by every db-bound command: feed the parsed
-    ``-c``/``-d`` into the global config, then validate that exactly one
-    database is targeted. Subclasses register the flags themselves (via
-    :meth:`add_config_arguments`) since their placement — main parser or each
-    subparser — is a per-command layout decision. This lives here, not on
-    :class:`Command`, because db-free commands (``deploy``, ``scaffold``,
-    ``help``) have no use for it.
+    Feeds the parsed ``-c``/``-d`` into the global config, then checks that
+    exactly one database is targeted. Subclasses add the flags themselves (via
+    :meth:`add_config_arguments`): flag placement — main parser vs. subparser —
+    is a per-command layout decision. Kept off :class:`Command` since db-free
+    commands (``deploy``, ``scaffold``, ``help``) don't need it.
     """
 
     def add_config_arguments(self, parser: argparse.ArgumentParser) -> None:
