@@ -150,14 +150,22 @@ class MailComposerMixin(models.AbstractModel):
         composer_value = self.lang
         template_value = self.template_id.lang
 
-        call_sudo = False
+        bypass = False
         equality = composer_value == template_value or (
             not composer_value and not template_value
         )
         if not self.is_mail_template_editor and equality:
-            call_sudo = True
+            bypass = True
 
-        record = self.sudo() if call_sudo else self
+        # Lift only the qweb whitelist (like _render_field), NOT full sudo:
+        # self.sudo() also makes env.is_admin() True, so the lang template would
+        # evaluate with record rules bypassed — a broader elevation than the rest
+        # of the render layer. bypass_restricted_rendering keeps ACLs enforced.
+        record = (
+            self.with_context(bypass_restricted_rendering=BYPASS_RESTRICTED_RENDERING)
+            if bypass
+            else self
+        )
         return super(MailComposerMixin, record)._render_lang(res_ids, engine=engine)
 
     def _render_field(self, field, res_ids, *args, **kwargs):

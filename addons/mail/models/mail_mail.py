@@ -1449,6 +1449,18 @@ class MailMail(models.Model):
                             value = ". ".join(e.args)
                         raise MailDeliveryException(value) from e
                     raise
+            else:
+                # The mail loop completed without a raised exception. If nothing
+                # was actually delivered (res is None -> e.g. the only recipient
+                # was invalid/missing, a NO_VALID_RECIPIENT the loop isolated
+                # without setting delivery_error) and the caller asked for strict
+                # sending, surface the failure instead of returning True as if it
+                # had succeeded. State and notifications are already recorded
+                # above; raising here (outside the try) avoids re-classifying it.
+                if res is None and raise_exception and failure_type:
+                    raise MailDeliveryException(
+                        failure_reason or IrMailServer.NO_VALID_RECIPIENT
+                    )
             if auto_commit is True:
                 if post_send_callback:
                     post_send_callback([mail_id])

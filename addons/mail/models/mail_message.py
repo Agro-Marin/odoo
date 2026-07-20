@@ -1096,7 +1096,11 @@ class MailMessage(models.Model):
                 if vals_lst:
                     self.env["mail.tracking.value"].sudo().create(vals_lst)
                 if other_cmd:
-                    message.sudo().write({"tracking_value_ids": tracking_values_cmd})
+                    # Only replay the *non-create* commands here: the (0, 0, vals)
+                    # entries were already inserted above. Writing the full
+                    # ``tracking_values_cmd`` (which still holds them) would create
+                    # every (0, 0, vals) tracking value a second time.
+                    message.sudo().write({"tracking_value_ids": other_cmd})
 
             if message._is_thread_message_visible(vals=values):
                 message._invalidate_documents(values.get("model"), values.get("res_id"))
@@ -1200,15 +1204,17 @@ class MailMessage(models.Model):
         # not really efficient method: it does one db request for the
         # search, and one for each message in the result set is_read to True in the
         # current notifications from the relation.
-        notif_domain = [
-            ("res_partner_id", "=", self.env.user.partner_id.id),
-            ("is_read", "=", False),
-        ]
         if domain:
             messages = self.search(domain)
             messages.set_message_done()
             return messages.ids
 
+        # Built only on the no-domain path that actually uses it (the branch
+        # above returns first), so it is no longer computed and thrown away.
+        notif_domain = [
+            ("res_partner_id", "=", self.env.user.partner_id.id),
+            ("is_read", "=", False),
+        ]
         notifications = (
             self.env["mail.notification"]
             .sudo()
@@ -1609,6 +1615,10 @@ class MailMessage(models.Model):
             them. It lessen query count in some optimized use cases.
             Only applicable if ``add_followers`` is True.
         """
+        # Work on our own copy: this method both removes "message_format" and
+        # later appends "starred", so mutating the caller's list would leak those
+        # edits back (and accumulate across records if the list is reused).
+        fields = list(fields)
         if "message_format" not in fields:
             store.add_records_fields(self, fields)
             return

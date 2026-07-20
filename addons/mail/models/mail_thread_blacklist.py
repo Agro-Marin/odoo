@@ -84,10 +84,9 @@ class MailThreadBlacklist(models.AbstractModel):
                 SQL.identifier(self._table),
             )
 
-        self.env.cr.execute(SQL("%s FETCH FIRST ROW ONLY", sql))
-        res = self.env.cr.fetchall()
-        if not res:
-            return [(0, "=", 1)]
+        # Return the subquery domain directly. Probing it first with a
+        # "FETCH FIRST ROW ONLY" round-trip was redundant: an empty subquery makes
+        # ``id IN (…)`` match no rows anyway, exactly like the old [(0, "=", 1)].
         return [("id", "in", SQL("(%s)", sql))]
 
     @api.depends("email_normalized")

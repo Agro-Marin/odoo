@@ -3,6 +3,7 @@ import ipaddress
 import logging
 import re
 import socket
+import time
 from urllib.parse import urljoin, urlsplit
 
 import chardet
@@ -17,6 +18,12 @@ _logger = logging.getLogger(__name__)
 MAX_HEAD_BYTES = 512 * 1024
 # Cap redirect chains we follow ourselves (see _fetch_link_preview_response).
 MAX_REDIRECTS = 5
+# Total wall-clock budget for a single link preview across all redirect hops and
+# the body scan. requests' ``timeout=3`` is a per-read *inactivity* timeout, so a
+# host that dribbles bytes slower than the size cap fills (a slowloris) can hold
+# a request worker indefinitely; this bounds the whole operation regardless of
+# per-read progress.
+MAX_FETCH_SECONDS = 10
 
 
 class UrlSafety(enum.Enum):
@@ -90,14 +97,18 @@ def _url_is_safe(url):
     return _classify_url_safety(url) is UrlSafety.SAFE
 
 
-def _fetch_link_preview_response(url, request_session, headers):
+def _fetch_link_preview_response(url, request_session, headers, deadline=None):
     """GET ``url`` for a link preview, following redirects manually so every
     hop is re-validated by :func:`_url_is_safe` (an SSRF-safe host can still
     302 to an internal one). Returns the final ``requests.Response`` (streamed)
-    or None if a hop is unsafe or the redirect budget is exhausted."""
+    or None if a hop is unsafe, the redirect budget is exhausted, or the overall
+    time ``deadline`` (monotonic seconds) is passed."""
     getter = request_session or requests
     current = url
     for _ in range(MAX_REDIRECTS + 1):
+        if deadline is not None and time.monotonic() > deadline:
+            _logger.info("Link preview timed out (redirect chain) for: %s", url)
+            return None
         if not _url_is_safe(current):
             _logger.info("Link preview blocked for non-public URL: %s", current)
             return None
@@ -134,8 +145,9 @@ def get_link_preview_from_url(url, request_session=None):
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; rv:91.0) Gecko/20100101 Firefox/91.0",
         "Odoo-Link-Preview": "True",  # Used to identify coming from the link previewer
     }
+    deadline = time.monotonic() + MAX_FETCH_SECONDS
     try:
-        response = _fetch_link_preview_response(url, request_session, headers)
+        response = _fetch_link_preview_response(url, request_session, headers, deadline)
     except requests.exceptions.RequestException:
         return False
     except LocationParseError:
@@ -159,11 +171,11 @@ def get_link_preview_from_url(url, request_session=None):
                 "source_url": url,
             }
         elif response.headers["Content-Type"].startswith("text/html"):
-            return get_link_preview_from_html(url, response)
+            return get_link_preview_from_html(url, response, deadline)
         return False
 
 
-def get_link_preview_from_html(url, response):
+def get_link_preview_from_html(url, response, deadline=None):
     """
     Retrieve the Open Graph properties from the html page. (https://ogp.me/)
     Load the page with chunks of 8kb to prevent loading the whole
@@ -184,6 +196,11 @@ def get_link_preview_from_html(url, response):
         # `content` without bound (memory DoS). The <head> we need is tiny; stop
         # accumulating past a sane ceiling and parse what we have.
         if len(content) > MAX_HEAD_BYTES:
+            break
+        # A slow trickle never trips the per-read timeout, so also stop once the
+        # overall wall-clock budget is exhausted (slowloris protection).
+        if deadline is not None and time.monotonic() > deadline:
+            _logger.info("Link preview timed out (body scan) for: %s", url)
             break
 
     if not content:

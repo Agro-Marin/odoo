@@ -608,6 +608,11 @@ export class Thread extends Record {
         this.status = "loading";
         if (!this.canFetchMessages) {
             this.isLoaded = true;
+            // Reset the status: leaving it "loading" here would permanently wedge
+            // fetchNewMessages/fetchMoreMessages (both early-return while
+            // status === "loading") once the thread later becomes fetchable
+            // (e.g. an optimistic thread that gets its server id).
+            this.status = "ready";
             return [];
         }
         let res;

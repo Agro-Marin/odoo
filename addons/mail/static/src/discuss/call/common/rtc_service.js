@@ -666,13 +666,20 @@ export class Rtc extends Record {
             // only when ending the active call: broadcasting CLOSE for an
             // unrelated channel (invitation reject) would tear down the
             // call this tab hosts or mirrors in another channel
-            this._endHost();
-            this.state.logs.end = new Date().toISOString();
-            this.dumpLogs();
-            this.pttExtService.unsubscribe();
-            this.transport?.disconnect();
-            this.clear();
-            this.soundEffectsService.play("call-leave");
+            try {
+                this._endHost();
+                this.state.logs.end = new Date().toISOString();
+                this.dumpLogs();
+                this.pttExtService.unsubscribe();
+            } finally {
+                // Teardown must run even if a diagnostic above throws (e.g.
+                // buildSnapshot in dumpLogs): otherwise the transport socket,
+                // RTCPeerConnections and local mic/camera tracks leak for the
+                // tab's lifetime.
+                this.transport?.disconnect();
+                this.clear();
+                this.soundEffectsService.play("call-leave");
+            }
         }
     }
 

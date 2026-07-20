@@ -16,6 +16,11 @@ from odoo.addons.mail.tools.discuss import Store, add_guest_to_context
 
 logger = logging.getLogger(__name__)
 
+# Upper bound on a client-supplied base64 PDF thumbnail. The update route is
+# public (ownership-token gated), so without a cap a guest holding an
+# attachment access token could store an arbitrarily large blob.
+MAX_THUMBNAIL_B64_BYTES = 10 * 1024 * 1024
+
 
 class AttachmentController(ThreadController):
     def _make_zip(self, name, attachments):
@@ -183,6 +188,8 @@ class AttachmentController(ThreadController):
         if not thumbnail:
             with file_open("web/static/img/mimetypes/unknown.svg") as unknown_svg:
                 thumbnail = base64.b64encode(unknown_svg.read().encode())
+        elif len(thumbnail) > MAX_THUMBNAIL_B64_BYTES:
+            raise UserError(request.env._("The thumbnail is too large."))
         attachment_sudo.thumbnail = thumbnail
         Store(bus_channel=attachment_sudo).add(
             attachment_sudo, ["has_thumbnail"]

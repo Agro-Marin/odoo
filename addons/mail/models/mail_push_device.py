@@ -7,6 +7,12 @@ from ..tools.jwt import InvalidVapidError, generate_vapid_keys
 
 _logger = logger.getLogger(__name__)
 
+# Upper bound on stored push subscriptions per partner. register_devices is
+# gated only by the (non-secret) VAPID public key, so without a cap an
+# authenticated caller could register unbounded endpoints, each a row the
+# web-push cron then POSTs to.
+MAX_DEVICES_PER_PARTNER = 20
+
 
 class MailPushDevice(models.Model):
     _name = "mail.push.device"
@@ -116,6 +122,14 @@ class MailPushDevice(models.Model):
                     }
                 ]
             )
+            # Keep only the most recent MAX_DEVICES_PER_PARTNER subscriptions for
+            # this partner, dropping the oldest, so the table cannot grow without
+            # bound from repeated registrations.
+            devices = self.sudo().search(
+                [("partner_id", "=", partner.id)], order="id desc"
+            )
+            if len(devices) > MAX_DEVICES_PER_PARTNER:
+                devices[MAX_DEVICES_PER_PARTNER:].unlink()
 
     @api.model
     def unregister_devices(self, **kw):

@@ -4688,23 +4688,26 @@ class MailThread(models.AbstractModel):
                         for recipient_id in recipients_ids_chunk
                     ]
                 emails += new_email
-            # create MailMail for email-only recipients
-            if recipients_emails:
+            # create one MailMail per email-only recipient. Partner recipients are
+            # personalized per-recipient by _prepare_outgoing_list, but email-only
+            # recipients have no partner, so joining them into a single email_to
+            # (as before) disclosed every external address to all the others in
+            # the To header. One mail each keeps them isolated.
+            for recipient_email in recipients_emails:
                 mail_values = self._notify_by_email_get_final_mail_values(
                     [],
                     base_mail_values,
                     additional_values={"body_html": mail_body},
                 )
-                mail_values["email_to"] = ",".join(recipients_emails)
+                mail_values["email_to"] = recipient_email
                 new_email = SafeMail.create(mail_values)
-                notif_create_values += [
+                notif_create_values.append(
                     {
-                        "mail_email_address": email,
+                        "mail_email_address": recipient_email,
                         "mail_mail_id": new_email.id,
                         **base_notification_values,
                     }
-                    for email in recipients_emails
-                ]
+                )
                 emails += new_email
 
         if notif_create_values:
@@ -5481,7 +5484,14 @@ class MailThread(models.AbstractModel):
                 continue
             if pdata["active"] is False:
                 continue
-            if pdata["email_normalized"] in emailed_normalized:
+            if (
+                pdata["notif"] == "email"
+                and pdata["email_normalized"] in emailed_normalized
+            ):
+                # Already reached as a To/Cc of the incoming email: skip only the
+                # *email* channel to avoid a duplicate. An inbox (or sms/whatsapp)
+                # recipient still needs their notification — the incoming email is
+                # not an inbox needaction — so don't drop those entirely.
                 continue
             recipients_data.append(pdata)
 
@@ -6670,7 +6680,12 @@ class MailThread(models.AbstractModel):
                     will transfer the context of the thread of my_lead to my_project_task
         """
         self.ensure_one()
-        self.check_access("read")
+        # Moving the whole message history off the source record mutates it, so
+        # require write (not merely read) on the source: a read-only gate let
+        # anyone who could see two records relocate a chatter between them. The
+        # target is only read-checked — messages land on it but its own fields
+        # are untouched — matching the sudo'd-target conversion callers.
+        self.check_access("write")
         new_thread.check_access("read")
         # get the ids of the comment and not-comment of the thread
         # TDE check: sudo on mail.message, to be sure all messages are moved ?

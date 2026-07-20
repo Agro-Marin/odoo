@@ -95,19 +95,26 @@ class PublicPageController(http.Controller):
         )
         if not channel_sudo:
             try:
-                channel_sudo = channel_sudo.create(
-                    {
-                        "channel_type": "channel",
-                        "default_display_mode": default_display_mode,
-                        "group_public_id": None,
-                        "name": channel_name or create_token,
-                        "uuid": create_token,
-                    }
-                )
+                # Isolate the racy INSERT in a savepoint: on a concurrent create
+                # the UniqueViolation aborts only the savepoint, leaving the
+                # request transaction usable. The previous code called
+                # ``cr.commit()`` here, but by then the transaction was already
+                # aborted, and the fork's ``Cursor.commit()`` flushes first, so
+                # it raised ``InFailedSqlTransaction`` (a 500) instead of
+                # recovering — exactly in the race it was meant to survive.
+                with request.env.cr.savepoint():
+                    channel_sudo = channel_sudo.create(
+                        {
+                            "channel_type": "channel",
+                            "default_display_mode": default_display_mode,
+                            "group_public_id": None,
+                            "name": channel_name or create_token,
+                            "uuid": create_token,
+                        }
+                    )
             except psycopg.errors.UniqueViolation:
-                # concurrent insert attempt: another request created the channel.
-                # commit the current transaction and get the channel.
-                request.env.cr.commit()
+                # concurrent insert: another request created the channel first;
+                # the savepoint rolled its failed INSERT back, so read the winner.
                 channel_sudo = channel_sudo.search([("uuid", "=", create_token)])
         store = Store().add_global_values(isChannelTokenSecret=False)
         return self._response_discuss_channel_invitation(
