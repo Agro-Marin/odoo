@@ -5,10 +5,9 @@ Two backends, picked at import time:
 * ``inotify`` (POSIX preferred — kernel events, no polling)
 * ``watchdog`` (cross-platform fallback — uses fsevents/kqueue/polling)
 
-The classes are constructed by ``lifecycle.start()`` when ``--dev=reload`` is
-active.  Both call ``lifecycle.restart()`` when a Python source file under the
-addons path changes, via lazy import so this module has no top-level
-dependency on ``lifecycle``.
+Constructed by ``lifecycle.start()`` when ``--dev=reload`` is active.  Both call
+``lifecycle.restart()`` when a Python source file under the addons path changes
+(lazy import, so this module has no top-level dependency on ``lifecycle``).
 """
 
 from __future__ import annotations
@@ -61,9 +60,9 @@ _logger = logging.getLogger("odoo.service.server")  # operator log-config preser
 class FSWatcherBase:
     """Common file-change handler for both backends.
 
-    Compiles the changed file as a syntax check before triggering reload —
-    a syntax-broken file would crash the new server immediately, leaving
-    the operator with no running instance.  Better to log and skip.
+    Compiles the changed file as a syntax check before reloading: a
+    syntax-broken file would crash the new server, leaving no running instance.
+    Log and skip instead.
     """
 
     def handle_file(self, path: str) -> bool | None:
@@ -84,8 +83,7 @@ class FSWatcherBase:
                 )
             else:
                 # Lazy import (lifecycle imports _watcher).  Read the flag as
-                # ``lifecycle.server_phoenix`` — a value-import would freeze it
-                # at load time and miss later rebinds.
+                # ``lifecycle.server_phoenix`` so later rebinds are seen.
                 from . import lifecycle
 
                 if not lifecycle.server_phoenix:

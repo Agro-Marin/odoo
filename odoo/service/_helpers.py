@@ -14,31 +14,25 @@ from odoo.tools import config
 
 from .db import list_dbs
 
-# Cron and HTTP-worker main loops sleep for SLEEP_INTERVAL between
-# cycles when there is no signal or NOTIFY pending.  60 s is a balance
-# between responsiveness to drift (cron jobs whose ``interval_minutes``
-# > 1 still fire promptly) and idle CPU on a mostly-quiet instance.
+# Cron and HTTP-worker main loops sleep this long between cycles when no signal
+# or NOTIFY is pending.  60 s balances drift responsiveness against idle CPU.
 SLEEP_INTERVAL = 60  # 1 min
 
-# Maximum random sleep injected after a cron worker wakes from a
-# ``cron_trigger`` NOTIFY, so concurrent workers don't all hit PG in the same
-# millisecond (thundering herd).  Shared by both cron paths
-# (``ThreadedServer.cron_thread`` and ``WorkerCron.sleep``) to keep them in sync.
+# Max random sleep after a cron worker wakes on a ``cron_trigger`` NOTIFY, so
+# concurrent workers don't all hit PG at once (thundering herd).  Shared by both
+# cron paths (``ThreadedServer.cron_thread`` / ``WorkerCron.sleep``).
 CRON_NOTIFY_JITTER_MAX_S = 0.1
 
 
 def memory_info(process: Any) -> int:
-    """Return the resident memory (RSS) of the process in bytes.
+    """Return the process's resident memory (RSS) in bytes.
 
     RSS, not VMS: on Python 3.13+ the allocator and GC reserve large virtual
-    ranges that never become resident, so VMS over-reports.  RSS reflects
-    actual physical pressure on every platform.
-
-    This is only a soft limit that flags a worker for orderly recycling.  The
-    hard cap belongs to a cgroup v2 limit on the systemd unit (``MemoryMax=`` +
-    ``MemorySwapMax=0``); an in-process ``RLIMIT_AS`` is avoided because the
-    allocator/gevent reserve multi-GB of never-resident virtual space, so the
-    cap would deny ``pthread_create`` on healthy workers.
+    ranges that never become resident, so VMS over-reports.  This feeds a soft
+    limit for orderly worker recycling; the hard cap belongs to a cgroup v2
+    limit on the systemd unit (``MemoryMax=`` + ``MemorySwapMax=0``), not an
+    in-process ``RLIMIT_AS`` (which would deny ``pthread_create`` on healthy
+    workers given all that never-resident virtual space).
     """
     return process.memory_info().rss
 
@@ -46,13 +40,10 @@ def memory_info(process: Any) -> int:
 def over_memory_soft_limit(process: Any, soft_limit: int) -> int | None:
     """Return the current RSS when it exceeds ``soft_limit``, else ``None``.
 
-    The single soft-memory-limit decision shared by ``Worker.check_limits``,
+    Shared soft-limit decision for ``Worker.check_limits``,
     ``ThreadedServer.process_limit`` and ``EventServer.process_limits``; each
-    caller then takes its own recycle action (flag the worker for orderly exit,
-    mark the over-limit thread, or ``SIGTERM`` the process) and logs at its own
-    level.  A ``soft_limit`` of 0 disables the check (gunicorn ``max_requests``
-    semantics); the ``/proc`` RSS read is skipped in that case rather than read
-    and discarded.
+    caller takes its own recycle action.  ``soft_limit`` of 0 disables the check
+    and skips the ``/proc`` RSS read.
     """
     if not soft_limit:
         return None
@@ -63,9 +54,8 @@ def over_memory_soft_limit(process: Any, soft_limit: int) -> int | None:
 def empty_pipe(fd: int) -> None:
     """Drain all pending data from a non-blocking pipe file descriptor.
 
-    Reads in 4 KiB blocks so an N-byte backlog drains in one syscall instead of
-    N (realistic N is small — the prefork signal handler dedups to a single
-    pending slot, so no backlog cap is needed — but blocks cost nothing extra).
+    Reads in 4 KiB blocks so a backlog drains in few syscalls (in practice the
+    backlog is tiny — the prefork signal handler dedups to one pending slot).
     """
     try:
         while os.read(fd, 4096):

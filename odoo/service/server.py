@@ -1,8 +1,8 @@
-"""Server facade: re-exports the server classes and their collaborators.
+"""Server facade: the public import surface for the server classes.
 
-The server flavors live in focused sibling modules; this module is the public
-import surface (``odoo.addons``, ``cli/`` and ``bus/`` import these names from
-``odoo.service.server``, so they are re-exported here):
+The flavors live in focused sibling modules; ``odoo.addons``, ``cli/`` and
+``bus/`` import these names from ``odoo.service.server``, so they are
+re-exported here:
 
     _base_server.py   CommonServer + the process-global on-stop registry
     _threaded.py      ThreadedServer (dev/threaded) + EventServer (evented/websocket)
@@ -12,11 +12,10 @@ import surface (``odoo.addons``, ``cli/`` and ``bus/`` import these names from
     lifecycle.py      start / restart / _reexec / preload entry points
     _watcher.py       autoreload filesystem watcher
 
-``server`` and ``server_phoenix`` are deliberately NOT re-exported: they live
-in ``odoo.service.lifecycle`` (the single source of truth) and every reader
-references them as ``lifecycle.server`` / ``lifecycle.server_phoenix``.  A
-forwarder here would be silently shadowed by a ``server.server_phoenix = X``
-assignment, so ``from odoo.service.server import server_phoenix`` raises
+``server`` and ``server_phoenix`` are deliberately NOT re-exported: they live in
+``lifecycle`` (single source of truth) and are read as ``lifecycle.server`` /
+``lifecycle.server_phoenix``.  A forwarder here would be silently shadowed by a
+``server.server_phoenix = X`` assignment, so importing them from here raises
 ``ImportError`` on purpose.
 """
 

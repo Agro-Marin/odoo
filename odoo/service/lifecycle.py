@@ -5,17 +5,14 @@ Module-level functions (no class wrapper) because external callers —
 ``cli/shell.py``, ``http/application.py``, ``_watcher.py`` — invoke them as
 plain functions.
 
-Also defines the ``server`` and ``server_phoenix`` module globals.  Other
-parts of ``service/`` mutate them as ``lifecycle.server_phoenix = True`` (not a
-``global`` in their own namespace) so every reader sees the same binding.
+Also defines the ``server`` and ``server_phoenix`` module globals.  Other parts
+of ``service/`` mutate them as ``lifecycle.server_phoenix = True`` so every
+reader sees the same binding.
 
 * ``server`` — current server instance, set by ``start``.
-* ``server_phoenix`` — "should we re-exec after stop?" flag, set ``True`` on
-  SIGHUP (``ThreadedServer.signal_handler``, ``PreforkServer.process_signals``)
-  and cleared in ``PreforkServer.stop``, read by ``start()`` after
-  ``server.run()`` returns.
-  The watcher's read is racy, but a stale read only costs one extra (idempotent)
-  SIGHUP, so no Lock is needed.
+* ``server_phoenix`` — "re-exec after stop?" flag, set ``True`` on SIGHUP and
+  read by ``start()`` after ``server.run()`` returns.  The watcher's read is
+  racy, but a stale read only costs one extra (idempotent) SIGHUP, so no Lock.
 """
 
 from __future__ import annotations
@@ -86,38 +83,32 @@ def _reexec(updated_modules: list[str] | None = None) -> None:
     args = stripped_sys_argv()
     if updated_modules:
         args += ["-u", ",".join(updated_modules)]
-    # Insert the interpreter as argv[0] unless already present in either form
-    # (full path or basename).  Checking both avoids a double-insert when
-    # ``sys.argv[0] == sys.executable``, which would make ``os.execve`` treat
-    # the python binary as a script.
+    # Insert the interpreter as argv[0] unless already present (full path or
+    # basename) — checking both avoids a double-insert that would make
+    # ``os.execve`` treat the python binary as a script.
     if not args or args[0] not in (sys.executable, exe):
         args.insert(0, sys.executable)
-    # ``os.execve`` (no shell): replaces the process in place, preserving the
-    # LISTEN_* env vars systemd socket activation needs.  ``args`` comes from
-    # ``stripped_sys_argv`` (sanitised).
+    # ``os.execve`` (no shell) replaces the process in place, preserving the
+    # LISTEN_* env vars systemd socket activation needs.
     os.execve(sys.executable, args, os.environ)  # noqa: S606
 
 
 def _run_post_install_tests(registry: Registry, update_module: bool) -> None:
     """Run the ``post_install`` test suite for a freshly (re)loaded registry.
 
-    Pregenerates QWeb asset bundles first when the suite contains an HTTPCase,
-    so the first in-test HTTP request doesn't pay the bundle-build cost and time
-    out.  Runs the suite into ``registry._assertion_report`` (mutated in place —
-    the caller reads ``wasSuccessful()`` for its return code) and logs the
-    test/query counts.
+    Pregenerates QWeb asset bundles first when the suite has an HTTPCase, so the
+    first in-test HTTP request doesn't pay the bundle-build cost and time out.
+    Runs into ``registry._assertion_report`` (mutated in place; the caller reads
+    ``wasSuccessful()``) and logs test/query counts.
     """
     from odoo.db.utils import seed_planner_stats
     from odoo.tests import loader
 
-    # Planner-stats floor: test suites only ever roll back, so tables that are
-    # populated exclusively by test data keep committed statistics of "empty"
-    # forever, and the planner degrades their hot queries into cartesian
-    # nested-loop plans that grow quadratically with accumulated test data —
-    # the intermittent "suite hang" (see seed_planner_stats). Committed on
-    # purpose: the floors are plain statistics any later ANALYZE overwrites.
-    # Never let the optimization abort a test run — a failure only means the
-    # suite runs at its previous (slower) speed.
+    # Planner-stats floor: test suites only roll back, so tables populated only
+    # by test data keep committed "empty" statistics, and the planner degrades
+    # their hot queries into quadratic nested-loop plans (the intermittent
+    # "suite hang").  Committed on purpose — plain stats any later ANALYZE
+    # overwrites.  Never let it abort the run; failure just means the old speed.
     try:
         with registry.cursor() as cr:
             seeded = seed_planner_stats(cr)
@@ -146,16 +137,12 @@ def _run_post_install_tests(registry: Registry, update_module: bool) -> None:
             env["ir.qweb"]._pregenerate_assets_bundles()
 
     # The threaded server enters preload holding ``Registry._lock`` (see
-    # ``ThreadedServer.run``: requests must not build registries while preload
-    # is in flight — upstream odoo/odoo#161438). By this point the registry IS
-    # fully loaded, and keeping the lock through the suite deadlocks any HTTP
-    # request from a test that does NOT enter registry test mode (BaseCase
-    # suites exercising real registry loading, e.g. test_http's
-    # ``database_breaking``): the worker blocks in ``Registry.__new__`` while
-    # this thread waits for its HTTP response. Release our holds for the
-    # duration of the suite and restore them after. HttpCase suites are
-    # unaffected either way (test mode swaps in ``DummyRLock``); the prefork
-    # path calls this without holding the lock (``held == 0``).
+    # ``ThreadedServer.run``; upstream odoo/odoo#161438).  The registry is now
+    # fully loaded, and holding the lock through the suite deadlocks any HTTP
+    # request from a test that does NOT enter registry test mode (it blocks in
+    # ``Registry.__new__`` while this thread waits for its response).  Release
+    # our holds for the suite and restore after.  HttpCase suites are unaffected
+    # (test mode uses ``DummyRLock``); the prefork path holds no lock (held == 0).
     lock = Registry._lock
     held = 0
     while getattr(lock, "_is_owned", bool)():
@@ -187,10 +174,8 @@ def preload_registries(dbnames: list[str] | None) -> int:
 
     preload_profiler = contextlib.nullcontext()
 
-    # ``env_int`` (not a raw ``int(...)``): a malformed value would raise
-    # ``ValueError`` here and abort server startup; every other ODOO_* knob in
-    # ``odoo.service`` is guard-parsed, and this one must not be the exception.
-    # 0 (or garbage) means "auto-size below".
+    # ``env_int`` (not raw ``int(...)``) so a malformed value doesn't abort
+    # startup, like every other ODOO_* knob.  0 (or garbage) means auto-size.
     registries_size = env_int("ODOO_REGISTRY_LRU_SIZE", 0, minimum=0, logger=_logger)
     if not registries_size:
         if os.name == "posix":
@@ -205,11 +190,8 @@ def preload_registries(dbnames: list[str] | None) -> int:
             )
             registries_size = (limit_memory_soft // avgsz) or 1
         if len(dbnames) > max(registries_size, Registry.registries.count):
-            # An explicit preload list larger than the (memory-derived or
-            # current) limit sizes the LRU to fit it: evicting registries that
-            # this very loop just built would silently discard the preload
-            # work.  Upstream guarded this with an ``elif`` that the posix
-            # branch above always shadowed, so it only ever fired on Windows.
+            # A preload list larger than the limit sizes the LRU to fit it, else
+            # this loop would evict registries it just built.
             registries_size = len(dbnames)
     if registries_size:
         Registry.registries.count = registries_size
@@ -257,26 +239,16 @@ def preload_registries(dbnames: list[str] | None) -> int:
 def _limit_malloc_arenas() -> None:
     """Cap glibc's malloc arenas at 2 on 64-bit Linux (threaded server only).
 
-    glibc's malloc() uses arenas [1] to efficiently handle memory allocation of
-    multi-threaded applications, allowing better allocation handling when
-    several threads call malloc() concurrently [2].  Due to Python's GIL this
-    optimization has no effect on multithreaded Python programs.  Unfortunately,
-    a downside of creating one arena per CPU core is an increase in virtual
-    memory — which Odoo relies upon to limit the memory usage of threaded
-    workers.  On 32-bit systems an arena defaults to 512K, on 64-bit to 64M [3],
-    so a threaded worker quickly reaches its memory soft limit under concurrent
-    requests.  We therefore cap arenas at 2 unless MALLOC_ARENA_MAX is set
-    (MALLOC_ARENA_MAX=0 restores glibc's default behaviour).
+    glibc's malloc() creates one arena per CPU core [1][2] to reduce contention
+    between threads — useless under Python's GIL, and each 64-bit arena reserves
+    64M of virtual memory [3], so a threaded worker hits its memory soft limit
+    under concurrent requests.  Cap at 2 unless MALLOC_ARENA_MAX is set
+    (MALLOC_ARENA_MAX=0 restores glibc's default).
 
-    Skipped when the interpreter is running free-threaded (no GIL).  This fork
-    is being made free-threading-ready, so guard for that build ahead of time:
-    without the GIL the many HTTP-handler threads ``malloc()`` in genuine
-    parallel and capping to 2 arenas would serialize them on 2 arena mutexes —
-    real contention rather than the current no-op.  The memory rationale also
-    weakens there: the soft limit measures RSS (see ``_helpers.memory_info``),
-    which extra arenas inflate far less than VMS.  Under the GIL (today's
-    default) behaviour is unchanged.  Set MALLOC_ARENA_MAX explicitly to
-    override on either build.
+    Skipped on a free-threaded (no-GIL) build, which this fork targets: there
+    the HTTP-handler threads ``malloc()`` in genuine parallel and 2 arenas would
+    serialize them on 2 mutexes (real contention); the memory rationale also
+    weakens, since the RSS soft limit is inflated far less by arenas than VMS.
 
     [1] https://sourceware.org/glibc/wiki/MallocInternals#Arenas_and_Heaps
     [2] https://www.gnu.org/software/libc/manual/html_node/The-GNU-Allocator.html
@@ -296,11 +268,8 @@ def _limit_malloc_arenas() -> None:
 
         libc = ctypes.CDLL("libc.so.6")
         M_ARENA_MAX = -8
-        # Explicit check, NOT ``assert``: under ``python -O`` an ``assert``
-        # statement — and the ``mallopt()`` call inside it — is stripped, so the
-        # arena cap would silently never be applied and the threaded worker's
-        # virtual-memory soft-limit accounting would degrade.  ``mallopt``
-        # returns 1 on success, 0 on failure.
+        # Explicit check, NOT ``assert``: ``python -O`` strips asserts (and the
+        # ``mallopt()`` inside), silently skipping the cap.  Returns 1 on success.
         ok = libc.mallopt(ctypes.c_int(M_ARENA_MAX), ctypes.c_int(2)) == 1
     except Exception:
         ok = False
@@ -310,16 +279,14 @@ def _limit_malloc_arenas() -> None:
 
 def start(preload: list[str] | None = None, stop: bool = False) -> int:
     """Start the odoo http server and cron processor."""
-    # ``server`` is the canonical handle other modules read as
-    # ``lifecycle.server`` (see module docstring); the global binding is the
-    # design, hence the PLW0603 suppression.
+    # ``server`` is the canonical handle other modules read as ``lifecycle.server``
+    # (see module docstring); the global binding is by design.
     global server  # noqa: PLW0603
 
     load_server_wide_modules()
     import odoo.http
 
-    # Imported lazily (not at module top) so ``server.py`` can do
-    # ``from . import lifecycle`` without a top-level cycle.
+    # Lazy import so ``server.py`` can ``from . import lifecycle`` without a cycle.
     from .server import EventServer, PreforkServer, ThreadedServer
 
     if odoo.evented:
@@ -354,11 +321,8 @@ def start(preload: list[str] | None = None, stop: bool = False) -> int:
     try:
         rc = server.run(preload, stop)
     finally:
-        # Stop the watcher on every exit path, including an exception out of
-        # ``server.run`` (e.g. a port-bind ``OSError`` raised from
-        # ``http_spawn``).  Otherwise the inotify thread and its kernel watches
-        # leak, and ``FSWatcherInotify.stop``'s ``del self.watcher`` — which
-        # frees those watches before a reexec — never runs.
+        # Stop the watcher on every exit path (incl. an exception out of
+        # ``server.run``), else the inotify thread and its kernel watches leak.
         if watcher:
             watcher.stop()
     # like the legend of the phoenix, all ends with beginnings
@@ -371,9 +335,8 @@ def start(preload: list[str] | None = None, stop: bool = False) -> int:
 def restart() -> None:
     """Restart the server.
 
-    No-op if the module-level ``server`` has not been assigned yet —
-    e.g. an addon importing the autoreload watcher before ``start()`` runs
-    would otherwise crash with ``AttributeError: 'NoneType' has no attribute 'pid'``.
+    No-op if the module-level ``server`` is not yet assigned (e.g. the watcher
+    fires before ``start()`` runs), which would otherwise crash on ``.pid``.
     """
     if server is None:
         _logger.warning(

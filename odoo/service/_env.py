@@ -1,13 +1,11 @@
 """Guarded parsing of the ``ODOO_*`` environment-variable service knobs.
 
-One ``read → convert → on garbage warn and fall back`` mechanism for every
-service knob (pg_dump/pg_restore timeouts, HTTP socket timeout, reload timeout,
-preload-profiler interval, ...) so none can silently skip the guard.  Imports
-only ``os`` and ``logging``, so it sits below the rest of ``odoo.service`` with
-no import cycle.
+One ``read → convert → on garbage warn and fall back`` path for every service
+knob (pg_dump/pg_restore timeouts, HTTP socket timeout, reload timeout, ...) so
+none can skip the guard.  Imports only ``os`` and ``logging`` — no import cycle.
 
-Logging is the caller's: pass a ``logger`` to surface the warning under that
-operator-facing name, or omit it to parse silently.
+Pass a ``logger`` to surface the warning under that name, or omit it to parse
+silently.
 """
 
 from __future__ import annotations
@@ -67,13 +65,11 @@ def _parse(
                 "%s=%r is not %s; using default %s", name, raw, label, default
             )
         return default
-    # ``float("nan")`` / ``float("inf")`` parse successfully but slip past both
-    # the fallback above and the ``value < minimum`` clamp below (every
-    # comparison with nan is False, and inf is never below a finite minimum), so
-    # a garbage ``ODOO_*=nan`` would propagate a non-finite timeout/interval to
-    # ``socket.settimeout`` etc. and crash far from the config point.  Treat
-    # non-finite as garbage.  (``int`` never yields non-finite, so this only
-    # bites the float path.)
+    # ``nan``/``inf`` parse fine but slip past both the fallback above and the
+    # ``value < minimum`` clamp below (nan comparisons are always False, inf is
+    # never below a finite minimum), then crash far away in
+    # ``socket.settimeout`` etc.  Treat non-finite as garbage.  (float path only:
+    # ``int`` never yields non-finite.)
     if conv is float and not math.isfinite(value):
         if logger is not None:
             logger.warning(

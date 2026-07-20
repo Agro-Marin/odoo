@@ -3,11 +3,10 @@
 * ``ThreadedServer`` — the default single-process server: a threaded werkzeug
   WSGI server plus in-process cron threads.
 * ``EventServer`` — the evented/websocket long-polling server, run as the
-  dedicated ``odoo-bin evented`` subprocess in prefork mode.  Despite the
-  legacy naming around it (``gevent_port``, ``limit_memory_soft_gevent`` —
-  kept for operator-config compatibility), this fork dropped gevent: it is a
-  plain threaded werkzeug server whose requests hold the socket open for
-  websocket traffic.
+  dedicated ``odoo-bin evented`` subprocess in prefork mode.  Despite the legacy
+  naming (``gevent_port``, ``limit_memory_soft_gevent`` — kept for config
+  compatibility), this fork dropped gevent: it is a plain threaded werkzeug
+  server whose requests hold the socket open for websocket traffic.
 
 Both subclass ``CommonServer`` (``_base_server.py``).
 """
@@ -54,12 +53,10 @@ from .wsgi import RequestHandler, ThreadedWSGIServerReloadable
 _logger = logging.getLogger("odoo.service.server")
 
 # Cadence of the main-loop limit monitor (``process_limit``) while no limit is
-# currently breached.  Decoupled from ``SLEEP_INTERVAL`` (60 s), which made
-# ``limit_time_real`` / memory-soft-limit enforcement up to a full minute late
-# in threaded mode; the check itself is microseconds (``threading.enumerate``
-# plus one ``/proc`` RSS read), so a 5 s cadence costs nothing measurable —
-# the prefork master polls its workers every 4 s (``beat``) for the same job.
-# Once a breach IS detected, ``run()`` switches to its own 1 s drain loop.
+# breached.  Decoupled from ``SLEEP_INTERVAL`` (60 s), which delayed
+# ``limit_time_real`` / memory-soft-limit enforcement by up to a minute; the
+# check is microseconds, so 5 s costs nothing (the prefork master polls every
+# 4 s).  Once a breach is detected, ``run()`` switches to a 1 s drain loop.
 LIMIT_MONITOR_INTERVAL_S = 5.0
 
 
@@ -81,9 +78,8 @@ class ThreadedServer(CommonServer):
             # shutdown on kill -INT or -TERM
             self.quit_signals_received += 1
             if self.quit_signals_received > 1:
-                # Forced shutdown.  ``os.write`` to fd 2 is a single
-                # async-signal-safe syscall; ``sys.stderr.write`` could deadlock
-                # on the buffer lock if the signal landed mid-write.
+                # Forced shutdown.  ``os.write`` to fd 2 is async-signal-safe;
+                # ``sys.stderr.write`` could deadlock on the buffer lock.
                 os.write(2, b"Forced shutdown.\n")
                 os._exit(0)
             # interrupt run() to start shutdown
@@ -116,12 +112,10 @@ class ThreadedServer(CommonServer):
             # ``not daemon`` filter would drop them and make ``limit_time_real``
             # inert.
             if thread_type in ("http", "cron", "job"):
-                # Snapshot start_time once: the worker sets it to None between
-                # units of work, so reading it twice (guard + subtraction) can
-                # race into ``now - None`` -> TypeError, which would crash the
-                # monitor loop (and the whole --workers=0 server) since it only
-                # catches KeyboardInterrupt.  The race window is wide on the
-                # free-threaded build this fork targets.
+                # Snapshot start_time once: the worker nulls it between units of
+                # work, so reading it twice could race into ``now - None`` ->
+                # TypeError and crash the monitor loop (it only catches
+                # KeyboardInterrupt).  The window is wide on a free-threaded build.
                 start_time = getattr(thread, "start_time", None)
                 if start_time:
                     thread_execution_time = now - start_time
@@ -188,17 +182,11 @@ class ThreadedServer(CommonServer):
         (``IrCron._process_jobs`` / ``IrJob._process_jobs``); ``channel`` the
         PG NOTIFY channel armed on the recycled ``postgres`` connection.
         """
-        # Steve Reich timing style with thundering herd mitigation.
-        #
-        # On startup, all workers bind on a notification channel in
-        # postgres so they can be woken up at will. At worst they wake
-        # up every SLEEP_INTERVAL with a jitter. The jitter creates a
-        # chorus effect that helps distribute on the timeline the moment
-        # when individual worker wake up.
-        #
-        # On NOTIFY, all workers are awaken at the same time, sleeping
-        # just a bit prevents they all poll the database at the exact
-        # same time. This is known as the thundering herd effect.
+        # Steve Reich timing style with thundering-herd mitigation: workers
+        # LISTEN so a NOTIFY can wake them at will, else they wake every
+        # SLEEP_INTERVAL + jitter (a chorus effect that spreads wakeups out).
+        # A short random sleep after a NOTIFY keeps them all from polling PG at
+        # the same instant (the thundering herd).
 
         cron_logger = self.logger.getChild(f"{label}{number}")
         cron_logger.info("Alive")
@@ -210,15 +198,13 @@ class ThreadedServer(CommonServer):
 
         def _run_cron(cr):
             pg_conn = cr.connection
-            # Arm LISTEN on our channel (no-op on a replica).  This connection
-            # is recycled on the age limit, so the idle-session timeout is left
-            # as configured (unlike the prefork workers' persistent connection).
+            # Arm LISTEN on our channel (no-op on a replica).  This connection is
+            # recycled on the age limit, so the idle-session timeout is left as
+            # configured (unlike the prefork workers' persistent connection).
             arm_cron_listen(cr, cron_logger, channel=channel)
             cr.commit()
-            # Both timestamps are monotonic: wall-clock jumps (NTP slew, DST,
-            # manual clock correction) would otherwise mis-schedule the
-            # full-scan pass. Initialized far in the past so the first tick
-            # always triggers a full scan.
+            # Monotonic timestamps so wall-clock jumps (NTP, DST) can't
+            # mis-schedule the full scan; -inf so the first tick always scans.
             check_all_time = float("-inf")
             all_db_names = []
             alive_time = time.monotonic()
@@ -230,18 +216,15 @@ class ThreadedServer(CommonServer):
                     <= config["limit_time_worker_cron"]
                 ):
                     _sel.select(timeout=SLEEP_INTERVAL + number)
-                    # Random stagger after wake so concurrent crons reacting to
-                    # the same NOTIFY don't all poll PG at once (thundering
-                    # herd).  Shared constant keeps it in sync with
-                    # ``WorkerCron.sleep``.
+                    # Random stagger after wake so concurrent crons don't all
+                    # poll PG at once (shared constant with ``WorkerCron.sleep``).
                     time.sleep(random.uniform(0, CRON_NOTIFY_JITTER_MAX_S))
                     try:
                         notified = drain_cron_notifies(pg_conn, channel=channel)
                     except Exception:
                         if pg_conn.closed:
-                            # connection closed, exit the loop with an
-                            # explicit sentinel so the outer loop can log
-                            # "connection lost" instead of "max age reached".
+                            # Sentinel so the outer loop logs "connection lost"
+                            # rather than "max age reached".
                             return RECYCLE_CONN_LOST
                         raise
 
@@ -278,10 +261,9 @@ class ThreadedServer(CommonServer):
                 conn = db.db_connect("postgres")
                 with contextlib.closing(conn.cursor()) as cr:
                     reason = _run_cron(cr)
-                # No explicit ``cr.connection.close()``: ``"postgres"`` is in
-                # ``Cursor._close``'s never-pool set, so closing the cursor
-                # already discards the connection (``give_back(keep_in_pool=
-                # False)``) — which is the recycle we want.
+                # No explicit ``connection.close()``: ``"postgres"`` is never
+                # pooled, so closing the cursor already discards the connection
+                # — the recycle we want.
                 if reason == RECYCLE_CONN_LOST:
                     cron_logger.warning("Postgres connection lost, reconnecting...")
                 else:
@@ -335,10 +317,9 @@ class ThreadedServer(CommonServer):
         if os.name == "posix":
             signal.signal(signal.SIGINT, self.signal_handler)
             signal.signal(signal.SIGTERM, self.signal_handler)
-            # SIGCHLD is intentionally NOT installed: ThreadedServer forks no
-            # worker children (only short-lived pg_dump/pg_restore subprocesses,
-            # reaped by ``subprocess.run``).  A handler would only cause spurious
-            # wakeups of the main loop's ``time.sleep``.
+            # No SIGCHLD handler: ThreadedServer forks no worker children (only
+            # pg_dump/pg_restore subprocesses, reaped by ``subprocess.run``), so
+            # one would only cause spurious main-loop wakeups.
             signal.signal(signal.SIGHUP, self.signal_handler)
             signal.signal(signal.SIGXCPU, self.signal_handler)
             signal.signal(signal.SIGQUIT, dumpstacks)
@@ -358,12 +339,11 @@ class ThreadedServer(CommonServer):
     def stop(self) -> None:
         """Shut down the WSGI server, waiting briefly for non-daemon threads.
 
-        Every thread ``ThreadedServer`` spawns (HTTP, cron, WSGI listener,
-        watcher) is daemon and dies with the process, so the join loop skips
-        them; it exists to give *application-spawned* non-daemon threads up to
-        one second to finish.  It busy-waits (``join(0.05)`` + ``sleep(0.05)``)
-        rather than one long ``join()`` because ``Thread.join`` masks signals,
-        and a second SIGINT must still force the shutdown.
+        Every thread ``ThreadedServer`` spawns is daemon, so the join loop is
+        there to give application-spawned non-daemon threads up to one second.
+        It busy-waits (``join(0.05)`` + ``sleep(0.05)``) rather than one long
+        ``join()`` because ``Thread.join`` masks signals, and a second SIGINT
+        must still force the shutdown.
         """
         if lifecycle.server_phoenix:
             self.logger.info("Initiating server reload")
@@ -467,7 +447,7 @@ class ThreadedServer(CommonServer):
                         self.reload()
                         # ``reload`` sends SIGHUP: the handler sets
                         # ``server_phoenix`` and bumps ``quit_signals_received``,
-                        # so the loop exits and the server restarts after stop.
+                        # so the loop exits and the server restarts.
                     else:
                         time.sleep(1)
                 else:
@@ -479,14 +459,12 @@ class ThreadedServer(CommonServer):
         return None
 
     def _has_other_http_requests(self) -> bool:
-        """Return True if an HTTP request that has NOT exceeded a limit is in flight.
+        """Return True if a non-limit-exceeding HTTP request is in flight.
 
-        ``run()``'s reload gate waits (up to ``SLEEP_INTERVAL``) for unrelated
-        in-flight requests to drain, so a limit breach on one request doesn't
-        abort others.  HTTP threads are identified by ``type == "http"``, never
-        ``not t.daemon`` (they ARE daemon — that filter would make this always
-        False and reload immediately); ``limits_reached_threads`` membership
-        separates the offenders from the others.
+        ``run()``'s reload gate uses this to wait for unrelated requests to drain
+        so a limit breach on one doesn't abort others.  HTTP threads are matched
+        by ``type == "http"`` (they ARE daemon, so a ``not daemon`` filter would
+        always be False); ``limits_reached_threads`` separates the offenders.
         """
         return any(
             t not in self.limits_reached_threads
@@ -497,9 +475,8 @@ class ThreadedServer(CommonServer):
     def reload(self) -> None:
         """Trigger a graceful reload via ``lifecycle.restart``.
 
-        Delegates rather than calling ``os.kill(self.pid, SIGHUP)`` directly,
-        which would raise on Windows (no SIGHUP).  ``lifecycle.restart`` handles
-        both: SIGHUP on POSIX, a background ``_reexec`` thread on Windows.
+        Delegates rather than ``os.kill(self.pid, SIGHUP)`` (no SIGHUP on
+        Windows); ``lifecycle.restart`` handles both platforms.
         """
         lifecycle.restart()
 
@@ -544,16 +521,12 @@ class EventServer(CommonServer):
     def _quit_signal_handler(self, sig: int, frame: Any) -> None:
         """Turn SIGINT/SIGTERM into a graceful shutdown of the evented server.
 
-        ``serve_forever()`` runs on the main thread, so the handler must NOT
-        call ``self.httpd.shutdown()`` directly — it would block waiting for
-        ``serve_forever``, which is suspended in this handler (deadlock).
-        Instead raise ``KeyboardInterrupt``.  ``serve_forever()`` does NOT catch
-        it (verified) — it propagates out and ``start()`` handles it as a clean
-        shutdown, so ``run()``'s ``finally`` reaches ``stop()`` and the
-        ``on_stop`` hooks run (the bus websocket ``_kick_all`` /
-        ``_close_notify_conn``, the dart-sass compiler).  Without that handling,
-        the SIGTERM that systemd and the watchdog send would be logged as a
-        fatal crash (CRITICAL + ``exit(1)``) instead of a graceful stop.
+        ``serve_forever()`` runs on the main thread, so calling
+        ``self.httpd.shutdown()`` here would deadlock (it waits for the
+        serve_forever this handler suspends).  Raise ``KeyboardInterrupt``
+        instead: serve_forever doesn't catch it, so it propagates to ``start()``
+        which handles it as a clean stop and lets ``run()``'s ``finally`` run the
+        ``on_stop`` hooks — otherwise a routine SIGTERM logs as a fatal crash.
         """
         raise KeyboardInterrupt
 
@@ -588,12 +561,10 @@ class EventServer(CommonServer):
         except SystemExit:
             raise
         except KeyboardInterrupt:
-            # SIGINT/SIGTERM via ``_quit_signal_handler`` — a graceful shutdown,
-            # NOT a crash.  ``serve_forever()`` does not catch KeyboardInterrupt,
-            # so without this arm it would fall through to ``except BaseException``
-            # and every normal stop (systemd, watchdog recycle) would log CRITICAL
-            # and ``exit(1)`` — restart flapping and false alerts.  ``run()``'s
-            # ``finally`` still calls ``stop()``, so the on_stop hooks run.
+            # SIGINT/SIGTERM via ``_quit_signal_handler`` — a graceful stop, not a
+            # crash.  Without this arm it would fall through to
+            # ``except BaseException`` and every normal stop would log CRITICAL +
+            # ``exit(1)`` (restart flapping, false alerts).
             self.logger.info("Evented/WebSocket service stopped")
         except BaseException as exc:
             self.logger.critical("Uncaught error in main loop", exc_info=True)
@@ -601,9 +572,8 @@ class EventServer(CommonServer):
 
     def stop(self) -> None:
         # ``self.httpd`` is ``None`` until ``start()`` builds it; guard so a
-        # ``stop()`` from ``run()``'s ``finally`` after an early ``start()``
-        # failure doesn't mask the real error.  After ``serve_forever`` returns,
-        # ``shutdown()`` is a no-op (the shut-down event is already set).
+        # ``stop()`` after an early ``start()`` failure doesn't mask the real
+        # error.  After ``serve_forever`` returns, ``shutdown()`` is a no-op.
         if self.httpd:
             self.httpd.shutdown()
         super().stop()
