@@ -413,9 +413,9 @@ class TestRotationMigrationGeneralization(TestHardeningFixesBase):
 
 
 class TestEO78SudoReads(TestHardeningFixesBase):
-    """t23743 (EO7.8.26): 3 reads that must not AccessError for a
-    non-privileged calling context — allow_key_fallback (x2 decrypt paths)
-    and the category defaults read in _onchange_category_id."""
+    """Three reads that must not AccessError for a non-privileged calling
+    context — allow_key_fallback (x2 decrypt paths) and the category defaults
+    read in _onchange_category_id."""
 
     def _low_priv_user(self, login):
         return self.env["res.users"].create(
@@ -488,8 +488,8 @@ class TestEO78SudoReads(TestHardeningFixesBase):
 
 
 class TestRateLimitBucketLockTimeoutScope(TestHardeningFixesBase):
-    """t23743 (EO7.8.26): a strict consume_token() must not leave
-    lock_timeout tightened for the rest of the transaction."""
+    """A strict consume_token() must not leave lock_timeout tightened for the
+    rest of the transaction."""
 
     def test_lock_timeout_reset_after_strict_consume(self):
         cred = self.env["credential.credential"].create(

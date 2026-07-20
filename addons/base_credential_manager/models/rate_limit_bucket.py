@@ -15,21 +15,16 @@ MAX_REFILL_SECONDS = 3600
 
 
 class RateLimitBucket(models.Model):
-    """Generic rate limit token bucket stored in database.
+    """Generic rate limit token bucket stored in database."""
 
-    Uses token bucket algorithm:
-    - Bucket has maximum capacity (rate_limit_requests)
-    - Tokens refill at constant rate (based on rate_limit_period)
-    - Each request consumes 1 token
-    - Request rejected if no tokens available
-
-    Works with any model that has these fields:
-    - enable_rate_limiting (Boolean)
-    - rate_limit_requests (Integer) - max requests per period
-    - rate_limit_period (Selection) - 'second', 'minute', 'hour', 'day'
-
-    Database-level locking ensures atomicity across workers.
-    """
+    # Token bucket: each bucket holds up to rate_limit_requests tokens, refilled
+    # at a constant rate derived from the configured window; every request
+    # consumes 1 token and is rejected once the bucket is empty. Endpoint models
+    # are duck-typed and expected to expose enable_rate_limiting (Boolean),
+    # rate_limit_requests (Integer) and either webhook_rate_limit_window (Integer
+    # seconds) or rate_limit_period (Selection: second/minute/hour/day) — see
+    # _get_endpoint_config for how the window is resolved. Row-level DB locking
+    # keeps consume_token atomic across workers.
 
     _name = "rate.limit.bucket"
     _description = "Rate Limit Token Bucket"
@@ -86,12 +81,12 @@ class RateLimitBucket(models.Model):
     def _get_period_seconds(self, period: str) -> int:
         """Convert period string to seconds.
 
-        Raises on unknown values instead of silently defaulting to 60s.
-        A typo in an endpoint's rate_limit_period config should surface
-        immediately — silent fallback meant a 1-character mistake could
-        turn a 'day' cap into a 'minute' cap, multiplying the effective
-        limit by 1440 without any operator notice.
+        :raises ValueError: if ``period`` is not a known period key.
         """
+        # Raise on unknown values instead of silently defaulting to 60s: a typo
+        # in an endpoint's rate_limit_period config should surface immediately —
+        # a silent fallback let a 1-character mistake turn a 'day' cap into a
+        # 'minute' cap, multiplying the effective limit by 1440 with no notice.
         try:
             return self._PERIOD_SECONDS[period]
         except KeyError as exc:
@@ -101,14 +96,11 @@ class RateLimitBucket(models.Model):
             ) from exc
 
     def _get_endpoint_config(self) -> tuple[int, int, float]:
-        """Get rate limit configuration from endpoint record.
+        """Get rate limit configuration from the endpoint record.
 
-        Returns:
-            tuple: (max_requests, period_seconds, refill_rate)
-                - max_requests (int): Maximum requests per period
-                - period_seconds (int): Window length, in seconds
-                - refill_rate (float): Tokens per second
-
+        :return: ``(max_requests, period_seconds, refill_rate)`` — max requests
+            per period, window length in seconds, and tokens per second.
+        :rtype: tuple[int, int, float]
         """
         self.ensure_one()
 
@@ -166,15 +158,12 @@ class RateLimitBucket(models.Model):
         endpoint_record: Any,
         company_id: int | None = None,
     ) -> Any:
-        """Get or create rate limit bucket for endpoint+company.
+        """Get or create the rate limit bucket for an endpoint+company.
 
-        Args:
-            endpoint_record: Record with rate limit fields (e.g., webhook.subscription)
-            company_id: Company ID (or None for endpoint-wide limit)
-
-        Returns:
-            rate.limit.bucket record
-
+        :param endpoint_record: record exposing rate-limit fields (e.g.
+            webhook.subscription).
+        :param company_id: company id, or None for an endpoint-wide limit.
+        :return: the rate.limit.bucket record.
         """
         # Generate bucket key
         company_part = company_id or "global"
@@ -236,37 +225,24 @@ class RateLimitBucket(models.Model):
     STRICT_LOCK_TIMEOUT_MS = 3000
 
     def consume_token(self, strict: bool = False) -> bool:
-        """Attempt to consume one token from bucket (atomic operation).
+        """Attempt to consume one token from the bucket atomically.
 
-        Two locking strategies, selected by ``strict``:
-
-        * **strict=True (fail CLOSED)** — plain ``SELECT ... FOR UPDATE`` under
-          a bounded ``lock_timeout`` (:attr:`STRICT_LOCK_TIMEOUT_MS`). The
-          request WAITS briefly for the lock; if it can't get it in time the
-          statement raises, which the exception handler turns into a DENY.
-          This is the correct choice for credential-access / auth endpoints:
-          under a parallel burst the cap is enforced, never silently bypassed.
-
-        * **strict=False (fail OPEN, default)** — ``SELECT ... FOR UPDATE SKIP
-          LOCKED``. If another transaction holds the row we skip it and ALLOW
-          the request. This preserves availability for best-effort callers
-          (e.g. webhooks) but means a highly-parallel burst CAN exceed the cap,
-          because contending requests are waved through instead of counted.
-          Do NOT use the default mode where the limit is a security control.
-
-        PARALLELISM TRADEOFF: the fail-open default trades correctness under
-        contention for availability. ``strict=True`` trades a small bounded
-        wait (and hard denial on timeout) for a cap that actually holds under
-        concurrency. Pick per caller.
-
-        Args:
-            strict: If True, fail CLOSED on lock contention / timeout / internal
-                    errors (return False, deny). If False (default), fail OPEN.
-
-        Returns:
-            bool: True if token consumed successfully, False if rate limit exceeded
-
+        :param strict: if True, fail CLOSED on lock contention / timeout /
+            internal errors (deny); if False (default), fail OPEN (allow).
+        :return: True if a token was consumed, False if the rate limit was
+            exceeded or the request was denied in strict mode.
+        :rtype: bool
         """
+        # Locking strategy per mode — pick per caller:
+        # * strict=True: SELECT ... FOR UPDATE under a bounded lock_timeout
+        #   (STRICT_LOCK_TIMEOUT_MS). The request waits briefly; on timeout the
+        #   statement raises and the except branch denies. Use for credential /
+        #   auth endpoints so the cap holds under a parallel burst instead of
+        #   being silently bypassed.
+        # * strict=False (default): SELECT ... FOR UPDATE SKIP LOCKED. A locked
+        #   row is skipped and the request allowed — preserves availability for
+        #   best-effort callers (webhooks) but a highly-parallel burst CAN exceed
+        #   the cap. Never use where the limit is a security control.
         self.ensure_one()
 
         savepoint_name = f"rate_limit_lock_{self.id}"
@@ -442,10 +418,8 @@ class RateLimitBucket(models.Model):
 
     @api.model
     def cron_gc_old_buckets(self) -> int:
-        """Garbage collect rate limit buckets that haven't been used in 30 days.
-
-        Run this as a scheduled action to prevent table bloat.
-        """
+        """Garbage-collect rate limit buckets unused for 30 days."""
+        # Scheduled action: prevents unbounded growth of the bucket table.
         threshold = fields.Datetime.now() - timedelta(days=30)
 
         old_buckets = self.search(

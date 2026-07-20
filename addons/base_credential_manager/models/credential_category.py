@@ -2,10 +2,7 @@ from odoo import api, fields, models
 
 
 class CredentialCategory(models.Model):
-    """Credential category defining the type of credentials.
-
-    Examples: API Key, Bearer Token, OAuth 2.0, Certificate, etc.
-    """
+    """Credential category defining the type of credentials (API key, bearer token, OAuth 2.0, certificate, etc.)."""
 
     _name = "credential.category"
     _description = "Credential Category"
