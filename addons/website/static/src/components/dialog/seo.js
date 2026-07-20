@@ -628,10 +628,17 @@ class TitleDescription extends Component {
     }
 
     get url() {
-        if (this.seoContext.seoName) {
-            return this.props.url.replace(this.seoNameUrl, this.seoContext.seoName);
+        const newName = this.seoContext.seoName || this.props.seoNameDefault;
+        // Replace the LAST occurrence of the current slug: the SEO name lives in
+        // the final path segment (e.g. /blog/<slug>-<id>). A plain
+        // String.replace() rewrites the *first* match, mangling the URL when the
+        // slug also appears in the host or a parent segment.
+        const url = this.props.url;
+        const idx = url.lastIndexOf(this.seoNameUrl);
+        if (idx === -1) {
+            return url;
         }
-        return this.props.url.replace(this.seoNameUrl, this.props.seoNameDefault);
+        return url.slice(0, idx) + newName + url.slice(idx + this.seoNameUrl.length);
     }
 
     get titleOrDescriptionNotSet() {
