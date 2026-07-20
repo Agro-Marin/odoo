@@ -38,8 +38,8 @@ class SaleReport(models.Model):
     def _table_query(self) -> SQL:
         """Override to add UNION ALL with POS orders.
 
-        Returns:
-            SQL: SQL object containing sale orders UNION ALL pos orders
+        :return: sale orders UNION ALL pos orders
+        :rtype: SQL
         """
         sale_query = super()._table_query
 
@@ -84,27 +84,26 @@ class SaleReport(models.Model):
             if join_type is None:
                 # Base table
                 from_parts.append(SQL("%s %s", SQL(table_name), SQL(alias)))
+            # JOIN clause
+            elif isinstance(table_name, SQL):
+                from_parts.append(
+                    SQL(
+                        "%s %s ON %s",
+                        SQL(join_type),
+                        table_name,
+                        SQL(on_condition),
+                    ),
+                )
             else:
-                # JOIN clause
-                if isinstance(table_name, SQL):
-                    from_parts.append(
-                        SQL(
-                            "%s %s ON %s",
-                            SQL(join_type),
-                            table_name,
-                            SQL(on_condition),
-                        ),
-                    )
-                else:
-                    from_parts.append(
-                        SQL(
-                            "%s %s %s ON %s",
-                            SQL(join_type),
-                            SQL(table_name),
-                            SQL(alias),
-                            SQL(on_condition),
-                        ),
-                    )
+                from_parts.append(
+                    SQL(
+                        "%s %s %s ON %s",
+                        SQL(join_type),
+                        SQL(table_name),
+                        SQL(alias),
+                        SQL(on_condition),
+                    ),
+                )
 
         return SQL("\n    ").join(from_parts)
 
@@ -125,8 +124,8 @@ class SaleReport(models.Model):
     def _get_pos_select_fields(self) -> dict:
         """Registry of fields for POS SELECT clause.
 
-        Returns:
-            dict: Mapping of {field_name: sql_expression}
+        :return: mapping of {field_name: sql_expression}
+        :rtype: dict
         """
         currency_rate_pos = self._case_value_or_one("pos.currency_rate")
         currency_rate_table = self._case_value_or_one("account_currency_table.rate")
@@ -217,8 +216,8 @@ class SaleReport(models.Model):
     def _get_pos_from_tables(self) -> list:
         """Registry of tables and JOINs for POS FROM clause.
 
-        Returns:
-            list: List of tuples (table_name, alias, join_type, on_condition)
+        :return: list of tuples (table_name, alias, join_type, on_condition)
+        :rtype: list
         """
         currency_table = self.env["res.currency"]._get_simple_currency_table(
             self.env.companies,
@@ -255,8 +254,8 @@ class SaleReport(models.Model):
     def _get_pos_where_conditions(self) -> list:
         """Registry of conditions for POS WHERE clause.
 
-        Returns:
-            list: List of SQL condition strings that will be AND'ed together
+        :return: SQL condition strings that will be AND'ed together
+        :rtype: list
         """
         return [
             "l.sale_order_line_id IS NULL",  # Exclude lines linked to sale orders
@@ -265,8 +264,8 @@ class SaleReport(models.Model):
     def _get_pos_group_by_fields(self) -> list:
         """Registry of fields for POS GROUP BY clause.
 
-        Returns:
-            list: List of field expressions for GROUP BY clause
+        :return: field expressions for GROUP BY clause
+        :rtype: list
         """
         return [
             "l.order_id",
@@ -303,24 +302,19 @@ class SaleReport(models.Model):
     def _available_additional_pos_fields(self):
         """Hook to map additional sale.report fields to POS equivalents.
 
-        Returns:
-            dict: Mapping of {field_name: pos_sql_expression}
+        :return: mapping of {field_name: pos_sql_expression}
+        :rtype: dict
         """
         return {
             "warehouse_id": "picking.warehouse_id",
         }
 
     def _fill_pos_fields(self, additional_fields):
-        """Fill additional fields for POS with appropriate values.
+        """Map additional sale.report fields to their POS equivalent or NULL.
 
-        For fields that exist in sale.report but not in POS, set to NULL.
-        For fields that have POS equivalents, use the mapped expression.
-
-        Args:
-            additional_fields: Dictionary mapping fields with their values
-
-        Returns:
-            dict: Filtered dictionary with POS-compatible fields
+        :param additional_fields: sale.report field names to resolve for POS
+        :return: mapping of {field_name: pos_sql_expression_or_NULL}
+        :rtype: dict
         """
         # Start with NULL for all additional fields
         filled_fields = {}
