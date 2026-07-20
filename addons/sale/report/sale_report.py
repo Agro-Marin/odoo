@@ -196,10 +196,11 @@ class SaleReport(models.Model):
     # ------------------------------------------------------------
 
     def _get_select_fields(self) -> dict:
-        """Registry of fields for SELECT clause.
+        """Registry of fields for the SELECT clause.
 
-        Returns:
-            dict: Mapping of {field_name: sql_expression}
+        :return: order-preserving mapping of field name (without AS clause) to
+            SQL expression (may be a multi-line string)
+        :rtype: dict
         """
         currency_rate_o = self._case_value_or_one("o.currency_rate")
         currency_rate_table = self._case_value_or_one("account_currency_table.rate")
@@ -332,10 +333,11 @@ class SaleReport(models.Model):
         return fields
 
     def _get_from_tables(self) -> list:
-        """Registry of tables and JOINs for FROM clause.
+        """Registry of tables and joins for the FROM clause.
 
-        Returns:
-            list: List of tuples (table_name, alias, join_type, on_condition)
+        :return: list of ``(table_name, alias, join_type, on_condition)`` tuples;
+            ``join_type`` and ``on_condition`` are ``None`` for the base table.
+        :rtype: list
         """
         currency_table = self.env["res.currency"]._get_simple_currency_table(
             self.env.companies,
@@ -358,20 +360,20 @@ class SaleReport(models.Model):
         ]
 
     def _get_where_conditions(self) -> list:
-        """Registry of conditions for WHERE clause.
+        """Registry of conditions for the WHERE clause.
 
-        Returns:
-            list: List of SQL condition strings that will be AND'ed together
+        :return: SQL condition strings that are AND'ed together
+        :rtype: list
         """
         return [
             "l.display_type IS NULL",
         ]
 
     def _get_group_by_fields(self) -> list:
-        """Registry of fields for GROUP BY clause.
+        """Registry of fields for the GROUP BY clause.
 
-        Returns:
-            list: List of field expressions for GROUP BY clause
+        :return: field expressions for the GROUP BY clause
+        :rtype: list
         """
         return [
             "l.product_id",
@@ -405,15 +407,10 @@ class SaleReport(models.Model):
         ]
 
     def _select_additional_fields(self):
-        """Hook to return additional fields SQL specification for select part of the table query.
+        """Hook for inheriting modules to add custom fields to the SELECT clause.
 
-        This method can be overridden by inheriting modules to add custom fields to the report.
-
-        Returns:
-            dict: Mapping field_name -> SQL computation of field
-
-        Example:
-            return {'custom_field': 'o.custom_column'}
+        :return: mapping of field name to SQL expression
+        :rtype: dict
         """
         return {}
 

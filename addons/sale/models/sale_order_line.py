@@ -2076,10 +2076,9 @@ class SaleOrderLine(models.Model):
     def _raise_field_change_error(self, lines, field_description, reason=""):
         """Raise an error when a field cannot be changed.
 
-        Args:
-            lines: Recordset of lines that cannot be changed
-            field_description: Human-readable field name (e.g., "product", "unit of measure")
-            reason: Optional reason for the restriction (e.g., "because it is in a confirmed state")
+        :param lines: recordset of lines that cannot be changed.
+        :param field_description: human-readable field name (e.g. "product", "unit of measure").
+        :param reason: optional reason for the restriction (e.g. "because it is in a confirmed state").
         """
         reason_text = f" {reason}" if reason else ""
 
