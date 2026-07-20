@@ -310,7 +310,7 @@ class ThemeUtils(models.AbstractModel):
         # Call specific theme post copy
         theme_post_copy = "_%s_post_copy" % mod.name
         if hasattr(self, theme_post_copy):
-            _logger.info("Executing method %s" % theme_post_copy)
+            _logger.info("Executing method %s", theme_post_copy)
             method = getattr(self, theme_post_copy)
             return method(mod)
         return False

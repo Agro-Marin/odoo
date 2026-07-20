@@ -38,7 +38,7 @@ class WebsiteCustom_Blocked_Third_Party_Domains(models.TransientModel):
                 except LocationParseError:
                     raise ValidationError(
                         _("The following domain is not valid:") + "\n" + domain
-                    )
+                    ) from None
                 if domain:
                     domains.append(domain)
 

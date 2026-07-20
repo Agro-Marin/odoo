@@ -55,12 +55,12 @@ class WebsiteRoute(models.Model):
                     tocreate.append({"path": url})
 
         if tocreate:
-            _logger.info("Add %d website.route" % len(tocreate))
+            _logger.info("Add %d website.route", len(tocreate))
             self.create(tocreate)
 
         if paths:
             find = self.search([("path", "in", list(paths.keys()))])
-            _logger.info("Delete %d website.route" % len(find))
+            _logger.info("Delete %d website.route", len(find))
             find.unlink()
 
 

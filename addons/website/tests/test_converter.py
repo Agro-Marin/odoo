@@ -1,6 +1,5 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 import threading
-import unicodedata
 
 from odoo.modules.registry import Registry
 from odoo.tests.common import BaseCase

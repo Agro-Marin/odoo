@@ -274,7 +274,9 @@ class Website(models.Model):
         )
 
         for website in self:
-            menus = all_menus.filtered(lambda m: m.website_id == website)
+            menus = all_menus.filtered(
+                lambda m, website=website: m.website_id == website
+            )
 
             # use field parent_id (1 query) to determine field child_id (2 queries by level)"
             children = dict.fromkeys(menus, ())
@@ -494,7 +496,7 @@ class Website(models.Model):
             except ValueError:
                 raise ValidationError(
                     _("The provided website domain is not a valid URL.")
-                )
+                ) from None
 
             if tools.urls._contains_dot_segments(parsed.path):
                 raise ValidationError(
@@ -1968,11 +1970,9 @@ class Website(models.Model):
             # Warn only if the 'sitemap' key is absent from routing (legacy behavior)
             if "sitemap" not in rule.endpoint.routing:
                 logger.warning(
-                    "No Sitemap value provided for controller %s (%s)"
-                    % (
-                        rule.endpoint.original_endpoint,
-                        ",".join(rule.endpoint.routing["routes"]),
-                    )
+                    "No Sitemap value provided for controller %s (%s)",
+                    rule.endpoint.original_endpoint,
+                    ",".join(rule.endpoint.routing["routes"]),
                 )
 
             converters = rule._converters or {}

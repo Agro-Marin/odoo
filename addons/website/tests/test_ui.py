@@ -4,7 +4,6 @@ import base64
 import json
 from urllib.parse import urlencode
 
-import odoo
 import odoo.tests
 from odoo import http
 from odoo.fields import Command

@@ -7,8 +7,7 @@ from lxml import html
 from odoo.fields import Command
 from odoo.http import root
 from odoo.tests import HttpCase, common, tagged
-from odoo.tests.common import HOST
-from odoo.tools import config, mute_logger
+from odoo.tools import mute_logger
 
 from odoo.addons.http_routing.tests.common import MockRequest
 from odoo.addons.website.controllers.main import Website
