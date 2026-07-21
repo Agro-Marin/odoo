@@ -13,20 +13,14 @@ from odoo.exceptions import ValidationError
 _logger = logging.getLogger(__name__)
 
 # Cooldown between "encryption key not configured" warnings, process-wide.
-# The previous implementation used a one-shot latch that never reset, so a
-# worker that logged the warning once would stay silent for the rest of its
-# life — even if the operator fixed and re-broke the key configuration.
 # 5 minutes is short enough that recovery events are visible and long enough
 # that a crashing cron job won't spam the log on every iteration.
 _ENCRYPTION_KEY_WARNING_COOLDOWN_SECONDS = 300
 
-# Process-wide state for the encryption key machinery. Previously these lived
-# as class attributes mutated through ``type(self)``, which meant every model
-# that inherited the mixin got its OWN cache and its OWN warning latch.
-# Rotating the key at runtime and only invalidating one model's cache left
-# sibling models returning stale versions. Module-level state + a lock gives
-# every consumer one authoritative view, and ``_invalidate_key_version_cache``
-# now clears the real storage rather than one dynamic class' shadow copy.
+# Process-wide state for the encryption key machinery, module-level (not per
+# concrete class) behind a lock so every mixin consumer shares one
+# authoritative view of the key cache and warning cooldown;
+# ``_invalidate_key_version_cache`` clears this shared storage.
 _KEY_STATE_LOCK = threading.Lock()
 
 # Module-level mutable state held in a single dict so helpers can update
@@ -441,11 +435,8 @@ class CredentialEncryptionMixin(models.AbstractModel):
     def _warn_encryption_key_missing(self, binary: bool) -> None:
         """Rate-limited warning when ODOO_API_ENCRYPTION_KEY is absent.
 
-        Single entry point shared by every decrypt path. Uses a monotonic
-        time-based cooldown (not a one-shot latch) so recovery / re-break
-        cycles stay visible to operators — the regression the file header
-        comment warns against. Cooldown state is module-level so every
-        mixin consumer shares one clock.
+        Single entry point shared by every decrypt path; the module-level
+        monotonic cooldown means every mixin consumer shares one clock.
         """
         now = time.monotonic()
         with _KEY_STATE_LOCK:
@@ -481,10 +472,9 @@ class CredentialEncryptionMixin(models.AbstractModel):
         try:
             # Uploads arrive base64-encoded (form POST → Odoo Binary field).
             # Strip that outer wrap to get the actual file bytes before
-            # handing them to Fernet; the Fernet token itself is already
-            # base64url internally, so wrapping it again in base64 (the
-            # pre-19.0.1.0.2 behaviour) just bloats storage by ~33% and
-            # diverged us from the char-path wire format.
+            # handing them to Fernet; the Fernet token is already base64url
+            # internally and is stored verbatim, matching the char-path wire
+            # format.
             raw_bytes = base64.b64decode(value)
             key = self._get_encryption_key()
             cipher = Fernet(key)
@@ -536,8 +526,7 @@ class CredentialEncryptionMixin(models.AbstractModel):
         :rtype: int | None
         """
         # Cached in module-level state (not per concrete class) so every
-        # credential-bearing model shares one answer; a per-class cache left
-        # siblings with divergent views after a key rotation.
+        # credential-bearing model shares one answer after a key rotation.
         with _KEY_STATE_LOCK:
             if _KEY_STATE["version_cache_checked"]:
                 return _KEY_STATE["version_cache"]
@@ -639,11 +628,9 @@ class CredentialEncryptionMixin(models.AbstractModel):
         """List every concrete model with registered encrypted columns.
 
         Walks the registry for models that inherit this mixin AND declare a
-        non-empty ``_ENCRYPTED_FIELD_PAIRS``. This is the discovery step of
-        the key-rotation migration: previously the migration re-encrypted
-        credential.credential only, silently stranding every other mixin
-        consumer (e.g. api.endpoint.outbound's OAuth client secret) on the
-        old key.
+        non-empty ``_ENCRYPTED_FIELD_PAIRS``; the discovery step of the
+        key-rotation migration, so every mixin consumer is re-encrypted, not
+        just credential.credential.
         """
         names = []
         for name in self.env.registry:
