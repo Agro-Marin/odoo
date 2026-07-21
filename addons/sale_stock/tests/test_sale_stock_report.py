@@ -245,6 +245,20 @@ class TestSaleStockReports(TestReportsCommon):
         with self.assertRaises(AccessError):
             draft.with_user(other).check_access("read")
 
+        # ...which is what `can_open` reports, so the client renders the
+        # reference as plain text instead of a link that raises on click.
+        self.assertFalse(
+            report_values["docs"]["lines"][0]["document_out"]["can_open"],
+            "An unreadable source document must not be offered as a link",
+        )
+        own_report = self.env["stock.forecasted_product_product"].get_report_values(
+            docids=self.product.ids
+        )
+        self.assertTrue(
+            own_report["docs"]["lines"][0]["document_out"]["can_open"],
+            "The document's own salesman must still get a working link",
+        )
+
     def test_add_reference_remove_reference_works_with_multiple_records(self):
         so = self.env["sale.order"].create(
             {

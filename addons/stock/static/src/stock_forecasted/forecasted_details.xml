@@ -38,11 +38,12 @@
                             <td t-attf-rowspan="#{skip_row > 0 and skip_row}"/>
                             <td t-attf-rowspan="#{skip_row > 0 and skip_row}">
                                 <t t-if="line.document_in">
-                                    <a t-if="line.document_in"
+                                    <a t-if="line.document_in.can_open"
                                         href="#"
                                         t-on-click.prevent="() => this.props.openView(line.document_in._name, 'form', line.document_in.id)"
                                         t-out="line.document_in.name"
                                         class="fw-bold"/>
+                                    <span t-else="" t-out="line.document_in.name" class="fw-bold"/>
                                     <span t-if="line.receipt_date">:
                                         <t t-out="incomingSentence(line, skip_row > 0 ? mergesLinesData[line_index].tot_qty : line.quantity)"/>
                                     </span>
@@ -72,12 +73,15 @@
                                 t-att-disabled="opGuard.busy"
                                 t-on-click="() => this._onClickChangePriority('stock.picking', line.move_out.picking_id)"
                                 name="change_priority_link"/>
-                            <a t-if="line.document_out"
+                            <a t-if="line.document_out and line.document_out.can_open"
                                 href="#"
                                 t-attf-class="#{line.is_matched and 'fst-italic'}"
                                 t-on-click.prevent="() => this.props.openView(line.document_out._name, 'form', line.document_out.id)"
                                 t-out="line.document_out.name"
                                 class="fw-bold"/>
+                            <span t-elif="line.document_out"
+                                t-attf-class="fw-bold #{line.is_matched and 'fst-italic'}"
+                                t-out="line.document_out.name"/>
                         </td>
                         <td class="p-0 text-center border-start-0">
                             <t t-if="displayReserve(line, line_index)">
