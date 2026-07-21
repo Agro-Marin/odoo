@@ -14,7 +14,8 @@ class TestAccountBankStatementLine(AccountTestInvoicingCommon):
         super().setUpClass()
 
         cls.currency_1 = cls.company_data["currency"]
-        # We need a third currency as you could have a company's currency != journal's currency !=
+        # We need a third currency as you could have a company's currency != journal's
+        # currency != foreign currency.
         cls.currency_2 = cls.setup_other_currency("EUR")
         cls.currency_3 = cls.setup_other_currency(
             "CAD", rates=[("2016-01-01", 6.0), ("2017-01-01", 4.0)]
@@ -142,12 +143,13 @@ class TestAccountBankStatementLine(AccountTestInvoicingCommon):
         expected_counterpart_values,
     ):
         """Test the edition of a statement line from itself or from its linked journal entry.
-        :param journal:                     The account.journal record that will be set on the statement line.
-        :param amount:                      The amount in journal's currency.
-        :param amount_currency:             The amount in the foreign currency.
-        :param journal_currency:            The journal's currency as a res.currency record.
-        :param foreign_currency:            The foreign currency as a res.currency record.
-        :param expected_liquidity_values:   The expected account.move.line values for the liquidity line.
+
+        :param journal: The account.journal record that will be set on the statement line.
+        :param amount: The amount in journal's currency.
+        :param amount_currency: The amount in the foreign currency.
+        :param journal_currency: The journal's currency as a res.currency record.
+        :param foreign_currency: The foreign currency as a res.currency record.
+        :param expected_liquidity_values: The expected account.move.line values for the liquidity line.
         :param expected_counterpart_values: The expected account.move.line values for the counterpart line.
         """
         if journal_currency:
@@ -292,13 +294,13 @@ class TestAccountBankStatementLine(AccountTestInvoicingCommon):
         expected_liquidity_values,
         expected_counterpart_values,
     ):
-        """Test '_test_statement_line_edition' using the customer (positive amounts)
-        & the supplier flow (negative amounts).
-        :param amount:                      The amount in journal's currency.
-        :param amount_currency:             The amount in the foreign currency.
-        :param journal_currency:            The journal's currency as a res.currency record.
-        :param foreign_currency:            The foreign currency as a res.currency record.
-        :param expected_liquidity_values:   The expected account.move.line values for the liquidity line.
+        """Run '_test_statement_line_edition' for the customer (positive) and supplier (negative) flows.
+
+        :param amount: The amount in journal's currency.
+        :param amount_currency: The amount in the foreign currency.
+        :param journal_currency: The journal's currency as a res.currency record.
+        :param foreign_currency: The foreign currency as a res.currency record.
+        :param expected_liquidity_values: The expected account.move.line values for the liquidity line.
         :param expected_counterpart_values: The expected account.move.line values for the counterpart line.
         """
 
@@ -582,7 +584,7 @@ class TestAccountBankStatementLine(AccountTestInvoicingCommon):
 
         st_line = self.env["account.bank.statement.line"].create(statement_line_vals)
 
-        # You can't messed up the journal entry by adding another liquidity line.
+        # You can't mess up the journal entry by adding another liquidity line.
         addition_lines_to_create = [
             {
                 "debit": 1.0,
@@ -606,9 +608,7 @@ class TestAccountBankStatementLine(AccountTestInvoicingCommon):
             st_line.line_ids.create(addition_lines_to_create)
 
     def test_statement_line_move_onchange_1(self):
-        """Test the consistency between the account.bank.statement.line and the generated account.move.lines
-        using the form view emulator.
-        """
+        """Test the consistency between the account.bank.statement.line and the generated account.move.lines."""
 
         # Check the initial state of the statement line.
         self.assertBankStatementLine(
@@ -1013,7 +1013,8 @@ class TestAccountBankStatementLine(AccountTestInvoicingCommon):
                 },
             ],
         )
-        # Fix the statement balance start, the balance_end_real is computed, making it complete
+        # Fix the statement balance start, the balance_end_real is recomputed accordingly so it
+        # stays complete and becomes valid again
         statement1.balance_start = 1
         statement1.invalidate_recordset(["is_valid"])
         self.assertRecordValues(
@@ -1229,8 +1230,8 @@ class TestAccountBankStatementLine(AccountTestInvoicingCommon):
             statement1 + statement2, [{"is_valid": False}, {"is_valid": True}]
         )
 
-        # moving statement2 the line between statement1 and statement3 should make statement1 valid again
-        # and statement3 invalid
+        # moving statement2 to the line between statement1 and statement3 should make statement1
+        # valid again and statement3 invalid
         statement2.line_ids = line3
         statement2.flush_model()
         (statement1 + statement2 + statement3).invalidate_recordset(["is_valid"])
@@ -1472,9 +1473,7 @@ class TestAccountBankStatementLine(AccountTestInvoicingCommon):
         )
 
     def test_formatted_read_group_running_balance(self):
-        """`formatted_read_group` under the `show_running_balance_latest` context
-        annotates each group with its anchor line's running balance (computed in
-        one batched pass over all anchors, not once per group)."""
+        """Test `formatted_read_group` annotates each group with its anchor line's running balance."""
         self.env.user.company_id = self.company_data_2["company"]
         self.create_bank_transaction(10, "2020-02-01")
         self.create_bank_transaction(20, "2020-02-02")
@@ -1536,7 +1535,7 @@ class TestAccountBankStatementLine(AccountTestInvoicingCommon):
             ],
         )
 
-        # Split on a line adjutant to another statement
+        # Split on a line adjacent to another statement
         statement2 = (
             self.env["account.bank.statement"]
             .with_context({"split_line_id": line6.id})
@@ -2025,7 +2024,7 @@ class TestAccountBankStatementLine(AccountTestInvoicingCommon):
             ],
         )
 
-        # create a statement line with already canceled lines
+        # create a statement with already canceled/draft lines
         statement3 = self.env["account.bank.statement"].create(
             {
                 "line_ids": [Command.set((line3 + line4).ids)],
