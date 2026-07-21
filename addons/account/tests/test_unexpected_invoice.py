@@ -64,7 +64,7 @@ class TestUnexpectedAmount(AccountTestInvoicingCommon):
             "The price of 10 is deviant and thus should trigger a warning",
         )
 
-        # cleaning the bills context to have an unbiased env test for the wizard trigerring
+        # cleaning the bills context to have an unbiased env test for the wizard triggering
         bills = bills.with_context(
             {
                 k: v
