@@ -95,7 +95,7 @@ class AccountFiscalPosition(models.Model):
     state_ids = fields.Many2many("res.country.state", string="Federal States")
     zip_from = fields.Char(string="Zip Range From")
     zip_to = fields.Char(string="Zip Range To")
-    # To be used in hiding the 'Federal States' field('attrs' in view side) when selected 'Country' has 0 states.
+    # Used to hide the 'Federal States' field in the view when the selected 'Country' has no states.
     states_count = fields.Integer(compute="_compute_states_count")
     foreign_vat = fields.Char(
         string="Foreign Tax ID",
@@ -145,13 +145,11 @@ class AccountFiscalPosition(models.Model):
                 )
 
     def _get_foreign_tax_chart_template(self, country):
-        """Return the chart-template mapping entry guessed for ``country``.
-
-        Single source of truth for the ``_guess_chart_template`` +
-        ``_get_chart_template_mapping`` lookup shared by
-        ``_compute_foreign_vat_header_mode`` (banner) and
-        ``action_create_foreign_taxes`` (install/instantiate).
-        """
+        """Return the chart-template mapping entry guessed for ``country``."""
+        # Single source of truth for the ``_guess_chart_template`` +
+        # ``_get_chart_template_mapping`` lookup shared by
+        # ``_compute_foreign_vat_header_mode`` (banner) and
+        # ``action_create_foreign_taxes`` (install/instantiate).
         chart_template = self.env["account.chart.template"]
         template_code = chart_template._guess_chart_template(country)
         return chart_template._get_chart_template_mapping()[template_code]
@@ -607,9 +605,9 @@ class ResPartner(models.Model):
     def _asset_difference_search(self, account_type, operator, operand):
         # Only a numeric comparison against a real amount can be pushed into the
         # HAVING clause below. Anything else (``!=``, ``in``, an "is set" filter
-        # whose operand is a bool, ...) previously returned an empty domain --
-        # i.e. it silently matched *every* partner, turning the filter into a
-        # lie. Fail loudly instead so the caller knows the filter is unsupported.
+        # whose operand is a bool, ...) cannot: silently matching *every* partner
+        # would turn the filter into a lie, so fail loudly instead and let the
+        # caller know the filter is unsupported.
         if (
             operator not in ("<", "=", ">", ">=", "<=")
             or isinstance(operand, bool)
@@ -631,12 +629,9 @@ class ResPartner(models.Model):
         # mirror of the compute's (posted, same company scope, receivable/payable),
         # without an ``active`` restriction.
         #
-        # ``aml.partner_id IS NOT NULL`` replaces an older ``res_partner`` anchor
-        # + ``RIGHT JOIN account_account`` that only served to drop partnerless
-        # lines (the RIGHT JOIN's NULL rows were already killed by the posted
-        # filter). Dropping them here keeps the whole query line-driven -- no
-        # full ``res_partner`` scan -- and avoids leaking a NULL group into the
-        # ``= 0``/``>= 0`` result set.
+        # ``aml.partner_id IS NOT NULL`` drops partnerless lines while keeping
+        # the whole query line-driven -- no full ``res_partner`` scan -- and
+        # avoids leaking a NULL group into the ``= 0``/``>= 0`` result set.
         rows = self.env.execute_query(
             SQL(
                 """
@@ -917,8 +912,8 @@ class ResPartner(models.Model):
     display_invoice_template_pdf_report_id = fields.Boolean(
         default=_default_display_invoice_template_pdf_report_id, store=False
     )
-    # Computed fields to order the partners as suppliers/customers according to the
-    # amount of their generated incoming/outgoing account moves
+    # Ranking fields to order the partners as suppliers/customers according to the
+    # number of their generated incoming/outgoing account moves
     supplier_rank = fields.Integer(default=0, copy=False)
     customer_rank = fields.Integer(default=0, copy=False)
     autopost_bills = fields.Selection(
@@ -968,14 +963,13 @@ class ResPartner(models.Model):
         and attribute each descendant partner's value to every ancestor present
         in ``self``.
 
-        ``total_invoiced`` and the move-count fields all need the same shape:
-        expand ``self`` to its whole ``child_of`` subtree in one query, read-group
-        the target model once, then roll every descendant's aggregate up the
-        ``parent_id`` chain onto the ancestors that belong to ``self``.
-
         :return: a ``{partner_id: aggregated_value}`` mapping, zero-filled for
             every id in ``self``.
         """
+        # ``total_invoiced`` and the move-count fields all need the same shape:
+        # expand ``self`` to its whole ``child_of`` subtree in one query,
+        # read-group the target model once, then roll every descendant's
+        # aggregate up the ``parent_id`` chain onto the ancestors in ``self``.
         # retrieve all children partners and prefetch 'parent_id' on them
         all_partners = self.with_context(active_test=False).search_fetch(
             [("id", "child_of", self.ids)],
@@ -1219,11 +1213,7 @@ class ResPartner(models.Model):
 
     @api.ondelete(at_uninstall=False)
     def _unlink_if_partner_in_account_move(self):
-        """
-        Prevent the deletion of a partner "Individual", child of a company if:
-        - partner in 'account.move'
-        - state: all states (draft and posted)
-        """
+        """Prevent deleting a partner still referenced by a draft or posted account move."""
         moves = (
             self.env["account.move"]
             .sudo()
@@ -1328,13 +1318,13 @@ class ResPartner(models.Model):
     def get_partner_localisation_fields_required_to_invoice(self, country_id):
         """Return the fields that must be filled to create an invoice for the selected country.
 
-        Used by portal flows (e.g. a user requesting an invoice) to dynamically build form inputs
-        for the fields legally required in the company's country_id. The fields are ir.model.fields
-        records so translations are handled.
-
         :param country_id: The country for which we want the fields.
         :return: an array of ir.model.fields for which the user should provide values.
         """
+        # Used by portal flows (e.g. a user requesting an invoice) to
+        # dynamically build form inputs for the fields legally required in the
+        # company's country_id. The fields are ir.model.fields records so
+        # translations are handled.
         return []
 
     # -------------------------------------------------------------------------
@@ -1551,7 +1541,7 @@ class ResPartner(models.Model):
         """Search all partners and find one that matches one of the parameters.
         :param name:    The name of the partner.
         :param phone:   The phone or mobile of the partner.
-        :param mail:    The mail of the partner.
+        :param email:   The email of the partner.
         :param vat:     The vat number of the partner.
         :param domain:  An extra domain to apply.
         :param company: The company of the partner.
@@ -1599,12 +1589,13 @@ class ResPartner(models.Model):
         return super()._merge_method(destination, source)
 
     def _deduce_country_code(self):
-        """deduce the country code based on the information available.
-        we have three cases:
-        - country_code is BE but the VAT number starts with FR, the country code is FR, not BE
-        - if a country-specific field is set (e.g. the codice_fiscale), that country is used for the country code
-        - if the VAT number has no ISO country code, use the country_code in that case.
-        """
+        """Deduce the country code based on the information available."""
+        # Three cases:
+        # - country_code is BE but the VAT number starts with FR: the country
+        #   code is FR, not BE
+        # - if a country-specific field is set (e.g. the codice_fiscale), that
+        #   country is used for the country code
+        # - if the VAT number has no ISO country code, use the country_code
         self.ensure_one()
         _vat, country_code = self._run_vat_checks(
             self.country_id, self.vat, validation=False
@@ -1624,9 +1615,8 @@ class ResPartner(models.Model):
 
     @api.depends("country_id")
     def _compute_partner_company_registry_placeholder(self):
-        """Provides a dynamic placeholder on the company registry field for countries that may need it.
-        Add your country and the value you want in the _ref_company_registry map.
-        """
+        """Provide a dynamic placeholder on the company registry field for countries that may need it."""
+        # Add your country and the value you want in the ``_ref_company_registry`` map.
         for partner in self:
             country_code = partner.country_id.code or ""
             partner.partner_company_registry_placeholder = _ref_company_registry.get(
@@ -1644,11 +1634,9 @@ class ResPartner(models.Model):
 
     @api.model
     def _clear_removed_edi_formats(self, *formats):
-        """Helper to clear outdated EDI formats.
-
-        Usually called as an uninstall hook of modules that add these formats.
-        It avoids the form view to become unusable after module uninstallation.
-        """
+        """Clear outdated EDI formats."""
+        # Usually called as an uninstall hook of modules that add these formats;
+        # it avoids the form view becoming unusable after module uninstallation.
         # ``company_dependent`` JSON columns key values by ``str(company.id)``
         # (see odoo/orm/fields/_field_sql.py). ``::char`` casts to ``character(1)``,
         # which truncates every company id to its first digit, so ids >= 10 read

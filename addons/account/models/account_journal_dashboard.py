@@ -53,12 +53,10 @@ class AccountJournal(models.Model):
     )
 
     def _dashboard_currency(self):
-        """Currency to display this journal's amounts in.
-
-        Falls back to the company currency (read as sudo) so the dashboard still
-        renders when the user has read access on the journal but not its company.
-        """
+        """Currency to display this journal's amounts in."""
         self.ensure_one()
+        # Fall back to the company currency (read as sudo) so the dashboard still
+        # renders when the user has read access on the journal but not its company.
         return self.currency_id or self.env["res.currency"].browse(
             self.company_id.sudo().currency_id.id
         )
@@ -241,12 +239,15 @@ class AccountJournal(models.Model):
         return self.env.cr.fetchall()
 
     def _get_moves_to_hash(self, include_pre_last_hash, early_stop):
+        """Return the chains of moves to hash for this journal.
+
+        :param include_pre_last_hash: if True, include moves hashed before the
+            last hash chain; otherwise return only the trailing unhashed moves
+        :param early_stop: if True, stop searching when at least one record is found
         """
-        If we have INV/1, INV/2 not hashed, then INV/3, INV/4 hashed, then INV/5 and INV/6 not hashed
-        :param include_pre_last_hash: if True, this will include INV/1 and INV/2. Otherwise not.
-        :param early_stop: if True, stop searching when we found at least one record
-        :return:
-        """
+        # e.g. with INV/1, INV/2 not hashed, then INV/3, INV/4 hashed, then INV/5
+        # and INV/6 not hashed: include_pre_last_hash decides whether INV/1 and
+        # INV/2 are included.
         return (
             self.env["account.move"]
             .search(
@@ -900,12 +901,7 @@ class AccountJournal(models.Model):
         return SQL("TRUE AS to_pay")
 
     def _get_sale_purchase_aggregation_selects(self, to_pay_select):
-        """Common SELECT list for the aggregated sale/purchase move queries.
-
-        ``to_pay_select`` is the only part that varies between the "open" and
-        "to check" queries (and it is a documented override point via
-        :meth:`_get_to_pay_select`).
-        """
+        """Common SELECT list for the aggregated sale/purchase move queries."""
         return [
             SQL("journal_id"),
             SQL("company_id"),
@@ -917,6 +913,9 @@ class AccountJournal(models.Model):
                 " * amount_residual) AS amount_total"
             ),
             SQL("COUNT(*)"),
+            # to_pay_select is the only SELECT entry that varies between the "open"
+            # and "to check" queries; the open query supplies it via the
+            # _get_to_pay_select override point.
             to_pay_select,
         ]
 

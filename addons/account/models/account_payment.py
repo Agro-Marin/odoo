@@ -393,14 +393,10 @@ class AccountPayment(models.Model):
     def _prepare_move_lines_per_type(
         self, write_off_line_vals=None, force_balance=None
     ):
-        """Prepare the dictionary containing default vals for account.move.lines for the current payment.
-        returns a dictionary of list of python dictionary containing liquidity, counterpart and writeoff lines.
-            E.g.
-            {
-                'liquidity_lines': [...],
-                'counterpart_lines': [...],
-                'writeoff_lines': [...],
-            }
+        """Prepare the default account.move.line vals for the current payment, grouped by line type.
+
+        :return: A dict with keys ``liquidity_lines``, ``counterpart_lines``,
+            ``write_off_lines`` and ``withholding_lines``, each holding a list of vals dicts.
         """
         self.ensure_one()
 
@@ -619,10 +615,9 @@ class AccountPayment(models.Model):
         "state",
     )
     def _compute_reconciliation_status(self):
-        """Compute the field indicating if the payments are already reconciled with something.
-        This field is used for display purpose (e.g. display the 'reconcile' button redirecting to the reconciliation
-        widget).
-        """
+        """Compute whether the payments are already reconciled with something."""
+        # These fields drive display only (e.g. the 'reconcile' button redirecting
+        # to the reconciliation widget).
         for pay in self:
             liquidity_lines, counterpart_lines, writeoff_lines = pay._seek_for_lines()
 
@@ -679,8 +674,8 @@ class AccountPayment(models.Model):
 
     @api.depends("payment_method_code")
     def _compute_show_require_partner_bank(self):
-        """Computes if the destination bank account must be displayed in the payment form view. By default, it
-        won't be displayed but some modules might change that, depending on the payment type."""
+        """Compute whether the partner bank account must be shown and required in the payment form view."""
+        # By default it isn't shown; some modules override this depending on the payment type.
         for payment in self:
             if payment.journal_id.type == "cash":
                 payment.show_partner_bank_account = False
@@ -746,9 +741,9 @@ class AccountPayment(models.Model):
 
     @api.depends("available_payment_method_line_ids")
     def _compute_payment_method_line_id(self):
-        """Compute the 'payment_method_line_id' field.
-        This field is not computed in '_compute_payment_method_line_fields' because it's a stored editable one.
-        """
+        """Compute the 'payment_method_line_id' field."""
+        # Computed here rather than in '_compute_payment_method_line_fields'
+        # because it is a stored editable field.
         for pay in self:
             available_payment_method_lines = pay.available_payment_method_line_ids
             inbound_payment_method = (
@@ -1043,7 +1038,7 @@ class AccountPayment(models.Model):
 
     @api.depends("partner_id", "amount", "date", "payment_type")
     def _compute_duplicate_payment_ids(self):
-        """Retrieve move ids with same partner_id, amount and date as the current payment"""
+        """Retrieve the other payments considered duplicates of the current one."""
         payment_to_duplicate_move = self._fetch_duplicate_reference()
         for payment in self:
             # Uses payment._origin.id to handle records in edition/existing records and 0 for new records
@@ -1058,13 +1053,10 @@ class AccountPayment(models.Model):
         return [("id", "in", move_ids)]
 
     def _fetch_duplicate_reference(self, matching_states=("draft", "in_process")):
-        """Retrieve move ids for possible duplicates of payments. Duplicates moves:
-        - Have the same partner_id, amount and date as the payment
-        - Are not reconciled
-        - Represent a credit in the same account receivable or a debit in the same account payable as the payment, or
-        - Represent a credit in outstanding receipts or debit in outstanding payments, so bank statement lines with an
-         outstanding counterpart can be matched, or
-        - Are in the suspense account
+        """Retrieve possible duplicate payments, keyed by payment id.
+
+        A duplicate is another payment sharing the same company, partner, date,
+        payment type, amount and currency, and whose state is in matching_states.
         """
         # Does not perform unnecessary check if partner_id or amount are not set, nor if payment is posted
         payments = self.filtered(
@@ -1098,8 +1090,8 @@ class AccountPayment(models.Model):
                 for field_name in used_fields
             }
             values["id"] = self._origin.id or 0
-            # The amount total depends on the field line_ids and is calculated upon saving, we needed a way to get it even when the
-            # invoices has not been saved yet.
+            # A new or in-edition payment has no up-to-date row in the DB, so inject
+            # its current field values into the query to still detect duplicates.
             casted_values = SQL(", ").join(
                 SQL(
                     "%s::%s",
@@ -1157,9 +1149,8 @@ class AccountPayment(models.Model):
 
     @api.constrains("payment_method_line_id")
     def _check_payment_method_line_id(self):
-        """Ensure the 'payment_method_line_id' field is not null.
-        Can't be done using the regular 'required=True' because the field is a computed editable stored one.
-        """
+        """Ensure the 'payment_method_line_id' field is not null."""
+        # Can't use the regular 'required=True' because the field is a computed editable stored one.
         for pay in self:
             if not pay.payment_method_line_id:
                 raise ValidationError(
@@ -1487,7 +1478,7 @@ class AccountPayment(models.Model):
         self.write({"is_sent": False})
 
     def action_post(self):
-        """draft -> posted"""
+        """Confirm the payment: draft -> in_process (or paid for cash journals)."""
         # Do not allow posting if the account is required but not trusted
         for payment in self:
             if (

@@ -12,10 +12,10 @@ _logger = logging.getLogger(__name__)
 
 
 class AccountMoveSend(models.AbstractModel):
-    """Shared class between the two sending wizards.
-    See 'account.move.send.batch.wizard' for multiple invoices sending wizard (async)
-    and 'account.move.send.wizard' for single invoice sending wizard (sync).
-    """
+    """Shared class between the two sending wizards."""
+
+    # 'account.move.send.batch.wizard' is the multiple-invoices wizard (async);
+    # 'account.move.send.wizard' is the single-invoice wizard (sync).
 
     _name = "account.move.send"
     _description = "Account Move Send"
@@ -286,8 +286,7 @@ class AccountMoveSend(models.AbstractModel):
         if mail_template.use_default_to:
             defaults = move._message_get_default_recipients()[move.id]
             # `_message_get_default_recipients` is called without `with_cc`, so
-            # there is no CC here; the previous `email_cc = defaults["email_to"]`
-            # merely duplicated the To addresses (deduplicated downstream).
+            # there is no CC here.
             email_cc = ""
             email_to = defaults["email_to"]
             partners |= partners.browse(defaults["partner_ids"])
@@ -353,15 +352,16 @@ class AccountMoveSend(models.AbstractModel):
     def _get_placeholder_mail_attachments_data(
         self, move, invoice_edi_format=None, extra_edis=None, pdf_report=None
     ):
-        """Returns all the placeholder data.
-        Should be extended to add placeholder based on the sending method.
-        :param: move:       The current move.
-        :returns: A list of dictionary for each placeholder.
-        * id:               str: The (fake) id of the attachment, this is needed in rendering in t-key.
-        * name:             str: The name of the attachment.
-        * mimetype:         str: The mimetype of the attachment.
-        * placeholder       bool: Should be true to prevent download / deletion.
+        """Return the placeholder attachment data.
+
+        :param move: The current move.
+        :return: A list of one dict per placeholder, each with keys:
+            * id (str): The (fake) id of the attachment, needed in rendering in t-key.
+            * name (str): The name of the attachment.
+            * mimetype (str): The mimetype of the attachment.
+            * placeholder (bool): True to prevent download / deletion.
         """
+        # Should be extended to add placeholders based on the sending method.
         if move.invoice_pdf_report_id:
             return []
         filename = move._get_invoice_report_filename(report=pdf_report)
@@ -378,8 +378,8 @@ class AccountMoveSend(models.AbstractModel):
     def _get_placeholder_mail_template_dynamic_attachments_data(
         self, move, mail_template, pdf_report=None
     ):
-        """
-        This method returns the placeholder data for the dynamic attachments.
+        """Return the placeholder data for the dynamic attachments.
+
         :param move:            The current move we are generating documents for.
         :param mail_template:   The mail template used to get dynamic attachments for the move.
         :param pdf_report:      The 'ir.actions.report' used for the move.
@@ -646,15 +646,15 @@ class AccountMoveSend(models.AbstractModel):
     def _get_invoice_pdf_render_options(self, invoice, invoice_data):
         """Hook: per-invoice native PDF render options.
 
-        Returning a non-empty dict (e.g. ``{"pdf_variant": "pdf/a-3b",
-        "attachments": [...], "xmp_metadata": [...]}``) makes
-        :meth:`_prepare_invoice_pdf_report` render that invoice on its own so the
-        options — notably native PDF/A output with embedded files — apply to a
-        single record's PDF. The caller forwards the returned dict to
-        ``_pre_render_qweb_pdf`` under the reserved ``PDF_OPTIONS_DATA_KEY``
-        entry of ``data`` (return the bare options here, not the wrapper).
-        The default is no options (batched render).
+        :return: The bare render-options dict (empty for the default batched render).
         """
+        # Returning a non-empty dict (e.g. {"pdf_variant": "pdf/a-3b",
+        # "attachments": [...], "xmp_metadata": [...]}) makes
+        # _prepare_invoice_pdf_report render that invoice on its own so the
+        # options -- notably native PDF/A output with embedded files -- apply to
+        # a single record's PDF. The caller forwards the returned dict to
+        # _pre_render_qweb_pdf under the reserved PDF_OPTIONS_DATA_KEY entry of
+        # ``data`` (return the bare options here, not the wrapper).
         return {}
 
     @api.model
@@ -894,16 +894,15 @@ class AccountMoveSend(models.AbstractModel):
     def _generate_dynamic_reports(self, moves_data, from_cron=False):
         """Generate the per-move dynamic mail reports.
 
-        Returns the moves whose report generation failed (only possible when
-        ``from_cron`` — see below); the caller must skip sending those.
-
-        In a cron run the whole batch shares one transaction, so an unguarded
-        raise here (e.g. a QWeb error on one move) would roll back every move in
-        the batch — including their ``sending_data = False`` reset — and the same
-        batch would be re-fetched and fail again on the next tick (a permanent
-        stall). Isolate each move so one bad report can't poison the batch;
-        outside a cron the error still propagates to the caller/UI as before.
+        :return: The moves whose report generation failed (only possible when
+            ``from_cron``); the caller must skip sending those.
         """
+        # In a cron run the whole batch shares one transaction, so an unguarded
+        # raise here (e.g. a QWeb error on one move) would roll back every move
+        # in the batch -- including their ``sending_data = False`` reset -- and
+        # the same batch would be re-fetched and fail again on the next tick (a
+        # permanent stall). Isolate each move so one bad report can't poison the
+        # batch; outside a cron the error still propagates to the caller/UI.
         failed = self.env["account.move"]
         for move, move_data in moves_data.items():
             try:
@@ -1135,7 +1134,8 @@ class AccountMoveSend(models.AbstractModel):
 
     @api.model
     def _generate_invoice_fallback_documents(self, invoices_data):
-        """Generate the invoice PDF and electronic documents.
+        """Generate the fallback proforma PDF report for invoices that errored.
+
         :param invoices_data:   The collected data for invoices so far.
         """
         for invoice, invoice_data in invoices_data.items():
@@ -1150,9 +1150,8 @@ class AccountMoveSend(models.AbstractModel):
                 ].create(invoice_data.pop("proforma_pdf_attachment_values"))
 
     def _check_sending_data(self, moves, **custom_settings):
-        """Assert the data provided to _generate_and_send_invoices are correct.
-        This is a security in case the method is called directly without going through the wizards.
-        """
+        """Assert the data provided to _generate_and_send_invoices are correct."""
+        # A safeguard in case the method is called directly, bypassing the wizards.
         self._check_move_constraints(moves)
         self._check_invoice_report(moves, **custom_settings)
         assert (
