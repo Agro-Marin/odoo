@@ -80,12 +80,11 @@ class ResPartnerBank(models.Model):
                 )
 
     def _check_allow_out_payment(self):
-        """Secondary net catching a *trusted* account (allow_out_payment=True) that
-        the current user has no right to trust. Changing the flag in either
-        direction is already blocked up-front in ``write()``; this constraint only
-        needs to guard the enabled state (e.g. left True after a permitted change).
-        A False value is always acceptable here (fresh accounts are created False).
-        """
+        """Reject a trusted account the current user has no right to trust."""
+        # Changing the flag in either direction is already blocked up-front in
+        # write(); this constraint only needs to guard the enabled state (e.g. left
+        # True after a permitted change). A False value is always acceptable here
+        # (fresh accounts are created False).
         for bank in self:
             if bank.allow_out_payment and not bank._user_can_trust():
                 raise ValidationError(
@@ -156,15 +155,13 @@ class ResPartnerBank(models.Model):
             bank.money_transfer_service = bank._get_money_transfer_service() or False
 
     def _get_money_transfer_service(self):
-        """Name of the money-transfer service backing this account's IBAN, or None.
-
-        The institution codes are Belgian (NBB) bank codes at IBAN positions 5-7,
-        so detection is restricted to Belgian IBANs — otherwise a foreign IBAN whose
-        national bank code happens to collide (e.g. a French code banque of ``967``)
-        would be mislabelled as a money-transfer service.
-        """
+        """Name of the money-transfer service backing this account's IBAN, or None."""
         self.ensure_one()
         sanitized = self.sanitized_acc_number
+        # The institution codes are Belgian (NBB) bank codes at IBAN positions 5-7,
+        # so detection is restricted to Belgian IBANs — otherwise a foreign IBAN
+        # whose national bank code happens to collide (e.g. a French code banque of
+        # "967") would be mislabelled as a money-transfer service.
         if not sanitized or sanitized[:2] != "BE":
             return None
         return self._get_money_transfer_services().get(sanitized[4:7])
@@ -540,7 +537,7 @@ class ResPartnerBank(models.Model):
         # Get initial values for each account
         for account in self:
             for field in tracking_fields:
-                # Group initial values by partner_id
+                # Snapshot each account's initial values, keyed by the account record
                 account_initial_values[account][field] = account[field]
 
         # Some fields should not be editable based on conditions. It is enforced in the view, but not in python which
@@ -587,7 +584,7 @@ class ResPartnerBank(models.Model):
         if "allow_out_payment" in vals:
             self._check_allow_out_payment()
 
-        # Log changes to move lines on each move
+        # Log each account's tracked field changes to its partner's chatter
         for account, initial_values in account_initial_values.items():
             tracking_value_ids = account._mail_track(fields_definition, initial_values)[
                 1

@@ -99,22 +99,20 @@ class AccountPaymentTerm(models.Model):
         """Return the amount due once the early-payment discount is applied.
 
         :param total_amount: the tax-included total of the document.
-        :param tax_amount: the *tax* portion of ``total_amount``. For the
-            ``excluded``/``mixed`` computations the discount is applied on the
-            untaxed base only, which is recovered here as
-            ``total_amount - tax_amount``. NB: despite what an "amount due after
-            discount" reading might suggest, the second argument is the tax
-            amount, not the untaxed base -- passing the untaxed base here
-            silently discounts the wrong amount.
+        :param tax_amount: the tax portion of ``total_amount``.
         """
         self.ensure_one()
         if self.early_discount:
             percentage = self.discount_percentage / 100.0
             if self.early_pay_discount_computation in ("excluded", "mixed"):
+                # For excluded/mixed the discount applies on the untaxed base
+                # only, recovered here as ``total_amount - tax_amount``. Pass the
+                # tax amount as the second argument, not the untaxed base --
+                # the untaxed base would silently discount the wrong amount.
                 discount_amount_currency = (total_amount - tax_amount) * percentage
             else:
                 discount_amount_currency = total_amount * percentage
-            # `total_amount`/`untaxed_amount` are expressed in the document's
+            # `total_amount` is expressed in the document's
             # currency when invoked from a move (see the account.move branch
             # below), otherwise in the term's own (company) currency for the
             # preview. Round in that same currency: rounding a foreign-currency
@@ -227,11 +225,7 @@ class AccountPaymentTerm(models.Model):
 
     @api.model
     def _get_amount_by_date(self, terms):
-        """
-        Returns a dictionary with the amount for each date of the payment term
-        (grouped by date, discounted percentage and discount last date,
-        sorted by date and ignoring null amounts).
-        """
+        """Return a dict keyed by due date with the summed foreign amount per date, in date order."""
         terms_lines = sorted(terms["line_ids"], key=lambda t: t.get("date"))
         amount_by_date = {}
         for term in terms_lines:

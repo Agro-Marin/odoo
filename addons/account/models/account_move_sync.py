@@ -1,12 +1,10 @@
-"""Dynamic-lines synchronization engine for account.move.
+"""Dynamic-lines synchronization engine for account.move."""
 
-Split out of account_move.py: tax / payment-term / rounding / balancing /
-early-payment-discount lines are (re)computed here whenever a move changes.
-The planning core is a pure function in account/tools/dynamic_lines.py
-(Tier-1 tested); this file holds the ORM orchestration. No method of this
-cluster is overridden by any inheriting module except _get_sync_stack
-(l10n_in), which extends through super() and is unaffected by the file move.
-"""
+# tax / payment-term / rounding / balancing / early-payment-discount lines are
+# (re)computed here whenever a move changes. The planning core is a pure function
+# in account/tools/dynamic_lines.py (Tier-1 tested); this file holds the ORM
+# orchestration. No method of this cluster is overridden by any inheriting module
+# except _get_sync_stack (l10n_in), which extends through super().
 
 from collections import Counter, defaultdict
 from contextlib import ExitStack, contextmanager
@@ -23,19 +21,14 @@ class AccountMove(models.Model):
     _inherit = "account.move"
 
     def _recompute_cash_rounding_lines(self):
-        """Handle the cash rounding feature on invoices.
-
-        In some countries, the smallest coins do not exist. For example, in Switzerland, there is no coin for 0.01 CHF.
-        For this reason, if invoices are paid in cash, you have to round their total amount to the smallest coin that
-        exists in the currency. For the CHF, the smallest coin is 0.05 CHF.
-
-        There are two strategies for the rounding:
-
-        1) Add a line on the invoice for the rounding: The cash rounding line is added as a new invoice line.
-        2) Add the rounding in the biggest tax amount: The cash rounding line is added as a new tax line on the tax
-        having the biggest balance.
-        """
+        """Handle the cash rounding feature on invoices."""
         self.ensure_one()
+
+        # In some countries the smallest coins do not exist (e.g. Switzerland has
+        # no 0.01 CHF coin, the smallest being 0.05 CHF), so cash-paid invoices
+        # are rounded to the smallest existing coin. Two strategies: (1) add a
+        # dedicated rounding line on the invoice, or (2) add the rounding to the
+        # tax line having the biggest balance.
 
         def _compute_cash_rounding(self, total_amount_currency):
             """Compute the amount differences due to the cash rounding.

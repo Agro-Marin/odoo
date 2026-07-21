@@ -21,7 +21,7 @@ _logger = logging.getLogger(__name__)
 def _can_commit():
     """Return whether committing the current transaction is acceptable.
 
-    :returns: True if commit is acceptable, False otherwise.
+    :return: True if commit is acceptable, False otherwise.
     """
     # Kept consistent with ``account.move.send._can_commit``: also suppress
     # commits under ``--test-enable`` (not only while a test is actively
@@ -31,24 +31,18 @@ def _can_commit():
 
 @contextmanager
 def rollbackable_transaction(cr):
-    """A savepoint-less commit/rollback context manager.
+    """Savepoint-less commit/rollback context manager: commit, run the body, then commit again.
 
-    Commits the cursor, then executes the code inside the context manager, then tries to commit again.
-    Rolls the cursor back if an exception was raised.
-
-    ⚠️ Because this method commits the cursor, try to:
-    (1) do as much work as possible before calling this method, and
-    (2) avoid triggering a SerializationError later in the request. If a SerializationError happens,
-        `retrying` will cause the whole request to be retried, which may cause some things
-        to be duplicated. That may be more or less undesirable, depending on what you're doing.
-        (This method will gracefully handle SerializationErrors caused within the context manager.)
-
-    :raise: an Exception if an error was caught and the transaction was rolled back.
+    :raises Exception: re-raised after rolling the transaction back, if the body raised.
     """
     if not _can_commit():
         yield
         return
 
+    # Committing here means callers should (1) do as much work as possible beforehand and
+    # (2) avoid triggering a SerializationError later in the request: `retrying` would retry
+    # the whole request, possibly duplicating work. (A SerializationError raised inside the
+    # context manager is handled gracefully - rolled back.)
     # We start by committing so that if we do a rollback in the except block, we don't lose all the progress that
     # was done before this method was called. If a SerializationError occurs here, no problem - nothing will be
     # committed and the whole request will be restarted by the `retrying` mechanism.
@@ -68,32 +62,7 @@ def rollbackable_transaction(cr):
 
 
 def split_etree_on_tag(tree, tag):
-    """Split an etree that has multiple instances of a given tag into multiple trees
-    that each have a single instance of the tag.
-
-    That is,
-    treeA = etree.fromstring('''
-        <A>
-            <B>Some header</B>
-            <C>First</C>
-            <C>Second</C>
-        </A>
-    ''')
-
-    gets split by `split_etree_on_tag(etree_A, 'C')` into
-
-    <A>
-        <B>Some header</B>
-        <C>First</C>
-    </A>
-
-    and
-
-    <A>
-        <B>Some header</B>
-        <C>Second</C>
-    </A>
-    """
+    """Split an etree with multiple instances of ``tag`` into one tree per instance, each keeping a single ``tag``."""
     tree = deepcopy(tree)
     nodes_to_split = tree.findall(f".//{tag}")
 
@@ -137,24 +106,14 @@ class AccountDocumentImportMixin(models.AbstractModel):
 
     @api.model
     def _create_records_from_attachments(self, attachments, grouping_method=None):
-        """For each attachment, create a corresponding record, and attempt to decode the
-        attachment on the record.
-
-        Some attachments (e.g. in some EDI formats) may contain multiple business
-        documents; in that case, we attempt to separate them and create a new record for
-        each business document.
-
-        ⚠️ Because this method commits the cursor, try to:
-        (1) do as much work as possible before calling this method, and
-        (2) avoid triggering a SerializationError later in the request. If a SerializationError happens,
-            `retrying` will cause the whole request to be retried, which may cause some things
-            to be duplicated. That may be more or less undesirable, depending on what you're doing.
-        """
+        """Create one record per business document found in ``attachments`` and decode each attachment onto its record."""
         if grouping_method is None:
             grouping_method = self._group_files_data_by_origin_attachment
 
         files_data = self._to_files_data(attachments)
 
+        # Some attachments (e.g. some EDI formats) pack several business documents; unwrapping
+        # and the grouping below separate them so each business document gets its own record.
         files_data.extend(self._unwrap_attachments(files_data))
 
         # Perform a grouping to determine how many invoices to create
@@ -176,7 +135,9 @@ class AccountDocumentImportMixin(models.AbstractModel):
                 attachment_ids=attachment_records.ids,
             )
 
-        # Call _extend_with_attachments at the end, because it commits the transaction.
+        # Call _extend_with_attachments last, because it commits the transaction. Since committing
+        # here means a SerializationError raised later in the request would make `retrying` retry the
+        # whole request (possibly duplicating work), do as much work as possible before this point.
         for record, file_data_group in zip(records, file_data_groups, strict=False):
             record_extended = record._extend_with_attachments(file_data_group, new=True)
             if not record_extended:
@@ -193,11 +154,7 @@ class AccountDocumentImportMixin(models.AbstractModel):
     # --------------------------------------------------------
 
     def _group_files_data_by_origin_attachment(self, files_data):
-        """A naive grouping method which does the following:
-
-        - if a file_data has an 'origin_attachment', it is assigned to the same group as the 'origin_attachment'.
-        - otherwise, it is assigned to a new group.
-        """
+        """Group file_data entries that share the same ``origin_attachment`` (naive grouping)."""
         return [
             file_data_group
             for origin_attachment, file_data_group in groupby(
@@ -206,13 +163,9 @@ class AccountDocumentImportMixin(models.AbstractModel):
         ]
 
     def _group_files_data_into_groups_of_mixed_types(self, files_data):
-        """A grouping method with a heuristic that enables it to dispatch files of the same type to
-        different groups, but files of different types to the same group.
-
-        This makes it suitable for grouping attachments received through a journal mail alias.
-        For example, receiving 5 PDFs will dispatch them into 5 groups (one per PDF),
-        but receiving one PDF, one JPG and one XML will dispatch them all into a single group.
-        """
+        """Group files so same-type files go to different groups and different-type files to the same group."""
+        # This heuristic suits attachments received through a journal mail alias: 5 PDFs are dispatched
+        # into 5 groups (one per PDF), but one PDF + one JPG + one XML are dispatched into a single group.
         files_data_with_origin_attachment = []
         files_data_without_origin_attachment = []
         for file_data in files_data:
@@ -294,13 +247,8 @@ class AccountDocumentImportMixin(models.AbstractModel):
         groups.append([incoming_file_data])
 
     def _get_similarity_score(self, filename1, filename2):
-        """Compute a similarity score between two filenames.
-        This is used to group files with similar names together as much as possible
-        when figuring out how to dispatch attachments received in a mail alias.
-
-        Similarity is defined as the length of the largest common substring between
-        the two filenames.
-        """
+        """Return a similarity score between two filenames: the length of their longest common substring."""
+        # Used to group files with similar names together when dispatching mail-alias attachments.
         matcher = difflib.SequenceMatcher(a=filename1, b=filename2, autojunk=False)
         return matcher.find_longest_match().size
 
@@ -309,28 +257,11 @@ class AccountDocumentImportMixin(models.AbstractModel):
     # --------------------------------------------------------
 
     def _extend_with_attachments(self, files_data, new=False):
-        """Extend/enhance a business document with one or more attachments.
+        """Extend a business document using its highest-priority attachment via the appropriate decoder.
 
-        Only the attachment with the highest priority will be used to extend the business document,
-        using the appropriate decoder.
-
-        The decoder may break Python and SQL constraints in difficult-to-predict ways.
-        This method calls the decoder in such a way that any exceptions instead roll back the transaction
-        and log a message on the invoice chatter.
-
-        This method will not extract embedded files for you - if you want embedded files to be
-        considered, you must pass them as part of the `attachments` recordset.
-
-        :param self:        An invoice on which to apply the attachments.
-        :param files_data:  A list of file_data dicts, each representing an in-DB or extracted attachment.
-        :param new:         If true, indicates that the invoice was newly created, will be passed to the decoder.
-        :return:            True if at least one document is successfully imported.
-
-        ⚠️ Because this method commits the cursor, try to:
-        (1) do as much work as possible before calling this method, and
-        (2) avoid triggering a SerializationError later in the request. If a SerializationError happens,
-            `retrying` will cause the whole request to be retried, which may cause some things
-            to be duplicated. That may be more or less undesirable, depending on what you're doing.
+        :param files_data: A list of file_data dicts, each representing an in-DB or extracted attachment.
+        :param new:        Whether the business document was newly created; passed to the decoder.
+        :return:           True if the attachment was imported successfully, else None.
         """
 
         def _get_attachment_name(file_data):
@@ -349,6 +280,7 @@ class AccountDocumentImportMixin(models.AbstractModel):
 
         self.ensure_one()
 
+        # This does not extract embedded files; to have them considered, pass them in `files_data`.
         for file_data in files_data:
             if "decoder_info" not in file_data:
                 file_data["decoder_info"] = self._get_edi_decoder(file_data, new=new)
@@ -375,6 +307,10 @@ class AccountDocumentImportMixin(models.AbstractModel):
             )
             return None
 
+        # The decoder may break Python and SQL constraints in hard-to-predict ways, so run it inside
+        # rollbackable_transaction: any exception rolls back the transaction and is logged on the invoice
+        # chatter instead of propagating. Because that context manager commits, avoid triggering a
+        # SerializationError later in the request (`retrying` would retry the whole request).
         try:
             with rollbackable_transaction(self.env.cr):
                 reason_cannot_decode = file_data["decoder_info"]["decoder"](
@@ -598,7 +534,7 @@ class AccountDocumentImportMixin(models.AbstractModel):
 
         :param file_data: The file to be unwrapped.
         :param recurse: if True, should return embedded-of-embedded attachments.
-        :return: a `files_data` list representation of the embedded attachements.
+        :return: a `files_data` list representation of the embedded attachments.
         """
         embedded = []
         if file_data["import_file_type"] == "pdf" and file_data["raw"]:
@@ -626,20 +562,14 @@ class AccountDocumentImportMixin(models.AbstractModel):
 
     @api.model
     def _split_xml_into_new_attachments(self, file_data, tag):
-        """Helper method to split an XML file into multiple files on a given tag.
+        """Split the XML in ``file_data`` on ``tag``, creating one attachment per instance beyond the first.
 
-        In EDIs, some XMLs contain multiple business documents.
-        In such cases, we often want any business document beyond the first to have its
-        own attachment that can be decoded separately.
-        This helper method looks whether the provided XML tree (given in `file_data`) has multiple
-        instances of the given `tag`, and creates a new attachment for each tag beyond the first.
-        The new attachment has the same XML structure as the original file, but only has one instance
-        of the specified tag.
-
-        :param file_data: The XML file to split
-        :param tag: The tag which the XML file should be split on if there are multiple instances of it
-        :return: a `files_data` list of files, for each business document beyond the first.
+        :param file_data: The XML file to split.
+        :param tag: The tag the XML file is split on when it has multiple instances of it.
+        :return: a `files_data` list of files, one for each business document beyond the first.
         """
+        # In EDIs a single XML can carry several business documents; each new attachment keeps the
+        # original structure but a single instance of `tag`, so it can be decoded separately.
         new_files_data = []
         if len(file_data["xml_tree"].findall(f".//{tag}")) > 1:
             # Create a new xml tree for each invoice beyond the first

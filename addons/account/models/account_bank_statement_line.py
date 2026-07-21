@@ -64,7 +64,7 @@ class AccountBankStatementLine(models.Model):
         string="Auto-generated Payments",
     )
 
-    # This sequence is working reversed because the default order is reversed, more info in compute_internal_index
+    # This sequence is working reversed because the default order is reversed, more info in _compute_internal_index
     sequence = fields.Integer(default=1)
     partner_id = fields.Many2one(
         comodel_name="res.partner",
@@ -292,19 +292,9 @@ class AccountBankStatementLine(models.Model):
 
     @api.depends("date", "sequence")
     def _compute_internal_index(self):
-        """
-        Internal index is a field that holds the combination of the date, compliment of sequence and id of each line.
-        Using this prevents us having a compound index, and extensive where clauses.
-        Without this finding lines before current line (which we need for calculating the running balance)
-        would need a query like this:
-          date < current date OR (date = current date AND sequence > current date) or (
-          date = current date AND sequence = current sequence AND id < current id)
-        which needs to be repeated all over the code.
-        This would be simply "internal index < current internal index" using this field.
-        Also, we would need a compound index of date + sequence + id
-        on the table which is not possible because date is not in this table (it is in the account move table)
-        unless we use a sql view which is more complicated.
-        """
+        """Compute the internal index from the date, reversed sequence and record id."""
+        # Rationale for this field (compound-index avoidance, running-balance lookups) lives in the
+        # internal_index field definition above.
         # ensure we are using correct value for reversing sequence in the index (2147483647)
         # NOTE: assert self._fields['sequence'].column_type[1] == 'int4'
         # if for any reason it changes (how unlikely), we need to update this code
@@ -331,10 +321,8 @@ class AccountBankStatementLine(models.Model):
         "move_id.line_ids.matched_credit_ids",
     )
     def _compute_is_reconciled(self):
-        """Compute the field indicating if the statement lines are already reconciled with something.
-        This field is used for display purpose (e.g. display the 'cancel' button on the statement lines).
-        Also computes the residual amount of the statement line.
-        """
+        """Compute whether the statement lines are reconciled and their residual amount."""
+        # is_reconciled drives display logic (e.g. showing the 'cancel' button on the statement lines).
         for st_line in self:
             _liquidity_lines, suspense_lines, _other_lines = st_line._seek_for_lines()
 
@@ -355,8 +343,7 @@ class AccountBankStatementLine(models.Model):
                 # New record: The journal items are not yet there.
                 st_line.is_reconciled = False
             elif suspense_lines:
-                # Zero residual on the suspense lines means they've been fully matched,
-                # even though the statement line itself may predate that check.
+                # Zero residual on the suspense lines means they've been fully matched.
                 st_line.is_reconciled = suspense_lines.currency_id.is_zero(
                     st_line.amount_residual
                 )
@@ -892,7 +879,7 @@ class AccountBankStatementLine(models.Model):
     def _seek_for_lines(self):
         """Dispatch the journal items between:
         - The lines using the liquidity account.
-        - The lines using the transfer account.
+        - The lines using the suspense account.
         - The lines being not in one of the two previous categories.
         :return: (liquidity_lines, suspense_lines, other_lines)
         """
@@ -1039,7 +1026,7 @@ class AccountBankStatementLine(models.Model):
 
     def _synchronize_to_moves(self, changed_fields):
         """Update the account.move regarding the modified account.bank.statement.line.
-        :param changed_fields: A list containing all modified fields on account.bank.statement.line.
+        :param changed_fields: A set containing all modified fields on account.bank.statement.line.
         """
         if self.env.context.get("skip_account_move_synchronization"):
             return
