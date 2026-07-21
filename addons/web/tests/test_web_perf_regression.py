@@ -313,20 +313,41 @@ class TestWebPerfRegression(TransactionCase):
 
         Records with identical vals are batched into a single write().
         With unique vals (as here), falls back to per-record writes.
+
+        ``tracking_disable`` pins the web-layer cost independently of the
+        install set: once mail is installed, res.partner is
+        mail.thread-enabled and each tracked write adds one mail.message +
+        one mail.tracking.value INSERT per record plus two batched reads
+        (35 → 57 measured on base+web+mail). The historical pin of 70 was
+        calibrated on such a richer dev database, so it never matched this
+        test's own fixture (fresh base+web: 35) and the non-fatal
+        undercount had made the pin inert. With tracking disabled the
+        count is identical on base+web and base+web+mail (verified
+        2026-07-21).
         """
-        partners = self.partners[:10].with_user(self.user)
+        partners = (
+            self.partners[:10].with_user(self.user).with_context(tracking_disable=True)
+        )
         vals_list = [{"name": f"Updated_{i}"} for i in range(10)]
         self.env.invalidate_all()
-        with self.assertQueryCount(70):
-            # 10 unique vals → 10 individual writes + final web_read
-            # Each write triggers modified() cascade for complete_name
-            # (3 queries per record: parent_id, commercial_partner_id, company)
-            # Recalibrated 2026-05-13 from 60 → 70 (+1 query per record).
-            # The drift coincides with the recent web/mail IMP wave; the
-            # extra query per write has not been isolated to a specific
-            # commit yet — follow-up: bisect against ``--log-level=
-            # debug_sql`` to identify the new query in the modified()
-            # cascade and decide trim-vs-accept.
+        with self.assertQueryCount(35):
+            # 10 unique vals → 10 individual write() calls. Breakdown
+            # (recalibrated 2026-07-21 on the fixture this test
+            # guarantees — no optimizing commit to cite: the fixture
+            # count has been 35 since the pin landed):
+            # - 4  batched pre-reads on the first write(): partner
+            #   fetch (covers all 10 records via the prefetch set, and
+            #   feeds the final web_read from cache), company co-read,
+            #   and res.partner.bank / res.users dependent-record
+            #   lookups for the display-name dependencies
+            # - 30 = 10 x 3 per-record modified() searches — the pinned
+            #   N+1: each write() re-resolves the complete_name /
+            #   display_name dependents (children by parent_id,
+            #   commercial descendants by commercial_partner_id,
+            #   companies by partner_id)
+            # - 1  single batched UPDATE at flush (name, complete_name,
+            #   write_date, write_uid via UPDATE ... FROM (VALUES ...))
+            # The final web_read issues 0 queries (served from cache).
             partners.web_save_multi(vals_list, specification={"name": {}})
 
     # ------------------------------------------------------------------
