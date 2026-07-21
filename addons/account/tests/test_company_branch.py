@@ -103,7 +103,7 @@ class TestCompanyBranch(AccountTestInvoicingCommon):
         self.assertEqual(payment_lines.mapped("amount_residual"), [0, 0])
         self.assertFalse(payment_lines.matched_debit_ids.exchange_move_id)
 
-        # Can still open the invoice with only it's branch accessible
+        # Can still open the invoice with only its branch accessible
         self.env.invalidate_all()
         with Form(invoice.with_context(allowed_company_ids=self.branch_a.ids)):
             pass
@@ -157,7 +157,7 @@ class TestCompanyBranch(AccountTestInvoicingCommon):
             invoice.company_id,
         )
 
-        # Can still open the invoice with only it's branch accessible
+        # Can still open the invoice with only its branch accessible
         self.env.invalidate_all()
         with Form(invoice.with_context(allowed_company_ids=self.branch_a.ids)):
             pass
@@ -348,15 +348,7 @@ class TestCompanyBranch(AccountTestInvoicingCommon):
                         move.action_draft()
 
     def test_soft_lock_date_honors_archived_parent(self):
-        """A soft lock date set on a parent company must keep applying to an
-        active branch even when the parent itself is archived.
-
-        Regression: `_get_user_lock_date` used to traverse `parent_ids` with the
-        default `active_test=True`, silently dropping archived ancestors -- unlike
-        `_compute_user_hard_lock_date`, which forces `active_test=False`. An active
-        branch whose parent stayed archived could then post into the parent's
-        fiscally-locked period.
-        """
+        """A parent company's soft lock date still applies to an active branch when the parent is archived."""
         from datetime import date
 
         # Standalone hierarchy so the parent (unlike the shared test company) is
@@ -378,6 +370,8 @@ class TestCompanyBranch(AccountTestInvoicingCommon):
         self.assertTrue(branch.active)
         self.assertFalse(parent.active)
 
+        # `_get_user_lock_date` must traverse `parent_ids` with `active_test=False`
+        # (like `_compute_user_hard_lock_date`), else archived ancestors are dropped.
         branch.invalidate_recordset(["user_fiscalyear_lock_date"])
         self.assertEqual(
             branch._get_user_lock_date("fiscalyear_lock_date"),
@@ -494,10 +488,7 @@ class TestCompanyBranch(AccountTestInvoicingCommon):
         )
 
     def test_switch_company_currency(self):
-        """
-        A user should not be able to switch the currency of another company
-        when that company already has posted account move lines.
-        """
+        """A user cannot switch the currency of another company that already has journal items."""
         # Create company A (user's company)
         company_a = self.env["res.company"].create(
             {
@@ -560,7 +551,6 @@ class TestCompanyBranch(AccountTestInvoicingCommon):
             )
 
     def test_set_fiscalyear_last_day_to_negative_value(self):
-        """Test that ensure that fiscalyear_last_day raises ValidationError when set
-        to negative value."""
+        """A negative `fiscalyear_last_day` raises a ValidationError."""
         with self.assertRaises(ValidationError):
             self.root_company.fiscalyear_last_day = -1

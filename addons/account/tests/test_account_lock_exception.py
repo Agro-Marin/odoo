@@ -40,9 +40,7 @@ class TestAccountLockException(AccountTestInvoicingCommon):
         ]
 
     def test_user_exception_move_edit_multi_user(self):
-        """
-        Test that an exception for a specific user only works for that user.
-        """
+        """Test that an exception for a specific user only works for that user."""
         for lock_date_field, move_type in self.soft_lock_date_info:
             with (
                 self.subTest(lock_date_field=lock_date_field, move_type=move_type),
@@ -79,9 +77,7 @@ class TestAccountLockException(AccountTestInvoicingCommon):
                     move.with_user(self.other_user).action_draft()
 
     def test_global_exception_move_edit_multi_user(self):
-        """
-        Test that an exception without a specified user works for any user.
-        """
+        """Test that an exception without a specified user works for any user."""
         for lock_date_field, move_type in self.soft_lock_date_info:
             with (
                 self.subTest(lock_date_field=lock_date_field, move_type=move_type),
@@ -117,14 +113,7 @@ class TestAccountLockException(AccountTestInvoicingCommon):
                 move.with_user(self.other_user).action_draft()
 
     def test_user_exception_branch(self):
-        """
-        Test that the locking and exception mechanism works correctly in company hierarchies.
-            * A lock in the branch does not lock the parent.
-            * A lock in the parent also locks the branch.
-            * An exception in the branch does not matter for the lock in the parent.
-            * Let both parent and branch be locked.
-              To make changes in the locked period in the brranch we need exceptions in both companies.
-        """
+        """Test that the locking and exception mechanism works correctly in company hierarchies."""
 
         root_company = self.company_data["company"]
         root_company.write({"child_ids": [Command.create({"name": "branch"})]})
@@ -201,9 +190,7 @@ class TestAccountLockException(AccountTestInvoicingCommon):
                     move.action_post()
 
     def test_user_exception_wrong_company(self):
-        """
-        Test that an exception only works for the specified company.
-        """
+        """Test that an exception only works for the specified company."""
         for lock_date_field, move_type in self.soft_lock_date_info:
             with (
                 self.subTest(lock_date_field=lock_date_field, move_type=move_type),
@@ -237,9 +224,7 @@ class TestAccountLockException(AccountTestInvoicingCommon):
                     move.action_draft()
 
     def test_user_exception_insufficient(self):
-        """
-        Test that the exception only works if the specified lock date is actually before the accounting date.
-        """
+        """Test that the exception only works if its lock date is actually before the accounting date."""
         for lock_date_field, move_type in self.soft_lock_date_info:
             with (
                 self.subTest(lock_date_field=lock_date_field, move_type=move_type),
@@ -258,7 +243,7 @@ class TestAccountLockException(AccountTestInvoicingCommon):
                 with self.assertRaises(UserError):
                     move.action_draft()
 
-                # Add an exception before the lock date but not before the date of the test_invoice
+                # Add an exception before the lock date but not before the date of the invoice
                 self.env["account.lock_exception"].create(
                     {
                         "company_id": self.company.id,
@@ -274,9 +259,7 @@ class TestAccountLockException(AccountTestInvoicingCommon):
                     move.action_draft()
 
     def test_expired_exception(self):
-        """
-        Test that the exception does not work if we are past the `end_datetime` of the exception.
-        """
+        """Test that the exception does not work if we are past its `end_datetime`."""
         for lock_date_field, move_type in self.soft_lock_date_info:
             with (
                 self.subTest(lock_date_field=lock_date_field, move_type=move_type),
@@ -386,11 +369,7 @@ class TestAccountLockException(AccountTestInvoicingCommon):
                     move.action_draft()
 
     def test_hard_lock_date(self):
-        """
-        Test that
-          * exceptions (for other lock date fields) do not allow bypassing the hard lock date
-          * the hard lock date cannot be decreased or removed
-        """
+        """Test that the hard lock date cannot be bypassed by exceptions, decreased or removed."""
         in_move = self.init_invoice(
             "in_invoice",
             invoice_date="2016-01-01",
@@ -436,12 +415,7 @@ class TestAccountLockException(AccountTestInvoicingCommon):
                 move.action_draft()
 
     def test_company_lock_date(self):
-        """
-        Test the `company_lock_date` field is set corretly on exception creation.
-        Test the behavior when a company lock date is changed.
-          * Every active exception gets revoked and recreated with the new company lock date
-          * Non-active exceptions are not affected
-        """
+        """Test `company_lock_date` on exception creation and when the company lock date changes."""
         self.env["account.lock_exception"].search([]).sudo().unlink()
         for lock_date_field, move_type in self.soft_lock_date_info:
             with (
@@ -470,7 +444,7 @@ class TestAccountLockException(AccountTestInvoicingCommon):
                     }
                 )
 
-                # Check that the company lock date field was set correcyly on exception creation
+                # Check that the company lock date field was set correctly on exception creation
                 self.assertEqual(
                     revoked_exception.company_lock_date,
                     fields.Date.to_date("2020-01-01"),
@@ -480,7 +454,8 @@ class TestAccountLockException(AccountTestInvoicingCommon):
                     fields.Date.to_date("2020-01-01"),
                 )
 
-                # The lock date change should trigger the "recreation" proces
+                # The lock date change revokes every active exception and recreates it with the
+                # new company lock date; non-active exceptions are left untouched.
                 self.company[lock_date_field] = fields.Date.to_date("2021-01-01")
 
                 self.assertEqual(
@@ -513,9 +488,7 @@ class TestAccountLockException(AccountTestInvoicingCommon):
                 )
 
     def test_user_exception_remove_lock_date(self):
-        """
-        Test that an exception removing a lock date (instead of just decreasing it) works.
-        """
+        """Test that an exception removing a lock date (instead of just decreasing it) works."""
         for lock_date_field, move_type in self.soft_lock_date_info:
             with (
                 self.subTest(lock_date_field=lock_date_field, move_type=move_type),

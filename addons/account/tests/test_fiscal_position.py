@@ -6,10 +6,9 @@ from odoo.tests import common
 
 
 class TestFiscalPosition(common.TransactionCase):
-    """Tests for fiscal positions in auto apply (account.fiscal.position).
-    If a partner has a vat number, the fiscal positions with "vat_required=True"
-    are preferred.
-    """
+    """Tests for fiscal positions in auto apply (account.fiscal.position)."""
+
+    # A partner with a VAT number prefers positions with vat_required=True.
 
     @classmethod
     def setUpClass(cls):
@@ -289,9 +288,7 @@ class TestFiscalPosition(common.TransactionCase):
         self.assertEqual(fp.map_tax(tax), tax)
 
     def test_domestic_fp(self):
-        """
-        check if the domestic fiscal position is well computed in different scenarios.
-        """
+        """Check the domestic fiscal position computation in several scenarios."""
         country_group, a_country_group = self.env["res.country.group"].create(
             [
                 {
@@ -362,12 +359,7 @@ class TestFiscalPosition(common.TransactionCase):
         self.assertEqual(self.env.company.domestic_fiscal_position_id, fp_2)
 
     def test_fiscal_position_constraint(self):
-        """
-        Test fiscal position constraint by updating the record
-        - with only zip_from value
-        - with only zip_to value
-        - with both zip_from and zip_to values
-        """
+        """Test the zip range constraint: zip_from and zip_to must be set together."""
         fiscal_position = self.fp.create(
             {
                 "name": "Test fiscal",
@@ -410,11 +402,7 @@ class TestFiscalPosition(common.TransactionCase):
         )
 
     def test_zip_range_multi_record_write(self):
-        """Writing a single zip bound to several fiscal positions at once must
-        pad each record against its *own* counterpart, without leaking one
-        record's zip range onto the others (regression: a shared ``vals`` dict
-        used to overwrite every record with the last one's padded values).
-        """
+        """Multi-record zip write pads each record against its own counterpart."""
         fp_short, fp_long = self.fp.create(
             [
                 {"name": "ZIP short", "zip_from": "1", "zip_to": "999"},
@@ -444,7 +432,7 @@ class TestFiscalPosition(common.TransactionCase):
         )
 
     def test_fiscal_position_different_vat_country(self):
-        """If the country is European, we need to be able to put the VAT of another country through the prefix"""
+        """An EU fiscal position accepts a foreign VAT with another country prefix."""
         fiscal_position = self.fp.create(
             {
                 "name": "Special Delivery Case",
