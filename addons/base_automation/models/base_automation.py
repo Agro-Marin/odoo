@@ -7,6 +7,7 @@ from collections import defaultdict
 from uuid import uuid4
 
 from dateutil.relativedelta import relativedelta
+
 from odoo import _, api, exceptions, fields, models
 from odoo.exceptions import LockError, MissingError
 from odoo.fields import Domain
@@ -463,7 +464,7 @@ class BaseAutomation(models.Model):
                 continue
 
             failing_actions = automation.action_server_ids.filtered(
-                lambda action: action.model_id != automation.model_id,
+                lambda action: action.model_id != automation.model_id,  # noqa: B023
             )
             if failing_actions:
                 raise exceptions.ValidationError(
@@ -651,7 +652,7 @@ class BaseAutomation(models.Model):
                 continue
 
             actions_to_remove = automation.action_server_ids.filtered(
-                lambda action: action.model_id != automation.model_id,
+                lambda action: action.model_id != automation.model_id,  # noqa: B023
             )
             if actions_to_remove:
                 actions_to_remove.unlink()
@@ -795,7 +796,7 @@ class BaseAutomation(models.Model):
         )
         self.trigger_field_ids = field
 
-    @api.onchange("trigger", "action_server_ids")
+    @api.onchange("trigger", "action_server_ids")  # noqa: RET503
     def _onchange_trigger_or_actions(self):
         # Validation for on_change trigger
         no_code_actions = self.action_server_ids.filtered(lambda a: a.state != "code")
@@ -1189,7 +1190,7 @@ class BaseAutomation(models.Model):
                     self.record_getter,
                     self._get_eval_context(payload=payload),
                 )
-            except Exception as e:  # noqa: BLE001
+            except Exception as e:
                 msg = "Webhook #%s could not be triggered because the record_getter failed:\n%s"
                 msg_args = (self.id, traceback.format_exc())
                 _logger.warning(msg, *msg_args)
@@ -1200,7 +1201,7 @@ class BaseAutomation(models.Model):
                             level="ERROR",
                         ),
                     )
-                raise e
+                raise e  # noqa: TRY201
 
         if not record.exists() and self.record_getter:
             # A configured record_getter that resolves to nothing is a real
@@ -1221,7 +1222,7 @@ class BaseAutomation(models.Model):
             if record:
                 return self._process(record)
             return self._run_webhook_recordless(payload)
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             msg = "Webhook #%s failed with error:\n%s"
             msg_args = (self.id, traceback.format_exc())
             _logger.warning(msg, *msg_args)
@@ -1229,7 +1230,7 @@ class BaseAutomation(models.Model):
                 ir_logging_sudo.create(
                     self._prepare_logging_values(message=msg % msg_args, level="ERROR"),
                 )
-            raise e
+            raise e  # noqa: TRY201
 
     def _run_webhook_recordless(self, payload):
         """Run an on_webhook rule that has no record_getter.
@@ -1250,42 +1251,16 @@ class BaseAutomation(models.Model):
         return True
 
     def _filter_pre(self, records, feedback=False):
-        """Filter records that satisfy the automation's pre-condition.
+        """Filter ``records`` that satisfy the automation's pre-condition (``filter_pre_domain``).
 
-        Pre-conditions (filter_pre_domain) are evaluated BEFORE a record is
-        modified. This is used primarily for 'on_write' triggers to check if
-        the record was in a specific state before the update occurred.
+        The pre-condition is evaluated (via ``safe_eval``, under ``sudo()``) on
+        the record state before the update.
 
-        The method uses safe_eval to evaluate the domain expression with
-        restricted context to prevent code injection attacks.
-
-        Args:
-            records (Model): Recordset to filter against pre-conditions.
-            feedback (bool): If True, sets __action_feedback context flag to
-                detect recursive automation execution during domain evaluation.
-                Used to prevent infinite loops. Default is False.
-
-        Returns:
-            Model: Filtered recordset containing only records matching the
-                filter_pre_domain. Returns original recordset if no pre-condition
-                is configured.
-
-        Security:
-            - Always executes with sudo() privileges
-            - Domain evaluated using safe_eval with restricted context
-            - Prevents arbitrary code execution
-
-        Example:
-            >>> # Automation with pre-condition: record was in 'draft' state
-            >>> automation = self.env['base.automation'].browse(1)
-            >>> automation.filter_pre_domain = "[('state', '=', 'draft')]"
-            >>> partners = self.env['res.partner'].search([])
-            >>> draft_partners = automation._filter_pre(partners)
-            >>> # Returns only partners that were in draft before update
-
-        See Also:
-            _filter_post(): Post-condition filtering (after event)
-            _get_eval_context(): Context used for safe domain evaluation
+        :param records: recordset to filter against the pre-condition.
+        :param feedback: set the ``__action_feedback`` context flag to detect
+            recursive automation execution during domain evaluation.
+        :return: records matching ``filter_pre_domain``, or ``records`` unchanged
+            when no pre-condition is configured.
         """
         self_sudo = self.sudo()
         if self_sudo.filter_pre_domain and records:
@@ -1318,41 +1293,17 @@ class BaseAutomation(models.Model):
         return records
 
     def _filter_post(self, records, feedback=False):
-        """Filter records that satisfy the automation's post-condition.
+        """Filter ``records`` that satisfy the automation's post-condition (``filter_domain``).
 
-        Post-conditions (filter_domain) are evaluated AFTER a record event
-        (create/write/unlink). This determines which records should have
-        automation actions executed on them.
+        The post-condition is evaluated after a record event (create/write/unlink).
+        Convenience wrapper around :meth:`_filter_post_export_domain` returning only
+        the filtered records, without the domain.
 
-        This is a convenience wrapper around _filter_post_export_domain()
-        that returns only the filtered records without the domain.
-
-        Args:
-            records (Model): Recordset to filter against post-conditions.
-            feedback (bool): If True, sets __action_feedback context flag to
-                detect recursive automation execution during domain evaluation.
-                Default is False.
-
-        Returns:
-            Model: Filtered recordset containing only records matching the
-                filter_domain. Returns original recordset if no post-condition
-                is configured.
-
-        Performance:
-            Uses filtered_domain() for database-level filtering when possible,
-            which is more efficient than Python-level filtering.
-
-        Example:
-            >>> # Automation with post-condition: record must be confirmed
-            >>> automation = self.env['base.automation'].browse(1)
-            >>> automation.filter_domain = "[('state', '=', 'confirmed')]"
-            >>> orders = self.env['sale.order'].search([])
-            >>> confirmed = automation._filter_post(orders)
-            >>> # Execute actions only on confirmed orders
-
-        See Also:
-            _filter_pre(): Pre-condition filtering (before event)
-            _filter_post_export_domain(): Returns both records and domain
+        :param records: recordset to filter against the post-condition.
+        :param feedback: set the ``__action_feedback`` context flag to detect
+            recursive automation execution during domain evaluation.
+        :return: records matching ``filter_domain``, or ``records`` unchanged when
+            no post-condition is configured.
         """
         return self._filter_post_export_domain(records, feedback)[0]
 
@@ -1373,41 +1324,16 @@ class BaseAutomation(models.Model):
             return records, None
 
     def _get_actions(self, records, triggers):
-        """Retrieve active automation rules matching given triggers for records' model.
+        """Return active automation rules matching ``triggers`` for ``records``' model.
 
-        This method finds all automation rules that should be executed for a
-        given model and set of trigger types. It initializes the __action_done
-        context to track which automations have already been processed, preventing
-        infinite recursion when automations trigger other automations.
+        Initializes the ``__action_done`` context (mapping automation to already
+        processed records) to prevent infinite recursion when automations trigger
+        other automations. Searches under ``sudo()`` and returns the rules in the
+        caller's environment.
 
-        The method is called during CRUD operations and other events to determine
-        which automations should be evaluated and potentially executed.
-
-        Args:
-            records (Model): Recordset whose model determines which automations
-                to retrieve. Only the model name (_name) is used, not the actual
-                record data.
-            triggers (list): List of trigger type strings to match against.
-                Examples: ['on_create', 'on_write'], ['on_time'], etc.
-
-        Returns:
-            base.automation: Recordset of active automation rules matching the
-                model and triggers, with __action_done context initialized for
-                recursion prevention.
-
-        Context Management:
-            - __action_done (dict): Maps automation → processed records to prevent
-              re-processing. Initialized to empty dict if not present.
-            - active_test=True: Only retrieves active automations
-
-        Security:
-            - Executes with sudo() to access all automations regardless of user rights
-            - Results returned with original user's environment (with_env)
-
-        Performance:
-            - Single database query with domain filter
-            - Results cached in request context via __action_done
-
+        :param records: recordset whose model name (``_name``) selects the rules.
+        :param triggers: trigger strings to match, e.g. ``['on_create', 'on_write']``.
+        :return: active ``base.automation`` recordset.
         """
         # Note: we keep the old action naming for the method and context variable
         # to avoid breaking existing code/downstream modules
@@ -1591,69 +1517,20 @@ class BaseAutomation(models.Model):
                     raise
 
     def _register_hook(self):
-        """Dynamically patch Odoo models to intercept CRUD operations for automation.
+        """Patch CRUD/message/onchange methods of models that have automation rules.
 
-        This method is the core of the automation framework. It uses Python
-        metaprogramming to dynamically wrap (patch) the create(), write(),
-        unlink(), and other methods of models that have automation rules.
+        For each rule, wraps the relevant method on its model so the event runs
+        the rule (retrieve applicable rules, call the original, evaluate pre/post
+        filters, execute actions on matching records). Patched:
 
-        When a model operation occurs (e.g., partner.create()), the patched
-        method:
-        1. Retrieves applicable automation rules via _get_actions()
-        2. Executes the original method (e.g., create.origin())
-        3. Evaluates automation conditions (pre/post filters)
-        4. Executes automation actions on matching records
+        - ``create``: ``on_create``/``on_create_or_write`` triggers
+        - ``write`` and ``_compute_field_value``: write-family triggers
+        - ``unlink``: ``on_unlink`` trigger
+        - ``message_post``: ``on_message_received``/``on_message_sent`` triggers
+        - onchange methods: ``on_change`` trigger (per watched field)
 
-        This approach allows automations to work transparently across all Odoo
-        models without requiring modifications to those models.
-
-        Methods Patched:
-            - create(): For 'on_create' and 'on_create_or_write' triggers
-            - write(): For 'on_write' and related triggers
-            - _compute_field_value(): For computed field write triggers
-            - unlink(): For 'on_unlink' trigger
-            - message_post(): For 'on_message_received' and 'on_message_sent'
-            - onchange methods: For 'on_change' trigger (field-specific)
-
-        Patching Strategy:
-            - Uses method origin attribute to store original implementation
-            - Each patched method calls origin to preserve normal behavior
-            - Patches applied per-model (not per-instance)
-            - Patches persist for life of registry (until module update)
-
-        Performance Impact:
-            - Adds <1ms overhead per CRUD operation
-            - Only patches models that have automation rules
-            - Automation lookup cached in request context
-            - No overhead when no automations are configured
-
-        Closure Pattern:
-            Patched methods are defined in nested factory functions (make_create,
-            make_write, etc.) to ensure proper closure over the 'origin' variable.
-            This prevents bugs where closures in loops reference the wrong function.
-
-        Registry Lifecycle:
-            - Called during module load (post_load hook)
-            - Re-applied when automation rules are created/modified/deleted
-            - Removed during module uninstall (_unregister_hook)
-            - Registry invalidation triggers re-patching across workers
-
-        Security Considerations:
-            - Patches execute with original user's permissions
-            - Automation actions execute with sudo() privileges
-            - Domain evaluation uses safe_eval with restricted context
-            - Cannot bypass record rules or access restrictions
-
-        Known Limitations:
-            - Cannot patch private methods (starting with _)
-            - Onchange patches apply to form UI only (not API/RPC)
-            - Computed field patches only catch explicit recomputations
-            - Performance impact accumulates with many automations
-
-        Note:
-            This is advanced metaprogramming that modifies the Odoo ORM at
-            runtime. Modifications to this method should be thoroughly tested
-            across all trigger types and model combinations.
+        Patches are per-model (via a stored ``origin``) and are refreshed by
+        :meth:`_update_registry` / :meth:`_unregister_hook`.
         """
         #
         # Note: the patched methods must be defined inside another function,
@@ -1830,7 +1707,7 @@ class BaseAutomation(models.Model):
 
                 if not automation_rule._filter_post(self):
                     # Do nothing if onchange record does not satisfy the filter_domain
-                    return
+                    return  # noqa: RET502
 
                 result = {}
                 actions = automation_rule.sudo().action_server_ids.with_context(
@@ -1965,67 +1842,18 @@ class BaseAutomation(models.Model):
                 patch(Model, "message_post", make_message_post())
 
     def _search_time_based_automation_records(self, *, until):
-        """Search for records that should trigger time-based automation.
+        """Search records whose trigger date falls between ``last_run`` and ``until``.
 
-        This method finds all records matching a time-based automation rule
-        ('on_time', 'on_time_created', 'on_time_updated') between the last
-        execution and the specified 'until' timestamp.
+        Applies the rule's relative offset (``trg_date_range`` * ``trg_date_range_type``,
+        ``before``/``after`` mode) to the ``trg_date_id`` field. Handles the
+        calendar-aware day mode (``resource.calendar.plan_days``, filtered in
+        Python), date vs datetime fields, and the ``date_automation_last`` fallback
+        to ``create_date`` when unset. Stored/searchable fields are queried
+        directly; computed fields are filtered in Python after a domain search.
 
-        The method handles complex scenarios including:
-        - Calendar-aware date calculations (working days only)
-        - Relative date offsets (before/after trigger date)
-        - Date vs datetime field types
-        - Fallback to create_date for special date_automation_last field
-        - Optimization for searchable vs computed fields
-
-        Args:
-            until (datetime): The upper bound timestamp for record search.
-                Typically set to current time (datetime.now()) by the cron job.
-                Only records with trigger dates between last_run and until
-                are returned.
-
-        Returns:
-            Model: Recordset of records that should trigger the automation.
-                Empty recordset if no matches or if date field is missing.
-
-        Trigger Date Calculation:
-            - trg_date_range: Numeric offset (e.g., 7 for "7 days")
-            - trg_date_range_type: Unit ('minutes', 'hour', 'day', 'month')
-            - trg_date_range_mode: 'before' or 'after' the trigger date
-            - Formula: trigger_dt = record_date ± (range × range_type)
-
-        Calendar-Aware Mode:
-            When trg_date_calendar_id is set and range_type is 'day':
-            - Uses resource.calendar.plan_days() for working day calculations
-            - Respects calendar leaves (holidays, weekends)
-            - Caches calendar calculations per calendar ID
-            - Falls back to Python filtering (cannot optimize in database)
-
-        Non-Calendar Mode:
-            - Direct database query with relative date domain
-            - More efficient but doesn't respect working days
-            - Uses database-level date arithmetic
-
-        Date vs Datetime Handling:
-            - Date fields: Compares date portions only, uses .date()
-            - Datetime fields: Precise timestamp comparison
-            - Both handle timezone-aware datetimes correctly
-
-        Special date_automation_last Field:
-            If trigger field is 'date_automation_last':
-            - Falls back to 'create_date' if date_automation_last is NULL
-            - Allows scheduling based on record creation when field unset
-            - Useful for "X days after creation" automations
-
-        Performance Optimizations:
-            - Single query for searchable/stored fields
-            - Two-phase for computed fields (search + filter)
-            - Calendar calculations cached per calendar
-            - Early return if date field missing
-
-        Security:
-            - Evaluates filter_domain using safe_eval with restricted context
-            - Always executes with sudo() internally via Model.search()
+        :param until: upper-bound timestamp for the search (the cron passes now).
+        :return: recordset that should trigger the automation, empty when the
+            trigger date field is missing.
         """
         automation = self.ensure_one()
 
@@ -2146,7 +1974,7 @@ class BaseAutomation(models.Model):
         ]
         for Model in self.env.registry.values():
             for name in NAMES:
-                try:
+                try:  # noqa: SIM105
                     delattr(Model, name)
                 except AttributeError:
                     pass
@@ -2199,38 +2027,16 @@ class BaseAutomation(models.Model):
     # ------------------------------------------------------------
 
     def _check_trigger_fields(self, record):
-        """Check if any configured trigger fields were modified on the record.
+        """Return whether a configured trigger field changed on ``record``.
 
-        This method determines whether an automation should execute based on
-        which fields changed. It's used for 'on_write' and 'on_create_or_write'
-        triggers to execute actions only when specific fields are modified.
+        Returns True when no trigger fields are configured (all fields trigger)
+        or on create (``old_values`` missing, so all fields count as modified);
+        otherwise True only if a watched field differs from its old value. Old
+        values come from the ``old_values`` context populated by the write-family
+        patches in :meth:`_register_hook`.
 
-        The method compares old field values (stored in context during write
-        operations) with current values to detect changes.
-
-        Args:
-            record (Model): Single record (not a recordset) to check for
-                field modifications.
-
-        Returns:
-            bool: True if any trigger field was modified, or if no specific
-                trigger fields are configured (meaning all fields trigger),
-                or if this is a create operation. False otherwise.
-
-        Behavior by Trigger Type:
-            - No trigger_field_ids: Returns True (all fields trigger automation)
-            - Create operation: Returns True (all fields considered modified)
-            - Write operation: Returns True only if a trigger field changed
-
-        Context Requirements:
-            - old_values (dict): Maps record.id → {field_name: old_value}.
-              Populated during write operations by _register_hook() patches.
-              If None/missing, assumes create operation.
-
-        Performance:
-            - O(n) where n = number of trigger fields configured
-            - Early return optimizations for common cases
-            - Lightweight comparison (no database queries)
+        :param record: single record (not a recordset) to check.
+        :rtype: bool
         """
         self_sudo = self.sudo()
         if not self_sudo.trigger_field_ids:
