@@ -501,6 +501,7 @@ export class RPCCache {
             update = "once",
             immutable = false,
             model = undefined,
+            silent = false,
         } = {},
     ) {
         validateSettings({ type, update });
@@ -684,13 +685,16 @@ export class RPCCache {
                             rpcBus.trigger(RpcEvent.BACKGROUND_REFRESH_FAILED, {
                                 error,
                             });
-                            // Kept alongside the event: the web client's error
-                            // service only listens on "unhandledrejection", so
-                            // the floating rejection is still what surfaces the
-                            // connection-lost UX. Removing it entirely would
-                            // require an error-service subscriber to the event
-                            // above, which lives outside this module.
-                            Promise.reject(error);
+                            // Float the rejection to surface the connection-lost
+                            // UX (the web client's error service only listens on
+                            // "unhandledrejection") — but ONLY for a non-silent
+                            // read. A ``silent`` caller opted out of connection
+                            // UX (loading indicator, slow-rpc toast, and this
+                            // background-refresh dialog); the bus event above
+                            // still lets explicit subscribers observe it.
+                            if (!silent) {
+                                Promise.reject(error);
+                            }
                         } else {
                             console.warn("RPC cache: background refresh failed", error);
                         }
@@ -761,7 +765,11 @@ export class RPCCache {
                     fromCache.resolve(); // fromCacheValue will remain undefined
                 }
 
-                fallback().then(onFulfilled, onRejected);
+                // Pass ``request`` so the initiator (rpc.js) can hand it back to
+                // ``abortPending`` for an identity-guarded eviction: a silent
+                // ``abort(false)`` must only drop the slot while WE still own it,
+                // never a newer request that replaced us after an invalidation.
+                fallback(request).then(onFulfilled, onRejected);
             });
             this.ramCache.write(table, key, prom, model);
             ramValue = prom;
@@ -786,9 +794,20 @@ export class RPCCache {
      * @param {string} table
      * @param {string} key
      */
-    abortPending(table, key) {
+    abortPending(table, key, request) {
         const requestKey = `${table}/${key}`;
-        if (requestKey in this.pendingRequests) {
+        // Identity guard (mirrors ``onFulfilled``/``onRejected``): only evict
+        // while the slot still belongs to the aborting initiator. Without it, a
+        // stale initiator's ``abort(false)`` — fired after ``invalidate()``
+        // cleared its slot and a newer read (``request``′) repopulated it — would
+        // delete the NEWER request's ``pendingRequests`` entry and RAM promise,
+        // forcing a redundant re-fetch and dropping its SWR bookkeeping. When no
+        // ``request`` is supplied (legacy callers), fall back to the prior
+        // unconditional behavior.
+        if (
+            requestKey in this.pendingRequests &&
+            (request === undefined || this.pendingRequests[requestKey] === request)
+        ) {
             delete this.pendingRequests[requestKey];
             this.ramCache.delete(table, key);
         }

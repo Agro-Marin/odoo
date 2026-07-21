@@ -423,6 +423,13 @@ class Base(models.AbstractModel):
             limit = unfold_read_default_limit
             offset = 0
             progressbar_domain = subgroup_opening_info = None
+            if nb_opened_group >= max_number_opened_group:
+                # Cap the OPENING_INFO (saved-state reload) path too, not only
+                # the auto-unfold ``elif`` below. Each opened last-level group
+                # triggers its own ``search()`` (un-batched), so an unbounded
+                # saved state would fan out to one SQL query per open group on
+                # every reload. Bounding it here matches the auto-unfold limit.
+                continue
             if opening_info and raw_groupby_value in parent_opening_info_dict:
                 group_info = parent_opening_info_dict[raw_groupby_value]
                 if group_info["folded"]:
@@ -433,9 +440,10 @@ class Base(models.AbstractModel):
                 subgroup_opening_info = group_info.get("groups")
 
             elif (
-                # Auto Fold/unfold
+                # Auto Fold/unfold. The opened-group cap is enforced above (for
+                # both the reload and auto-unfold paths), so it is not repeated
+                # here.
                 (not auto_unfold and not fold_info)
-                or nb_opened_group >= max_number_opened_group
                 or fold
                 # Empty recordset is folded by default
                 or (field.relational and not group[groupby_spec])

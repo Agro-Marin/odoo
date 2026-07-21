@@ -13,6 +13,7 @@ from werkzeug.datastructures import (
 import odoo
 import odoo.modules.registry
 from odoo import http
+from odoo.exceptions import UserError
 from odoo.http import Response, content_disposition, dispatch_rpc, request
 from odoo.service import db
 from odoo.service.db import DBNAME_PATTERN  # re-exported; used by template renderer too
@@ -326,6 +327,29 @@ class Database(http.Controller):
     )
     def change_password(self, master_pwd: str, master_pwd_new: str) -> str | Response:
         try:
+            # Same remote-lockout vector ``_handle_insecure_password`` closes:
+            # while the master password is still the insecure default 'admin',
+            # ``change_admin_password`` only requires that well-known value, so a
+            # NON-loopback caller against an exposed database manager could rotate
+            # it to an attacker secret and lock the real admin out. Refuse remote
+            # rotation until the default has been promoted from localhost (or
+            # ``admin_passwd`` set in the config). A caller who already knows a
+            # non-default master password is unaffected.
+            if odoo.tools.config.verify_admin_password("admin"):
+                remote_addr = request.httprequest.remote_addr
+                if not _is_loopback(remote_addr):
+                    _logger.warning(
+                        "Refusing a non-loopback master-password change from %s "
+                        "while the default password is still in place.",
+                        remote_addr,
+                    )
+                    raise UserError(
+                        _(
+                            "For security, the master password can only be changed "
+                            "from localhost while it is still the default. Set "
+                            "'admin_passwd' in the configuration file instead."
+                        )
+                    )
             dispatch_rpc("db", "change_admin_password", [master_pwd, master_pwd_new])
             return request.redirect("/web/database/manager")
         except Exception as e:

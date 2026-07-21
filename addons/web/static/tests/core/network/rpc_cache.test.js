@@ -3,6 +3,8 @@
 import { Deferred, describe, expect, microTick, test, tick } from "@odoo/hoot";
 import { mockIndexedDBForTests } from "@web/../tests/_framework/mock_indexed_db.hoot";
 import { patchWithCleanup } from "@web/../tests/web_test_helpers";
+import { RpcEvent } from "@web/core/events";
+import { ConnectionLostError, rpcBus } from "@web/core/network/rpc";
 import { RAM_CACHE_MAX_ENTRIES, RPCCache } from "@web/core/network/rpc_cache";
 import { IDBQuotaExceededError, IndexedDB } from "@web/core/utils/indexed_db";
 
@@ -109,6 +111,40 @@ test("abortPending: a silently-aborted cache miss can be re-fetched fresh", asyn
     });
     expect(fallbackCalls).toBe(2);
     expect(await fresh).toEqual({ test: 7 });
+});
+
+test("abortPending: identity guard — a stale abort does not evict a newer request", async () => {
+    const rpcCache = new RPCCache(
+        "mockRpc",
+        1,
+        "85472d41873cdb504b7c7dfecdb8993d90db142c4c03e6d94c4ae37a7771dc5b",
+    );
+
+    // Initiator A: read() hands its request handle to the fallback.
+    let requestA;
+    const hungA = new Deferred();
+    rpcCache.read("table", "key", (request) => {
+        requestA = request;
+        return hungA;
+    });
+    expect("table/key" in rpcCache.pendingRequests).toBe(true);
+
+    // An invalidation drops A's slot; a newer read B repopulates the same key.
+    rpcCache.invalidate("table");
+    expect("table/key" in rpcCache.pendingRequests).toBe(false);
+    const hungB = new Deferred();
+    rpcCache.read("table", "key", () => hungB);
+    const requestB = rpcCache.pendingRequests["table/key"];
+    expect(requestB).not.toBe(requestA);
+
+    // A's late silent abort, keyed to requestA, must NOT tear down B's slot.
+    rpcCache.abortPending("table", "key", requestA);
+    expect("table/key" in rpcCache.pendingRequests).toBe(true);
+    expect(rpcCache.pendingRequests["table/key"]).toBe(requestB);
+
+    // B aborting its own request still evicts.
+    rpcCache.abortPending("table", "key", requestB);
+    expect("table/key" in rpcCache.pendingRequests).toBe(false);
 });
 
 test("PersistentCache: can cache a simple call", async () => {
@@ -1069,6 +1105,45 @@ test("DiskCache: multiple consecutive calls, fallback fails", async () => {
     expect.verifySteps([]);
     // No error raised — cached data was already served, background failure is
     // silently warned to avoid disrupting the user with an error dialog.
+});
+
+test("silent update:always: ConnectionLostError refresh does not float a rejection", async () => {
+    // A ``silent`` caller opted out of connection UX. After it is served cached
+    // data, a background (update:"always") refresh that fails with
+    // ConnectionLostError must still fire BACKGROUND_REFRESH_FAILED on the bus,
+    // but must NOT float a ``Promise.reject`` (which would pop the global
+    // connection-lost dialog). A floating rejection would surface here as an
+    // unhandled rejection and fail this test.
+    const rpcCache = new RPCCache(
+        "mockRpc",
+        1,
+        "85472d41873cdb504b7c7dfecdb8993d90db142c4c03e6d94c4ae37a7771dc5b",
+    );
+    // Fill the RAM cache.
+    await rpcCache.read("table", "key", () => Promise.resolve({ v: 1 }), {
+        type: "ram",
+    });
+
+    const failures = [];
+    const onFail = (/** @type {any} */ ev) => failures.push(ev.detail.error);
+    rpcBus.addEventListener(RpcEvent.BACKGROUND_REFRESH_FAILED, onFail);
+
+    const def = new Deferred();
+    const res = await rpcCache.read("table", "key", () => def, {
+        type: "ram",
+        update: "always",
+        silent: true,
+    });
+    expect(res).toEqual({ v: 1 }); // cached value served
+
+    def.reject(new ConnectionLostError("/web/dataset/call_kw"));
+    await tick();
+    await tick();
+
+    // The failure is observable via the bus, but nothing floated.
+    expect(failures.length).toBe(1);
+    expect(failures[0]).toBeInstanceOf(ConnectionLostError);
+    rpcBus.removeEventListener(RpcEvent.BACKGROUND_REFRESH_FAILED, onFail);
 });
 
 test("DiskCache: multiple consecutive calls, empty cache, fallback fails", async () => {

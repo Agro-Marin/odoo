@@ -116,10 +116,19 @@ class Base(models.AbstractModel):
     ) -> dict[str, int | list]:
         """Wrap *records* with a length estimate for pager support."""
         if not records:
-            return {
-                "length": 0,
-                "records": [],
-            }
+            if not offset:
+                # Genuinely empty result set.
+                return {"length": 0, "records": []}
+            # Empty page PAST the end of the result set — e.g. records were
+            # deleted under a user paged to offset > 0. Records still exist on
+            # earlier pages, so returning length 0 would collapse the pager and
+            # hide them. Compute the real count instead (reusing the data
+            # query's FROM/WHERE when available).
+            if _query is not None:
+                length = _query.count_matching(count_limit)
+            else:
+                length = self.search_count(domain, limit=count_limit)
+            return {"length": length, "records": []}
         current_length = len(records) + offset
         limit_reached = len(records) == limit
         force_search_count = self.env.context.get("force_search_count")

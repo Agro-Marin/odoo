@@ -170,7 +170,18 @@ class Base(models.AbstractModel):
         # itself, with old values!
         #
         initial_values = dict(values)
-        changed_values = {fname: initial_values.pop(fname) for fname in field_names}
+        # ``if fname in initial_values`` so a changed field name absent from
+        # ``values`` is skipped rather than raising ``KeyError`` (a 500). The
+        # normal client always sends every changed field in ``values``, but the
+        # defensive drops in the JS changeset builder (a many2one still awaiting
+        # ``name_create``, a non-StaticList x2many on the urgent/beacon path) can
+        # omit a field that is still in ``field_names`` — fail open, consistent
+        # with the unknown-field guards above.
+        changed_values = {
+            fname: initial_values.pop(fname)
+            for fname in field_names
+            if fname in initial_values
+        }
 
         # do not force delegate fields to False
         for parent_name in self._inherits.values():

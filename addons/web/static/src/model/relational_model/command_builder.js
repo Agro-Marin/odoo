@@ -136,6 +136,15 @@ export function shouldEmitDelete(ownCommands) {
  * @returns {boolean} true if an UNLINK command should be emitted
  */
 export function shouldEmitUnlink(ownCommands) {
+    // Symmetric with ``shouldEmitDelete``: a record CREATEd in this session that
+    // is then UNLINKed never existed server-side, so every staged command for it
+    // (CREATE + any UPDATE) must be dropped and NOTHING emitted. Without this an
+    // ``[UNLINK, virtualId]`` was emitted while ``[CREATE, virtualId, vals]``
+    // survived in the log, so a row the user removed got created anyway.
+    if (ownCommands.some((x) => x.command[0] === CREATE)) {
+        ownCommands.splice(0);
+        return false;
+    }
     const linkIndex = ownCommands.findIndex((x) => x.command[0] === LINK);
     if (linkIndex >= 0) {
         ownCommands.splice(linkIndex, 1);
@@ -178,6 +187,17 @@ export function absorbUnlinkIntoSet(allCommands, recordId) {
         return false;
     }
     firstCommand[2] = ids.filter((id) => id !== recordId);
+    // A SET carries per-record UPDATE commands (``_replaceWith`` rebuilds
+    // ``_commands = [SET(ids), ...updateCommandsToKeep]``). Once the record is
+    // removed from the SET's id list it is no longer part of the relation, so a
+    // surviving ``[UPDATE, id]`` would write the user's edits into a record the
+    // server just removed via SET. Drop them in lockstep (iterate from the end
+    // so splicing does not skip entries).
+    for (let i = allCommands.length - 1; i > 0; i--) {
+        if (allCommands[i][0] === UPDATE && allCommands[i][1] === recordId) {
+            allCommands.splice(i, 1);
+        }
+    }
     return true;
 }
 

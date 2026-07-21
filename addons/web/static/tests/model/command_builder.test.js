@@ -261,6 +261,25 @@ describe("shouldEmitUnlink", () => {
         expect(shouldEmitUnlink(ownCommands)).toBe(false);
         expect(ownCommands.length).toBe(1);
     });
+
+    test("returns false and clears when a CREATE exists (cancels out)", () => {
+        // Symmetric with shouldEmitDelete: an inline-created row (CREATE, no
+        // LINK) that is then UNLINKed never existed server-side, so NOTHING is
+        // emitted and every staged command is dropped. Previously the CREATE
+        // survived and the "removed" row got created anyway.
+        const ownCommands = [{ command: [CREATE, "v1"], index: 0 }];
+        expect(shouldEmitUnlink(ownCommands)).toBe(false);
+        expect(ownCommands.length).toBe(0);
+    });
+
+    test("returns false and clears a CREATE with pending UPDATEs", () => {
+        const ownCommands = [
+            { command: [CREATE, "v1"], index: 0 },
+            { command: [UPDATE, "v1"], index: 1 },
+        ];
+        expect(shouldEmitUnlink(ownCommands)).toBe(false);
+        expect(ownCommands.length).toBe(0);
+    });
 });
 
 describe("absorbUnlinkIntoSet", () => {
@@ -289,6 +308,25 @@ describe("absorbUnlinkIntoSet", () => {
         const commands = [[SET, false, [5]]];
         expect(absorbUnlinkIntoSet(commands, 5)).toBe(true);
         expect(commands[0][2]).toEqual([]);
+    });
+
+    test("also drops orphaned UPDATE commands for the absorbed id", () => {
+        // _replaceWith keeps [SET(ids), ...UPDATE]. Unlinking an id must remove
+        // it from the SET AND drop its UPDATE, else the server applies SET
+        // (removing the row) then writes edits into a record no longer in the
+        // relation.
+        const commands = [
+            [SET, false, [1, 2, 3]],
+            [UPDATE, 2, { name: "edited" }],
+            [UPDATE, 3, { name: "keep" }],
+        ];
+        expect(absorbUnlinkIntoSet(commands, 2)).toBe(true);
+        expect(commands[0][2]).toEqual([1, 3]);
+        // the UPDATE for 2 is gone; the UPDATE for 3 (still in the SET) survives
+        expect(commands).toEqual([
+            [SET, false, [1, 3]],
+            [UPDATE, 3, { name: "keep" }],
+        ]);
     });
 });
 

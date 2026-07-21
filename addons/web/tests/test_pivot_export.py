@@ -1,5 +1,6 @@
 import io
 from http import HTTPStatus
+from unittest.mock import patch
 from zipfile import ZipFile
 
 from lxml import etree
@@ -68,3 +69,40 @@ class TestPivotExport(HttpCase):
         )
         self.assertEqual(response.status_code, HTTPStatus.UNPROCESSABLE_ENTITY)
         self.assertIn("No data to export", response.text)
+
+    @patch(
+        "odoo.addons.web.controllers.pivot.MAX_EXPORT_CELLS",
+        5,
+    )
+    def test_export_xlsx_oversized_is_rejected(self):
+        """A pivot exceeding the cell budget is rejected with 422, not OOM.
+
+        The per-header width and measure_count are clamped, but the COUNT of
+        headers/rows is client-controlled and unbounded; the total-cell cap is
+        the backstop against a crafted body driving ~10^8 writes into RAM. Here
+        the cap is patched low so the test stays fast; a body writing more than
+        5 cells must 422.
+        """
+        self.authenticate("admin", "admin")
+        jdata = {
+            "title": "Huge",
+            "model": "sale.report",
+            "measure_count": 1,
+            "origin_count": 1,
+            # one header row, one header of width 50 => 50 cells >> 5 cap
+            "col_group_headers": [
+                [{"title": "x", "width": 50, "height": 1}],
+            ],
+            "measure_headers": [],
+            "origin_headers": [],
+            "rows": [],
+        }
+        response = self.url_open(
+            "/web/pivot/export_xlsx",
+            data={
+                "data": json_dumps(jdata),
+                "csrf_token": http.Request.csrf_token(self),
+            },
+        )
+        self.assertEqual(response.status_code, HTTPStatus.UNPROCESSABLE_ENTITY)
+        self.assertIn("too large to export", response.text)

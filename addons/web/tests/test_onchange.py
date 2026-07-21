@@ -59,3 +59,25 @@ class TestOnchange(common.TransactionCase):
             {"company_type": {}, "is_company": {}},
         )
         self.assertEqual(result, {})
+
+    def test_changed_field_absent_from_values_does_not_crash(self):
+        """A known changed field missing from ``values`` must fail open, not 500.
+
+        The JS changeset builder can drop a field that is still in
+        ``field_names`` (a many2one awaiting ``name_create``, a non-StaticList
+        x2many on the urgent/beacon path). ``changed_values`` used to
+        ``pop(fname)`` without a default, raising ``KeyError`` -> 500. The
+        remaining valid fields must still recompute.
+        """
+        result = self.env["res.partner"].onchange(
+            {"company_type": "company", "is_company": False},
+            # ``name`` is a valid field, is in field_names, but absent from values
+            ["company_type", "name"],
+            {"company_type": {}, "is_company": {}, "name": {}},
+        )
+        self.assertIn("value", result)
+        self.assertTrue(
+            result["value"].get("is_company"),
+            "valid changed fields must still recompute when another changed "
+            "field is absent from values",
+        )
