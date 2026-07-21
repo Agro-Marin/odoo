@@ -179,7 +179,7 @@ class AutomationRuntime(models.Model):
                 runtime.progress = 0
                 continue
             done = len(runtime.line_ids.filtered(lambda l: l.state == "done"))
-            runtime.progress = int(round((done / total) * 100))
+            runtime.progress = round((done / total) * 100)
 
     @api.depends("line_ids.state")
     def _compute_progress_display(self):

@@ -5,8 +5,8 @@
 import logging
 
 from odoo import Command
-from odoo.tests.common import TransactionCase
 from odoo.exceptions import ValidationError
+from odoo.tests.common import TransactionCase
 
 _logger = logging.getLogger(__name__)
 
@@ -199,7 +199,7 @@ class TestWorkflowDAG(TransactionCase):
     def test_runtime_progress_display(self):
         """progress_display updates as lines complete."""
         action_a = self._create_action("A")
-        action_b = self._create_action("B", predecessors=[action_a])
+        self._create_action("B", predecessors=[action_a])
 
         runtime = self._make_runtime()
         self.assertEqual(runtime.progress_display, "0/2 steps")
@@ -217,7 +217,7 @@ class TestWorkflowDAG(TransactionCase):
         action_a = self._create_action("A", code="record.write({'comment': 'A'})")
         action_b = self._create_action("B", code="record.write({'comment': 'B'})",
                                        predecessors=[action_a])
-        action_c = self._create_action("C", code="record.write({'comment': 'C'})",
+        self._create_action("C", code="record.write({'comment': 'C'})",
                                        predecessors=[action_b])
 
         runtime = self.Runtime.create({
@@ -240,7 +240,7 @@ class TestWorkflowDAG(TransactionCase):
         action_a = self._create_action("A")
         action_b = self._create_action("B", predecessors=[action_a])
         action_c = self._create_action("C", predecessors=[action_a])
-        action_d = self._create_action("D", predecessors=[action_b, action_c])
+        self._create_action("D", predecessors=[action_b, action_c])
 
         runtime = self.Runtime.create({
             "automation_id": self.automation.id,
@@ -261,7 +261,7 @@ class TestWorkflowDAG(TransactionCase):
     def test_manual_trigger_dag_creates_runtime(self):
         """action_manual_trigger creates automation.runtime for DAG automations."""
         action_a = self._create_action("A")
-        action_b = self._create_action("B", predecessors=[action_a])
+        self._create_action("B", predecessors=[action_a])
 
         before_count = self.Runtime.search_count([("automation_id", "=", self.automation.id)])
 
@@ -322,7 +322,7 @@ class TestWorkflowDAG(TransactionCase):
     def test_runtime_cancel(self):
         """Cancelling runtime cancels all non-done lines."""
         action_a = self._create_action("A")
-        action_b = self._create_action("B", predecessors=[action_a])
+        self._create_action("B", predecessors=[action_a])
 
         runtime = self._make_runtime()
         runtime.action_cancel()
@@ -369,7 +369,7 @@ class TestWorkflowDAGExecution(TransactionCase):
             "base_automation_id": automation.id,
             "usage": "base_automation",
         })
-        action_b = self.Action.create({
+        self.Action.create({
             "name": "Set Phone",
             "model_id": self.model_partner.id,
             "state": "code",
