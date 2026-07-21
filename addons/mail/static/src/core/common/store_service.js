@@ -695,8 +695,11 @@ export class Store extends BaseStore {
         // the test suite patches. Going straight to `navigator` attached this
         // listener to the real, process-wide object, so every store created by
         // a test stayed subscribed for the rest of the run and each push was
-        // dispatched to all of them. Held in a field so it can be removed.
-        this._onServiceWorkerMessage = (ev) => {
+        // dispatched to all of them. Neither services nor Store have a disposal
+        // path in this framework, so the listener's lifetime is the page's (in
+        // tests, that of the patched `browser.navigator`) and it is never
+        // removed — hence a local binding rather than a field.
+        const onServiceWorkerMessage = (ev) => {
             const { data = {} } = ev;
             const { type, payload } = data;
             if (type === "notification-display-request") {
@@ -736,19 +739,8 @@ export class Store extends BaseStore {
         };
         browser.navigator.serviceWorker?.addEventListener(
             "message",
-            this._onServiceWorkerMessage,
+            onServiceWorkerMessage,
         );
-    }
-
-    /** Detach the service-worker listener registered by `onStarted`. */
-    stopListeningServiceWorker() {
-        if (this._onServiceWorkerMessage) {
-            browser.navigator.serviceWorker?.removeEventListener(
-                "message",
-                this._onServiceWorkerMessage,
-            );
-            this._onServiceWorkerMessage = undefined;
-        }
     }
 
     onPushNotificationDisplayed(payload) {

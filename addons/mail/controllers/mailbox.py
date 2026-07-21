@@ -14,7 +14,9 @@ class MailboxController(http.Controller):
     )
     def discuss_inbox_messages(self, fetch_params=None):
         domain = [("needaction", "=", True)]
-        res = request.env["mail.message"]._message_fetch(domain, **(fetch_params or {}))
+        res = request.env["mail.message"]._message_fetch(
+            domain, **request.env["mail.message"]._sanitize_fetch_params(fetch_params)
+        )
         messages = res.pop("messages")
         # sudo: bus.bus: reading non-sensitive last id
         bus_last_id = request.env["bus.bus"].sudo()._bus_last_id()
@@ -48,7 +50,9 @@ class MailboxController(http.Controller):
     )
     def discuss_history_messages(self, fetch_params=None):
         domain = [("needaction", "=", False)]
-        res = request.env["mail.message"]._message_fetch(domain, **(fetch_params or {}))
+        res = request.env["mail.message"]._message_fetch(
+            domain, **request.env["mail.message"]._sanitize_fetch_params(fetch_params)
+        )
         messages = res.pop("messages")
         return {
             **res,
@@ -65,7 +69,9 @@ class MailboxController(http.Controller):
     )
     def discuss_starred_messages(self, fetch_params=None):
         domain = [("starred_partner_ids", "in", [request.env.user.partner_id.id])]
-        res = request.env["mail.message"]._message_fetch(domain, **(fetch_params or {}))
+        res = request.env["mail.message"]._message_fetch(
+            domain, **request.env["mail.message"]._sanitize_fetch_params(fetch_params)
+        )
         messages = res.pop("messages")
         return {
             **res,
