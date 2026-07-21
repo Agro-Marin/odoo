@@ -1,6 +1,5 @@
-# -*- coding: utf-8 -*-
 
-from odoo import models, fields, api
+from odoo import api, fields, models
 
 
 class BarcodesBarcode_Events_Mixin(models.AbstractModel):
@@ -21,6 +20,7 @@ class BarcodesBarcode_Events_Mixin(models.AbstractModel):
         if barcode:
             self._barcode_scanned = ""
             return self.on_barcode_scanned(barcode)
+        return None
 
     def on_barcode_scanned(self, barcode):
         raise NotImplementedError(self.env._("In order to use barcodes.barcode_events_mixin, method on_barcode_scanned must be implemented"))

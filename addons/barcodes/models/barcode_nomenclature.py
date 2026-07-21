@@ -1,8 +1,11 @@
+import logging
 import re
 
-from odoo import models, fields, api, _
+from odoo import _, api, fields, models
 from odoo.exceptions import UserError
 from odoo.libs.barcode import check_barcode_encoding, get_barcode_check_digit
+
+_logger = logging.getLogger(__name__)
 
 
 UPC_EAN_CONVERSIONS = [
@@ -60,15 +63,15 @@ class BarcodeNomenclature(models.Model):
         }
 
         barcode = barcode.replace('\\', '\\\\').replace('{', '\\{').replace('}', '\\}').replace('.', '\\.')
-        numerical_content = re.search("[{][N]*[D]*[}]", pattern)  # look for numerical content in pattern
+        numerical_content = re.search(r"[{][N]*[D]*[}]", pattern)  # look for numerical content in pattern
 
         if numerical_content:  # the pattern encodes a numerical content
             num_start = numerical_content.start()  # start index of numerical content
             num_end = numerical_content.end()  # end index of numerical content
             value_string = barcode[num_start:num_end - 2]  # numerical content in barcode
 
-            whole_part_match = re.search("[{][N]*[D}]", numerical_content.group())  # looks for whole part of numerical content
-            decimal_part_match = re.search("[{N][D]*[}]", numerical_content.group())  # looks for decimal part
+            whole_part_match = re.search(r"[{][N]*[D}]", numerical_content.group())  # looks for whole part of numerical content
+            decimal_part_match = re.search(r"[{N][D]*[}]", numerical_content.group())  # looks for decimal part
             whole_part = value_string[:whole_part_match.end() - 2]  # retrieve whole part of numerical content in barcode
             decimal_part = "0." + value_string[decimal_part_match.start():decimal_part_match.end() - 1]  # retrieve decimal part
             if whole_part == '':
@@ -151,7 +154,7 @@ class BarcodeNomenclature(models.Model):
         """
         if not re.match(r'^urn:', barcode):
             return barcode
-        identifier, data = (bc_part.strip() for bc_part in re.split(':', barcode)[-2:])
+        identifier, data = (bc_part.strip() for bc_part in re.split(r':', barcode)[-2:])
         data = re.split(r'\.', data)
         match identifier:
             case 'lgtin' | 'sgtin':
@@ -164,6 +167,14 @@ class BarcodeNomenclature(models.Model):
             case 'sscc-96':
                 # Same as SSCC but we have to remove the filter.
                 barcode = self._convert_uri_sscc_data_into_package(barcode, data[1:])
+            case _:
+                # Every matched case above returns a list of result dicts
+                # (see the tests) - callers rely on that shape (len(),
+                # [0]['type'], etc). Returning the raw urn: string here for
+                # an unrecognized identifier would silently break that
+                # contract downstream, so return an empty list instead.
+                _logger.info("Unrecognized URI identifier %r in barcode %r", identifier, barcode)
+                barcode = []
         return barcode
 
     @api.model
