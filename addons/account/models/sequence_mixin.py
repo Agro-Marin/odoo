@@ -292,17 +292,9 @@ class SequenceMixin(models.AbstractModel):
         )
 
     def _make_regex_non_capturing(self, regex):
-        r"""Replace the "named capturing group" found in the regex by
-        "non-capturing group" instead.
-
-        Example:
-        `^(?P<prefix1>.*?)(?P<seq>\d{0,9})(?P<suffix>\D*?)$` will become
-        `^(?:.*?)(?:\d{0,9})(?:\D*?)$`
-        - `(?P<name>...)` = Named capturing groups
-        - `(?:...)` = Non-capturing group
+        r"""Replace named capturing groups in the regex with non-capturing groups.
 
         :param regex: the regex to modify
-
         :return: the modified regex
         """
         return re.sub(r"\?P<\w+>", "?:", regex)
