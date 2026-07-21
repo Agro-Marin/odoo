@@ -81,9 +81,27 @@ class TestWebPerfRegression(TransactionCase):
             ]
         )
 
-        # ir.ui.menu has a native sequence field, needed by web_resequence
+        # ir.ui.menu has a native sequence field, needed by web_resequence.
+        # It also overrides write() (registry-wide cache clear), which forces
+        # web_resequence onto its per-record write() slow path.
         cls.test_menus = cls.env["ir.ui.menu"].create(
             [{"name": f"PerfMenu_{i}", "sequence": i * 10} for i in range(10)]
+        )
+
+        # report.layout has a plain stored Integer sequence, no write()
+        # override anywhere in the addons tree, and is admin-writable
+        # (group_system): it qualifies for web_resequence's cache-dirty
+        # fast path.
+        layout_view = cls.env["ir.ui.view"].search([], limit=1)
+        cls.test_layouts = cls.env["report.layout"].create(
+            [
+                {
+                    "name": f"PerfLayout_{i}",
+                    "sequence": i * 10,
+                    "view_id": layout_view.id,
+                }
+                for i in range(10)
+            ]
         )
 
     def setUp(self):
@@ -312,19 +330,56 @@ class TestWebPerfRegression(TransactionCase):
             partners.web_save_multi(vals_list, specification={"name": {}})
 
     # ------------------------------------------------------------------
-    # web_resequence (N+1: per-record write)
+    # web_resequence: fast path vs write()-override slow path
     # ------------------------------------------------------------------
 
     @warmup
-    def test_web_resequence(self):
-        """web_resequence: resequence 10 menu items (batched).
+    def test_web_resequence_fast_path(self):
+        """web_resequence: 10 records on a fast-path-eligible model.
 
-        Batched: access checks + mark_dirty loop + single modified().
+        report.layout does not override write() and its ``sequence`` is a
+        plain stored Integer (no compute/inverse), so web_resequence takes the
+        cache-dirty fast path: access checks once, mark_dirty loop, a single
+        modified(), and one batched UPDATE at flush time.
+        """
+        layouts = self.test_layouts.with_user(self.env.ref("base.user_admin"))
+        self.env.invalidate_all()
+        with self.assertQueryCount(2):
+            # 1 flush (single batched UPDATE of the dirty sequences)
+            # + 1 web_read
+            layouts.web_resequence(
+                specification={"name": {}, "sequence": {}},
+                field_name="sequence",
+            )
+
+    @warmup
+    def test_web_resequence_write_override(self):
+        """web_resequence: 10 menu items through the per-record write() path.
+
+        ir.ui.menu overrides write() (each real write clears the registry-wide
+        ormcaches, because the menu caches depend on ``sequence``), so the
+        cache-dirty fast path may NOT apply: skipping write() would leave stale
+        menu caches after a drag-reorder. The documented cost of honoring the
+        override is therefore per-record:
+
+        - 1  group-ids reload (the warmup run's cache clears wiped it)
+        - 20 = 10 x (ACL perm_write + ir.rule perm_write): each write()'s
+          registry cache clear wipes the access ormcaches the previous
+          iteration just re-warmed
+        - 2  ACL perm_read + ir.rule perm_read for the final web_read
+        - 1  web_read SELECT
+        - 1  single batched UPDATE at flush (the writes themselves are
+          deferred and flushed together — the N+1 is the access-cache
+          reloading, not the UPDATE)
+
+        In real usage the client only sends the records whose sequence value
+        actually changes (see computeResequencePlan in
+        static/src/model/relational_model/resequence.js), so this cost scales
+        with the size of the move, not the size of the list.
         """
         menus = self.test_menus.with_user(self.env.ref("base.user_admin"))
         self.env.invalidate_all()
-        with self.assertQueryCount(2):
-            # 1 flush (deferred write) + 1 web_read
+        with self.assertQueryCount(25):
             menus.web_resequence(
                 specification={"name": {}, "sequence": {}},
                 field_name="sequence",
