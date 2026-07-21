@@ -105,9 +105,9 @@ class AccountMoveSendWizard(models.TransientModel):
     def default_get(self, fields):
         # EXTENDS 'base'
         results = super().default_get(fields)
-        if "move_id" in fields and "move_id" not in results:
-            move_id = self.env.context.get("active_ids", [])[0]
-            results["move_id"] = move_id
+        active_ids = self.env.context.get("active_ids", [])
+        if "move_id" in fields and "move_id" not in results and active_ids:
+            results["move_id"] = active_ids[0]
         return results
 
     # -------------------------------------------------------------------------
@@ -225,9 +225,8 @@ class AccountMoveSendWizard(models.TransientModel):
 
     @api.depends("move_id")
     def _compute_available_pdf_report_ids(self):
-        available_reports = self.move_id._get_available_action_reports()
         for wizard in self:
-            wizard.available_pdf_report_ids = available_reports
+            wizard.available_pdf_report_ids = wizard.move_id._get_available_action_reports()
 
     @api.depends("move_id")
     def _compute_display_pdf_report_id(self):
@@ -411,7 +410,7 @@ class AccountMoveSendWizard(models.TransientModel):
     @api.model
     def _get_selected_checkboxes(self, json_checkboxes):
         if not json_checkboxes:
-            return {}
+            return []
         return [
             checkbox_key
             for checkbox_key, checkbox_vals in json_checkboxes.items()

@@ -85,7 +85,7 @@ class AccountMoveReversal(models.TransientModel):
     def default_get(self, fields):
         res = super().default_get(fields)
         move_ids = (
-            self.env["account.move"].browse(self.env.context["active_ids"])
+            self.env["account.move"].browse(self.env.context.get("active_ids"))
             if self.env.context.get("active_model") == "account.move"
             else self.env["account.move"]
         )
