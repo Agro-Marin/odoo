@@ -47,6 +47,14 @@ const threadPatch = {
         this.loadSubChannelsDone = false;
         /** @type {import("models").Thread|null} */
         this.lastSubChannelLoaded = null;
+        // Searching paginates independently of the full list: the two cursors
+        // describe different result sets, so a filtered page must never write
+        // the unfiltered one (doing so wrongly terminates the sidebar's
+        // pagination).
+        this.searchSubChannelsDone = false;
+        /** @type {import("models").Thread|null} */
+        this.lastSearchSubChannelLoaded = null;
+        this.subChannelSearchTerm = "";
     },
     get canLeave() {
         return !this.parent_channel_id && super.canLeave;
@@ -142,14 +150,22 @@ const threadPatch = {
      * @returns {Promise<import("models").Thread[]|undefined>}
      */
     async loadMoreSubChannels({ searchTerm } = {}) {
-        if (this.loadSubChannelsDone) {
+        if (searchTerm && searchTerm !== this.subChannelSearchTerm) {
+            // New query: restart its pagination from the top.
+            this.subChannelSearchTerm = searchTerm;
+            this.lastSearchSubChannelLoaded = null;
+            this.searchSubChannelsDone = false;
+        }
+        if (searchTerm ? this.searchSubChannelsDone : this.loadSubChannelsDone) {
             return;
         }
         const limit = 30;
         const { store_data, sub_channel_ids } = await rpc(
             "/discuss/channel/sub_channel/fetch",
             {
-                before: this.lastSubChannelLoaded?.id,
+                before: searchTerm
+                    ? this.lastSearchSubChannelLoaded?.id
+                    : this.lastSubChannelLoaded?.id,
                 limit,
                 parent_channel_id: this.id,
                 search_term: searchTerm,
@@ -160,23 +176,25 @@ const threadPatch = {
             this.store.Thread.get({ model: "discuss.channel", id: subChannelId }),
         );
 
-        if (searchTerm) {
-            // Ignore holes in the sub-channel list that may arise when
-            // searching for a specific term.
-            //
-            // KNOWN LIMITATION: this also means a search never advances
-            // `lastSubChannelLoaded`, so a search matching more than `limit`
-            // sub-channels re-fetches its first page forever and later results
-            // are unreachable. Fixing that needs a *separate* cursor for the
-            // search: `lastSubChannelLoaded` / `loadSubChannelsDone` describe
-            // the unfiltered list, and letting a filtered page write them
-            // wrongly terminates the unfiltered pagination (it breaks the
-            // test_discuss_sub_channel_search tour).
-            return;
-        }
         const subChannels = threads.filter((thread) =>
             this.eq(thread.parent_channel_id),
         );
+        if (searchTerm) {
+            // Advance the *search* cursor only. Page exhaustion is judged on
+            // what the server returned, not on what survives the parent filter,
+            // so a page whose entries are all filtered out still moves forward.
+            this.lastSearchSubChannelLoaded = subChannels.reduce(
+                (min, channel) => (!min || channel.id < min.id ? channel : min),
+                this.lastSearchSubChannelLoaded,
+            );
+            if (sub_channel_ids.length < limit) {
+                this.searchSubChannelsDone = true;
+            }
+            // Still return nothing: the list may have holes when filtered, and
+            // the caller renders search results from the store rather than from
+            // this slice.
+            return;
+        }
         this.lastSubChannelLoaded = subChannels.reduce(
             (min, channel) => (!min || channel.id < min.id ? channel : min),
             this.lastSubChannelLoaded,

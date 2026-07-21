@@ -8,9 +8,15 @@ import {
     start,
     startServer,
 } from "@mail/../tests/mail_test_helpers";
-import { describe, test } from "@odoo/hoot";
+import { describe, expect, test } from "@odoo/hoot";
 import { animationFrame, Deferred, mockDate } from "@odoo/hoot-mock";
-import { Command, serverState, withUser } from "@web/../tests/web_test_helpers";
+import {
+    Command,
+    getService,
+    onRpc,
+    serverState,
+    withUser,
+} from "@web/../tests/web_test_helpers";
 import { rpc } from "@web/core/network/rpc";
 
 describe.current.tags("desktop");
@@ -406,4 +412,57 @@ test("can mention all group chat members inside its sub-thread", async () => {
     await openDiscuss(groupSubChannelId);
     await insertText(".o-mail-Composer-input", "@");
     await contains(".o-mail-Composer-suggestion", { count: 2 });
+});
+
+test("sub-channel search paginates instead of refetching its first page", async () => {
+    const LIMIT = 30;
+    const pyEnv = await startServer();
+    const parentId = pyEnv["discuss.channel"].create({ name: "General" });
+    const subIds = [];
+    for (let i = 0; i < LIMIT + 2; i++) {
+        subIds.push(
+            pyEnv["discuss.channel"].create({
+                name: `needle ${i}`,
+                parent_channel_id: parentId,
+            }),
+        );
+    }
+    const befores = [];
+    onRpc("/discuss/channel/sub_channel/fetch", async (request) => {
+        const { params } = await request.json();
+        befores.push(params.before ?? null);
+        // page 1 is full (so pagination must continue), page 2 is short
+        const page =
+            befores.length === 1 ? subIds.slice(0, LIMIT) : subIds.slice(LIMIT);
+        return {
+            store_data: {
+                "discuss.channel": page.map((id) => ({
+                    id,
+                    parent_channel_id: { model: "discuss.channel", id: parentId },
+                })),
+            },
+            sub_channel_ids: page,
+        };
+    });
+    await start();
+    const store = getService("mail.store");
+    const parent = store.Thread.insert({ model: "discuss.channel", id: parentId });
+
+    await parent.loadMoreSubChannels({ searchTerm: "needle" });
+    await parent.loadMoreSubChannels({ searchTerm: "needle" });
+    expect(befores.length).toBe(2, {
+        message: "a full page must be followed by another",
+    });
+    expect(befores[0]).toBe(null);
+    expect(befores[1]).toBe(Math.min(...subIds.slice(0, LIMIT)), {
+        message: "the search cursor must advance, not refetch page 1",
+    });
+
+    // a different query restarts from the top
+    await parent.loadMoreSubChannels({ searchTerm: "other" });
+    expect(befores[2]).toBe(null, { message: "a new search term resets the cursor" });
+
+    // and searching must never terminate the unfiltered list's pagination
+    expect(parent.loadSubChannelsDone).toBe(false);
+    expect(parent.lastSubChannelLoaded).toBe(null);
 });
