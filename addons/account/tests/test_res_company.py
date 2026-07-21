@@ -7,12 +7,10 @@ from odoo.addons.account.tests.common import AccountTestInvoicingCommon
 
 
 class _FakeAccount:
-    """Identity-hashable stand-in for an account record.
+    """Identity-hashable stand-in for an account record."""
 
-    Real recordsets are hashable and used as dict keys by the planner;
-    ``SimpleNamespace`` is not (it defines ``__eq__``), so accounts need this.
-    """
-
+    # The planner uses accounts as dict keys; ``SimpleNamespace`` cannot serve
+    # because it defines ``__eq__`` and is therefore unhashable.
     def __init__(self, id_, currency_id=False):
         self.id = id_
         self.currency_id = currency_id
@@ -20,13 +18,11 @@ class _FakeAccount:
 
 @tagged("post_install", "-at_install")
 class TestResCompanyAccountCode(AccountTestInvoicingCommon):
-    """Pins ``get_new_account_code`` (pure) and ``reflect_code_prefix_change``.
+    """Pins ``get_new_account_code`` and ``reflect_code_prefix_change``."""
 
-    ``get_new_account_code`` preserves the code length only while the new prefix
-    is no longer than the code; these cases document the real behaviour so a
-    future "cleanup" of the ``lstrip('0')`` / ``rjust`` cannot silently change it.
-    """
-
+    # The cases below document the real behaviour of the ``lstrip('0')`` /
+    # ``rjust`` transform: the code length survives only while the new prefix and
+    # the zero-stripped tail still fit in it.
     def test_get_new_account_code_pure(self):
         new_code = self.env["res.company"].get_new_account_code
         cases = {
@@ -46,9 +42,9 @@ class TestResCompanyAccountCode(AccountTestInvoicingCommon):
             )
 
     def test_get_new_account_code_length_preserved_for_same_length_prefix(self):
-        """The only shape the caller uses: a same-length prefix that the code
-        actually starts with (guaranteed by the ``=like old%`` search in
-        ``reflect_code_prefix_change``) round-trips to the same length."""
+        """A same-length prefix the code starts with round-trips to the same length."""
+        # ``reflect_code_prefix_change`` only feeds codes matched by its
+        # ``=like old%`` search, so the old prefix is always present.
         new_code = self.env["res.company"].get_new_account_code
         for code in ("511001", "511999", "511000", "511100"):
             self.assertEqual(len(new_code(code, "511", "622")), len(code))
@@ -87,11 +83,11 @@ class TestResCompanyAccountCode(AccountTestInvoicingCommon):
 
 @tagged("post_install", "-at_install")
 class TestUnaffectedEarningsAccount(AccountTestInvoicingCommon):
-    """Pins ``get_unaffected_earnings_account`` code selection, in particular the
-    fallback that counts down from 999999 when that code is already taken -- a
-    branch a standard chart of accounts never exercises (it already ships an
-    ``equity_unaffected`` account, so the method returns early)."""
+    """Pins ``get_unaffected_earnings_account`` code selection."""
 
+    # The fallback counting down from 999999 is never exercised by a standard
+    # chart of accounts: it already ships an ``equity_unaffected`` account, so
+    # the method returns early.
     def _fresh_company(self, name):
         # A company with no chart template: no equity_unaffected account exists,
         # forcing get_unaffected_earnings_account down its creation path.
@@ -146,9 +142,7 @@ class TestUnaffectedEarningsAccount(AccountTestInvoicingCommon):
 
 @tagged("post_install", "-at_install")
 class TestResCompanyDomesticFP(common.TransactionCase):
-    """Pins the ordering of ``_compute_domestic_fiscal_position_id`` after the
-    two-pass sort was collapsed to a single ``(sequence, country_id)`` key.
-    """
+    """Pins the ordering of ``_compute_domestic_fiscal_position_id``."""
 
     def setUp(self):
         super().setUp()
@@ -190,10 +184,10 @@ class TestResCompanyDomesticFP(common.TransactionCase):
 
 @tagged("post_install", "-at_install")
 class TestResCompanyMultiVat(common.TransactionCase):
-    """Pins that ``multi_vat_foreign_country_ids`` tracks the fiscal position's
-    ``country_id`` (guards the ``@api.depends`` that includes ``country_id``).
-    """
+    """Pins that ``multi_vat_foreign_country_ids`` tracks the position country."""
 
+    # Guards the ``fiscal_position_ids.country_id`` entry of the ``@api.depends``
+    # on ``_compute_multi_vat_foreign_country``.
     def test_multi_vat_follows_country_id(self):
         be = self.env.ref("base.be")
         fr = self.env.ref("base.fr")
@@ -220,11 +214,10 @@ class TestResCompanyMultiVat(common.TransactionCase):
 
 @tagged("post_install", "-at_install")
 class TestOpeningMovePlanner(common.TransactionCase):
-    """DB-free unit tests for the pure planner ``_plan_opening_move_lines``.
+    """DB-free unit tests for the pure planner ``_plan_opening_move_lines``."""
 
-    Records/currency are faked; every command is hand-verified. Command tuples
-    are ``(0, 0, vals)`` create, ``(1, id, vals)`` update, ``(2, id, 0)`` delete.
-    """
+    # Records and currency are faked. Command tuples are ``(0, 0, vals)`` create,
+    # ``(1, id, vals)`` update, ``(2, id, 0)`` delete.
 
     @classmethod
     def setUpClass(cls):
@@ -292,9 +285,7 @@ class TestOpeningMovePlanner(common.TransactionCase):
 
 @tagged("post_install", "-at_install")
 class TestUpdateOpeningMove(AccountTestInvoicingCommon):
-    """End-to-end: ``_update_opening_move`` still creates/updates a balanced move
-    after the planner extraction.
-    """
+    """End-to-end: ``_update_opening_move`` creates/updates a balanced move."""
 
     def test_create_then_update_stays_balanced(self):
         company = self.company_data["company"]

@@ -92,9 +92,8 @@ class TestAccountPaymentDuplicateMoves(AccountTestInvoicingCommon):
         (cls.out_invoice_1 + cls.out_invoice_2 + cls.in_invoice_1).action_post()
 
     def test_duplicate_payments(self):
-        """Ensure duplicated payments are computed correctly for both inbound and outbound payments.
-        For it to be a duplicate, the partner, the date and the amount must be the same.
-        """
+        """Ensure duplicated payments are computed correctly for both inbound and outbound payments."""
+        # A duplicate must share the partner, the date, the amount and the payment type.
         payment_in_1 = self.payment_in
         payment_out_1 = self.payment_out
 
@@ -113,7 +112,7 @@ class TestAccountPaymentDuplicateMoves(AccountTestInvoicingCommon):
                 }
             ],
         )
-        # Outbound payment finds duplicate outbound duplicate, not the inbound payment with same information
+        # Outbound payment finds the duplicate outbound payment, not the inbound payment with same information
         self.assertRecordValues(
             payment_out_2,
             [
@@ -173,7 +172,7 @@ class TestAccountPaymentDuplicateMoves(AccountTestInvoicingCommon):
         """
         payment_in_1 = self.payment_in
         payment_out_1 = self.payment_out
-        # Create a different journals with a different outstanding account
+        # Create a different journal with a different outstanding account
         bank_journal_B = self.bank_journal.copy()
         bank_journal_B.inbound_payment_method_line_ids.payment_account_id = self.env[
             "account.account"
@@ -265,7 +264,8 @@ class TestAccountPaymentDuplicateMoves(AccountTestInvoicingCommon):
         self.assertRecordValues(
             payment_2, [{"duplicate_payment_ids": []}]
         )  # different amount, not a duplicate
-        # Combined payments does not show payment_1 as duplicate because payment_1 is reconciled
+        # Combined payments does not show payment_1 as duplicate: it is only a wizard,
+        # so no payment record exists for it; only the existing payment matches
         self.assertRecordValues(
             combined_payments, [{"duplicate_payment_ids": [existing_payment.id]}]
         )
