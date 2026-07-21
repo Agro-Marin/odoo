@@ -1,10 +1,10 @@
 <?xml version="1.0" ?>
 <odoo>
 
-    <!-- Mail template are declared in a NOUPDATE block
+    <!-- Mail templates are declared in a NOUPDATE block
          so users can freely customize/delete them -->
     <data noupdate="1">
-        <!--Email template -->
+        <!-- Invoice template -->
         <record id="email_template_edi_invoice" model="mail.template">
             <field name="name">Invoice: Sending</field>
             <field name="model_id" ref="account.model_account_move"/>

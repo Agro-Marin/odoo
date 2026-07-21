@@ -4,13 +4,13 @@
         <template id="report_invoice_document">
             <t t-call="web.external_layout">
                 <t t-set="o" t-value="o.with_context(lang=lang)" />
-                <t t-set="forced_vat" t-value="o.fiscal_position_id.foreign_vat"/> <!-- So that it appears in the footer of the report instead of the company VAT if it's set -->
-                <!-- Address block: 3 branches for shipping/billing address layout.
-                     The content is identical across branches — only the wrapper div
-                     name and VAT div id differ. The structure must be preserved because
-                     many localizations (l10n_es, l10n_in, l10n_sk, l10n_cz, l10n_mx_edi)
-                     XPath into the per-branch IDs. Cannot use t-call sub-template because
-                     XPath inheritance operates on source XML, not rendered output. -->
+                <t t-set="forced_vat" t-value="o.fiscal_position_id.foreign_vat"/> <!-- Shown in the report footer instead of the company VAT when set -->
+                <!-- Address block: 3 branches (shipping differs from billing, shipping
+                     equals billing, no shipping). The per-branch div names and VAT div
+                     ids must be preserved: many localizations (l10n_es, l10n_in, l10n_cz,
+                     l10n_sk, l10n_cl, l10n_ar, l10n_hu_edi, l10n_ca) XPath into them.
+                     A t-call sub-template is not an option: XPath inheritance operates
+                     on source XML, not rendered output. -->
                 <div class="row">
                     <t t-if="o.partner_shipping_id and (o.partner_shipping_id != o.partner_id)">
                         <div class="col-6">
@@ -263,8 +263,7 @@
                                                     t-attf-class="{{'d-none d-md-table-cell' if report_type == 'html' else ''}} {{padding_class}}">
                                                     <span t-if="line.name" t-field="line.name" t-options="{'widget': 'text'}">A section title</span>
                                                 </td>
-                                                <!-- For mobile (HTML preview only: paged media has no
-                                                     breakpoints, so don't emit hidden duplicates in PDF) -->
+                                                <!-- For mobile (HTML only: PDF paged media has no breakpoints) -->
                                                 <td colspan="2" t-if="report_type == 'html'" t-attf-class="d-md-none d-table-cell {{padding_class}}">
                                                     <span t-if="line.name" t-field="line.name" t-options="{'widget': 'text'}">A section title</span>
                                                 </td>
@@ -312,8 +311,7 @@
                                                     t-attf-class="{{'d-none d-md-table-cell' if report_type == 'html' else ''}} {{padding_class}}">
                                                     <span t-out="grouped_line['name']" t-options="{'widget': 'text'}">Group 1</span>
                                                 </td>
-                                                <!-- For mobile (HTML preview only: paged media has no
-                                                     breakpoints, so don't emit hidden duplicates in PDF) -->
+                                                <!-- For mobile (HTML only: PDF paged media has no breakpoints) -->
                                                 <td name="account_invoice_line_name_grouped"
                                                     t-if="report_type == 'html'"
                                                     t-att-colspan="2 if grouped_line['display_type'] != 'product' else 1"
@@ -324,12 +322,12 @@
                                                     colspan="1"
                                                     t-if="hide_details or (hide_prices and grouped_line['display_type'] not in ('line_section', 'line_subsection'))"
                                                     class="o_td_quantity text-end">
-                                                    <!-- If line is hide composition, always show 1 unit -->
+                                                    <!-- Collapsed composition: always show 1 unit -->
                                                     <div t-if="hide_details">
                                                         <span>1.00</span>
                                                         <span groups="uom.group_uom">Units</span>
                                                     </div>
-                                                    <!-- Else, show the line quantity -->
+                                                    <!-- Show the line quantity when prices are hidden -->
                                                     <div t-if="hide_prices and grouped_line['display_type'] not in ('line_section', 'line_subsection')">
                                                         <span t-out="grouped_line['quantity']" t-options="{'widget': 'float', 'decimal_precision': 'Product Unit'}">1.00</span>
                                                         <t t-if="grouped_line.get('line_uom')">
@@ -528,7 +526,8 @@
 
                 ARGUMENTS:
                 - currency: The res.currency to use.
-                - tax_totals: dict in the form generated by account.move's _get_tax_totals.
+                - tax_totals: dict as produced by the account.move tax_totals field
+                  (account.tax._get_tax_totals_summary).
             -->
             <t t-set="same_tax_base" t-value="tax_totals['same_tax_base']"/>
             <t t-foreach="tax_totals['subtotals']" t-as="subtotal">
@@ -680,9 +679,9 @@
             </t>
         </template>
 
-        <!--We need to create the following empty report template for the action report
-            "action_account_original_vendor_bill" to work. The action is merging the
-            original vendor bill(s) that were used to create the vendor bill(s) into one PDF. -->
+        <!--Placeholder template required by the "action_account_original_vendor_bill"
+            report action, which merges the original vendor bill(s) used to create the
+            vendor bill(s) into one PDF. -->
         <template id="report_original_vendor_bill">
             <t t-call="web.html_container">
                 <t t-foreach="docs" t-as="o">

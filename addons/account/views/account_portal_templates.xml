@@ -158,7 +158,6 @@
 
         <xpath expr="//div[hasclass('o_portal_sidebar')]" position="inside">
             <div class="row o_portal_invoice_sidebar">
-                <!-- Sidebar -->
                 <t t-call="portal.portal_record_sidebar">
                     <t t-set="classes" t-value="'col-lg-4 col-xxl-3 d-print-none'"/>
                     <t t-set="title">
@@ -230,7 +229,6 @@
                     </t>
                 </t>
 
-                <!-- Page Content -->
                 <div id="invoice_content" class="o_portal_content col-12 col-lg-8 col-xxl-9">
                     <t t-if="error or warning" t-call="account.portal_invoice_error"/>
                     <t t-if="success and (not error and not warning)" t-call="account.portal_invoice_success"/>
@@ -241,7 +239,6 @@
                         </div>
                         <iframe id="invoice_html" class="position-relative d-block" width="100%" height="100%" frameborder="0" scrolling="no" t-att-src="invoice.get_portal_url(report_type='html')"/>
                     </div>
-                    <!-- chatter -->
                     <div id="invoice_communication" class="mt-4">
                         <h3>Communication history</h3>
                         <t t-call="portal.message_thread"/>
@@ -270,11 +267,11 @@
         </div>
     </template>
 
-    <!-- Get the fields set in required_fields and display them as form elements. Doesn't create the form itself. -->
+    <!-- Render required_fields as form inputs (selection fields only); the surrounding form tag is not emitted. -->
     <template id="portal_invoice_required_fields_form">
         <t t-foreach="required_fields" t-as="required_field">
             <div t-attf-class="mb-3 col-xl-6">
-                <!-- select by default the value passed in the data or corresponding to the "default" attribute on the field -->
+                <!-- Preselect the value submitted in the form data, else the field's own default -->
                 <t t-set="field_info" t-value="env[required_field.model]._fields[required_field.name]"/>
                 <t t-set="default_value" t-value="extra_field_values.get(field_prefix + required_field.name) or field_info.default and field_info.default(required_field.model)"/>
                 <t t-if="required_field.ttype == 'selection'">

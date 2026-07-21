@@ -227,7 +227,7 @@
                                 </div>
                             </button>
 
-                            <!-- Journal Entry  button -->
+                            <!-- Journal Entry button -->
                             <button name="button_open_journal_entry"
                                     type="object"
                                     class="oe_stat_button"
@@ -296,8 +296,8 @@
                                         invisible="not show_partner_bank_account or partner_type != 'supplier' or payment_type == 'inbound'"
                                         required="require_partner_bank_account"/>
 
-                                <!-- This field should always be readonly but using readonly="1" overrides the other partner_bank_id
-                                fields readonly condition in the framework, preventing the modification of these fields -->
+                                <!-- Always readonly in practice, but readonly="1" is not set: the framework
+                                would apply it to the other partner_bank_id fields above, making them uneditable -->
                                 <field name="partner_bank_id" string="Company Bank Account"
                                         context="{'default_partner_id': partner_id, 'display_account_trust': True}"
                                         invisible="not show_partner_bank_account or payment_type == 'outbound'"
@@ -311,7 +311,7 @@
                             </group>
                         </group>
                         <group>
-                            <!-- To be used in localizations requiring to add a page -->
+                            <!-- Empty notebook for localizations that need to add a page -->
                             <notebook name="payment_notebook" colspan="2"/>
                         </group>
                     </sheet>
@@ -402,7 +402,7 @@
             </field>
         </record>
 
-        <!-- Action confirm_payments for multi -->
+        <!-- Multi-record server action: post the selected payments -->
         <record id="action_account_confirm_payments" model="ir.actions.server">
             <field name="name">Post Payments</field>
             <field name="state">code</field>

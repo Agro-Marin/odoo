@@ -7,7 +7,7 @@
             <field name="digits">6</field>
         </record>
 
-        <!-- Open Settings from Purchase Journal to configure mail servers -->
+        <!-- Open Settings from the journal form to configure the alias domain -->
         <record id="action_open_settings" model="ir.actions.act_window">
             <field name="name">Settings</field>
             <field name="res_model">res.config.settings</field>
@@ -30,9 +30,7 @@
             <field name="applicability">accounts</field>
         </record>
 
-        <!--
-        Payment terms
-        -->
+        <!-- Payment terms -->
         <record id="account_payment_term_immediate" model="account.payment.term">
             <field name="name">Immediate Payment</field>
             <field name="note">Payment terms: Immediate Payment</field>
@@ -137,7 +135,7 @@
             <field name="payment_type">outbound</field>
         </record>
 
-        <!-- Partner Trust Property -->
+        <!-- Default degree of trust for partners -->
         <function model="ir.default" name="set" eval="('res.partner', 'trust', 'normal')"/>
 
         <!-- Share Button in action menu -->
