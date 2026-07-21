@@ -5,6 +5,29 @@ from odoo import api, fields, models
 from odoo.api import ValuesType
 from odoo.exceptions import ValidationError
 from odoo.tools import SQL
+from odoo.tools.view_validation import IGNORED_IN_EXPRESSION
+
+# Names a stored filter domain may reference beyond plain literals. The web
+# client deliberately saves favorite domains *unevaluated* so they stay dynamic
+# (e.g. "[('create_uid', '=', uid)]" or "context_today() - datetime.timedelta(...)")
+# and re-evaluates them client-side with py_js. The base set is
+# ``IGNORED_IN_EXPRESSION`` — the framework's canonical list of predefined
+# symbols for domain/attribute expressions (odoo/tools/view_validation.py),
+# which mirrors what the client evaluation context actually provides: the py_js
+# builtins (addons/web/static/src/core/py_js/py_builtin.js — ``time``,
+# ``datetime``, ``relativedelta``, ``context_today``, ``current_date``,
+# ``today``, ``now``, ``abs``, ``len``, ...) plus the user context
+# (addons/web/static/src/services/user.js — ``uid``, ``allowed_company_ids``;
+# ``current_company_id`` is derived from it, see
+# addons/web/static/src/model/relational_model/field_context.js). On top of
+# that, allow ``company_id`` and ``companies``: ``company_id`` is provided by
+# server-side domain eval contexts (``ir.rule._eval_context``) and used by
+# shipped view filters (e.g. base_automation); ``companies`` for symmetry with
+# multi-company eval contexts.
+_ALLOWED_DOMAIN_NAMES = frozenset(IGNORED_IN_EXPRESSION) | {
+    "companies",
+    "company_id",
+}
 
 
 class IrFilters(models.Model):
@@ -204,12 +227,21 @@ class IrFilters(models.Model):
         for everyone sharing it, failing far from its cause; validate at the
         write boundary instead.
 
+        ``domain`` is validated *structurally* (parseable, top-level list/tuple,
+        only whitelisted free names), not with ``literal_eval``: the web client
+        saves favorite domains unevaluated so they stay dynamic (e.g.
+        ``[("create_uid", "=", uid)]``), and requiring a literal would reject
+        every such favorite. ``context`` and ``sort`` remain literal-only: the
+        client serializes a favorite's context and sort from already-evaluated
+        JSON data, never as dynamic expressions.
+
         :param dict vals: filter values about to be persisted.
-        :raises ValidationError: if ``domain`` is not a list, ``context`` is not a
-            dict, or ``sort`` is not a list of strings.
+        :raises ValidationError: if ``domain`` is not a (possibly dynamic) list
+            expression, ``context`` is not a dict, or ``sort`` is not a list of
+            strings.
         """
+        self._validate_domain_expression(vals.get("domain"))
         for fname, types, label in (
-            ("domain", (list, tuple), "list"),
             ("context", (dict,), "dict"),
             ("sort", (list, tuple), "list"),
         ):
@@ -247,3 +279,56 @@ class IrFilters(models.Model):
                     raise ValidationError(
                         self.env._("Filter sort must be a list of strings.")
                     )
+
+    @api.model
+    def _validate_domain_expression(self, raw: Any) -> None:
+        """Structurally validate a ``domain`` blob without evaluating it.
+
+        Accepts a possibly *dynamic* domain: any syntactically valid expression
+        whose top level is a list/tuple and whose free names are all in
+        ``_ALLOWED_DOMAIN_NAMES`` (attribute access and calls rooted at those
+        names — ``datetime.timedelta(...)``, ``context.get(...)``,
+        ``.strftime(...)`` — are therefore fine). This keeps the shape-safety
+        guarantee (a malformed blob cannot poison the shared favorites
+        dropdown) while restoring the upstream ability to save dynamic
+        favorites.
+
+        :param raw: the ``domain`` value about to be persisted (``None`` to
+            skip, an already-parsed list/tuple, or the stored text blob).
+        :raises ValidationError: if the blob does not parse, is not a
+            list/tuple expression, or references a name outside the whitelist.
+        """
+        if raw is None or isinstance(raw, (list, tuple)):
+            return
+        if not isinstance(raw, str):
+            raise ValidationError(
+                self.env._(
+                    "Filter %(field)s must be a %(type)s.", field="domain", type="list"
+                )
+            )
+        try:
+            tree = ast.parse(raw, mode="eval")
+        except (ValueError, SyntaxError) as e:
+            raise ValidationError(
+                self.env._(
+                    "Invalid filter %(field)s: %(error)s", field="domain", error=e
+                )
+            ) from e
+        if not isinstance(tree.body, (ast.List, ast.Tuple)):
+            raise ValidationError(
+                self.env._(
+                    "Filter %(field)s must be a %(type)s.", field="domain", type="list"
+                )
+            )
+        rejected = {
+            node.id
+            for node in ast.walk(tree)
+            if isinstance(node, ast.Name) and node.id not in _ALLOWED_DOMAIN_NAMES
+        }
+        if rejected:
+            raise ValidationError(
+                self.env._(
+                    "Invalid filter domain: forbidden name(s) %(names)s.",
+                    names=", ".join(sorted(rejected)),
+                )
+            )
