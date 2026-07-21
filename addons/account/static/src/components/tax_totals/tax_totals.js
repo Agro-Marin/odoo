@@ -38,7 +38,7 @@ class TaxGroupComponent extends Component {
                     digits: this.props.totals.currency_pd,
                 });
                 this.inputTax.el.value = newVal;
-                this.inputTax.el.focus(); // Focus the input
+                this.inputTax.el.focus();
             }
         });
         onWillUpdateProps(() => {
@@ -51,19 +51,9 @@ class TaxGroupComponent extends Component {
         return formatMonetary(value, { currencyId: this.props.totals.currency_id });
     }
 
-    //--------------------------------------------------------------------------
-    // Main methods
-    //--------------------------------------------------------------------------
-
     /**
-     * The purpose of this method is to change the state of the component.
-     * It can have one of the following three states:
-     *  - readonly: display in read-only mode of the field,
-     *  - edit: display with a html input field,
-     *  - disable: display with a html input field that is disabled.
-     *
-     * If a value other than one of these 3 states is passed as a parameter,
-     * the component is set to readonly by default.
+     * Sets the display state: "readonly", "edit" (html input) or "disable"
+     * (disabled html input). Any other value falls back to "readonly".
      *
      * @param {String} value
      */
@@ -76,26 +66,22 @@ class TaxGroupComponent extends Component {
     }
 
     /**
-     * This method handles the "_onChangeTaxValue" event. In this method,
-     * we get the new value for the tax group, we format it and we call
-     * the method to recalculate the tax lines. At the moment the method
-     * is called, we disable the html input field.
-     *
-     * In case the value has not changed or the tax group is equal to 0,
-     * the modification does not take place.
+     * Applies the tax amount typed in the input: parses it, adds the delta to
+     * the tax group, its subtotal and the totals, then notifies the parent.
+     * The input is disabled meanwhile. Ignored if the new value is unchanged
+     * or 0.
      */
     _onChangeTaxValue() {
-        this.setState("disable"); // Disable the input
+        this.setState("disable");
         const oldValue = this.props.taxGroup.tax_amount_currency;
         let newValue;
         try {
-            newValue = parseFloat(this.inputTax.el.value); // Get the new value
+            newValue = parseFloat(this.inputTax.el.value);
         } catch {
             this.inputTax.el.value = oldValue;
             this.setState("edit");
             return;
         }
-        // The newValue can"t be equals to 0
         if (newValue === oldValue || newValue === 0) {
             this.setState("readonly");
             return;
@@ -117,9 +103,6 @@ class TaxGroupComponent extends Component {
 /**
  Widget used to display tax totals by tax groups for invoices, PO and SO,
  and possibly allowing editing them.
-
- Note that this widget requires the object it is used on to have a
- currency_id field.
  **/
 export class TaxTotalsComponent extends Component {
     static template = "account.TaxTotalsField";
@@ -144,17 +127,14 @@ export class TaxTotalsComponent extends Component {
     }
 
     /**
-     * This method is the main function of the tax group widget.
-     * It is called by the TaxGroupComponent and receives the newer tax value.
-     *
-     * It is responsible for triggering an event to notify the ORM of a change.
+     * Handler given to TaxGroupComponent: writes the locally patched totals
+     * back to the record when a tax group amount changed.
      */
     _onChangeTaxValueByTaxGroup({ oldValue, newValue }) {
         if (oldValue === newValue) {
             return;
         }
-        // Drop the derived key before persisting so it is never written back,
-        // instead of deleting it from the same reference after handing it to update().
+        // Server-derived key: drop it before persisting so it is never written back.
         delete this.totals.cash_rounding_base_amount_currency;
         this.props.record.update({ [this.props.name]: this.totals });
     }

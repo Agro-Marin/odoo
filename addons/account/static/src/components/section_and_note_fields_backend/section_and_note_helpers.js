@@ -3,11 +3,9 @@
 /**
  * Pure section-tree helpers for the section/note editable list.
  *
- * These functions operate only on a plain list-like object
+ * They operate only on a plain list-like object
  * (`{ records: [{ id, data: { display_type } }, ...] }`) and individual record
- * datapoints — no renderer/`this`, no DOM, no OWL. Keeping them here decouples
- * the section-tree math from SectionAndNoteListRenderer and makes it unit-testable
- * in isolation.
+ * datapoints — no renderer/`this`, no DOM, no OWL.
  */
 
 export const DISPLAY_TYPES = {
@@ -81,7 +79,7 @@ export function getRecordsUntilSection(list, record, asc, subSection) {
             index--;
         }
         // Only prepend the delimiting section when one exists above; otherwise
-        // index is -1 and list.records[-1] would push `undefined` into the array.
+        // index is -1 and list.records[-1] would add `undefined` to the array.
         if (index >= 0) {
             sectionRecords.unshift(list.records[index]);
         }
@@ -93,13 +91,13 @@ export function getRecordsUntilSection(list, record, asc, subSection) {
     };
 }
 
-/** @returns {Array} the records of the section `record` belongs to, walking down. */
+/** @returns {Array} the records from `record` down to the next section, excluded. */
 export function getSectionRecords(list, record, subSection) {
     const { sectionRecords } = getRecordsUntilSection(list, record, true, subSection);
     return sectionRecords;
 }
 
-/** @returns {Array} the records of the section immediately above `record`. */
+/** @returns {Array} the records above `record`, delimiting section included. */
 export function getPreviousSectionRecords(list, record) {
     const { sectionRecords } = getRecordsUntilSection(list, record, false);
     return sectionRecords;

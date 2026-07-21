@@ -43,12 +43,7 @@ export class SectionAndNoteListRenderer extends ListRenderer {
         "hideComposition",
     ];
 
-    /**
-     * The purpose of this extension is to allow sections and notes in the one2many list
-     * primarily used on Sales Orders and Invoices
-     *
-     * @override
-     */
+    /** @override */
     setup() {
         super.setup();
         this.titleField = "name";
@@ -312,7 +307,6 @@ export class SectionAndNoteListRenderer extends ListRenderer {
     shouldCollapse(record, fieldName, checkSection = false) {
         const parentSection = this.parentSectionMap.get(record);
 
-        // --- For sections ---
         if (this.isSection(record) && checkSection) {
             if (this.isTopSection(record)) {
                 return record.data[fieldName];
@@ -332,7 +326,6 @@ export class SectionAndNoteListRenderer extends ListRenderer {
             return false;
         }
 
-        // --- For regular lines ---
         if (this.isSubSection(parentSection)) {
             const grandParent = this.parentSectionMap.get(parentSection);
             return parentSection.data[fieldName] || grandParent?.data[fieldName];
@@ -355,7 +348,7 @@ export class SectionAndNoteListRenderer extends ListRenderer {
 
     getCellClass(column, record) {
         let classNames = super.getCellClass(column, record);
-        // For hiding columnns of section and note
+        // Hide the non-title columns of sections and notes
         if (
             this.isSectionOrNote(record) &&
             column.widget !== "handle" &&
@@ -474,8 +467,10 @@ export class SectionAndNoteListRenderer extends ListRenderer {
     }
 
     /**
+     * Reset the `collapse_` fields of a dragged subsection when its parent
+     * section is composition-collapsed.
+     *
      * @override
-     * Reset the values of `collapse_` fields of the subsection if it is dragged
      */
     async sortDrop(dataRowId, dataGroupId, options) {
         await super.sortDrop(dataRowId, dataGroupId, options);

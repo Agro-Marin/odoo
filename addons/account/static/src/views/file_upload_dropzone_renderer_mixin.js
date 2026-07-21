@@ -7,8 +7,8 @@ import { useService } from "@web/core/utils/hooks";
 import { uploadFileFromData } from "./upload_file_from_data_hook.js";
 
 /**
- * Paste-to-upload + drag dropzone behaviour shared verbatim by the file-upload
- * list and kanban renderers. Applied as `extends FileUploadDropzoneRendererMixin(Base)`.
+ * Adds paste-to-upload and drag-dropzone behaviour to the file-upload list and
+ * kanban renderers.
  *
  * @param {typeof import("@odoo/owl").Component} Base list/kanban renderer to extend.
  */
@@ -33,8 +33,6 @@ export const FileUploadDropzoneRendererMixin = (Base) =>
                 return;
             }
             ev.preventDefault();
-            // Await so a rejected upload surfaces instead of becoming an
-            // unhandled promise rejection.
             await this.uploadFileFromData(ev.clipboardData);
         }
 
