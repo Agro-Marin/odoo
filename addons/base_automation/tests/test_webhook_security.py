@@ -10,8 +10,8 @@ class TestWebhookSecurity(TransactionCase):
     """Authentication/anti-abuse checks on the /web/hook receiver.
 
     Exercises base.automation._verify_webhook_request (the logic the webhook
-    controller runs before dispatching), absorbed from the former agromarin
-    api_webhook module and backed by base_credential_manager for the secret.
+    controller runs before dispatching), backed by base_credential_manager for
+    the secret.
     """
 
     @classmethod
