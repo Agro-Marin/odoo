@@ -348,17 +348,7 @@ class StockForecasted_Product_Product(models.AbstractModel):
                         else move_in
                     ),
                     "document_in": (
-                        {
-                            "_name": document_in._name,
-                            "id": document_in.id,
-                            # Resolution is via `sudo()`, but the name is only
-                            # exposed when the real user may read the document,
-                            # so the report never leaks names their ACLs hide.
-                            "name": document_in.display_name
-                            if read
-                            and document_in.with_env(self.env).has_access("read")
-                            else False,
-                        }
+                        self._prepare_source_document(document_in, read)
                         if document_in
                         else False
                     ),
@@ -377,16 +367,7 @@ class StockForecasted_Product_Product(models.AbstractModel):
                         else move_out
                     ),
                     "document_out": (
-                        {
-                            "_name": document_out._name,
-                            "id": document_out.id,
-                            # See document_in: name gated on the real user's read
-                            # access despite the sudo() resolution.
-                            "name": document_out.display_name
-                            if read
-                            and document_out.with_env(self.env).has_access("read")
-                            else False,
-                        }
+                        self._prepare_source_document(document_out, read)
                         if document_out
                         else False
                     ),
@@ -403,6 +384,30 @@ class StockForecasted_Product_Product(models.AbstractModel):
                     }
                 )
         return line
+
+    def _prepare_source_document(self, document, read):
+        """Describe a move's source document for the report.
+
+        The document is resolved through ``sudo()`` on purpose: a warehouse
+        user planning around a stock move has to know which document consumes
+        it, and the move they can already read establishes that it exists.  So
+        the reference is shown regardless of access on the document itself.
+
+        What access does decide is ``can_open``: the client links to the
+        document only when the user could actually open it, and renders plain
+        text otherwise.  Gating the *name* instead would hide the reference
+        while still shipping ``_name``/``id`` — no confidentiality gained, and
+        the report left showing an unlabelled row.
+
+        :param document: source document recordset, resolved as sudo
+        :param read: whether the caller wants UI-formatted values
+        """
+        return {
+            "_name": document._name,
+            "id": document.id,
+            "name": document.display_name if read else False,
+            "can_open": read and document.with_env(self.env).has_access("read"),
+        }
 
     def _get_report_moves_fields(self):
         return ["id", "date"]
