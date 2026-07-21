@@ -364,12 +364,12 @@ class ResConfigSettings(models.TransientModel):
             )
 
     @api.onchange("group_analytic_accounting")
-    def onchange_analytic_accounting(self):
+    def _onchange_analytic_accounting(self):
         if self.group_analytic_accounting:
             self.module_account_accountant = True
 
     @api.onchange("module_account_budget")
-    def onchange_module_account_budget(self):
+    def _onchange_module_account_budget(self):
         if self.module_account_budget:
             self.group_analytic_accounting = True
 
