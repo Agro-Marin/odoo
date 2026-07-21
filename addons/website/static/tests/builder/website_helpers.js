@@ -12,7 +12,7 @@ import { BorderConfigurator } from "@html_builder/plugins/border_configurator_op
 import { Plugin } from "@html_editor/plugin";
 import { withSequence } from "@html_editor/utils/resource";
 import { defineMailModels, startServer } from "@mail/../tests/mail_test_helpers";
-import { describe } from "@odoo/hoot";
+import { after, describe } from "@odoo/hoot";
 import {
     advanceTime,
     animationFrame,
@@ -132,7 +132,19 @@ export async function setupWebsiteBuilder(
         pyEnv["website"].create({});
     }
     mockImageRequests();
-    registry.category("services").remove("website_edit");
+    // The builder tests drive the editor directly and cannot have the real
+    // `website_edit` service starting interactions inside the iframe, so it is
+    // removed. Restore it afterwards: the services registry is global and the
+    // HOOT framework does not snapshot it, so removing it unrestored took the
+    // service away from every *subsequent* test in the same browser session --
+    // notably the whole `@website/interactions` tree, which needs it. That is
+    // why suites passed in isolation and failed en masse in a full run.
+    const services = registry.category("services");
+    if (services.contains("website_edit")) {
+        const websiteEditService = services.get("website_edit");
+        services.remove("website_edit");
+        after(() => services.add("website_edit", websiteEditService, { force: true }));
+    }
     let editor;
     let editableContent;
     const comp = await mountWithCleanup(WebClient);

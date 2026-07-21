@@ -433,7 +433,12 @@ export function addDropZoneSelector(selector) {
 
     registry.category("builder-plugins").add(pluginId, P);
     after(() => {
-        registry.category("builder-plugins").remove(P);
+        // Remove by the key it was added under. `Registry.remove` starts with
+        // `if (!(key in this.content)) return`, so passing the plugin *object*
+        // stringifies to "[object Object]", matches nothing and silently does
+        // nothing -- leaving the plugin registered for every later test in the
+        // browser session (`addBuilderPlugin` above gets this right).
+        registry.category("builder-plugins").remove(pluginId);
     });
 }
 
