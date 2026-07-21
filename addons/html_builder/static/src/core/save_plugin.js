@@ -111,14 +111,25 @@ export class SavePlugin extends Plugin {
         }
         await Promise.all(preSaveHandlers);
         const saveProms = Object.values(groupedElements).map(async (dirtyEls) => {
+            // Strip `o_dirty` from the *clone* that gets persisted, never from
+            // the live element -- the live element stays dirty until its write
+            // has actually succeeded. Clearing it up-front (before any await,
+            // and therefore for every group before the first RPC resolves)
+            // meant a partial save failure left the still-unsaved elements
+            // unmarked: `get_dirty_els` is re-read from the DOM on every
+            // `_save()`, so the user's retry found nothing to save, reported
+            // success and reloaded the iframe, silently discarding their work.
             const cleanedEls = dirtyEls.map((dirtyEl) => {
-                dirtyEl.classList.remove("o_dirty");
                 const cleanedEl = dirtyEl.cloneNode(true);
+                cleanedEl.classList.remove("o_dirty");
                 this.dispatchTo("clean_for_save_handlers", { root: cleanedEl });
                 return cleanedEl;
             });
+            const markSaved = () =>
+                dirtyEls.forEach((el) => el.classList.remove("o_dirty"));
             for (const saveElementsOverride of this.getResource("save_elements_overrides")) {
                 if (await saveElementsOverride(cleanedEls)) {
+                    markSaved();
                     return;
                 }
             }
@@ -127,10 +138,21 @@ export class SavePlugin extends Plugin {
                     await saveElementHandler(cleanedEl);
                 }
             }
+            markSaved();
         });
         // used to track dirty out of the editable scope, like header, footer or wrapwrap
         const willSaves = this.getResource("save_handlers").map((c) => c());
-        await Promise.all(saveProms.concat(willSaves));
+        // `allSettled`, not `all`: a rejection from one group must not stop the
+        // others from completing and clearing their own dirty flags, otherwise
+        // one failure would strand successfully-written groups as dirty and the
+        // next save would rewrite them needlessly. The first rejection reason is
+        // then re-thrown unchanged, so `save()` still rejects with the original
+        // error and the editor stays open on the unsaved work.
+        const results = await Promise.allSettled(saveProms.concat(willSaves));
+        const failure = results.find((result) => result.status === "rejected");
+        if (failure) {
+            throw failure.reason;
+        }
         this.dependencies.history.reset();
     }
 

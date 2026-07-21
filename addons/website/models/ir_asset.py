@@ -22,11 +22,29 @@ class IrAsset(models.Model):
     def _get_asset_bundle_url(
         self, filename, unique, assets_params, ignore_params=False
     ):
-        route_prefix = "/web/assets"
-        if ignore_params:  # we dont care about website id, match both
-            route_prefix = "/web/assets%"
-        elif website_id := assets_params.get("website_id", None):
-            route_prefix = f"/web/assets/{website_id}"
+        # NOTE: ``ignore_params`` deliberately does NOT widen the pattern across
+        # websites any more, so this override returns the same URL either way
+        # and the store's cross-params fallback stays inert (in base the two
+        # patterns are identical, so it short-circuits).
+        #
+        # That fallback copies one bundle's compiled bytes to another URL that
+        # resolved to the same ``unique`` version hash. It is only sound if
+        # equal version implies equal content -- and for websites it does not:
+        # ``Assets._make_custom_asset_url`` mints one URL per (bundle, file)
+        # with no website component, so two websites customizing the same SCSS
+        # produce attachments sharing a URL, and (when configured in a single
+        # transaction, e.g. the configurator or a setup script) sharing a
+        # ``write_date`` to the microsecond. The version is hashed over exactly
+        # those two values, so it collides while the content differs -- and the
+        # widened pattern then served one website's compiled CSS to another,
+        # persisted under the victim's own URL.
+        #
+        # Dropping the widening costs only a cross-website byte-reuse
+        # optimisation. The deeper fix is to namespace the custom asset URL by
+        # website id so the version becomes honest again; that needs a migration
+        # of existing ``/_custom/...`` attachment urls and ir.asset paths.
+        website_id = assets_params.get("website_id", None)
+        route_prefix = f"/web/assets/{website_id}" if website_id else "/web/assets"
         return f"{route_prefix}/{unique}/{filename}"
 
     def _get_related_assets(self, domain, *, website_id=None, **params):

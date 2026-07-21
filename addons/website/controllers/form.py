@@ -76,6 +76,17 @@ class WebsiteForm(http.Controller):
                     "error": e.args[0],
                 }
             )
+        # Some fields have additional SQL constraints that we can't check
+        # generically (e.g. crm.lead.probability, a float between 0 and 1).
+        # Handled *here*, not in ``_handle_website_form``: an IntegrityError
+        # aborts the transaction, and only exiting the ``with`` above rolls the
+        # savepoint back and makes the cursor usable again. Returning from
+        # inside the handler instead left the transaction aborted, so the
+        # ``sp.close(rollback=False)`` above raised InFailedSqlTransaction and
+        # every constraint violation became an unauthenticated HTTP 500.
+        # TODO: How to get the name of the erroneous field ?
+        except IntegrityError:
+            return json.dumps(False)
 
     def _handle_website_form(self, model_name, **kwargs):
         model_record = (
@@ -93,46 +104,53 @@ class WebsiteForm(http.Controller):
             # I couldn't find a cleaner way to pass data to an exception
             return json.dumps({"error_fields": e.args[0]})
 
-        try:
-            id_record = self.insert_record(
-                request, model_record, data["record"], data["custom"], data.get("meta")
-            )
-            if id_record:
-                self.insert_attachment(model_record, id_record, data["attachments"])
-                # in case of an email, we want to send it immediately instead of waiting
-                # for the email queue to process
+        # NB: no savepoint here. ``website_form`` owns one around this whole
+        # call, and an IntegrityError propagating out of it makes that
+        # savepoint's ``__exit__`` roll back -- which is exactly what is
+        # needed to leave the cursor usable. Opening a *nested* savepoint
+        # here instead would break the flows that commit mid-request: the
+        # commit destroys both savepoints, and the inner RELEASE of a
+        # now-missing savepoint is itself an error that aborts the
+        # transaction, so the caller's own guarded release then fails with
+        # InFailedSqlTransaction.
+        id_record = self.insert_record(
+            request,
+            model_record,
+            data["record"],
+            data["custom"],
+            data.get("meta"),
+        )
+        if id_record:
+            self.insert_attachment(model_record, id_record, data["attachments"])
+            # in case of an email, we want to send it immediately
+            # instead of waiting for the email queue to process
 
-                if model_name == "mail.mail":
-                    # The signature is generated at render time by
-                    # ``tools.add_form_signature`` and binds the (builder-set)
-                    # recipients so a public visitor cannot turn the endpoint
-                    # into an open mail relay. It covers not just ``email_to``
-                    # but the *values* of any ``email_cc``/``email_bcc`` fields:
-                    # the previous version only signed a Cc/Bcc *presence*
-                    # marker, so a replayed signature let a visitor inject
-                    # arbitrary Cc recipients. Missing signature must be treated
-                    # as an authentication failure, never a KeyError, and the
-                    # check must run unconditionally so it cannot be skipped by
-                    # POSTing without ``email_to``.
-                    signature = kwargs.get("website_form_signature", "")
-                    extra_recipients = {
-                        name: kwargs.get(name) or ""
-                        for name in ("email_cc", "email_bcc")
-                        if name in kwargs
-                    }
-                    value = website_form_signature_payload(
-                        kwargs.get("email_to"), extra_recipients
-                    )
-                    hash_value = hmac(model_record.env, "website_form_signature", value)
-                    if not consteq(signature, hash_value):
-                        raise AccessDenied(self.env._("invalid website_form_signature"))
-                    request.env[model_name].sudo().browse(id_record).send()
-
-        # Some fields have additional SQL constraints that we can't check generically
-        # Ex: crm.lead.probability which is a float between 0 and 1
-        # TODO: How to get the name of the erroneous field ?
-        except IntegrityError:
-            return json.dumps(False)
+            if model_name == "mail.mail":
+                # The signature is generated at render time by
+                # ``tools.add_form_signature`` and binds the
+                # (builder-set) recipients so a public visitor cannot
+                # turn the endpoint into an open mail relay. It covers
+                # not just ``email_to`` but the *values* of any
+                # ``email_cc``/``email_bcc`` fields: the previous
+                # version only signed a Cc/Bcc *presence* marker, so a
+                # replayed signature let a visitor inject arbitrary Cc
+                # recipients. Missing signature must be treated as an
+                # authentication failure, never a KeyError, and the
+                # check must run unconditionally so it cannot be
+                # skipped by POSTing without ``email_to``.
+                signature = kwargs.get("website_form_signature", "")
+                extra_recipients = {
+                    name: kwargs.get(name) or ""
+                    for name in ("email_cc", "email_bcc")
+                    if name in kwargs
+                }
+                value = website_form_signature_payload(
+                    kwargs.get("email_to"), extra_recipients
+                )
+                hash_value = hmac(model_record.env, "website_form_signature", value)
+                if not consteq(signature, hash_value):
+                    raise AccessDenied(self.env._("invalid website_form_signature"))
+                request.env[model_name].sudo().browse(id_record).send()
 
         request.session["form_builder_model_model"] = model_record.model
         request.session["form_builder_model"] = model_record.name

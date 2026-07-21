@@ -218,7 +218,11 @@ class WebsiteVisitor(models.Model):
             visitor.page_count = visitor_info["page_count"]
 
     def _search_page_ids(self, operator, value):
-        return [("website_track_ids.page_id.name", operator, value)]
+        # ``page_ids`` is a m2m of website.page, so the ORM hands this method
+        # page *ids*; comparing those against ``page_id.name`` (a Char) matched
+        # nothing and failed silently -- an empty result set rather than an
+        # error. Search the relation itself.
+        return [("website_track_ids.page_id", operator, value)]
 
     @api.depends("website_track_ids.page_id")
     def _compute_last_visited_page_id(self):

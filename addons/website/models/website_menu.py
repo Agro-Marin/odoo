@@ -209,11 +209,36 @@ class WebsiteMenu(models.Model):
         return res
 
     def unlink(self):
+        """Delete the per-website copies ``create()`` made from a generic menu.
+
+        The copies are matched by ``url``, which is only a usable identity for a
+        *navigable* menu. ``_compute_url`` collapses every mega menu and every
+        menu with children to the placeholder ``"#"``, so fanning out on that
+        value would match every container menu in the database and delete other
+        websites' unrelated dropdowns. Two guards keep the match honest:
+
+        - only a generic menu (``website_id`` unset) ever has copies, so a
+          website-specific menu must never fan out;
+        - ``"#"`` identifies nothing, so containers are excluded.
+
+        Consequence of the second guard: copies of a generic *container* are
+        left behind as orphans instead of being deleted. That is the safe
+        direction to fail, but it is a workaround -- the real fix is to record
+        provenance explicitly (a ``generic_menu_id`` m2o set in ``create()``,
+        with ``ondelete="cascade"``), which would make this whole search and
+        both guards unnecessary.
+        """
         self.env.registry.clear_cache("templates")
         default_menu = self.env.ref("website.main_menu", raise_if_not_found=False)
         menus_to_remove = self
         for menu in self.filtered(
-            lambda m: default_menu and m.parent_id.id == default_menu.id
+            lambda m: (
+                default_menu
+                and not m.website_id
+                and m.parent_id.id == default_menu.id
+                and m.url
+                and m.url != "#"
+            )
         ):
             menus_to_remove |= self.env["website.menu"].search(
                 [
