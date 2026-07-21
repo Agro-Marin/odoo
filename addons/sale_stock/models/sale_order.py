@@ -55,17 +55,10 @@ class SaleOrder(models.Model):
         string="References",
         copy=False,
     )
+    # Selection, compute and store come from order.stock.mixin; only the
+    # customer-facing wording is specific to sales.
     transfer_state = fields.Selection(
-        selection=[
-            ("no", "Nothing to transfer"),
-            ("to do", "To transfer"),
-            ("partial", "Partially transferred"),
-            ("done", "Fully transferred"),
-            ("over done", "Over transferred"),
-        ],
         string="Delivery Status",
-        compute="_compute_transfer_state",
-        store=True,
         help="Blue: Not Delivered/Started\n\
             Orange: Partially transferred\n\
             Green: Fully transferred",
@@ -84,8 +77,6 @@ class SaleOrder(models.Model):
     )
     date_effective = fields.Datetime(
         string="Effective Date",
-        compute="_compute_date_effective",
-        store=True,
         help="Completion date of the first delivery order.",
     )
     json_popover = fields.Char(
@@ -442,38 +433,17 @@ class SaleOrder(models.Model):
             Command.link(stock_reference.id) for stock_reference in reference
         ]
 
-    def _get_action_view_picking(self, pickings):
-        """
-        This function returns an action that display existing delivery orders
-        of given sales order ids. It can either be a in a list or in a form
-        view, if there is only one delivery order to show.
-        """
-        action = self.env["ir.actions.actions"]._for_xml_id(
-            "stock.action_picking_tree_all",
+    def _get_action_view_picking_context(self, pickings):
+        # Default to the delivery's operation type, falling back to any other
+        # shown picking. Overrides order.stock.mixin (base_order_stock).
+        picking = (
+            pickings.filtered(lambda p: p.picking_type_id.code == "outgoing")[:1]
+            or pickings[:1]
         )
-
-        if len(pickings) > 1:
-            action["domain"] = [("id", "in", pickings.ids)]
-        elif pickings:
-            form_view = [(self.env.ref("stock.view_stock_picking_form").id, "form")]
-            if "views" in action:
-                action["views"] = form_view + [
-                    (state, view) for state, view in action["views"] if view != "form"
-                ]
-            else:
-                action["views"] = form_view
-            action["res_id"] = pickings.id
-        # Prepare the context.
-        picking_id = pickings.filtered(lambda l: l.picking_type_id.code == "outgoing")
-        if picking_id:
-            picking_id = picking_id[0]
-        else:
-            picking_id = pickings[0]
-        action["context"] = {
+        return {
             "default_partner_id": self.partner_id.id,
-            "default_picking_type_id": picking_id.picking_type_id.id,
+            "default_picking_type_id": picking.picking_type_id.id,
         }
-        return action
 
     def _get_date_planned(self, date_planneds):
         if self.picking_policy == "direct":

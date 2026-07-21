@@ -186,7 +186,6 @@ class PurchaseOrderLine(models.Model):
                     )
 
             line.qty_transferred = qty_transferred
-            line.qty_to_transfer = max(0, line.product_qty - qty_transferred)
 
     @api.depends("product_uom_qty", "date_planned")
     def _compute_forecasted_issue(self):

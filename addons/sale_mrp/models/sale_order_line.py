@@ -126,11 +126,6 @@ class SaleOrderLine(models.Model):
                 else:
                     line.qty_transferred = 0.0
 
-        # The override sets qty_transferred in the kit branches but, unlike
-        # sale_stock, did not refresh the co-computed qty_to_transfer, leaving
-        # fully delivered kits stuck in a 'partial' transfer state.
-        for line in lines_by_stock_move:
-            line.qty_to_transfer = max(0.0, line.product_qty - line.qty_transferred)
 
     def _prepare_qty_transferred(self):
         delivered_qties = super()._prepare_qty_transferred()
@@ -141,9 +136,12 @@ class SaleOrderLine(models.Model):
                 # We fetch the BoMs of type kits linked to the order_line,
                 # the we keep only the one related to the finished produst.
                 # This bom should be the only one since bom_line_id was written on the moves
-                relevant_bom = boms.filtered(lambda b: b.type == 'phantom' and
-                        (b.product_id == order_line.product_id or
-                        (b.product_tmpl_id == order_line.product_id.product_tmpl_id and not b.product_id)))
+                # `product` is bound as a default so the lambda captures this
+                # iteration's value rather than the loop variable.
+                product = order_line.product_id
+                relevant_bom = boms.filtered(lambda b, product=product: b.type == 'phantom' and
+                        (b.product_id == product or
+                        (b.product_tmpl_id == product.product_tmpl_id and not b.product_id)))
                 if not relevant_bom:
                     relevant_bom = boms._bom_find(order_line.product_id, company_id=order_line.company_id.id, bom_type='phantom')[order_line.product_id]
                 if relevant_bom:
@@ -198,7 +196,7 @@ class SaleOrderLine(models.Model):
 
     def _get_bom_component_qty(self, bom):
         bom_quantity = self.product_id.uom_id._compute_quantity(1, bom.product_uom_id, rounding_method='HALF-UP')
-        boms, lines = bom.explode(self.product_id, bom_quantity)
+        _boms, lines = bom.explode(self.product_id, bom_quantity)
         components = {}
         for line, line_data in lines:
             product = line.product_id.id

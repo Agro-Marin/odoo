@@ -15,7 +15,6 @@ Field naming matches actual sale_stock/purchase_stock conventions:
 
 from odoo import api, fields, models
 
-
 TRANSFER_STATE = [
     ("no", "Nothing to transfer"),
     ("to do", "To transfer"),
@@ -39,7 +38,6 @@ class OrderStockMixin(models.AbstractModel):
 
     Requires from concrete model:
         ``picking_ids`` — One2many to ``stock.picking``
-        ``line_ids`` — One2many to order lines (with ``qty_transferred``)
     """
 
     _name = "order.stock.mixin"
@@ -90,9 +88,7 @@ class OrderStockMixin(models.AbstractModel):
                 p.state == "cancel" for p in order.picking_ids
             ):
                 order.transfer_state = False
-            elif all(
-                p.state in ["done", "cancel"] for p in order.picking_ids
-            ):
+            elif all(p.state in ["done", "cancel"] for p in order.picking_ids):
                 order.transfer_state = "done"
             elif any(p.state == "done" for p in order.picking_ids):
                 order.transfer_state = "partial"
@@ -101,13 +97,21 @@ class OrderStockMixin(models.AbstractModel):
 
     # ─── Compute: Effective Date ─────────────────────────────────
 
-    @api.depends("picking_ids.date_done")
+    @api.depends(
+        "picking_ids.date_done",
+        "picking_ids.state",
+        "picking_ids.location_dest_id.usage",
+    )
     def _compute_date_effective(self):
         """Compute completion date from first done picking.
 
         Delegates filtering to ``_filter_effective_pickings()`` hook:
         - Sale: customer-destination pickings
         - Purchase: non-supplier-destination pickings
+
+        The dependencies cover every field those hooks read; ``date_done``
+        alone would leave the date stale when a picking reaches ``done`` or
+        its destination usage changes without ``date_done`` itself changing.
         """
         for order in self:
             pickings = order._filter_effective_pickings(order.picking_ids)
@@ -129,10 +133,14 @@ class OrderStockMixin(models.AbstractModel):
     # ─── Actions ─────────────────────────────────────────────────
 
     def _get_action_view_picking(self, pickings):
-        """Build action dict to display pickings in list/form view.
+        """Build the action displaying ``pickings``.
 
-        Nearly identical in sale_stock and purchase_stock.
-        Both use ``stock.action_picking_tree_all`` as the base action.
+        Form view when there is exactly one picking, list view otherwise
+        (including when ``pickings`` is empty — the domain must still be set,
+        or the action falls back to listing every picking in the database).
+
+        Concrete models tailor the defaults of records created from the
+        action through :meth:`_get_action_view_picking_context`.
 
         :param pickings: recordset of ``stock.picking``
         :returns: action dict
@@ -141,14 +149,25 @@ class OrderStockMixin(models.AbstractModel):
             "stock.action_picking_tree_all",
         )
         if len(pickings) == 1:
-            form_view = [
-                (self.env.ref("stock.view_picking_form").id, "form"),
+            form_view = [(self.env.ref("stock.view_stock_picking_form").id, "form")]
+            action["views"] = form_view + [
+                (state, view)
+                for state, view in action.get("views", [])
+                if view != "form"
             ]
-            action["views"] = form_view
             action["res_id"] = pickings.id
-        elif pickings:
+        else:
             action["domain"] = [("id", "in", pickings.ids)]
+        action["context"] = self._get_action_view_picking_context(pickings)
         return action
+
+    def _get_action_view_picking_context(self, pickings):
+        """Context of the picking action: defaults for records created from it.
+
+        Replaces the base action's context wholesale, which is what drops its
+        default filtering on operation type.
+        """
+        return {}
 
 
 # ════════════════════════════════════════════════════════════════════
@@ -166,7 +185,8 @@ class OrderLineStockMixin(models.AbstractModel):
     - Sale: simple outgoing/incoming classification by location dest
     - Purchase: complex return + BOM kit + dropship handling
 
-    Both compute ``qty_to_transfer`` inside ``_compute_qty_transferred``.
+    ``qty_to_transfer`` is derived from the result here, so the overrides only
+    have to produce ``qty_transferred``.
 
     Requires from concrete model:
         ``move_ids`` — One2many to ``stock.move`` (different inverse per model)
@@ -180,21 +200,44 @@ class OrderLineStockMixin(models.AbstractModel):
 
     # ─── Fields ───────────────────────────────────────────────────
 
+    # Declared plain and writable by base_order's order.line.fields.mixin, so
+    # orders work without stock installed; this bridge turns it into a stored
+    # compute.  Deliberately no ``string``/``copy``: both are inherited from
+    # base_order, and restating them here would silently fork the label and
+    # copy semantics.
     qty_to_transfer = fields.Float(
-        string="To Transfer",
         digits="Product Unit",
-        compute="_compute_qty_transferred",
+        compute="_compute_qty_to_transfer",
         store=True,
     )
 
+    # ─── Compute: Remaining Quantity ──────────────────────────────
+
+    @api.depends("product_qty", "qty_transferred")
+    def _compute_qty_to_transfer(self):
+        """Derive the outstanding quantity from the transferred one.
+
+        A compute of its own rather than a co-assignment inside each
+        ``_compute_qty_transferred`` override: every override — sale, purchase,
+        and sale_mrp's kit branches — otherwise has to remember to refresh this
+        too, and forgetting leaves a fully transferred line reading 'partial'.
+        Keying off ``qty_transferred`` also picks up manual edits to it, which
+        the co-assignment could not.
+        """
+        for line in self:
+            line.qty_to_transfer = max(0.0, line.product_qty - line.qty_transferred)
+
     # ─── Helpers ──────────────────────────────────────────────────
 
-    def _get_stock_moves_outgoing_incoming(self):
+    def _get_stock_moves_outgoing_incoming(self, **kwargs):
         """Classify stock moves as outgoing and incoming.
 
         THE KEY DIFFERENCE between sale and purchase:
         - Sale: outgoing = customer destination, incoming = returns
         - Purchase: outgoing = returns to supplier, incoming = receipts
+
+        Overrides may add keyword arguments of their own — sale_stock takes a
+        ``strict`` flag — so callers that are not model-specific must pass none.
 
         :returns: ``(outgoing_moves, incoming_moves)`` tuple of recordsets
         """

@@ -63,26 +63,16 @@ class PurchaseOrder(models.Model):
         string="References",
         copy=False,
     )
+    # Selection, compute and store come from order.stock.mixin; only the
+    # vendor-facing wording is specific to purchases.
     transfer_state = fields.Selection(
-        selection=[
-            ("no", "Nothing to transfer"),
-            ("to do", "To transfer"),
-            ("partial", "Partially transferred"),
-            ("done", "Fully transferred"),
-            ("over done", "Over transferred"),
-        ],
         string="Receipt Status",
-        compute="_compute_transfer_state",
-        store=True,
         help="Red: Late\n\
             Orange: To process today\n\
             Green: On time",
     )
     date_effective = fields.Datetime(
         string="Arrival",
-        compute="_compute_date_effective",
-        store=True,
-        copy=False,
         help="Completion date of the first receipt order.",
     )
 
@@ -487,31 +477,14 @@ class PurchaseOrder(models.Model):
             self.env.context.get("company_id") or self.env.company.id,
         )
 
-    def _get_action_view_picking(self, pickings):
-        """This function returns an action that display existing picking orders of given purchase order ids. When only one found, show the picking immediately."""
+    def _get_action_view_picking_context(self, pickings):
+        # Overrides order.stock.mixin (base_order_stock).
         self.ensure_one()
-        result = self.env["ir.actions.actions"]._for_xml_id(
-            "stock.action_picking_tree_all",
-        )
-        # override the context to get rid of the default filtering on operation type
-        result["context"] = {
+        return {
             "default_partner_id": self.partner_id.id,
             "default_origin": self.name,
             "default_picking_type_id": self.picking_type_id.id,
         }
-        # choose the view_mode accordingly
-        if not pickings or len(pickings) > 1:
-            result["domain"] = [("id", "in", pickings.ids)]
-        elif len(pickings) == 1:
-            res = self.env.ref("stock.view_stock_picking_form", False)
-            form_view = [((res and res.id) or False, "form")]
-            result["views"] = form_view + [
-                (state, view)
-                for state, view in result.get("views", [])
-                if view != "form"
-            ]
-            result["res_id"] = pickings.id
-        return result
 
     def _get_location_destination(self):
         self.ensure_one()
