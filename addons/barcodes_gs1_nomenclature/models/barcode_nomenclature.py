@@ -1,8 +1,8 @@
-import re
-import datetime
 import calendar
+import datetime
+import re
 
-from odoo import api, fields, models, _
+from odoo import _, api, fields, models
 from odoo.exceptions import ValidationError
 from odoo.fields import Domain
 from odoo.libs.barcode import get_barcode_check_digit
@@ -27,13 +27,13 @@ class BarcodeNomenclature(models.Model):
                 try:
                     re.compile("(?:%s)?" % nom.gs1_separator_fnc1)
                 except re.error as error:
-                    raise ValidationError(_("The FNC1 Separator Alternative is not a valid Regex: %(error)s", error))
+                    raise ValidationError(_("The FNC1 Separator Alternative is not a valid Regex: %(error)s", error))  # noqa: B904
 
     @api.model
     def gs1_date_to_date(self, gs1_date):
         """ Converts a GS1 date into a datetime.date.
 
-        :param gs1_date: A year formated as yymmdd
+        :param gs1_date: A date formatted as yymmdd
         :type gs1_date: str
         :return: converted date
         :rtype: datetime.date
@@ -55,7 +55,7 @@ class BarcodeNomenclature(models.Model):
             try:
                 date = datetime.datetime.strptime(str(year) + gs1_date[2:], '%Y%m%d')
             except ValueError as e:
-                raise ValidationError(_(
+                raise ValidationError(_(  # noqa: B904
                     "A GS1 barcode nomenclature pattern was matched. However, the barcode failed to be converted to a valid date: '%(error_message)s'",
                     error_message=e
                 ))
@@ -78,13 +78,13 @@ class BarcodeNomenclature(models.Model):
                 else:
                     result['value'] = int(match.group(2))
             except Exception:
-                raise ValidationError(_(
+                raise ValidationError(_(  # noqa: B904
                     "There is something wrong with the barcode rule \"%s\" pattern.\n"
                     "If this rule uses decimal, check it can't get sometime else than a digit as last char for the Application Identifier.\n"
                     "Check also the possible matched values can only be digits, otherwise the value can't be casted as a measure.",
                     rule.name))
         elif rule.gs1_content_type == 'identifier':
-            # Check digit and remove it of the value
+            # Reject the barcode if its check digit (last char) is invalid
             if match.group(2)[-1] != str(get_barcode_check_digit("0" * (18 - len(match.group(2))) + match.group(2))):
                 return None
             result['value'] = match.group(2)
@@ -141,10 +141,10 @@ class BarcodeNomenclature(models.Model):
 
     @api.model
     def _preprocess_gs1_search_args(self, domain, barcode_types, field='barcode'):
-        """Helper method to preprocess 'domain' in _search method to add support to
-        search with GS1 barcode result.
-        Cut off the padding if using GS1 and searching on barcode. If the barcode
-        is only digits to keep the original barcode part only.
+        """Preprocess `domain` in `_search` to support searching with a GS1 barcode.
+
+        Strip the GS1 padding when searching on `barcode`, keeping only the
+        significant digits of the parsed value.
         """
         domain = Domain(domain)
         nomenclature = self.env.company.nomenclature_id
@@ -188,7 +188,7 @@ class BarcodeNomenclature(models.Model):
                     if data_type in barcode_types:
                         if data_type == 'lot':
                             return Domain(field, operator, value)
-                        match = re.match('0*([0-9]+)$', str(value))
+                        match = re.match(r'0*([0-9]+)$', str(value))
                         if match:
                             unpadded_barcode = match.groups()[0]
                             return Domain(field, replacing_operator, unpadded_barcode)
@@ -196,7 +196,7 @@ class BarcodeNomenclature(models.Model):
 
                 # The barcode isn't a valid GS1 barcode, checks if it can be unpadded.
                 if not parsed_data:
-                    match = re.match('0+([0-9]+)$', value)
+                    match = re.match(r'0+([0-9]+)$', value)
                     if match:
                         return Domain(field, replacing_operator, match.groups()[0])
                 return condition

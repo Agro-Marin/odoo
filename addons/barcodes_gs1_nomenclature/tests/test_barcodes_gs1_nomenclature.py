@@ -20,7 +20,7 @@ class TestBarcodeGS1Nomenclature(TransactionCase):
         self.assertEqual(date.month, 3)
         self.assertEqual(date.year, 2052)
 
-        # XX/02/2020 -> 520200 -> (if day no set take last day of the month -> 29)
+        # XX/02/2020 -> 200200 -> (if day no set take last day of the month -> 29)
         date_gs1 = "200200"
         date = barcode_nomenclature.gs1_date_to_date(date_gs1)
         self.assertEqual(date.day, 29)
@@ -66,9 +66,7 @@ class TestBarcodeGS1Nomenclature(TransactionCase):
         self.assertEqual(res[2]["value"], 17)
 
     def test_gs1_extanded_barcode_2_decimal(self):
-        """ Parses multiples barcode with (or without) a decimal value and
-        checks for each of them the value is correctly parsed.
-        """
+        """Parse barcodes with and without decimals and check each value is parsed correctly."""
         # Configures a barcode GS1 nomenclature...
         barcode_nomenclature = self.env['barcode.nomenclature'].create({
             'name': "GS1 Nomenclature - Test",

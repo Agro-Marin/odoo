@@ -187,7 +187,7 @@ test("Test gs1 date barcode", async () => {
     expect(date.getMonth() + 1).toBe(3);
     expect(date.getFullYear()).toBe(2052);
 
-    // XX/02/2020 -> 520200 -> (if day no set take last day of the month -> 29)
+    // XX/02/2020 -> 200200 -> (if day no set take last day of the month -> 29)
     dateGS1 = "200200";
     date = barcodeNomenclature.gs1_date_to_date(dateGS1);
     expect(date.getDate()).toBe(29);
