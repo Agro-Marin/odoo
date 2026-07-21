@@ -216,7 +216,6 @@ class SaleOrderLine(models.Model):
                 )
 
             line.qty_transferred = qty_transferred
-            line.qty_to_transfer = max(0.0, line.product_qty - qty_transferred)
 
     @api.depends(
         "state",
