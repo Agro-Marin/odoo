@@ -1,18 +1,24 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 import logging
-import werkzeug
 from urllib.parse import urlencode
 
-from odoo import http, tools, _
-from odoo.addons.auth_signup.models.res_users import SignupError
-from odoo.addons.web.controllers.home import ensure_db, Home, SIGN_UP_REQUEST_PARAMS, LOGIN_SUCCESSFUL_PARAMS
-from odoo.addons.web.models.res_users import SKIP_CAPTCHA_LOGIN
-from odoo.addons.web.controllers.settings import BaseSetup
-from odoo.exceptions import UserError
-from odoo.tools.translate import LazyTranslate
-from odoo.http import request
+import werkzeug
 from markupsafe import Markup
+
+from odoo import _, http, tools
+from odoo.exceptions import UserError
+from odoo.http import request
+from odoo.tools.translate import LazyTranslate
+
+from odoo.addons.auth_signup.models.res_users import SignupError
+from odoo.addons.web.controllers.home import (
+    LOGIN_SUCCESSFUL_PARAMS,
+    SIGN_UP_REQUEST_PARAMS,
+    Home,
+    ensure_db,
+)
+from odoo.addons.web.controllers.settings import BaseSetup
+from odoo.addons.web.models.res_users import SKIP_CAPTCHA_LOGIN
 
 _lt = LazyTranslate(__name__)
 _logger = logging.getLogger(__name__)
@@ -41,7 +47,7 @@ class AuthSignupHome(Home):
         qcontext = self.get_auth_signup_qcontext()
 
         if not qcontext.get('token') and not qcontext.get('signup_enabled'):
-            raise werkzeug.exceptions.NotFound()
+            raise werkzeug.exceptions.NotFound
 
         if 'error' not in qcontext and request.httprequest.method == 'POST':
             try:
@@ -89,7 +95,7 @@ class AuthSignupHome(Home):
         qcontext = self.get_auth_signup_qcontext()
 
         if not qcontext.get('token') and not qcontext.get('reset_password_enabled'):
-            raise werkzeug.exceptions.NotFound()
+            raise werkzeug.exceptions.NotFound
 
         if 'error' not in qcontext and request.httprequest.method == 'POST':
             try:
@@ -145,7 +151,7 @@ class AuthSignupHome(Home):
                 token_infos = request.env['res.partner'].sudo()._signup_retrieve_info(qcontext.get('token'))
                 for k, v in token_infos.items():
                     qcontext.setdefault(k, v)
-            except:
+            except:  # noqa: E722
                 qcontext['error'] = _("Invalid signup token")
                 qcontext['invalid_token'] = True
         return qcontext
@@ -163,7 +169,7 @@ class AuthSignupHome(Home):
         return values
 
     def do_signup(self, qcontext, do_login=True):
-        """ Shared helper that creates a res.partner out of a token """
+        """ Shared helper that creates a res.users out of a token """
         values = self._prepare_signup_values(qcontext)
         self._signup_with_values(qcontext.get('token'), values, do_login)
         request.env.cr.commit()

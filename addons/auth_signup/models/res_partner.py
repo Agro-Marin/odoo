@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 import random
@@ -6,7 +5,8 @@ from collections import defaultdict
 from datetime import datetime, timedelta
 from urllib.parse import urlencode
 
-from odoo import api, exceptions, fields, models, tools, _
+from odoo import _, api, exceptions, fields, models, tools
+
 
 class SignupError(Exception):
     pass
@@ -60,7 +60,7 @@ class ResPartner(models.Model):
             if url:
                 query['redirect'] = url
             else:
-                fragment = dict()
+                fragment = {}
                 base = '/odoo/'
                 if action == '/mail/view':
                     base = '/mail/view?'
@@ -92,7 +92,7 @@ class ResPartner(models.Model):
             If the partner already has a user, get the login parameter.
         """
         if not self.env.user._is_internal() and not self.env.is_admin():
-            raise exceptions.AccessDenied()
+            raise exceptions.AccessDenied
 
         res = defaultdict(dict)
 
@@ -110,7 +110,7 @@ class ResPartner(models.Model):
         return self.write({'signup_type': None})
 
     def signup_prepare(self, signup_type="signup"):
-        """ generate a new token for the partners with the given validity, if necessary """
+        """ set the signup token type on the partners """
         self.write({'signup_type': signup_type})
         return True
 
@@ -176,7 +176,7 @@ class ResPartner(models.Model):
         :return: the signed payload/token that can be used to reset the
                  password/signup.
 
-        Since ``last_login_date`` is part of the payload, this token is
+        Since ``login_date`` is part of the payload, this token is
         invalidated as soon as the user logs in.
         """
         self.ensure_one()
@@ -186,8 +186,7 @@ class ResPartner(models.Model):
             else:
                 expiration = int(self.env['ir.config_parameter'].get_param("auth_signup.signup.validity.hours", 144))
         plist = [self.id, self.user_ids.ids, self._get_login_date(), self.signup_type]
-        payload = tools.hash_sign(self.sudo().env, 'signup', plist, expiration_hours=expiration)
-        return payload
+        return tools.hash_sign(self.sudo().env, 'signup', plist, expiration_hours=expiration)
 
     @api.model
     def _get_partner_from_token(self, token):
