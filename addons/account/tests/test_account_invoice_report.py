@@ -156,24 +156,17 @@ class TestAccountInvoiceReport(AccountTestInvoicingCommon):
         self.assertRecordValues(reports, expected_values_dict)
 
     def test_invoice_report_multiple_types(self):
-        """
-        Each line represent an invoice line
-        First and last lines use Packagings. Quantity and price from the invoice are adapted
-        to the standard UoM of the product.
-
-        quantity is quantity in product_uom_id
-        price_subtotal = Price_unit * Number_of_packages / currency_rate
-        price_average = price_subtotal / quantity
-        inventory_value = quantity * standard_price * (-1 OR 1 depending of move_type)
-        price_margin = (price_average - standard_price) * quantity
-
-        E.g. first line:
-        quantity : 6 * 3 = 18
-        price_subtotal = 4500 * 3 / 3 = 4500
-        price_average = 4500 / 18 = 250
-        inventory_value = 800*18*-1 = -14400
-        price_margin = (250 - 800) * 18 = -9900
-        """
+        """Check the report values of one line per invoice line, for every move type."""
+        # The first and the last lines use the "Pack of 6" UoM, so quantity and
+        # price from the invoice are converted to the product's UoM:
+        #   quantity = quantity in product_uom_id
+        #   price_subtotal = price_unit * number_of_packages / currency_rate
+        #   price_average = price_subtotal / quantity
+        #   inventory_value = quantity * standard_price * (-1 OR 1 depending of move_type)
+        #   price_margin = (price_average - standard_price) * quantity
+        # First line: quantity = 6 * 3 = 18, price_subtotal = 4500 * 3 / 3 = 4500,
+        # price_average = 4500 / 18 = 250, inventory_value = 800 * 18 * -1 = -14400,
+        # price_margin = (250 - 800) * 18 = -9900
         self.assertInvoiceReportValues(
             [
                 # pylint: disable=bad-whitespace
@@ -203,13 +196,9 @@ class TestAccountInvoiceReport(AccountTestInvoicingCommon):
         )
 
     def test_invoice_report_multicompany_product_cost(self):
-        """
-        In a multicompany environment, if you define one product with different standard price per company
-        the invoice analysis report should only display the product from the company
-        Standard Price in Company A: 800 (default setup)
-        Standard Price in Company B: 700
-        -> invoice report for Company A should remain the same
-        """
+        """Check the report only uses the standard price of the company it is read from."""
+        # With product_a costing 800 in company A (default setup) and 700 in
+        # company B, the report of company A must remain unchanged.
         self.product_a.with_company(self.company_data_2.get("company")).write(
             {"standard_price": 700.0}
         )
@@ -242,16 +231,9 @@ class TestAccountInvoiceReport(AccountTestInvoicingCommon):
         )
 
     def test_avg_price_calculation(self):
-        """
-        Check that the average is correctly calculated based on the total price and quantity:
-            3 lines:
-                - 10 units * 10$
-                -  5 units *  5$
-                - 20 units *  2$
-            Total quantity: 35
-            Total price: 165$
-            Average: 165 / 35 = 4.71
-        """
+        """Check the average is computed from the total price divided by the total quantity."""
+        # 10 units * 10$, 5 units * 5$ and 20 units * 2$ give a total quantity of
+        # 35 and a total price of 165$, so the average is 165 / 35 = 4.71.
         product = self.product_a.copy()
         invoice = self.env["account.move"].create(
             {
@@ -311,23 +293,11 @@ class TestAccountInvoiceReport(AccountTestInvoicingCommon):
         self.assertEqual(round(report[0]["price_average:avg"], 2), 4.71)
 
     def test_avg_price_group_by_month(self):
-        """
-        Check that the average is correctly calculated based on the total price and quantity
-        with multiple invoices and group by month:
-            Invoice 1:
-                2 lines:
-                    - 10 units * 10$
-                    -  5 units *  5$
-                Total quantity: 15
-                Total price: 125$
-                Average: 125 / 15 = 8.33
-            Invoice 2:
-                1 line:
-                    - 0 units * 5$
-                Total quantity: 0
-                Total price: 0$
-                Average: 0.00
-        """
+        """Check the average of several invoices grouped by month."""
+        # January invoice: 10 units * 10$ and 5 units * 5$ give a total quantity
+        # of 15 and a total price of 125$, so the average is 125 / 15 = 8.33.
+        # February invoice: 0 units * 5$ gives no quantity and no price, so the
+        # average is 0.00.
         self.env["account.move"].search([]).unlink()
         invoices = self.env["account.move"].create(
             [

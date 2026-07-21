@@ -30,7 +30,7 @@ def _get_chart_template_mapping(self, get_all=False):
 
 def data_method_provider(chart_template_name, country_code):
     country = f"base.{country_code}"
-    # this is used to simulated differences between xml_ids
+    # this is used to simulate differences between xml_ids
     external_id_prefix = (
         "" if chart_template_name == "local" else f"{chart_template_name}_"
     )
@@ -200,10 +200,8 @@ class TestMultiVAT(AccountTestInvoicingCommon):
         AccountChartTemplate, "_get_chart_template_mapping", _get_chart_template_mapping
     )
     def setUpClass(cls):
-        """
-        Setups a company with a custom chart template, containing a tax and a fiscal position.
-        We need to add xml_ids to the templates because they are loaded from their xml_ids
-        """
+        """Set up a company with a custom chart template, a tax and a fiscal position."""
+        # Templates are loaded from their xml_ids, so the test data must carry them
         # Avoid creating data from AccountTestInvoicingCommon setUpClass
         # just use the override of the functions it provides
         super(AccountTestInvoicingCommon, cls).setUpClass()
@@ -228,7 +226,7 @@ class TestMultiVAT(AccountTestInvoicingCommon):
             cls.foreign_vat_fpos.action_create_foreign_taxes()
 
     def test_tax_and_tax_group_should_be_reachable_using_standard_api(self):
-        # Ensure local and foreign tax is reachable using the custom ref api
+        # Ensure local and foreign tax and tax group are reachable using the custom ref api
         for xml_id in (
             # tax group
             "tax_group_taxes",
