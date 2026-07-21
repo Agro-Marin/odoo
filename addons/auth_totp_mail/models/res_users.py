@@ -1,16 +1,16 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-import babel.dates
 import logging
-
 from datetime import datetime, timedelta
+
+import babel.dates
 
 from odoo import _, models
 from odoo.exceptions import AccessDenied, UserError
 from odoo.http import request
 from odoo.tools.misc import babel_locale_parse, hmac
 
-from odoo.addons.auth_totp.models.totp import hotp, TOTP
+from odoo.addons.auth_totp.models.totp import TOTP, hotp
 
 _logger = logging.getLogger(__name__)
 
@@ -77,14 +77,13 @@ class ResUsers(models.Model):
         return values
 
     def action_open_my_account_settings(self):
-        action = {
+        return {
             "name": _("Security"),
             "type": "ir.actions.act_window",
             "res_model": "res.users",
             "views": [[self.env.ref('auth_totp_mail.res_users_view_form').id, "form"]],
             "res_id": self.id,
         }
-        return action
 
     def get_totp_invite_url(self):
         return '/odoo/action-auth_totp_mail.action_activate_two_factor_authentication'
@@ -123,6 +122,7 @@ class ResUsers(models.Model):
             otp_required = True
         if otp_required:
             return 'totp_mail'
+        return None
 
     def _mfa_url(self):
         r = super()._mfa_url()
@@ -130,6 +130,7 @@ class ResUsers(models.Model):
             return r
         if self._mfa_type() == 'totp_mail':
             return '/web/login/totp'
+        return None
 
     def _rpc_api_keys_only(self):
         return self._mfa_type() == 'totp_mail' or super()._rpc_api_keys_only()
@@ -187,8 +188,8 @@ class ResUsers(models.Model):
             browser = request.httprequest.user_agent.browser
             context.update({
                 'location': None,
-                'device': device and device.capitalize() or None,
-                'browser': browser and browser.capitalize() or None,
+                'device': (device and device.capitalize()) or None,
+                'browser': (browser and browser.capitalize()) or None,
                 'ip': request.httprequest.environ['REMOTE_ADDR'],
             })
             if request.geoip.city.name:
