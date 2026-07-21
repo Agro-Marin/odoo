@@ -5,6 +5,7 @@ import zipfile
 from odoo import _, http
 from odoo.exceptions import UserError
 from odoo.http import content_disposition, request
+from odoo.libs.filesystem import osutil
 
 
 class Partner(http.Controller):
@@ -31,9 +32,21 @@ class Partner(http.Controller):
             if len(partners) > 1:
                 buffer = io.BytesIO()
                 with zipfile.ZipFile(buffer, "w") as zipf:
+                    used_names = set()
                     for p in partners:
                         label = p.name or p.email or f"contact_{p.id}"
-                        zipf.writestr(f"{label}.vcf", p._get_vcard_file())
+                        # Sanitize: a partner named e.g. "../../../evil" would
+                        # otherwise write a traversing zip entry (zip-slip against
+                        # a non-hardening extractor). De-duplicate too: two
+                        # partners sharing a name collide into one entry, which
+                        # zipfile silently keeps the last of — dropping records.
+                        name = osutil.clean_filename(f"{label}.vcf")
+                        candidate, i = name, 1
+                        while candidate in used_names:
+                            candidate = osutil.clean_filename(f"{label} ({i}).vcf")
+                            i += 1
+                        used_names.add(candidate)
+                        zipf.writestr(candidate, p._get_vcard_file())
                 zip_data = buffer.getvalue()
                 return request.make_response(
                     zip_data,

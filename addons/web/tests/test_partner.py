@@ -136,6 +136,33 @@ class TestPartnerVCard(HttpCase):
                         vobject.readOne(vcard_content), self.partners[i]
                     )
 
+    def test_multi_vcard_entry_names_sanitized_and_unique(self):
+        # A partner name reaching a zip entry name unsanitized is a zip-slip
+        # vector, and two partners sharing a name silently collide into one
+        # entry (zipfile keeps the last). Names must be cleaned and de-duplicated.
+        dupes = self.env["res.partner"].create(
+            [
+                {"name": "../../../evil"},
+                {"name": "../../../evil"},
+                {"name": "Same Name"},
+                {"name": "Same Name"},
+            ]
+        )
+        res = self.url_open(
+            "/web/partner/vcard?partner_ids=%s" % ",".join(map(str, dupes.ids))
+        )
+        with io.BytesIO(res.content) as buffer:
+            with zipfile.ZipFile(buffer, "r") as zipf:
+                names = zipf.namelist()
+        # One entry per partner (no silent collision).
+        self.assertEqual(len(names), 4)
+        self.assertEqual(len(set(names)), 4, "entry names must be unique")
+        # No path traversal survives into an entry name.
+        for name in names:
+            self.assertNotIn("..", name)
+            self.assertNotIn("/", name)
+            self.assertNotIn("\\", name)
+
     def test_check_partner_access_for_user(self):
         self.env["res.users"].create(
             {
