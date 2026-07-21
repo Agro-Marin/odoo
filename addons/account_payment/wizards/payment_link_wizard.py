@@ -87,14 +87,21 @@ class PaymentLinkWizard(models.TransientModel):
             return res
 
         return {
-            'move_id': related_document.id,
             'amount': self.amount,
             'payment_token': self._prepare_access_token(),
             'payment': True,
         }
 
     def _prepare_access_token(self):
-        """ Override of `payment` to generate the access token only based on the amount. """
+        """ Override of `payment` to generate the access token only based on the amount.
+
+        NOTE: this `(res_id, amount)` shape is narrower than the base `payment` module's
+        `(partner_id, amount, currency_id)` shape checked by `/payment/pay`. It stays
+        consistent only because `_prepare_url`'s `account.move` branch always routes this
+        token to the invoice-portal page's own narrower check
+        (`controllers/portal.py::portal_my_invoice_detail`), never to `/payment/pay`. Keep
+        both branches in sync if either is touched.
+        """
         res = super()._prepare_access_token()
         if self.res_model != 'account.move':
             return res

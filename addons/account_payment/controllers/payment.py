@@ -1,7 +1,7 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 from odoo import _
-from odoo.exceptions import AccessError, MissingError, ValidationError
+from odoo.exceptions import AccessError, ValidationError
 from odoo.fields import Command
 from odoo.http import request, route
 
@@ -25,10 +25,8 @@ class PaymentPortal(payment_portal.PaymentPortal):
         # Check the invoice id and the access token
         try:
             invoice_sudo = self._document_check_access('account.move', invoice_id, access_token)
-        except MissingError as error:
-            raise error
-        except AccessError:
-            raise ValidationError(_("The access token is invalid."))
+        except AccessError as error:
+            raise ValidationError(_("The access token is invalid.")) from error
 
         logged_in = not request.env.user._is_public()
         partner_sudo = request.env.user.partner_id if logged_in else invoice_sudo.partner_id
