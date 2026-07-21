@@ -336,12 +336,8 @@ class AccountChartTemplate(models.AbstractModel):
             self.with_context(install_mode=True)._post_load_demo_data(company)
 
     def _pre_reload_data(self, company, template_data, data, force_create=True):
-        """Pre-process the data in case of reloading the chart of accounts.
-
-        When we reload the chart of accounts, we only want to update fields that are main
-        configuration, like:
-        - tax tags
-        """
+        """Pre-process the data in case of reloading the chart of accounts."""
+        # On reload we only want to update fields that are main configuration, like tax tags.
         for prop in list(template_data):
             if prop.startswith("property_"):
                 template_data.pop(prop)
@@ -705,12 +701,10 @@ class AccountChartTemplate(models.AbstractModel):
                                     values[fname][i] = Command.update(line.id, vals)
 
     def _pre_load_data(self, template_code, company, template_data, data):
-        """Pre-process the data and preload some values.
-
-        Some of the data needs special pre_process before being fed to the database.
-        e.g. the account codes' width must be standardized to the code_digits applied.
-        The fiscal country code must be put in place before taxes are generated.
-        """
+        """Pre-process the data and preload some values."""
+        # Some data needs special pre-processing before being fed to the database, e.g. the
+        # account codes' width must be standardized to the code_digits applied, and the fiscal
+        # country code must be put in place before taxes are generated.
         if "account_fiscal_country_id" in data.get("res.company", {}).get(
             company.id, {}
         ):
@@ -802,20 +796,18 @@ class AccountChartTemplate(models.AbstractModel):
     def _load_data(self, data):
         """Load all the data linked to the template into the database.
 
-        The data can contain translation values (i.e. `name@fr_FR` to translate the name in French)
-        An xml_id that doesn't contain a `.` will be treated as being linked to `account` and prefixed
-        with the company's id (i.e. `cash` is interpreted as `account.1_cash` if the company's id is 1)
-
         :param data: All records to create/update for the chart of accounts,
                      as a mapping {model: {xml_id: values}}.
         :type data: dict[str, dict[(str, int), dict]]
         """
+        # The data can contain translation values (i.e. `name@fr_FR` to translate the name in
+        # French). An xml_id that doesn't contain a `.` is treated as linked to `account` and
+        # prefixed with the company's id (i.e. `cash` is interpreted as `account.1_cash` if the
+        # company's id is 1).
 
         def deref_values(values, model):
-            """Replace xml_id references by database ids in all provided values.
-
-            This allows to define all the data before the records even exist in the database.
-            """
+            """Replace xml_id references by database ids in all provided values."""
+            # This allows defining all the data before the records even exist in the database.
             fields = (
                 (model._fields[k], k, v)
                 for k, v in values.items()
@@ -1253,14 +1245,9 @@ class AccountChartTemplate(models.AbstractModel):
         }
 
     def _setup_utility_bank_accounts(self, template_code, company, template_data):
-        """Define basic bank accounts for the company.
-
-        - Suspense Account
-        - Outstanding Receipts/Payments Accounts
-        - Cash Difference Gain/Loss Accounts
-        - Liquidity Transfer Account
-        """
-        # Create utility bank_accounts
+        """Define basic bank accounts for the company."""
+        # Create utility bank accounts: Suspense, Outstanding Receipts/Payments, Cash Difference
+        # Gain/Loss and Liquidity Transfer.
         bank_prefix = company.bank_account_code_prefix
         code_digits = int(template_data.get("code_digits", 6))
         accounts_data = self._get_accounts_data_values(
@@ -1322,12 +1309,10 @@ class AccountChartTemplate(models.AbstractModel):
 
     @api.model
     def _instantiate_foreign_taxes(self, country, company):
-        """Create and configure foreign taxes from the provided country.
-
-        Instantiate the taxes as they would be for the foreign localization only replacing the accounts used by the most
-        probable account we can retrieve from the company's localization.
-        This is a fast shortcut for instantiation, not a guaranteed-correct solution.
-        """
+        """Create and configure foreign taxes from the provided country."""
+        # Instantiate the taxes as they would be for the foreign localization, only replacing the
+        # accounts used by the most probable account we can retrieve from the company's
+        # localization. This is a fast shortcut for instantiation, not a guaranteed-correct solution.
         # Implementation:
         # - Check if there is any tax for this country and stop the process if yes
         # - Retrieve the tax group and tax template data
@@ -1888,7 +1873,6 @@ class AccountChartTemplate(models.AbstractModel):
 
     def _get_untranslated_translatable_template_model_records(self, langs, companies):
         """Return information about the records of any model in TEMPLATE_MODELS (and belonging to companies) that need to be translated.
-        Records are in need of translation if they have a translatable field which is missing a translation (into any of the languages given in langs).
 
         :param langs: The codes of the languages into which we want to translate the records.
         :type langs: list[str]
@@ -1977,11 +1961,11 @@ class AccountChartTemplate(models.AbstractModel):
         :param record: record formatted like in the template data (generated by _get_chart_template_data)
         :type record: dict
         :param fname: the name of a field (in record) as string
-        :type str
+        :type fname: str
         :param lang: the code of a res.lang
-        :type str
-        :return record[fname] translated into lang (or None)
-        :rtype str
+        :type lang: str
+        :return: record[fname] translated into lang (or None)
+        :rtype: str
         """
         generic_lang = lang.split("_")[
             0
