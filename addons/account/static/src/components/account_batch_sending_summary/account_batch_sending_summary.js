@@ -9,8 +9,6 @@ export class AccountBatchSendingSummary extends Component {
         ...standardFieldProps,
     };
 
-    // Getter so the template re-reads the field on every render; a value cached in
-    // setup() would go stale when the record reloads or the field changes.
     get data() {
         return this.props.record.data[this.props.name];
     }

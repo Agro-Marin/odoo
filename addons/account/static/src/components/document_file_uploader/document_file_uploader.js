@@ -47,7 +47,7 @@ export class DocumentFileUploader extends Component {
         this.attachmentIdsToProcess.push(att_id);
     }
 
-    // To define specific resModal from another model
+    // To define a specific resModel from another model
     getResModel() {
         return this.props.resModel;
     }

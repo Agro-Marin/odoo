@@ -9,7 +9,6 @@ import { CharField, charField } from "@web/fields/basic/char/char_field";
 export class CharWithPlaceholderField extends CharField {
     static template = "account.CharWithPlaceholderField";
 
-    /** Override **/
     get formattedValue() {
         return super.formattedValue || this.props.placeholder;
     }
