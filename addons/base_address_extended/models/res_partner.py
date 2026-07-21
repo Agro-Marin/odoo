@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 from odoo import api, fields, models, tools
@@ -31,8 +30,7 @@ class ResPartner(models.Model):
 
     @api.depends('street')
     def _compute_street_data(self):
-        """Splits street value into sub-fields.
-        Recomputes the fields of STREET_FIELDS when `street` of a partner is updated"""
+        """Split the street value into its sub-fields when `street` changes."""
         for partner in self:
             partner.update(tools.street_split(partner.street))
 
