@@ -237,9 +237,8 @@
                     </t>
 
                     <t t-name="JournalBodyBankCash">
-                        <!-- On the left, display :
-                            - A button corresponding to the bank_statements_source, if it wasn't configured, a button for each of them
-                            - If there are statements to reconcile, a link to reconcile them -->
+                        <!-- Left: Bank Setup button while the journal has no bank account
+                             and no statement source, then the Transactions button -->
                         <div id="dashboard_bank_cash_left" class="col mb-3 mb-sm-0 o_kanban_primary_left">
                             <div name="bank_cash_buttons" class="d-flex gap-1">
                                 <t t-set="bank_requires_setup" t-value="!record.bank_account_id.raw_value and ['undefined', 'online_sync'].includes(dashboard.bank_statements_source)"/>
@@ -247,7 +246,7 @@
                                 <button id="all_transactions_btn" type="object" name="open_action" class="btn btn-primary">Transactions</button>
                             </div>
                         </div>
-                        <!-- On the right, show other common informations/actions -->
+                        <!-- Right: balances, outstanding payments, misc. operations and journal checks -->
                         <div id="dashboard_bank_cash_right" class="col-auto" name="kanban_primary_right">
                             <div class="row" t-if="dashboard.nb_lines_bank_account_balance > 0">
                                 <div id="dashboard_bank_cash_balance" class="col overflow-hidden text-start">

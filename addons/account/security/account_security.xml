@@ -29,8 +29,7 @@
         ```
         `group_account_user` is almost (a bit more than) the sum of `group_account_invoice` and
         `group_account_readonly`
-        `group_account_manager` is the king (except when Consolidation is installed, then there is a
-        super-king)
+        `group_account_manager` has the highest access level
 
         `group_account_invoice` can create/edit invoices, refunds, payments, etc but cannot see accounting
         related stuff (journal entries, reports, reconciliation,...)
@@ -102,8 +101,8 @@
             <field name="name">Partial Purchase Deductibility</field>
         </record>
 
-        <!-- Add a new setting that can be enabled to allow the user to "trust" a partner bank
-        account -->
+        <!-- Bank privilege and group controlling who can "trust" a partner bank account
+        (allow_out_payment) -->
         <record model="res.groups.privilege" id="res_group_privilege_accounting_bank">
             <field name="name">Bank</field>
             <field name="sequence">50</field>
@@ -242,7 +241,7 @@
                 company_ids)]</field>
         </record>
 
-        <!-- Billing record rules for account.move -->
+        <!-- Billing record rules for account.move and account.move.line -->
 
         <record id="account_move_see_all" model="ir.rule">
             <field name="name">All Journal Entries</field>
@@ -336,9 +335,9 @@
         </record>
 
         <!--
-        Allow billing officers from accessing res.partner.bank
-        This right is restricted in HR to prevent accessing
-        employees bank account for non HR people.
+        Allow billing officers to access res.partner.bank.
+        HR restricts this model to keep employee bank accounts
+        out of reach of non HR users.
     -->
         <record id="ir_rule_res_partner_bank_billing_officers" model="ir.rule">
             <field name="name">Billing: Allow accessing employee bank accounts</field>
