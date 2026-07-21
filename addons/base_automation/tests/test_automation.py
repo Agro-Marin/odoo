@@ -1,9 +1,9 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 from odoo import Command
-from odoo.addons.base.tests.common import TransactionCaseWithUserDemo
 from odoo.tests import Form, tagged
+
+from odoo.addons.base.tests.common import TransactionCaseWithUserDemo
 
 
 @tagged("post_install", "-at_install")
@@ -104,7 +104,7 @@ class TestAutomation(TransactionCaseWithUserDemo):
         self.assertFalse(filters.active)
 
     def test_03_on_change_restricted(self):
-        """on_create action with low portal user"""
+        """on_change action with low portal user"""
         model = self.env.ref("base.model_ir_filters")
         automation = self.env["base.automation"].create(
             {
@@ -194,7 +194,7 @@ class TestAutomation(TransactionCaseWithUserDemo):
 
     def test_create_automation_rule_for_valid_model(self):
         """
-        Automation rules cannot be created for models that have no fields.
+        Automation rules cannot be created for abstract models.
         """
         model_field = self.env["base.automation"]._fields["model_id"]
         base_model = self.env["base"]
@@ -205,7 +205,7 @@ class TestAutomation(TransactionCaseWithUserDemo):
             base_model._auto, "The base model should have _auto set to False"
         )
 
-        # check whether the field hase domain attribute
+        # check whether the field has a domain attribute
         self.assertTrue(model_field.domain)
         domain = model_field.domain
 
@@ -238,7 +238,7 @@ class TestAutomation(TransactionCaseWithUserDemo):
                 "trg_date_range": 2,
                 "trg_date_range_type": "hour",
                 "trg_date_range_mode": "before",
-                # of course the chosen field does not really make sense here, but hey its testing data
+                # the chosen field is arbitrary here; this is only test data
                 "trg_date_id": self.env.ref("base.field_res_partner__write_date").id,
             }
         )
@@ -435,7 +435,7 @@ class TestAutomation(TransactionCaseWithUserDemo):
         self.assertFalse(partner.street)
 
     def test_complex_domain_with_multiple_conditions(self):
-        """Test complex domain with AND/OR conditions."""
+        """Test complex domain with multiple AND conditions."""
         model = self.env.ref("base.model_res_partner")
         automation = self.env["base.automation"].create(
             {
@@ -778,7 +778,7 @@ record.write({
     # =========================================================================
 
     def test_action_error_does_not_break_record_creation(self):
-        """Test that action errors don't prevent record creation."""
+        """Test that action errors propagate and abort record creation."""
         model = self.env.ref("base.model_res_partner")
         automation = self.env["base.automation"].create(
             {
