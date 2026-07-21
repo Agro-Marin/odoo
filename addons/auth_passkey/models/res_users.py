@@ -1,11 +1,11 @@
 import json
 
-from odoo import fields, models, _
-from odoo.tools import SQL
+from odoo import _, fields, models
 from odoo.exceptions import AccessDenied
+from odoo.tools import SQL
 
-from odoo.addons.base.models.res_users import check_identity
 from .._vendor.webauthn.helpers.exceptions import InvalidAuthenticationResponse
+from odoo.addons.base.models.res_users import check_identity
 
 
 class ResUsers(models.Model):
@@ -38,7 +38,7 @@ class ResUsers(models.Model):
                 SELECT login
                     FROM auth_passkey_key key
                     JOIN res_users usr ON usr.id = key.create_uid
-                    WHERE credential_identifier=%s
+                    WHERE credential_identifier=%s AND usr.active
             """, webauthn['id']))
             res = self.env.cr.fetchone()
             if not res:
