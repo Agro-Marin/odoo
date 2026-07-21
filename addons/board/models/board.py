@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 from odoo import api, fields, models
@@ -21,9 +20,9 @@ class BoardBoard(models.AbstractModel):
 
     @api.model
     def get_view(self, view_id=None, view_type='form', **options):
-        """
-        Overrides orm field_view_get.
-        @return: Dictionary of Fields, arch and toolbar.
+        """Override ``get_view`` to merge the user's saved dashboard layout and preprocess the arch.
+
+        :return: view dict (fields, arch, toolbar)
         """
 
         res = super().get_view(view_id, view_type, **options)
