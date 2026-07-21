@@ -20,7 +20,6 @@ export class PortalPasskey extends Interaction {
     setup() {
         this.id = parseInt(this.el.attributes.id.value);
         this.name = this.el.querySelector(".o_passkey_name").innerText;
-        this.dropDown = this.el.querySelector(".o_passkey_dropdown");
     }
 
     async onRename() {
@@ -31,7 +30,7 @@ export class PortalPasskey extends Interaction {
             confirm: async ({ inputEl }) => {
                 const name = inputEl.value;
                 if (name.length > 0) {
-                    await this.services.orm.write("auth.passkey.key", [this.id], { name })
+                    await this.waitFor(this.services.orm.write("auth.passkey.key", [this.id], { name }));
                     location.reload();
                 }
             },
@@ -41,10 +40,12 @@ export class PortalPasskey extends Interaction {
     }
 
     async onDelete() {
-        await handleCheckIdentity(
-            this.services.orm.call("auth.passkey.key", "action_delete_passkey", [this.id]),
-            this.services.orm,
-            this.services.dialog
+        await this.waitFor(
+            handleCheckIdentity(
+                this.waitFor(this.services.orm.call("auth.passkey.key", "action_delete_passkey", [this.id])),
+                this.services.orm,
+                this.services.dialog
+            )
         );
         location.reload();
     }
