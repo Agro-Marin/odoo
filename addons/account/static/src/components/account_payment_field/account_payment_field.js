@@ -33,13 +33,12 @@ export class AccountPaymentField extends Component {
             move_id: this.props.record.resId,
         };
         // Derive display fields into new objects instead of mutating the record's
-        // data in place on every render. (The former `index` field was never read.)
+        // data in place on every render.
         const lines = info.content.map((line) => ({
             ...line,
             amount_formatted: formatMonetary(line.amount, {
                 currencyId: line.currency_id,
             }),
-            // line.date is a string; parse and format it to the user's date format.
             ...(line.date
                 ? { formattedDate: formatDate(deserializeDate(line.date)) }
                 : {}),

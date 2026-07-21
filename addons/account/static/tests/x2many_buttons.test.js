@@ -111,7 +111,6 @@ test("edit record and check if edits get discarded when click on one of the butt
     expect.verifySteps(["action_open_business_doc"]);
 });
 
-// test if clicking on last button redirects to records in list view
 test("redirect to list view and discards edits when clicking on last button with more than 3 records on field", async () => {
     expect.assertions(3);
     mockService("action", {
