@@ -30,8 +30,7 @@ export class AccountProductCatalogSearchPanel extends SearchPanel {
     }
 
     /**
-     * Safety net for the section RPC operations: never let a rejected request
-     * become a silent unhandled rejection. Log it and tell the user.
+     * Log a failed section RPC and warn the user.
      * @param {Error} error
      */
     _notifySectionError(error) {
@@ -94,9 +93,8 @@ export class AccountProductCatalogSearchPanel extends SearchPanel {
     async createSection() {
         const sectionName = this.state.newSectionName.trim();
         const position = this.state.isAddingSection;
-        // Capture the input then clear it synchronously, so a concurrent trigger
-        // (Enter + blur, or a double Enter) can't fire a second create RPC with the
-        // same name before this one resolves.
+        // Clear the input synchronously so a concurrent trigger (double Enter,
+        // Enter + blur) can't fire a second create RPC with the same name.
         Object.assign(this.state, {
             isAddingSection: "",
             newSectionName: "",
@@ -179,8 +177,8 @@ export class AccountProductCatalogSearchPanel extends SearchPanel {
                 }),
             );
         } catch (error) {
-            // Nothing was mutated locally yet (the sequence swap happens below on
-            // success), so resyncing from the server keeps the sidebar consistent.
+            // Nothing was mutated locally yet; resync so the sidebar matches the
+            // server order.
             this._notifySectionError(error);
             await this.loadSections();
             return;

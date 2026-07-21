@@ -168,21 +168,14 @@ describe("PaymentTermsLineWidget", () => {
             `,
         });
         expect(".o_data_row").toHaveCount(2);
-        // click the add button
         await contains(".o_field_x2many_list_row_add > a").click();
-        // make sure the new record is added
         expect(".o_data_row").toHaveCount(3);
-        // global click
         await contains(".o_form_view").click();
-        // make sure the new record is still there
+        // The row added above must survive the click outside the list
         expect(".o_data_row").toHaveCount(3);
-        // click the add button again
         await contains(".o_field_x2many_list_row_add > a").click();
-        // make sure the new record is added
         expect(".o_data_row").toHaveCount(4);
-        // click on an existing record
         await contains(".o_data_row .o_data_cell").click();
-        // make sure the new record is still there
         expect(".o_data_row").toHaveCount(4);
     });
 });

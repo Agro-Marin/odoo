@@ -34,7 +34,7 @@ export class ReceiptSelector extends RadioField {
     }
 
     /**
-     * Remove the unwanted options and update the English labels
+     * Remove the unwanted options and relabel the remaining ones.
      * @override
      */
     get items() {
@@ -57,10 +57,8 @@ export class ReceiptSelector extends RadioField {
         }
 
         if (allowedValues.length > 1) {
-            // Filter only the wanted items
             items = items.filter((item) => allowedValues.includes(item[0]));
 
-            // Update the label of the wanted items
             items.forEach((item) => {
                 if (item[0] in labels) {
                     item[1] = labels[item[0]];

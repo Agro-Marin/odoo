@@ -118,8 +118,7 @@ registry.category("web_tour.tours").add("account_tour", {
             isActive: ["auto"],
             trigger: `.o_form_view_container${accountTourSteps.draftInvoiceSelector} div[name=invoice_line_ids] div[name=product_id] textarea`,
             run: function () {
-                // Since the t-on-change of the input is not triggered by the run: "edit" action,
-                // we need to dispatch the event manually requiring a function.
+                // run: "edit" does not trigger the t-on-change of the textarea.
                 const input = this.anchor;
                 input.dispatchEvent(new InputEvent("input"));
                 input.dispatchEvent(new Event("change"));

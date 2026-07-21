@@ -42,9 +42,8 @@ patch(ProductCatalogKanbanRecord.prototype, {
     },
 
     updateQuantity(quantity) {
-        // The base updateQuantity is a no-op for a read-only card, so it neither
-        // adds nor removes an order line; emitting a section count change here would
-        // desync the sidebar counter. Only notify when the change is real.
+        // The base updateQuantity is a no-op on a read-only card (no line added or
+        // removed), so notifying there would desync the sidebar counter.
         if (!this.productCatalogData.readOnly) {
             const lineCountChange =
                 (quantity > 0) - (this.productCatalogData.quantity > 0);
