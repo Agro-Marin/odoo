@@ -143,10 +143,8 @@ class AccountMoveSendWizard(models.TransientModel):
 
     @api.depends("move_id")
     def _compute_sending_method_checkboxes(self):
-        """Select one applicable sending method given the following priority
-        1. preferred method set on partner,
-        2. email,
-        """
+        """Preselect the default sending method checkboxes for the move."""
+        # Preselection priority: the method preferred on the partner, then email.
         methods = self.env["ir.model.fields"].get_field_selection(
             "res.partner", "invoice_sending_method"
         )
@@ -336,9 +334,8 @@ class AccountMoveSendWizard(models.TransientModel):
 
     # Similar of mail.compose.message
     def open_template_creation_wizard(self):
-        """Hit save as template button: opens a wizard that prompts for the template's subject.
-        `create_mail_template` is called when saving the new wizard."""
-
+        """Open the wizard prompting for the new template's subject."""
+        # `create_mail_template` is called when saving the new wizard.
         self.ensure_one()
         return {
             "type": "ir.actions.act_window",
@@ -372,7 +369,7 @@ class AccountMoveSendWizard(models.TransientModel):
         }
         template = self.env["mail.template"].create(values)
 
-        # generate the saved template
+        # point the composer at the newly saved template
         self.write({"template_id": template.id})
         return _reopen(
             self,
@@ -383,8 +380,8 @@ class AccountMoveSendWizard(models.TransientModel):
 
     # Similar of mail.compose.message
     def cancel_save_template(self):
-        """Restore old subject when canceling the 'save as template' action
-        as it was erased to let user give a more custom input."""
+        """Restore the old subject when canceling the 'save as template' action."""
+        # The subject was erased to let the user give a more custom input.
         self.ensure_one()
         return _reopen(
             self,
@@ -450,7 +447,7 @@ class AccountMoveSendWizard(models.TransientModel):
         return send_settings
 
     def _update_preferred_settings(self):
-        """If the partner's settings are not set, we use them as partner's default."""
+        """Store the chosen PDF report as the partner's default when it is unset."""
         self.ensure_one()
         if (
             not self.move_id.partner_id.invoice_template_pdf_report_id

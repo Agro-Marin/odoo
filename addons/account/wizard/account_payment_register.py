@@ -433,13 +433,11 @@ class AccountPaymentRegister(models.TransientModel):
 
     @api.depends("line_ids")
     def _compute_batches(self):
-        """Group the account.move.line linked to the wizard together.
-        Lines are grouped if they share 'partner_id','account_id','currency_id' & 'partner_type' and if
-        0 or 1 partner_bank_id can be determined for the group.
+        """Group the wizard's account.move.line records into batches.
 
-        Computes a list of batches, each one containing:
+        Each batch contains:
             * payment_values:   A dictionary of payment values.
-            * moves:        An account.move recordset.
+            * lines:            An account.move.line recordset.
         """
         for wizard in self:
             lines = wizard.line_ids._origin
@@ -461,6 +459,8 @@ class AccountPaymentRegister(models.TransientModel):
             banks_per_partner = defaultdict(
                 lambda: {"inbound": OrderedSet(), "outbound": OrderedSet()}
             )
+            # Lines are grouped if they share 'partner_id', 'account_id', 'currency_id' &
+            # 'partner_type', and if 0 or 1 partner_bank_id can be determined for the group.
             for line in lines:
                 batch_key = self._get_line_batch_key(line)
                 vals = batches[frozendict(batch_key)]
@@ -764,8 +764,9 @@ class AccountPaymentRegister(models.TransientModel):
 
     @api.depends("payment_method_line_id")
     def _compute_show_require_partner_bank(self):
-        """Computes if the destination bank account must be displayed in the payment form view. By default, it
-        won't be displayed but some modules might change that, depending on the payment type."""
+        """Compute whether the recipient bank account is displayed and required in the payment form view."""
+        # By default the account isn't displayed, but some modules extend the method-code
+        # sets below to show or require it, depending on the payment type.
         for wizard in self:
             if wizard.journal_id.type == "cash":
                 wizard.show_partner_bank_account = False
@@ -1256,14 +1257,15 @@ class AccountPaymentRegister(models.TransientModel):
             )
 
     def _fetch_duplicate_reference(self, matching_states=("draft", "posted")):
-        """Retrieve move ids for possible duplicates of payments. Duplicates moves:
-        - Have the same partner_id, amount and date as the payment
-        - Are not reconciled
-        - Represent a credit in the same account receivable or a debit in the same account payable as the payment, or
-        - Represent a credit in outstanding receipts or debit in outstanding payments, so bank statement lines with an
-         outstanding counterpart can be matched, or
-        - Are in the suspense account
-        """
+        """Retrieve the moves that are possible duplicates of this payment."""
+        # Duplicate moves:
+        # - Have the same partner_id, amount and date as the payment
+        # - Are not reconciled
+        # - Represent a credit in the same account receivable or a debit in the same account
+        #   payable as the payment, or
+        # - Represent a credit in outstanding receipts or debit in outstanding payments, so
+        #   bank statement lines with an outstanding counterpart can be matched, or
+        # - Are in the suspense account
         dummy = self.env["account.payment"].new(
             {
                 "company_id": self.company_id,

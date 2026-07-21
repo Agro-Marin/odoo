@@ -539,7 +539,7 @@ class AccountAutomaticEntryWizard(models.TransientModel):
         def get_lock_safe_date(aml):
             return self._get_lock_safe_date(aml.date)
 
-        # set the change_period account on the selected journal items
+        # build the account.move header vals per target date (line_ids filled in below)
 
         ref_format = self._get_cut_off_label_format()
         move_data = {
@@ -571,7 +571,7 @@ class AccountAutomaticEntryWizard(models.TransientModel):
                 "adjusting_entry_origin_move_ids": self.move_line_ids.move_id.ids,
             }
 
-        # compute the account.move.lines and the total amount per move
+        # compute the account.move.lines
         for aml in self.move_line_ids:
             for date in ("new_date", get_lock_safe_date(aml)):
                 move_data[date]["line_ids"] += (
