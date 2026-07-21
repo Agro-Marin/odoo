@@ -312,6 +312,24 @@ export function makeEditHandlers(nav, tableRef, options) {
                 }
                 case "escape": {
                     list.leaveEditMode({ discard: true });
+                    // Discarding a NEW row detaches its <tr> (and ``cell``) on the
+                    // next render; focus then falls to <body>, breaking keyboard
+                    // navigation (nav.focus on the doomed cell is a no-op — the
+                    // removal is async, so it is still connected right now). Focus
+                    // a SURVIVING data row's cell instead — one that is not the
+                    // row being discarded — so focus stays in the grid after the
+                    // render. An existing-record discard keeps its row, so ``cell``
+                    // survives and is used as-is.
+                    const focusCellOrFallback = () => {
+                        if (!record.isNew) {
+                            nav.focus(cell);
+                            return;
+                        }
+                        const survivor = [
+                            ...tableRef.el.querySelectorAll(".o_data_row"),
+                        ].find((r) => r !== row);
+                        nav.focus(survivor?.querySelector(".o_data_cell"));
+                    };
                     const firstAddButton = tableRef.el.querySelector(
                         ".o_field_x2many_list_row_add a",
                     );
@@ -334,9 +352,9 @@ export function makeEditHandlers(nav, tableRef, options) {
                                 return true;
                             }
                         }
-                        nav.focus(cell);
+                        focusCellOrFallback();
                     } else {
-                        nav.focus(cell);
+                        focusCellOrFallback();
                     }
                     break;
                 }
