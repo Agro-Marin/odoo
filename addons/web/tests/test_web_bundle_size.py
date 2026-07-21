@@ -113,10 +113,22 @@ class TestWebBundleSize(TransactionCase):
         "web.assets_emoji": 515_000,
         # Minimal bootstrap bundle — session.js + cookie + minimal DOM
         # + lazyloader. First JS every public visitor sees; LCP-critical
-        # on cold cache. 2026-05-10 actual: 6,270 bytes. Tight budget
-        # is intentional: this bundle should NEVER grow significantly,
-        # any growth here is a real regression to investigate.
-        "web.assets_frontend_minimal": 7_000,
+        # on cold cache. Tight budget is intentional: this bundle should
+        # NEVER grow significantly, any growth here is a real regression
+        # to investigate. 2026-05-10 actual: 6,270 bytes.
+        # 2026-07-21 actual: 7,061 bytes — recalibrated after auditing
+        # the 727-byte growth since 2026-06-08 commit by commit: all of
+        # it is correctness fixes to the member files themselves, with
+        # membership unchanged (still the same 5 modules + asset_log
+        # transitively). Notably: lazyloader watchdog for never-settling
+        # scripts + error-path continuation and allSettled retrigger
+        # (97dae36d233, e04f193f5af), cookie.js value escaping +
+        # SameSite=Lax + undefined-value deletion (96c327e9696,
+        # 97dae36d233), upstream 19.0 button-loading-effect race port in
+        # minimal_dom (d482db1b729), a[href] focusability fix in dom/ui
+        # (97dae36d233). Budget = actual + ~10%, same headroom policy as
+        # the original calibration (6,270 → 7,000).
+        "web.assets_frontend_minimal": 7_800,
         # CANARY (not a user-perf budget): dark-mode bundle ships only
         # CSS to users (template uses ``t-js="false"``). The ~2.83 MB
         # of JS that esbuild produces here is build artifact and never
