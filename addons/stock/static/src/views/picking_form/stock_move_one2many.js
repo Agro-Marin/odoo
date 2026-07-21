@@ -9,7 +9,7 @@ import { user } from "@web/services/user";
 import { ListRenderer } from "@web/views/list/list_renderer";
 
 export class MovesListRenderer extends ListRenderer {
-    static rowsTemplate = "stock.MovesListRendererRows";
+    static createControlsTemplate = "stock.MovesListRendererCreateControls";
 
     setup() {
         super.setup();
