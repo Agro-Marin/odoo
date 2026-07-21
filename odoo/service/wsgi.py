@@ -219,6 +219,24 @@ class RequestHandler(CommonRequestHandler):
             self.rfile = BytesIO()
             self.wfile = BytesIO()
 
+    def send_response(self, code: int, message: str | None = None) -> None:
+        super().send_response(code, message)
+        if code == 101:
+            # Successful upgrade handshake: this handler thread is about to
+            # park on a long-lived websocket serve loop (bus/websocket.py
+            # ``_serve_forever`` runs in the response's close callback), so it
+            # is no longer part of a short-lived request burst.  Return its
+            # bounded-thread slot now, or each open websocket permanently
+            # consumes one ``max_http_threads`` slot and the accept loop
+            # starves once every slot is parked (a single browser tab is
+            # enough to wedge the server when the bound computes to 1, e.g.
+            # ``--db_maxconn 5`` in tests).  Guarded getattr: this handler is
+            # only wired to ``ThreadedWSGIServerReloadable``, but don't crash
+            # if it is ever reused on a server without the semaphore.
+            release = getattr(self.server, "release_upgraded_request_slot", None)
+            if release is not None:
+                release(self.request)
+
 
 class ThreadedWSGIServerReloadable(
     LoggingBaseWSGIServerMixIn, werkzeug.serving.ThreadedWSGIServer
@@ -339,13 +357,35 @@ class ThreadedWSGIServerReloadable(
                 self.http_threads_sem.release()
             raise
 
+    def _release_http_slot(self, request: Any) -> None:
+        """Idempotently return ``request``'s bounded-thread slot.
+
+        A request can legitimately reach a release point twice: a duplicate
+        ``shutdown_request`` on the inline-fail + SystemExit path (see
+        ``__init__`` next to ``_sem_released_requests``), or an early
+        websocket-upgrade release followed by the connection's eventual
+        ``shutdown_request``.  WeakSet membership is GIL-atomic and a request
+        is handled by one thread at a time, so no lock is needed.
+        """
+        if request not in self._sem_released_requests:
+            self.http_threads_sem.release()
+            self._sem_released_requests.add(request)
+
+    def release_upgraded_request_slot(self, request: Any) -> None:
+        """Free ``request``'s bounded-thread slot after a protocol upgrade.
+
+        Called by ``RequestHandler.send_response`` when it commits a 101
+        response: the handler thread then parks on the long-lived websocket
+        serve loop for the connection's lifetime, and keeping its slot would
+        let a handful of idle websocket tabs starve the accept loop (see
+        ``_handle_request_noblock``).  The later ``shutdown_request`` for the
+        same connection is a no-op thanks to ``_release_http_slot``'s
+        idempotence.
+        """
+        if self.max_http_threads:
+            self._release_http_slot(request)
+
     def shutdown_request(self, request: Any) -> None:
         if self.max_http_threads:
-            # Idempotent release: a request can reach ``shutdown_request`` twice
-            # on the inline-fail + SystemExit path (see ``__init__`` next to
-            # ``_sem_released_requests``).  WeakSet membership is GIL-atomic and a
-            # request is handled by one thread at a time, so no lock is needed.
-            if request not in self._sem_released_requests:
-                self.http_threads_sem.release()
-                self._sem_released_requests.add(request)
+            self._release_http_slot(request)
         super().shutdown_request(request)
