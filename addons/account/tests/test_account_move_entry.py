@@ -542,22 +542,7 @@ class TestAccountMove(AccountTestInvoicingCommon):
         )
 
     def test_included_tax(self):
-        """
-        Test an account.move.line is created automatically when adding a tax.
-        This test uses the following scenario:
-            - Create manually a debit line of 1000 having an included tax.
-            - Assume a line containing the tax amount is created automatically.
-            - Create manually a credit line to balance the two previous lines.
-            - Save the move.
-
-        included tax = 20%
-
-        Name                   | Debit     | Credit    | Tax_ids       | Tax_line_id's name
-        -----------------------|-----------|-----------|---------------|-------------------
-        debit_line_1           | 1000      |           | tax           |
-        included_tax_line      | 200       |           |               | included_tax_line
-        credit_line_1          |           | 1200      |               |
-        """
+        """Test an account.move.line is created automatically when adding a tax."""
 
         self.included_percent_tax = self.env["account.tax"].create(
             {
@@ -582,7 +567,7 @@ class TestAccountMove(AccountTestInvoicingCommon):
             debit_line.tax_ids.clear()
             debit_line.tax_ids.add(self.included_percent_tax)
 
-        # Create a third account.move.line with credit amount.
+        # Create a new account.move.line with credit amount.
         with move_form.line_ids.new() as credit_line:
             credit_line.name = "credit_line_1"
             credit_line.account_id = self.account
@@ -653,7 +638,7 @@ class TestAccountMove(AccountTestInvoicingCommon):
         with self.assertRaises(UserError):
             move.action_post()
 
-        # Make sure that the invoice can still be posted when the currency is active
+        # Make sure that the move can still be posted when the currency is active
         move.action_activate_currency()
         move.action_post()
 
@@ -718,7 +703,7 @@ class TestAccountMove(AccountTestInvoicingCommon):
         def manual_entry(
             is_storno, normal_assert_overrides=None, reverse_assert_overrides=None
         ):
-            """Helper function to create a manual entry and check its reversal."""
+            """Create a manual entry and check its reversal."""
             normal_assert_overrides = normal_assert_overrides or []
             reverse_assert_overrides = reverse_assert_overrides or []
 
@@ -1031,7 +1016,7 @@ class TestAccountMove(AccountTestInvoicingCommon):
         self.assertEqual(self._get_cache_count(), 0)
 
     def test_misc_prevent_edit_tax_on_posted_moves(self):
-        # You cannot remove journal items if the related journal entry is posted.
+        # You cannot edit the taxes of journal items if the related journal entry is posted.
         def edit_tax_on_posted_moves():
             self.test_move.line_ids.filtered(lambda l: l.tax_ids).write(
                 {
@@ -1053,13 +1038,13 @@ class TestAccountMove(AccountTestInvoicingCommon):
                 lambda l: l.tax_line_id
             ).tax_line_id = False
 
-        # You can remove journal items if the related journal entry is draft.
+        # You can edit the taxes of journal items if the related journal entry is draft.
         self.test_move.action_draft()
         edit_tax_on_posted_moves()
 
     def test_misc_tax_autobalance(self):
         # Saving an unbalanced entry isn't something desired but we need this piece of code to work in order to support
-        # the tax auto-calculation on miscellaneous move. Indeed, the JS class `AutosaveMany2ManyTagsField` triggers the
+        # the tax auto-calculation on miscellaneous move. Indeed, the JS class `AutosaveMany2ManyTaxTagsField` triggers the
         # saving of the record as soon as a tax base_line is modified.
         move = self.env["account.move"].create(
             {
@@ -1411,7 +1396,7 @@ class TestAccountMove(AccountTestInvoicingCommon):
             self.assertEqual(move_form.name_placeholder, "AJ/2021/10/0001")
 
     def test_change_journal_posted_before(self):
-        """Changes to a move posted before can only de done if move name is '/' or empty (False)"""
+        """Changes to a move posted before can only be done if move name is '/' or empty (False)"""
         journal = self.env["account.journal"].create(
             {
                 "name": "awesome journal",
@@ -1438,7 +1423,7 @@ class TestAccountMove(AccountTestInvoicingCommon):
         self.assertEqual(self.test_move.journal_id, journal)
 
     def test_change_journal_sequence_number(self):
-        """Changes to an account move with a sequence number assigned can only de done
+        """Changes to an account move with a sequence number assigned can only be done
         if the move name is '/' or empty (False)
         """
         journal = self.env["account.journal"].create(
@@ -1462,7 +1447,7 @@ class TestAccountMove(AccountTestInvoicingCommon):
             'You cannot edit the journal of an account move with a sequence number assigned, unless the name is removed or set to "/". This might create a gap in the sequence.',
         ):
             test_move_2.write({"journal_id": False})
-        # Once move name in draft is changed to '/', changing the journal is allowed
+        # Once the move name in draft is removed, changing the journal is allowed
         test_move_2.write({"name": False, "journal_id": journal.id})
         test_move_2.action_post()
         # Sequence number is updated for the new journal
@@ -1644,15 +1629,10 @@ class TestAccountMove(AccountTestInvoicingCommon):
                 )
 
     def test_move_line_rounding(self):
-        """Whatever arguments we give to the creation of an account move,
-        in every case the amounts should be properly rounded to the currency's precision.
-        In other words, we don't fall victim of the limitation introduced by 9d87d15db6dd40
-
-        Here the rounding should be done according to company_currency_id, which is a related
-        on move_id.company_id.currency_id.
-        In principle, it should not be necessary to add it to the create values,
-        since it is supposed to be computed by the ORM...
-        """
+        """Amounts are rounded to the currency's precision whatever the create values."""
+        # Rounding follows company_currency_id, a related on move_id.company_id.currency_id
+        # computed by the ORM, so it never has to be passed in the create values.
+        # Guards against the limitation introduced by 9d87d15db6dd40.
         move = self.env["account.move"].create(
             {
                 "line_ids": [
@@ -1687,10 +1667,7 @@ class TestAccountMove(AccountTestInvoicingCommon):
         )
 
     def test_journal_entry_clear_taxes(self):
-        """
-        This test checks that tax tags on journal entries lines are updated according to the taxes on each line
-        In other words, removing a tax from a line should remove its tags from that line
-        """
+        """Tax tags on journal entry lines follow the taxes set on each line."""
 
         def _create_tax_tag(tag_name):
             return self.env["account.account.tag"].create(
@@ -1827,7 +1804,7 @@ class TestAccountMove(AccountTestInvoicingCommon):
         )
 
     def test_no_partner_id_on_duplication(self):
-        """Test that when a account_move is duplicated the partner_id is not included in the duplicated_move"""
+        """Test that when an account move is duplicated the partner_id is not copied"""
         move = self.env["account.move"].create(
             {
                 "move_type": "entry",
@@ -1845,10 +1822,7 @@ class TestAccountMove(AccountTestInvoicingCommon):
         self.assertFalse(move_duplicate.partner_id)
 
     def test_no_recompute_when_company_address_changes(self):
-        """
-        Ensure that changing the company partner address does NOT trigger
-        any recomputation on account.move or account.move.line fields
-        """
+        """Changing the company partner address recomputes no account.move(.line) field."""
         # Prepare patching
         protected_models = ["account.move", "account.move.line"]
         original_recompute = {
@@ -1904,15 +1878,7 @@ class TestAccountMove(AccountTestInvoicingCommon):
         self.assertEqual(fields_recomputed, [])
 
     def test_post_invoice_fails_with_account_and_journal_company_inconsistency(self):
-        """
-        Ensure that an invoice cannot be posted when at least one line account
-        belongs to a different company than the journal.
-
-        The test verifies that:
-        - Using a journal from a branch company (child of the account's company) is allowed
-        - Using a journal from an unrelated company correctly raises a UserError
-        - Using a shared account between two companies works as expected
-        """
+        """A move cannot be posted when a line account belongs to another company than the journal."""
         account = self.company_data["default_account_revenue"]
         move = self.env["account.move"].create(
             {

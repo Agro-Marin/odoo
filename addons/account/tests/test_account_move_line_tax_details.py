@@ -1595,7 +1595,7 @@ class TestAccountTaxDetailsReport(AccountTestInvoicingCommon):
                     self.assertTotalAmounts(invoice, tax_details)
 
     def test_multiple_same_tax_lines_with_analytic(self):
-        """One Invoice line with analytic_distribution and another without analytic_distribution with same group of tax"""
+        """Tax details when only one base line of a tax group has an analytic distribution."""
         analytic_plan = self.env["account.analytic.plan"].create(
             {"name": "Plan with Tax details"}
         )
@@ -1606,7 +1606,7 @@ class TestAccountTaxDetailsReport(AccountTestInvoicingCommon):
                 "company_id": False,
             }
         )
-        # Don't set analytic to False here. allowed ORM to do it becosue it's set SQL Null
+        # Leave "analytic" unset so the ORM stores SQL NULL, the case under test
         child1_tax = self.env["account.tax"].create(
             {
                 "name": "child1_tax",
