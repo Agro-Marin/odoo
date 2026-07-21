@@ -103,11 +103,10 @@ class DocController(http.Controller):
         # TODO: gzip
         filename = f'odoo-doc-index-{db_registry_sequence}-{unique}.json'
         index_attach = self.env['ir.attachment'].sudo().search([('name', '=', filename)], limit=1)
-        if not use_cache:
+        if not use_cache or not index_attach:
             modules, models = self._doc_index()
         if not index_attach:
             # No cache, generate the index and save it.
-            modules, models = self._doc_index()
             index_attach = index_attach.create({
                 'name': filename,
                 'description': (
@@ -125,6 +124,17 @@ class DocController(http.Controller):
                 'public': False,
             })
             logger.info("new index attachment: %s", filename)
+        elif not use_cache:
+            # Client explicitly asked for a fresh (non-cached) response: keep
+            # the server-side cache in sync instead of discarding the just
+            # recomputed data and serving whatever was previously stored
+            # under this filename.
+            index_attach.raw = json.dumps(
+                {'modules': modules, 'models': models},
+                ensure_ascii=False,
+                default=json_default,
+            )
+            logger.info("refreshed index attachment: %s", filename)
 
         response = index_attach._to_http_stream().get_response(etag=unique)
         response.headers['Content-Language'] = py_to_js_locale(self.env.lang)
@@ -190,7 +200,7 @@ class DocController(http.Controller):
                 "This page is only accessible to %s users.",
                 self.env.ref('api_doc.group_allow_doc').sudo().name))
         if model_name not in self.env:
-            raise NotFound()
+            raise NotFound
 
         Model = self.env[model_name]
         Model.check_access('read')
@@ -340,7 +350,7 @@ def is_public_method(model, name):
 
 DOC_API_MAGIC_COLUMNS = list(odoo.models.MAGIC_COLUMNS)
 DOC_API_MAGIC_COLUMNS.insert(1, 'display_name')
-def sort_key_field(sorted_module_list, model, field):  # noqa: E302
+def sort_key_field(sorted_module_list, model, field):
     """
     Key function to sort fields with the following order:
 
@@ -626,7 +636,7 @@ class Return:
 class _DocUtils:
     """ Helpers for docutils """
     @lazy_classproperty
-    def _new_docutils_root(cls):
+    def _new_docutils_root(cls):  # noqa: N805 - lazy_classproperty binds the class, not an instance
         # surely there's a better way, but that'll do
         return docutils.core.publish_doctree("").copy
 
@@ -644,7 +654,7 @@ class _DocUtils:
         return pub.settings
 
     @lazy_classproperty
-    def _settings_pseudoxml(cls):
+    def _settings_pseudoxml(cls):  # noqa: N805 - lazy_classproperty binds the class, not an instance
         return cls._make_settings('pseudoxml', {
             'report_level': 3,
             'halt_level': 5,
@@ -653,7 +663,7 @@ class _DocUtils:
         })
 
     @lazy_classproperty
-    def _settings_html(cls):
+    def _settings_html(cls):  # noqa: N805 - lazy_classproperty binds the class, not an instance
         return cls._make_settings('html', {
             'report_level': 3,
             'halt_level': 5,
