@@ -51,6 +51,7 @@ MISC_SUITES = (
     "@mail/messaging_menu",
     "@mail/mobile",
     "@mail/mock_server",
+    "@mail/patch_235_regression",
     "@mail/quick_reaction_menu",
     "@mail/scheduled_message",
     "@mail/suggestion",

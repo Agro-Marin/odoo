@@ -40,3 +40,11 @@ web_map/static/tests/legacy/**
 # placed mid-expression; Prettier mangles those into invalid JS. Matches the
 # deliberate `prettier/prettier: "off"` override in eslint.config.mjs.
 **/html_editor/static/tests/columnize.test.js
+
+# Generated Store-serialization contract. The body between the braces must stay
+# strict JSON: mail/tests/test_mock_server_contract.py parses it with
+# json.loads. Prettier's "as-needed" quote props and trailing commas turn it
+# into valid JS but invalid JSON, which silently breaks that test (it did once
+# already). The file's own header says DO NOT EDIT BY HAND; this makes the
+# formatter honour it too. Mirrored in eslint.config.mjs.
+addons/mail/static/tests/mock_server/contract/store_shapes.js

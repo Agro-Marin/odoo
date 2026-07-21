@@ -8,8 +8,14 @@ import {
     start,
     startServer,
 } from "@mail/../tests/mail_test_helpers";
-import { describe, test } from "@odoo/hoot";
-import { asyncStep, onRpc, waitForSteps } from "@web/../tests/web_test_helpers";
+import { describe, expect, test } from "@odoo/hoot";
+import { Deferred, tick } from "@odoo/hoot-mock";
+import {
+    asyncStep,
+    getService,
+    onRpc,
+    waitForSteps,
+} from "@web/../tests/web_test_helpers";
 
 /**
  * Regression coverage for PR #235 (mail behavior sweep), task t23781.
@@ -30,11 +36,16 @@ import { asyncStep, onRpc, waitForSteps } from "@web/../tests/web_test_helpers";
  * cleanly against the post-REF tip. To undo any RTC behavior from this PR,
  * revert the whole `[FIX]..[REF]` mail range together.
  *
- * The gif-picker case below is written out in full and ready to activate
- * (flip `test.todo` -> `test`). The remaining cases are structured skeletons:
- * each documents the exact scenario/mock/assertion for the fix it guards, to
- * be fleshed out and confirmed against a local hoot run (this suite could not
- * be executed in the authoring environment — CI is down per t23601).
+ * The markingAsRead case is a live test. The rest are structured skeletons:
+ * each documents the exact scenario/mock/assertion for the fix it guards, to be
+ * fleshed out and confirmed against a local hoot run. Confirm any skeleton you
+ * activate actually passes first — the gif-picker one was documented as ready
+ * and was not.
+ *
+ * NOTE: this file was originally selected by no suite prefix in test_js.py, so
+ * it never ran at all — and its cases were `test.todo` skeletons that throw, so
+ * the coverage was doubly absent. It is now listed in MISC_SUITES; keep it
+ * there (test_suite_filters_cover_every_test_file enforces this).
  */
 
 describe.current.tags("desktop");
@@ -63,6 +74,10 @@ const GIFS = [
     },
 ];
 
+// NOTE: activating this revealed it does not actually pass — the header's claim
+// that it was "written out in full and ready to activate" had never been
+// verified. Left as todo rather than shipping a red test; the scenario below
+// still documents the fix it is meant to guard.
 test.todo(
     "gif picker resets the pagination token when the search term changes (bd882ff4)",
     async () => {
@@ -157,20 +172,56 @@ test.todo(
     },
 );
 
-test.todo(
-    "discuss: markingAsRead resets after a non-404 failure (bd882ff4)",
-    async () => {
-        // Fix: thread_model_patch.markAsRead moved the `markingAsRead` reset from
-        // .then to .finally. Before, a non-404 failure left it `true`, permanently
-        // disabling auto-mark-as-read for that channel.
-        //
-        // Scenario:
-        //  - open a channel with unread messages; onRpc the set_last_seen route to
-        //    reject with a 500 once.
-        //  - assert thread.markingAsRead === false afterwards, and that a later
-        //    mark-as-read is attempted again.
-        throw new Error(
-            "regression skeleton — implement per scenario above and run locally",
-        );
-    },
-);
+test("discuss: markingAsRead stays set for the whole in-flight RPC (bd882ff4)", async () => {
+    // The reset was moved from .then to .finally, but onto the *outer*
+    // markReadSequential(...) promise while the flag is set inside the
+    // callback -- different chains. useSequential resolves a superseded call
+    // immediately and starts the next callback synchronously after resolving
+    // the previous one, so the flag was cleared while a later RPC was still in
+    // flight. thread_read.markThreadAsReadIfAtBottom uses `!markingAsRead` as
+    // its only dedup guard, so that produced duplicate mark_as_read calls.
+    const pyEnv = await startServer();
+    const channelId = pyEnv["discuss.channel"].create({ name: "General" });
+    const bobPartnerId = pyEnv["res.partner"].create({ name: "Bob" });
+    for (let i = 0; i < 3; ++i) {
+        pyEnv["mail.message"].create({
+            author_id: bobPartnerId,
+            body: `m${i}`,
+            model: "discuss.channel",
+            res_id: channelId,
+        });
+    }
+    const gates = [];
+    onRpc("/discuss/channel/mark_as_read", async () => {
+        const deferred = new Deferred();
+        gates.push(deferred);
+        await deferred;
+        return true;
+    });
+    await start();
+    await openDiscuss(channelId);
+    const store = getService("mail.store");
+    const thread = store.Thread.insert({ model: "discuss.channel", id: channelId });
+
+    while (gates.length) {
+        gates.pop().resolve(true); // drain what opening the channel triggered
+    }
+    await tick();
+    await tick();
+
+    thread.markAsRead();
+    await tick();
+    expect(gates.length).toBe(1);
+    expect(thread.markingAsRead).toBe(true);
+
+    thread.markAsRead(); // arrives while the first RPC is still in flight
+    await tick();
+    gates[0].resolve(true); // release it; the queued callback starts its own RPC
+    await tick();
+    await tick();
+
+    expect(gates.length).toBe(2);
+    expect(thread.markingAsRead).toBe(true);
+    gates[1].resolve(true);
+    await tick();
+});
