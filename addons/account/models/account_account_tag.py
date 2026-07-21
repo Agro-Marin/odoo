@@ -5,11 +5,7 @@ from odoo.tools import SQL, Query
 
 
 class AccountAccountTag(models.Model):
-    """Accounting extensions to the base account tag.
-
-    Adds report expression linkage, tax tag management, and
-    translation synchronization.
-    """
+    """Accounting extensions to the base account tag."""
 
     _inherit = "account.account.tag"
 

@@ -25,15 +25,13 @@ CTA_RATE_TYPES = ("current", "historical", "average")
 
 @dataclass(frozen=True)
 class CurrencyTableScope:
-    """Immutable bundle of the parameters every per-period currency-table builder
-    shares: the root company that owns the ``res.currency.rate`` records, and the
-    (guaranteed non-empty) set of companies whose amounts must be converted.
+    """Immutable bundle of parameters shared by every per-period currency-table builder."""
 
-    Bundling them keeps each builder's signature small and makes it impossible for
-    one builder to be handed a different company set than another within the same
-    table build.
-    """
-
+    # main_company_id is the root company that owns the ``res.currency.rate``
+    # records; other_company_ids is the guaranteed non-empty set of companies
+    # whose amounts must be converted. Bundling them keeps each builder's
+    # signature small and makes it impossible for one builder to be handed a
+    # different company set than another within the same table build.
     main_company_id: int
     other_company_ids: tuple
 
@@ -80,10 +78,9 @@ class ResCurrency(models.Model):
         return super().write(vals)
 
     def _decimal_places_for_rounding(self, rounding):
-        """Return the number of decimal places a given ``rounding`` factor would
-        imply, without writing it. Delegates to ``_compute_decimal_places`` via an
-        in-memory record so the log10 formula lives in exactly one place (base).
-        """
+        """Return the number of decimal places a given ``rounding`` factor implies, without writing it."""
+        # Delegate to _compute_decimal_places via an in-memory record so the
+        # log10 formula lives in exactly one place (base).
         return self.new({"rounding": rounding}).decimal_places
 
     def _has_accounting_entries(self):
@@ -117,12 +114,10 @@ class ResCurrency(models.Model):
         return SQL("account_currency_table")
 
     def _check_currency_table_monocurrency(self, companies):
-        """Return whether the provided companies' data can be displayed with a monocurrency currency table.
-
-        If so, _get_monocurrency_currency_table_sql suffices to join the currency table (a bunch of
-        VALUES injected directly in the join). Otherwise a full temporary table is needed, built by
-        _create_currency_table.
-        """
+        """Return whether the provided companies' data can be displayed with a monocurrency currency table."""
+        # If so, _get_monocurrency_currency_table_sql suffices to join the currency table (a bunch of
+        # VALUES injected directly in the join). Otherwise a full temporary table is needed, built by
+        # _create_currency_table.
         return len(companies.currency_id) == 1
 
     def _currency_table_rate_types(self, use_cta_rates):
@@ -132,12 +127,10 @@ class ResCurrency(models.Model):
         return CTA_RATE_TYPES if use_cta_rates else SIMPLE_RATE_TYPES
 
     def _currency_table_unit_rows(self, companies, use_cta_rates) -> list[SQL]:
-        """VALUES rows setting every requested rate to 1 for the given companies.
-
-        Shared by the monocurrency shortcut and by the "domestic" builder (companies
-        sharing the main company's currency): in both cases no conversion is needed,
-        so the query shape is identical to the multi-currency case with rate = 1.
-        """
+        """VALUES rows setting every requested rate to 1 for the given companies."""
+        # Shared by the monocurrency shortcut and by the "domestic" builder (companies
+        # sharing the main company's currency): in both cases no conversion is needed,
+        # so the query shape is identical to the multi-currency case with rate = 1.
         return [
             SQL(
                 "(%(company_id)s, CAST(NULL AS VARCHAR), CAST(NULL AS DATE), CAST(NULL AS DATE), %(rate_type)s, 1)",
@@ -149,12 +142,9 @@ class ResCurrency(models.Model):
         ]
 
     def _get_monocurrency_currency_table_sql(self, companies, use_cta_rates=False):
-        """Return a simplified currency table (a few VALUES, no temporary table) for the case where
-        all data to convert is expressed in the same currency, to be used in a JOIN.
-
-        Every rate is 1 (everything is in the same currency). Keeping the same query shape as the
-        multi-currency case lets callers join the returned table identically for both cases.
-        """
+        """Return a simplified currency table (a few VALUES, no temporary table) for data expressed in a single currency, to be used in a JOIN."""
+        # Every rate is 1 (everything is in the same currency). Keeping the same query shape as the
+        # multi-currency case lets callers join the returned table identically for both cases.
         return SQL(
             "(VALUES %(rows)s) AS account_currency_table(%(columns)s)",
             rows=SQL(", ").join(
@@ -166,23 +156,7 @@ class ResCurrency(models.Model):
         )
 
     def _create_currency_table(self, companies, date_periods, use_cta_rates=False):
-        """Creates a temporary table containing the currency rates to be used in order to aggregate amounts belonging to companies
-        with different main currencies in a reporting query.
-        These rates are computed from the res.currency.rate objects defined for self.env.company.
-
-        The currency table consists of the following columns:
-            - company_id: The id of the company whose amounts can be converted with this rate.
-            - period_key: The key corresponding to the period this rate is valid for. (see params list)
-            - date_from: Only set for rate_type 'historical'. The starting date for this rate.
-            - date_next: Only set for rate_type 'historical'. The date of the next rate. So, the rate applies until one day before date_next.
-            - rate_type: 'historical', 'current' or 'average'
-                            - 'historical' means the rate is to be used to convert operations at the date they were made; they each
-                               directly correspond to the res.currency.rate objects of the active company
-                            - 'current' means this rate is the most recent rate within the period. This rate is unique per (company_id, period_key).
-                            - 'average' means this rate is the average rate for the period. This rate is unique per (company_id, period_key).
-            - rate: The rate to apply, as a decimal factor to apply directly to the value to convert, provided it is expressed in the
-                    main currency of the company referred to by company_id.
-
+        """Create a temporary table of currency rates for aggregating amounts of companies with different main currencies in a reporting query.
 
         :param companies: The res.company objects to generate rates for.
         :param date_periods: List of tuples in the form (period_key, date_from, date_to), containing each of the periods to generate rates for, where:
@@ -192,6 +166,19 @@ class ResCurrency(models.Model):
         :param use_cta_rates: Boolean parameter, enabling the computation of CTA rates. If True, 'current', 'average' and 'historical' rates will be
                         computed for all companies, for all periods. Else, only 'current' will be computed.
         """
+        # These rates are computed from the res.currency.rate objects defined for self.env.company.
+        # The currency table consists of the following columns:
+        #   - company_id: The id of the company whose amounts can be converted with this rate.
+        #   - period_key: The key corresponding to the period this rate is valid for. (see date_periods)
+        #   - date_from: Only set for rate_type 'historical'. The starting date for this rate.
+        #   - date_next: Only set for rate_type 'historical'. The date of the next rate. So, the rate applies until one day before date_next.
+        #   - rate_type: 'historical', 'current' or 'average'
+        #       - 'historical' means the rate is to be used to convert operations at the date they were made; they each
+        #          directly correspond to the res.currency.rate objects of the active company
+        #       - 'current' means this rate is the most recent rate within the period. This rate is unique per (company_id, period_key).
+        #       - 'average' means this rate is the average rate for the period. This rate is unique per (company_id, period_key).
+        #   - rate: The rate to apply, as a decimal factor to apply directly to the value to convert, provided it is expressed in the
+        #           main currency of the company referred to by company_id.
         main_company = self.env.company
         domestic_currency_companies = companies.filtered(
             lambda x: x.currency_id == main_company.currency_id

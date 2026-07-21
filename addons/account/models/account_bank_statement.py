@@ -49,7 +49,7 @@ class AccountBankStatement(models.Model):
         readonly=False,
     )
 
-    # Balance end is calculated based on the statement line amounts and real starting balance.
+    # Balance end is calculated based on the statement line amounts and the starting balance.
     balance_end = fields.Monetary(
         string="Computed Balance",
         compute="_compute_balance_end",

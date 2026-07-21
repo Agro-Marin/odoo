@@ -152,7 +152,7 @@ class ProductCatalogMixin(models.AbstractModel):
         :param list sections: A list of dictionaries containing move and target sections.
         :param str child_field: Field name of the order's lines (e.g., 'line_ids').
         :param dict kwargs: Additional values given for inherited models.
-        :return: A dictonary containing the new sequences of all the sections of order.
+        :return: A dictionary containing the new sequences of all the sections of order.
         :rtype: dict
         """
         lines = self[child_field].sorted("sequence")
