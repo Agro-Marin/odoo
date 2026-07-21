@@ -17,14 +17,10 @@ class StockPicking(models.Model):
         inverse="_set_sale_id",
         index="btree_not_null",
     )
-    delay_pass = fields.Datetime(
-        compute="_compute_date_order",
-        search="_search_delay_pass",
-        copy=False,
-        index=True,
-    )
+    # delay_pass is declared by base_order_stock; this module contributes the
+    # sale branch through _get_source_order_date/_get_source_order_date_paths.
     days_to_deliver = fields.Datetime(
-        compute="_compute_date_effective",
+        compute="_compute_days_to_deliver",
         search="_search_days_to_deliver",
         copy=False,
     )
@@ -79,14 +75,8 @@ class StockPicking(models.Model):
                 else:
                     picking.move_type = "one"
 
-    def _compute_date_order(self):
-        for picking in self:
-            picking.delay_pass = (
-                picking.sale_id.date_order if picking.sale_id else fields.Datetime.now()
-            )
-
     @api.depends("state", "location_dest_id.usage", "date_done")
-    def _compute_date_effective(self):
+    def _compute_days_to_deliver(self):
         for picking in self:
             if (
                 picking.state == "done"
@@ -96,6 +86,10 @@ class StockPicking(models.Model):
                 picking.days_to_deliver = picking.date_done
             else:
                 picking.days_to_deliver = False
+
+    def _get_source_order_date(self):
+        # Extends base_order_stock: contribute the sale branch of delay_pass.
+        return self.sale_id.date_order or super()._get_source_order_date()
 
     # ------------------------------------------------------------
     # HOOKS
@@ -151,8 +145,9 @@ class StockPicking(models.Model):
         return [("date_done", operator, value)]
 
     @api.model
-    def _search_delay_pass(self, operator, value):
-        return [("sale_id.date_order", operator, value)]
+    def _get_source_order_date_paths(self):
+        # Extends base_order_stock: contribute the sale branch of delay_pass.
+        return [*super()._get_source_order_date_paths(), "sale_id.date_order"]
 
     # ------------------------------------------------------------
     # HELPER METHODS

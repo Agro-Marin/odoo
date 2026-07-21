@@ -15,14 +15,10 @@ class StockPicking(models.Model):
         store=True,
         index="btree_not_null",
     )
-    delay_pass = fields.Datetime(
-        compute="_compute_date_order",
-        search="_search_delay_pass",
-        copy=False,
-        index=True,
-    )
+    # delay_pass is declared by base_order_stock; this module contributes the
+    # purchase branch through _get_source_order_date/_get_source_order_date_paths.
     days_to_arrive = fields.Datetime(
-        compute="_compute_date_effective",
+        compute="_compute_days_to_arrive",
         search="_search_days_to_arrive",
         copy=False,
     )
@@ -31,14 +27,6 @@ class StockPicking(models.Model):
     # COMPUTE METHODS
     # ------------------------------------------------------------
 
-    def _compute_date_order(self):
-        for picking in self:
-            picking.delay_pass = (
-                picking.purchase_id.date_order
-                if picking.purchase_id
-                else fields.Datetime.now()
-            )
-
     @api.depends("move_ids.purchase_line_id.order_id")
     def _compute_purchase_id(self):
         for picking in self:
@@ -46,7 +34,7 @@ class StockPicking(models.Model):
             picking.purchase_id = picking.move_ids.purchase_line_id.order_id
 
     @api.depends("state", "location_dest_id.usage", "date_done")
-    def _compute_date_effective(self):
+    def _compute_days_to_arrive(self):
         for picking in self:
             if (
                 picking.state == "done"
@@ -57,6 +45,10 @@ class StockPicking(models.Model):
             else:
                 picking.days_to_arrive = False
 
+    def _get_source_order_date(self):
+        # Extends base_order_stock: contribute the purchase branch of delay_pass.
+        return self.purchase_id.date_order or super()._get_source_order_date()
+
     # ------------------------------------------------------------
     # SEARCH METHODS
     # ------------------------------------------------------------
@@ -66,8 +58,9 @@ class StockPicking(models.Model):
         return [("date_done", operator, value)]
 
     @api.model
-    def _search_delay_pass(self, operator, value):
-        return [("purchase_id.date_order", operator, value)]
+    def _get_source_order_date_paths(self):
+        # Extends base_order_stock: contribute the purchase branch of delay_pass.
+        return [*super()._get_source_order_date_paths(), "purchase_id.date_order"]
 
     # ------------------------------------------------------------
     # ACTION METHODS
