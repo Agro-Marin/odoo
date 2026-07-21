@@ -469,10 +469,7 @@ class ResCompany(models.Model):
     )
 
     def get_next_batch_payment_communication(self):
-        """
-        When in need of a batch payment communication reference (several invoices paid at the same time)
-        use batch_payment_sequence_id to get it (creating it first if needed): e.g GROUP/2024/00001
-        """
+        """Return the reference used to communicate a batch payment (several invoices paid together), creating its sequence on first use."""
         self.ensure_one()
         company_sudo = self.sudo()
         if not company_sudo.batch_payment_sequence_id:
@@ -580,14 +577,11 @@ class ResCompany(models.Model):
             )
 
     def _get_foreign_vat_countries_per_company(self, companies):
-        """Map each of ``companies`` to the ``res.country`` recordset for which it
-        has a foreign VAT registered (through an ``account.fiscal.position``).
-
-        Batched into a single ``_read_group`` instead of one search per company.
-        ``account.fiscal.position._validate_foreign_vat_country`` guarantees
-        ``country_id`` is set whenever ``foreign_vat`` is, but we still drop any
-        ``NULL`` defensively so both callers behave identically.
-        """
+        """Map each of ``companies`` to the ``res.country`` recordset for which it has a foreign VAT registered (through an ``account.fiscal.position``)."""
+        # Batched into a single ``_read_group`` instead of one search per company.
+        # ``account.fiscal.position._validate_foreign_vat_country`` guarantees
+        # ``country_id`` is set whenever ``foreign_vat`` is, but we still drop any
+        # NULL defensively (``filter(None, ...)``) so both callers behave identically.
         FiscalPosition = self.env["account.fiscal.position"]
         return {
             company.id: self.env["res.country"].browse(filter(None, country_ids))
@@ -659,12 +653,10 @@ class ResCompany(models.Model):
                 company.invoice_terms_html = html
 
     def _compute_user_soft_lock_date(self, soft_lock_date_field):
-        """Shared body for the ``user_*_lock_date`` soft-lock computes.
-
-        The four soft-lock computes differ only by their source field. Each keeps
-        its own ``@api.depends``/``@api.depends_context`` (needed for the
-        dependency graph) and delegates the actual work here.
-        """
+        """Shared body for the ``user_*_lock_date`` soft-lock computes."""
+        # The four soft-lock computes differ only by their source field. Each keeps
+        # its own ``@api.depends``/``@api.depends_context`` (needed for the
+        # dependency graph) and delegates the actual work here.
         ignore_exceptions = bool(self.env.context.get("ignore_exceptions", False))
         user_lock_date_field = f"user_{soft_lock_date_field}"
         for company in self:
@@ -746,16 +738,14 @@ class ResCompany(models.Model):
 
     @staticmethod
     def get_new_account_code(current_code, old_prefix, new_prefix):
-        """Rebuild ``current_code`` with ``old_prefix`` replaced by ``new_prefix``.
-
-        Everything after ``old_prefix`` is the numeric tail; it is stripped of its
-        leading zeros and re-padded. The original length is preserved **only while
-        ``new_prefix`` is no longer than ``current_code``**; when the new prefix is
-        longer the tail cannot absorb it, so the result grows and the tail's leading
-        zeros are lost. The sole caller (``reflect_code_prefix_change``) only swaps
-        same-length bank/cash prefixes, where the transform round-trips exactly
-        (pinned by ``TestResCompanyAccountCode``).
-        """
+        """Rebuild ``current_code`` with ``old_prefix`` replaced by ``new_prefix``."""
+        # Everything after ``old_prefix`` is the numeric tail; it is stripped of its
+        # leading zeros and re-padded. The original length is preserved only while
+        # ``new_prefix`` is no longer than ``current_code``; when the new prefix is
+        # longer the tail cannot absorb it, so the result grows and the tail's leading
+        # zeros are lost. The sole caller (``reflect_code_prefix_change``) only swaps
+        # same-length bank/cash prefixes, where the transform round-trips exactly
+        # (pinned by ``TestResCompanyAccountCode``).
         digits = len(current_code)
         tail = current_code.removeprefix(old_prefix).lstrip("0")
         return new_prefix + tail.rjust(digits - len(new_prefix), "0")
@@ -785,12 +775,11 @@ class ResCompany(models.Model):
         self, unreconciled_statement_lines
     ):
         """Get the action redirecting to the statement lines that are not already reconciled.
-        It can i.e. be used when setting a fiscal year lock date or hashing all entries until a certain date.
 
         :param unreconciled_statement_lines: The statement lines.
         :return: A dictionary representing a window action.
         """
-
+        # Used e.g. when setting a fiscal year lock date or hashing all entries until a certain date.
         action = {
             "name": _("Unreconciled Transactions"),
             "type": "ir.actions.act_window",
@@ -822,11 +811,9 @@ class ResCompany(models.Model):
         ]
 
     def _validate_locks(self, values):
-        """Check that the lock date changes are valid.
-        * Check that we do not decrease or remove the hard lock dates.
-        * Check there are no unreconciled bank statement lines in the period we want to lock.
-        * Check there are no unhashed journal entires in the period we want to lock.
-        :param vals: The values passed to the write method.
+        """Check that the lock date changes in ``values`` are valid.
+
+        :param values: The values passed to the write method.
         """
         new_locks = {
             field: fields.Date.to_date(values[field])
@@ -842,6 +829,7 @@ class ResCompany(models.Model):
                 fiscalyear_lock_date or date.min, hard_lock_date or date.min
             )
 
+        # The hard lock date can neither be decreased nor removed.
         if "hard_lock_date" in new_locks:
             for company in self:
                 if not company.hard_lock_date:
@@ -855,6 +843,7 @@ class ResCompany(models.Model):
                         )
                     )
 
+        # No draft entries may remain in the period to be hard-locked.
         if hard_lock_date:
             draft_entries = self.env["account.move"].search(
                 [
@@ -903,12 +892,14 @@ class ResCompany(models.Model):
 
     def _get_user_lock_date(self, soft_lock_date_field, ignore_exceptions=False):
         """Get the lock date called `soft_lock_date_field` for this company depending on the user.
-        We consider the field and exceptions (except if `ignore_exceptions`) for it in this company and the parent companies.
+
         :param str soft_lock_date_field: One of the lock date fields (except 'hard_lock_date'; see SOFT_LOCK_DATE_FIELDS)
         :param bool ignore_exceptions: Whether we ignore exceptions or not
-        :return the user lock date
+        :return: the user lock date
         """
         self.ensure_one()
+        # We consider the field and exceptions (except if `ignore_exceptions`) for
+        # it in this company and the parent companies.
         soft_lock_date = date.min
         # We need to use sudo, since we might not have access to a parent company.
         # `active_test=False` so an archived ancestor's lock date is still honored
@@ -942,9 +933,11 @@ class ResCompany(models.Model):
         return soft_lock_date
 
     def _get_user_fiscal_lock_date(self, journal, ignore_exceptions=False):
-        """Get the fiscal lock date for this company (depending on the affected journal) accounting for potential user exceptions
+        """Get the fiscal lock date for this company (depending on the affected journal) accounting for potential user exceptions.
+
+        :param journal: The affected journal.
         :param bool ignore_exceptions: Whether we ignore exceptions or not
-        :return the lock date
+        :return: the lock date
         """
         self.ensure_one()
         company = self.with_context(ignore_exceptions=ignore_exceptions)
@@ -956,11 +949,11 @@ class ResCompany(models.Model):
         return lock
 
     def _get_violated_soft_lock_date(self, soft_lock_date_field, accounting_date):
-        """
-        Check whether `accounting_date` violates the lock date called `soft_lock_date_field`.
+        """Check whether `accounting_date` violates the lock date called `soft_lock_date_field`.
+
         :param str soft_lock_date_field: One of the lock date fields (except 'hard_lock_date'; see SOFT_LOCK_DATE_FIELDS)
         :param accounting_date: We check whether this date is prior or equal to the lock date.
-        :return the violated lock date as a date (or `None`)
+        :return: the violated lock date as a date (or `None`)
         """
         if not self:
             return None
@@ -1249,12 +1242,6 @@ class ResCompany(models.Model):
     ):
         """Pure planner: build the ``line_ids`` commands for the opening move.
 
-        Split out of :meth:`_update_opening_move` so the balance bookkeeping can
-        be unit-tested without a database: it performs no ORM access -- every
-        record-dependent operation is injected. The two balancing lines are
-        emitted last, so they see the ``open_balance`` accumulated by every
-        regular line (this ordering is load-bearing and must be preserved).
-
         :param dict to_update: ``{account: (debit, credit)}``; a ``None`` side is
             left untouched, a zeroed side deletes its existing line(s).
         :param balancing_account: account receiving the automatic balancing lines.
@@ -1270,6 +1257,9 @@ class ResCompany(models.Model):
         :param str balancing_name: label for the automatic balancing lines.
         :return: a list of ORM ``(0|1|2, id, vals)`` commands (possibly empty).
         """
+        # Split out of ``_update_opening_move`` so the balance bookkeeping can be
+        # unit-tested without a database: it performs no ORM access -- every
+        # record-dependent operation is injected.
         commands = []
         open_balance = initial_balance
 
@@ -1314,6 +1304,8 @@ class ResCompany(models.Model):
                 emit(account, "debit", debit, False)
             if credit is not None:
                 emit(account, "credit", -credit, False)
+        # The two balancing lines are emitted last, so they see the ``open_balance``
+        # accumulated by every regular line (this ordering is load-bearing).
         emit(balancing_account, "debit", max(-open_balance, 0), True)
         emit(balancing_account, "credit", -max(open_balance, 0), True)
         return commands
@@ -1454,9 +1446,7 @@ class ResCompany(models.Model):
         ).report_action(self.id)
 
     def _check_hash_integrity(self):
-        """Checks that all hashed moves have still the same data as when they were hashed
-        and raises an error with the result.
-        """
+        """Check that all hashed moves still have the same data as when they were hashed."""
         if not self.env.user.has_group("account.group_account_user"):
             raise UserError(
                 _("Please contact your accountant to print the Hash integrity result.")
@@ -1476,14 +1466,13 @@ class ResCompany(models.Model):
     def _check_journal_hash_integrity(self, journal):
         """Verify the hash chain of every secured move in ``journal``.
 
-        Streams the journal's hashed moves (ordered so each move's predecessor is
-        seen before it) in batches through a server-side cursor, recomputes every
-        hash and groups the outcome per sequence prefix.
-
         :return: the list of report rows contributed by this journal (one
             ``no_data`` row if the journal has no hashed move, otherwise one
             ``verified``/``corrupted`` row per sequence prefix).
         """
+        # Streams the journal's hashed moves (ordered so each move's predecessor is
+        # seen before it) in batches through a server-side cursor, recomputes every
+        # hash and groups the outcome per sequence prefix.
         restricted_flag = "V" if journal.restrict_mode_hash_table else "X"
         # `sudo()` so *all* moves are considered regardless of the user's record
         # rules: hashes must be recomputed over the full chain to be consistent.
@@ -1567,14 +1556,13 @@ class ResCompany(models.Model):
     def _recompute_move_hash(move, previous_hash, start_version):
         """Recompute ``move``'s inalterable hash, probing successive hash versions.
 
-        Starts at ``start_version`` and advances (up to ``MAX_HASH_VERSION``)
-        until the recomputed hash matches the stored one, so that data hashed
-        under an older algorithm version still validates.
-
         :return: ``(computed_hash, version_reached)``. When no version matches,
             ``computed_hash`` is the last (``MAX_HASH_VERSION``) attempt, i.e.
             ``!= move.inalterable_hash`` -- the caller treats that as corruption.
         """
+        # Starts at ``start_version`` and advances (up to ``MAX_HASH_VERSION``)
+        # until the recomputed hash matches the stored one, so that data hashed
+        # under an older algorithm version still validates.
         version = start_version
         computed_hash = move.with_context(hash_version=version)._calculate_hashes(
             previous_hash
@@ -1628,8 +1616,7 @@ class ResCompany(models.Model):
 
     @api.model
     def _with_locked_records(self, records, allow_raising=True):
-        """To avoid sending the same records multiple times from different transactions,
-        we use this generic method to lock the records passed as parameter.
+        """Lock ``records`` so the same records are not sent from different transactions concurrently.
 
         :param records: The records to lock.
         :return: Whether we have locked all records (if there were records to lock)
@@ -1646,8 +1633,7 @@ class ResCompany(models.Model):
         return True
 
     def compute_fiscalyear_dates(self, current_date):
-        """
-        Returns the dates of the fiscal year containing the provided date for this company.
+        """Return the dates of the fiscal year containing the provided date for this company.
 
         :return: ``{'date_from': ..., 'date_to': ...}``
         """
@@ -1677,9 +1663,8 @@ class ResCompany(models.Model):
 
     @api.depends("country_id", "account_fiscal_country_id")
     def _compute_company_registry_placeholder(self):
-        """Provides a dynamic placeholder on the company registry field for countries that may need it.
-        Add your country and the value you want in the _ref_company_registry map in the partner.py file.
-        """
+        """Provides a dynamic placeholder on the company registry field for countries that may need it."""
+        # To extend: add your country and the value you want to the `_ref_company_registry` map in partner.py.
         for company in self:
             country_code = (
                 company.account_fiscal_country_id or company.country_id
@@ -1712,9 +1697,8 @@ class ResCompany(models.Model):
                 )
 
     def _check_tax_return_configuration(self):
-        """
-        To override in localizations to check if the company is properly configured for tax returns.
-        or related modules are installed.
-        :raises RedirectWarning: if something is wrong configured.
+        """Hook for localizations to check the company is properly configured for tax returns (or related modules are installed).
+
+        :raises RedirectWarning: if something is wrongly configured.
         """
         return

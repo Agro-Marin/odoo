@@ -73,12 +73,10 @@ class AccountJournal(models.Model):
     _rec_names_search = ["name", "code"]
 
     def _default_display_invoice_template_pdf_report_id(self):
-        """Show PDF template selection if there is more than 1 template available for invoices.
-
-        Defaults run on an empty recordset, so the ``available_invoice_template_pdf_report_ids``
-        compute (a ``for journal in self`` loop) would leave the field empty and the check would
-        always be False. Read the underlying report list directly instead.
-        """
+        """Show PDF template selection if there is more than 1 template available for invoices."""
+        # Defaults run on an empty recordset, so the available_invoice_template_pdf_report_ids
+        # compute (a "for journal in self" loop) would leave the field empty and the check would
+        # always be False; read the underlying report list directly instead.
         reports = self.env[
             "account.move"
         ]._get_available_invoice_template_pdf_report_ids()
@@ -522,12 +520,7 @@ class AccountJournal(models.Model):
 
     @api.depends("outbound_payment_method_line_ids", "inbound_payment_method_line_ids")
     def _compute_available_payment_method_ids(self):
-        """
-        Compute the available payment methods id by respecting the following rules:
-            Methods of mode 'unique' cannot be used twice on the same company.
-            Methods of mode 'electronic' cannot be used twice on the same company for the same 'payment_provider_id'.
-            Methods of mode 'multi' can be duplicated on the same journal.
-        """
+        """Compute the available payment methods, respecting each method's multiplicity mode."""
         results = self._get_journals_payment_method_information()
         pay_methods = results["pay_methods"]
         manage_providers = results["manage_providers"]
@@ -653,10 +646,9 @@ class AccountJournal(models.Model):
 
     @api.depends("outbound_payment_method_line_ids", "inbound_payment_method_line_ids")
     def _compute_selected_payment_method_codes(self):
-        """
-        Set the selected payment method as a list of comma separated codes like: ,manual,check_printing,...
-        These will be then used to display or not payment method specific fields in the view.
-        """
+        """Build the journal's payment method codes as a comma-separated, comma-wrapped string."""
+        # The leading/trailing commas let the view test for a given code with a simple
+        # ",code," containment check, to show or hide payment-method-specific fields.
         for journal in self:
             codes = [
                 line.code
@@ -816,9 +808,7 @@ class AccountJournal(models.Model):
         "inbound_payment_method_line_ids", "outbound_payment_method_line_ids"
     )
     def _check_payment_method_line_ids_multiplicity(self):
-        """
-        Check and ensure that the payment method lines multiplicity is respected.
-        """
+        """Check and ensure that the payment method lines multiplicity is respected."""
         results = self._get_journals_payment_method_information()
         pay_methods = results["pay_methods"]
         manage_providers = results["manage_providers"]
@@ -1151,26 +1141,21 @@ class AccountJournal(models.Model):
     def _get_next_available_code(
         self, prefix, company, codes_to_avoid=(), used_codes=None
     ):
-        """Return the first free ``<prefix><n>`` journal code (n starting at 1)
-        for ``company``.
-
-        The ``code`` field is size-limited, so ``prefix`` is shortened as ``n``
-        grows to guarantee the result never exceeds that size (e.g. ``BILL`` becomes
-        ``BIL10`` at 10 rather than overflowing to ``BILL10`` — which the ORM would
-        silently truncate back to ``BILL1`` and collide). Both the codes already
-        used in ``company`` and any extra ``codes_to_avoid`` (e.g. codes reserved by
-        sibling records in the same batch) are skipped.
-
-        ``used_codes`` lets a caller pass the company's existing codes once for a
-        whole batch (see :meth:`_compute_code` / :meth:`copy_data`), avoiding the
-        per-record query; when omitted they are fetched here.
-        """
+        """Return the first free ``<prefix><n>`` journal code (n starting at 1) for ``company``."""
         size = self._fields["code"].size
+        # used_codes lets a caller pass the company's existing codes once for a whole
+        # batch (see _compute_code / copy_data), avoiding the per-record query; they
+        # are fetched here when omitted.
         if used_codes is None:
             used_codes = self._get_company_journal_codes(company)
+        # Skip both the company's used codes and any codes_to_avoid reserved by sibling
+        # records in the same batch.
         used = used_codes | set(codes_to_avoid)
         # Digits belong to the numeric suffix; keep only the alphabetic stem.
         prefix = re.sub(r"\d+", "", prefix or "").strip() or "J"
+        # The code field is size-limited, so the prefix is shortened as the number grows
+        # to never exceed that size (e.g. BILL becomes BIL10 at 10 rather than overflowing
+        # to BILL10, which the ORM would silently truncate back to BILL1 and collide).
         for num in range(1, 10**size):
             suffix = str(num)
             candidate = f"{prefix[: size - len(suffix)]}{suffix}"
@@ -1404,11 +1389,8 @@ class AccountJournal(models.Model):
 
     def _ensure_bank_account(self, acc_number=None, bank_id=None):
         """For a bank journal, create its bank account from ``acc_number`` when none
-        is set yet, then allow outgoing payments on it if it can be trusted.
-
-        Shared post-write step for :meth:`create` and :meth:`write`; a no-op for
-        non-bank journals.
-        """
+        is set yet, then allow outgoing payments on it if it can be trusted."""
+        # Shared post-write step for create and write; a no-op for non-bank journals.
         self.ensure_one()
         if self.type != "bank":
             return
@@ -1446,11 +1428,9 @@ class AccountJournal(models.Model):
             journal.display_name = name
 
     def action_configure_bank_journal(self):
-        """Open the bank-account setup action.
-
-        Triggered by the "configure" button on bank journals, shown on the dashboard when no bank
-        statement source has been defined yet.
-        """
+        """Open the bank-account setup action."""
+        # Triggered by the "configure" button on bank journals, shown on the dashboard
+        # when no bank statement source has been defined yet.
         return (
             self.env["res.company"]
             .with_context(default_linked_journal_id=self.id)
@@ -1548,16 +1528,15 @@ class AccountJournal(models.Model):
 
     # TODO move to `account_reports` in master (simple read_group)
     def _get_journal_bank_account_balance(self, domain=None):
-        r"""Get the bank balance of the current journal by filtering the journal items using the journal's accounts.
-
-        /!\ The current journal is not part of the applied domain. This is the expected behavior since we only want
-        a logic based on accounts.
+        """Get the bank balance of the current journal by filtering the journal items using the journal's accounts.
 
         :param domain:  An additional domain to be applied on the account.move.line model.
         :return:        Tuple having balance expressed in journal's currency
                         along with the total number of move lines having the same account as of the journal's default account.
         """
         self.ensure_one()
+        # The current journal itself is deliberately not part of the domain: the balance
+        # is computed purely from the journal's accounts.
         nb_lines, balance, amount_currency = self.env["account.move.line"]._read_group(
             domain=(
                 [
@@ -1597,14 +1576,13 @@ class AccountJournal(models.Model):
         return self.outbound_payment_method_line_ids.payment_account_id
 
     def _get_available_payment_method_lines(self, payment_type):
-        """
-        This getter is here to allow filtering the payment method lines if needed in other modules.
-        It does NOT serve as a general getter to get the lines.
+        """Return the inbound or outbound payment method lines of this journal.
 
-        For example, it'll be extended to filter out lines from inactive payment providers in the payment module.
         :param payment_type: either inbound or outbound, used to know which lines to return
         :return: Either the inbound or outbound payment method lines
         """
+        # Hook that lets other modules filter the payment method lines (e.g. the payment
+        # module filters out lines from inactive providers); not a general getter.
         if not self:
             return self.env["account.payment.method.line"]
         self.ensure_one()
@@ -1624,10 +1602,8 @@ class AccountJournal(models.Model):
         return self.filtered_domain(method_domain)
 
     def _process_reference_for_sale_order(self, order_reference):
-        """
-        returns the order reference to be used for the payment.
-        Hook to be overriden: see l10n_ch for an example.
-        """
+        """Return the order reference to be used for the payment."""
+        # Hook to be overridden; see l10n_ch for an example.
         self.ensure_one()
         return order_reference
 
