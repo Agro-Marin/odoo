@@ -1,10 +1,9 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 """Tests for all automation trigger types."""
 
 import logging
-import unittest
+import unittest  # noqa: F401
 from unittest.mock import patch
 
 from odoo import Command
@@ -66,7 +65,7 @@ class TestAutomationTriggers(TransactionCase):
         """Test on_create trigger fires when record is created."""
         _logger.info("Testing on_create trigger")
 
-        automation = self._create_automation("On Create Test", "on_create")
+        automation = self._create_automation("On Create Test", "on_create")  # noqa: F841
 
         # Create partner - should trigger automation
         partner = self.Partner.create({"name": "New Partner"})
@@ -78,12 +77,12 @@ class TestAutomationTriggers(TransactionCase):
         """Test on_write trigger fires when record is updated."""
         _logger.info("Testing on_write trigger")
 
-        automation = self._create_automation("On Write Test", "on_write")
+        automation = self._create_automation("On Write Test", "on_write")  # noqa: F841
 
         # Create partner first
         partner = self.Partner.create({"name": "Test Partner"})
 
-        # Clear comment (automation might fire on create too)
+        # Clear the street marker (automation might fire on create too)
         partner.street = False
 
         # Update partner - should trigger automation
@@ -96,7 +95,7 @@ class TestAutomationTriggers(TransactionCase):
         """Test on_create_or_write fires on both create and write."""
         _logger.info("Testing on_create_or_write trigger")
 
-        automation = self._create_automation("On Create or Write", "on_create_or_write")
+        automation = self._create_automation("On Create or Write", "on_create_or_write")  # noqa: F841
 
         # Test create
         partner = self.Partner.create({"name": "Test Partner"})
@@ -111,8 +110,8 @@ class TestAutomationTriggers(TransactionCase):
         """Test on_unlink trigger fires before deletion."""
         _logger.info("Testing on_unlink trigger")
 
-        # Note: Can't easily verify comment after delete, so test that it runs
-        automation = self._create_automation("On Unlink Test", "on_unlink")
+        # Note: Can't easily verify the street marker after delete, so test that it runs
+        automation = self._create_automation("On Unlink Test", "on_unlink")  # noqa: F841
 
         partner = self.Partner.create({"name": "To Delete"})
 
@@ -126,7 +125,7 @@ class TestAutomationTriggers(TransactionCase):
         """Test on_archive trigger fires when record archived."""
         _logger.info("Testing on_archive trigger")
 
-        automation = self._create_automation("On Archive Test", "on_archive")
+        automation = self._create_automation("On Archive Test", "on_archive")  # noqa: F841
 
         partner = self.Partner.create({"name": "To Archive", "active": True})
         partner.street = False
@@ -141,7 +140,7 @@ class TestAutomationTriggers(TransactionCase):
         """Test on_unarchive trigger fires when record unarchived."""
         _logger.info("Testing on_unarchive trigger")
 
-        automation = self._create_automation("On Unarchive Test", "on_unarchive")
+        automation = self._create_automation("On Unarchive Test", "on_unarchive")  # noqa: F841
 
         # Create archived partner
         partner = self.Partner.create({"name": "Archived", "active": False})
@@ -158,7 +157,7 @@ class TestAutomationTriggers(TransactionCase):
     # =========================================================================
 
     def test_on_user_set_trigger(self):
-        """Test on_user_set trigger fires when user field is set."""
+        """Placeholder for the on_user_set trigger — not exercised (res.partner has no user_id)."""
         _logger.info("Testing on_user_set trigger")
 
         # Partners don't have user_id, so this test would fail
@@ -170,7 +169,7 @@ class TestAutomationTriggers(TransactionCase):
         """Test that domain filters work correctly."""
         _logger.info("Testing trigger with domain filter")
 
-        automation = self._create_automation(
+        automation = self._create_automation(  # noqa: F841
             "Filtered Trigger",
             "on_create",
             filter_domain="[('name', 'ilike', 'VIP')]",
@@ -233,7 +232,7 @@ class TestAutomationTriggers(TransactionCase):
                 "usage": "base_automation",
             }
         )
-        action_b = self.Action.create(
+        action_b = self.Action.create(  # noqa: F841
             {
                 "name": "DAG Action B",
                 "model_id": self.model_partner.id,
@@ -345,7 +344,7 @@ class TestAutomationTriggers(TransactionCase):
         """Test multiple automations can fire on same trigger."""
         _logger.info("Testing multiple automations")
 
-        automation1 = self._create_automation("Auto 1", "on_create")
+        automation1 = self._create_automation("Auto 1", "on_create")  # noqa: F841
         automation2 = self.Automation.create(
             {
                 "name": "Auto 2",
@@ -399,7 +398,7 @@ class TestAutomationTriggers(TransactionCase):
         """Test automation with no server actions."""
         _logger.info("Testing automation with no actions")
 
-        automation = self.Automation.create(
+        automation = self.Automation.create(  # noqa: F841
             {
                 "name": "No Actions",
                 "model_id": self.model_partner.id,
@@ -640,12 +639,10 @@ class TestTimeBasedTriggers(TransactionCase):
         cls.model_partner = cls.env["ir.model"]._get("res.partner")
 
     def _run_cron(self):
-        """Run time-based cron without the cr.commit() forbidden in TransactionCase tests.
-
-        _cron_process_time_based_actions calls _commit_progress which commits
-        the cursor — illegal in test transactions. Patch it to a no-op.
-        """
+        """Run time-based cron without the cr.commit() forbidden in TransactionCase tests."""
         IrCron = type(self.env["ir.cron"])
+        # _cron_process_time_based_actions calls _commit_progress, which commits the
+        # cursor — illegal in test transactions. Patch it to a no-op.
         with patch.object(IrCron, "_commit_progress", return_value=float("inf")):
             self.Automation._cron_process_time_based_actions()
 
@@ -774,7 +771,7 @@ class TestTimeBasedTriggers(TransactionCase):
         """Test _search_time_based_automation_records for on_time trigger."""
         _logger.info("Testing time-based record search for on_time")
 
-        import datetime
+        import datetime  # noqa: I001
         from odoo import fields
 
         # Get create_date field
@@ -834,7 +831,7 @@ class TestTimeBasedTriggers(TransactionCase):
         """Test time trigger with domain filtering."""
         _logger.info("Testing time trigger with domain filter")
 
-        import datetime
+        import datetime  # noqa: I001
         from odoo import fields
 
         date_field = self.env["ir.model.fields"]._get("res.partner", "create_date")
@@ -882,7 +879,7 @@ class TestTimeBasedTriggers(TransactionCase):
         """Test that last_run prevents duplicate executions."""
         _logger.info("Testing last_run tracking")
 
-        import datetime
+        import datetime  # noqa: I001
         from odoo import fields
 
         date_field = self.env["ir.model.fields"]._get("res.partner", "create_date")
@@ -900,7 +897,7 @@ class TestTimeBasedTriggers(TransactionCase):
 
         now = fields.Datetime.now()
         three_days_ago = now - datetime.timedelta(days=3)
-        two_days_ago = now - datetime.timedelta(days=2)
+        two_days_ago = now - datetime.timedelta(days=2)  # noqa: F841
 
         # Create partner 3 days ago
         partner = self.Partner.create({"name": "Test Partner"})
@@ -984,7 +981,7 @@ class TestTimeBasedTriggers(TransactionCase):
         """Test cron processes all active time-based automations."""
         _logger.info("Testing cron with multiple automations")
 
-        import datetime
+        import datetime  # noqa: I001
         from odoo import fields
 
         date_field = self.env["ir.model.fields"]._get("res.partner", "create_date")
@@ -1053,7 +1050,7 @@ class TestTimeBasedTriggers(TransactionCase):
         """Test cron skips inactive automations."""
         _logger.info("Testing cron skips inactive automations")
 
-        import datetime
+        import datetime  # noqa: I001
         from odoo import fields
 
         date_field = self.env["ir.model.fields"]._get("res.partner", "create_date")
@@ -1105,7 +1102,7 @@ class TestTimeBasedTriggers(TransactionCase):
         """Test on_time_created automatically uses create_date field."""
         _logger.info("Testing on_time_created uses create_date")
 
-        import datetime
+        import datetime  # noqa: I001
         from odoo import fields
 
         automation = self.Automation.create(
@@ -1261,7 +1258,7 @@ class TestTimeBasedTriggers(TransactionCase):
         """Test multiple automations with different range types."""
         _logger.info("Testing multiple range types")
 
-        import datetime
+        import datetime  # noqa: I001
         from odoo import fields
 
         date_field = self.env["ir.model.fields"]._get("res.partner", "create_date")
@@ -1670,7 +1667,7 @@ class TestTriggerEdgeCases(TransactionCase):
         self.assertEqual(partner.street, "BCA")
 
     def test_trigger_with_multi_company(self):
-        """Test triggers respect company context."""
+        """Test an automation action can reference env.company in its code."""
         _logger.info("Testing multi-company triggers")
 
         # This is a basic setup test - full multi-company testing
@@ -1697,5 +1694,5 @@ class TestTriggerEdgeCases(TransactionCase):
         # Create partner
         partner = self.Partner.create({"name": "Company Test"})
 
-        # Should have company name in comment
+        # Should have company name in street
         self.assertIn("Company:", partner.street)
