@@ -228,8 +228,7 @@ class TestInvoiceTaxes(AccountTestInvoicingCommon):
         Tax         | Taxes     | Base      | Amount
         --------------------------------------------
         21% incl    | 12%       | 100       | 21
-        12%         | /         | 121       | 14.52
-        12%         | /         | 100       | 12
+        12%         | /         | 221       | 26.52
         """
         invoice = self._create_invoice(
             [
@@ -266,8 +265,8 @@ class TestInvoiceTaxes(AccountTestInvoicingCommon):
         Expected:
         Tax         | Taxes     | Base      | Amount
         --------------------------------------------
-        21% incl    | /         | 100       | 21
-        12%         | 21% incl  | 121       | 14.52
+        21% incl    | 12%       | 100       | 21
+        12%         | /         | 121       | 14.52
         12%         | /         | 100       | 12
         """
         invoice = self._create_invoice(
@@ -496,18 +495,7 @@ class TestInvoiceTaxes(AccountTestInvoicingCommon):
         )
 
     def test_division_tax(self):
-        """
-        Test that when using division tax, with percentage amount
-        100% any change on price unit is correctly reflected on
-        the whole move.
-
-        Complete scenario:
-            - Create a division tax, 100% amount, included in price.
-            - Create an invoice, with only the mentioned tax
-            - Change price_unit of the aml
-            - Total price of the move should change as well
-        """
-
+        """Test a price_unit change is reflected on the whole move for a 100% division tax."""
         sale_tax = self.env["account.tax"].create(
             {
                 "name": "tax",
@@ -651,7 +639,7 @@ class TestInvoiceTaxes(AccountTestInvoicingCommon):
         move_form = Form(self.env["account.move"], view="account.view_move_form")
         move_form.ref = "azerty"
 
-        # Debit base tax line.
+        # Credit base tax line.
         with move_form.line_ids.new() as credit_line:
             credit_line.name = "debit_line_1"
             credit_line.account_id = self.company_data["default_account_revenue"]
@@ -800,7 +788,7 @@ class TestInvoiceTaxes(AccountTestInvoicingCommon):
         move_form = Form(self.env["account.move"])
         move_form.ref = "azerty"
 
-        # Debit base tax line.
+        # Credit base tax line.
         with move_form.line_ids.new() as credit_line:
             credit_line.name = "debit_line_1"
             credit_line.account_id = self.company_data["default_account_revenue"]
@@ -1184,7 +1172,7 @@ class TestInvoiceTaxes(AccountTestInvoicingCommon):
             invoice.line_ids.filtered("tax_line_id"),
             [
                 {
-                    "tax_base_amount": -567.38,  # 155.32 * 1 / (1 / 0.273748)
+                    "tax_base_amount": -567.38,  # 155.32 * 1 / 0.273748
                     "balance": -119.15,  # tax_base_amount * 0.21
                 }
             ],
@@ -1257,11 +1245,10 @@ class TestInvoiceTaxes(AccountTestInvoicingCommon):
         )
 
     def test_tax_repartition_lines_dispatch_amount_1(self):
-        """Ensure the tax amount is well dispatched to the repartition lines and the rounding errors are well managed.
-        The 5% tax is applied on 1 so the total tax amount should be 0.05.
-        However, there are 10 tax repartition lines of 0.05 * 0.1 = 0.005 that will be rounded to 0.01.
-        The test checks the tax amount doesn't become 10 * 0.01 = 0.1 instead of 0.05.
-        """
+        """Ensure the tax amount is dispatched to the repartition lines without rounding drift."""
+        # The 5% tax is applied on 1 so the total tax amount should be 0.05. However, the 10
+        # tax repartition lines get 0.05 * 0.1 = 0.005 each, rounded to 0.01: the total must
+        # not become 10 * 0.01 = 0.1 instead of 0.05.
         base_tax_rep = Command.create(
             {"repartition_type": "base", "factor_percent": 100.0}
         )
@@ -1294,13 +1281,11 @@ class TestInvoiceTaxes(AccountTestInvoicingCommon):
         )
 
     def test_tax_repartition_lines_dispatch_amount_2(self):
-        """Ensure the tax amount is well dispatched to the repartition lines and the rounding errors are well managed.
-        The 5% tax is applied on 1 so the total tax amount should be 0.05 but the distribution is 100 - 100 = 0%.
-        So at the end, the tax amount is 0.
-        However, there are 10 positive tax repartition lines of 0.05 * 0.1 = 0.005 that will be rounded to 0.01
-        and one negative repartition line of 50% and 2 of 25% that will give respectively 0.025 ~= 0.03 and 0.0125 ~= 0.01.
-        The test checks the tax amount is still zero at the end.
-        """
+        """Ensure a distribution summing to 0% dispatches to a zero tax amount despite rounding."""
+        # The 5% tax is applied on 1 so the total tax amount should be 0.05, but the
+        # distribution is 100 - 100 = 0%, so the final tax amount is 0. The 10 positive
+        # repartition lines get 0.05 * 0.1 = 0.005 each, rounded to 0.01, while the negative
+        # ones of 50% and 2 * 25% give respectively 0.025 ~= 0.03 and 0.0125 ~= 0.01.
         base_tax_rep = Command.create(
             {"repartition_type": "base", "factor_percent": 100.0}
         )
@@ -1536,17 +1521,13 @@ class TestInvoiceTaxes(AccountTestInvoicingCommon):
         )
 
     def test_multiple_onchange_product_and_price(self):
-        """
-        This test checks that the totals are computed correctly when an onchange is executed
-        with "price_unit" before "product_id" in the values.
-        This test covers a UI issue where the totals were not updated when the price was changed,
-        then the product and finally the price again.
-        The issue was only occuring between the change of value and the next save.
-        That's why the test is using the onchange method directly instead of using a Form.
-        """
+        """Test the totals when an onchange is executed with "price_unit" before "product_id"."""
         invoice = self.init_invoice("out_invoice", products=self.product_a)
         self.assertEqual(invoice.tax_totals["base_amount"], 1000.0)
         self.assertEqual(invoice.tax_totals["total_amount"], 1150.0)
+        # Covers a UI issue where the totals were not updated when the price was changed, then
+        # the product and finally the price again. It only occurred between the change of value
+        # and the next save, hence calling onchange directly instead of using a Form.
         # The onchange is executed directly to simulate the following flow:
         # 1) unit price is changed to any value
         # 2) product is changed to "Product B"

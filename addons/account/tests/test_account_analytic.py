@@ -200,8 +200,7 @@ class TestAccountAnalyticAccount(AccountTestInvoicingCommon, AnalyticCommon):
         )
 
     def test_analytic_lines_rounding(self):
-        """Ensures analytic lines rounding errors are spread across all lines, in such a way that summing them gives the right amount.
-        For example, when distributing 100% of the the price, the sum of analytic lines should be exactly equal to the price."""
+        """Ensures analytic lines rounding errors are spread across all lines, so that summing them gives the right amount"""
 
         # in this scenario,
         # 94% of 182.25 = 171.315 rounded to 171.32
@@ -388,7 +387,7 @@ class TestAccountAnalyticAccount(AccountTestInvoicingCommon, AnalyticCommon):
             {str(self.analytic_account_4.id): 100},
         )
 
-        # It manual value is not erased in form view when saving
+        # The manual value is not erased in form view when saving
         with Form(invoice) as invoice_form:
             invoice_form.partner_id = self.partner_a
             with invoice_form.invoice_line_ids.edit(0) as line_form:
@@ -449,10 +448,7 @@ class TestAccountAnalyticAccount(AccountTestInvoicingCommon, AnalyticCommon):
         self.assertEqual(invoice.state, "posted")
 
     def test_mandatory_plan_validation_mass_posting(self):
-        """
-        In case of mass posting, we should still check for mandatory analytic plans. This may raise a RedirectWarning,
-        if more than one entry was selected for posting, or a ValidationError if only one entry was selected.
-        """
+        """Ensures mandatory analytic plans are still checked when posting in mass"""
         invoice1 = self.create_invoice(self.partner_a, self.product_a)
         invoice2 = self.create_invoice(self.partner_b, self.product_a)
         self.analytic_plan_2.write(
@@ -480,6 +476,7 @@ class TestAccountAnalyticAccount(AccountTestInvoicingCommon, AnalyticCommon):
             )
             .create({"force_post": True})
         )
+        # A single entry selected raises a ValidationError, several raise a RedirectWarning
         for invoices in [invoice1, invoice1 | invoice2]:
             with self.subTest(invoices=invoices):
                 with self.assertRaises(Exception):
@@ -827,7 +824,7 @@ class TestAccountAnalyticAccount(AccountTestInvoicingCommon, AnalyticCommon):
         )
         entry.action_post()
 
-        # Analytic lines are created when posting the invoice
+        # Analytic lines are created when posting the entry
         analytic_line = get_analytic_lines()
         self.assertRecordValues(
             analytic_line,
@@ -865,9 +862,7 @@ class TestAccountAnalyticAccount(AccountTestInvoicingCommon, AnalyticCommon):
         )
 
     def test_tax_line_sync_with_analytic(self):
-        """
-        Test that the line syncs, especially the tax line, keep the analytic distribution when saving the move
-        """
+        """Ensures the synced lines, especially the tax line, keep the analytic distribution when saving the move"""
         sale_tax = self.company_data["default_tax_sale"]
         account_with_tax = self.company_data["default_account_revenue"].copy(
             {"tax_ids": [Command.set(sale_tax.ids)]}
@@ -1384,11 +1379,8 @@ class TestAccountAnalyticAccount(AccountTestInvoicingCommon, AnalyticCommon):
                 self.assertEqual(invoice_line.analytic_distribution, expect)
 
     def test_move_with_analytic_lines(self):
-        """
-        Ensure that, if analytic lines are created when a move is in draft state (as happens when importing a move
-        with analytics), the analytic lines are unlinked. AMLs should still have the correct analytic distribution.
-        """
-        # Create a move with commands to create analytic lines
+        """Ensures analytic lines created on a draft move are unlinked while the AMLs keep the distribution"""
+        # Create a move with commands to create analytic lines, as happens when importing a move with analytics
         journal_entry = self.env["account.move"].create(
             {
                 "move_type": "entry",
@@ -1489,11 +1481,9 @@ class TestAccountAnalyticAccount(AccountTestInvoicingCommon, AnalyticCommon):
         self.assertTrue(self.get_analytic_lines(journal_entry))
 
     def test_analytic_lines_on_post(self):
-        """
-        In some cases (e.g. when there is a purchase lock, the journal has autocheck_on_post=False),
-        when the move state is changed to post, write is first triggered for dependencies while the move
-        state is still 'draft'. In these cases, the analytic lines created should not be deleted.
-        """
+        """Ensures analytic lines are kept when posting a move whose dependencies are written while still draft"""
+        # With a purchase lock date, changing the state to posted first triggers a write for
+        # dependencies while the move state is still 'draft'; the analytic lines created must survive it.
         in_invoice = self.env["account.move"].create(
             [
                 {
@@ -1520,7 +1510,7 @@ class TestAccountAnalyticAccount(AccountTestInvoicingCommon, AnalyticCommon):
         self.assertTrue(self.get_analytic_lines(in_invoice))
 
     def test_multicurrency_different_rounding_analytic_line(self):
-        """If using a foreign currency, the rounding of the analytic_line amount should the one from the company currency"""
+        """If using a foreign currency, the rounding of the analytic_line amount should be the one from the company currency"""
         foreign_currency = self.env["res.currency"].create(
             {
                 "name": "Great Currency",
