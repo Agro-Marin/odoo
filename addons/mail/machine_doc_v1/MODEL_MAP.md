@@ -1,0 +1,338 @@
+# Mail Module Model Map
+
+Every Python model defined or extended by the `mail` module (`addons/odoo/addons/mail`),
+grouped by concern, with `_name`/`_inherit`, model kind, key fields and methods.
+
+> **See also**: `ARCHITECTURE.md` (module identity, request flow), `CONVENTIONS.md`
+> (the `mail.thread` mixin contract, `message_post`, tracking, gateway), `ROUTE_MAP.md`
+> (HTTP/RPC endpoints), `STATE_MANAGEMENT.md` (the JS-side `Store`/`Record` mirror of
+> these models).
+
+Kind legend: **[M]** `models.Model` · **[A]** `models.AbstractModel` (mixin/framework) ·
+**[T]** `models.TransientModel` (wizard). Paths are relative to `models/` unless noted.
+
+## The mixin architecture (why this module is different)
+
+`mail` is mostly **abstract mixins injected into other models**. A business model becomes
+"mail-enabled" by adding `mail.thread` (+ optionally `mail.activity.mixin`) to its
+`_inherit` list — it then gets the chatter, followers, tracking, and email gateway for
+free. The heavy public API therefore lives on **abstract** models. The `base` model
+(`base.py`, `_inherit = "base"`) also carries mail helpers so that **every** Odoo model
+has them (suggested-recipients, partner resolution, low-level tracking).
+
+## 1. Thread / messaging core
+
+### Mixins (injected into business models)
+
+| File | `_name` / `_inherit` | Kind | Role |
+|------|----------------------|------|------|
+| `base.py` | inh `base` | A | Injects mail helpers into **every** model (suggested recipients, partner resolution, `_mail_track`) |
+| `mail_thread.py` | `mail.thread` | A | Master messaging / gateway / notification / tracking mixin |
+| `mail_thread_blacklist.py` | `mail.thread.blacklist` (inh `mail.thread`) | A | Email blacklist + bounce management |
+| `mail_thread_cc.py` | `mail.thread.cc` (inh `mail.thread`) | A | Email CC (`email_cc`) tracking |
+| `mail_thread_main_attachment.py` | `mail.thread.main.attachment` (inh `mail.thread`) | A | "Main attachment" management |
+
+### Data models
+
+| File | `_name` / `_inherit` | Kind | Role |
+|------|----------------------|------|------|
+| `mail_message.py` | `mail.message` (inh `bus.listener.mixin`) | M | Core message record |
+| `mail_mail.py` | `mail.mail` (**`_inherits`** `mail.message` via `mail_message_id`) | M | Outgoing email record + send queue |
+| `mail_followers.py` | `mail.followers` | M | Document followers (per res_model/res_id) |
+| `mail_notification.py` | `mail.notification` | M | Per-recipient delivery status |
+| `mail_message_subtype.py` | `mail.message.subtype` | M | Subtypes (subscription granularity) |
+| `mail_message_reaction.py` | `mail.message.reaction` | M | Emoji reactions |
+| `mail_message_translation.py` | `mail.message.translation` | M | On-demand message translations |
+| `mail_message_schedule.py` | `mail.message.schedule` | M | Deferred posting of a pending message |
+| `mail_scheduled_message.py` | `mail.scheduled.message` | M | User-scheduled (future) messages |
+| `mail_link_preview.py` | `mail.link.preview` (inh `bus.listener.mixin`) | M | URL preview data store |
+| `mail_message_link_preview.py` | `mail.message.link.preview` (inh `bus.listener.mixin`) | M | M2M join: message ↔ link preview |
+| `mail_canned_response.py` | `mail.canned.response` | M | `::shortcut` canned responses |
+
+## 2. Render / template / composer / tracking
+
+| File | `_name` / `_inherit` | Kind | Role |
+|------|----------------------|------|------|
+| `mail_render_mixin.py` | `mail.render.mixin` | A | QWeb + inline-template rendering engine |
+| `mail_composer_mixin.py` | `mail.composer.mixin` (inh `mail.render.mixin`) | A | Subject/body dynamic-template compute |
+| `mail_template.py` | `mail.template` (inh `mail.render.mixin`, `template.reset.mixin`) | M | Email templates |
+| `template_reset_mixin.py` | `template.reset.mixin` | A | Reset a template to its module source |
+| `mail_tracking_value.py` | `mail.tracking.value` | M | Old/new value rows for field tracking |
+| `mail_tracking_duration_mixin.py` | `mail.tracking.duration.mixin` (inh `mail.thread`) | A | Time-in-stage + "rotting" computation |
+
+## 3. Activity
+
+| File | `_name` | Kind | Role |
+|------|---------|------|------|
+| `mail_activity.py` | `mail.activity` | M | Activity / to-do record |
+| `mail_activity_mixin.py` | `mail.activity.mixin` | A | Adds activities to a model |
+| `mail_activity_type.py` | `mail.activity.type` | M | Activity type configuration |
+| `mail_activity_plan.py` | `mail.activity.plan` | M | Activity plan (bundle of activities) |
+| `mail_activity_plan_template.py` | `mail.activity.plan.template` | M | Plan line template |
+
+## 4. Alias / mail gateway
+
+| File | `_name` / `_inherit` | Kind | Role |
+|------|----------------------|------|------|
+| `mail_alias.py` | `mail.alias` | M | Incoming-email alias (routing target) |
+| `mail_alias_domain.py` | `mail.alias.domain` | M | Catchall / bounce / default-from domain |
+| `mail_alias_mixin.py` | `mail.alias.mixin` (inh `mail.alias.mixin.optional`; `_inherits` `mail.alias` via `alias_id`) | A | Required-alias mixin |
+| `mail_alias_mixin_optional.py` | `mail.alias.mixin.optional` | A | Optional-alias mixin |
+| `mail_gateway_allowed.py` | `mail.gateway.allowed` | M | Allowlist bypassing loop detection |
+| `fetchmail.py` | `fetchmail.server` | M | Incoming POP/IMAP server config |
+
+## 5. Blacklist / presence / push / misc
+
+| File | `_name` / `_inherit` | Kind | Role |
+|------|----------------------|------|------|
+| `mail_blacklist.py` | `mail.blacklist` (inh `mail.thread`) | M | Blacklisted email addresses |
+| `mail_presence.py` | `mail.presence` (inh `bus.listener.mixin`) | M | User/guest online presence |
+| `mail_push.py` | `mail.push` | M | Queued web-push notification |
+| `mail_push_device.py` | `mail.push.device` | M | Registered push device / endpoint |
+| `mail_ice_server.py` | `mail.ice.server` | M | WebRTC ICE / STUN / TURN config |
+| `update.py` | `publisher_warranty.contract` | A | Publisher-warranty / update ping |
+
+## 6. Discuss (`models/discuss/`)
+
+| File | `_name` / `_inherit` | Kind | Role |
+|------|----------------------|------|------|
+| `discuss_channel.py` | `discuss.channel` (inh `mail.thread`, `bus.listener.mixin`) | M | Chat / discussion channel |
+| `discuss_channel_member.py` | `discuss.channel.member` (inh `bus.listener.mixin`) | M | Membership + read/seen state |
+| `discuss_channel_rtc_session.py` | `discuss.channel.rtc.session` (inh `bus.listener.mixin`) | M | Active RTC (call) session |
+| `discuss_call_history.py` | `discuss.call.history` | M | Call history log |
+| `discuss_gif_favorite.py` | `discuss.gif.favorite` | M | Favorite Tenor GIFs |
+| `discuss_voice_metadata.py` | `discuss.voice.metadata` | M | Voice-message attachment metadata |
+| `mail_guest.py` | `mail.guest` (inh `avatar.mixin`, `bus.listener.mixin`) | M | Portal / anonymous guest identity |
+| `bus_listener_mixin.py` | inh `bus.listener.mixin` | A | Bus-notify helper (mail extensions) |
+| `mail_message.py` | inh `mail.message` | M | Discuss extensions to messages |
+| `ir_attachment.py`, `ir_websocket.py`, `res_groups.py`, `res_partner.py`, `res_users.py` | inh respective | M/A | Discuss extensions of framework/user models |
+
+## 7. Framework `ir.*` extensions (`_inherit`)
+
+All extend an existing framework model; most add mail behavior.
+
+- `ir_actions_server.py` → `ir.actions.server` (**+`mail.thread`, `mail.activity.mixin`**) [M]
+- `ir_cron.py` → `ir.cron` (**+`mail.thread`, `mail.activity.mixin`**) [A]
+- `ir_action_act_window.py` → `ir.actions.act_window.view` [M]
+- `ir_attachment.py` [M] · `ir_http.py` [A] · `ir_qweb.py` [A]
+- `ir_websocket.py` [A] · `ir_ui_view.py` · `ir_ui_menu.py` · `ir_model.py`
+- `ir_model_fields.py` · `ir_config_parameter.py` · `ir_mail_server.py`
+
+> **`ir_binary.py` is an empty placeholder** (both `models/ir_binary.py` and
+> `models/discuss/ir_binary.py` are 0 bytes and not imported in `__init__.py`) — there is no
+> `ir.binary` extension in `mail`. The files count toward the raw file total but define no model.
+
+## 8. `res.*` user / partner / company
+
+| File | `_name` / `_inherit` | Kind | Role |
+|------|----------------------|------|------|
+| `res_partner.py` | `res.partner` (**+`mail.activity.mixin`, `mail.thread.blacklist`**) | M | Partner mail behavior |
+| `res_users.py` | `res.users` | M | User notification prefs, presence |
+| `res_company.py` | `res.company` | M | Company alias/catchall config |
+| `res_config_settings.py` | `res.config.settings` | T | Discuss/mail settings |
+| `res_role.py` | `res.role` (new `_name`) | M | Roles (@-mention groups) |
+| `res_users_settings.py` | `res.users.settings` | M | Per-user discuss settings |
+| `res_users_settings_volumes.py` | `res.users.settings.volumes` (new `_name`) | M | Per-partner RTC volume prefs |
+
+## 9. Wizards (`wizard/`)
+
+| File | `_name` / `_inherit` | Kind | Role |
+|------|----------------------|------|------|
+| `mail_compose_message.py` | `mail.compose.message` (inh `mail.composer.mixin`) | T | Email composition wizard |
+| `mail_activity_schedule.py` | `mail.activity.schedule` | T | Schedule activities / run a plan |
+| `mail_activity_schedule_summary.py` | `mail.activity.schedule.line` | T | Plan schedule summary line |
+| `mail_blacklist_remove.py` | `mail.blacklist.remove` | T | Remove-from-blacklist wizard |
+| `mail_followers_edit.py` | `mail.followers.edit` | T | Add / edit followers |
+| `mail_template_preview.py` | `mail.template.preview` | T | Template preview |
+| `mail_template_reset.py` | `mail.template.reset` | T | Reset template to source |
+| `base_module_uninstall.py` | inh `base.module.uninstall` | T | Uninstall hook |
+| `base_partner_merge_automatic_wizard.py` | inh `base.partner.merge.automatic.wizard` | T | Partner-merge hook |
+
+---
+
+## Core mixin API — `mail.thread` (`mail_thread.py`)
+
+The canonical messaging surface. Grouped by concern.
+
+**Posting / logging** (the primary public entry points):
+- `message_post(**kwargs)` — post a message on the record (central entry point)
+- `message_post_with_source(source_ref, ...)` — post rendering a view/template source
+- `message_mail_with_source(source_ref, ...)` — send email (no persisted thread message)
+- `message_notify(...)` — send a notification not stored as a thread message
+- `_message_log(...)` / `_message_log_batch(...)` / `_message_log_with_view(...)` — internal-note logging
+- `_message_create(values_list)` — low-level create bypassing the post pipeline
+
+**Subscription (followers)**:
+- `message_subscribe(partner_ids=None, subtype_ids=None)` / `_message_subscribe(...)`
+- `message_unsubscribe(partner_ids=None)`
+- `_message_auto_subscribe(updated_values, ...)`, `_message_auto_subscribe_followers(...)`, `_message_auto_subscribe_notify(...)`
+- `message_get_followers(...)`, `_message_followers_to_store(...)`
+
+**Notification dispatch**:
+- `_notify_thread(message, msg_vals=False, **kwargs)` — dispatch entry
+- `_notify_thread_by_inbox(...)`, `_notify_thread_by_email(...)`, `_notify_thread_by_web_push(...)`
+- `_notify_get_recipients(...)`, `_notify_get_recipients_groups(...)`, `_notify_get_recipients_classify(...)`
+- `_notify_by_email_prepare_rendering_context(...)`, `_notify_by_email_get_base_mail_values(...)`, `_notify_by_email_get_final_mail_values(...)`
+
+**Incoming gateway (email → record)**:
+- `message_process(...)`, `message_route(...)`, `_message_route_process(...)`, `_routing_check_route(...)`
+- `message_new(msg_dict, custom_values=None)` / `message_update(msg_dict, update_vals=None)` — create/update hooks
+- `message_parse(message, ...)`, `_message_parse_extract_payload(...)`, `_message_parse_extract_bounce(...)`
+- `_routing_handle_bounce(...)`, `_routing_create_bounce_email(...)`, `_detect_is_bounce(...)`, `_detect_loop_sender(...)`, `_detect_loop_headers(...)`
+
+**Field tracking** (see CONVENTIONS.md gotcha on tracking):
+- `_track_prepare(fields_iter)`, `_track_finalize()`, `_track_discard()`, `_track_filter_for_display(...)`
+- `_track_subtype(initial_values)`, `_track_template(changes)`, `_track_get_fields()`, `_track_set_author(...)`, `_track_set_log_message(...)`
+- `_message_track(fields_iter, initial_values_dict)`, `_message_track_post_template(changes)`
+
+**Compute helpers**: `_message_compute_author(...)`, `_message_compute_real_author(...)`, `_message_compute_parent_id(...)`, `_message_compute_subject()`.
+**After-hooks**: `_message_post_after_hook(message, msg_values)`, `_message_mail_after_hook(mails)`.
+
+> **On `base.py`, not `mail_thread.py`** — suggested recipients
+> (`_message_add_suggested_recipients`, `_message_get_suggested_recipients_batch`,
+> `_message_get_suggested_recipients`), partner resolution (`_mail_get_partners`,
+> `_mail_get_partner_fields`, `_mail_get_customer`, `_mail_get_companies`), reply-to
+> (`_notify_get_reply_to`), and low-level tracking (`_mail_track`) live on the `base` inherit
+> so **every** model has them. `mail.thread.cc` overrides `_message_add_suggested_recipients`.
+> **Note:** the gateway partner/user finders `_partner_find_from_emails`,
+> `_mail_find_partner_from_emails`, and `_mail_find_user_for_gateway` are on **`mail_thread.py`**,
+> not `base.py` (they are gateway-specific, not needed on every model).
+
+**`mail.thread` fields injected into the document**: `message_is_follower`,
+`message_follower_ids` (O2m→`mail.followers`), `message_partner_ids` (M2m→`res.partner`),
+`message_ids` (O2m→`mail.message`), `has_message`, `message_needaction`,
+`message_needaction_counter`, `message_has_error`, `message_has_error_counter`,
+`message_attachment_count`.
+
+## Other mixin APIs (condensed)
+
+**`mail.thread.blacklist`** — `_compute_is_blacklisted`/`_search_is_blacklisted`,
+`_message_receive_bounce`, `_message_reset_bounce`, `mail_action_blacklist_remove`,
+`_detect_loop_sender_domain`. Fields: `email_normalized`, `is_blacklisted`, `message_bounce`.
+
+**`mail.thread.cc`** — `_mail_cc_sanitized_raw_dict(cc_string)`, `message_new`,
+`message_update`, `_message_add_suggested_recipients`. Field: `email_cc`.
+
+**`mail.thread.main.attachment`** — `_message_post_after_hook`,
+`_message_set_main_attachment_id(...)`, `_thread_to_store(...)`. Field: `message_main_attachment_id`.
+
+**`mail.activity.mixin`** — `activity_schedule(...)`, `_activity_schedule_with_view(...)`,
+`activity_reschedule(...)`, `activity_feedback(...)`, `activity_unlink(...)`,
+`activity_search(...)`, `activity_send_mail(template_id)`,
+`action_reschedule_my_next_today/tomorrow/nextweek`. Fields: `activity_ids`,
+`activity_state`, `activity_user_id`, `activity_type_id`, `activity_date_deadline`,
+`my_activity_date_deadline`, `activity_summary`, `activity_exception_decoration`.
+
+**`mail.render.mixin`** — `_render_template(...)`, `_render_template_qweb(...)`,
+`_render_template_qweb_view(...)`, `_render_template_inline_template(...)`,
+`_render_field(...)`, `_render_lang(...)`, `_render_eval_context()`,
+`_replace_local_links(...)`, `_process_scheduled_date(...)`, `_has_unsafe_expression(...)`,
+`_check_access_right_dynamic_template()`. (See CONVENTIONS.md on QWeb-vs-inline templating.)
+
+**`mail.composer.mixin`** — `_compute_subject`, `_compute_body`,
+`_compute_body_has_template_value`, `_compute_lang`, `_compute_can_edit_body`, `_render_field`.
+
+**`mail.tracking.duration.mixin`** — `_compute_duration_tracking`,
+`_compute_rotting`/`_search_is_rotting`, `_get_duration_from_tracking(trackings)`,
+`_get_rotting_depends_fields()`, `_get_rotting_domain()`, `_is_rotting_feature_enabled()`.
+
+**`template.reset.mixin`** — `reset_template()`, `_override_translation_term(...)`, `_load_records_write`.
+
+## Central data models — key fields + methods
+
+### `mail.message` (`mail_message.py`)
+Fields: `subject`, `date`, `body`, `preview`, `message_type`, `subtype_id`, `model`+`res_id`
+(document ref), `record_name`, `record_alias_domain_id`, `mail_activity_type_id`,
+`parent_id`/`child_ids`, `author_id`, `author_guest_id`, `email_from`, `partner_ids`
+(recipients), `notified_partner_ids`, `notification_ids` (O2m→`mail.notification`),
+`attachment_ids`, `tracking_value_ids`, `starred_partner_ids`, `reaction_ids`,
+`message_link_preview_ids`, `needaction`, `has_error`, `is_internal`, `pinned_at`,
+`message_id`, `reply_to`, `email_layout_xmlid`, `mail_ids` (O2m→`mail.mail`).
+Methods: `create`, `write`, `unlink`, `_check_access`, `_get_with_access`,
+`mark_all_as_read`, `set_message_done`, `toggle_message_starred`, `_message_fetch(...)`,
+`_message_reaction(...)`, `_to_store(...)`, `_filter_empty()`, `_get_message_id(values)`.
+
+### `mail.mail` (`mail_mail.py`, `_inherits = {"mail.message": "mail_message_id"}`)
+
+> Delegation inheritance, **not** `_inherit`: `mail.mail` is a separate table with a
+> required FK `mail_message_id` to `mail.message`, transparently delegating message-field
+> reads/writes. Deleting a `mail.mail` does not delete its `mail.message` unless configured.
+Fields: `mail_message_id`, `body_html`, `body_content`, `references`, `headers`, `state`
+(outgoing/sent/exception/cancel), `failure_type`, `failure_reason`, `email_to`, `email_cc`,
+`recipient_ids`, `is_notification`, `auto_delete`, `scheduled_date`, `fetchmail_server_id`,
+`unrestricted_attachment_ids`.
+Methods: `create`, `process_email_queue(...)`, `send(auto_commit, raise_exception, ...)`,
+`_send(...)`, `send_after_commit()`, `mark_outgoing()`, `cancel()`, `action_retry()`,
+`_prepare_outgoing_list(...)`, `_split_by_mail_configuration()`.
+
+### `mail.followers` (`mail_followers.py`)
+Fields: `res_model`, `res_id`, `partner_id`, `subtype_ids`, `name`/`email`/`is_active` (related).
+Methods: `_insert_followers(...)`, `_add_followers(...)`, `_add_default_followers(...)`,
+`_get_recipient_data(...)`, `_get_subscription_data(...)`, `_invalidate_documents(...)`.
+
+### `mail.notification` (`mail_notification.py`, `_rec_name="res_partner_id"`)
+Fields: `author_id`, `mail_message_id` (req), `mail_mail_id`, `res_partner_id`,
+`mail_email_address`, `notification_type` (inbox/email/sms/…), `notification_status`
+(ready/sent/bounce/exception/canceled), `is_read`, `read_date`, `failure_type`, `failure_reason`.
+Methods: `_gc_notifications(max_age_days=180)`, `format_failure_reason()`,
+`_filtered_for_web_client()`, `_to_store_defaults(...)`.
+
+### `mail.activity` (`mail_activity.py`, `_rec_name="summary"`)
+Fields: `res_model_id`/`res_model`/`res_id`/`res_name`, `activity_type_id`, `activity_category`,
+`summary`, `note`, `date_deadline`, `date_done`, `state` (overdue/today/planned/done),
+`user_id`, `automated`, `attachment_ids`, `mail_template_ids`, `chaining_type`,
+`recommended_activity_type_id`, `active`.
+Methods: `action_feedback(...)`, `action_done(...)`, `_action_done(...)`,
+`action_feedback_schedule_next(...)`, `action_cancel()`, `action_notify()`,
+`get_activity_data(...)`, `activity_format()`, `_gc_delete_old_overdue_activities()`.
+
+### `mail.template` (`mail_template.py`)
+Fields: `name`, `model_id`/`model`, `subject`, `email_from`, `use_default_to`, `email_to`,
+`partner_to`, `email_cc`, `reply_to`, `body_html`, `attachment_ids`, `report_template_ids`,
+`email_layout_xmlid`, `mail_server_id`, `scheduled_date`, `auto_delete`, `ref_ir_act_window`.
+Methods: `send_mail(res_id, ...)`, `send_mail_batch(...)`, `_generate_template(res_ids, fields)`,
+`_generate_template_recipients(...)`, `_generate_template_attachments(...)`, `create_action()`,
+`unlink_action()`, `_parse_partner_to(partner_to)`.
+
+### `mail.alias` (`mail_alias.py`, `_rec_name="alias_name"`)
+Fields: `alias_name`, `alias_full_name`, `alias_domain_id`/`alias_domain`, `alias_model_id`,
+`alias_defaults`, `alias_force_thread_id`, `alias_parent_model_id`, `alias_parent_thread_id`,
+`alias_contact` (everyone/partners/followers), `alias_incoming_local`, `alias_bounced_content`,
+`alias_status`.
+Methods: `_check_unique(...)`, `_sanitize_alias_name(name, ...)`, `open_document()`,
+`_alias_bounce_incoming_email(...)`, `_get_alias_bounced_body(...)`, `_get_alias_contact_description()`.
+
+### `mail.tracking.value` (`mail_tracking_value.py`, `_rec_name="field_id"`)
+Fields: `field_id` (→`ir.model.fields`), `field_info` (Json),
+`old_value_integer/float/char/text/datetime`, `new_value_*`, `currency_id`, `mail_message_id`.
+Methods: `_create_tracking_values(...)`, `_create_tracking_values_property(...)`,
+`_tracking_value_format()`, `_format_display_value(...)`, `_filter_has_field_access(env)`.
+
+### `mail.message.subtype` (`mail_message_subtype.py`)
+Fields: `name`, `description`, `internal`, `parent_id`, `relation_field`, `res_model`,
+`default`, `sequence`, `hidden`, `track_recipients`.
+Methods: `_get_auto_subscription_subtypes(model_name)`, `default_subtypes(model_name)`,
+`_default_subtypes(model_name)`.
+
+## Model Index (file → model → role)
+
+| File | Model | Role |
+|------|-------|------|
+| `base.py` | base | Mail helpers on every model |
+| `mail_thread.py` | mail.thread | Master messaging mixin |
+| `mail_message.py` | mail.message | Message record |
+| `mail_mail.py` | mail.mail | Outgoing email + queue |
+| `mail_followers.py` | mail.followers | Followers |
+| `mail_notification.py` | mail.notification | Per-recipient status |
+| `mail_activity.py` | mail.activity | Activities |
+| `mail_activity_mixin.py` | mail.activity.mixin | Activity mixin |
+| `mail_template.py` | mail.template | Email templates |
+| `mail_render_mixin.py` | mail.render.mixin | Template rendering |
+| `mail_alias.py` | mail.alias | Incoming alias |
+| `mail_tracking_value.py` | mail.tracking.value | Field tracking rows |
+| `discuss/discuss_channel.py` | discuss.channel | Chat channel |
+| `discuss/discuss_channel_member.py` | discuss.channel.member | Membership + read state |
+| `discuss/discuss_channel_rtc_session.py` | discuss.channel.rtc.session | Call session |
+| `discuss/mail_guest.py` | mail.guest | Anonymous guest identity |
+| `mail_push.py` / `mail_push_device.py` | mail.push / mail.push.device | Web-push queue + devices |
+| `wizard/mail_compose_message.py` | mail.compose.message | Composer wizard |
