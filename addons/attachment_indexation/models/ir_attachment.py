@@ -1,10 +1,11 @@
-import io
 import importlib.util
+import io
 import logging
 import re
 import warnings
 import xml.dom.minidom
 import zipfile
+
 from lxml import etree
 
 from odoo import api, models
@@ -22,7 +23,7 @@ FTYPES = ['docx', 'pptx', 'xlsx', 'opendoc', 'pdf']
 index_content_cache = LRU(1)
 
 def textToString(element):
-    buff = u""
+    buff = ""
     for node in element.childNodes:
         if node.nodeType == xml.dom.Node.TEXT_NODE:
             buff += node.nodeValue
@@ -32,10 +33,10 @@ def textToString(element):
 
 
 def _clean_text_content(buf):
-    """Clean PDF content: remove NULs, normalize whitespace and line breaks."""
+    """Clean extracted document text: drop NULs and CRs, tabs to spaces, collapse whitespace."""
     if not buf:
         return buf
-    # Remove NULs, normalize CRLF/CR to LF, replace tabs with spaces
+    # Drop NULs and CRs (so CRLF becomes LF), turn tabs into spaces
     buf = buf.translate({
         ord('\x00'): None,
         ord('\r'): None,
@@ -68,34 +69,34 @@ class IrAttachment(models.Model):
 
     def _index_docx(self, bin_data):
         '''Index Microsoft .docx documents'''
-        buf = u""
+        buf = ""
         f = io.BytesIO(bin_data)
         if zipfile.is_zipfile(f):
             try:
                 zf = zipfile.ZipFile(f)
-                content = xml.dom.minidom.parseString(zf.read("word/document.xml"))
+                content = xml.dom.minidom.parseString(zf.read("word/document.xml"))  # noqa: S318
                 for val in ["w:p", "w:h", "text:list"]:
                     for element in content.getElementsByTagName(val):
                         buf += textToString(element) + "\n"
-            except Exception:
+            except Exception:  # noqa: S110
                 pass
         return buf
 
     def _index_pptx(self, bin_data):
         '''Index Microsoft .pptx documents'''
 
-        buf = u""
+        buf = ""
         f = io.BytesIO(bin_data)
         if zipfile.is_zipfile(f):
             try:
                 zf = zipfile.ZipFile(f)
                 zf_filelist = [x for x in zf.namelist() if x.startswith('ppt/slides/slide')]
                 for i in range(1, len(zf_filelist) + 1):
-                    content = xml.dom.minidom.parseString(zf.read('ppt/slides/slide%s.xml' % i))
+                    content = xml.dom.minidom.parseString(zf.read('ppt/slides/slide%s.xml' % i))  # noqa: S318
                     for val in ["a:t"]:
                         for element in content.getElementsByTagName(val):
                             buf += textToString(element) + "\n"
-            except Exception:
+            except Exception:  # noqa: S110
                 pass
         return buf
 
@@ -103,7 +104,7 @@ class IrAttachment(models.Model):
         '''Index Microsoft .xlsx documents'''
 
         try:
-            from openpyxl import load_workbook  # noqa: PLC0415
+            from openpyxl import load_workbook
             logging.getLogger("openpyxl").setLevel(logging.CRITICAL)
         except ImportError:
             _logger.info('openpyxl is not installed.')
@@ -129,7 +130,7 @@ class IrAttachment(models.Model):
                     sheet_data = '\n'.join(sheet_rows)
                     if sheet_data:
                         all_sheets.append(sheet_data)
-        except Exception:  # noqa: BLE001
+        except Exception:  # noqa: S110
             pass
 
         all_sheets_str = '\n\n'.join(all_sheets)
@@ -205,7 +206,7 @@ class IrAttachment(models.Model):
                     buf.extend(extract_spreadsheet(content))
                 else:
                     buf.extend(extract_text(content))
-            except Exception:
+            except Exception:  # noqa: S110
                 pass
 
         buf_str = '\n\n'.join(buf)
@@ -218,10 +219,13 @@ class IrAttachment(models.Model):
         try:
             if not importlib.util.find_spec('pdfminer.high_level'):
                 return ""
-            from pdfminer.pdfinterp import PDFResourceManager, PDFPageInterpreter  # noqa: PLC0415
-            from pdfminer.converter import TextConverter  # noqa: PLC0415
-            from pdfminer.layout import LAParams  # noqa: PLC0415
-            from pdfminer.pdfpage import PDFPage  # noqa: PLC0415
+            from pdfminer.converter import TextConverter
+            from pdfminer.layout import LAParams
+            from pdfminer.pdfinterp import (
+                PDFPageInterpreter,
+                PDFResourceManager,
+            )
+            from pdfminer.pdfpage import PDFPage
             logging.getLogger("pdfminer").setLevel(logging.CRITICAL)
         except ImportError:
             # warned already during init of module
@@ -247,7 +251,7 @@ class IrAttachment(models.Model):
 
                 buf = content.getvalue()
             return _clean_text_content(buf)
-        except Exception:  # noqa: BLE001
+        except Exception:
             return ""
 
     @api.model
@@ -263,7 +267,7 @@ class IrAttachment(models.Model):
                 res = buf.replace('\x00', '')
                 break
 
-        res = res or super(IrAttachment, self)._index(bin_data, mimetype, checksum=checksum)
+        res = res or super()._index(bin_data, mimetype, checksum=checksum)
         if checksum:
             index_content_cache[checksum] = res
         return res
