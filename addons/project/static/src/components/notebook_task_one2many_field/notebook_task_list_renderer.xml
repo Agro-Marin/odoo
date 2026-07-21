@@ -8,7 +8,13 @@
                 </t>
             </t>
         </xpath>
+    </t>
 
+    <!-- The "show/hide closed tasks" toggle sits next to the create controls,
+         which web.ListRenderer.CreateControls owns — the `controls` loop used
+         to live in web.ListRenderer.Rows, so extending Rows for it no longer
+         resolves and took the whole list down with it. -->
+    <t t-name="project.NotebookTaskListRenderer.CreateControls" t-inherit="web.ListRenderer.CreateControls" t-inherit-mode="primary">
         <xpath expr="//t[@t-foreach='controls']" position="after">
             <a t-if="ShowX2MRecords" role="button" class="ml16 o_toggle_closed_task_button" href="#" t-on-click="() => this.toggleHideClosed()">
                 <t t-esc="toggleListHideLabel"/>

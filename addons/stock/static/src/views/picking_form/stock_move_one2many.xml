@@ -1,10 +1,15 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <templates xml:space="preserve">
-    <!-- Rows template of MovesListRenderer (stock_move_one2many.js): adds the
-         "Move a Pack" row action to the picking's moves list. -->
-    <t t-name="stock.MovesListRendererRows" t-inherit="web.ListRenderer.Rows" t-inherit-mode="primary">
-        <td class="o_field_x2many_list_row_add" position="inside">
+    <!-- Create-controls template of MovesListRenderer (stock_move_one2many.js):
+         adds the "Move a Pack" action alongside "Add a line".
+
+         Inherits web.ListRenderer.CreateControls, which owns the
+         `o_field_x2many_list_row_add` cell. That cell used to live in
+         web.ListRenderer.Rows; once it was extracted, inheriting Rows here
+         could no longer locate it and the whole moves list failed to render. -->
+    <t t-name="stock.MovesListRendererCreateControls" t-inherit="web.ListRenderer.CreateControls" t-inherit-mode="primary">
+        <xpath expr="//t[@t-foreach='controls']" position="after">
             <a t-if="canAddPackage" href="#" class="px-3" tabindex="0" t-on-click.stop.prevent="() => this.onClickMovePackage()">Move a Pack</a>
-        </td>
+        </xpath>
     </t>
 </templates>

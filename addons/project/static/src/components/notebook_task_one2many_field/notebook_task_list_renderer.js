@@ -8,6 +8,7 @@ import { TaskListRenderer } from "../task_list_renderer.js";
 
 export class NotebookTaskListRenderer extends TaskListRenderer {
     static rowsTemplate = "project.NotebookTaskListRenderer.Rows";
+    static createControlsTemplate = "project.NotebookTaskListRenderer.CreateControls";
     // Explicit stable key: deriving it from `constructor.name` (as this used
     // to) breaks under minification and silently forks the preference for
     // every subclass.
