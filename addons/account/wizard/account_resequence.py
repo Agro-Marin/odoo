@@ -41,7 +41,7 @@ class AccountResequenceWizard(models.TransientModel):
             return values
         active_move_ids = self.env["account.move"]
         if (
-            self.env.context["active_model"] == "account.move"
+            self.env.context.get("active_model") == "account.move"
             and "active_ids" in self.env.context
         ):
             active_move_ids = self.env["account.move"].browse(
@@ -73,9 +73,12 @@ class AccountResequenceWizard(models.TransientModel):
     @api.depends("first_name")
     def _compute_sequence_number_reset(self):
         for record in self:
-            record.sequence_number_reset = record.move_ids[
-                0
-            ]._deduce_sequence_number_reset(record.first_name)
+            if record.move_ids:
+                record.sequence_number_reset = record.move_ids[
+                    0
+                ]._deduce_sequence_number_reset(record.first_name)
+            else:
+                record.sequence_number_reset = False
 
     @api.depends("move_ids")
     def _compute_first_name(self):
