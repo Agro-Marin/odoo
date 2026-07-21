@@ -8,8 +8,7 @@ from odoo.addons.account.tests.common import AccountTestInvoicingCommon
 
 @tagged('post_install', '-at_install')
 class TestSEPAQRCode(AccountTestInvoicingCommon):
-    """ Tests the generation of SEPA QR-codes on invoices
-    """
+    """ Tests the generation of SEPA QR-codes on invoices. """
 
     @classmethod
     def setUpClass(cls):
@@ -41,9 +40,7 @@ class TestSEPAQRCode(AccountTestInvoicingCommon):
         })
 
     def test_sepa_qr_code_generation(self):
-        """ Check different cases of SEPA QR-code generation, when qr_method is
-        specified beforehand.
-        """
+        """ Check SEPA QR-code generation when qr_method is specified beforehand. """
         self.sepa_qr_invoice.qr_code_method = 'sct_qr'
 
         # Using a SEPA IBAN should work
@@ -61,9 +58,7 @@ class TestSEPAQRCode(AccountTestInvoicingCommon):
             self.sepa_qr_invoice._generate_qr_code()
 
     def test_sepa_qr_code_detection(self):
-        """ Checks SEPA QR-code auto-detection when no specific QR-method
-        is given to the invoice.
-        """
+        """ Check SEPA QR-code auto-detection when the invoice specifies no QR-method. """
         self.sepa_qr_invoice._generate_qr_code()
         self.assertEqual(self.sepa_qr_invoice.qr_code_method, 'sct_qr', "SEPA QR-code generator should have been chosen for this invoice.")
 
@@ -81,11 +76,8 @@ class TestSEPAQRCode(AccountTestInvoicingCommon):
         self.assertFalse(reverse_move.qr_code_method, "qr_code_method for credit note should be None")
 
     def test_get_qr_vals_communication(self):
-        """ The aim of this test is making sure that we only provide a structured
-            reference (or communication) in the qr code values if the communication
-            is well-structured. If the communication is not structured, we provide
-            it through the unstructured communication value.
-        """
+        """ A communication is placed in the structured field only when it is a valid
+        structured reference, and in the unstructured field otherwise. """
         result = self.acc_sepa_iban._get_qr_vals(
             qr_method='sct_qr',
             amount=100.0,
