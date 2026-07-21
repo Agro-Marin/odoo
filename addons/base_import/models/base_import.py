@@ -604,7 +604,7 @@ class Base_ImportImport(models.TransientModel):
         The following heuristic is used: If all preview values
 
         - Start with ``__export__``: return id + relational field types
-        - Can be cast into integer: return id + relational field types, integer, float and monetary
+        - Can be cast into integer: return integer, float and monetary (and boolean if values are only 0 and 1)
         - Can be cast into Boolean: return boolean
         - Can be cast into float: return float, monetary
         - Can be cast into date/datetime: return date / datetime
@@ -625,7 +625,7 @@ class Base_ImportImport(models.TransientModel):
             if all(v.startswith('__export__') for v in values):
                 return ['id', 'many2many', 'many2one', 'one2many']
 
-            # If all values can be cast to int type is either id, float or monetary
+            # If all values can be cast to int type is either integer, float or monetary
             # Exception: if we only have 1 and 0, it can also be a boolean
             if all(v.isdigit() for v in values if v):
                 field_type = ['integer', 'float', 'monetary']
@@ -887,7 +887,7 @@ class Base_ImportImport(models.TransientModel):
             # Any match failure, exit
             if not match:
                 return {}
-            # prep subfields for next iteration within match['name'][0]
+            # prep subfields for next iteration within match['field_path'][0]
             field_name = match['field_path'][0]
             subfields_tree = next(item['fields'] for item in subfields_tree if item['name'] == field_name)
             field_path.append(field_name)
@@ -895,11 +895,8 @@ class Base_ImportImport(models.TransientModel):
         return {'field_path': field_path}
 
     def _get_distance(self, a, b):
-        """ This method return an index that reflects the distance between the
-        two given string a and b.
-
-        This index is a score between 0 and 1 where ``0`` indicates an exact
-        match and ``1`` indicates completely different strings.
+        """ Return a score between 0 and 1 for the distance between strings
+        ``a`` and ``b`` (``0`` = exact match, ``1`` = completely different).
         """
         return 1 - difflib.SequenceMatcher(None, a, b).ratio()
 
@@ -1592,7 +1589,7 @@ class Base_ImportImport(models.TransientModel):
         import_fields = list(mapped_field_indexes.keys())
         import_options = self.env.context.get('import_options', {})
 
-        # recreate data and merge duplicates (applies only on text or char fields)
+        # recreate data and merge duplicates (applies to char, text, html and many2many fields)
         # Also handles multi-mapping on "field of relation fields".
         merged_data = []
         for record in input_file_data:
@@ -1716,10 +1713,8 @@ _PATTERN_BASELINE = [
     ('%Y', '%d', '%m'),
 ]
 DATE_FORMATS = []
-# take the baseline format and duplicate performing the following
-# substitution: long year -> short year, numerical month -> short
-# month, numerical month -> long month. Each substitution builds on
-# the previous two
+# take the baseline format and duplicate it substituting the long
+# year (%Y) with the short year (%y)
 for ps in _PATTERN_BASELINE:
     patterns = {ps}
     for s, t in [('%Y', '%y')]:
