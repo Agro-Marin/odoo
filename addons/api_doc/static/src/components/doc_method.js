@@ -37,10 +37,6 @@ export class DocMethod extends Component {
         return this.props.method;
     }
 
-    get parameters() {
-        return this.method.parameters.filter((a) => a !== "self");
-    }
-
     get doc() {
         return this.method.doc;
     }

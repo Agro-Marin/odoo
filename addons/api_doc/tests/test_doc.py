@@ -54,7 +54,7 @@ class TestDoc(HttpCaseWithUserDemo):
             scope='rpc', name='test', expiration_date=datetime.now() + timedelta(days=0.5))
         self._doc_index('doc-bearer', headers={"Authorization": f"Bearer {key}"})
 
-    def _doc_index(self, prefix, headers={}):  # noqa: B006
+    def _doc_index(self, prefix, headers=None):
         res = self.url_open(f'/{prefix}/index.json', allow_redirects=False, headers=headers)
         res.raise_for_status()
         self.assertEqual(res.status_code, 200)
@@ -92,7 +92,7 @@ class TestDoc(HttpCaseWithUserDemo):
             scope='rpc', name='test', expiration_date=datetime.now() + timedelta(days=0.5))
         self._doc_model('doc-bearer', headers={"Authorization": f"Bearer {key}"})
 
-    def _doc_model(self, prefix, headers={}):  # noqa: B006
+    def _doc_model(self, prefix, headers=None):
         res = self.url_open(f'/{prefix}/res.partner.json', allow_redirects=False, headers=headers)
         res.raise_for_status()
         self.assertEqual(res.status_code, 200)
@@ -209,6 +209,38 @@ class TestDoc(HttpCaseWithUserDemo):
         etag_admin = res.headers.get('ETag', '')
         self.assertTrue(etag_admin)
         self.assertNotEqual(etag_demo, etag_admin)
+
+    def test_doc_index_no_cache_refreshes_stale_attachment(self):
+        """
+        A client sending ``Cache-Control: no-cache`` must always get the
+        freshly computed index, even if a (possibly stale) server-side
+        attachment already exists under the same cache key.
+        """
+        self.authenticate('demo', 'demo')
+
+        # Prime the server-side attachment cache.
+        res = self.url_open('/doc/index.json', allow_redirects=False)
+        res.raise_for_status()
+        self.assertEqual(res.status_code, 200)
+
+        # Corrupt the cached attachment in place: this must never be served
+        # again once a client asks for a non-cached response.
+        index_attach = self.env['ir.attachment'].sudo().search(
+            [('name', 'like', 'odoo-doc-index-%')], limit=1)
+        self.assertTrue(index_attach, "the /doc/index.json cache attachment must exist")
+        index_attach.raw = b'{"modules": ["__stale__"], "models": []}'
+
+        res = self.url_open(
+            '/doc/index.json',
+            headers={'Cache-Control': 'no-cache'},
+            allow_redirects=False,
+        )
+        res.raise_for_status()
+        json = res.json()
+        self.assertNotEqual(
+            json.get('modules'), ['__stale__'],
+            "no-cache must bypass the stale server-side attachment cache")
+        self.assertIn('base', json.get('modules', []))
 
     def test_parse_signature(self):
         def clean_doc(d):
