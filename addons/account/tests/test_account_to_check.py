@@ -64,7 +64,7 @@ class TestCheckAccountMoves(AccountTestInvoicingCommon):
         self.assertTrue(invoice.checked)
 
     def test_create_statement_line_auto_check(self):
-        """Test if a user changes the reconciliation on a st_line, it marks the bank move as 'To Review'"""
+        """Auto-reconciling a bank statement line auto-checks its move; a non-accountant cannot then change the reconciliation."""
         if "accountant" not in self.env["ir.module.module"]._installed():
             self.skipTest("accountant is not installed")
         payment = self.env["account.payment"].create(

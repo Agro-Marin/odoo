@@ -19,11 +19,9 @@ class TestIrActionsReport(AccountTestInvoicingCommon):
         self.minimal_pdf_reader = pdf.OdooPdfFileReader(self.minimal_reader_buffer)
 
     def test_download_one_corrupted_pdf(self):
-        """
-        PyPDF2 is not flawless. We can upload a PDF that can be previsualised but that cannot be merged by PyPDF2.
-        In the case of "Print Original Bills", we want to be able to download the pdf from the list view.
-        We test that, when selecting one record, it can be printed (downloaded) without error.
-        """
+        """Printing a single "Original Vendor Bill" renders even when PyPDF2 cannot merge the PDF."""
+        # PyPDF2 is not flawless: a PDF may previsualise yet fail to be merged by it. Selecting a
+        # single record must still download without error, since no merge is required for one record.
         attach_name = "original_vendor_bill.pdf"
 
         in_invoice_1 = self.env["account.move"].create(
@@ -55,10 +53,7 @@ class TestIrActionsReport(AccountTestInvoicingCommon):
     # Document synchronization being enabled, avoid a warning when computing the number of page of the corrupted pdf.
     @mute_logger("odoo.addons.documents.models.documents_document")
     def test_download_with_encrypted_pdf(self):
-        """
-        Same as test_download_one_corrupted_pdf
-        but for encrypted pdf with no password and set encryption type to 5 (not known by PyPDF2)
-        """
+        """Same as test_download_one_corrupted_pdf but for a PDF whose /Encrypt reference is corrupted."""
         attach_name = "original_vendor_bill.pdf"
         # we need to encrypt the file
         with file_open("base/tests/minimal.pdf", "rb") as pdf_file:

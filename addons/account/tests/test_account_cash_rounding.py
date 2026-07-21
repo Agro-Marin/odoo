@@ -4,10 +4,7 @@ from odoo.tests.common import TransactionCase
 
 @tagged("standard", "at_install")
 class TestAccountCashRounding(TransactionCase):
-    """Direct unit coverage for the pure ``account.cash.rounding`` math
-    (``round`` / ``compute_difference``), which was previously only exercised
-    indirectly through full-invoice integration tests.
-    """
+    """Direct unit coverage for ``account.cash.rounding`` math (``round`` / ``compute_difference``)."""
 
     @classmethod
     def setUpClass(cls):
