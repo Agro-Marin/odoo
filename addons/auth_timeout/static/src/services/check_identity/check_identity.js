@@ -7,7 +7,7 @@ import { useService } from "@web/core/utils/hooks";
 import { redirect } from "@web/core/utils/urls";
 import { session } from "@web/session";
 
-import * as passkeyLib from "@auth_passkey/../lib/simplewebauthn";
+import { passkeyLib } from "@auth_passkey/passkey_lib";
 
 /**
  * CheckIdentityForm component
