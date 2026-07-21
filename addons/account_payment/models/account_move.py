@@ -4,10 +4,10 @@ import base64
 
 from odoo import api, fields, models
 from odoo.tools import format_date, str2bool
+from odoo.tools.image import image_data_uri
 from odoo.tools.translate import _
 
 from odoo.addons.payment import utils as payment_utils
-from odoo.tools.image import image_data_uri
 
 
 class AccountMove(models.Model):
@@ -43,8 +43,7 @@ class AccountMove(models.Model):
 
     @api.depends('transaction_ids')
     def _compute_amount_paid(self):
-        """ Sum all the transaction amount for which state is in 'authorized' or 'done'
-        """
+        """ Sum the amounts of the transactions in state 'authorized' or 'done'. """
         for invoice in self:
             invoice.amount_paid = sum(
                 invoice.transaction_ids.filtered(
@@ -74,9 +73,7 @@ class AccountMove(models.Model):
         )
 
     def _get_online_payment_error(self):
-        """
-        Returns the appropriate error message to be displayed if _has_to_be_paid() method returns False.
-        """
+        """ Return the error message to display when `_has_to_be_paid` returns False. """
         self.ensure_one()
         transactions = self.transaction_ids.filtered(lambda tx: tx.state in ('pending', 'authorized', 'done'))
         pending_transactions = transactions.filtered(

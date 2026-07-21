@@ -5,7 +5,7 @@ import { PaymentForm } from '@payment/interactions/payment_form';
 
 patch(PaymentForm.prototype, {
     /**
-     * Set whether we are paying an installment before submitting.
+     * Set the amount to pay from the active tab (installment or full amount) before submitting.
      *
      * @override method from payment.payment_form
      * @param {Event} ev
@@ -30,12 +30,12 @@ patch(PaymentForm.prototype, {
     },
 
         /**
-     * Prepare the params for the RPC to the transaction route.
-     *
-     * @override method from payment.payment_form
-     * @private
-     * @return {object} The transaction route params.
-     */
+         * Prepare the params for the RPC to the transaction route.
+         *
+         * @override method from payment.payment_form
+         * @private
+         * @return {object} The transaction route params.
+         */
         _prepareTransactionRouteParams() {
             const transactionRouteParams = super._prepareTransactionRouteParams(...arguments);
             transactionRouteParams.payment_reference = this.paymentContext.paymentReference;

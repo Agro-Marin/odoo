@@ -9,11 +9,8 @@ from odoo.addons.account_payment.tests.common import AccountPaymentCommon
 class TestPaymentProvider(AccountPaymentCommon):
 
     def test_duplicate_provider_child_company_no_journal_id(self):
-        """
-        When you duplicate a payment provider from a parent company and set it to a child company,
-        if you don't set the journal (only possible if the provider is disabled), it should not raise an error when trying to reopen it.
-        We want the journal to be set only if the company has a Bank journal defined in it.
-        """
+        """ Test that duplicating a provider into a child company leaves `journal_id` unset until
+        that company has a bank journal. """
         child_company = self.env['res.company'].create({
             'name': 'Child Company',
             'parent_id': self.env.company.id,

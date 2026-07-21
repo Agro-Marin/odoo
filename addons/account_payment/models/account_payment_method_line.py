@@ -1,6 +1,6 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-from odoo import api, fields, models, _
+from odoo import _, api, fields, models
 from odoo.exceptions import UserError
 
 
@@ -44,7 +44,7 @@ class AccountPaymentMethodLine(models.Model):
             ):
                 provider_ids = providers_per_code.get(company.id, {}).get(line.code, set())
 
-                # Exclude the 'unique' / 'electronic' values that are already set on the journal.
+                # Exclude the providers of the 'electronic' methods already set on the journal.
                 protected_provider_ids = set()
                 for payment_type in ('inbound', 'outbound'):
                     lines = journal[f'{payment_type}_payment_method_line_ids']
@@ -62,9 +62,7 @@ class AccountPaymentMethodLine(models.Model):
 
     @api.ondelete(at_uninstall=False)
     def _unlink_except_active_provider(self):
-        """ Ensure we don't remove an account.payment.method.line that is linked to a provider
-        in the test or enabled state.
-        """
+        """ Prevent deleting a payment method line linked to an enabled or test provider. """
         active_provider = self.payment_provider_id.filtered(lambda provider: provider.state in ['enabled', 'test'])
         if active_provider:
             raise UserError(_(

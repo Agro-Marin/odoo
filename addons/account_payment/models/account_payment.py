@@ -1,6 +1,6 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-from odoo import _, api, Command, fields, models
+from odoo import Command, _, api, fields, models
 from odoo.exceptions import ValidationError
 
 
@@ -12,7 +12,7 @@ class AccountPayment(models.Model):
         string="Payment Transaction",
         comodel_name='payment.transaction',
         readonly=True,
-        bypass_search_access=True,  # No access rule bypass since access to payments means access to txs too
+        bypass_search_access=True,  # Safe: access to payments means access to txs too
     )
     payment_token_id = fields.Many2one(
         string="Saved Payment Token", comodel_name='payment.token', domain="""[
@@ -86,8 +86,8 @@ class AccountPayment(models.Model):
     def _compute_use_electronic_payment_method(self):
         for payment in self:
             # Get a list of all electronic payment method codes.
-            # These codes are comprised of 'electronic' and the providers of each payment provider.
-            codes = [key for key in dict(self.env['payment.provider']._fields['code']._description_selection(self.env))]
+            # These codes are the codes of the payment providers.
+            codes = list(dict(self.env['payment.provider']._fields['code']._description_selection(self.env)))
             payment.use_electronic_payment_method = payment.payment_method_code in codes
 
     def _compute_refunds_count(self):
@@ -107,7 +107,7 @@ class AccountPayment(models.Model):
 
     @api.onchange('partner_id', 'payment_method_line_id', 'journal_id')
     def _onchange_set_payment_token_id(self):
-        codes = [key for key in dict(self.env['payment.provider']._fields['code']._description_selection(self.env))]
+        codes = list(dict(self.env['payment.provider']._fields['code']._description_selection(self.env)))
         if not (self.payment_method_code in codes and self.partner_id and self.journal_id):
             self.payment_token_id = False
             return
@@ -187,7 +187,7 @@ class AccountPayment(models.Model):
                     "A payment transaction with reference %s already exists.",
                     payment.payment_transaction_id.reference
                 ))
-            elif not payment.payment_token_id:
+            if not payment.payment_token_id:
                 raise ValidationError(_("A token is required to create a new payment transaction."))
 
         transactions = self.env['payment.transaction']
