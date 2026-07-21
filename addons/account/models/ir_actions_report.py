@@ -148,7 +148,8 @@ class IrActionsReport(models.Model):
     def _unlink_except_master_tags(self):
         master_xmlids = [
             "account_invoices",
-            "action_account_original_vendor_billaccount_invoices_without_payment",
+            "action_account_original_vendor_bill",
+            "account_invoices_without_payment",
             "action_report_journal",
             "action_report_payment_receipt",
             "action_report_account_statement",
