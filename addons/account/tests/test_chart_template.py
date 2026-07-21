@@ -240,10 +240,8 @@ class TestChartTemplate(AccountTestInvoicingCommon):
         AccountChartTemplate, "_get_chart_template_mapping", _get_chart_template_mapping
     )
     def setUpClass(cls):
-        """
-        Setups a company with a custom chart template, containing a tax and a fiscal position.
-        We need to add xml_ids to the templates because they are loaded from their xml_ids
-        """
+        """Set up a company with a custom chart template, containing a tax and a fiscal position."""
+        # We need to add xml_ids to the templates because they are loaded from their xml_ids
         # Avoid creating data from AccountTestInvoicingCommon setUpClass
         # just use the override of the functions it provides
         super(AccountTestInvoicingCommon, cls).setUpClass()
@@ -473,7 +471,7 @@ class TestChartTemplate(AccountTestInvoicingCommon):
         self.assertEqual(fiscal_position.map_tax(tax_3), tax_1)
 
     def test_update_accounts_creation(self):
-        """Tests that adding a new accounts and a fiscal position tax creates new records when updating."""
+        """Tests that adding new accounts and a fiscal position account mapping creates new records when updating."""
 
         def local_get_data(self, template_code):
             data = test_get_data(self, template_code)
@@ -560,7 +558,7 @@ class TestChartTemplate(AccountTestInvoicingCommon):
         # Ensure the fiscal position is removed
         self.assertFalse(fiscal_position.exists(), "Fiscal Position should be deleted")
 
-        # Call try_loading with force_create=False`
+        # Call try_loading with force_create=False
         with patch.object(
             AccountChartTemplate,
             "_get_chart_template_data",
@@ -593,7 +591,7 @@ class TestChartTemplate(AccountTestInvoicingCommon):
                 "test", company=self.company, install_demo=False, force_create=True
             )
 
-        # Ensure the fiscal position was NOT recreated
+        # Ensure the fiscal position was recreated
         fiscal_position_after_reload = self.env["account.fiscal.position"].search(
             [
                 ("name", "=", "Fiscal Position"),
@@ -605,31 +603,28 @@ class TestChartTemplate(AccountTestInvoicingCommon):
         )
 
     def test_new_tax_rate(self):
-        """Test the flow to replace taxes from an old to a new rate.
-
-        This test aims at defining more clearly how to update the taxes when the rate changes.
-        There are some constraints to take into account:
-        * There is a transition period where both taxes need to be usable
-        * Some reports might need to keep the references to the old tax i.e. on the fiscal positions (OSS)
-
-        The procedure for the code change is:
-        * Create the new report section if needed.
-        * Remove the taxes from the template.
-          This will not delete the taxes from the company when updating the template on the company.
-        * Add the new taxes with a xmlid different from the ones deleted.
-          The taxes will be created when updating the template on the company.
-        * Update all the references to the old taxes to the new ones.
-          - Fiscal positions: The previous mappings won't be deleted but the new ones will be created.
-                              This ensures that reports still work.
-        * If such a tax was part of a group, a new group must be created and the old one removed from the template.
-
-        The procedure for the users, when they are ready, is:
-        * When the old taxes are not needed anymore (i.e. tax period closed), archive them
-        * Update the taxes on
-          - products
-          - accounts
-          - reconcile models
-        """
+        """Test the flow to replace taxes from an old to a new rate."""
+        # Constraints to take into account:
+        # * There is a transition period where both taxes need to be usable
+        # * Some reports might need to keep the references to the old tax i.e. on the fiscal positions (OSS)
+        #
+        # The procedure for the code change is:
+        # * Create the new report section if needed.
+        # * Remove the taxes from the template.
+        #   This will not delete the taxes from the company when updating the template on the company.
+        # * Add the new taxes with a xmlid different from the ones deleted.
+        #   The taxes will be created when updating the template on the company.
+        # * Update all the references to the old taxes to the new ones.
+        #   - Fiscal positions: The previous mappings won't be deleted but the new ones will be created.
+        #                       This ensures that reports still work.
+        # * If such a tax was part of a group, a new group must be created and the old one removed from the template.
+        #
+        # The procedure for the users, when they are ready, is:
+        # * When the old taxes are not needed anymore (i.e. tax period closed), archive them
+        # * Update the taxes on
+        #   - products
+        #   - accounts
+        #   - reconcile models
 
         def local_get_data(self, template_code):
             # Delete the existing tax and create a new one with a different rate
@@ -733,10 +728,7 @@ class TestChartTemplate(AccountTestInvoicingCommon):
         )
 
     def test_update_taxes_update_rounding(self):
-        """
-        When a tax is close enough to an existing tax but has a minor rounding error,
-        we still want to update that tax with the new values.
-        """
+        """Update an existing tax when the template only differs by a minor rounding error."""
 
         def local_get_data(self, template_code):
             data = test_get_data(self, template_code)
@@ -790,7 +782,7 @@ class TestChartTemplate(AccountTestInvoicingCommon):
                 "test", company=self.company, install_demo=False
             )
 
-        # Check that old tax has not been changed beside of the name prefixed by [old]
+        # Check that old tax has not been changed besides the name prefixed by [old]
         self.assertRecordValues(tax_existing, [{"name": "[old] Tax 1", "amount": 15}])
 
         # Check that new tax has been recreated
@@ -800,10 +792,7 @@ class TestChartTemplate(AccountTestInvoicingCommon):
         self.assertEqual(new_tax.amount, tax_existing.amount + 1)
 
     def test_update_taxes_removed_from_templates(self):
-        """
-        Tests updating after the removal of taxes and updating the fiscal position of a tax
-
-        """
+        """Tests updating after the removal of taxes and of a fiscal position tax mapping."""
         fiscal_position = self.env["account.fiscal.position"].search([])
         self.env["account.tax"].search([("company_id", "=", self.company.id)]).unlink()
 
@@ -955,7 +944,7 @@ class TestChartTemplate(AccountTestInvoicingCommon):
         )
         standard_account.code = "111111"
 
-        # create a new account with the same code as an existing one
+        # create a new account taking the code the template expects for the income account
         problematic_account = self.env["account.account"].create(
             {
                 "code": "222221",
@@ -993,9 +982,7 @@ class TestChartTemplate(AccountTestInvoicingCommon):
         )
 
     def test_update_taxes_children_tax_ids(self):
-        """Ensures children_tax_ids are correctly generated when updating taxes with
-        amount_type='group'.
-        """
+        """Ensures children_tax_ids are correctly generated when updating taxes with amount_type='group'."""
 
         def local_get_data(self, template_code):
             data = test_get_data(self, template_code)
@@ -1069,9 +1056,7 @@ class TestChartTemplate(AccountTestInvoicingCommon):
         )
 
     def test_update_taxes_children_tax_ids_inactive(self):
-        """Ensure tax templates are correctly generated when updating taxes with children taxes,
-        even if templates are inactive.
-        """
+        """Ensure taxes with children taxes are generated on update even if the templates are inactive."""
 
         def local_get_data(self, template_code):
             data = test_get_data(self, template_code)
@@ -1147,12 +1132,11 @@ class TestChartTemplate(AccountTestInvoicingCommon):
         )
 
     def test_update_reload_no_new_data(self):
-        """Tests that the reload does nothing when data are left unchanged.
-        Tested models: account.group, account.account, account.tax.group, account.tax, account.journal,
-        account.reconcile.model, account.fiscal.position, account.tax.repartition.line,
-        account.account.tag.
-        """
+        """Tests that the reload does nothing when data are left unchanged."""
 
+        # Tested models: account.group, account.account, account.tax.group, account.tax,
+        # account.journal, account.reconcile.model, account.fiscal.position,
+        # account.tax.repartition.line, account.account.tag.
         def get_domain(model):
             if model == "account.account.tag":
                 return [("country_id", "=", self.company.country_id.id)]
@@ -1181,10 +1165,7 @@ class TestChartTemplate(AccountTestInvoicingCommon):
             self.assertEqual(data_before[model], data_after)
 
     def test_unknown_company_fields(self):
-        """Tests that if a key is not known in the company template data when the
-        context value 'l10n_check_fields_complete' is set, an error is raised. If a
-        key is not known in the company template data but the context value is not
-        set, that key is skipped and no error is raised."""
+        """Tests that an unknown company template key only raises when 'l10n_check_fields_complete' is set."""
 
         def local_get_data(self, template_code):
             data = test_get_data(self, template_code)
@@ -1328,9 +1309,8 @@ class TestChartTemplate(AccountTestInvoicingCommon):
         self.assertEqual(shared_account.company_ids, other_company)
 
     def test_update_tax_with_non_existent_tag(self):
-        """Tests that when we update the CoA with a tax that has a tag that does not exist yet we raise an error.
-        Typical use case is when the code got updated but the module haven't been updated (-u).
-        """
+        """Tests that updating the CoA with a tax referencing a not-yet-existing tag raises an error."""
+        # Typical use case is when the code got updated but the module hasn't been updated (-u).
         tax_to_load = {
             "name": "Mixed Tags Tax",
             "amount": 30,
@@ -1377,10 +1357,9 @@ class TestChartTemplate(AccountTestInvoicingCommon):
             )
 
     def test_install_with_translations(self):
-        """Ensure that the translations are loaded correctly when installing chart data; i.e. test '_load_translations' and that the untranslatable fields are translated correctly.
-        Note: The '_load_translations' function depends on the '_get_chart_template_data' function for some information.
-        The result of '_get_chart_template_data' is mocked (correctly) in this test (and not tested).
-        """
+        """Ensure translations, including of untranslatable fields, are loaded when installing chart data."""
+        # '_load_translations' depends on '_get_chart_template_data' for some information.
+        # The result of '_get_chart_template_data' is mocked (correctly) here (and not tested).
 
         # Local mock for '_get_chart_template_mapping'
         # We will use / install a dedicated new chart 'translation' (not just reload 'test')
@@ -1490,7 +1469,7 @@ class TestChartTemplate(AccountTestInvoicingCommon):
                     data[model][xmlid].update(data_update)
             return data
 
-        # Tranlations should fall back to more generic locale 'fr'
+        # Translations should fall back to more generic locale 'fr'
 
         # Target lang for untranslatable fields
         company.partner_id.lang = self.env["res.lang"]._activate_lang("fr_BE").code
@@ -1754,10 +1733,7 @@ class TestChartTemplate(AccountTestInvoicingCommon):
         )
 
     def test_chart_template_company_without_country(self):
-        """
-        In this test we will try to install a chart template to a company without a country. The expected behavior
-        is that the country of the chart template will be set on the company
-        """
+        """Installing a chart template on a company without a country sets the template's country on it."""
         company = self.env["res.company"].create(
             {"name": "Test Company Without country"}
         )
@@ -1774,9 +1750,7 @@ class TestChartTemplate(AccountTestInvoicingCommon):
         self.assertEqual(company.country_id.code, "BE")
 
     def test_bank_account_code_prefix(self):
-        """
-        Test that chart template loading works correctly with default value of bank_account_code_prefix.
-        """
+        """Test that chart template loading works with the default value of bank_account_code_prefix."""
         company = self.env["res.company"].create(
             {"name": "Test Company Without Bank Prefix"}
         )

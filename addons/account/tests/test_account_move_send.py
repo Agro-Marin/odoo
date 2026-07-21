@@ -49,7 +49,7 @@ class TestAccountComposerPerformance(AccountTestInvoicingCommon, MailCommon):
         )
         cls.move_template.write({"attachment_ids": [(6, 0, cls.attachments.ids)]})
 
-        # test users + fetch admin user for testing (recipient, ...)
+        # test users
         cls.user_account = (
             cls.env["res.users"]
             .with_context(cls._test_context)
@@ -517,12 +517,7 @@ class TestAccountComposerPerformance(AccountTestInvoicingCommon, MailCommon):
     @warmup
     @mute_logger("odoo.addons.mail.models.mail_mail", "odoo.models.unlink")
     def test_move_composer_with_dynamic_reports(self):
-        """
-        It makes sure that when an invoice is sent using a template that
-        has additional dynamic reports, those extra reports are also
-        generated and sent by mail along side the invoice PDF and the
-        other attachments that were manually added.
-        """
+        """Test extra dynamic reports of the template are sent along the invoice PDF and manual attachments."""
         test_move = self.test_account_moves[0].with_env(self.env)
         test_customer = self.test_customers[0].with_env(self.env)
         move_template = self.move_template.with_env(self.env)
@@ -596,11 +591,8 @@ class TestAccountComposerPerformance(AccountTestInvoicingCommon, MailCommon):
         )
 
     def test_invoice_sent_to_additional_partner(self):
-        """
-        Make sure that when an invoice is sent to a partner who is not
-        the invoiced customer, they receive a link containing an access token,
-        allowing them to view the invoice without needing to log in.
-        """
+        """Test an additional recipient, not the invoiced customer, gets an access token link."""
+        # The access token lets them open the invoice without logging in.
         test_move = self.test_account_moves[1].with_env(self.env)
         move_template = self.move_template.with_env(self.env)
 
@@ -1158,9 +1150,7 @@ class TestAccountMoveSend(TestAccountMoveSendCommon):
         )
 
     def test_invoice_web_service_after_pdf_rendering(self):
-        """Test the ir.attachment for the PDF is not generated when the web service
-        is called after the PDF generation but performing a cr.commit even in case of error.
-        """
+        """Test the PDF ir.attachment is not kept when the web service called after the PDF render fails."""
         invoice = self.init_invoice("out_invoice", amounts=[1000], post=True)
         wizard = self.create_send_and_print(invoice)
 
@@ -1225,7 +1215,7 @@ class TestAccountMoveSend(TestAccountMoveSendCommon):
         self.assertEqual(results["type"], "ir.actions.act_window_close")
         self.assertFalse(invoice.sending_data)
 
-        # The PDF is generated even in case of error, but invoice_pdf_report_id is not set
+        # A proforma PDF is generated even in case of error, but invoice_pdf_report_id is not set
         self.assertFalse(invoice.invoice_pdf_report_id)
         self.assertEqual(
             invoice.message_main_attachment_id.name, "INV_2019_00001_proforma.pdf"
@@ -1336,7 +1326,7 @@ class TestAccountMoveSend(TestAccountMoveSendCommon):
         )
 
     def test_send_and_print_cron(self):
-        """Test the cron for generating"""
+        """Test the cron generating the documents of the moves queued for asynchronous sending."""
         invoice_1_1 = self.init_invoice(
             "out_invoice",
             amounts=[1000],
@@ -1377,10 +1367,9 @@ class TestAccountMoveSend(TestAccountMoveSendCommon):
         self.assertTrue(all(not invoice.sending_data for invoice in invoices))
 
     def test_cron_send_isolates_failing_move(self):
-        """A single move whose email send fails during the cron must not roll
-        back the whole batch: the other moves are still processed to completion,
-        and the failing move is flagged on its chatter instead of poisoning the
-        run (which would re-fetch and re-fail the same batch forever)."""
+        """Test a move failing to send during the cron does not roll back the rest of the batch."""
+        # Without the isolation, the failing move would poison the run and the
+        # same batch would be re-fetched and re-failed forever.
         invoice_ok = self.init_invoice(
             "out_invoice",
             amounts=[1000],
@@ -1467,7 +1456,7 @@ class TestAccountMoveSend(TestAccountMoveSendCommon):
             )
         )
 
-        #  reset bus
+        # reset bus
         self.env.cr.precommit.run()
         self.env["bus.bus"].sudo().search([]).unlink()
 
@@ -1566,14 +1555,9 @@ class TestAccountMoveSend(TestAccountMoveSendCommon):
         self.assertDictEqual(results, expected_results)
 
     def test_pdf_report_id(self):
-        """
-        Test the field 'pdf_report_id' from 'account.move.send.wizard' and so the
-        '_get_default_pdf_report_id'method from 'account.move.send'.
-        The rules to determine the pdf report should be :
-        - 1st: if a default report is set on the partner, use that one
-        - 2nd: if a default report is set on the journal, use that one
-        - 3rd: otherwise, use the first one
-        """
+        """Test 'pdf_report_id' of 'account.move.send.wizard' and '_get_default_pdf_report_id'."""
+        # Resolution order: report set on the partner, else the one set on the
+        # journal, else the standard 'account.account_invoices' report.
 
         # Test with only 1 report
         invoice = self.init_invoice(
