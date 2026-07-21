@@ -112,6 +112,23 @@ class RecordSnapshot(dict):
                 if id_ not in self_value
             )
 
+            # Prime the ORM cache with ONE batched read over the origins of all
+            # LINK lines, so the per-line web_read()/snapshot reads in the link
+            # branch below hit a warm cache instead of issuing one query burst
+            # per link line (was an N+1 when an onchange links several existing
+            # records at once). A link line is an existing line (has an origin)
+            # that isn't matched in ``other`` (or when forcing) — mirror that
+            # exact condition so no unrelated read is primed. Pure read: it only
+            # warms the cache and cannot change the diff.
+            sub_fields_spec = field_spec.get("fields") or {}
+            link_origins = self.record[field_name].browse()
+            for id_, line_snapshot in self_value.items():
+                is_update = not force and id_ in other_value
+                if not is_update and id_.origin:
+                    link_origins |= line_snapshot.record._origin
+            if link_origins:
+                link_origins.web_read(sub_fields_spec)
+
             # commands for modified or extra lines
             for id_, line_snapshot in self_value.items():
                 if not force and id_ in other_value:
