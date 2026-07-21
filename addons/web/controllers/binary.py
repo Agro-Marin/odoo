@@ -128,11 +128,15 @@ class Binary(http.Controller):
             if _token_authorized_public(record, field, access_token):
                 stream.public = True
 
-        # Query-string booleans arrive as strings: coerce so ``?unique=0`` /
-        # ``?nocache=false`` are falsy (a bare truthiness test treats "0"/"false"
-        # as True). str2bool also tolerates the bool defaults and bad input.
+        # ``download`` and ``nocache`` are query-string *booleans*: coerce them
+        # so ``?nocache=false`` is falsy (a bare truthiness test treats "false"
+        # as True). ``unique`` is not a boolean -- it is a cache-busting version
+        # token (an avatar_cache_key sha, a write_date, an asset hash), so
+        # coercing it with str2bool made every real token falsy and dropped
+        # ``immutable`` + max-age from every versioned image URL in the product.
+        # Any non-empty token means "this URL is content-addressed": cache hard.
         send_file_kwargs = {"as_attachment": str2bool(download, False)}
-        if str2bool(unique, False):
+        if unique:
             send_file_kwargs["immutable"] = True
             send_file_kwargs["max_age"] = http.STATIC_CACHE_LONG
         if str2bool(nocache, False):
@@ -390,11 +394,15 @@ class Binary(http.Controller):
             )
             stream.public = False
 
-        # Query-string booleans arrive as strings: coerce so ``?unique=0`` /
-        # ``?nocache=false`` are falsy (a bare truthiness test treats "0"/"false"
-        # as True). str2bool also tolerates the bool defaults and bad input.
+        # ``download`` and ``nocache`` are query-string *booleans*: coerce them
+        # so ``?nocache=false`` is falsy (a bare truthiness test treats "false"
+        # as True). ``unique`` is not a boolean -- it is a cache-busting version
+        # token (an avatar_cache_key sha, a write_date, an asset hash), so
+        # coercing it with str2bool made every real token falsy and dropped
+        # ``immutable`` + max-age from every versioned image URL in the product.
+        # Any non-empty token means "this URL is content-addressed": cache hard.
         send_file_kwargs = {"as_attachment": str2bool(download, False)}
-        if str2bool(unique, False):
+        if unique:
             send_file_kwargs["immutable"] = True
             send_file_kwargs["max_age"] = http.STATIC_CACHE_LONG
         if str2bool(nocache, False):
