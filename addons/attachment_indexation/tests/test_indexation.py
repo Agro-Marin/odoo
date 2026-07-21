@@ -27,9 +27,9 @@ class TestCaseIndexation(TransactionCase):
             self.assertEqual(text, 'TestContent!!', 'the index content should be correct')
 
     def test_index_read_size_documents_read_full(self):
-        """Parsed document mimetypes must request a FULL read-back from the
-        streaming create path; text keeps its bounded prefix and unindexable
-        media still skips the read so it streams flat (review #1/#2)."""
+        """Parsed document mimetypes request a full read-back from the streaming
+        create path, text keeps its bounded prefix, and unindexable media skips
+        the read so it streams flat."""
         Att = self.env['ir.attachment']
         self.assertIsNone(Att._index_read_size('application/pdf'))
         self.assertIsNone(Att._index_read_size(
@@ -40,10 +40,8 @@ class TestCaseIndexation(TransactionCase):
 
     @skipIf(PDFResourceManager is None, "pdfminer not installed")
     def test_streamed_pdf_reads_full_content_and_indexes(self):
-        """A PDF uploaded over the streaming path is read back IN FULL and
-        indexed. Before the read-size seam the index read was capped at
-        _INDEX_MAX_BYTES, so a PDF larger than the prefix was parsed truncated
-        and silently lost its index (review #1)."""
+        """A PDF uploaded over the streaming path is read back in full and indexed."""
+        # A capped read would parse a large PDF from a truncated prefix and lose its index.
         Att = self.env['ir.attachment']
         with file_open(str(directory / 'files' / 'test_content.pdf'), 'rb') as f:
             pdf = f.read()
