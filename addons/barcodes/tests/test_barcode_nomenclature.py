@@ -287,3 +287,12 @@ class TestBarcodeNomenclature(common.TransactionCase):
         self.assertEqual(len(barcode_data), 1)
         self.assertEqual(barcode_data[0]['type'], 'package')
         self.assertEqual(barcode_data[0]['value'], '095265678901234568')
+
+    def test_barcode_uri_conversion_unrecognized_identifier(self):
+        """An urn: barcode whose identifier isn't one of the known EPC types
+        (lgtin/sgtin/sgtin-96/sgtin-198/sscc/sscc-96) must still return a list
+        (matching every other urn: branch's contract), not the raw string -
+        callers unconditionally do len()/[0]['type'] on the result."""
+        uri = 'urn:epc:id:giai:4012345.999887'
+        barcode_data = self.nomenclature.parse_barcode(uri)
+        self.assertEqual(barcode_data, [])
