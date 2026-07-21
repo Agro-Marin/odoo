@@ -33,7 +33,8 @@
                 </div>
             </div>
             <ListRenderer t-if="props.viewMode === 'list'" t-props="this.rendererProps" />
-            <KanbanRenderer t-elif="props.viewMode" t-props="this.rendererProps" />
+            <!-- Resolved at render time: see the `kanbanRenderer` getter. -->
+            <t t-elif="props.viewMode" t-component="kanbanRenderer" t-props="this.rendererProps" />
         </div>
     </t>
 
