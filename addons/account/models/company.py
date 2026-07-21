@@ -543,6 +543,7 @@ class ResCompany(models.Model):
             company.force_restrictive_audit_trail = False
 
     @api.depends(
+        "country_id",
         "fiscal_position_ids",
         "fiscal_position_ids.sequence",
         "fiscal_position_ids.country_id",
@@ -620,7 +621,11 @@ class ResCompany(models.Model):
             if not record.account_fiscal_country_id:
                 record.account_fiscal_country_id = record.country_id
 
-    @api.depends("account_fiscal_country_id")
+    @api.depends(
+        "account_fiscal_country_id",
+        "fiscal_position_ids.foreign_vat",
+        "fiscal_position_ids.country_id",
+    )
     def _compute_account_enabled_tax_country_ids(self):
         allowed_companies = self.env.user.company_ids
         # Only accessible companies are looked up: a user can reach the company

@@ -474,7 +474,9 @@ class AccountReport(models.Model):
         padded_formula = f" {formula} "
         for old_code, new_code in code_mapping.items():
             padded_formula = re.sub(
-                rf"(?<=\W){re.escape(old_code)}(?=\W)", new_code, padded_formula
+                rf"(?<=\W){re.escape(old_code)}(?=\W)",
+                lambda m, new_code=new_code: new_code,
+                padded_formula,
             )
         return padded_formula.strip()
 
