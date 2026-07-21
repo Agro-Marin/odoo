@@ -90,7 +90,7 @@ import { isObject, omit } from "@web/core/utils/collections/objects";
 // and cache slot across bundles. ``??=`` keeps the FIRST bundle's instance
 // authoritative.
 const _RPC_STATE_KEY = "__odoo_rpc_state__";
-/** @type {{ rpcBus: EventBus, inflightDedup: Map<string, Promise<any>>, rpcCache: RPCCache | null | undefined, busListenersAttached: boolean, rpcId: number }} */
+/** @type {{ rpcBus: EventBus, inflightDedup: Map<string, Promise<any>>, rpcCache: RPCCache | null | undefined, busListenersAttached: boolean, rpcId: number, dedupCallbackSeq: number }} */
 const _rpcState = /** @type {any} */ (
     globalThis[_RPC_STATE_KEY] ??= {
         rpcBus: new EventBus(),
@@ -102,6 +102,10 @@ const _rpcState = /** @type {any} */ (
         // between bundles for observers that key by ``data.id`` (loading_indicator,
         // slow_rpc_service).
         rpcId: 0,
+        // Monotonic token that makes a callback-bearing dedup fingerprint unique
+        // (see ``dedupSettingsFingerprint``). Shared via the singleton for the
+        // same cross-bundle reason as ``rpcId``.
+        dedupCallbackSeq: 0,
     }
 );
 
@@ -489,6 +493,18 @@ function dedupSettingsFingerprint(settings) {
         }
         parts.push(`${key}=${JSON.stringify(value)}`);
     }
+    // A cache ``callback`` is a function, which ``JSON.stringify`` silently
+    // drops — so two ``dedup.cache({update:"always", callback})`` callers that
+    // differ ONLY by callback would share a fingerprint, dedup together, and the
+    // second caller's callback would never register (its background-refresh
+    // notification is lost). A callback-bearing caller is not interchangeable
+    // with any other, so give it a unique fingerprint token: it never dedups
+    // with another caller, while the cache layer still coalesces the actual
+    // fetch and registers every callback via ``pendingRequests``.
+    const cache = settings.cache;
+    if (cache && typeof cache === "object" && typeof cache.callback === "function") {
+        parts.push(`cb=${_rpcState.dedupCallbackSeq++}`);
+    }
     return parts.join("&");
 }
 
@@ -560,6 +576,11 @@ rpc._rpc = function (url, params, settings) {
         if (params?.model && cacheSettings.model === undefined) {
             cacheSettings.model = params.model;
         }
+        // Thread the request's ``silent`` flag into the cache layer so a
+        // background (``update: "always"``) refresh that already served cached
+        // data does NOT float a ConnectionLostError and pop the global
+        // connection-lost UX — a ``silent`` caller opted out of that UX.
+        cacheSettings.silent = settings.silent;
         // Guard the stale-while-revalidate (``update: "always"``) callback so a
         // caller that aborts — typically a joiner that shared an in-flight
         // request it no longer owns — is NOT invoked after tear-down when the
@@ -585,7 +606,13 @@ rpc._rpc = function (url, params, settings) {
         // ``.abort`` below, avoiding self-recursion.
         /** @type {((rejectError?: boolean) => void) | null} */
         let innerAbort = null;
-        const fallback = () => {
+        // The exact ``pendingRequests`` entry THIS caller initiated, captured
+        // when ``read()`` invokes the fallback on a cache MISS. Handed to
+        // ``abortPending`` so a silent abort only evicts our own slot, never a
+        // newer request that replaced it after an invalidation.
+        let ownRequest = null;
+        const fallback = (/** @type {object} */ request) => {
+            ownRequest = request ?? null;
             const inner = /** @type {any} */ (
                 rpc._rpc(url, params, omit(settings, "cache"))
             );
@@ -618,7 +645,7 @@ rpc._rpc = function (url, params, settings) {
                 // joiner calling ``abortPending`` would tear down the initiator's
                 // live pendingRequests/RAM slot, orphaning its fetch.
                 if (!rejectError) {
-                    _rpcState.rpcCache?.abortPending(cacheTable, cacheKey);
+                    _rpcState.rpcCache?.abortPending(cacheTable, cacheKey, ownRequest);
                 }
                 // ``?.()`` is only for TS: innerAbort is non-null whenever this
                 // wrapper exists (it is only installed inside the guard above,
@@ -638,7 +665,20 @@ rpc._rpc = function (url, params, settings) {
         let abortReject;
         const joinerProm = new Promise((resolve, reject) => {
             abortReject = reject;
-            cacheProm.then(resolve, reject);
+            // ``abort(false)`` marks the caller uninterested. A later RESOLUTION
+            // of the shared request may still resolve this promise harmlessly
+            // (a warm cache hit relies on exactly that — ``abort(false)`` there
+            // is a safe no-op that must still deliver the already-available
+            // value), but a later REJECTION must NOT propagate: an unguarded
+            // reject after a silent abort becomes a floating unhandled rejection
+            // that pops the global connection-lost / session-expired dialog for
+            // a torn-down consumer. So guard ONLY the reject handler.
+            // ``abort(true)`` still rejects synchronously via ``abortReject``.
+            cacheProm.then(resolve, (error) => {
+                if (!callerAborted) {
+                    reject(error);
+                }
+            });
         });
         /** @type {any} */ (joinerProm).abort = function (rejectError = true) {
             // Also stops this joiner's SWR callback (guarded above) from firing

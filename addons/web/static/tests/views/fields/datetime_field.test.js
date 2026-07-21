@@ -813,14 +813,20 @@ test("clean datetime does not re-emit FIELD_IS_DIRTY on unrelated re-renders", a
                 <field name="datetime" readonly="not bar"/>
             </form>`,
     });
-    expect(emissions).toEqual([false]);
+    // A clean field emits NOTHING on its first render: ``lastIsDirty`` starts at
+    // ``false`` so ``isDirty (false) !== lastIsDirty (false)`` is false. (It used
+    // to start ``undefined``, so the first render emitted a spurious ``false`` —
+    // harmless on a fresh mount, but a clobber when a DateTimeField is
+    // re-instantiated, e.g. scrolled into a virtualized list, while a sibling
+    // holds uncommitted dirty input.)
+    expect(emissions).toEqual([]);
 
     // Toggling the boolean flips the datetime's readonly modifier, forcing a
     // re-render with unchanged dirtiness: FIELD_IS_DIRTY is last-writer-wins,
     // so a clean field must not re-emit and clobber a dirty sibling's state.
     await click(".o_field_boolean input");
     await animationFrame();
-    expect(emissions).toEqual([false]);
+    expect(emissions).toEqual([]);
 });
 
 test("empty datetime touched then left must not dirty the record", async () => {

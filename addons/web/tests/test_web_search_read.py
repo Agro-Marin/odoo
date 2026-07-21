@@ -69,6 +69,29 @@ class TestWebSearchRead(common.TransactionCase):
             expected_search_count_called=False,
         )
 
+    def test_empty_page_past_end_reports_real_length(self):
+        """An empty page PAST the end must still report the real total.
+
+        Records can be deleted under a user paged to offset > 0; the page then
+        returns no rows. Returning length 0 would collapse the pager and hide
+        the records still present on earlier pages. A genuinely empty result set
+        (offset 0) still short-circuits to length 0 with no count query.
+        """
+        self.assertGreater(self.max, 0)
+        # Past the end, with a limit: real length reported, records empty.
+        res = self.ResCurrency.web_search_read(
+            domain=[], specification={"id": {}}, offset=self.max + 50, limit=5
+        )
+        self.assertEqual(res["records"], [])
+        self.assertEqual(res["length"], self.max)
+
+        # Genuinely empty result set (offset 0) stays length 0.
+        res_empty = self.ResCurrency.web_search_read(
+            domain=[("id", "=", -1)], specification={"id": {}}, offset=0, limit=5
+        )
+        self.assertEqual(res_empty["length"], 0)
+        self.assertEqual(res_empty["records"], [])
+
     def test_web_name_search(self):
         result = self.env["res.partner"].web_name_search("", {"display_name": {}})[0]
         self.assertIn("display_name", result)

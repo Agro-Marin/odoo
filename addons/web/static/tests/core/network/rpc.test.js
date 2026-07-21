@@ -607,6 +607,42 @@ test("Dedup composes with cache: cache hit skips the fetch", async () => {
     expect.verifySteps([]);
 });
 
+test("Dedup + cache: callers with different callbacks are not deduped together", async () => {
+    // A cache ``callback`` is a function, dropped by the fingerprint's
+    // JSON.stringify. Without a split, two dedup.cache callers differing only by
+    // callback would share one promise and the second's callback would never
+    // register (its background-refresh notification lost). Each must stay
+    // independent; the cache layer still coalesces the single underlying fetch.
+    rpc.setCache(
+        new RPCCache(
+            "mockRpcDedupCb",
+            1,
+            "85472d41873cdb504b7c7dfecdb8993d90db142c4c03e6d94c4ae37a7771dc5b",
+        ),
+    );
+    mockFetch(() => {
+        expect.step("Fetch");
+        return { result: { x: 1 } };
+    });
+
+    const p1 = rpc(
+        "/test/",
+        {},
+        { dedup: true, cache: { update: "always", callback: () => {} } },
+    );
+    const p2 = rpc(
+        "/test/",
+        {},
+        { dedup: true, cache: { update: "always", callback: () => {} } },
+    );
+    // Different callbacks => not interchangeable => must NOT dedup together.
+    expect(p1).not.toBe(p2);
+    expect(await p1).toEqual({ x: 1 });
+    expect(await p2).toEqual({ x: 1 });
+    // The cache layer coalesced the underlying fetch to a single call.
+    expect.verifySteps(["Fetch"]);
+});
+
 test("Dedup: differing settings do not leak silent to a non-silent caller", async () => {
     // Two concurrent callers with identical (url, params) but DIFFERENT
     // ``silent`` settings must NOT share one promise — otherwise the second
@@ -951,6 +987,53 @@ test("Cache: aborting a cache joiner rejects only that caller", async () => {
     // When the shared fetch completes, the initiator resolves normally.
     fetchDef.resolve({ result: { ok: 1 } });
     expect(await initiator).toEqual({ ok: 1 });
+});
+
+test("Cache: a joiner aborted with abort(false) swallows a later shared rejection", async () => {
+    // Regression (original finding): a joiner silently aborted with abort(false)
+    // must NOT reject when the shared in-flight request later FAILS — an
+    // unguarded reject would float as an unhandled rejection and pop the global
+    // connection-lost / session-expired UX for a torn-down consumer. abort(false)
+    // leaves the joiner pending. (A warm-hit RESOLUTION is still delivered — see
+    // "abort on a cache hit is a safe no-op" — because only the reject handler
+    // is guarded.)
+    rpc.setCache(new RPCCache("mockRpc", 1, RPC_CACHE_SECRET));
+    after(() => rpc.setCache(undefined));
+
+    const fetchDef = new Deferred();
+    mockFetch(() => fetchDef);
+
+    const initiator = rpc("/test/", {}, { cache: true });
+    const joiner = rpc("/test/", {}, { cache: true });
+
+    let initiatorState = "pending";
+    initiator.then(
+        () => (initiatorState = "resolved"),
+        (/** @type {Error} */ e) => (initiatorState = e.constructor.name),
+    );
+    let joinerState = "pending";
+    joiner.then(
+        () => (joinerState = "resolved"),
+        (/** @type {Error} */ e) => (joinerState = e.constructor.name),
+    );
+
+    await tick();
+
+    // Silently abort the joiner (caller torn down, no rejection wanted).
+    joiner.abort(false);
+    await tick();
+    expect(joinerState).toBe("pending");
+
+    // The shared fetch now fails with a connection loss.
+    const r = new Response("<h...", { status: 500 });
+    r.headers.delete("content-type");
+    fetchDef.resolve(r);
+    await tick();
+    await tick();
+
+    // The initiator sees the error; the aborted joiner stays pending (no float).
+    expect(initiatorState).toBe("ConnectionLostError");
+    expect(joinerState).toBe("pending");
 });
 
 test("Cache: aborting a joiner stops its update:'always' callback firing after teardown", async () => {

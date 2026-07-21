@@ -10,6 +10,17 @@ from odoo.http import Response, content_disposition, request
 from odoo.libs.filesystem import osutil
 from odoo.libs.json import loads as json_loads
 
+# Hard ceiling on the number of cells a single pivot export may emit. The
+# per-header ``width`` and ``measure_count`` are individually clamped below, but
+# the COUNT of headers/rows is client-controlled and unbounded, and the workbook
+# is built ``in_memory`` (``constant_memory`` cannot help while ``in_memory`` is
+# set, and is incompatible with the ``autofit`` below — measured: it gives no RAM
+# reduction). A crafted body with many wide headers could otherwise drive ~10^8
+# ``write`` calls into RAM → worker OOM. Capping the emitted cells bounds the work
+# without altering the output of any legitimately-sized export (a 10k-row ×
+# 30-measure pivot is ~300k cells). ~1M cells ≈ 230 MB peak — generous but finite.
+MAX_EXPORT_CELLS = 1_000_000
+
 
 class TableExporter(http.Controller):
     @http.route("/web/pivot/export_xlsx", type="http", auth="user", readonly=True)
@@ -24,6 +35,27 @@ class TableExporter(http.Controller):
             output, {"in_memory": True, "strings_to_formulas": False}
         ) as workbook:
             worksheet = workbook.add_worksheet(jdata["title"])
+
+            # Bound the total number of cells written, regardless of the header /
+            # row COUNT the client declares (only per-header width is clamped
+            # below). Shadowing the instance ``write`` intercepts every call site.
+            cells_written = 0
+            _raw_write = worksheet.write
+
+            def _write(*args, **kwargs):
+                nonlocal cells_written
+                cells_written += 1
+                if cells_written > MAX_EXPORT_CELLS:
+                    raise UnprocessableEntity(
+                        _(
+                            "This pivot is too large to export (over %s cells). "
+                            "Narrow the grouping or add filters and try again.",
+                            MAX_EXPORT_CELLS,
+                        )
+                    )
+                return _raw_write(*args, **kwargs)
+
+            worksheet.write = _write
 
             header_bold = workbook.add_format(
                 {"bold": True, "pattern": 1, "bg_color": "#AAAAAA"}

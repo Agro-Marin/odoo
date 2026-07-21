@@ -162,6 +162,7 @@ export class Many2One extends Component {
         this.action = useService("action");
         this.notification = useService("notification");
         this.orm = useService("orm");
+        this.nameService = useService("name");
 
         this.state = useState({ isFloating: false });
 
@@ -199,13 +200,6 @@ export class Many2One extends Component {
                         return;
                     }
                     const fieldNames = ["display_name"];
-                    // CROSS-GROUP(name_service): this bespoke orm.read bypasses
-                    // the shared name_service cache, so N identical partners in
-                    // a list each pay a read and the name-service cache is left
-                    // stale. Routing display-name freshness through
-                    // @web/model/relational_model name_service is owned by the
-                    // model/core group; guarding the malformed request is the
-                    // widget-side part.
                     const records = await this.orm.read(
                         this.props.relation,
                         [resId],
@@ -214,6 +208,17 @@ export class Many2One extends Component {
                             context: this.props.context,
                         },
                     );
+                    if (records[0]) {
+                        // Push the fresh name into the SHARED name_service cache
+                        // so every OTHER on-screen widget / list cell referencing
+                        // this record updates too, instead of showing the stale
+                        // name until a full reload. (Previously this read fed only
+                        // this widget's own value and left the cache stale — the
+                        // former CROSS-GROUP(name_service) gap.)
+                        this.nameService.addDisplayNames(this.props.relation, {
+                            [resId]: records[0].display_name,
+                        });
+                    }
                     await this.update(records[0] ? extractData(records[0]) : false);
                 },
                 onRecordDiscarded: () => {},

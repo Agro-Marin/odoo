@@ -97,8 +97,13 @@ export class DateTimeField extends Component {
 
     static template = "web.DateTimeField";
 
-    /** @type {boolean | undefined} last FIELD_IS_DIRTY value emitted on the bus */
-    lastIsDirty;
+    /** @type {boolean} last FIELD_IS_DIRTY value emitted on the bus.
+     * MUST start at ``false``: an uninitialized (``undefined``) value makes the
+     * ``isDirty !== this.lastIsDirty`` guard in ``onWillRender`` fire on the
+     * FIRST render of a CLEAN field (``false !== undefined``), broadcasting a
+     * spurious ``FIELD_IS_DIRTY=false`` on the shared last-writer-wins bus and
+     * clobbering the indicator/keyboard-nav state set by a dirty sibling. */
+    lastIsDirty = false;
 
     //-------------------------------------------------------------------------
     // Getters

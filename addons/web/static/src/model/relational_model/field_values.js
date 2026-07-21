@@ -206,10 +206,15 @@ function getAggregatesFromGroupData(groupData, fields) {
 function getDisplayNameFromGroupData(field, rawValue) {
     switch (field.type) {
         case "selection": {
-            // A falsy raw value has no selection-map entry; fall back to the
-            // falsy label like other field types instead of returning ``undefined``.
-            return rawValue
-                ? Object.fromEntries(field.selection)[rawValue]
+            // Test MEMBERSHIP, not truthiness: a selection can legitimately
+            // define a falsy-keyed option (``0`` or ``""``) with its own label,
+            // which ``rawValue ? …`` would mislabel as "None". Only a value with
+            // no entry at all falls back to the falsy label. (Object keys are
+            // strings, so ``in`` coerces the raw value the same way the lookup
+            // does.)
+            const selectionMap = Object.fromEntries(field.selection);
+            return rawValue in selectionMap
+                ? selectionMap[rawValue]
                 : field.falsy_value_label || _t("None");
         }
         case "boolean": {
@@ -340,9 +345,18 @@ export function fromUnityToServerValues(
             case "many2one":
                 value = value ? value.id : false;
                 break;
-            // case "reference":
-            //     // TODO
-            //     break;
+            case "reference":
+                // Serialize the unity shape ``{resModel, resId, displayName}`` to
+                // the ORM's ``"model,id"`` string. Without this, a deferred x2many
+                // CREATE/UPDATE (pagination / always-invisible sub-list) that
+                // touches a reference field shipped the raw client object to
+                // ``web_save`` → server write error. Mirrors the ``reference``
+                // serializer in record_value_transforms.js.
+                value =
+                    value?.resModel && value.resId
+                        ? `${value.resModel},${value.resId}`
+                        : false;
+                break;
         }
         serverValues[fieldName] = value;
     }
