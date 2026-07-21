@@ -240,7 +240,7 @@ export class AnalyticDistribution extends Component {
      * A1     B1     C1     50
      * A2     B1     C1     50         => ["50% A1 | 50% A2 | 50% A3", "150% B1", "C1 | 50% C2"]
      * A3     B1     C2     50
-     * @returns [List] of tag objects
+     * @returns {Object[]}
      */
     planSummaryTags() {
         const accountTotals = this.accountTotalsByPlan();
@@ -484,7 +484,6 @@ export class AnalyticDistribution extends Component {
             fields: ["id", "display_name", "root_plan_id", "color"],
             context: [],
         };
-        // batched call
         const records = await this.batchedOrm.read(
             "account.analytic.account",
             domain[0][2],
@@ -800,11 +799,12 @@ export class AnalyticDistribution extends Component {
 
     onWindowClick(ev) {
         /*
-        Dropdown should be closed only if all these condition are true:
+        Dropdown should be closed only if all these conditions are true:
             - dropdown is open
             - click is outside widget element (widgetRef)
-            - there is no active modal containing a list/kanban view (search more modal)
-            - there is no popover (click is not in search modal's search bar menu)
+            - click is not inside a popover (search modal's search bar menu) nor
+              inside a modal that is not an action dialog (search more modal),
+              unless that modal is the one containing the widget itself
             - click is not targeting document dom element (drag and drop search more modal)
         */
 

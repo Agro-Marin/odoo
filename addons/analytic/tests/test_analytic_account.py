@@ -51,7 +51,7 @@ class TestAnalyticAccount(AnalyticCommon):
         )
 
     def test_get_plans_without_options(self):
-        """Test that the plans with the good appliability are returned without if no options are given"""
+        """Test that the plans with an applicable applicability are returned when no options are given"""
         kwargs = {}
         plans_json = self.env["account.analytic.plan"].get_relevant_plans(**kwargs)
         self.assertEqual(
@@ -228,10 +228,7 @@ class TestAnalyticAccount(AnalyticCommon):
         )
 
     def test_analytic_plan_account_child(self):
-        """
-        Check that when an analytic account is set to the third (or more) child,
-        the root plan is correctly retrieved.
-        """
+        """Check that the root plan is retrieved when the account is on a third (or deeper) child plan."""
         self.analytic_plan = self.env["account.analytic.plan"].create(
             {
                 "name": "Parent Plan",
@@ -324,10 +321,8 @@ class TestAnalyticAccount(AnalyticCommon):
         self.assertEqual(plan.create_uid, analyst)
 
     def test_analytic_account_branches(self):
-        """
-        Test that an analytic account defined in a parent company is accessible in its branches (children)
-        """
-        # timesheet adds a rule to forcer a project_id; account overrides it
+        """Test that an analytic account defined in a parent company is accessible in its branches (children)"""
+        # timesheet adds a rule to force a project_id; account overrides it
         timesheet_user = self.env.ref(
             "hr_timesheet.group_hr_timesheet_user", raise_if_not_found=False
         )
@@ -446,10 +441,7 @@ class TestAnalyticAccount(AnalyticCommon):
         )
 
     def test_change_parent_plan_conflict(self):
-        """
-        Test case where changing the parent plan leads to more than one account under the same
-        plan in an analytic line.
-        """
+        """Changing the parent plan is refused when it would put two accounts under the same plan in a line."""
         plan_1_col = self.analytic_plan_1._column_name()
         plan_2_col = self.analytic_plan_2._column_name()
         self.env["account.analytic.line"].create(
@@ -506,10 +498,9 @@ class TestAnalyticAccount(AnalyticCommon):
         )
 
     def test_update_analytic_distribution_clean_all_plans(self):
-        """
-        This test ensures no IndexError occurs and no changes are made when clearing all percentages
-        in the analytic distribution wizard.
-        """
+        """Clearing all the percentages in the analytic distribution wizard leaves the line unchanged."""
+        # Regression: an empty final distribution used to reach `vals_list[0]` in the
+        # inverse method and raise an IndexError.
         plan_1_col = self.analytic_plan_1._column_name()
         plan_2_col = self.analytic_plan_2._column_name()
 
@@ -532,7 +523,7 @@ class TestAnalyticAccount(AnalyticCommon):
             }
         )
 
-        # No crash and the line remains unchanged (no lines created/deleted, same accounts)
+        # No crash and the line remains unchanged (still exists, same accounts)
         self.assertTrue(
             line.exists(), "The analytic line should still exist after update"
         )

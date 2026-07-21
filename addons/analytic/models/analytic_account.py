@@ -64,7 +64,7 @@ class AccountAnalyticAccount(models.Model):
     partner_id = fields.Many2one(
         "res.partner",
         string="Customer",
-        # use bypass_access to speed up name_search call
+        # use bypass_search_access to speed up name_search call
         bypass_search_access=True,
         tracking=True,
         check_company=True,

@@ -49,15 +49,15 @@ class RequestBatcherORM extends ORM {
     }
 
     /**
-     * Entry point to batch "read" calls. If the `fields` and `resModel`
-     * arguments have already been called, the given ids are added to the
-     * previous list of ids to perform a single read call. Once the server
-     * responds, records are then dispatched to the callees based on the
-     * given ids arguments (kept in the closure).
+     * Entry point to batch "read" calls. Calls sharing the same `resModel`,
+     * `fields` and `kwargs` and issued before the batch is flushed (next
+     * microtask) are merged into a single read; each caller then gets back only
+     * the records matching the ids it asked for.
      *
      * @param {string} resModel
      * @param {number[]} resIds
      * @param {string[]} fields
+     * @param {Object} kwargs
      * @returns {Promise<Object[]>}
      */
     async read(resModel, resIds, fields, kwargs) {

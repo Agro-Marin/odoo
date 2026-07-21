@@ -2,8 +2,9 @@
 import { PivotRenderer } from "@web/views/pivot/pivot_renderer";
 
 export class AnalyticPivotRenderer extends PivotRenderer {
-    /*
-     * Override to avoid using incomplete groupByItems
+    /**
+     * Override to also resolve the selected id against the per-plan group-by
+     * options, which are not top-level entries of `groupByItems`.
      */
     onGroupBySelected({ itemId, optionId }) {
         if (typeof optionId === "number") {

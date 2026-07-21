@@ -54,15 +54,15 @@ class AnalyticMixin(models.AbstractModel):
 
     @api.model
     def _account_ids_from_distribution(self, distribution):
-        """Return the analytic account ids referenced by a single distribution
-        dict, in order of first appearance and de-duplicated.
+        """Return the de-duplicated analytic account ids of one distribution dict.
 
-        Ignores the transient ``__update__`` marker and any non-numeric key
-        segment (e.g. a trailing comma, whitespace padding, or a stale wizard
-        key), so a malformed distribution never raises a raw ``ValueError`` when
-        its keys are parsed. This is the single place that turns distribution
-        keys into ids; every other reader goes through it.
+        :param distribution: mapping of distribution keys to percentages
+        :return: account ids in order of first appearance
+        :rtype: list
         """
+        # Non-numeric key segments (the transient ``__update__`` marker, a
+        # trailing comma, whitespace padding) are skipped, so a malformed
+        # distribution never raises a raw ``ValueError`` when its keys are parsed.
         ordered = {}
         for key in distribution or ():
             for segment in str(key).split(","):
@@ -143,8 +143,7 @@ class AnalyticMixin(models.AbstractModel):
                     jsonb_ids,
                 )
             )
-        # Don't use this override for the "is set / not set" checks either: a value
-        # containing False means membership on the real jsonb column.
+        # Don't use this override for the "is set / not set" checks.
         if operator in ("in", "not in") and False in value:
             return Domain("analytic_distribution", operator, value)
 
@@ -193,8 +192,11 @@ class AnalyticMixin(models.AbstractModel):
             )
 
     def _read_group_groupby(self, alias: str, groupby_spec: str, query: Query) -> SQL:
-        """To group by `analytic_distribution`, we first need to separate the analytic_ids and associate them with the ids to be counted
-        Do note that only '__count' can be passed in the `aggregates`"""
+        """Group by ``analytic_distribution`` by splitting it into one row per account.
+
+        :rtype: SQL
+        """
+        # Only '__count' can be passed in the `aggregates` (see `_read_group_select`).
         if groupby_spec == "analytic_distribution":
             query._tables = {
                 "distribution": SQL(
@@ -221,19 +223,19 @@ class AnalyticMixin(models.AbstractModel):
         return super()._read_group_select(aggregate_spec, query)
 
     def _get_count_id(self, query):
-        """Entity counted when grouping by ``analytic_distribution``.
+        """Return the entity counted when grouping by ``analytic_distribution``.
 
-        Defaults to the record itself; a model that would rather count a parent
-        document (e.g. journal entries instead of journal items) overrides this.
-        Kept as an overridable hook so the base ``analytic`` module needs no
-        knowledge of the tables of the modules that depend on it (previously a
-        hardcoded ``{table: id}`` map that hard-errored for any other model).
+        :rtype: SQL
         """
+        # Overridable hook: a model that would rather count a parent document
+        # (e.g. journal entries instead of journal items) overrides it, so the
+        # base `analytic` module needs no knowledge of the tables of the modules
+        # depending on it.
         return SQL("id")
 
     def filtered_domain(self, domain):
         # Filter based on the accounts used (i.e. allowing a name_search) instead of the distribution
-        # A domain on a binary field doesn't make sense anymore outside of set or not; and it is still doable.
+        # A domain on a json field doesn't make sense anymore outside of set or not; and it is still doable.
         # Hack to filter using another field.
         domain = Domain(domain).map_conditions(
             lambda cond: (
@@ -307,19 +309,17 @@ class AnalyticMixin(models.AbstractModel):
                     )
 
     def _analytic_distribution_consumes_update(self):
-        """Whether this model's write path merges the transient ``__update__``
-        marker into the distribution (see :meth:`_merge_distribution`).
+        """Return whether this model's write path merges the ``__update__`` marker.
 
-        Only models that actually consume it may let it reach persistence; for
-        every other model the marker is stripped in :meth:`_sanitize_values` so
-        it never corrupts the stored JSON. A persisted ``__update__`` key later
-        makes ``int(...)`` key parsing raise across readers (compute, validation,
-        :meth:`_get_analytic_account_ids_from_distributions`).
+        :rtype: bool
         """
+        # Only models that actually consume the marker (via `_merge_distribution`)
+        # may let it reach persistence; for every other model it is stripped in
+        # `_sanitize_values` so it never corrupts the stored JSON.
         return False
 
     def _sanitize_values(self, vals, decimal_precision):
-        """Normalize the float of the distribution"""
+        """Normalize the distribution floats and drop the unused ``__update__`` marker"""
         if "analytic_distribution" in vals:
             distribution = vals.get("analytic_distribution")
             if (
