@@ -14522,6 +14522,47 @@ test(`add and discard a record in a multi-level grouped list view`, async () => 
 });
 
 test.tags("desktop");
+test(`ESC on a new row in an editable list keeps focus in the view`, async () => {
+    // Regression: discarding a NEW row via Escape detaches its <tr>; focus then
+    // fell through to <body> because nav.focus targeted the (about-to-be-removed)
+    // cell. Focus must land on a surviving cell instead. Ungrouped case: the
+    // else-branch fallback (no x2many add button, not a grouped new row).
+    await mountView({
+        resModel: "foo",
+        type: "list",
+        arch: `<list editable="top"><field name="foo" required="1"/></list>`,
+    });
+    await contains(`.o_list_button_add`).click();
+    expect(`.o_selected_row`).toHaveCount(1);
+    await press("Escape");
+    await animationFrame();
+    expect(`.o_selected_row`).toHaveCount(0);
+    expect(document.activeElement === document.body).toBe(false);
+});
+
+test.tags("desktop");
+test(`ESC on a new row in a grouped editable list keeps focus in the view`, async () => {
+    await mountView({
+        resModel: "foo",
+        type: "list",
+        arch: `<list editable="top"><field name="foo" required="1"/></list>`,
+        groupBy: ["bar"],
+    });
+    // open every group, then add a line in the LAST one
+    const headers = queryAll(`.o_group_header`);
+    for (const h of headers) {
+        await contains(h).click();
+    }
+    const addLinks = queryAll(`.o_group_field_row_add a`);
+    await contains(addLinks[addLinks.length - 1]).click();
+    expect(`.o_selected_row`).toHaveCount(1);
+    await press("Escape");
+    await animationFrame();
+    expect(`.o_selected_row`).toHaveCount(0);
+    expect(document.activeElement === document.body).toBe(false);
+});
+
+test.tags("desktop");
 test(`pressing ESC in editable grouped list should discard the current line changes`, async () => {
     // This test is wrong, there's a bug in list view when pressing "Escape".
     // The row becomes readonly but the value is not reset.
