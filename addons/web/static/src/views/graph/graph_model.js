@@ -407,7 +407,7 @@ export class GraphModel extends Model {
      * @returns {Object[]}
      */
     _getProcessedDataPoints() {
-        const { groupBy, mode, order } = this.metaData;
+        const { groupBy, mode, order, cumulated } = this.metaData;
         let processedDataPoints;
         /** @type {any[]} */
         const dataPoints = /** @type {any} */ (this).dataPoints;
@@ -428,12 +428,19 @@ export class GraphModel extends Model {
             );
         }
 
-        if (order !== null && mode !== "pie" && groupBy.length) {
+        if (order !== null && mode !== "pie" && groupBy.length && !cumulated) {
             // group data by their x-axis slot, and then sort datapoints
             // based on the sum of values by group in ascending/descending
             // order. Key on the raw identity, not the display label: a NULL
             // integer group and a genuine 0 group both display "0" but are
             // distinct x slots (same reason _getData keys on xIdentifier).
+            //
+            // Skipped when ``cumulated``: the cumulative pass (styleLineChartData)
+            // accumulates dataset.data POSITIONALLY, so sorting the axis by group
+            // total first would make each point the running total of the
+            // highest/lowest groups so far rather than of the groups up to that
+            // x value — a monotonic curve over a scrambled axis. Keep the natural
+            // (server/chronological) order so the running total is meaningful.
             const groupedDataPoints = Object.groupBy(
                 processedDataPoints,
                 (dataPt) => dataPt.xIdentifier ?? dataPt.labels[0],
