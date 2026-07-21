@@ -12,7 +12,7 @@ class TestAnalyticPlanOperations(TransactionCase):
         plan = self.env["account.analytic.plan"].create({"name": "Test Plan"})
         column = plan._column_name()
 
-        # columns exists
+        # the column exists
         self.env.cr.execute(f"SELECT {column} FROM account_analytic_line LIMIT 1")
 
         plan.unlink()

@@ -9,8 +9,6 @@ import { rpcBus } from "@web/core/network/rpc";
 import { registry } from "@web/core/registry";
 import { UPDATE_METHODS } from "@web/services/orm_service";
 
-// reload the page if changes are being done to `account.analytic.plan`
-//
 // The views need to include the newly created field on `account.analytic.line`
 // and other models inheriting `analytic.plan.fields.mixin`.
 // This is based on the same service for `res.company`: `reloadCompany`.

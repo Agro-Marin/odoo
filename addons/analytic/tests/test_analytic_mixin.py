@@ -30,17 +30,9 @@ class TestAnalyticMixin(TransactionCase):
         )
 
     def test_filtered_domain(self):
-        """
-        This test covers the filtered_domain override on analytic.mixin.
-        It is supposed to handle the use of analytic_distribution with the following operators
-        with a string representing the analytic account name :
-            - `=`
-            - `!=`
-            - `ilike`,
-            - `not ilike`,
-        and the "in" operator used to directly indicate a tuple/list of analytic account ids.
-        This test verifies that the public method handles all these operators.
-        """
+        """Test the `filtered_domain` override on `analytic.mixin` for every supported operator."""
+        # `=`, `!=`, `ilike` and `not ilike` compare against an analytic account name;
+        # `in` takes a tuple/list of analytic account ids directly.
 
         self.adm_sales_admin_ad = self.env[
             "account.analytic.distribution.model"
@@ -85,7 +77,7 @@ class TestAnalyticMixin(TransactionCase):
         self.assertEqual(filter_domain("=", "Sales"), self.adm_sales_admin_ad)
         self.assertEqual(filter_domain("=", "Administrative"), self.adm_sales_admin_ad)
         self.assertEqual(filter_domain("=", "Commercial"), self.adm_commercial_ad)
-        self.assertFalse(filter_domain("=", ""))  # Should returns an empty recordset
+        self.assertFalse(filter_domain("=", ""))  # Should return an empty recordset
         self.assertEqual(
             filter_domain("=", self.commercial_aa.id), self.adm_commercial_ad
         )
@@ -105,7 +97,7 @@ class TestAnalyticMixin(TransactionCase):
         )
         self.assertEqual(
             filter_domain("not ilike", ""), self.adm_without_ad + self.adm_without_ad_1
-        )  # Should returns an AML without analytic_distribution
+        )  # Should return the ADMs without analytic_distribution
 
         self.assertEqual(
             filter_domain("!=", "Commercial & Marketing"),
@@ -113,7 +105,7 @@ class TestAnalyticMixin(TransactionCase):
         )
         self.assertEqual(
             filter_domain("!=", ""), adm_ids
-        )  # Should returns an every ADM
+        )  # Should return every ADM
         self.assertEqual(
             filter_domain("!=", self.commercial_aa.id), adm_ids - self.adm_commercial_ad
         )
@@ -127,10 +119,9 @@ class TestAnalyticMixin(TransactionCase):
         )
 
     def test_search_distribution_in_by_account_name(self):
-        """`_search_analytic_distribution` must accept a list of account *names*
-        for the `in`/`not in` operators (regression: it used to test
-        `isinstance(value, str)` instead of the element `v`, so a list of names
-        silently matched nothing)."""
+        """Test that `_search_analytic_distribution` accepts a list of account names for `in`."""
+        # Regression: the branch tested `isinstance(value, str)` instead of the element
+        # `v`, so a list of names silently matched nothing.
         ADM = self.env["account.analytic.distribution.model"]
         sales_adm = ADM.create({"analytic_distribution": {self.sales_aa.id: 100}})
         rd_adm = ADM.create({"analytic_distribution": {self.rd_aa.id: 100}})
@@ -159,9 +150,9 @@ class TestAnalyticMixin(TransactionCase):
         )
 
     def test_update_marker_not_persisted_on_plain_mixin(self):
-        """A model that does not consume the transient `__update__` marker must
-        never persist it (regression: it leaked into the stored JSON and later
-        made `int('__update__')` raise across every key reader)."""
+        """A model that does not consume the transient `__update__` marker must never persist it."""
+        # Regression: the marker leaked into the stored JSON and later made
+        # `int('__update__')` raise across every key reader.
         ADM = self.env["account.analytic.distribution.model"]
         self.assertFalse(ADM._analytic_distribution_consumes_update())
 
@@ -197,8 +188,7 @@ class TestAnalyticMixin(TransactionCase):
         self.assertNotIn("__update__", adm.analytic_distribution)
 
     def test_account_ids_from_distribution_is_robust(self):
-        """The single key parser tolerates the `__update__` marker and malformed
-        segments instead of raising, and de-duplicates while preserving order."""
+        """The key parser tolerates the `__update__` marker and malformed segments, and de-duplicates in order."""
         mixin = self.env["analytic.mixin"]
         s, r = self.sales_aa.id, self.rd_aa.id
         self.assertEqual(
@@ -229,9 +219,9 @@ class TestAnalyticMixin(TransactionCase):
         )
 
     def test_read_group_by_distribution_defaults_to_self(self):
-        """Grouping by `analytic_distribution` on a model with no dedicated
-        count id falls back to counting the record itself, instead of raising
-        `ValueError` from a hardcoded table map (inverted-dependency removal)."""
+        """Grouping by `analytic_distribution` with no dedicated count id counts the record itself."""
+        # Regression: a hardcoded table map used to raise `ValueError` for any model it
+        # did not list (inverted-dependency removal).
         ADM = self.env["account.analytic.distribution.model"]
         made = ADM.create(
             [
