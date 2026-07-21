@@ -118,8 +118,12 @@ class MailTrackingDurationMixin(models.AbstractModel):
         for tracking in trackings:
             trackings_by_res[tracking["res_id"]].append(tracking)
         for record in self:
+            # Copy: _get_duration_from_tracking appends synthetic entries to the
+            # list it receives. Records sharing an _origin.id -- every unsaved
+            # NewId shares False -- would otherwise accumulate each other's
+            # buckets, so the second record reported the first one's stage times.
             record.duration_tracking = record._get_duration_from_tracking(
-                trackings_by_res[record._origin.id]
+                list(trackings_by_res[record._origin.id])
             )
 
     @api.depends(lambda self: self._get_rotting_depends_fields())

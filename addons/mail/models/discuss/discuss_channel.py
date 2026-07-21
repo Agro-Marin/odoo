@@ -1166,7 +1166,13 @@ class DiscussChannel(models.Model):
             email_from = tools.email_normalize(
                 msg_vals.get("email_from") or message.email_from
             )
-            self.env["res.partner"].flush_model(["active", "email", "partner_share"])
+            # email_normalized is a stored compute read by the raw SQL below;
+            # without flushing it the column is stale/NULL for partners touched
+            # in this transaction and the author-suppression filter matches
+            # nothing.
+            self.env["res.partner"].flush_model(
+                ["active", "email", "email_normalized", "partner_share"]
+            )
             self.env["res.users"].flush_model(["notification_type", "partner_id"])
             sql_query = SQL(
                 """
@@ -1181,7 +1187,15 @@ class DiscussChannel(models.Model):
                   FROM res_partner partner
              LEFT JOIN res_users users on partner.id = users.partner_id
                  WHERE partner.active IS TRUE
-                       AND partner.email IS DISTINCT FROM %(email)s
+                       -- Compare like with like: the bound author address is
+                       -- normalized, while partner.email holds whatever was
+                       -- typed (mixed case, or a full "Name <addr>" form).
+                       -- Matching the raw column suppressed only byte-exact
+                       -- duplicates, so a second partner record for the
+                       -- message's own author still got notified of their own
+                       -- message. email_normalized is stored and btree-indexed,
+                       -- so this is also the cheaper comparison.
+                       AND partner.email_normalized IS DISTINCT FROM %(email)s
                        AND partner.id IN %(partner_ids)s AND partner.id != %(author_id)s
                 """,
                 email=email_from or "",

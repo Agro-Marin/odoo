@@ -115,8 +115,12 @@ class TestChannelInternals(MailCommon, HttpCase):
                                         "date": "2020-03-22 10:42:06",
                                         "default_subject": "Group",
                                         "id": message.id,
-                                        "incoming_email_cc": False,
-                                        "incoming_email_to": False,
+                                        # incoming_email_to/cc are gated by the
+                                        # same predicate as email_from (which is
+                                        # likewise absent here): a discuss.channel
+                                        # bus target is not internal, and a channel
+                                        # may hold guests/portal members, so the
+                                        # incoming-email envelope is withheld.
                                         "message_link_preview_ids": [],
                                         "message_type": "notification",
                                         "model": "discuss.channel",

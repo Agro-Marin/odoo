@@ -1110,7 +1110,13 @@ class MailRenderMixin(models.AbstractModel):
             templates_res_ids = {}
             for res_id, lang in res_ids_lang.items():
                 lang_values = templates_res_ids.setdefault(
-                    lang, (self.with_context(lang=lang), [])
+                    # Mirror _classify_per_lang: keep the ambient lang when the
+                    # per-record lang is falsy. ``with_context(lang=False)``
+                    # makes env.lang None -> renders en_US, so a customer with
+                    # no lang set (the common case) silently got an English
+                    # subject/body instead of the sender's language.
+                    lang,
+                    (self.with_context(lang=lang) if lang else self, []),
                 )
                 lang_values[1].append(res_id)
         elif compute_lang:
