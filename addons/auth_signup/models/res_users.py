@@ -2,16 +2,16 @@
 
 import contextlib
 import logging
-
 from ast import literal_eval
+
 from dateutil.relativedelta import relativedelta
 
-from odoo import api, fields, models, _
+from odoo import _, api, fields, models
 from odoo.exceptions import UserError
 from odoo.fields import Domain
 
-from odoo.addons.base.models.ir_mail_server import MailDeliveryException
 from odoo.addons.auth_signup.models.res_partner import SignupError
+from odoo.addons.base.models.ir_mail_server import MailDeliveryException
 
 _logger = logging.getLogger(__name__)
 
@@ -42,14 +42,14 @@ class ResUsers(models.Model):
             - change the password of a user (with token, and existing user).
             :param values: a dictionary with field values that are written on user
             :param token: signup token (optional)
-            :return: (dbname, login, password) for the signed up user
+            :return: (login, password) for the signed up user
         """
         if token:
             # signup with a token: find the corresponding partner id
             partner = self.env['res.partner']._signup_retrieve_partner(token, check_validity=True, raise_exception=True)
             # invalidate signup token
             partner.write({'signup_type': False})
-            partner_user = partner.user_ids and partner.user_ids[0] or False
+            partner_user = (partner.user_ids and partner.user_ids[0]) or False
 
             # avoid overwriting existing (presumably correct) values with geolocation data
             if partner.country_id or partner.zip or partner.city:
@@ -127,7 +127,7 @@ class ResUsers(models.Model):
                 return template_user.with_context(no_reset_password=True).copy(values)
         except Exception as e:
             # copy may failed if asked login is not available.
-            raise SignupError(str(e))
+            raise SignupError(str(e))  # noqa: B904
 
     def reset_password(self, login):
         """ retrieve the user corresponding to login (login or email),
@@ -137,9 +137,9 @@ class ResUsers(models.Model):
         if not users:
             users = self.search(self._get_email_domain(login))
         if not users:
-            raise Exception(_('No account found for this login'))
+            raise Exception(_('No account found for this login'))  # noqa: TRY002
         if len(users) > 1:
-            raise Exception(_('Multiple accounts found for this login'))
+            raise Exception(_('Multiple accounts found for this login'))  # noqa: TRY002
         return users.action_reset_password()
 
     def action_reset_password(self):
@@ -151,13 +151,12 @@ class ResUsers(models.Model):
         except MailDeliveryException as mde:
             if len(mde.args) == 2 and isinstance(mde.args[1], ConnectionRefusedError):
                 raise UserError(_("Could not contact the mail server, please check your outgoing email server configuration")) from mde
-            else:
-                raise UserError(_("There was an error when trying to deliver your Email, please check your configuration")) from mde
+            raise UserError(_("There was an error when trying to deliver your Email, please check your configuration")) from mde
 
     def _action_reset_password(self, signup_type="reset"):
         """ create signup token for each user, and send their signup url by email """
         if self.env.context.get('install_mode') or self.env.context.get('import_file'):
-            return
+            return None
         if self.filtered(lambda user: not user.active):
             raise UserError(_("You cannot perform this action on an archived user."))
         # prepare reset password signup
@@ -173,13 +172,13 @@ class ResUsers(models.Model):
                 internal_account_created_template = self.env.ref('auth_signup.set_password_email', raise_if_not_found=False)
                 if internal_account_created_template and internal_account_created_template._name != 'mail.template':
                     _logger.error("Wrong set password template %r", internal_account_created_template)
-                    return
+                    return None
 
             if any(not user._is_internal() for user in self):
                 portal_account_created_template = self.env.ref('auth_signup.portal_set_password_email', raise_if_not_found=False)
                 if portal_account_created_template and portal_account_created_template._name != 'mail.template':
                     _logger.error("Wrong set password template %r", portal_account_created_template)
-                    return
+                    return None
 
         email_values = {
             'email_cc': False,
@@ -262,7 +261,7 @@ class ResUsers(models.Model):
     def web_create_users(self, emails):
         inactive_users = self.search([('state', '=', 'new'), '|', ('login', 'in', emails), ('email', 'in', emails)])
         new_emails = set(emails) - set(inactive_users.mapped('email'))
-        res = super(ResUsers, self).web_create_users(list(new_emails))
+        res = super().web_create_users(list(new_emails))
         # Only (re)send the signup invite to inactive users that HAVE an email:
         # action_reset_password raises "user has no email address" for an
         # email-less user, which would abort the WHOLE batch invite over a single
@@ -277,7 +276,7 @@ class ResUsers(models.Model):
     @api.model_create_multi
     def create(self, vals_list):
         # overridden to automatically invite user to sign up
-        users = super(ResUsers, self).create(vals_list)
+        users = super().create(vals_list)
         if not self.env.context.get('no_reset_password'):
             users_with_email = users.filtered('email')
             if users_with_email:

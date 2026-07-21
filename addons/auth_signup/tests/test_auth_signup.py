@@ -1,20 +1,20 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 from contextlib import contextmanager
+from datetime import datetime, timedelta
 from unittest.mock import patch
 
 import odoo
 from odoo import http
-from odoo.addons.base.tests.common import HttpCaseWithUserPortal, HttpCaseWithUserDemo
 from odoo.exceptions import AccessError, UserError
 
-from datetime import datetime, timedelta
+from odoo.addons.base.tests.common import HttpCaseWithUserDemo, HttpCaseWithUserPortal
+
 
 class TestAuthSignupFlow(HttpCaseWithUserPortal, HttpCaseWithUserDemo):
 
     def setUp(self):
-        super(TestAuthSignupFlow, self).setUp()
+        super().setUp()
         res_config = self.env['res.config.settings']
         self.default_values = res_config.default_get(list(res_config.fields_get()))
 
@@ -60,7 +60,7 @@ class TestAuthSignupFlow(HttpCaseWithUserPortal, HttpCaseWithUserDemo):
             url_free_signup = self._get_free_signup_url()
             response = self.url_open(url_free_signup, data=payload)
             self.assertIn('/web/login_successful?account_created=True', response.url)
-            # Check if an email is sent to the new userw
+            # Check if an email is sent to the new user
             new_user = self.env['res.users'].search([('name', '=', name)])
             self.assertTrue(new_user)
             mail = self.env['mail.message'].search([('message_type', '=', 'email_outgoing'), ('model', '=', 'res.users'), ('res_id', '=', new_user.id)], limit=1)

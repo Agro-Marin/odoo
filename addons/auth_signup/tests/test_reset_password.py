@@ -1,17 +1,18 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 from unittest.mock import patch
-from odoo.exceptions import UserError
-from odoo.addons.mail.models.mail_mail import MailDeliveryException
-from odoo.tests.common import HttpCase
 from urllib.parse import parse_qs, urlsplit
+
+from odoo.exceptions import UserError
+from odoo.tests.common import HttpCase
+
+from odoo.addons.mail.models.mail_mail import MailDeliveryException
 
 
 class TestResetPassword(HttpCase):
 
     @classmethod
     def setUpClass(cls):
-        super(TestResetPassword, cls).setUpClass()
+        super().setUpClass()
         cls.test_user = cls.env['res.users'].create({
             'login': 'test',
             'name': 'The King',
@@ -19,12 +20,10 @@ class TestResetPassword(HttpCase):
         })
 
     def test_reset_password(self):
-        """
-            Test that first signup link and password reset link are different to accomodate for the different behaviour
-            on first signup if a password is already set user is redirected to login page when accessing that link again
-            'signup_email' is used in the web controller (web_auth_reset_password) to detect this behaviour
-        """
+        """Signup URL carries 'signup_email' in its query; a password-reset URL does not."""
 
+        # 'signup_email' lets the web controller (web_auth_reset_password) tell a
+        # first-time signup from a later password reset.
         self.assertEqual(self.test_user.email, parse_qs(urlsplit(self.test_user.with_context(create_user=True).partner_id._get_signup_url()).query)["signup_email"][0], "query must contain 'signup_email'")
 
         # Invalidate signup_url to skip signup process
@@ -35,23 +34,7 @@ class TestResetPassword(HttpCase):
 
     @patch('odoo.addons.mail.models.mail_mail.MailMail.send')
     def test_reset_password_mail_server_error(self, mock_send):
-        """
-        Test that action_reset_password() method raises UserError and _action_reset_password() method raises MailDeliveryException.
-
-        action_reset_password() method attempts to reset the user's password by executing the private method _action_reset_password().
-        If any errors occur during the password reset process, a UserError exception is raised with the following behavior:
-
-        - If a MailDeliveryException is caught and the exception's second argument is a ConnectionRefusedError,
-        a UserError is raised with the message "Could not contact the mail server, please check your outgoing email server configuration".
-        This indicates that the error is related to the mail server and the user should verify their email server settings.
-
-        - If a MailDeliveryException is caught but the exception's second argument is not a ConnectionRefusedError,
-        a UserError is raised with the message "There was an error when trying to deliver your Email, please check your configuration".
-        This indicates that there was an error during the email delivery process, and the user should review their email configuration.
-
-        Note: The _action_reset_password() method, marked as private with the underscore prefix, performs the actual password reset logic
-        and the original MailDeliveryException occurs from this method.
-        """
+        """action_reset_password() wraps a mail delivery failure in a UserError; _action_reset_password() lets the MailDeliveryException propagate."""
 
         mock_send.side_effect = MailDeliveryException(
             "Unable to connect to SMTP Server",
