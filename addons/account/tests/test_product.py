@@ -85,9 +85,10 @@ class TestProduct(AccountTestInvoicingCommon):
         )
 
     def test_product_tax_with_company_and_branch(self):
-        """Ensure that setting a tax on a product overrides the default tax of branch companies.
-        as branches share taxes with their parent company."""
+        """Ensure that setting a tax on a product overrides the default tax of branch companies."""
         parent_company = self.env.company
+        # Branches share taxes with their parent company, so the branch default
+        # would otherwise leak onto the parent company's product.
         # Create a branch company and set a default sales tax.
         self.env["res.company"].create(
             {
@@ -125,13 +126,8 @@ class TestProduct(AccountTestInvoicingCommon):
         )
 
     def test_get_list_price_price_included_tax_subcent(self):
-        """A public price with sub-cent precision under a price-included tax must
-        round to that price, not collapse to the tax-excluded base.
-
-        Regression: the branch used a raw ``price == total_included`` float
-        comparison, so ``1234.567`` (total_included rounds to ``1234.57``) took
-        the wrong branch and returned the excluded base (~``1064``).
-        """
+        """A public price with sub-cent precision under a price-included tax rounds
+        to that price instead of collapsing to the tax-excluded base."""
         tax_incl = self.env["account.tax"].create(
             {
                 "name": "16% included",
@@ -145,6 +141,9 @@ class TestProduct(AccountTestInvoicingCommon):
             {"name": "Sub-cent priced", "taxes_id": tax_incl.ids}
         )
         currency = product.currency_id
+        # A raw ``price == total_included`` float comparison would send
+        # ``1234.567`` (total_included rounds to ``1234.57``) down the
+        # tax-excluded branch and return the excluded base (~``1064``).
         for price, expected in [(1234.567, 1234.57), (100.005, 100.01), (100.0, 100.0)]:
             self.assertEqual(
                 currency.compare_amounts(product._get_list_price(price), expected),
@@ -154,8 +153,8 @@ class TestProduct(AccountTestInvoicingCommon):
             )
 
     def test_get_list_price_price_excluded_tax(self):
-        """With a price-excluded tax, the stored list price is the tax-excluded
-        base derived from the tax-inclusive public price."""
+        """With a price-excluded tax, the list price is the tax-excluded base of the
+        tax-inclusive public price."""
         tax_excl = self.env["account.tax"].create(
             {
                 "name": "21% excluded",
@@ -193,12 +192,10 @@ class TestProduct(AccountTestInvoicingCommon):
         self.assertFalse(Product._retrieve_product(barcode="NO-SUCH-BARCODE"))
 
     def test_retrieve_product_search_plan_priority_collision(self):
-        """Two plan entries sharing a priority must not crash the sort.
-
-        The plan holds ``(priority, bound_method)`` tuples and bound methods are
-        not orderable, so sorting on the whole tuple would raise once priorities
-        tie. ``_retrieve_product`` must sort on the priority alone.
-        """
+        """Two plan entries sharing a priority must not crash the sort."""
+        # The plan holds ``(priority, bound_method)`` tuples and bound methods are
+        # not orderable, so sorting on the whole tuple would raise once priorities
+        # tie: ``_retrieve_product`` must sort on the priority alone.
         Product = self.env["product.product"]
         product = Product.create({"name": "ZZ Collision Probe"})
         original_plan = Product._get_retrieval_product_search_plan
@@ -253,8 +250,9 @@ class TestProduct(AccountTestInvoicingCommon):
         self.assertEqual(Product._retrieve_product(name="ZZ Widget"), best)
 
     def test_get_product_accounts_requires_single_record(self):
-        """Account resolution is per-product; a multi-record call must raise
-        rather than silently return one company's defaults for the whole set."""
+        """``_get_product_accounts`` raises on a multi-record call."""
+        # Account resolution is per-product: without the guard, a multi-record
+        # call would silently return one product's accounts for the whole set.
         products = self.product_a + self.product_b
         with self.assertRaises(ValueError):
             products._get_product_accounts()

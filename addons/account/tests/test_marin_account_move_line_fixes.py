@@ -28,8 +28,7 @@ class TestMarinAccountMoveLineFixes(AccountTestInvoicingCommon):
         )
 
     def test_discount_allocation_analytic_distribution_is_weighted(self):
-        """The generated discount line must mirror the product line's analytic split
-        (60/40), not collapse every account to an even share (50/50)."""
+        """The discount allocation line mirrors the product line's weighted analytic split."""
         discount_account = self.company_data["default_account_expense"].copy()
         self.company_data[
             "company"
@@ -65,8 +64,7 @@ class TestMarinAccountMoveLineFixes(AccountTestInvoicingCommon):
             )
 
     def test_term_key_recomputes_on_discount_date_change(self):
-        """term_key embeds discount_date, so changing discount_date must invalidate it
-        (previously it only depended on date_maturity and went stale)."""
+        """term_key embeds discount_date, so changing discount_date must invalidate it."""
         invoice = self.init_invoice(
             "out_invoice",
             partner=self.partner_a,
@@ -88,10 +86,7 @@ class TestMarinAccountMoveLineFixes(AccountTestInvoicingCommon):
         self.assertEqual(after["discount_date"], term_line.discount_date)
 
     def test_hash_guard_covers_balance(self):
-        """The inalterable-hash guard checks debit/credit, but those are computed
-        from the writable `balance`. A direct `balance` write must be blocked too,
-        otherwise it silently rewrites the hashed values (only caught later by the
-        integrity report). Legitimate edits must still go through."""
+        """The inalterable-hash guard blocks a direct `balance` write, not just debit/credit."""
         self.company_data["default_journal_sale"].restrict_mode_hash_table = True
         move = self.init_invoice(
             "out_invoice", self.partner_a, "2023-01-01", amounts=[1000.0], post=True
@@ -99,6 +94,9 @@ class TestMarinAccountMoveLineFixes(AccountTestInvoicingCommon):
         self.assertTrue(move.inalterable_hash)
         product_line = move.line_ids.filtered(lambda l: l.display_type == "product")
 
+        # debit/credit are computed from the writable `balance`, so an unguarded
+        # balance write would rewrite the hashed values with nothing to catch it
+        # until the integrity report runs.
         with self.assertRaises(UserError):
             product_line.write({"balance": product_line.balance + 10.0})
         with self.assertRaises(UserError):
@@ -126,8 +124,7 @@ class TestMarinAccountMoveLineFixes(AccountTestInvoicingCommon):
         product_line.write({"balance": product_line.balance - 5.0})  # must not raise
 
     def test_parent_id_not_stale_on_sequence_change(self):
-        """`parent_id` is a non-stored compute; without @api.depends it returned a
-        stale cached section after a sibling's sequence changed."""
+        """`parent_id` must not serve a stale cached section after a sibling's sequence changes."""
         move = self.env["account.move"].create(
             {
                 "move_type": "out_invoice",
@@ -153,9 +150,7 @@ class TestMarinAccountMoveLineFixes(AccountTestInvoicingCommon):
         )
 
     def test_deductible_amount_boundary_tolerance(self):
-        """Both bounds must use the same rounding tolerance as the vendor-bill check;
-        a value a hair above 100 from float accumulation must not be rejected, while
-        real out-of-range values still are."""
+        """Both deductible_amount bounds use the vendor-bill check's rounding tolerance."""
         move = self.init_invoice(
             "in_invoice", self.partner_a, "2023-01-01", amounts=[100.0], post=False
         )
@@ -171,12 +166,8 @@ class TestMarinAccountMoveLineFixes(AccountTestInvoicingCommon):
             product_line.deductible_amount = -0.01
 
     def test_payment_date_timezone_consistency(self):
-        """`payment_date` must use the user-timezone "today" (context_today)
-        consistently across the Python compute, the `_search_payment_date` filter,
-        and the `_field_to_sql` used for sorting/grouping. Previously the compute and
-        search used server-tz `date.today()` while the SQL used context_today, so at a
-        day boundary the displayed cell, the sort position and the filter disagreed
-        for the same row.
+        """`payment_date` must resolve the same user-timezone today (context_today) in
+        the Python compute, the `_search_payment_date` filter and `_field_to_sql`.
         """
         AML = self.env["account.move.line"]
         recv = self.company_data["default_account_receivable"]
@@ -235,11 +226,7 @@ class TestMarinAccountMoveLineFixes(AccountTestInvoicingCommon):
             )
 
     def test_name_retranslates_on_partner_language_change(self):
-        """The line label embeds the product description in the partner's language.
-        When the invoice partner (and thus language) changes, an auto-derived name
-        must re-translate; without `move_id.partner_id` in `_compute_name`'s
-        dependencies it went stale (kept the previous language).
-        """
+        """An auto-derived line label re-translates when the invoice partner's language changes."""
         self.env["res.lang"]._activate_lang("fr_FR")
         partner_en = self.env["res.partner"].create(
             {"name": "EN partner", "lang": "en_US"}
@@ -274,8 +261,7 @@ class TestMarinAccountMoveLineFixes(AccountTestInvoicingCommon):
         self.assertNotIn("English description", product_line.name)
 
     def test_line_compute_depends_completeness(self):
-        """Registry-level guard: these computes read fields that were missing from
-        their @api.depends, letting cached values go stale."""
+        """Registry-level guard: each compute declares in @api.depends the fields it reads."""
 
         def deps(fname):
             field = self.env["account.move.line"]._fields[fname]

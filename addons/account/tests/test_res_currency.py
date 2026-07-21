@@ -8,12 +8,11 @@ from odoo.addons.account.tests.common import AccountTestInvoicingCommon
 
 @tagged("post_install", "-at_install")
 class TestResCurrencyRounding(AccountTestInvoicingCommon):
-    """Covers the rounding-change guard on res.currency (account extension).
+    """Covers the rounding-change guard on res.currency (account extension)."""
 
-    The guard must key off the *decimal places* implied by the rounding factor,
-    not the raw factor, because the mapping is non-linear:
-    decimal_places = ceil(log10(1/rounding)).
-    """
+    # The guard keys off the *decimal places* implied by the rounding factor, not
+    # the raw factor, because the mapping is non-linear: decimal_places is
+    # ceil(log10(1/rounding)) for 0 < rounding < 1, and 0 otherwise.
 
     @classmethod
     def setUpClass(cls):
@@ -32,9 +31,9 @@ class TestResCurrencyRounding(AccountTestInvoicingCommon):
         )
 
     def _give_accounting_entries(self, currency):
-        """Post a balanced misc entry whose lines carry ``currency`` so that
-        ``_has_accounting_entries`` becomes True for it.
-        """
+        """Create a balanced misc entry whose lines carry ``currency``."""
+        # Draft is enough: _has_accounting_entries only counts move lines, so the
+        # entry does not need to be posted for the guard to see the currency.
         return self.env["account.move"].create(
             {
                 "move_type": "entry",
@@ -93,9 +92,8 @@ class TestResCurrencyRounding(AccountTestInvoicingCommon):
             self.test_currency.write({"rounding": 0.1})
 
     def test_guard_allows_same_places_with_entries(self):
-        # Regression: 0.01 -> 0.05 and 0.01 -> 0.02 keep 2 decimal places, so
-        # they must be allowed even though the raw factor increases and entries
-        # exist. The pre-fix guard blocked these as false positives.
+        # 0.01 -> 0.02 and 0.01 -> 0.05 keep 2 decimal places, so they must be
+        # allowed even though the raw factor increases and entries exist.
         self._give_accounting_entries(self.test_currency)
         for rounding in (0.02, 0.05):
             self.test_currency.write({"rounding": rounding})
@@ -152,7 +150,7 @@ class TestResCurrencyTable(AccountTestInvoicingCommon):
         self.assertEqual(rows, [(self.env.company.id, "current", 1)])
 
     def test_create_table_domestic_only_does_not_crash(self):
-        # R1: a company set sharing the main currency yields an empty
+        # A company set sharing the main currency yields an empty
         # `other_companies`; the builders must be skipped rather than emitting
         # `IN ()`. The table should still hold a unit rate for the company.
         self.env["res.currency"]._create_currency_table(
