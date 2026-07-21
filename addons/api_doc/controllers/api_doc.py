@@ -28,10 +28,8 @@ logger = logging.getLogger(__name__)
 
 
 class DocController(http.Controller):
-    """
-    A single page application that provides an OpenAPI-like interface
-    feeded by a reflection of the registry (fields and methods) in JSON
-    documents.
+    """Single page application exposing an OpenAPI-like reflection of the
+    registry (fields and methods) as JSON documents.
     """
 
     @http.route(['/doc', '/doc/<model_name>', '/doc/index.html'], type='http', auth='user')
@@ -50,29 +48,28 @@ class DocController(http.Controller):
 
     @http.route('/doc/index.json', type='json2', auth='user')
     def doc_index(self):
-        """
-        Get a listing of all modules, models, methods and fields. But
-        only their technical name and translated "human" name.
+        """Get a listing of all modules, models, methods and fields, limited
+        to their technical name and translated "human" name.
 
-        It returns a json-serialized dictionnary with the following
-        structure:
+        :return: an HTTP response whose body is a JSON document with the
+            following structure:
 
-        .. code-block:: python
-            {
-                'modules': list[str],
-                'models': [
-                    {
-                        'model': str,
-                        'name': str,
-                        'fields': {
-                            name: {'string': str}
-                            for name in fields_get()
-                        },
-                        'methods': list[str],
-                    }
-                    for model in ...
-                ]
-            }
+            .. code-block:: python
+
+                {
+                    'modules': list[str],
+                    'models': [
+                        {
+                            'model': str,
+                            'name': str,
+                            'fields': {field_name: {'string': str}},
+                            'methods': list[str],
+                        }
+                        for model in ...
+                    ]
+                }
+        :rtype: werkzeug.wrappers.Response
+        :raises AccessError: the user is not in ``api_doc.group_allow_doc``
         """
         if not self.env.user.has_group('api_doc.group_allow_doc'):
             raise AccessError(self.env._(
@@ -166,31 +163,33 @@ class DocController(http.Controller):
 
     @http.route('/doc/<model_name>.json', type='json2', auth='user', readonly=True)
     def doc_model(self, model_name):
-        """
-        Get a complete listing of all the methods and fields for a
-        specific model. The listing includes the htmlified docstring of
-        the model, an enriched fields_get(), the methods signature,
-        parameters and htmlified docstrings.
+        """Get a complete listing of the fields and methods of one model: an
+        enriched ``fields_get()`` plus, for each method, its signature,
+        parameters and htmlified docstring.
 
-        It returns a json-serialized dictionnary with the following
-        structure:
+        :param str model_name: technical name of the model to reflect
+        :return: an HTTP response whose body is a JSON document with the
+            following structure:
 
-        .. code-block:: python
+            .. code-block:: python
 
-            {
-                'model': str,
-                'name': str,
-                'doc': str | None,
-                'fields': dict[str, dict],  # fields_get indexed by field name
-                'methods': dict[str, dict],  # _doc_method indexed by method name
-            }
+                {
+                    'model': str,
+                    'name': str,
+                    'doc': None,  # model docstring, not htmlified yet
+                    'fields': dict[str, dict],  # fields_get indexed by field name
+                    'methods': dict[str, dict],  # _doc_method indexed by method name
+                }
+        :rtype: werkzeug.wrappers.Response
+        :raises AccessError: the user is not in ``api_doc.group_allow_doc``
+        :raises NotFound: ``model_name`` is not in the registry
         """
         if not self.env.user.has_group('api_doc.group_allow_doc'):
             raise AccessError(self.env._(
                 "This page is only accessible to %s users.",
                 self.env.ref('api_doc.group_allow_doc').sudo().name))
         if model_name not in self.env:
-            raise NotFound()
+            raise NotFound
 
         Model = self.env[model_name]
         Model.check_access('read')
@@ -233,55 +232,50 @@ class DocController(http.Controller):
 
         response = request.make_json_response(result)
         response.headers['ETag'] = unique
-        response.headers['Cache-Control'] = 'no-cache, private'  # no-chache != no-store
+        response.headers['Cache-Control'] = 'no-cache, private'  # no-cache != no-store
         response.headers['Content-Language'] = py_to_js_locale(self.env.lang)
         return response
 
     def _doc_method(self, model, model_name, method, method_name):
-        """
-        Get the JSON reflection of a method.
+        """Get the JSON reflection of a method.
 
-        It returns a dict with the following structure:
+        :return: a dict with the following structure:
 
-        .. code-block:: python
+            .. code-block:: python
 
-            {
-                'signature': str,
-                'parameters': {
-                    p.name: {
-                        'name': str,
-                        'kind': typing.Literal[
-                            'POSITIONAL_ONLY',
-                            'VAR_POSITIONAL',
-                            'KEYWORD_ONLY',
-                            'VAR_KEYWORD',
-                        ],
-                        'default': typing.Any,
+                {
+                    'signature': str,
+                    'parameters': {
+                        p.name: {
+                            'kind': typing.Literal[
+                                'POSITIONAL_ONLY',
+                                'VAR_POSITIONAL',
+                                'KEYWORD_ONLY',
+                                'VAR_KEYWORD',
+                            ],
+                            'default': typing.Any,
+                            'annotation': str,
+                            'doc': str,
+                        }
+                        for p in function_parameters
+                    },
+                    'return': {
                         'annotation': str,
                         'doc': str,
-                    }
-                    for p in function_parameters
-                },
-                'return': {
-                    'annotation': str,
+                    },
+                    'raise': dict[str, str],  # {exception name: doc}
                     'doc': str,
-                },
-                'raise': dict[str, str],  # {exception name: doc}
-                'doc': str,
-                'api': list[str],
-                'model': str,
-                'module': str,
-            }
+                    'api': list[str],
+                    'model': str,
+                    'module': str,
+                }
 
-        Of the above structure, only the entries ``signature``,
-        ``parameters``, ``model`` and ``module`` are garanteed to be
-        present. All other entries are optional and mean the information
-        is absent.
-
-        Inside the sub-dict for the parameters, only ``name`` is
-        guaranteed to be present. When ``kind`` is absent it means the
-        parameter is ``'POSITIONAL_OR_KEYWORD'``. When the other entries
-        are absent it means that the information is missing.
+            Only ``signature``, ``parameters``, ``model`` and ``module`` are
+            guaranteed to be present; any other absent entry means the
+            information is missing. Inside a parameter sub-dict, the parameter
+            name is the mapping key and is not repeated; an absent ``kind``
+            means the parameter is ``'POSITIONAL_OR_KEYWORD'``.
+        :rtype: dict
         """
 
         # find what module/model introduced the method, for grouping
@@ -340,35 +334,26 @@ def is_public_method(model, name):
 
 DOC_API_MAGIC_COLUMNS = list(odoo.models.MAGIC_COLUMNS)
 DOC_API_MAGIC_COLUMNS.insert(1, 'display_name')
-def sort_key_field(sorted_module_list, model, field):  # noqa: E302
-    """
-    Key function to sort fields with the following order:
-
-    (1) core fields < (2) model fields < (3) custom ``x_`` fields
-
-    1. The core fields have a hardcoded order, like `id` is first.
-    2. The model fields are sorted first by *introducing module* (i.e.
-       base then web then website then ecommerce), and second by
-       alphabetical order.
-    3. The custom fields are sorted solely by alphabetical order.
-    """
+def sort_key_field(sorted_module_list, model, field):
+    """Sort key ordering core fields < model fields < custom ``x_`` fields."""
     if introducing_modules := model._fields[field['name']]._modules:
+        # model fields: by introducing module (base, then web, then website,
+        # then ecommerce...), then alphabetically
         depth = sorted_module_list.index(introducing_modules[0])
         return 2, depth, field['name']
 
     if field['name'] in DOC_API_MAGIC_COLUMNS:
+        # core fields: hardcoded order, `id` first
         return 1, DOC_API_MAGIC_COLUMNS.index(field['name'])
 
+    # custom fields: alphabetical order only
     assert field['name'].startswith('x_'), field['name']
     return 3, field['name']
 
 
 def sort_key_method(sorted_module_list, model_cls, method_name):
-    """
-    Key function to sort fields by the following criteria:
-
-    1) Depth of the module that introduced the method in the dependency grap.
-    2) Alphabetical order.
+    """Sort key ordering methods by the depth of the module that introduced
+    them in the dependency graph, then alphabetically.
     """
     introducing_class = next(
         parent_class
@@ -408,7 +393,7 @@ def parse_signature(method) -> Signature:
     }
     returns = Return.from_inspect(isign.return_annotation)
 
-    # accumate the decorators such as @api.model
+    # accumulate the decorators such as @api.model
     api = []
     if getattr(method, '_api_model', False):
         api.append('model')
@@ -621,12 +606,12 @@ class Return:
         return d
 
 
-# This class could had been a python module, but lazy_classproperty
+# This class could have been a python module, but lazy_classproperty
 # works much better than odoo.tools.lazy.
 class _DocUtils:
     """ Helpers for docutils """
     @lazy_classproperty
-    def _new_docutils_root(cls):
+    def _new_docutils_root(cls):  # noqa: N805
         # surely there's a better way, but that'll do
         return docutils.core.publish_doctree("").copy
 
@@ -644,7 +629,7 @@ class _DocUtils:
         return pub.settings
 
     @lazy_classproperty
-    def _settings_pseudoxml(cls):
+    def _settings_pseudoxml(cls):  # noqa: N805
         return cls._make_settings('pseudoxml', {
             'report_level': 3,
             'halt_level': 5,
@@ -653,7 +638,7 @@ class _DocUtils:
         })
 
     @lazy_classproperty
-    def _settings_html(cls):
+    def _settings_html(cls):  # noqa: N805
         return cls._make_settings('html', {
             'report_level': 3,
             'halt_level': 5,

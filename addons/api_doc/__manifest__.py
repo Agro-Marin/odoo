@@ -26,8 +26,6 @@ the methods over HTTP, with examples in various programming languages.
             'web/static/src/libs/fontawesome7/css/brands.css',
             'web/static/src/scss/rtl_icon_flip.scss',
 
-            # Core
-
             # Utils
             'web/static/src/core/utils/functions.js',
             'web/static/src/core/utils/reactive.js',
