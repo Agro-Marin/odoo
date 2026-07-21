@@ -1,6 +1,6 @@
 /** @odoo-module native */
 export function showProductColumn() {
-    // Show product column if Sale is not installed.
+    // On invoices the product column is hidden by default when Sale is not installed.
     return [
         {
             content: "Open line fields list",
