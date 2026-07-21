@@ -50,7 +50,7 @@ class AccountDocumentDownloadController(http.Controller):
             else:
                 filename = _("invoices") + ".zip"
             content = attachments._build_zip_from_attachments()
-            headers = _get_headers(filename, "zip", content)
+            headers = _get_headers(filename, "application/zip", content)
             return request.make_response(content, headers)
 
     @http.route(
@@ -87,7 +87,7 @@ class AccountDocumentDownloadController(http.Controller):
             return request.make_response(doc_data["content"], headers)
         if len(docs_data) > 1:
             zip_content = _build_zip_from_data(docs_data)
-            headers = _get_headers(_("invoices") + ".zip", "zip", zip_content)
+            headers = _get_headers(_("invoices") + ".zip", "application/zip", zip_content)
             return request.make_response(zip_content, headers)
         return None
 
@@ -118,7 +118,7 @@ class AccountDocumentDownloadController(http.Controller):
             docs_data = rename_duplicates(docs_data)
             zip_content = _build_zip_from_data(docs_data)
             headers = _get_headers(
-                request.env._("Invoices") + ".zip", "zip", zip_content
+                request.env._("Invoices") + ".zip", "application/zip", zip_content
             )
             return request.make_response(zip_content, headers)
         return None

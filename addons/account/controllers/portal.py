@@ -58,7 +58,10 @@ class PortalAccount(CustomerPortal):
     def _invoice_get_page_view_values(self, invoice, access_token, **kwargs):
         custom_amount = None
         if kwargs.get("amount"):
-            custom_amount = float(kwargs["amount"])
+            try:
+                custom_amount = float(kwargs["amount"])
+            except ValueError:
+                custom_amount = None
         values = {
             "page_name": "invoice",
             **invoice._get_invoice_portal_extra_values(custom_amount=custom_amount),
@@ -259,7 +262,7 @@ class PortalAccount(CustomerPortal):
             else:
                 filename = invoice_sudo._get_invoice_report_filename(extension="zip")
                 zip_content = _build_zip_from_data(docs_data)
-                headers = _get_headers(filename, "zip", zip_content)
+                headers = _get_headers(filename, "application/zip", zip_content)
                 return request.make_response(zip_content, headers)
 
         elif report_type in ("html", "pdf", "text"):
