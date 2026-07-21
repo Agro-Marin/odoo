@@ -148,10 +148,13 @@ class AccountTax(models.Model):
         return super().name_search(name, domain, operator, limit)
 
     def _hook_compute_is_used(self, tax_to_compute):
-        """
-        Override to compute the ids of taxes used in other modules. It takes
-        as parameter a set of tax ids. It should return a set containing the
-        ids of the taxes from that input set that are used in transactions.
+        """Return the ``tax_to_compute`` ids that are used in other modules.
+
+        Extension hook; the base implementation reports none.
+
+        :param set tax_to_compute: candidate tax ids to check.
+        :return: the subset that is used in transactions.
+        :rtype: set
         """
         return set()
 
@@ -1234,7 +1237,7 @@ class AccountTax(models.Model):
         :param company:         The company owning the base lines.
         :param target_factors:  A list of dictionary containing at least 'factor' being the weight
                                 defining how much delta will be allocated to this factor.
-        :return                 A list of 'tax_data' having the same size as 'target_factors'.
+        :return:                A list of 'tax_data' having the same size as 'target_factors'.
         """
         currency = base_line["currency_id"]
 
@@ -1297,7 +1300,7 @@ class AccountTax(models.Model):
         :param company:         The company owning the base lines.
         :param target_factors:  A list of dictionary containing at least 'factor' being the weight
                                 defining how much delta will be allocated to this factor.
-        :return                 A list of 'tax_details' having the same size as 'target_factors'.
+        :return:                A list of 'tax_details' having the same size as 'target_factors'.
         """
         currency = base_line["currency_id"]
         tax_details = base_line["tax_details"]
@@ -1937,7 +1940,7 @@ class AccountTax(models.Model):
         :param company:             The company of the base lines.
         :param exclude_function:    An optional function taking a base line and a tax_data as parameter and returning
                                     a boolean indicating if the tax_data has to be exclude from the computation.
-        :return:                    The negative base lines representing the global discount.
+        :return:                    The base lines on which the down payment can be computed.
         """
 
         def dispatch_exclude_function(base_line, tax_data):
@@ -1982,7 +1985,7 @@ class AccountTax(models.Model):
         :param grouping_function:   An optional function taking a base line as parameter and returning a grouping key
                                     being the way the base lines will be aggregated all together.
                                     By default, the base lines will be aggregated by taxes.
-        :return:                    The negative base lines representing the global discount.
+        :return:                    The base lines representing the down payment.
         """
         base_lines_for_dp = self._prepare_base_lines_for_down_payment(
             base_lines, company
@@ -2693,11 +2696,11 @@ class AccountTax(models.Model):
         in_foreign_currency=True,
         account_discount_base_lines=False,
     ):
-        """[!] Only added python-side. No mirror in account_tax.js despite sitting above the
-        "END HELPERS IN BOTH PYTHON/JAVASCRIPT" marker; do not try to keep a JS twin in sync.
-
-        Compute and add 'raw_gross_total_excluded[_currency]' / 'raw_gross_price_unit[_currency]' / 'raw_discount_amount[_currency]'
+        """Compute and add 'raw_gross_total_excluded[_currency]' / 'raw_gross_price_unit[_currency]' / 'raw_discount_amount[_currency]'
         to the tax details according 'precision_digits' / 'in_foreign_currency'.
+
+        [!] Only added python-side. No mirror in account_tax.js despite sitting above the
+        "END HELPERS IN BOTH PYTHON/JAVASCRIPT" marker; do not try to keep a JS twin in sync.
 
         :param base_lines:                  A list of python dictionaries created using the '_prepare_base_line_for_taxes_computation' method.
         :param company:                     The company owning the base lines.

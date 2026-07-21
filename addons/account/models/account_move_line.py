@@ -134,7 +134,7 @@ class AccountMoveLine(models.Model):
         readonly=False,
         precompute=True,
         inverse="_inverse_account_id",
-        index=False,  # covered by account_move_line_account_id_date_idx defined in init()
+        index=False,  # covered by the _account_id_date_idx index declared below
         bypass_search_access=True,
         ondelete="restrict",
         domain="[('account_type', '!=', 'off_balance')]",
@@ -876,12 +876,11 @@ class AccountMoveLine(models.Model):
 
     @api.model
     def _search_account_id(self, operator, value):
-        """Drop-in replacement for searching on `account_id`.
-        Resolve the domain and inline the resulting ids to yield better final queries,
-        avoiding a join on the `account.account` model.
-        This should be a net positive on average, assuming the cardinality of
-        `account.account` doesn't grow too large (e.g. <10k rows).
-        """
+        """Drop-in replacement for searching on `account_id`."""
+        # Resolve the domain and inline the resulting ids to yield better final
+        # queries, avoiding a join on the `account.account` model. A net positive on
+        # average, assuming the cardinality of `account.account` doesn't grow too
+        # large (e.g. <10k rows).
         if operator in ("in", "not in", "any", "not any") and not isinstance(
             value, (tuple, list, OrderedSet)
         ):
@@ -1163,9 +1162,10 @@ class AccountMoveLine(models.Model):
 
     @api.depends("quantity", "discount", "price_unit", "tax_ids", "currency_id")
     def _compute_totals(self):
-        """Compute 'price_subtotal' / 'price_total' outside of `_sync_tax_lines` because those values must be visible for the
-        user on the UI with draft moves and the dynamic lines are synchronized only when saving the record.
-        """
+        """Compute 'price_subtotal' / 'price_total'."""
+        # Computed here rather than in `_sync_tax_lines` because these values must be
+        # visible on the UI for draft moves, while the dynamic lines are synchronized
+        # only when saving the record.
         AccountTax = self.env["account.tax"]
         for line in self:
             # TODO remove the need of cogs lines to have a price_subtotal/price_total
@@ -2100,19 +2100,12 @@ class AccountMoveLine(models.Model):
 
     @api.constrains("tax_ids", "tax_repartition_line_id")
     def _check_caba_non_caba_shared_tags(self):
-        """When mixing cash basis and non cash basis taxes, it is important
-        that those taxes don't share tags on the repartition creating
-        a single account.move.line.
-
-        Shared tags in this context cannot work, as the tags would need to
-        be present on both the invoice and cash basis move, leading to the same
-        base amount to be taken into account twice; which is wrong. This is
-        why we don't support that. A workaround may be provided by the use of
-        a group of taxes, whose children are type_tax_use=None, and only one
-        of them uses the common tag.
-
-        Taxes of the same exigibility are allowed to share tags.
-        """
+        """Forbid cash-basis and non-cash-basis taxes on one line from sharing repartition tags."""
+        # Shared tags cannot work here: the tags would need to be present on both the
+        # invoice and the cash basis move, so the same base amount would be counted
+        # twice, which is wrong. A workaround is a group of taxes whose children are
+        # type_tax_use=None, with only one of them using the common tag. Taxes of the
+        # same exigibility are allowed to share tags.
 
         def get_base_repartition(base_aml, taxes):
             if not taxes:
@@ -3993,7 +3986,7 @@ class AccountMoveLine(models.Model):
         :param company:         The company in case there is no aml in self.
         :param exchange_date:   Optional date object providing the date to consider for the exchange difference.
         :return:                A python dictionary containing:
-            * move_vals:    A dictionary to be passed to the account.move.create method.
+            * move_values:  A dictionary to be passed to the account.move.create method.
             * to_reconcile: A list of tuple <move_line, sequence> in order to perform the reconciliation after the move
                             creation.
         """
@@ -4636,15 +4629,16 @@ class AccountMoveLine(models.Model):
         ]
 
     def _prepare_edi_vals_to_export(self):
-        """Same purpose as '_prepare_edi_vals_to_export' but for a single invoice line.
-        This includes the computation of the tax details for each invoice line or the management of the discount.
-        In some EDI, we need to provide extra values depending on the discount, such as:
-        - the discount as an amount instead of a percentage.
-        - the price_unit but after subtraction of the discount.
+        """Prepare the EDI export values for a single invoice line.
 
         :return: A python dict containing default pre-processed values.
         """
         self.ensure_one()
+
+        # Counterpart of account.move's `_prepare_edi_vals_to_export`, but per line:
+        # computes the tax details and the discount-derived values some EDI formats
+        # need (the discount as an amount instead of a percentage, and the price_unit
+        # net of discount).
 
         if float_compare(self.discount, 100.0, precision_digits=2) == 0:
             gross_price_subtotal = self.currency_id.round(
@@ -4711,7 +4705,7 @@ class AccountMoveLine(models.Model):
         }
 
     def _filter_aml_lot_valuation(self):
-        """Filter the amls taken into account when computing the invoiced lot value in get_invoiced_lot_values.
+        """Filter the amls taken into account when computing the invoiced lot value in _get_invoiced_lot_values.
         Intended to be overridden in localization.
         """
         self.ensure_one()
