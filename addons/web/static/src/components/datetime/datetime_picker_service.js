@@ -194,6 +194,7 @@ export class DateTimePickerController {
             isOpen: this.isOpen,
             open: this.open,
             close: () => this.popover.close(),
+            commitInputs: this.commitInputs,
             state: this.pickerProps,
         };
         this.dateTimePickerList.add(this.picker);
@@ -270,6 +271,22 @@ export class DateTimePickerController {
         await this.params.onApply?.(value);
 
         this.stringProps.value = stringValue;
+    };
+
+    /**
+     * Force-commit whatever is currently typed in the inputs, without waiting
+     * for blur (native ``change``) or popover close. Used by fields that flush
+     * on ``NEED_LOCAL_CHANGES`` / ``WILL_SAVE_URGENTLY`` so a typed-but-unblurred
+     * value lands in the record's changes before ``record.save()`` / the
+     * sendBeacon urgent save serialises them. A no-op when nothing changed
+     * (``apply`` short-circuits on an unchanged value).
+     */
+    commitInputs = async () => {
+        if (this.destroyed) {
+            return;
+        }
+        this.updateValueFromInputs();
+        await this.apply();
     };
 
     enable = () => {

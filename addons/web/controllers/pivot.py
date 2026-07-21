@@ -117,10 +117,16 @@ class TableExporter(http.Controller):
             # Step 3: writing data
             x = 0
             for row in jdata["rows"]:
+                # Clamp caller-supplied indent before it multiplies a string:
+                # `indent` is raw client JSON and the MAX_EXPORT_CELLS cap counts
+                # cells, not per-cell string length, so an unclamped indent (e.g.
+                # 4e8) builds a multi-GB string in a single write() and OOM-kills
+                # the worker. Pivot nesting never exceeds a handful of levels.
+                indent = max(0, min(int(row.get("indent", 0)), 50))
                 worksheet.write(
                     y,
                     x,
-                    f"{row['indent'] * '     '}{row['title']}",
+                    f"{indent * '     '}{row['title']}",
                     header_plain,
                 )
                 for cell in row["values"]:

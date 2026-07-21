@@ -531,6 +531,19 @@ function normalizeDomainAST(domain, op = "&") {
  * @param {any} value
  * @returns {string}
  */
+/**
+ * Strips diacritics so client-side ``ilike`` matches the server, which compares
+ * ``unaccent(lower(field))`` against ``unaccent(lower(pattern))``. Without this,
+ * ``ilike 'jose'`` matched ``'José'`` server-side but not here.
+ * @param {any} value
+ * @returns {string}
+ */
+function unaccent(value) {
+    return String(value)
+        .normalize("NFD")
+        .replace(/\p{Diacritic}/gu, "");
+}
+
 function likeToRegExp(value) {
     const pattern = String(value);
     let out = "";
@@ -653,7 +666,22 @@ function matchCondition(record, condition) {
             // ``isIn`` deep-compares with ``==`` semantics (bool≡int, nested
             // lists) so membership agrees with the interpreter, instead of JS
             // strict ``Array.includes``.
-            return Boolean(fieldVal.some((fv) => isIn(fv, val))) !== isNot;
+            let matched = fieldVal.some((fv) => isIn(fv, val));
+            if (!matched && val.some((v) => v === false || v === null)) {
+                // Server semantics: ``False`` inside the collection means
+                // "unset". The optimizer rewrites ``field = False`` into
+                // ``field in [False]``, so this is the form the client most
+                // often receives — and the ``=`` branch above already honors
+                // it. Mirror it here: a present-but-falsy scalar (``""``,
+                // ``null``) or an empty relation also matches. ``isIn`` alone
+                // already covers ``0``/``False`` (bool≡int) but misses ``""``
+                // and the empty array. An ABSENT field (``undefined``) stays
+                // unmatched, preserving the free-variable invariant.
+                matched = Array.isArray(fieldValue)
+                    ? fieldValue.length === 0
+                    : fieldValue !== undefined && !fieldValue;
+            }
+            return matched !== isNot;
         }
         case "like":
         case "not like": {
@@ -665,7 +693,9 @@ function matchCondition(record, condition) {
             if (fieldValue === false || fieldValue === undefined) {
                 return isNot;
             }
-            return new RegExp(likeToRegExp(value)).test(fieldValue) !== isNot;
+            // ``s`` (dotAll): the server compiles the pattern with re.DOTALL,
+            // so ``%`` (-> ``.*``) must span newlines in multi-line fields.
+            return new RegExp(likeToRegExp(value), "s").test(fieldValue) !== isNot;
         }
         case "=like":
         case "not =like":
@@ -673,14 +703,21 @@ function matchCondition(record, condition) {
                 return isNot;
             }
             return (
-                new RegExp("^" + likeToRegExp(value) + "$").test(fieldValue) !== isNot
+                new RegExp("^" + likeToRegExp(value) + "$", "s").test(fieldValue) !==
+                isNot
             );
         case "ilike":
         case "not ilike": {
             if (fieldValue === false || fieldValue === undefined) {
                 return isNot;
             }
-            return new RegExp(likeToRegExp(value), "i").test(fieldValue) !== isNot;
+            // ``unaccent`` both operands + ``i`` (case) + ``s`` (dotAll) to
+            // match the server's ``unaccent(lower(...))`` + re.DOTALL.
+            return (
+                new RegExp(likeToRegExp(unaccent(value)), "is").test(
+                    unaccent(fieldValue),
+                ) !== isNot
+            );
         }
         case "=ilike":
         case "not =ilike":
@@ -688,8 +725,9 @@ function matchCondition(record, condition) {
                 return isNot;
             }
             return (
-                new RegExp("^" + likeToRegExp(value) + "$", "i").test(fieldValue) !==
-                isNot
+                new RegExp("^" + likeToRegExp(unaccent(value)) + "$", "is").test(
+                    unaccent(fieldValue),
+                ) !== isNot
             );
         case "any":
             // Approximation: `any`/`child_of`/`parent_of` need the related

@@ -193,9 +193,13 @@ class ProgressBarState {
         });
 
         if (this.activeBars[group.serverValue]) {
-            this.activeBars[group.serverValue].count = bars.find(
-                (x) => x.value === this.activeBars[group.serverValue].value,
-            ).count;
+            // ``?.count ?? 0``: a restored activeBar can name a value no longer
+            // in the arch's ``colors`` (view inheritance / a Studio edit between
+            // export and restore), so ``find`` returns undefined and the bare
+            // ``.count`` threw. Matches the guarded sibling below.
+            this.activeBars[group.serverValue].count =
+                bars.find((x) => x.value === this.activeBars[group.serverValue].value)
+                    ?.count ?? 0;
 
             if (this._aggregateFields.length) {
                 // No need to recompute: formatted_read_group already ran
@@ -549,9 +553,11 @@ class ProgressBarState {
         );
         groupInfo.total = groupInfo.bars.reduce((sum, bar) => sum + bar.count, 0);
         if (this.activeBars[group.serverValue]) {
-            this.activeBars[group.serverValue].count = groupInfo.bars.find(
-                (x) => x.value === this.activeBars[group.serverValue].value,
-            ).count;
+            // ?.count ?? 0 — restored activeBar value may be gone (see sibling).
+            this.activeBars[group.serverValue].count =
+                groupInfo.bars.find(
+                    (x) => x.value === this.activeBars[group.serverValue].value,
+                )?.count ?? 0;
         }
     }
 
@@ -743,9 +749,11 @@ class ProgressBarState {
             // Keep the snapshot denominator in sync with the refreshed counts.
             groupInfo.total = groupInfo.bars.reduce((sum, bar) => sum + bar.count, 0);
             if (this.activeBars[group.serverValue]) {
-                this.activeBars[group.serverValue].count = groupInfo.bars.find(
-                    (x) => x.value === this.activeBars[group.serverValue].value,
-                ).count;
+                // ?.count ?? 0 — restored activeBar value may be gone (see sibling).
+                this.activeBars[group.serverValue].count =
+                    groupInfo.bars.find(
+                        (x) => x.value === this.activeBars[group.serverValue].value,
+                    )?.count ?? 0;
             }
         }
         this._deselectEmptyActiveBars();

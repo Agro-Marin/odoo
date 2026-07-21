@@ -432,10 +432,15 @@ class Base(models.AbstractModel):
                 continue
             if opening_info and raw_groupby_value in parent_opening_info_dict:
                 group_info = parent_opening_info_dict[raw_groupby_value]
-                if group_info["folded"]:
+                # ``opening_info`` is raw client JSON: read defensively. A missing
+                # ``limit``/``offset``/``folded`` key must not KeyError-500 the
+                # read, and a negative ``offset`` must not reach SQL — psycopg
+                # raises ``OFFSET must not be negative`` there, which aborts the
+                # whole request transaction rather than degrading one group.
+                if group_info.get("folded"):
                     continue
-                limit = group_info["limit"]
-                offset = group_info["offset"]
+                limit = group_info.get("limit", limit)
+                offset = max(0, int(group_info.get("offset") or 0))
                 progressbar_domain = group_info.get("progressbar_domain")
                 subgroup_opening_info = group_info.get("groups")
 

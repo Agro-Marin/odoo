@@ -24,6 +24,7 @@ import { _t } from "@web/core/l10n/translation";
 import { evaluateBooleanExpr } from "@web/core/py_js/py";
 import { ensureArray } from "@web/core/utils/collections/arrays";
 import { exprToBoolean } from "@web/core/utils/format/strings";
+import { useBus } from "@web/core/utils/hooks";
 import { useRenderCounter } from "@web/core/utils/render_instrumentation";
 import { registerField } from "@web/fields/_registry";
 import { FIELD_WIDTHS } from "@web/fields/field_widths";
@@ -247,6 +248,21 @@ export class DateTimeField extends Component {
         this.state = useState(dateTimePicker.state);
         this.picker = useState({ activeInput: "" });
         this.openPicker = dateTimePicker.open;
+
+        // Flush a typed-but-unblurred value on save. The input only commits via
+        // the picker's native ``change`` (blur) listener, but neither Ctrl+S
+        // (``record.save()`` → NEED_LOCAL_CHANGES) nor tab-close (the beacon
+        // urgent save → WILL_SAVE_URGENTLY) blurs the input — so without these
+        // the typed date is silently dropped from the save, while sibling
+        // ``useInputField`` widgets (which subscribe to exactly these events)
+        // commit correctly. ``commitInputs`` is a no-op when nothing changed.
+        const { model } = this.props.record;
+        useBus(model.bus, ModelEvent.WILL_SAVE_URGENTLY, (ev) =>
+            ev.detail?.proms?.push(dateTimePicker.commitInputs()),
+        );
+        useBus(model.bus, ModelEvent.NEED_LOCAL_CHANGES, (ev) =>
+            ev.detail.proms.push(dateTimePicker.commitInputs()),
+        );
 
         this.startDate = useRef("start-date");
         this.endDate = useRef("end-date");

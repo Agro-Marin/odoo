@@ -82,28 +82,40 @@ export class DomainField extends Component {
             }
         });
 
+        // Flush a pending debug-mode domain edit (held only in ``this.debugDomain``
+        // until committed) on BOTH save paths. NEED_LOCAL_CHANGES covers
+        // ``record.save()`` (Ctrl+S); WILL_SAVE_URGENTLY covers tab-close /
+        // sendBeacon — previously unhandled, so a debug edit was lost on tab
+        // close. Every sibling widget that handles one handles both.
+        const flushDebugDomain = (ev) => {
+            if (!this.debugDomain) {
+                return;
+            }
+            const props = this.props;
+            const handleChanges = async () => {
+                await props.record.update({
+                    [props.name]: this.debugDomain,
+                });
+                const isValid = await this.quickValidityCheck(props);
+                if (isValid) {
+                    this.debugDomain = null; // will allow the count to be loaded if needed
+                } else {
+                    this.state.isValid = false;
+                    this.state.recordCount = 0;
+                    props.record.setInvalidField(props.name);
+                }
+            };
+            ev.detail?.proms?.push(handleChanges());
+        };
         useBus(
             this.props.record.model.bus,
             ModelEvent.NEED_LOCAL_CHANGES,
-            async (ev) => {
-                if (this.debugDomain) {
-                    const props = this.props;
-                    const handleChanges = async () => {
-                        await props.record.update({
-                            [props.name]: this.debugDomain,
-                        });
-                        const isValid = await this.quickValidityCheck(props);
-                        if (isValid) {
-                            this.debugDomain = null; // will allow the count to be loaded if needed
-                        } else {
-                            this.state.isValid = false;
-                            this.state.recordCount = 0;
-                            props.record.setInvalidField(props.name);
-                        }
-                    };
-                    ev.detail.proms.push(handleChanges());
-                }
-            },
+            flushDebugDomain,
+        );
+        useBus(
+            this.props.record.model.bus,
+            ModelEvent.WILL_SAVE_URGENTLY,
+            flushDebugDomain,
         );
     }
 

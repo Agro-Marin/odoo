@@ -17,6 +17,7 @@ from odoo.libs.filesystem.mimetypes import guess_mimetype
 from odoo.libs.json import dumps as json_dumps
 from odoo.tools import file_open, file_path, replace_exceptions, str2bool
 from odoo.tools.image import image_guess_size_from_field_name
+from odoo.tools.misc import verify_limited_field_access_token
 
 _logger = logging.getLogger(__name__)
 
@@ -41,6 +42,41 @@ in your configuration file and that it is similar to:
 def clean(name: str) -> str:
     """Strip angle brackets to prevent script-tag injection in HTML responses."""
     return name.replace("<", "").replace(">", "")
+
+
+def _int_or_zero(value) -> int:
+    """Coerce a query-string dimension to ``int``, falling back to 0 on garbage.
+
+    ``/web/image`` is ``auth="public"``, so a bare ``int(width)`` on ``?width=abc``
+    raises ``ValueError`` that the route's ``except UserError`` does not catch —
+    an unauthenticated 500 plus a full traceback per request (cheap log-flooding,
+    wrong status class). 0 routes through the normal "guess size from field name"
+    fallback instead.
+    """
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return 0
+
+
+def _token_authorized_public(record, field, access_token) -> bool:
+    """Whether an access-token-bearing binary response may be shared-cached.
+
+    ``_find_record`` releases a record via one of three paths: a valid limited
+    token, genuinely public content, or the *caller's session* read access. Only
+    the first two are safe to advertise ``Cache-Control: public`` — the third
+    serves private bytes authorized by the caller's cookie, which a shared/CDN
+    cache must not store under a URL keyed only on the (attacker-chosen) token.
+    The previous code set ``public`` on the mere *presence* of an access_token,
+    poisoning caches with session-authorized private images. Re-verify validity.
+    """
+    if not access_token:
+        return False
+    return bool(
+        verify_limited_field_access_token(
+            record, field, access_token, scope="binary"
+        )
+    )
 
 
 class Binary(http.Controller):
@@ -89,7 +125,7 @@ class Binary(http.Controller):
             stream = request.env["ir.binary"]._get_stream_from(
                 record, field, filename, filename_field, mimetype
             )
-            if request.httprequest.args.get("access_token"):
+            if _token_authorized_public(record, field, access_token):
                 stream.public = True
 
         # Query-string booleans arrive as strings: coerce so ``?unique=0`` /
@@ -317,6 +353,11 @@ class Binary(http.Controller):
         # test treats "0"/"false" as True and would crop against the caller's
         # intent). ``unique``/``nocache`` are coerced at their use site below.
         crop = str2bool(crop, False)
+        # Coerce the query-string dimensions once, safely: they feed both the
+        # try body and the ``except UserError`` placeholder fallback below, and a
+        # ValueError here on this public route would be an unauthenticated 500.
+        width = _int_or_zero(width)
+        height = _int_or_zero(height)
         try:
             record = request.env["ir.binary"]._find_record(
                 xmlid, model, id and int(id), access_token, field=field
@@ -327,11 +368,11 @@ class Binary(http.Controller):
                 filename=filename,
                 filename_field=filename_field,
                 mimetype=mimetype,
-                width=int(width),
-                height=int(height),
+                width=width,
+                height=height,
                 crop=crop,
             )
-            if request.httprequest.args.get("access_token"):
+            if _token_authorized_public(record, field, access_token):
                 stream.public = True
         except UserError as exc:
             if download:

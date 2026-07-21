@@ -98,6 +98,26 @@ class TestSearchPanelVersion(TransactionCase):
 
 
 @tagged("web_unit", "web_search_panel")
+class TestSearchPanelStaleSelection(TransactionCase):
+    """A stored selection value no longer in the field's options (e.g. after a
+    module upgrade removed it) must not KeyError-500 the whole search panel."""
+
+    def test_select_range_on_removed_selection_value(self):
+        partner = self.env["res.partner"].create({"name": "Stale Sel"})
+        self.env.flush_all()
+        # Force a value that is not part of res.partner.type's selection.
+        self.env.cr.execute(
+            "UPDATE res_partner SET type = 'obsolete_value' WHERE id = %s",
+            [partner.id],
+        )
+        partner.invalidate_recordset(["type"])
+        # Must not raise (KeyError) — the missing option falls back to the raw value.
+        result = self.env["res.partner"].search_panel_select_range("type")
+        labels = {v.get("display_name") for v in result["values"]}
+        self.assertIn("obsolete_value", labels)
+
+
+@tagged("web_unit", "web_search_panel")
 class TestWebSearchReadVersion(TransactionCase):
     """``web_search_read`` is the hot-path cached read used by every
     list/kanban refresh; the ``__version`` stamp lets the client cache

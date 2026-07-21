@@ -112,7 +112,12 @@ class Base(models.AbstractModel):
             field_name_selection = dict(desc["selection"])
 
             def group_id_name(value):
-                return value, field_name_selection[value]
+                # ``.get(value, value)``: ``fields_get`` only returns
+                # currently-defined options, so a stored record still holding a
+                # since-removed selection value would else KeyError here and 500
+                # the whole search panel. Mirrors ``web_search_panel.py`` and the
+                # many2one / default branches, which already fall back.
+                return value, field_name_selection.get(value, value)
 
         domain = AND(
             [

@@ -460,6 +460,15 @@ export const BUILTINS = {
             // PyTimeDelta: negate if total duration is negative
             return value.total_seconds() >= 0 ? value : value.negate();
         }
+        if (typeof value !== "number" && typeof value !== "boolean") {
+            // Python raises TypeError; without this guard ``abs('x')`` returns
+            // NaN, which — since ``typeof NaN === "number"`` — slips past every
+            // downstream numeric guard and serialises to ``null`` in a domain
+            // sent to the server, silently returning wrong results.
+            throw new EvaluationError(
+                `bad operand type for abs(): '${pyTypeName(value)}'`,
+            );
+        }
         return Math.abs(value);
     },
 
@@ -555,6 +564,18 @@ export const BUILTINS = {
         // while `round(x, 2)` arrives as rest = [2, {}].
         const kwargs = rest.at(-1);
         const ndigits = rest.length > 1 ? rest[0] : (kwargs?.ndigits ?? 0);
+        if (typeof value === "boolean") {
+            // Python: bool is an int subclass, so round(True) == 1.
+            value = value ? 1 : 0;
+        }
+        if (typeof value !== "number") {
+            // Python raises TypeError; without this ``round('x')`` returns the
+            // string unchanged and ``round(None)`` returns null — both slip into
+            // domain values instead of surfacing the broken expression.
+            throw new EvaluationError(
+                `type ${pyTypeName(value)} doesn't define __round__ method`,
+            );
+        }
         return _pythonRound(value, ndigits);
     },
 
