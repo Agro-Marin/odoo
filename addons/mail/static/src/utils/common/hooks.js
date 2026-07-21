@@ -322,6 +322,13 @@ export function useVisible(refName, cb, { ready = true } = {}) {
             if (el && ready) {
                 observer.observe(el);
                 return () => {
+                    // Dispatching `cb` here is deliberate, not an oversight:
+                    // consumers derive state from `isVisible` and this is how
+                    // they learn the observed element went away. Dropping the
+                    // dispatch leaves that derived state stale -- e.g. "Jump to
+                    // Present" survives "Mark all read" once the message list
+                    // it was tracking is gone (@see core/common/thread.js
+                    // updateShowJumpPresent, and the discuss_app/inbox suite).
                     setValue(undefined);
                     observer.unobserve(el);
                 };
@@ -329,6 +336,10 @@ export function useVisible(refName, cb, { ready = true } = {}) {
         },
         () => [ref.el, state.ready],
     );
+    // `unobserve` above already drops the element ref; this closes the window
+    // in which an entry queued before destruction fires against a dead
+    // component.
+    onWillUnmount(() => observer.disconnect());
     return state;
 }
 

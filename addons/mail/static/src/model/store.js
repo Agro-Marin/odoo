@@ -409,7 +409,17 @@ export class Store extends Record {
         });
         _observe();
         return () => {
+            // OWL has no unsubscribe API: `targetToKeysToCallbacks` holds a
+            // STRONG ref to the callback until the observed key next changes
+            // (and forever if it never does). The `ready` latch alone left the
+            // closure retaining `record`/`proxy`/`callback` — i.e. whole
+            // component graphs (@see core/common/thread_scroll_hook.js). Drop
+            // the captures too, so the still-registered callback holds nothing.
+            // Idempotent: a second dispose() is a no-op.
             ready = false;
+            proxy = undefined;
+            record = undefined;
+            callback = undefined;
         };
     }
     _cleanupData(data) {

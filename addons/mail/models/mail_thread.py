@@ -1565,11 +1565,61 @@ class MailThread(models.AbstractModel):
                     body,
                     message,
                     # add a reference with a tag, to be able to ignore response to this email
-                    references=f"{message_dict['message_id']} {generate_tracking_message_id('loop-detection-bounce-email')}",
+                    references=self._routing_bounce_references(message_dict),
                 )
                 return True
 
         return False
+
+    @api.model
+    def _routing_filter_local_aliases(self, aliases, rcpt_tos_valid_list):
+        """Drop ``alias_incoming_local`` matches for recipients already claimed
+        by an exact ``alias_full_name`` match.
+
+        The local-part leg of the alias search is deliberately not scoped by
+        ``alias_domain_id`` -- that is what ``alias_incoming_local`` means. But
+        nothing reconciled it against the exact matches, so two companies owning
+        the same local part (``support@a.com`` / ``support@b.com``, a pair
+        ``_name_domain_unique`` explicitly permits) *both* matched a mail
+        addressed to only one of them, and each produced its own route: one
+        inbound customer mail created a record in both companies, body and
+        attachments included.
+
+        Resolution is per recipient: an exact address match wins, and the
+        local-part fallback only applies to recipients no alias claimed exactly.
+        A mail sent to a local part that *no* alias owns exactly (e.g. via an
+        allowed catchall domain) is still ambiguous by nature and keeps the
+        legacy behaviour of matching every local alias.
+        """
+        claimed_localparts = {
+            alias.alias_full_name.split("@", 1)[0]
+            for alias in aliases
+            if alias.alias_full_name in rcpt_tos_valid_list
+        }
+        return aliases.filtered(
+            lambda alias: (
+                alias.alias_full_name in rcpt_tos_valid_list
+                or alias.alias_name not in claimed_localparts
+            )
+        )
+
+    @api.model
+    def _routing_bounce_references(self, message_dict):
+        """Build the ``References`` of an automatic bounce.
+
+        Every bounce this framework emits must carry the loop-detection tag:
+        ``_detect_loop_headers`` greps incoming references for it, and that is
+        the only thing stopping an autoresponder from replying to our bounce
+        forever. Callers used to inline the f-string, and the alias security /
+        configuration bounce silently omitted the tag -- an untagged bounce
+        loops indefinitely (its own Message-Id is not durably resolvable
+        either, as bounce mails are ``auto_delete``). Centralised so a new
+        bounce emitter cannot forget it.
+        """
+        return (
+            f"{message_dict['message_id']} "
+            f"{generate_tracking_message_id('loop-detection-bounce-email')}"
+        )
 
     @api.model
     def _detect_loop_headers(self, msg_dict):
@@ -1624,7 +1674,12 @@ class MailThread(models.AbstractModel):
         body = self.env["ir.qweb"]._render(
             "mail.mail_bounce_catchall",
             {
-                "message": message,
+                # the template indexes its context with dict keys ('email_from',
+                # 'body'); an email.message.EmailMessage would resolve those
+                # through __getitem__ as *header* lookups and yield None, so
+                # every bounce rendered as "Hello ," with an empty quote. Pass
+                # the parsed dict, like the mail_bounce_alias_security sibling.
+                "message": message_dict,
             },
         )
         self._routing_create_bounce_email(
@@ -1632,10 +1687,7 @@ class MailThread(models.AbstractModel):
             body,
             message,
             # add a reference with a tag, to be able to ignore response to this email
-            references=(
-                f"{message_dict['message_id']} "
-                f"{generate_tracking_message_id('loop-detection-bounce-email')}"
-            ),
+            references=self._routing_bounce_references(message_dict),
             reply_to=self.env.company.email,
         )
         return []
@@ -1906,6 +1958,9 @@ class MailThread(models.AbstractModel):
                     ("alias_name", "in", rcpt_tos_valid_localparts),
                     ("alias_incoming_local", "=", True),
                 ]
+            )
+            dest_aliases = self._routing_filter_local_aliases(
+                dest_aliases, rcpt_tos_valid_list
             )
             if dest_aliases:
                 routes = []
@@ -4492,19 +4547,30 @@ class MailThread(models.AbstractModel):
         users = self.env["res.users"].browse(uid2pid)
         users._fields["partner_id"]._insert_cache(users, uid2pid.values())
 
-        # check for automated content (OOO), before shortcutting if no recipients
-        # as OOO may include more people (parent message author, responsible)
-        self._notify_thread_with_out_of_office(
-            message, recipients_data, msg_vals=msg_vals, **kwargs
+        # Resolve the schedule before running the out-of-office auto-reply: an
+        # OOO answer must reflect who is absent when the message is actually
+        # *delivered*, not when it was composed. Running it at compose time for a
+        # message scheduled days ahead posted a premature reply quoting a body no
+        # recipient had received yet -- and, since mail.message.schedule replays
+        # _notify_thread on delivery, a *second* identical reply once the 4-day
+        # dedupe window in _notify_thread_with_out_of_office had lapsed. On
+        # replay scheduled_date is unset, so the auto-reply runs exactly once,
+        # at the right moment.
+        scheduled_date = self._is_notification_scheduled(
+            kwargs.pop("scheduled_date", None)
         )
+
+        if not scheduled_date:
+            # check for automated content (OOO), before shortcutting if no recipients
+            # as OOO may include more people (parent message author, responsible)
+            self._notify_thread_with_out_of_office(
+                message, recipients_data, msg_vals=msg_vals, **kwargs
+            )
 
         if not recipients_data:
             return recipients_data
 
         # if scheduled for later: add in queue instead of generating notifications
-        scheduled_date = self._is_notification_scheduled(
-            kwargs.pop("scheduled_date", None)
-        )
         if scheduled_date:
             # send the message notifications at the scheduled date
             self.env["mail.message.schedule"].sudo().create(

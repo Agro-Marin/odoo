@@ -118,7 +118,9 @@ class ThreadController(http.Controller):
     def mail_thread_messages(self, thread_model, thread_id, fetch_params=None):
         thread = self._get_thread_with_access(thread_model, thread_id, mode="read")
         res = request.env["mail.message"]._message_fetch(
-            domain=None, thread=thread, **(fetch_params or {})
+            domain=None,
+            thread=thread,
+            **request.env["mail.message"]._sanitize_fetch_params(fetch_params),
         )
         messages = res.pop("messages")
         if not request.env.user._is_public():
@@ -282,6 +284,31 @@ class ThreadController(http.Controller):
             ).ids,
         }
 
+    def _is_mentionable_in_thread(self, partner, thread):
+        """Whether a mention token may add ``partner`` as a recipient of a
+        message posted on ``thread``.
+
+        A mention token proves the caller legitimately *saw* the partner; it says
+        nothing about *where*. The token is bound only to (partner, "id", scope)
+        and is valid for weeks, while ``/discuss/channel/members`` serves member
+        personas -- tokens included -- to anyone who can read the channel, which
+        for a channel with no authorized group means anonymous callers. Without
+        this check a share/guest caller could harvest tokens in one channel and
+        replay them on another thread, forcing notification e-mails about a
+        conversation the recipient has nothing to do with.
+
+        Restricted to channels: for other thread types, posting already requires
+        access to the record itself, and mentioning someone not yet involved
+        (adding a colleague to a document's chatter) is a legitimate flow.
+        """
+        if thread._name != "discuss.channel":
+            return True
+        # sudo: discuss.channel.member - checking membership of the very channel
+        # the caller is posting to, to decide whether a mention is in-scope.
+        channel_sudo = thread.sudo()
+        channels = channel_sudo.parent_channel_id | channel_sudo
+        return partner in channels.channel_member_ids.partner_id
+
     def _prepare_message_data(self, post_data, *, thread, **kwargs):
         res = {
             key: value
@@ -340,6 +367,7 @@ class ThreadController(http.Controller):
                             ),
                             scope="mail.message_mention",
                         )
+                        and self._is_mentionable_in_thread(p, thread)
                     )
                 ),
             ).ids

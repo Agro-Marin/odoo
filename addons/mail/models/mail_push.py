@@ -4,6 +4,7 @@ from datetime import timedelta
 from requests import Session
 
 from odoo import api, fields, models
+from odoo.fields import Domain
 
 from odoo.addons.mail.tools.web_push import (
     DeviceUnreachableError,
@@ -17,6 +18,12 @@ _logger = logging.getLogger(__name__)
 # days; past that the resolver is treated as permanently dead and the queued
 # notification is dropped so it cannot accumulate forever.
 PUSH_ENDPOINT_RETRY_DAYS = 3
+# How long a notification whose endpoint was unresolvable is held back before it
+# is eligible again. Without a hold-off the kept rows -- which are the oldest,
+# hence the lowest ids, hence the head of every `id ASC` batch -- were re-picked
+# on every single run, so one dead endpoint host starved the entire queue for
+# PUSH_ENDPOINT_RETRY_DAYS while the cron re-armed itself in a tight loop.
+PUSH_ENDPOINT_RETRY_DELAY = timedelta(minutes=15)
 
 
 class MailPush(models.Model):
@@ -27,12 +34,27 @@ class MailPush(models.Model):
         "mail.push.device", string="devices", required=True, ondelete="cascade"
     )
     payload = fields.Text()
+    retry_after = fields.Datetime(
+        string="Retry After",
+        help="Set when the device endpoint could not be resolved; the "
+        "notification is skipped by the sending cron until this date so a "
+        "single unreachable endpoint cannot starve the rest of the queue.",
+        index=True,
+    )
+
+    @api.model
+    def _get_due_domain(self):
+        """Domain selecting the notifications the cron may attempt right now."""
+        return Domain("retry_after", "=", False) | Domain(
+            "retry_after", "<=", fields.Datetime.now()
+        )
 
     @api.model
     def _push_notification_to_endpoint(self, batch_size=50):
         """Send to web browser endpoint computed notification"""
+        due_domain = self._get_due_domain()
         web_push_notifications_sudo = self.sudo().search_fetch(
-            [], ["mail_push_device_id", "payload"], limit=batch_size
+            due_domain, ["mail_push_device_id", "payload"], limit=batch_size
         )
         if not web_push_notifications_sudo:
             return
@@ -98,11 +120,19 @@ class MailPush(models.Model):
             )
         )
         (web_push_notifications_sudo - notifs_to_keep).unlink()
+        # Hold the kept ones back: they are the oldest rows, so without this they
+        # are the head of every subsequent `id ASC` batch and no other
+        # notification ever gets sent while the endpoint stays unresolvable.
+        if notifs_to_keep:
+            notifs_to_keep.retry_after = (
+                fields.Datetime.now() + PUSH_ENDPOINT_RETRY_DELAY
+            )
 
         # clean up obsolete devices
         if devices_to_unlink:
             self.env["mail.push.device"].sudo().browse(devices_to_unlink).unlink()
 
-        # restart the cron if needed
-        if self.search_count([]) > 0:
+        # restart the cron if needed -- only for work that is actually due, else
+        # the rows we just held back would re-arm the cron in a tight loop.
+        if self.sudo().search_count(self._get_due_domain(), limit=1) > 0:
             self.env.ref("mail.ir_cron_web_push_notification")._trigger()

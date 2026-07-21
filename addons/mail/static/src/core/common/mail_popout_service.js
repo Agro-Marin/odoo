@@ -15,7 +15,7 @@ export const mailPopoutService = {
 
     start(env) {
         /**
-         * @type {Map<any, { externalWindow: Window|null, hooks: { beforePopout?: Function, afterPopoutClosed?: Function, app: App } }>}
+         * @type {Map<any, { externalWindow: Window|null, generation: number, hooks: { beforePopout?: Function, afterPopoutClosed?: Function, app: App } }>}
          */
         const popouts = new Map();
 
@@ -23,14 +23,22 @@ export const mailPopoutService = {
         // Registered ONCE for the service's lifetime — the previous code added
         // a fresh `beforeunload` listener inside popout() on every open, none
         // of which were ever removed (and pip() had no such cleanup at all).
-        window.addEventListener("beforeunload", () => {
+        // `browser`, not the raw global: the service is instantiated per test,
+        // and going straight to `window` kept every such instance subscribed
+        // for the rest of the run (@see store_service.js `onStarted`). The test
+        // harness tracks and detaches listeners added through this seam during
+        // a test (@see web/static/tests/_framework/module_set.hoot.js). Held in
+        // a named binding so it can be removed; services have no teardown hook
+        // here, so in production its lifetime is the page's.
+        const onBeforeUnload = () => {
             for (const popout of popouts.values()) {
                 const externalWindow = popout.externalWindow;
                 if (externalWindow && !externalWindow.closed) {
                     externalWindow.close();
                 }
             }
-        });
+        };
+        browser.addEventListener("beforeunload", onBeforeUnload);
 
         /**
          * Reset the external window to its initial state:
@@ -65,15 +73,34 @@ export const mailPopoutService = {
         /**
          * Poll the external window to detect when it is closed.
          * the afterPopoutClosed hook (afterFn) is then called after the window is closed
+         *
+         * @param {any} id
+         * @param {number} generation - token of the window this poller owns
          */
-        async function pollClosedWindow(id) {
-            while (popouts.get(id)?.externalWindow) {
+        async function pollClosedWindow(id, generation) {
+            // A poller only ever owns the window it was started for: reopening
+            // within the 1s tick used to leave the previous poller looping
+            // forever on the new window, and whichever poller lost the race
+            // never fired `afterPopoutClosed` for the close it detected.
+            while (
+                popouts.get(id)?.externalWindow &&
+                popouts.get(id).generation === generation
+            ) {
                 const popout = popouts.get(id);
                 await new Promise((r) => setTimeout(r, 1000));
+                if (popout.generation !== generation) {
+                    return;
+                }
                 if (popout.externalWindow?.closed) {
                     const hooks = popout.hooks;
                     hooks?.afterPopoutClosed?.();
                     popout.externalWindow = null;
+                    // Destroy the OWL app mounted on the now-dead document:
+                    // `reset()` was the only teardown site and no consumer
+                    // called it on close, so the component tree stayed mounted
+                    // and subscribed to the store reactives (e.g. call PiP's
+                    // `Meeting`). `reset()` tolerates a null externalWindow.
+                    await reset(id);
                 }
             }
         }
@@ -112,8 +139,11 @@ export const mailPopoutService = {
                 hooks?.beforePopout?.();
                 height =
                     height ||
-                    (width ? width / aspectRatio : Math.min(240, window.innerHeight));
+                    (width ? width / aspectRatio : Math.min(240, browser.innerHeight));
                 width = width || height * aspectRatio;
+                // `window`, not `browser`: the facade does not expose
+                // `documentPictureInPicture` (@see web/core/browser/browser.js),
+                // so going through it would silently disable native PiP.
                 if (window.documentPictureInPicture) {
                     externalWindow =
                         await window.documentPictureInPicture.requestWindow({
@@ -128,7 +158,9 @@ export const mailPopoutService = {
                     );
                 }
                 popout.externalWindow = externalWindow;
-                pollClosedWindow(id);
+                // one poller per window creation, identified by its token
+                popout.generation++;
+                pollClosedWindow(id, popout.generation);
             }
             await reset(id, { useAlternativeAssets });
             popout.app = new App(component, {
@@ -161,7 +193,9 @@ export const mailPopoutService = {
                 hooks?.beforePopout?.();
                 externalWindow = browser.open("about:blank", "_blank", "popup=yes");
                 popout.externalWindow = externalWindow;
-                pollClosedWindow(id);
+                // one poller per window creation, identified by its token
+                popout.generation++;
+                pollClosedWindow(id, popout.generation);
             }
             reset(id);
             popout.app = new App(component, {
@@ -195,6 +229,7 @@ export const mailPopoutService = {
         function createManager(id = DEFAULT_ID) {
             popouts.set(id, {
                 externalWindow: null,
+                generation: 0,
                 hooks: {},
             });
             return {

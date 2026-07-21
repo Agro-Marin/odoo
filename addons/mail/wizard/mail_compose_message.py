@@ -7,7 +7,12 @@ import json
 from odoo import Command, _, api, fields, models, tools
 from odoo.exceptions import UserError, ValidationError
 from odoo.fields import Domain
-from odoo.tools.mail import email_normalize, email_split_and_format, is_html_empty
+from odoo.tools.mail import (
+    email_normalize,
+    email_normalize_all,
+    email_split_and_format,
+    is_html_empty,
+)
 from odoo.tools.misc import clean_context
 
 from odoo.addons.mail.tools.parser import parse_res_ids
@@ -1804,15 +1809,31 @@ class MailComposeMessage(models.TransientModel):
             if not blacklist:
                 return blacklisted_rec_ids
             if isinstance(self.env[self.model], self.pool["mail.thread.blacklist"]):
-                targets = self.env[self.model].browse(mail_values_dict.keys())
-                targets.fetch(["email_normalized"])
-                # First extract email from recipient before comparing with blacklist
+                model = self.env[self.model]
+                primary_email = model._primary_email
+                targets = model.browse(mail_values_dict.keys())
+                targets.fetch(["email_normalized", primary_email])
+                # Compare against *every* address the record holds, not only
+                # `email_normalized`: that field is computed with strict=False,
+                # which keeps just the first address, so a record holding
+                # "old@x.com, new@y.com" was never matched on a blacklisted
+                # new@y.com -- while _message_add_default_recipients happily
+                # split both out and mailed them. An unsubscribe must be honoured
+                # whichever of the record's addresses it was made from.
                 blacklisted_rec_ids.update(
                     target.id
                     for target in targets
-                    if target.email_normalized in blacklist
+                    if blacklist
+                    & set(
+                        email_normalize_all(target[primary_email] or "")
+                        or filter(None, [target.email_normalized])
+                    )
                 )
-            elif recipients_info:
+            # additive, not exclusive: a blacklist-mixin model must *also* be
+            # checked against its resolved recipients (it was an `elif`, so for
+            # exactly the mass-mailing targets that inherit the mixin the
+            # recipient-level check never ran).
+            if recipients_info:
                 # Note that we exclude the record if at least one recipient is blacklisted (-> even if not all)
                 # But as commented above: Mass mailing should always have a single recipient per record.
                 blacklisted_rec_ids.update(

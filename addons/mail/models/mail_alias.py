@@ -679,5 +679,10 @@ Please try again later or contact %(company_name)s instead.""")
             message_dict["email_from"],
             body,
             message,
-            references=message_dict["message_id"],
+            # must carry the loop-detection tag like every other bounce emitter:
+            # without it an autoresponder behind an unauthorized sender ping-pongs
+            # with us forever (the alias rejects, we bounce, it replies, ...).
+            # _detect_loop_sender never fires here because this path returns no
+            # route, so the tag is the only guard.
+            references=self.env["mail.thread"]._routing_bounce_references(message_dict),
         )

@@ -137,7 +137,9 @@ class ChannelController(http.Controller):
         if not channel:
             raise NotFound
         res = request.env["mail.message"]._message_fetch(
-            domain=None, thread=channel, **(fetch_params or {})
+            domain=None,
+            thread=channel,
+            **request.env["mail.message"]._sanitize_fetch_params(fetch_params),
         )
         messages = res.pop("messages")
         if not request.env.user._is_public():
