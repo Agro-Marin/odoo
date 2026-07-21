@@ -242,8 +242,9 @@ class AccountAccruedOrdersWizard(models.TransientModel):
                     # strict — never accrue on a silently unconverted quantity.
                     uom_reconcile_strict=True,
                 ).filtered(
-                    # We only want non-comment lines (no sections, notes, ...) and include all lines
-                    # for purchase orders but exclude downpayment lines for sales orders.
+                    # We only want non-comment lines (no sections, notes, ...) and
+                    # exclude downpayment lines (present on both purchase and sale
+                    # order lines via the shared order-line mixin).
                     lambda l, order=order: (
                         not l.display_type
                         and not l.is_downpayment
