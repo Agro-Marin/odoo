@@ -19,12 +19,9 @@ class TestAccountAccount(TestAccountMergeCommon):
         cls.other_currency = cls.setup_other_currency("EUR")
 
     def test_shared_accounts(self):
-        """Test that creating an account with a given company in company_ids sets the code for that company.
-        Test that copying an account creates a new account with the code set for the new account's company_ids company,
-        and that copying an account that belongs to multiple companies works, even if the copied account had
-        check_company fields that had values belonging to several companies.
-        """
-
+        """Test creating and copying accounts with per-company codes."""
+        # Copying an account that belongs to several companies must also work when its
+        # `check_company` fields hold values belonging to several companies.
         company_1 = self.company_data["company"]
         company_2 = self.company_data_2["company"]
         company_3 = self.setup_other_company(name="company_3")["company"]
@@ -162,8 +159,7 @@ class TestAccountAccount(TestAccountMergeCommon):
         )
 
     def test_write_on_code_from_branch(self):
-        """Ensure that when writing on account.code from a company, the old code isn't erroneously kept
-        on other companies that share the same root_id"""
+        """Ensure writing `code` from a branch drops the old code on the same root_id."""
         branch = self.env["res.company"].create(
             [
                 {
@@ -189,15 +185,10 @@ class TestAccountAccount(TestAccountMergeCommon):
         self.assertRecordValues(account, [{"code": "180002"}])
 
     def test_ensure_code_unique(self):
-        """Test the `_ensure_code_unique` check method.
-
-        Check that it allows a code to be set on an account if and only if
-        there is no other account accessible from the child or parent companies of the account
-        that has the same code in that company.
-
-        Simultaneously, check that the `_search_new_account_code` method proposes codes that
-        would be accepted and skips codes that would be disallowed.
-        """
+        """Test `_ensure_code_unique` and the codes `_search_new_account_code` proposes."""
+        # A code is allowed on an account if and only if no other account with that
+        # code is accessible from the account's child or parent companies, and
+        # `_search_new_account_code` must skip the codes that would be disallowed.
         # Create company hierarchy:
         # parent_company -> {child_company_1, child_company_2}
         # other_company is disjoint.
@@ -542,7 +533,7 @@ class TestAccountAccount(TestAccountMergeCommon):
             account.reconcile = False
 
     def test_remove_account_from_account_group(self):
-        """Test if an account is well removed from account group"""
+        """Test that an account leaves its group when the group's prefix range shrinks."""
         group = self.env["account.group"].create(
             {
                 "name": "test_group",
@@ -567,9 +558,7 @@ class TestAccountAccount(TestAccountMergeCommon):
         )
 
     def test_name_create(self):
-        """name_create should only be possible when importing
-        Code and Name should be split
-        """
+        """Test that `name_create` only works when importing and splits code from name."""
         with self.assertRaises(UserError):
             self.env["account.account"].name_create("550003 Existing Account")
         # account code is mandatory and providing a name without a code should raise an error
@@ -628,15 +617,15 @@ class TestAccountAccount(TestAccountMergeCommon):
             }
         )
 
-        #  The account type and tags will be transferred automatically with the computes
+        # The account type and tags are transferred automatically by the computes
         self.assertEqual(account_to_process.account_type, "expense")
         self.assertEqual(account_to_process.tag_ids.name, "Test tag")
 
     def test_search_new_account_code(self):
-        """Test whether the account codes tested for availability are the ones we expect."""
+        """Test that successive copies of an account get the codes we expect."""
         # pylint: disable=bad-whitespace
         tests = [
-            # start_code  Expected tested codes
+            # start_code  Expected codes of the successive copies
             ("102100", ["102101", "102102", "102103", "102104"]),
             ("1598", ["1599", "1600", "1601", "1602"]),
             ("10.01.08", ["10.01.09", "10.01.10", "10.01.11", "10.01.12"]),
@@ -744,9 +733,7 @@ class TestAccountAccount(TestAccountMergeCommon):
         )
 
     def test_name_create_account_code_only(self):
-        """
-        Test account creation with only a code, with and without space
-        """
+        """Test account creation with only a code, with and without a trailing space."""
         account_id = (
             self.env["account.account"]
             .with_context(import_file=True)
@@ -766,9 +753,7 @@ class TestAccountAccount(TestAccountMergeCommon):
         self.assertEqual(account.name, "")
 
     def test_name_create_account_name_with_number(self):
-        """
-        Test the case when a code is provided and the account name contains a number in the first word
-        """
+        """Test name_create when the account name contains a number in its first word."""
         account_id = (
             self.env["account.account"]
             .with_context(import_file=True)
@@ -788,9 +773,7 @@ class TestAccountAccount(TestAccountMergeCommon):
         self.assertEqual(account.name, "")
 
     def test_create_account(self):
-        """
-        Test creating an account with code and name without name_create
-        """
+        """Test creating an account with code and name without `name_create`."""
         account = self.env["account.account"].create(
             {
                 "code": "314159",
@@ -818,9 +801,7 @@ class TestAccountAccount(TestAccountMergeCommon):
         self.assertEqual(account.name, "CO2-contributions")
 
     def test_account_name_onchange(self):
-        """
-        Test various scenarios when creating an account via a form
-        """
+        """Test the code/name onchange scenarios when creating an account via a form."""
         # We set `allowed_company_ids` here so that the `with_company(other_company)` in
         # `account.code.mapping._inverse_code` creates a context with both the first active
         # company and the other company, rather than with just the other company.
@@ -879,15 +860,9 @@ class TestAccountAccount(TestAccountMergeCommon):
 
     @freeze_time("2023-09-30")
     def test_generate_account_suggestions(self):
-        """
-        Test the generation of account suggestions for a partner.
-
-        - Creates: partner and a account move of that partner.
-        - Checks if the most frequent account for the partner matches created account (with recent move).
-        - Sets the account as archived and checks that it no longer appears in the suggestions.
-
-        * since tested function takes into account last 2 years, we use freeze_time
-        """
+        """Test the generation of account suggestions for a partner."""
+        # `_get_most_frequent_accounts_for_partner` only looks at the last 2 years,
+        # hence the `freeze_time` on this test.
         partner = self.env["res.partner"].create(
             {"name": "partner_test_generate_account_suggestions"}
         )
@@ -927,12 +902,9 @@ class TestAccountAccount(TestAccountMergeCommon):
         )
 
     def test_placeholder_code(self):
-        """Test that the placeholder code is '{code_in_company} ({company})'
-        where `company` is the first of the user's companies that is
-        in `account.company_ids`.
-
-        Check that `_field_to_sql` gives the same value.
-        """
+        """Test `placeholder_code` and that `_field_to_sql` gives the same value."""
+        # The placeholder code is '{code_in_company} ({company})', where `company` is the
+        # first of the user's companies that is in `account.company_ids`.
 
         def get_placeholder_code_via_sql(account):
             account_query = account._as_query()
@@ -1246,7 +1218,7 @@ class TestAccountAccount(TestAccountMergeCommon):
                     referencing_record, [{fname: expected_field_value}]
                 )
 
-        # Step 2: Unmerge the account
+        # 2. Unmerge the account
         new_account = account_to_unmerge.with_context(
             {
                 "account_unmerge_confirm": True,
@@ -1369,8 +1341,7 @@ class TestAccountAccount(TestAccountMergeCommon):
         self.assertRecordValues(account.with_company(company_3.id), [{"code": "test3"}])
 
     def test_account_code_mapping_create(self):
-        """Similar as above, except test that you can create an account while specifying multiple codes in the code mapping tab."""
-
+        """Test creating an account with several codes set in the code mapping tab."""
         company_3 = self.env["res.company"].create({"name": "company_3"})
 
         AccountAccount = self.env["account.account"].with_context(
@@ -1472,11 +1443,7 @@ class TestAccountAccount(TestAccountMergeCommon):
         self.assertEqual(group_3.parent_id, group_31)
 
     def test_muticompany_account_groups(self):
-        """
-        Ensure that account groups are always in a root company
-        Ensure that accounts and account groups from a same company tree match
-        """
-
+        """Ensure account groups sit in a root company and match accounts of the same tree."""
         branch_company = self.env["res.company"].create(
             {
                 "name": "Branch Company",
@@ -1564,7 +1531,7 @@ class TestAccountAccount(TestAccountMergeCommon):
         )
 
     def test_access_to_parent_accounts_from_branch(self):
-        """Ensure that a user with access to a branch can access to the accounts of the parent company"""
+        """Ensure a user with access to a branch can access the parent company's accounts."""
         parent_company = self.env["res.company"].create(
             [
                 {

@@ -95,10 +95,7 @@ class TestAccountEarlyPaymentDiscount(AccountTestInvoicingCommon):
                 )
 
     def test_early_payment_date_eligibility(self):
-        """
-        Test to check early payment eligibility is based on the date stored
-        on the payment term line
-        """
+        """Check early payment eligibility uses the payment term line's stored date."""
         inv = self.env["account.move"].create(
             {
                 "move_type": "in_invoice",
@@ -180,10 +177,7 @@ class TestAccountEarlyPaymentDiscount(AccountTestInvoicingCommon):
         )
 
     def test_invoice_report_without_invoice_date(self):
-        """
-        Ensure that an invoice with an early discount payment term
-        and no invoice date can be previewed or printed.
-        """
+        """Ensure an invoice with an early discount term and no date renders to PDF."""
         out_invoice = self.env["account.move"].create(
             [
                 {
@@ -978,10 +972,7 @@ class TestAccountEarlyPaymentDiscount(AccountTestInvoicingCommon):
         )
 
     def test_mixed_early_discount_with_tag_on_tax_base_line(self):
-        """
-        Ensure that early payment discount line grouping works properly when
-        using a tax that adds tax tags to its base line.
-        """
+        """Group epd lines properly when a tax adds tax tags to its base line."""
         tax_tag = self.env["account.account.tag"].create(
             {
                 "name": "tax_tag",
@@ -1219,9 +1210,7 @@ class TestAccountEarlyPaymentDiscount(AccountTestInvoicingCommon):
         self.assertEqual(inv.amount_tax, 9.00)  # $100.0 @ 10% tax (-10% epd)
 
     def test_mixed_epd_with_rounding_issue(self):
-        """
-        Ensure epd line will not unbalance the invoice
-        """
+        """Ensure the epd lines do not unbalance the invoice."""
         tax_6 = self.env["account.tax"].create(
             {
                 "name": "6%",
@@ -1300,12 +1289,7 @@ class TestAccountEarlyPaymentDiscount(AccountTestInvoicingCommon):
         )
 
     def test_register_payment_batch_with_discount_and_without_discount(self):
-        """
-        Test that a batch payment, that is
-            - not grouped
-            - with invoices having different payment terms (1 with discount, 1 without)
-        -> will not crash
-        """
+        """Ungrouped batch payment mixing discount and plain terms does not crash."""
         out_invoice_1 = self.env["account.move"].create(
             {
                 "move_type": "out_invoice",
@@ -1366,12 +1350,7 @@ class TestAccountEarlyPaymentDiscount(AccountTestInvoicingCommon):
         )
 
     def test_register_payment_batch_without_discount(self):
-        """
-        Test that a batch payment, that is
-            - not grouped
-            - with invoices having the same payment terms (without discount)
-        -> will not crash
-        """
+        """Ungrouped batch payment over invoices without discount does not crash."""
         out_invoice_1 = self.env["account.move"].create(
             {
                 "move_type": "out_invoice",
@@ -1431,9 +1410,7 @@ class TestAccountEarlyPaymentDiscount(AccountTestInvoicingCommon):
         )
 
     def test_mixed_epd_with_tax_refund(self):
-        """
-        Ensure epd line are addeed to refunds
-        """
+        """Ensure epd lines are added to refunds."""
         self.early_pay_10_percents_10_days.write(
             {"early_pay_discount_computation": "mixed"}
         )
@@ -1513,10 +1490,7 @@ class TestAccountEarlyPaymentDiscount(AccountTestInvoicingCommon):
         )
 
     def test_epd_validation_on_payment_terms(self):
-        """
-        Test that enabling Early Payment Discount (EPD) on payment terms with multiple lines raises a ValidationError,
-        and that enabling EPD on payment terms with a single line does not raise any error.
-        """
+        """Enabling EPD raises ValidationError unless the term has a single line."""
         payment_term = self.env["account.payment.term"].create(
             {
                 "name": "Test Term",
@@ -1552,11 +1526,7 @@ class TestAccountEarlyPaymentDiscount(AccountTestInvoicingCommon):
             )
 
     def test_epd_multiple_repartition_lines(self):
-        """
-        In the case of multi repartition lines tax definition with an early payment discount
-        We want to make sure that the EPD lines are correct.
-        We want the rounding difference to be added to the "biggest" base line.
-        """
+        """Check the EPD lines for taxes defined with multiple repartition lines."""
         # Taxes.
         common_values = {
             "amount": 17.0,
@@ -1634,6 +1604,7 @@ class TestAccountEarlyPaymentDiscount(AccountTestInvoicingCommon):
             ._create_payments()
         )
 
+        # Rounding difference lands on the biggest base line: 14.79 instead of 14.80.
         self.assertRecordValues(
             payment.move_id.line_ids.sorted("amount_currency"),
             [
