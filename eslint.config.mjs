@@ -87,7 +87,13 @@ const COMMUNITY_MODULES = [
     "addons/purchase_stock",
 ];
 
-const ENTERPRISE_MODULES = [
+// Enterprise modules live in a SEPARATE repo (addons/enterprise), so these
+// globs are meaningless relative to THIS config's directory — ESLint 10 roots
+// every glob at the config file's own directory. They are exported for
+// addons/enterprise/eslint.config.mjs, which re-uses `makeConfig` below so both
+// repos share one ruleset. Do not add them to the default export: from here
+// they match nothing and only create the illusion of coverage.
+export const ENTERPRISE_MODULES = [
     "web_enterprise",
     "web_mobile",
     "web_studio",
@@ -155,51 +161,108 @@ const ENTERPRISE_MODULES = [
     "pos_tyro",
 ];
 
-// Build file globs: "addons/web/**/*.js" etc.
-const allModuleGlobs = [...COMMUNITY_MODULES, ...ENTERPRISE_MODULES]
-    .map((m) => `${m}/**/*.js`);
+// Paths ignored regardless of which repo consumes this config.
+const SHARED_IGNORES = [
+    // Vendored third-party libraries (not our code) live under
+    // <module>/static/lib/ and are ignored wholesale — by convention,
+    // vendored code goes in static/lib and nowhere else, so it is
+    // excluded structurally rather than via a per-library allowlist
+    // (which always drifts). Putting a third-party file anywhere else is
+    // the bug; fix it by relocating into static/lib, not by listing it.
+    "**/static/lib/**",
+];
 
+const COMMUNITY_IGNORES = [
+    // hoot is first-party despite living under web/static/lib (historical).
+    "!addons/web/static/lib/hoot/**",
+    // Vendored bundle that predates the convention. TODO: relocate under
+    // static/lib so this special case can go away too.
+    "addons/spreadsheet/static/src/o_spreadsheet/o_spreadsheet.js",
 
-/** @type {import("eslint").Linter.Config[]} */
-export default [
+    // Generated Store-serialization contract whose body must stay
+    // strict JSON (parsed by json.loads in
+    // mail/tests/test_mock_server_contract.py). Formatting it produces
+    // valid JS but invalid JSON and breaks that test. Mirrored in
+    // .prettierignore.
+    "addons/mail/static/tests/mock_server/contract/store_shapes.js",
+
+    // Legacy code (only top-level adapters are linted)
+    "addons/web/static/src/legacy/**",
+    "!addons/web/static/src/legacy/*.js",
+    "addons/base_import/static/src/legacy/**",
+
+    // Legacy tests
+    "addons/web/static/tests/**/legacy/*",
+];
+
+// Consumed by addons/enterprise/eslint.config.mjs — see ENTERPRISE_MODULES.
+export const ENTERPRISE_IGNORES = [
+    // Legacy code (only top-level adapters are linted)
+    "web_enterprise/static/src/legacy/**",
+    "!web_enterprise/static/src/legacy/*.js",
+    "web_studio/static/src/legacy/**",
+    "!web_studio/static/src/legacy/*.js",
+    "web_cohort/static/src/legacy/**",
+    "web_gantt/static/src/legacy/**",
+    "web_map/static/src/legacy/**",
+
+    // Legacy tests
+    "web_enterprise/static/tests/**/legacy/*",
+    "web_studio/static/tests/**/legacy/*",
+    "web_cohort/static/tests/legacy/**",
+    "web_gantt/static/tests/legacy/**",
+    "web_map/static/tests/legacy/**",
+];
+
+// no-console — incremental rollout; see the config block below.
+const COMMUNITY_NO_CONSOLE_MODULES = [
+    "addons/web",
+    "addons/mail",
+    "addons/point_of_sale",
+    "addons/purchase",
+    "addons/bus",
+    "addons/account",
+    "addons/base_tax",
+    "addons/analytic",
+    "addons/product",
+    "addons/uom",
+    "addons/stock",
+    "addons/stock_account",
+    "addons/sale",
+    "addons/sale_stock",
+    "addons/mrp",
+    "addons/purchase_stock",
+    "addons/html_editor",
+    "addons/web_tour",
+    "addons/website",
+    "addons/im_livechat",
+];
+
+/**
+ * Build the shared Odoo ESLint ruleset, scoped to one repo's modules.
+ *
+ * ESLint 10 resolves every `files`/`ignores` glob relative to the directory of
+ * the config file that is actually loaded. A single config in addons/odoo can
+ * therefore never reach addons/enterprise: enterprise globs silently match zero
+ * files. Each repo instead ships its own thin eslint.config.mjs that calls this
+ * factory, so the rules live here once and the paths stay repo-local.
+ *
+ * @param {object}   options
+ * @param {string[]} options.modules           Module dirs to lint, repo-relative.
+ * @param {string[]} [options.ignores]         Extra ignore globs, repo-relative.
+ * @param {string[]} [options.noConsoleModules] Modules scrubbed of stray console.*.
+ * @returns {import("eslint").Linter.Config[]}
+ */
+export function makeConfig({ modules, ignores = [], noConsoleModules = [] }) {
+    // Build file globs: "addons/web/**/*.js" etc.
+    const allModuleGlobs = modules.map((m) => `${m}/**/*.js`);
+
+    return [
     // =========================================================================
     // Global ignores — blacklisted paths within whitelisted modules
     // =========================================================================
     {
-        ignores: [
-            // Vendored third-party libraries (not our code) live under
-            // <module>/static/lib/ and are ignored wholesale — by convention,
-            // vendored code goes in static/lib and nowhere else, so it is
-            // excluded structurally rather than via a per-library allowlist
-            // (which always drifts). Putting a third-party file anywhere else is
-            // the bug; fix it by relocating into static/lib, not by listing it.
-            "**/static/lib/**",
-            // hoot is first-party despite living under web/static/lib (historical).
-            "!addons/web/static/lib/hoot/**",
-            // Vendored bundle that predates the convention. TODO: relocate under
-            // static/lib so this special case can go away too.
-            "addons/spreadsheet/static/src/o_spreadsheet/o_spreadsheet.js",
-
-            // Legacy code (only top-level adapters are linted)
-            "addons/web/static/src/legacy/**",
-            "!addons/web/static/src/legacy/*.js",
-            "web_enterprise/static/src/legacy/**",
-            "!web_enterprise/static/src/legacy/*.js",
-            "web_studio/static/src/legacy/**",
-            "!web_studio/static/src/legacy/*.js",
-            "web_cohort/static/src/legacy/**",
-            "web_gantt/static/src/legacy/**",
-            "web_map/static/src/legacy/**",
-            "addons/base_import/static/src/legacy/**",
-
-            // Legacy tests
-            "addons/web/static/tests/**/legacy/*",
-            "web_enterprise/static/tests/**/legacy/*",
-            "web_studio/static/tests/**/legacy/*",
-            "web_cohort/static/tests/legacy/**",
-            "web_gantt/static/tests/legacy/**",
-            "web_map/static/tests/legacy/**",
-        ],
+        ignores: [...SHARED_IGNORES, ...ignores],
     },
 
     // =========================================================================
@@ -333,33 +396,16 @@ export default [
     // below turn this back off for those trees (they run later, so they win).
     // Dedicated logging/debug/QA utilities opt out with a file-level disable.
     // =========================================================================
-    {
-        files: [
-            "addons/web/**/*.js",
-            "addons/mail/**/*.js",
-            "addons/point_of_sale/**/*.js",
-            "addons/purchase/**/*.js",
-            "addons/bus/**/*.js",
-            "addons/account/**/*.js",
-            "addons/base_tax/**/*.js",
-            "addons/analytic/**/*.js",
-            "addons/product/**/*.js",
-            "addons/uom/**/*.js",
-            "addons/stock/**/*.js",
-            "addons/stock_account/**/*.js",
-            "addons/sale/**/*.js",
-            "addons/sale_stock/**/*.js",
-            "addons/mrp/**/*.js",
-            "addons/purchase_stock/**/*.js",
-            "addons/html_editor/**/*.js",
-            "addons/web_tour/**/*.js",
-            "addons/website/**/*.js",
-            "addons/im_livechat/**/*.js",
-        ],
-        rules: {
-            "no-console": ["error", { allow: ["warn", "error"] }],
-        },
-    },
+    ...(noConsoleModules.length
+        ? [
+              {
+                  files: noConsoleModules.map((m) => `${m}/**/*.js`),
+                  rules: {
+                      "no-console": ["error", { allow: ["warn", "error"] }],
+                  },
+              },
+          ]
+        : []),
 
     // =========================================================================
     // Test files (Hoot environment) — all modules, whitelisted or not
@@ -667,4 +713,12 @@ export default [
             "prettier/prettier": "off",
         },
     },
-];
+    ];
+}
+
+/** @type {import("eslint").Linter.Config[]} */
+export default makeConfig({
+    modules: COMMUNITY_MODULES,
+    ignores: COMMUNITY_IGNORES,
+    noConsoleModules: COMMUNITY_NO_CONSOLE_MODULES,
+});
