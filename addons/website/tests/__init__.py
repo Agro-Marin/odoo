@@ -3,6 +3,7 @@ from . import common
 from . import test_assets
 from . import test_attachment
 from . import test_auth_signup_uninvited
+from . import test_audit_regressions
 from . import test_base_url
 from . import test_client_action
 from . import test_configurator

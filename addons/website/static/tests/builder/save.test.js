@@ -101,6 +101,48 @@ test("failure to save does not block the builder", async () => {
     expect(".o-snippets-top-actions").toHaveCount(0);
 });
 
+test("a failed save leaves elements dirty so the retry actually saves them", async () => {
+    // Regression: `o_dirty` used to be stripped from the live element before
+    // the write was attempted (and, because that happened before the first
+    // `await`, for every group before any RPC resolved). After a failure the
+    // user's retry therefore found nothing dirty, reported success and reloaded
+    // the iframe -- silently discarding the edit.
+    expect.errors(1);
+    const resultSave = [];
+    let deferred = new Deferred();
+    onRpc("ir.ui.view", "save", async ({ args }) => {
+        await deferred;
+        resultSave.push(args[1]);
+        return true;
+    });
+    patchWithCleanup(WebsiteBuilderClientAction.prototype, {
+        async reloadIframeAndCloseEditor() {
+            this.websiteContent.el.contentDocument.body.innerHTML =
+                resultSave.at(-1) || wrapExample;
+        },
+    });
+    const { getEditor, getEditableContent } = await setupWebsiteBuilder(exampleContent);
+    await modifyText(getEditor(), getEditableContent());
+    expect(":iframe #wrap").toHaveClass("o_dirty");
+
+    await contains(".o-snippets-top-actions button:contains(Save)").click();
+    deferred.reject(new Error("Message"));
+    await animationFrame();
+    expect.verifyErrors(["Message"]);
+    await animationFrame();
+
+    // The write never landed, so the element must still be marked dirty.
+    expect(":iframe #wrap").toHaveClass("o_dirty");
+    expect(resultSave).toHaveLength(0);
+
+    // ... and the retry must therefore actually send the content.
+    deferred = new Deferred();
+    deferred.resolve(true);
+    await contains(".o-snippets-top-actions button:contains(Save)").click();
+    await animationFrame();
+    expect(resultSave).toHaveLength(1);
+});
+
 test("discard modified elements", async () => {
     setupSaveAndReloadIframe();
     const { getEditor, getEditableContent } = await setupWebsiteBuilder(exampleContent);

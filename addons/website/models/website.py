@@ -48,7 +48,54 @@ DEFAULT_CDN_FILTERS = [
 DEFAULT_WEBSITE_ENDPOINT = "https://website.api.odoo.com"
 DEFAULT_OLG_ENDPOINT = "https://olg.api.odoo.com"
 
+
+# Website fields that are baked into compiled qweb templates rather than applied
+# at render time. ``ir_qweb._post_processing_att`` runs with ``is_static=True``
+# at *compile* time for literal attributes in a view's arch, so the CDN rewrite
+# and the third-party cookie barrier get frozen into the compiled template.
+# Writing one of these therefore needs an explicit ``clear_cache("templates")``:
+# a bare ``clear_cache()`` resolves to the "default" group, which does **not**
+# contain "templates" (see ``_CACHES_BY_KEY`` in odoo/orm/runtime/registry.py).
+TEMPLATE_AFFECTING_FIELDS = frozenset(
+    {
+        "cdn_activated",
+        "cdn_url",
+        "cdn_filters",
+        "cookies_bar",
+        "block_third_party_domains",
+        "custom_blocked_third_party_domains",
+    }
+)
+
+
 DEFAULT_BLOCKED_THIRD_PARTY_DOMAINS = "youtu.be\nyoutube.com\nyoutube-nocookie.com\ninstagram.com\ninstagr.am\nig.me\nvimeo.com\ndailymotion.com\ndai.ly\nyouku.com\ntudou.com\nfacebook.com\nfacebook.net\nfb.com\nfb.me\nfb.watch\ntiktok.com\nx.com\ntwitter.com\nt.co\ngoogletagmanager.com\ngoogle-analytics.com\ngoogle.com\ngoogle.ad\ngoogle.ae\ngoogle.com.af\ngoogle.com.ag\ngoogle.al\ngoogle.am\ngoogle.co.ao\ngoogle.com.ar\ngoogle.as\ngoogle.at\ngoogle.com.au\ngoogle.az\ngoogle.ba\ngoogle.com.bd\ngoogle.be\ngoogle.bf\ngoogle.bg\ngoogle.com.bh\ngoogle.bi\ngoogle.bj\ngoogle.com.bn\ngoogle.com.bo\ngoogle.com.br\ngoogle.bs\ngoogle.bt\ngoogle.co.bw\ngoogle.by\ngoogle.com.bz\ngoogle.ca\ngoogle.cd\ngoogle.cf\ngoogle.cg\ngoogle.ch\ngoogle.ci\ngoogle.co.ck\ngoogle.cl\ngoogle.cm\ngoogle.cn\ngoogle.com.co\ngoogle.co.cr\ngoogle.com.cu\ngoogle.cv\ngoogle.com.cy\ngoogle.cz\ngoogle.de\ngoogle.dj\ngoogle.dk\ngoogle.dm\ngoogle.com.do\ngoogle.dz\ngoogle.com.ec\ngoogle.ee\ngoogle.com.eg\ngoogle.es\ngoogle.com.et\ngoogle.fi\ngoogle.com.fj\ngoogle.fm\ngoogle.fr\ngoogle.ga\ngoogle.ge\ngoogle.gg\ngoogle.com.gh\ngoogle.com.gi\ngoogle.gl\ngoogle.gm\ngoogle.gr\ngoogle.com.gt\ngoogle.gy\ngoogle.com.hk\ngoogle.hn\ngoogle.hr\ngoogle.ht\ngoogle.hu\ngoogle.co.id\ngoogle.ie\ngoogle.co.il\ngoogle.im\ngoogle.co.in\ngoogle.iq\ngoogle.is\ngoogle.it\ngoogle.je\ngoogle.com.jm\ngoogle.jo\ngoogle.co.jp\ngoogle.co.ke\ngoogle.com.kh\ngoogle.ki\ngoogle.kg\ngoogle.co.kr\ngoogle.com.kw\ngoogle.kz\ngoogle.la\ngoogle.com.lb\ngoogle.li\ngoogle.lk\ngoogle.co.ls\ngoogle.lt\ngoogle.lu\ngoogle.lv\ngoogle.com.ly\ngoogle.co.ma\ngoogle.md\ngoogle.me\ngoogle.mg\ngoogle.mk\ngoogle.ml\ngoogle.com.mm\ngoogle.mn\ngoogle.com.mt\ngoogle.mu\ngoogle.mv\ngoogle.mw\ngoogle.com.mx\ngoogle.com.my\ngoogle.co.mz\ngoogle.com.na\ngoogle.com.ng\ngoogle.com.ni\ngoogle.ne\ngoogle.nl\ngoogle.no\ngoogle.com.np\ngoogle.nr\ngoogle.nu\ngoogle.co.nz\ngoogle.com.om\ngoogle.com.pa\ngoogle.com.pe\ngoogle.com.pg\ngoogle.com.ph\ngoogle.com.pk\ngoogle.pl\ngoogle.pn\ngoogle.com.pr\ngoogle.ps\ngoogle.pt\ngoogle.com.py\ngoogle.com.qa\ngoogle.ro\ngoogle.ru\ngoogle.rw\ngoogle.com.sa\ngoogle.com.sb\ngoogle.sc\ngoogle.se\ngoogle.com.sg\ngoogle.sh\ngoogle.si\ngoogle.sk\ngoogle.com.sl\ngoogle.sn\ngoogle.so\ngoogle.sm\ngoogle.sr\ngoogle.st\ngoogle.com.sv\ngoogle.td\ngoogle.tg\ngoogle.co.th\ngoogle.com.tj\ngoogle.tl\ngoogle.tm\ngoogle.tn\ngoogle.to\ngoogle.com.tr\ngoogle.tt\ngoogle.com.tw\ngoogle.co.tz\ngoogle.com.ua\ngoogle.co.ug\ngoogle.co.uk\ngoogle.com.uy\ngoogle.co.uz\ngoogle.com.vc\ngoogle.co.ve\ngoogle.co.vi\ngoogle.com.vn\ngoogle.vu\ngoogle.ws\ngoogle.rs\ngoogle.co.za\ngoogle.co.zm\ngoogle.co.zw\ngoogle.cat"
+
+
+def to_punycode(host):
+    """Return the ASCII (punycode) spelling of ``host``, unchanged on failure.
+
+    The ``idna`` codec raises ``UnicodeError`` for hosts it cannot represent --
+    a DNS label over 63 bytes or an empty label (``a..b``) are the easiest
+    examples, and both are trivially reachable from an attacker-controlled
+    ``Host`` header. Never let that escape: a host that is not representable
+    simply matches no website, which the caller already handles.
+    """
+    try:
+        return host.encode("idna").decode("ascii")
+    except UnicodeError:
+        return host
+
+
+def from_punycode(host):
+    """Return the unicode spelling of a punycode ``host``, unchanged on failure.
+
+    See :func:`to_punycode` -- the inverse conversion fails on the same class of
+    malformed input and must be just as forgiving.
+    """
+    try:
+        return host.encode("ascii").decode("idna")
+    except UnicodeError:
+        return host
 
 
 class Website(models.Model):
@@ -249,13 +296,9 @@ class Website(models.Model):
         for website in self:
             website_domain = website.domain or ""
             hostname = urlparse(website_domain).hostname or ""
-            try:
-                punycode_hostname = hostname.encode("idna").decode("ascii")
-                website.domain_punycode = website_domain.replace(
-                    hostname, punycode_hostname
-                )
-            except UnicodeError:
-                website.domain_punycode = website_domain
+            website.domain_punycode = website_domain.replace(
+                hostname, to_punycode(hostname)
+            )
 
     @api.depends("social_default_image")
     def _compute_has_social_default_image(self):
@@ -400,10 +443,15 @@ class Website(models.Model):
 
         result = super(Website, self - public_user_to_change_websites).write(values)
 
-        # NB: the unconditional ``clear_cache()`` above (before ``super().write``)
-        # already flushes every registry cache, including the compiled-template
-        # ("static node at compile time") cache, so no CDN-specific re-clear is
-        # needed here — nothing repopulates it between the two points.
+        if not TEMPLATE_AFFECTING_FIELDS.isdisjoint(values):
+            # The ``clear_cache()`` above resolves to the "default" cache group,
+            # which does NOT include "templates" -- the compiled-template cache
+            # holding the CDN rewrite and the cookie barrier baked at compile
+            # time. Without this explicit flush, enabling the CDN or adding a
+            # domain to the third-party blocklist silently fails to take effect
+            # on every already-compiled page (the blocklist being a privacy
+            # control, it fails in the dangerous direction).
+            self.env.registry.clear_cache("templates")
 
         # invalidate cache for `company.website_id` to be recomputed
         if "sequence" in values or "company_id" in values:
@@ -1759,9 +1807,13 @@ class Website(models.Model):
                 domain_name = _remove_port(domain_name)
             return website_domain.lower() == (domain_name or "").lower()
 
-        # We need to test two possibilities unicode or punycode (safety guard)
-        domain_name = domain_name.encode("idna").decode("ascii")
-        domain_name_idna = domain_name.encode("ascii").decode("idna")
+        # We need to test two possibilities unicode or punycode (safety guard).
+        # ``domain_name`` is the raw request ``Host`` header: it is
+        # attacker-controlled and may not be representable in either codec, so
+        # both conversions degrade to the input instead of raising (a malformed
+        # host then simply matches no website).
+        domain_name = to_punycode(domain_name or "")
+        domain_name_idna = from_punycode(domain_name)
 
         # TODO: in master, store the computed field domain_punycode to avoid
         #       the need to search on domain_name and domain_name_idna.

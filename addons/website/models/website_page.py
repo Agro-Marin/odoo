@@ -72,7 +72,17 @@ class WebsitePage(models.Model):
         related="view_id.arch", readonly=False, depends_context=("website_id",)
     )
 
+    @api.depends("url", "website_id")
+    @api.depends_context("website_id")
     def _compute_is_homepage(self):
+        """Whether this page is the homepage *of the website being looked at*.
+
+        ``depends_context`` is load-bearing: without it the ORM keeps one value
+        per record for every context, so in a multi-website transaction the
+        first reader wins and every later read -- under a different website --
+        gets the first website's answer. ``get_current_website()`` resolves the
+        context's ``website_id`` first, so the cache key and the value agree.
+        """
         website = self.env["website"].get_current_website()
         for page in self:
             page.is_homepage = page.url == (
@@ -224,18 +234,37 @@ class WebsitePage(models.Model):
                             .get_unique_path(url)
                         )
                         page.menu_ids.write({"url": url})
-                        # Sync the homepage URL of *every* website whose homepage
-                        # points at this page's old URL. Using the ambient
-                        # ``get_current_website()`` was wrong: in a multi-website
-                        # DB it is frequently not the website that owns the page
-                        # (and is meaningless for a shared ``website_id=False``
-                        # page), so a rename could leave one site's homepage
-                        # dangling or repoint an unrelated site's homepage.
-                        old_url_normalized = {"homepage_url": page.url}
+                        # Sync the homepage URL of every website whose homepage
+                        # actually resolves to *this* page. Using the ambient
+                        # ``get_current_website()`` was wrong (in a multi-website
+                        # DB it is frequently not the website that owns the page,
+                        # and is meaningless for a shared ``website_id=False``
+                        # page), but matching the URL string across all websites
+                        # over-corrected: a sibling website serving its own page
+                        # at the same URL had its homepage repointed to a URL it
+                        # cannot resolve. Scope to real resolution instead.
+                        old_url = page.url
+                        old_url_normalized = {"homepage_url": old_url}
                         self.env["website"]._handle_homepage_url(old_url_normalized)
-                        self.env["website"].search(
+                        websites = self.env["website"].search(
                             [("homepage_url", "=", old_url_normalized["homepage_url"])]
-                        ).homepage_url = url
+                        )
+                        if page.website_id:
+                            # A website-specific page can only ever back its own
+                            # website's homepage. Matching on the URL string
+                            # alone would repoint sibling websites that happen
+                            # to serve their *own* page at the same URL, leaving
+                            # their homepage pointing at a URL they cannot
+                            # resolve.
+                            websites &= page.website_id
+                        else:
+                            # A generic page backs the homepage of every website
+                            # that does not shadow it with a specific page at
+                            # the same URL.
+                            websites -= self.search(
+                                [("url", "=", old_url), ("website_id", "!=", False)]
+                            ).website_id
+                        websites.homepage_url = url
                     page_vals["url"] = url
 
                 # If name has changed, check for key uniqueness
