@@ -689,7 +689,14 @@ export class Store extends BaseStore {
     onStarted() {
         this.isOdooWhiteTheme =
             cookie.get("color_scheme") !== "dark" || this.inPublicPage;
-        navigator.serviceWorker?.addEventListener("message", (ev) => {
+        // `browser.navigator`, not the raw global: it is the seam every other
+        // service-worker call site in this module uses (out_of_focus_service,
+        // notification_permission_service, webclient, rtc_service), and the one
+        // the test suite patches. Going straight to `navigator` attached this
+        // listener to the real, process-wide object, so every store created by
+        // a test stayed subscribed for the rest of the run and each push was
+        // dispatched to all of them. Held in a field so it can be removed.
+        this._onServiceWorkerMessage = (ev) => {
             const { data = {} } = ev;
             const { type, payload } = data;
             if (type === "notification-display-request") {
@@ -715,7 +722,9 @@ export class Store extends BaseStore {
                     // so the response is delivered even when this page is not
                     // yet controlled (controller is null until the worker claims
                     // it); fall back to the controller if source is unavailable.
-                    (ev.source ?? navigator.serviceWorker.controller)?.postMessage({
+                    (
+                        ev.source ?? browser.navigator.serviceWorker.controller
+                    )?.postMessage({
                         type: "notification-display-response",
                         payload: { correlationId },
                     });
@@ -724,7 +733,22 @@ export class Store extends BaseStore {
             if (type === "notification-displayed") {
                 this.onPushNotificationDisplayed(payload);
             }
-        });
+        };
+        browser.navigator.serviceWorker?.addEventListener(
+            "message",
+            this._onServiceWorkerMessage,
+        );
+    }
+
+    /** Detach the service-worker listener registered by `onStarted`. */
+    stopListeningServiceWorker() {
+        if (this._onServiceWorkerMessage) {
+            browser.navigator.serviceWorker?.removeEventListener(
+                "message",
+                this._onServiceWorkerMessage,
+            );
+            this._onServiceWorkerMessage = undefined;
+        }
     }
 
     onPushNotificationDisplayed(payload) {
