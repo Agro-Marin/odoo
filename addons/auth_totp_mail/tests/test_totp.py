@@ -1,11 +1,10 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 import logging
-
 from datetime import datetime, timedelta
 from xmlrpc.client import Fault
 
-from odoo.tests import get_db_name, tagged, HttpCase
+from odoo.tests import HttpCase, get_db_name, tagged
 from odoo.tools import mute_logger
 
 from odoo.addons.auth_totp.tests.test_totp import TestTOTPMixin
