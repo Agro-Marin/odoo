@@ -15,6 +15,10 @@ import {
 // Re-exported for backward compatibility of the module's public API (tests and
 // external importers still import it from convert_inline).
 export { splitSelectorAroundCommasOutsideParentheses };
+
+// Carries the set of properties a matched rule won with `!important`, alongside
+// the (flag-stripped) values. Non-enumerable + symbol-keyed so it never shows up
+// in `Object.entries(css)` iteration over the style declarations themselves.
 function parentsGet(node, root = undefined) {
     const parents = [];
     while (node) {
@@ -729,6 +733,18 @@ export function classToStyle(element, cssRules) {
             if (!styleProbe.style.getPropertyValue(key)) {
                 style = `${key}:${value};${style}`;
             }
+            // KNOWN BUG (verified, not fixed here): a stylesheet `!important`
+            // declaration loses to a non-important inline one, because this
+            // guard skips any property the node already carries inline. So
+            // `<span class="d-none" style="display:inline-block">` -- hidden in
+            // the composer by `.d-none{display:none!important}` -- is *visible*
+            // in the sent email. Applying the winner here is not a one-liner:
+            // appending a second declaration breaks the "toInline is idempotent
+            // on its own output" guarantee, and overwriting in place still
+            // diverges on shorthand/longhand pairs such as
+            // `border-collapse: separate !important`. Needs the merge in
+            // _getMatchedCSSRules to carry priority through to a single
+            // authoritative declaration set rather than being patched here.
         }
         style = correctBorderAttributes(style);
         if (!style.trim() || node.nodeName === "T") {
@@ -2432,12 +2448,19 @@ function _wrap(element, wrapperTag, wrapperClass, wrapperStyle) {
     return wrapper;
 }
 
+const TABLE_TAGS = ["table", "thead", "tbody", "tfoot", "tr", "td", "th"];
+// Match table tags as *type selectors*, not as substrings. `selector.includes()`
+// fired on any selector merely containing those letters -- ".o_theme_dark"
+// contains "th", ".o_strong" and "#trailer" contain "tr" -- so every colour
+// declaration such a rule defined was silently dropped from the email.
+const TABLE_TAG_SELECTOR_RE = new RegExp(
+    String.raw`(^|[\s>+~,(])(${TABLE_TAGS.join("|")})(?![\w-])`,
+    "i",
+);
 function isBlacklistedStyle(node, selector, key) {
     return (
-        node.matches("table, thead, tbody, tfoot, tr, td, th") &&
-        ["table", "thead", "tbody", "tfoot", "tr", "td", "th"].some((elName) =>
-            selector.includes(elName),
-        ) &&
+        node.matches(TABLE_TAGS.join(", ")) &&
+        TABLE_TAG_SELECTOR_RE.test(selector) &&
         key.includes("color")
     );
 }

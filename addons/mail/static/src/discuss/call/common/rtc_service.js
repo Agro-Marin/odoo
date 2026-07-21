@@ -1287,7 +1287,14 @@ export class Rtc extends Record {
         // previous channel's peer connections and SFU socket leak, its p2p
         // listeners keep firing (doubling updates), updateUpload replaceTracks the
         // new mic/camera to the *old* participants, and no leave_call RPC is sent.
-        if (this.state.channel && this.state.channel.notEq(channel)) {
+        // Leave whatever call is in progress, including a call on *this* same
+        // channel: joinCall only clear()s, and clear() -> transport.dispose()
+        // deliberately skips disconnect(). Guarding on notEq left the
+        // same-channel rejoin (reachable from a `call=accept` action on a
+        // channel the user is already calling in) taking the leak path this
+        // very comment describes -- duplicated p2p listeners, an orphaned SFU
+        // socket, and no leave_call RPC.
+        if (this.state.channel) {
             await this.leaveCall(this.state.channel);
         }
         this.pttExtService.subscribe();

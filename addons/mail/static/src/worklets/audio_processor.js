@@ -69,7 +69,13 @@ class ThresholdProcessor extends globalThis.AudioWorkletProcessor {
         this.processInterval = processInterval; // how many ms between each computation
         this.minimumActiveCycles = minimumActiveCycles;
         this.intervalInFrames = (this.processInterval / 1000) * globalThis.sampleRate;
-        this.nextUpdateFrame = this.processInterval;
+        // Counted down in frames (process() decrements by the quantum size and
+        // re-adds intervalInFrames), so it must be seeded in frames too. Seeding
+        // with the raw processInterval -- a millisecond value -- made the very
+        // first tic fire one quantum in (~2.7ms) instead of after 50ms. Same bug
+        // that utils/common/media_monitoring.js documents for the ScriptProcessor
+        // fallback path.
+        this.nextUpdateFrame = this.intervalInFrames;
 
         // process variables
         this.boost = normalizationParameters.boost;

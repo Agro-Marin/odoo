@@ -387,6 +387,15 @@ export class WebChatter extends Chatter {
                 : [],
             recordFields: this.state.thread.partner_fields || [],
         };
+        // super.load() re-fetched `suggestedRecipients`, which replaces the
+        // field wholesale with the server's view of the *saved* record and so
+        // drops recipients derived from unsaved fields. Re-overlaying them is
+        // exactly what the updateRecipients call below is for -- but its dedup
+        // cache keys only on (thread, partnerIds, email), which are unchanged
+        // here, so it early-returned and the unsaved recipient silently
+        // vanished (and the message sent without them). Invalidate the cache so
+        // the overlay is always recomputed after a fetch.
+        this._lastRecipientsQueryKey = undefined;
         this.updateRecipients(this.props.record);
     }
 

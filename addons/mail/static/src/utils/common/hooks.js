@@ -423,6 +423,19 @@ export function useMessageScrolling(duration = 2000) {
         },
         highlightedMessageId: null,
     });
+    // The hook owns a highlight-clear timer plus two Deferreds, and nothing
+    // cancelled them: closing a chat window mid-highlight left the timer firing
+    // against a destroyed component's state, and left `startupDeferred` /
+    // `scrollPromise` pending forever. A never-resolved startupDeferred also
+    // wedges Thread.scrollingToHighlight (it awaits it before clearing the
+    // latch), and a pending scrollPromise blocks fetchMoreMessages -- silently
+    // disabling both message highlighting and infinite scroll for that thread.
+    onWillUnmount(() => {
+        browser.clearTimeout(timeout);
+        timeout = null;
+        state.startupDeferred?.resolve();
+        state.scrollPromise?.resolve();
+    });
     return state;
 }
 
