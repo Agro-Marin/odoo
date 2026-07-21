@@ -2,12 +2,15 @@ import base64
 import hmac
 import json
 import logging
+import os
 import re
 import struct
 import time
+from unittest.mock import MagicMock, patch
 from xmlrpc.client import Fault
 
 from odoo import http
+from odoo.exceptions import AccessDenied
 from odoo.tests import HttpCase, get_db_name, new_test_user, tagged
 from odoo.tools import mute_logger
 
@@ -158,3 +161,20 @@ class TestTOTP(TestTOTPMixin, HttpCase):
         response = self.url_open("/web/session/authenticate", data=json.dumps(payload), headers=headers)
         data = response.json()
         self.assertEqual(data['result']['uid'], None)
+
+    def test_totp_setup_rate_limited(self):
+        """_totp_try_setting (the 2FA setup wizard's code-verification path)
+        must be rate-limited exactly like _check_credentials's 'totp' branch:
+        without it, the wizard's secret+code pair (a 10**DIGITS code space)
+        could be brute-forced through repeated enable() calls."""
+        secret = base64.b32encode(os.urandom(20)).decode()
+        fake_request = MagicMock()
+        fake_request.httprequest.environ = {'REMOTE_ADDR': '203.0.113.1'}
+        user = self.user_test.with_user(self.user_test)
+        limit = 5  # TOTP_RATE_LIMITS['code_check'][0]
+        with patch('odoo.addons.auth_totp.models.res_users.request', fake_request):
+            for _ in range(limit):
+                # wrong code: rate limit must not trip yet, just a normal reject
+                self.assertFalse(user._totp_try_setting(secret, '000000'))
+            with self.assertRaises(AccessDenied):
+                user._totp_try_setting(secret, '000000')

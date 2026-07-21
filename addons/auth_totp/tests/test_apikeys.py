@@ -27,7 +27,7 @@ class TestAPIKeys(TestTOTPMixin, HttpCase):
             del self.registry['ir.logging'].send_key
 
         ml = mute_logger('odoo.addons.rpc.controllers.xmlrpc')
-        ml.__enter__()  # noqa: PLC2801
+        ml.__enter__()
         self.addCleanup(ml.__exit__)
 
     def test_addremove(self):

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 import hmac
@@ -51,6 +50,5 @@ def hotp(secret, counter):
     # hard-limits it to 10: each digit is normally worth 3.32 bits but the
     # 10th is only worth 1.1 (9 digits encode 29.9 bits).
     code = struct.unpack_from('>I', mac, offset)[0] & 0x7FFFFFFF
-    r = code % (10 ** DIGITS)
     # NOTE: use text / bytes instead of int?
-    return r
+    return code % (10 ** DIGITS)

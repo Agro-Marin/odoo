@@ -1,19 +1,19 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 import base64
 import functools
 import io
-import qrcode
 import re
 from urllib.parse import quote, urlencode, urlunsplit
 
+import qrcode
+
 from odoo import _, api, fields, models
-from odoo.addons.base.models.res_users import check_identity
 from odoo.exceptions import UserError
 from odoo.http import request
 
 from odoo.addons.auth_totp.models.totp import ALGORITHM, DIGITS, TIMESTEP
+from odoo.addons.base.models.res_users import check_identity
 
 compress = functools.partial(re.sub, r'\s', '')
 
@@ -60,7 +60,7 @@ class Auth_TotpWizard(models.TransientModel):
         try:
             c = int(compress(self.env.context.get('code', '')))
         except ValueError:
-            raise UserError(_("The verification code should only contain numbers"))
+            raise UserError(_("The verification code should only contain numbers")) from None
         if self.user_id._totp_try_setting(self.secret, c):
             self.secret = '' # empty it, because why keep it until GC?
             return {
