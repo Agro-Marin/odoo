@@ -73,7 +73,6 @@ patch(Thread.prototype, {
                     }
                 });
             },
-            eager: true,
         });
         this.storeAsActiveLivechats = fields.One("Store", {
             compute() {

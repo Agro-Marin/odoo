@@ -55,7 +55,6 @@ export class MailGuest extends Record {
             }
             this.previousPresencechannel = this.presenceChannel;
         },
-        eager: true,
     });
     /** @type {string} */
     name;

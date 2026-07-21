@@ -68,7 +68,6 @@ patch(DiscussApp.prototype, {
                     sequence: 21,
                 };
             },
-            eager: true,
         });
         this.livechatLookingForHelpCategory = fields.One("DiscussAppCategory", {
             compute() {
@@ -83,7 +82,6 @@ patch(DiscussApp.prototype, {
                     sequence: 15,
                 };
             },
-            eager: true,
         });
         this.lastThread = fields.One("Thread");
         this.livechats = fields.Many("Thread", { inverse: "appAsLivechats" });

@@ -37,7 +37,6 @@ export class Notification extends Record {
                 id: `${this.notification_type},${thread?.model ?? ""},${channelPart}`,
             };
         },
-        eager: true,
     });
     /** @type {string} */
     failure_type;

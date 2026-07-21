@@ -26,13 +26,11 @@ const discussAppPatch = {
                     serverStateKey: "is_discuss_sidebar_category_channel_open",
                 };
             },
-            eager: true,
         });
         this.chats = fields.One("DiscussAppCategory", {
             compute() {
                 return this.computeChats();
             },
-            eager: true,
         });
         this.unreadChannels = fields.Many("Thread", { inverse: "appAsUnreadChannels" });
     },

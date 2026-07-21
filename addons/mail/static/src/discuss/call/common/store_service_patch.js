@@ -37,7 +37,6 @@ const StorePatch = {
                 }
                 this._hasFullscreenUrlOnUpdate();
             },
-            eager: true,
         });
         this.meetingViewOpened = false;
     },

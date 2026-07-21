@@ -69,7 +69,6 @@ export class DiscussAppCategory extends Record {
                 localStorage.setItem(key, true);
             }
         },
-        eager: true,
     });
     hideWhenEmpty = false;
     canView = false;

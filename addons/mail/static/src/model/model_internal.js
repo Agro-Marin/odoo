@@ -101,6 +101,19 @@ export class ModelInternal {
                     this.fieldsType.set(fieldName, value);
                     break;
                 }
+                default: {
+                    // Unknown options were dropped without a word, so a typo
+                    // ("computed", "sortBy", "onUpdated") produced a silently
+                    // inert field that no test could catch -- and `eager: true`
+                    // accumulated at 16 call sites while meaning nothing (fields
+                    // are always eager; see model/store.js). Warn rather than
+                    // throw: options may still be passed from addons in other
+                    // repos, and breaking their registration at load time is a
+                    // worse failure than a console message.
+                    console.warn(
+                        `Record field ${fieldName}: unknown option "${key}" is ignored.`,
+                    );
+                }
             }
         }
     }
