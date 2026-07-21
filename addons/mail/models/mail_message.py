@@ -23,6 +23,20 @@ _image_dataurl = re.compile(
 )
 
 
+# Upper bound for a caller-controlled message page size. ``_message_fetch`` is
+# reached from ``auth="public"`` routes that splat a raw client dict into it
+# (``fetch_params``), so the bound belongs on the model rather than in each of
+# the five controllers that call it.
+MESSAGE_FETCH_LIMIT_MAX = 100
+MESSAGE_FETCH_LIMIT_DEFAULT = 30
+# Keys ``_message_fetch`` accepts from a client. Anything else used to reach the
+# method as an unexpected keyword argument and surface a raw ``TypeError`` to an
+# anonymous caller.
+MESSAGE_FETCH_PARAMS = frozenset(
+    {"search_term", "is_notification", "before", "after", "around", "limit"}
+)
+
+
 class MailMessage(models.Model):
     """Message model (from notifications to user input).
 
@@ -1304,6 +1318,39 @@ class MailMessage(models.Model):
         return Store().add(self, {"starred": self.starred}).get_result()
 
     @api.model
+    @api.model
+    def _clamp_fetch_limit(self, limit):
+        """Coerce a caller-supplied page size to a bounded integer."""
+        try:
+            limit = int(limit)
+        except TypeError, ValueError:
+            return MESSAGE_FETCH_LIMIT_DEFAULT
+        return max(1, min(limit, MESSAGE_FETCH_LIMIT_MAX))
+
+    @api.model
+    def _to_message_cursor(self, value):
+        """Coerce a caller-supplied message-id cursor to ``int`` or ``None``."""
+        if value is None or value is False:
+            return value
+        try:
+            return int(value)
+        except TypeError, ValueError:
+            return None
+
+    @api.model
+    def _sanitize_fetch_params(self, fetch_params):
+        """Keep only the ``_message_fetch`` keys a client is allowed to set.
+
+        The message routes splat this dict straight into ``_message_fetch``; an
+        unknown key surfaced as an uncaught ``TypeError`` (an anonymous
+        server-error primitive on ``auth="public"`` routes).
+        """
+        return {
+            key: value
+            for key, value in (fetch_params or {}).items()
+            if key in MESSAGE_FETCH_PARAMS
+        }
+
     def _message_fetch(
         self,
         domain,
@@ -1314,8 +1361,19 @@ class MailMessage(models.Model):
         before=None,
         after=None,
         around=None,
-        limit=30,
+        limit=MESSAGE_FETCH_LIMIT_DEFAULT,
     ):
+        # Coerce the caller-controlled cursor/page-size here rather than in each
+        # controller: an unbounded `limit` forced a full scan + Store
+        # serialization of an entire thread, and a non-numeric before/after/around
+        # reached the domain as-is and blew up in psycopg with
+        # InvalidTextRepresentation. The sibling routes already did this via
+        # _clamp_limit/_to_record_id; this path was missed because its bound
+        # flows through a model method.
+        limit = self._clamp_fetch_limit(limit)
+        before = self._to_message_cursor(before)
+        after = self._to_message_cursor(after)
+        around = self._to_message_cursor(around)
         res = {}
         domain = Domain(True if domain is None else domain)
         if thread:

@@ -585,10 +585,14 @@ export class RecordList extends Array {
         }
         return store.MAKE_UPDATE(function recordListSplice() {
             const oldRecordLocalIds = recordList.data.slice(start, start + deleteCount);
-            const oldRecords = oldRecordLocalIds.map(
-                (localId) =>
-                    toRaw(toRaw(recordList._store.recordByLocalId).get(localId))._raw,
-            );
+            // Defensive symmetry with clear()/shift(): skip localIds that no
+            // longer resolve to a record instead of dereferencing undefined.
+            // No reachable trigger is known — the removal from `data` below is
+            // unaffected either way, only the per-record teardown is skipped.
+            const oldRecords = oldRecordLocalIds
+                .map((localId) => toRaw(recordList._store.recordByLocalId).get(localId))
+                .filter(Boolean)
+                .map((oldRecordProxy) => toRaw(oldRecordProxy)._raw);
             const list = recordListFullProxy.data.slice(); // splice on copy of list so that reactive observers not triggered while splicing
             list.splice(
                 start,
