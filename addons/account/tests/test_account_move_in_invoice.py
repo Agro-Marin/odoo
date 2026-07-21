@@ -237,7 +237,7 @@ class TestAccountMoveInInvoiceOnchanges(AccountTestInvoicingCommon):
         )
 
     def test_in_invoice_line_onchange_product_2_with_fiscal_pos(self):
-        """Test mapping a price-included tax (10%) with a price-excluded tax (20%) on a price_unit of 110.0.
+        """Test mapping a price-included tax (10%) with a price-excluded tax (15%) on a price_unit of 110.0.
         The price_unit should be 100.0 after applying the fiscal position.
         """
         fiscal_position = self.env["account.fiscal.position"].create(
@@ -581,7 +581,6 @@ class TestAccountMoveInInvoiceOnchanges(AccountTestInvoicingCommon):
         move_form = Form(self.invoice)
         with move_form.invoice_line_ids.edit(0) as line_form:
             # Reset field except the discount that becomes 100%.
-            # /!\ The modification is made on the accounting tab.
             line_form.quantity = 1
             line_form.discount = 100
             line_form.price_unit = 800
@@ -3328,8 +3327,7 @@ class TestAccountMoveInInvoiceOnchanges(AccountTestInvoicingCommon):
                 )
 
     def test_onchange_journal_currency(self):
-        """
-        Ensure invoice currency changes on journal change, iff the journal
+        """Ensure invoice currency changes on journal change, iff the journal
         has a currency_id set.
         """
 
@@ -3376,8 +3374,8 @@ class TestAccountMoveInInvoiceOnchanges(AccountTestInvoicingCommon):
         )
 
     def test_onchange_ref(self):
-        """
-        Ensure that updating the ref field updates the payment term line name when payment reference is empty.
+        """Ensure updating the ref field updates the payment term line name when
+        payment reference is empty.
         """
         payment_term_line = self.invoice.line_ids.filtered(
             lambda l: l.display_type == "payment_term"
@@ -3387,9 +3385,8 @@ class TestAccountMoveInInvoiceOnchanges(AccountTestInvoicingCommon):
         self.assertEqual(payment_term_line.name, "temp")
 
     def test_taxes_onchange_product_uom_and_price_unit(self):
-        """
-        Ensure that taxes are recomputed correctly when product uom and
-        price unit are changed for users without 'uom.group_uom' group
+        """Ensure taxes are recomputed correctly when product uom and price unit
+        are changed for users without the 'uom.group_uom' group.
         """
         self.env.user.group_ids -= self.env.ref("uom.group_uom")
         tax = self.company_data["default_tax_purchase"]
@@ -3653,9 +3650,7 @@ class TestAccountMoveInInvoiceOnchanges(AccountTestInvoicingCommon):
         )
 
     def test_manual_label_change_on_payment_term_line(self):
-        """
-        Ensure label of the payment term line can be changed manually
-        """
+        """Ensure label of the payment term line can be changed manually."""
         payment_term_line = self.invoice.line_ids.filtered(
             lambda l: l.display_type == "payment_term"
         )
@@ -3672,9 +3667,7 @@ class TestAccountMoveInInvoiceOnchanges(AccountTestInvoicingCommon):
         )
 
     def test_recompute_of_line_name(self):
-        """
-        Ensure name of the line is recomputed when Customer Reference is modified
-        """
+        """Ensure name of the line is recomputed when Customer Reference is modified."""
         invoice = self.init_invoice(
             move_type="out_invoice", products=self.product_a, post=True
         )
@@ -3687,8 +3680,9 @@ class TestAccountMoveInInvoiceOnchanges(AccountTestInvoicingCommon):
         self.assertEqual(line.name, f"ABCDEF - {invoice.payment_reference}")
 
     def test_duplicate_invoice_with_separate_discount_acccount(self):
-        """When a separate discount account, make sure that discount lines don't have a tax_id set
-        So, when creating a credit note from the invoice, data are coherent (=same amount)"""
+        """Ensure discount lines have no tax_ids when a separate discount account
+        is set, so a credit note from the invoice keeps the same total.
+        """
         sale_tax = self.company_data["default_tax_sale"]
         self.env.company.account_discount_expense_allocation_id = self.company_data[
             "default_account_expense"
