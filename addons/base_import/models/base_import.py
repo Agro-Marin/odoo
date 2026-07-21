@@ -1,4 +1,4 @@
-import base64
+import base64  # noqa: I001
 import codecs
 import collections
 import contextlib
@@ -406,7 +406,7 @@ class Base_ImportImport(models.TransientModel):
                 requires = str(getattr(exc, 'name_from', None) or exc.name)
             except (ImportValidationError, ValueError):
                 raise
-            except Exception as exc:  # noqa: BLE001
+            except Exception as exc:
                 e = read_file_failed(exc, f"Unable to read file {self.file_name or '<unknown>'!r} as {file_extension!r} ({guess_message}).")
 
         if e is not None:
@@ -498,7 +498,7 @@ class Base_ImportImport(models.TransientModel):
             book.close()
 
     def _read_ods(self, options):
-        from . import odf_ods_reader  # noqa: PLC0415
+        from . import odf_ods_reader
         doc = odf_ods_reader.ODSReader(file=io.BytesIO(self.file or b''))
         sheets = options['sheets'] = list(doc.SHEETS.keys())
         sheet = options['sheet'] = options.get('sheet') or sheets[0]
@@ -592,7 +592,7 @@ class Base_ImportImport(models.TransientModel):
         The following heuristic is used: If all preview values
 
         - Start with ``__export__``: return id + relational field types
-        - Can be cast into integer: return id + relational field types, integer, float and monetary
+        - Can be cast into integer: return integer, float and monetary (and boolean if values are only 0 and 1)
         - Can be cast into Boolean: return boolean
         - Can be cast into float: return float, monetary
         - Can be cast into date/datetime: return date / datetime
@@ -613,7 +613,7 @@ class Base_ImportImport(models.TransientModel):
             if all(v.startswith('__export__') for v in values):
                 return ['id', 'many2many', 'many2one', 'one2many']
 
-            # If all values can be cast to int type is either id, float or monetary
+            # If all values can be cast to int type is either integer, float or monetary
             # Exception: if we only have 1 and 0, it can also be a boolean
             if all(v.isdigit() for v in values if v):
                 field_type = ['integer', 'float', 'monetary']
@@ -642,7 +642,7 @@ class Base_ImportImport(models.TransientModel):
                             val = val.replace(options['float_thousand_separator'], '').replace(options['float_decimal_separator'], '.')
                         # We are now sure that this is a float, but we still need to find the
                         # thousand and decimal separator
-                        else:
+                        else:  # noqa: PLR5501
                             if val.count('.') > 1:
                                 options['float_thousand_separator'] = '.'
                                 options['float_decimal_separator'] = ','
@@ -801,7 +801,7 @@ class Base_ImportImport(models.TransientModel):
         mapping_field_name = mapping_fields.get(header.lower())
         if mapping_field_name and mapping_field_name:
             return {
-                'field_path': [name for name in mapping_field_name.split('/')],
+                'field_path': [name for name in mapping_field_name.split('/')],  # noqa: C416
                 'distance': -1  # Trick to force to keep that match during mapping deduplication.
             }
 
@@ -876,7 +876,7 @@ class Base_ImportImport(models.TransientModel):
             # Any match failure, exit
             if not match:
                 return {}
-            # prep subfields for next iteration within match['name'][0]
+            # prep subfields for next iteration within match['field_path'][0]
             field_name = match['field_path'][0]
             subfields_tree = next(item['fields'] for item in subfields_tree if item['name'] == field_name)
             field_path.append(field_name)
@@ -884,11 +884,8 @@ class Base_ImportImport(models.TransientModel):
         return {'field_path': field_path}
 
     def _get_distance(self, a, b):
-        """ This method return an index that reflects the distance between the
-        two given string a and b.
-
-        This index is a score between 0 and 1 where ``0`` indicates an exact
-        match and ``1`` indicates completely different strings.
+        """ Return a score between 0 and 1 for the distance between strings
+        ``a`` and ``b`` (``0`` = exact match, ``1`` = completely different).
         """
         return 1 - difflib.SequenceMatcher(None, a, b).ratio()
 
@@ -1127,7 +1124,7 @@ class Base_ImportImport(models.TransientModel):
         # If only one index, itemgetter will return an atom rather
         # than a 1-tuple
         if len(indices) == 1:
-            mapper = lambda row: [row[indices[0]]]
+            mapper = lambda row: [row[indices[0]]]  # noqa: E731
         else:
             mapper = operator.itemgetter(*indices)
         # Get only list of actually imported fields
@@ -1196,10 +1193,10 @@ class Base_ImportImport(models.TransientModel):
             if 'E' in line[index] or 'e' in line[index]:
                 tmp_value = line[index].replace(thousand_separator, '.')
                 try:
-                    tmp_value = '{:f}'.format(float(tmp_value))
+                    tmp_value = '{:f}'.format(float(tmp_value))  # noqa: UP032
                     line[index] = tmp_value
                     thousand_separator = ' '
-                except Exception:
+                except Exception:  # noqa: S110
                     pass
 
             line[index] = line[index].replace(thousand_separator, '').replace(decimal_separator, '.')
@@ -1265,7 +1262,7 @@ class Base_ImportImport(models.TransientModel):
             elif field['type'] == 'binary' and field.get('attachment') and name in import_fields:
                 index = import_fields.index(name)
 
-                import requests  # noqa: PLC0415
+                import requests
                 with requests.Session() as session:
                     session.stream = True
 
@@ -1284,7 +1281,7 @@ class Base_ImportImport(models.TransientModel):
                             try:
                                 base64.b64decode(line[index], validate=True)
                             except ValueError:
-                                raise ImportValidationError(
+                                raise ImportValidationError(  # noqa: B904
                                     _("Found invalid image data, images should be imported as either URLs or base64-encoded data."),
                                     field=name, field_type=field['type']
                                 )
@@ -1313,12 +1310,12 @@ class Base_ImportImport(models.TransientModel):
                 # or datetime
                 line[index] = fmt(dt.strptime(v, d_fmt))
             except ValueError as e:
-                raise ImportValidationError(
+                raise ImportValidationError(  # noqa: B904
                     _("Column %(column)s contains incorrect values. Error in line %(line)d: %(error)s", column=name, line=num + 1, error=e),
                     field=name, field_type=field_type
                 )
             except Exception as e:
-                raise ImportValidationError(
+                raise ImportValidationError(  # noqa: B904
                     _("Error Parsing Date [%(field)s:L%(line)d]: %(error)s", field=name, line=num + 1, error=e),
                     field=name, field_type=field_type
                 )
@@ -1369,7 +1366,7 @@ class Base_ImportImport(models.TransientModel):
             return base64.b64encode(content)
         except Exception as e:
             _logger.warning(e, exc_info=True)
-            raise ImportValidationError(_("Could not retrieve URL: %(url)s [%(field_name)s: L%(line_number)d]: %(error)s") % {
+            raise ImportValidationError(_("Could not retrieve URL: %(url)s [%(field_name)s: L%(line_number)d]: %(error)s") % {  # noqa: B904
                 'url': url,
                 'field_name': field,
                 'line_number': line_number + 1,
@@ -1393,7 +1390,7 @@ class Base_ImportImport(models.TransientModel):
         return {
             'type': 'error',
             'message': message,
-            'record': record if record else False,
+            'record': record if record else False,  # noqa: FURB110
             'field': field,
             'rows': {'from': row_index + 1, 'to': row_index + 1},
         }
@@ -1407,7 +1404,7 @@ class Base_ImportImport(models.TransientModel):
         }
 
         for row_index, row in enumerate(input_file_data):
-            for field_name, value in zip(import_fields, row):
+            for field_name, value in zip(import_fields, row):  # noqa: B905
                 if not isinstance(value, (datetime.date, datetime.datetime)):
                     continue
 
@@ -1585,16 +1582,16 @@ class Base_ImportImport(models.TransientModel):
         # as multiple fields could have been mapped to multiple columns.
         mapped_field_indexes = {}
         for idx, field in enumerate(field for field in import_fields if field):
-            mapped_field_indexes.setdefault(field, list()).append(idx)
+            mapped_field_indexes.setdefault(field, list()).append(idx)  # noqa: C408
         import_fields = list(mapped_field_indexes.keys())
         import_options = self.env.context.get('import_options', {})
 
-        # recreate data and merge duplicates (applies only on text or char fields)
+        # recreate data and merge duplicates (applies to char, text, html and many2many fields)
         # Also handles multi-mapping on "field of relation fields".
         merged_data = []
         for record in input_file_data:
             new_record = []
-            for fields, indexes in mapped_field_indexes.items():
+            for fields, indexes in mapped_field_indexes.items():  # noqa: F402
                 split_fields = fields.split('/')
                 target_field = split_fields[-1]
 
@@ -1711,10 +1708,8 @@ _PATTERN_BASELINE = [
     ('%Y', '%d', '%m'),
 ]
 DATE_FORMATS = []
-# take the baseline format and duplicate performing the following
-# substitution: long year -> short year, numerical month -> short
-# month, numerical month -> long month. Each substitution builds on
-# the previous two
+# take the baseline format and duplicate it substituting the long
+# year (%Y) with the short year (%y)
 for ps in _PATTERN_BASELINE:
     patterns = {ps}
     for s, t in [('%Y', '%y')]:
@@ -1751,7 +1746,7 @@ def to_re(pattern):
     """ cut down version of TimeRE converting strptime patterns to regex
     """
     pattern = re.sub(r'\s+', r'\\s+', pattern)
-    pattern = re.sub('%([a-z])', _replacer, pattern, flags=re.IGNORECASE)
+    pattern = re.sub('%([a-z])', _replacer, pattern, flags=re.IGNORECASE)  # noqa: RUF039
     pattern = '^' + pattern + '$'
     return re.compile(pattern, re.IGNORECASE)
 def _replacer(m):
@@ -1774,7 +1769,7 @@ _P_TO_RE = {
 
 
 def read_file_failed(exc: Exception, message: str) -> UserError:
-    _logger.warning(message, exc_info=True)
+    _logger.warning(message, exc_info=True)  # noqa: LOG014
     e = UserError(message)
     e.__cause__ = exc
     return e
