@@ -23,10 +23,8 @@ class TestAccountMoveDuplicate(AccountTestInvoicingCommon):
         self.assertRecordValues(bill_2, [{"duplicated_ref_ids": bill_1.ids}])
 
     def test_out_invoice_single_duplicate_reference(self):
-        """
-        Ensure duplicated move are computed correctly in this simple case (out_invoice).
-        For it to be a duplicate, the partner, the invoice date and the amount total must be the same.
-        """
+        """Ensure duplicated move are computed correctly in this simple case (out_invoice)"""
+        # Customer invoices match on partner, invoice date and amount total.
         invoice_1 = self.init_invoice(
             move_type="out_invoice", products=self.product_a, invoice_date="2023-01-01"
         )
@@ -80,10 +78,7 @@ class TestAccountMoveDuplicate(AccountTestInvoicingCommon):
         )
 
     def test_in_invoice_multiple_duplicate_reference_batch_in_edit_mode(self):
-        """
-        Ensure duplicated ref are computed correctly even when updated in batch
-        when they are in edit mode
-        """
+        """Ensure duplicated ref are computed correctly when updated in batch in edit mode"""
         invoice_1 = self.invoice
         invoice_1.ref = "a unique supplier reference that will be copied"
         invoice_2 = invoice_1.copy(default={"invoice_date": invoice_1.invoice_date})
@@ -131,8 +126,9 @@ class TestAccountMoveDuplicate(AccountTestInvoicingCommon):
         self.assertEqual(bill5.duplicated_ref_ids, bill4)
 
     def test_in_invoice_single_duplicate_no_reference(self):
-        """Ensure duplicated bills are recognized with or without
-        a reference when the amount, date, partner are equal"""
+        """Ensure duplicated bills are recognized with or without a reference"""
+        # Bills without a matching ref still match on partner, invoice date and
+        # amount total.
         bill1 = self.invoice.copy({"invoice_date": "2020-01-01"})
         bill2 = bill1.copy()
 
