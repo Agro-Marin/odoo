@@ -225,10 +225,11 @@ class ExportXlsxWriter:
         decimal_places = request.env["res.currency"]._read_group(
             [], aggregates=["decimal_places:max"]
         )[0][0]
+        self.monetary_decimal_places = decimal_places or 2
         self.monetary_style = self.workbook.add_format(
             {
                 "text_wrap": True,
-                "num_format": f"#,##0.{(decimal_places or 2) * '0'}",
+                "num_format": f"#,##0.{self.monetary_decimal_places * '0'}",
             }
         )
 
@@ -244,14 +245,16 @@ class ExportXlsxWriter:
         self.header_bold_style_monetary = self.workbook.add_format(
             dict(
                 **header_bold_props,
-                num_format=f"#,##0.{(decimal_places or 2) * '0'}",
+                num_format=f"#,##0.{self.monetary_decimal_places * '0'}",
             )
         )
 
         self.worksheet = self.workbook.add_worksheet()
         self.value = False
 
-        if row_count > self.worksheet.xls_rowmax:
+        # +1: the header occupies row 0, so *row_count* data rows need
+        # ``row_count + 1`` worksheet rows in total.
+        if row_count + 1 > self.worksheet.xls_rowmax:
             raise UserError(
                 request.env._(
                     "There are too many rows (%(count)s rows, limit: %(limit)s) to export as Excel 2007-2013 (.xlsx) format. Consider splitting the export.",
@@ -286,7 +289,26 @@ class ExportXlsxWriter:
             self.value = self.output.getvalue()
 
     def write(self, row: int, column: int, cell_value: Any, style: Any = None) -> None:
-        self.worksheet.write(row, column, cell_value, style)
+        error_code = self.worksheet.write(row, column, cell_value, style)
+        if error_code == -1:
+            # xlsxwriter silently drops out-of-bounds cells and returns -1.
+            # The realistic overflow is the row limit (e.g. group header rows
+            # are not budgeted by the upfront row-count check), so fail loudly
+            # instead of returning a silently truncated file.
+            raise UserError(
+                request.env._(
+                    "There are too many rows (limit: %(limit)s) to export as Excel 2007-2013 (.xlsx) format. Consider splitting the export.",
+                    limit=self.worksheet.xls_rowmax,
+                )
+            )
+        if error_code:
+            raise UserError(
+                request.env._(
+                    "The value of cell (row %(row)s, column %(column)s) could not be written to the XLSX file.",
+                    row=row,
+                    column=column,
+                )
+            )
 
     def write_cell(self, row: int, column: int, cell_value: Any) -> None:
         """Write a data cell with automatic style detection."""
@@ -377,6 +399,17 @@ class GroupExportXlsxWriter(ExportXlsxWriter):
         aggregates = group.aggregated_values
 
         label = f"{'    ' * group_depth}{label} ({group.count})"
+        # The first column's cell holds the group title, so its aggregate
+        # (which the list view does render as a subtotal) cannot get its own
+        # cell; append it to the title instead of dropping it.
+        first_field = self.fields[0]
+        first_aggregate = aggregates.get(first_field["name"])
+        if first_aggregate is not None:
+            if first_field.get("type") == "monetary":
+                first_aggregate = f"{first_aggregate:,.{self.monetary_decimal_places}f}"
+            elif first_field.get("type") == "float":
+                first_aggregate = f"{first_aggregate:,.2f}"
+            label = f"{label} — {first_aggregate}"
         self.write(row, column, label, self.header_bold_style)
         for field in self.fields[
             1:

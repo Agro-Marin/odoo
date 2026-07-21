@@ -239,6 +239,18 @@ class Export(http.Controller):
         ):
             subfields = list(subfields)
             if length == 2:
+                if base not in fields or "relation" not in fields[base]:
+                    # Stale saved template: the base field was removed or is no
+                    # longer relational. Drop the paths silently, exactly like
+                    # the ``elif base in fields`` guard does for 1-level paths.
+                    _logger.debug(
+                        "Skipping stale export paths %s on %s: field %r is "
+                        "missing or not relational",
+                        subfields,
+                        model,
+                        base,
+                    )
+                    continue
                 field_info.extend(
                     self.graft_subfields(
                         fields[base]["relation"],
@@ -357,7 +369,41 @@ class ExportFormat:
         else:
             columns_headers = [val["label"].strip() for val in fields]
 
-        records = Model.browse(ids) if ids else Model.search(domain)
+        order = params.get("order") or None
+        if order:
+            # Validate order tokens cheaply before running the search, so a
+            # stale or forged order raises a clean error instead of a raw
+            # ValueError bubbling up from the ORM.
+            order_root = []
+            for term in order.split(","):
+                parts = term.split()
+                if (
+                    not parts
+                    or len(parts) > 2
+                    or (len(parts) == 2 and parts[1].lower() not in ("asc", "desc"))
+                ):
+                    raise UserError(
+                        request.env._(
+                            "Invalid order clause %(order)s for %(model)s.",
+                            order=order,
+                            model=Model._name,
+                        )
+                    )
+                order_root.append(parts[0].split(":", 1)[0].split(".", 1)[0])
+            unknown = [f for f in order_root if f not in Model._fields]
+            if unknown:
+                raise UserError(
+                    request.env._(
+                        "Unknown order fields for %(model)s: %(fields)s",
+                        model=Model._name,
+                        fields=", ".join(unknown),
+                    )
+                )
+
+        # When exporting by ids the client sends them in on-screen order, so
+        # ``order`` only applies to the search. The grouped branch below also
+        # inherits it: per-group rows follow the fetch order of ``records``.
+        records = Model.browse(ids) if ids else Model.search(domain, order=order)
 
         groupby = params.get("groupby")
         if not import_compat and groupby:
@@ -502,6 +548,11 @@ class ExcelExport(ExportFormat, http.Controller):
         columns_headers: list[str],
         groups: GroupsTreeNode,
     ) -> bytes:
+        # ``groups.count`` only budgets leaf record rows, not the group header
+        # rows, so the writer's upfront row-limit check is approximate here.
+        # Overflow past the XLSX row limit is still caught: the writer raises
+        # a UserError from its checked ``write()`` instead of silently
+        # dropping the tail.
         with GroupExportXlsxWriter(
             fields, columns_headers, groups.count
         ) as xlsx_writer:

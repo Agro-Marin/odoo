@@ -11,6 +11,7 @@ import { download } from "@web/core/network/download";
 import { rpc } from "@web/core/network/rpc";
 import { evaluateExpr } from "@web/core/py_js/py";
 import { useBus, useService } from "@web/core/utils/hooks";
+import { orderByToString } from "@web/core/utils/order_by";
 import { DynamicList } from "@web/model/relational_model/dynamic_list";
 import {
     ConfirmationDialog,
@@ -196,6 +197,12 @@ export function useExportRecords(env, context, getDefaultExportList) {
                 label: _t("External ID"),
             });
         }
+        // Propagate the on-screen sort so "Export All" (no selection → the
+        // server searches by domain) returns rows in the displayed order.
+        // `__count` is a virtual sort key of grouped lists, meaningless for a
+        // record-level search order (mirrors _loadUngroupedList). A root
+        // without orderBy (e.g. not a dynamic list) simply omits the key.
+        const orderBy = (root.orderBy || []).filter((o) => o.name !== "__count");
         await download({
             data: {
                 data: JSON.stringify({
@@ -209,6 +216,7 @@ export function useExportRecords(env, context, getDefaultExportList) {
                             ? root.selection.map((e) => e.resId)
                             : false,
                     model: root.resModel,
+                    order: orderBy.length ? orderByToString(orderBy) : undefined,
                 }),
             },
             url: `/web/export/${format}`,
