@@ -1,10 +1,9 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
-from odoo.tests import TransactionCase
-from odoo.exceptions import UserError
 from unittest.mock import patch
 
 import odoo.tests
+from odoo.exceptions import UserError
+from odoo.tests import TransactionCase
 
 
 @odoo.tests.tagged('external', '-standard')
@@ -62,3 +61,30 @@ class TestPartnerGeoLocalization(TransactionCase):
                 'message': "No match found for Test A, Other address(es).",
             })
             mock_send.reset_mock()
+
+
+class TestGeocoderRequestsTimeout(TransactionCase):
+    """Outbound geocoding HTTP calls must bind an explicit timeout."""
+
+    def test_call_openstreetmap_sets_timeout(self):
+        """A stalled nominatim.openstreetmap.org must not hang the worker forever."""
+        geocoder = self.env['base.geocoder']
+        with patch('requests.get') as mock_get:
+            mock_get.return_value.status_code = 200
+            mock_get.return_value.json.return_value = [{'lat': '10.0', 'lon': '20.0'}]
+            geocoder._call_openstreetmap('1600 Amphitheatre Parkway')
+        self.assertIn('timeout', mock_get.call_args.kwargs,
+                       "requests.get() with no timeout can hang a worker forever on a stalled endpoint")
+
+    def test_call_googlemap_sets_timeout(self):
+        """A stalled maps.googleapis.com must not hang the worker forever."""
+        self.env['ir.config_parameter'].sudo().set_param('base_geolocalize.google_map_api_key', 'fake-key')
+        geocoder = self.env['base.geocoder']
+        with patch('requests.get') as mock_get:
+            mock_get.return_value.json.return_value = {
+                'status': 'OK',
+                'results': [{'geometry': {'location': {'lat': 10.0, 'lng': 20.0}}}],
+            }
+            geocoder._call_googlemap('1600 Amphitheatre Parkway')
+        self.assertIn('timeout', mock_get.call_args.kwargs,
+                       "requests.get() with no timeout can hang a worker forever on a stalled endpoint")
