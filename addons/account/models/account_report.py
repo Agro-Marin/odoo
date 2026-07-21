@@ -52,16 +52,15 @@ def _report_option_filter_field(
 ):
     """Declare a report-option-filter field.
 
-    Every such field behaves identically: it is stored, user-overridable, precomputed,
-    and its value is inherited from the root report (for a variant) or the parent
-    composite report (for a section), falling back to ``default`` otherwise. The actual
-    logic lives in :meth:`AccountReport._compute_report_option_filter`; this factory only
-    removes the boilerplate that would otherwise be duplicated on each of these fields.
-
     :param field_type: the ``fields.*`` class to instantiate (e.g. ``fields.Boolean``).
     :param field_name: the field's own name; used by the compute to know what to inherit.
     :param default: fallback value when nothing is inherited.
     """
+    # Every such field behaves identically: it is stored, user-overridable, precomputed,
+    # and its value is inherited from the root report (for a variant) or the parent
+    # composite report (for a section), falling back to ``default`` otherwise. The actual
+    # logic lives in AccountReport._compute_report_option_filter; this factory only
+    # removes the boilerplate that would otherwise be duplicated on each of these fields.
     return field_type(
         string=string,
         compute=lambda records: records._compute_report_option_filter(
@@ -292,17 +291,15 @@ class AccountReport(models.Model):
     def _get_accessible_report_ids(self):
         """Return the ids of the reports in ``self`` reachable through an ``account_report``
         client action (i.e. exposed to users as standalone reports).
-
-        A client action references its report through a ``{'report_id': <id>}`` entry in
-        its serialized context. We match that entry with an explicit right delimiter
-        (``,`` or ``}``) so that, for instance, report ``5`` is not reported as accessible
-        because of an action targeting report ``50``: a bare ``ilike`` substring match
-        would wrongly collide on the shared ``5`` prefix.
-
-        Records not yet persisted (``NewId``) cannot be targeted by any stored action, so
-        they are never accessible and are excluded before searching -- which also means
-        no query is emitted while these fields are precomputed on ``create``.
         """
+        # A client action references its report through a {'report_id': <id>} entry in
+        # its serialized context. We match that entry with an explicit right delimiter
+        # (, or }) so that, for instance, report 5 is not reported as accessible because
+        # of an action targeting report 50: a bare ilike substring match would wrongly
+        # collide on the shared 5 prefix.
+        # Records not yet persisted (NewId) cannot be targeted by any stored action, so
+        # they are never accessible and are excluded before searching -- which also means
+        # no query is emitted while these fields are precomputed on create.
         needles_by_report_id = {
             report.id: (
                 f"'report_id': {report.id},",
@@ -464,13 +461,11 @@ class AccountReport(models.Model):
 
     @staticmethod
     def _replace_codes_in_formula(formula, code_mapping):
-        """Return ``formula`` with each ``old_code`` replaced by its ``new_code``.
-
-        The formula is temporarily padded with spaces so that the word-boundary
-        lookbehind/lookahead also match codes sitting at the very start or end of the
-        formula (we can't rely on ``\\b`` because line codes may contain dots). Codes are
-        escaped so a code is matched literally rather than as a regular expression.
-        """
+        """Return ``formula`` with each ``old_code`` replaced by its ``new_code``."""
+        # The formula is temporarily padded with spaces so that the word-boundary
+        # lookbehind/lookahead also match codes sitting at the very start or end of the
+        # formula (we can't rely on \b because line codes may contain dots). Codes are
+        # escaped so a code is matched literally rather than as a regular expression.
         padded_formula = f" {formula} "
         for old_code, new_code in code_mapping.items():
             padded_formula = re.sub(
@@ -719,17 +714,16 @@ class AccountReportLine(models.Model):
     def _get_copied_code(self, target_report):
         """Return a code for the copy of this line, unique within ``target_report``.
 
-        Line codes only need to be unique per report (see the ``_code_uniq`` constraint),
-        so the uniqueness search is scoped to the report the copy will belong to rather
-        than the whole database. A global search would needlessly accumulate ``_COPY``
-        suffixes because of identical codes living in unrelated reports.
-
         :param target_report: the report the copied line will belong to.
         :return: a unique code for the copied account.report.line
         """
         self.ensure_one()
         if not self.code:
             return False
+        # Line codes only need to be unique per report (see the _code_uniq constraint), so
+        # the uniqueness search is scoped to the report the copy will belong to rather than
+        # the whole database. A global search would needlessly accumulate _COPY suffixes
+        # because of identical codes living in unrelated reports.
         code = self.code + "_COPY"
         while self.search_count(
             [("code", "=", code), ("report_id", "=", target_report.id)]
@@ -837,12 +831,10 @@ class AccountReportLine(models.Model):
 
     @api.ondelete(at_uninstall=False)
     def _unlink_child_expressions(self):
-        """
-        We explicitly unlink child expressions.
-        This is necessary even if there is an ondelete='cascade' on it, because
-        the @api.ondelete method _unlink_archive_used_tags is not automatically
-        called if the parent model is deleted.
-        """
+        """Explicitly unlink child expressions."""
+        # This is necessary even if there is an ondelete='cascade' on it, because the
+        # @api.ondelete method _unlink_archive_used_tags is not automatically called if
+        # the parent model is deleted.
         self.expression_ids.unlink()
 
 
@@ -941,7 +933,7 @@ class AccountReportExpression(models.Model):
     def _parse_carryover_target(self):
         """Split ``carryover_target`` into its ``(line_code, expression_label)`` parts.
 
-        :raise UserError: if the target is not of the form ``line_code.expression_label``.
+        :raises UserError: if the target is not of the form ``line_code.expression_label``.
         """
         self.ensure_one()
         parts = self.carryover_target.split(".")
@@ -1113,10 +1105,8 @@ class AccountReportExpression(models.Model):
 
     @api.ondelete(at_uninstall=False)
     def _unlink_archive_used_tags(self):
-        """
-        Manages unlink or archive of tax_tags when account.report.expression are deleted.
-        If a tag is still in use on amls, we archive it.
-        """
+        """Unlink or archive tax_tags when their account.report.expression are deleted."""
+        # If a tag is still in use on amls, we archive it instead of unlinking it.
         expressions_tags = self._get_matching_tags()
         tags_to_archive = self.env["account.account.tag"]
         tags_to_unlink = self.env["account.account.tag"]
@@ -1215,7 +1205,7 @@ class AccountReportExpression(models.Model):
     def _get_cross_report_id(self):
         """Resolve the report targeted by a ``cross_report(<report_id>|<xml_id>)`` subformula.
 
-        :raise UserError: if the subformula is malformed, the target cannot be resolved,
+        :raises UserError: if the subformula is malformed, the target cannot be resolved,
             or it points back to this expression's own report.
         """
         self.ensure_one()
@@ -1256,11 +1246,10 @@ class AccountReportExpression(models.Model):
         return report_id
 
     def _get_aggregation_terms_details(self):
-        """Computes the details of each aggregation expression in self, and returns them in the form of a single dict aggregating all the results.
+        """Return a single dict aggregating the details of each aggregation expression in self.
 
-        Example of aggregation details:
-        formula 'A.balance + B.balance + A.other'
-        will return: {'A': {'balance', 'other'}, 'B': {'balance'}}
+        A formula ``A.balance + B.balance + A.other`` yields
+        ``{'A': {'balance', 'other'}, 'B': {'balance'}}``.
         """
         totals_by_code = defaultdict(set)
         for expression in self:

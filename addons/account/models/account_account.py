@@ -8,12 +8,7 @@ from odoo.tools import SQL, Query
 
 
 class AccountAccount(models.Model):
-    """Accounting extensions to the base chart of accounts.
-
-    Adds mail tracking, tax integration, opening balances,
-    journal-item constraints, and account group computation to the
-    foundation defined in ``base_account``.
-    """
+    """Accounting extensions to the base chart of accounts."""
 
     _name = "account.account"
     _inherit = ["account.account", "mail.thread", "mail.activity.mixin"]
@@ -304,9 +299,9 @@ class AccountAccount(models.Model):
     def _get_used_account_ids(self, account_ids=None):
         """Return ids of accounts that carry at least one journal item.
 
-        When *account_ids* is given the scan is restricted to those accounts
-        (the compute path, which only cares about ``self``); otherwise every
-        account is considered (the search path, which is global by nature).
+        :param account_ids: restrict the scan to these accounts (the compute
+            path); when omitted, every account is considered (the search path,
+            which is global by nature).
         """
         rows = self.env.execute_query(
             SQL(
@@ -360,7 +355,7 @@ class AccountAccount(models.Model):
     def _compute_related_taxes_amount(self):
         # One grouped query for the whole recordset instead of a search_count
         # per record. A tax is counted once even if several of its repartition
-        # lines target the same account, matching the previous semantics.
+        # lines target the same account.
         counts = dict(
             self.env["account.tax.repartition.line"]._read_group(
                 domain=[
@@ -1017,12 +1012,7 @@ class AccountAccount(models.Model):
         )
 
     def _action_unmerge(self):
-        """Unmerge ``self`` into one account per company.
-
-        Orchestrates the split: create the per-company copies, repoint every
-        stored reference to them in the database, then reassign the original
-        account to its base company. Each step is delegated to a helper below.
-        """
+        """Unmerge ``self`` into one account per company."""
         self.ensure_one()
 
         # Step 1: Check access rights.
@@ -1068,18 +1058,13 @@ class AccountAccount(models.Model):
         return new_accounts
 
     def _unmerge_company_id_subquery(self, model):
-        """Build a ``(id, company_id)`` subquery for *model*, or None.
-
-        Returns None when the model has no usable company column (so the
-        caller skips it). Reaches into the ORM's SQL builder; the two selected
-        columns are aliased ``id`` and ``company_id`` for use in the remap
-        UPDATEs below.
-        """
+        """Build a ``(id, company_id)`` subquery for *model*, or None."""
         if model == "res.company":
             company_id_field = "id"
         elif "company_id" in self.env[model]:
             company_id_field = "company_id"
         else:
+            # No usable company column: signal the caller to skip this model.
             return None
         with contextlib.suppress(ValueError):
             query = Query(
@@ -1087,6 +1072,8 @@ class AccountAccount(models.Model):
                 self.env[model]._table,
                 self.env[model]._table_sql,
             )
+            # Alias the columns id/company_id so the remap UPDATEs below can
+            # reference them by name.
             return query.select(
                 SQL(
                     "%s AS id",
@@ -1103,10 +1090,8 @@ class AccountAccount(models.Model):
             )
 
     def _unmerge_create_accounts(self, base_company):
-        """Step 2: copy ``self`` once per non-base company.
-
-        Each copy keeps only the check_company relational values that belong to
-        its company. Returns ``{company: new_account}``.
+        """Step 2: copy ``self`` once per non-base company, returning
+        ``{company: new_account}``.
         """
         companies_to_update = self.company_ids - base_company
         check_company_fields = {
@@ -1119,6 +1104,8 @@ class AccountAccount(models.Model):
                 default={
                     "name": self.name,
                     "company_ids": [Command.set(company.ids)],
+                    # Keep only the check_company relational values that belong
+                    # to this company.
                     **{
                         fname: self[fname].filtered(
                             lambda record, company=company: (
