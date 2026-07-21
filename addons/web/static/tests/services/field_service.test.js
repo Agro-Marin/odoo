@@ -361,6 +361,23 @@ test("store loadFields calls in cache in success", async () => {
     expect.verifySteps(["fields_get"]);
 });
 
+test("loadFields returns a mutable top-level object per call", async () => {
+    // Contract: the cached payload is frozen and shared, but loadFields hands
+    // out a shallow copy so a consumer may add/replace top-level entries
+    // (property/computed field defs). Two calls must not alias the same object,
+    // and adding a key must not throw on a frozen object.
+    await makeMockEnv();
+
+    const a = await getService("field").loadFields("tortoise");
+    const b = await getService("field").loadFields("tortoise");
+    expect(a).not.toBe(b); // distinct top-level objects
+    // Adding a top-level entry must not throw (the bug this fixes).
+    a["property.custom"] = { type: "char", name: "property.custom" };
+    expect(a["property.custom"].name).toBe("property.custom");
+    // The other caller's copy is unaffected.
+    expect(b["property.custom"]).toBe(undefined);
+});
+
 test("does not store loadFields calls in cache when failed", async () => {
     onRpc("fields_get", () => {
         expect.step("fields_get");
