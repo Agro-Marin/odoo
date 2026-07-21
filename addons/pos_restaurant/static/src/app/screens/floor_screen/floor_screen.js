@@ -1042,9 +1042,11 @@ export class FloorScreen extends Component {
                             this.pos.removeOrder(order, false);
                         }
                     }
-                    const records = this.pos.data.write("restaurant.table", [id], {
-                        active: false,
-                    });
+                    const records = await this.pos.data.write(
+                        "restaurant.table",
+                        [id],
+                        { active: false },
+                    );
                     records[0].delete();
                 }
             }
