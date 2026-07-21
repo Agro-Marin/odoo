@@ -81,7 +81,7 @@ class TestAutomationTriggers(TransactionCase):
         # Create partner first
         partner = self.Partner.create({"name": "Test Partner"})
 
-        # Clear comment (automation might fire on create too)
+        # Clear the street marker (automation might fire on create too)
         partner.street = False
 
         # Update partner - should trigger automation
@@ -109,7 +109,7 @@ class TestAutomationTriggers(TransactionCase):
         """Test on_unlink trigger fires before deletion."""
         _logger.info("Testing on_unlink trigger")
 
-        # Note: Can't easily verify comment after delete, so test that it runs
+        # Note: Can't easily verify the street marker after delete, so test that it runs
         self._create_automation("On Unlink Test", "on_unlink")
 
         partner = self.Partner.create({"name": "To Delete"})
@@ -156,7 +156,7 @@ class TestAutomationTriggers(TransactionCase):
     # =========================================================================
 
     def test_on_user_set_trigger(self):
-        """Test on_user_set trigger fires when user field is set."""
+        """Placeholder for the on_user_set trigger — not exercised (res.partner has no user_id)."""
         _logger.info("Testing on_user_set trigger")
 
         # Partners don't have user_id, so this test would fail
@@ -638,12 +638,10 @@ class TestTimeBasedTriggers(TransactionCase):
         cls.model_partner = cls.env["ir.model"]._get("res.partner")
 
     def _run_cron(self):
-        """Run time-based cron without the cr.commit() forbidden in TransactionCase tests.
-
-        _cron_process_time_based_actions calls _commit_progress which commits
-        the cursor — illegal in test transactions. Patch it to a no-op.
-        """
+        """Run time-based cron without the cr.commit() forbidden in TransactionCase tests."""
         IrCron = type(self.env["ir.cron"])
+        # _cron_process_time_based_actions calls _commit_progress, which commits the
+        # cursor — illegal in test transactions. Patch it to a no-op.
         with patch.object(IrCron, "_commit_progress", return_value=float("inf")):
             self.Automation._cron_process_time_based_actions()
 
@@ -1675,7 +1673,7 @@ class TestTriggerEdgeCases(TransactionCase):
         self.assertEqual(partner.street, "BCA")
 
     def test_trigger_with_multi_company(self):
-        """Test triggers respect company context."""
+        """Test an automation action can reference env.company in its code."""
         _logger.info("Testing multi-company triggers")
 
         # This is a basic setup test - full multi-company testing
@@ -1702,5 +1700,5 @@ class TestTriggerEdgeCases(TransactionCase):
         # Create partner
         partner = self.Partner.create({"name": "Company Test"})
 
-        # Should have company name in comment
+        # Should have company name in street
         self.assertIn("Company:", partner.street)
