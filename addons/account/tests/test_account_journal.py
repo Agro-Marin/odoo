@@ -27,15 +27,12 @@ class TestAccountJournal(AccountTestInvoicingCommon, HttpCase):
         journal_bank = self.company_data["default_journal_bank"]
         journal_bank.currency_id = self.other_currency
 
-        # Try to set a different currency on the 'debit' account.
+        # Try to set a different currency on the journal's default account.
         with self.assertRaises(ValidationError):
             journal_bank.default_account_id.currency_id = self.company_data["currency"]
 
     def test_euro_payment_reference_generation(self):
-        """
-        Test the generation of European (ISO 11649) payment references to ensure
-        it correctly handles various journal short codes.
-        """
+        """Test ISO 11649 payment reference generation for various journal codes."""
         journal = self.company_data["default_journal_sale"]
         journal.invoice_reference_model = "euro"
 
@@ -101,9 +98,7 @@ class TestAccountJournal(AccountTestInvoicingCommon, HttpCase):
             ]
 
     def test_account_journal_add_new_payment_method_multi(self):
-        """
-        Test the automatic creation of payment method lines with the mode set to multi
-        """
+        """Test the automatic creation of payment method lines with mode multi."""
         Method_get_payment_method_information = (
             AccountPaymentMethod._get_payment_method_information
         )
@@ -133,12 +128,7 @@ class TestAccountJournal(AccountTestInvoicingCommon, HttpCase):
         self.assertEqual(bank_journals_count, edited_journals_count)
 
     def test_remove_payment_method_lines(self):
-        """
-        Payment method lines are a bit special in the way their removal is handled.
-        If they are linked to a payment at the moment of the deletion, they won't be deleted but the journal_id will be
-        set to False.
-        If they are not linked to any payment, they will be deleted as expected.
-        """
+        """Test the removal of payment method lines, linked to a payment or not."""
 
         # Linked to a payment. It will not be deleted, but its journal_id will be set to False.
         first_method = self.inbound_payment_method_line
@@ -311,7 +301,7 @@ class TestAccountJournalAlias(AccountTestInvoicingCommon, MailCommon):
 
     def test_alias_name_creation(self):
         """Test alias creation, notably avoid raising constraints due to ascii
-        characters removal. See odoo/odoo@339cdffb68f91eb1455d447d1bdd7133c68723bd"""
+        characters removal."""
         # check base test data
         journal1 = self.company_data["default_journal_purchase"]
         company1 = journal1.company_id
@@ -380,7 +370,7 @@ class TestAccountJournalAlias(AccountTestInvoicingCommon, MailCommon):
 
     def test_alias_from_type(self):
         """Test alias behavior on journal, especially alias_name management as
-        well as defaults update, see odoo/odoo@400b6860271a11b9914166ff7e42939c4c6192dc"""
+        well as defaults update."""
         journal = self.company_data["default_journal_purchase"]
 
         # assert base test data
@@ -558,9 +548,7 @@ class TestAccountJournalAlias(AccountTestInvoicingCommon, MailCommon):
         )
 
     def test_use_default_account_from_journal(self):
-        """
-        Test that the autobalance uses the default account id of the journal
-        """
+        """Test that the autobalance uses the default account of the journal."""
         autobalance_account = self.env["account.account"].create(
             {
                 "name": "Autobalance Account",
@@ -658,9 +646,8 @@ class TestAccountJournalAlias(AccountTestInvoicingCommon, MailCommon):
         )
 
     def test_payment_method_line_accounts_on_recompute(self):
-        """
-        Test that outstanding payments/receipts accounts are not removed during the computation of the payment method lines
-        """
+        """Test that outstanding payments/receipts accounts survive the compute of
+        the payment method lines."""
         bank_journal = self.company_data["default_journal_bank"]
         outstanding_receipt_account = self.env["account.chart.template"].ref(
             "account_journal_payment_debit_account_id"

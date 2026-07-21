@@ -935,13 +935,10 @@ class TestAccountBillPartialDeductibility(AccountTestInvoicingCommon):
         )
 
     def test_bill_partial_deductibility_foreign_currency(self):
-        """Regression test for the non-deductible base line in a foreign currency.
-
-        The generated non-deductible lines must carry the company-currency amount
-        in ``balance`` and the document-currency amount in ``amount_currency``.
-        A swap between the two is invisible when the invoice currency equals the
-        company currency (rate == 1), so it is only caught with a foreign currency.
-        """
+        """Check the non-deductible lines of a bill in a foreign currency."""
+        # The non-deductible lines must carry the company-currency amount in
+        # ``balance`` and the document-currency amount in ``amount_currency``; a swap
+        # between the two is invisible at rate == 1, hence the foreign currency.
         foreign = self.env["res.currency"].create(
             {"name": "FDX", "symbol": "F", "rounding": 0.01}
         )

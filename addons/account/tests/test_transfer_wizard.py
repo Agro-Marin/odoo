@@ -362,7 +362,7 @@ class TestTransferWizard(AccountTestInvoicingCommon):
 
         # Open the transfer wizard
 
-        # We use a form to pass the context properly to the depends_context move_line_ids field
+        # Use a Form so default_get fills move_line_ids from the context, as in the UI
         context = {
             "active_model": "account.move.line",
             "active_ids": move_with_tax.line_ids[0].ids,
@@ -410,7 +410,7 @@ class TestTransferWizard(AccountTestInvoicingCommon):
             )
         )
 
-        # We use a form to pass the context properly to the depends_context move_line_ids field
+        # Use a Form so default_get fills move_line_ids from the context, as in the UI
         context = {
             "active_model": "account.move.line",
             "active_ids": active_move_lines.ids,
@@ -492,7 +492,7 @@ class TestTransferWizard(AccountTestInvoicingCommon):
             )
         )
 
-        # We use a form to pass the context properly to the depends_context move_line_ids field
+        # Use a Form so default_get fills move_line_ids from the context, as in the UI
         context = {
             "active_model": "account.move.line",
             "active_ids": active_move_lines.ids,
@@ -557,14 +557,12 @@ class TestTransferWizard(AccountTestInvoicingCommon):
         )
 
     def test_transfer_wizard_currency_conversion(self):
-        """Tests multi currency use of the transfer wizard, checking the conversion
-        is propperly done when using a destination account with a currency_id set.
-        """
+        """Tests the conversion done when the destination account has a currency_id set."""
         active_move_lines = self.move_1.mapped("line_ids").filtered(
             lambda x: x.name in ("test1_6", "test1_9")
         )
 
-        # We use a form to pass the context properly to the depends_context move_line_ids field
+        # Use a Form so default_get fills move_line_ids from the context, as in the UI
         context = {
             "active_model": "account.move.line",
             "active_ids": active_move_lines.ids,
@@ -596,15 +594,12 @@ class TestTransferWizard(AccountTestInvoicingCommon):
         )
 
     def test_transfer_wizard_no_currency_conversion(self):
-        """Tests multi currency use of the transfer wizard, verifying that
-        currency amounts are kept on distinct lines when transferring to an
-        account without any currency specified.
-        """
+        """Tests that each currency gets its own line when the destination account has no currency."""
         active_move_lines = self.move_2.mapped("line_ids").filtered(
             lambda x: x.name in ("test2_9", "test2_6", "test2_8")
         )
 
-        # We use a form to pass the context properly to the depends_context move_line_ids field
+        # Use a Form so default_get fills move_line_ids from the context, as in the UI
         context = {
             "active_model": "account.move.line",
             "active_ids": active_move_lines.ids,
@@ -644,9 +639,7 @@ class TestTransferWizard(AccountTestInvoicingCommon):
         )
 
     def test_period_change_lock_date(self):
-        """Test that the period change wizard correctly handles the lock date: if the original entry is dated
-        before the lock date, the adjustment entry is created on the first end of month after the lock date.
-        """
+        """Tests that the adjustment entry is created on the first end of month after the lock date."""
         # Set up accrual accounts
         self.company_data["company"].expense_accrual_account_id = self.env[
             "account.account"
@@ -808,7 +801,7 @@ class TestTransferWizard(AccountTestInvoicingCommon):
         )
 
     def test_transfer_wizard_amount_currency_is_zero(self):
-        """Tests that the transfer wizard create a transfer move when the amount_currency is zero."""
+        """Tests that the transfer wizard creates a transfer move when the amount_currency is zero."""
         move = self.env["account.move"].create(
             {
                 "journal_id": self.company_data["default_journal_misc"].id,
