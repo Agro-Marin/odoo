@@ -238,6 +238,40 @@ export class X2ManyField extends Component {
         };
     }
 
+    /**
+     * The kanban renderer, resolved at RENDER time rather than through
+     * ``constructor.components``.
+     *
+     * ``components`` above is a static *getter* so the renderers can be read
+     * from the ``views`` registry lazily — the kanban view is not registered
+     * yet when this module is evaluated. Subclasses, however, almost always
+     * write:
+     *
+     *     static components = { ...super.components, ListRenderer: MyRenderer };
+     *
+     * A static *field* replaces the inherited getter with a plain data
+     * property, and its initializer runs once at module-load time — while
+     * ``views`` still lacks "kanban". That freezes ``KanbanRenderer:
+     * undefined`` forever (~40 subclasses do this).
+     *
+     * Nothing notices on desktop, where an x2many renders through the
+     * ``ListRenderer`` branch. On small screens it renders as a kanban, hits
+     * the frozen ``undefined`` and throws "Cannot find the definition of
+     * component KanbanRenderer", killing the whole form — e.g. the sale order
+     * form on mobile, whose lines are a kanban there.
+     *
+     * An explicit subclass override still wins; the registry is only the
+     * fallback for the frozen-undefined case.
+     *
+     * @returns {typeof import("@odoo/owl").Component | undefined}
+     */
+    get kanbanRenderer() {
+        return (
+            this.constructor.components.KanbanRenderer ??
+            (views.contains("kanban") ? views.get("kanban").Renderer : undefined)
+        );
+    }
+
     /** @returns {Object} Props for the ListRenderer or KanbanRenderer sub-component */
     get rendererProps() {
         const { archInfo } = this;
