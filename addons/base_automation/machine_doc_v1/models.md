@@ -171,8 +171,11 @@ Fully isolated per-execution — no shared state with the definition.
 
 `action_mark_done()`: marks self done, then for each successor checks if all
 its predecessors are done — if so, calls `successor.action_mark_ready()`.
-This is the correct per-instance DAG propagation pattern (contrast with
-`ir.actions.server.action_mark_done()` which mutates the global definition).
+This is the correct per-instance DAG propagation pattern. (An earlier
+`ir.actions.server.action_mark_done()` that mutated the global definition
+was removed in Phase 1 along with `action_state`/`is_ready`/`error_message` —
+see the "What NOT to Add" section in `conventions.md`; this doc previously
+still referenced it.)
 
 ---
 

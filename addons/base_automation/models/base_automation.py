@@ -1,3 +1,4 @@
+import contextlib
 import datetime
 import ipaddress
 import logging
@@ -7,6 +8,7 @@ from collections import defaultdict
 from uuid import uuid4
 
 from dateutil.relativedelta import relativedelta
+
 from odoo import _, api, exceptions, fields, models
 from odoo.exceptions import LockError, MissingError
 from odoo.fields import Domain
@@ -463,7 +465,7 @@ class BaseAutomation(models.Model):
                 continue
 
             failing_actions = automation.action_server_ids.filtered(
-                lambda action: action.model_id != automation.model_id,
+                lambda action: action.model_id != automation.model_id,  # noqa: B023 - filtered() evaluates the lambda immediately, within this same loop iteration
             )
             if failing_actions:
                 raise exceptions.ValidationError(
@@ -651,7 +653,7 @@ class BaseAutomation(models.Model):
                 continue
 
             actions_to_remove = automation.action_server_ids.filtered(
-                lambda action: action.model_id != automation.model_id,
+                lambda action: action.model_id != automation.model_id,  # noqa: B023 - filtered() evaluates the lambda immediately, within this same loop iteration
             )
             if actions_to_remove:
                 actions_to_remove.unlink()
@@ -834,6 +836,7 @@ class BaseAutomation(models.Model):
                     ),
                 },
             }
+        return None
 
     @api.onchange("filter_domain")
     def _onchange_domain(self):
@@ -1189,7 +1192,7 @@ class BaseAutomation(models.Model):
                     self.record_getter,
                     self._get_eval_context(payload=payload),
                 )
-            except Exception as e:  # noqa: BLE001
+            except Exception:
                 msg = "Webhook #%s could not be triggered because the record_getter failed:\n%s"
                 msg_args = (self.id, traceback.format_exc())
                 _logger.warning(msg, *msg_args)
@@ -1200,7 +1203,7 @@ class BaseAutomation(models.Model):
                             level="ERROR",
                         ),
                     )
-                raise e
+                raise
 
         if not record.exists() and self.record_getter:
             # A configured record_getter that resolves to nothing is a real
@@ -1221,7 +1224,7 @@ class BaseAutomation(models.Model):
             if record:
                 return self._process(record)
             return self._run_webhook_recordless(payload)
-        except Exception as e:  # noqa: BLE001
+        except Exception:
             msg = "Webhook #%s failed with error:\n%s"
             msg_args = (self.id, traceback.format_exc())
             _logger.warning(msg, *msg_args)
@@ -1229,7 +1232,7 @@ class BaseAutomation(models.Model):
                 ir_logging_sudo.create(
                     self._prepare_logging_values(message=msg % msg_args, level="ERROR"),
                 )
-            raise e
+            raise
 
     def _run_webhook_recordless(self, payload):
         """Run an on_webhook rule that has no record_getter.
@@ -1830,7 +1833,7 @@ class BaseAutomation(models.Model):
 
                 if not automation_rule._filter_post(self):
                     # Do nothing if onchange record does not satisfy the filter_domain
-                    return
+                    return None
 
                 result = {}
                 actions = automation_rule.sudo().action_server_ids.with_context(
@@ -2146,10 +2149,8 @@ class BaseAutomation(models.Model):
         ]
         for Model in self.env.registry.values():
             for name in NAMES:
-                try:
+                with contextlib.suppress(AttributeError):
                     delattr(Model, name)
-                except AttributeError:
-                    pass
 
     def _update_cron(self):
         """Activate the cron job depending on whether there exists automation rules

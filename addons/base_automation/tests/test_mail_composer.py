@@ -1,9 +1,9 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 from odoo import Command
+from odoo.tests.common import HttpCase, tagged
+
 from odoo.addons.mail.tests.common import MailCommon
-from odoo.tests.common import tagged, HttpCase
 
 
 @tagged("-at_install", "post_install", "mail_composer")
