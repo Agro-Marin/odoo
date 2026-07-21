@@ -1,15 +1,14 @@
 /** @odoo-module native */
 import { _t } from "@web/core/l10n/translation";
 
-// Supported file types we need extract on paste
 const supportedFileTypes = ["text/xml", "application/pdf"];
 
 /**
- * Return a function that extracts and uploads the files from a pasted/dropped
- * dataTransfer. Failures are logged and, when a notification service is passed,
- * surfaced to the user (the paste path had no user feedback before).
+ * Return a handler that forwards the files of a pasted dataTransfer to the
+ * document file uploader input.
  *
- * @param {Object} [notification] the "notification" service (optional)
+ * @param {Object} [notification] the "notification" service, used to warn the
+ *  user about unsupported pasted files
  * @returns {(dataTransfer: DataTransfer) => Promise<void>}
  */
 export function uploadFileFromData(notification) {

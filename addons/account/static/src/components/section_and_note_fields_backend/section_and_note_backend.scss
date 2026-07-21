@@ -1,6 +1,5 @@
 
-// The goal of this file is to contain CSS hacks related to allowing
-// section and note on sale order and invoice.
+// Styles for section and note lines on sale order and invoice.
 
 table.o_section_and_note_list_view {
     --o-SectionAndNote-border-color: #{$gray-500};
@@ -15,7 +14,7 @@ table.o_section_and_note_list_view {
             --table-striped-bg: var(--table-bg-type);
 
             .o_list_section_options {
-                width: 1px;  // to prevent the column to expand
+                width: 1px;  // prevent the column from expanding
             }
 
             .o_field_product_label_section_and_note_cell .o_input {

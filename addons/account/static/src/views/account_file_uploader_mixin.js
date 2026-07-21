@@ -2,9 +2,8 @@
 import { AccountFileUploader } from "@account/components/account_file_uploader/account_file_uploader";
 
 /**
- * Whether the "Upload" button should be offered on a move list/kanban: always,
- * except on the pure Journal Entries view (default_move_type === "entry") opened
- * without a specific record context.
+ * Whether the "Upload" button should be shown on a move list/kanban. It is
+ * hidden only on the Journal Entries view opened without an "active_id".
  *
  * @param {Object} context the controller's props.context
  * @returns {boolean}
@@ -16,7 +15,7 @@ export function showAccountUploadButton(context) {
 /**
  * Adds the AccountFileUploader to a list/kanban controller's components.
  *
- * @param {typeof import("@web/views/view").ViewController} Base
+ * @param {typeof import("@odoo/owl").Component} Base list/kanban controller to extend.
  */
 export const WithAccountFileUploader = (Base) =>
     class extends Base {
