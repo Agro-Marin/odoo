@@ -19,20 +19,8 @@ class PaymentTransaction(models.Model):
 
     @api.depends('invoice_ids')
     def _compute_invoices_count(self):
-        tx_data = {}
-        if self.ids:
-            self.env.cr.execute(
-                '''
-                SELECT transaction_id, count(invoice_id)
-                FROM account_invoice_transaction_rel
-                WHERE transaction_id = ANY(%s)
-                GROUP BY transaction_id
-                ''',
-                [list(self.ids)]
-            )
-            tx_data = dict(self.env.cr.fetchall())  # {id: count}
         for tx in self:
-            tx.invoices_count = tx_data.get(tx.id, 0)
+            tx.invoices_count = len(tx.invoice_ids)
 
     #=== ACTION METHODS ===#
 

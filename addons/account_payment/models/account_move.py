@@ -4,10 +4,10 @@ import base64
 
 from odoo import api, fields, models
 from odoo.tools import format_date, str2bool
+from odoo.tools.image import image_data_uri
 from odoo.tools.translate import _
 
 from odoo.addons.payment import utils as payment_utils
-from odoo.tools.image import image_data_uri
 
 
 class AccountMove(models.Model):
@@ -52,7 +52,16 @@ class AccountMove(models.Model):
                 ).mapped('amount')
             )
 
-    def _has_to_be_paid(self):
+    def _get_online_payment_context(self):
+        """ Return the transactions and config relevant to online payment eligibility checks.
+
+        Shared by :meth:`_has_to_be_paid` and :meth:`_get_online_payment_error` to avoid
+        recomputing the same transaction filtering and config-parameter lookup twice.
+
+        :return: The transactions in a pending/settled state, the subset of those still
+                 pending on a real provider, and whether the online-payment feature is enabled.
+        :rtype: tuple(recordset, recordset, bool)
+        """
         self.ensure_one()
         transactions = self.transaction_ids.filtered(lambda tx: tx.state in ('pending', 'authorized', 'done'))
         pending_transactions = transactions.filtered(
@@ -63,6 +72,10 @@ class AccountMove(models.Model):
                 'account_payment.enable_portal_payment'
             )
         )
+        return transactions, pending_transactions, enabled_feature
+
+    def _has_to_be_paid(self):
+        transactions, pending_transactions, enabled_feature = self._get_online_payment_context()
         return enabled_feature and bool(
             (self.amount_residual or not transactions)
             and self.state == 'posted'
@@ -77,16 +90,7 @@ class AccountMove(models.Model):
         """
         Returns the appropriate error message to be displayed if _has_to_be_paid() method returns False.
         """
-        self.ensure_one()
-        transactions = self.transaction_ids.filtered(lambda tx: tx.state in ('pending', 'authorized', 'done'))
-        pending_transactions = transactions.filtered(
-            lambda tx: tx.state in {'pending', 'authorized'}
-                       and tx.provider_code not in {'none', 'custom'})
-        enabled_feature = str2bool(
-            self.env['ir.config_parameter'].sudo().get_param(
-                'account_payment.enable_portal_payment'
-            )
-        )
+        transactions, pending_transactions, enabled_feature = self._get_online_payment_context()
         errors = []
         if not enabled_feature:
             errors.append(_("This invoice cannot be paid online."))

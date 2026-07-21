@@ -1,4 +1,4 @@
-from odoo import api, Command, fields, models
+from odoo import Command, api, fields, models
 
 
 class AccountPaymentRegister(models.TransientModel):
@@ -48,15 +48,15 @@ class AccountPaymentRegister(models.TransientModel):
 
     @api.depends('payment_method_line_id')
     def _compute_use_electronic_payment_method(self):
+        # Get a list of all electronic payment method codes.
+        # These codes are comprised of the codes of each payment provider.
+        codes = list(dict(self.env['payment.provider']._fields['code']._description_selection(self.env)))
         for wizard in self:
-            # Get a list of all electronic payment method codes.
-            # These codes are comprised of the codes of each payment provider.
-            codes = [key for key in dict(self.env['payment.provider']._fields['code']._description_selection(self.env))]
             wizard.use_electronic_payment_method = wizard.payment_method_code in codes
 
     @api.depends('can_edit_wizard', 'suitable_payment_token_ids', 'journal_id')
     def _compute_payment_token_id(self):
-        codes = [key for key in dict(self.env['payment.provider']._fields['code']._description_selection(self.env))]
+        codes = list(dict(self.env['payment.provider']._fields['code']._description_selection(self.env)))
         for wizard in self:
             if wizard.payment_method_line_id and wizard.payment_method_line_id.code not in codes:
                 wizard.payment_token_id = False

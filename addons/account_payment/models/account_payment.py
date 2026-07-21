@@ -1,6 +1,6 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-from odoo import _, api, Command, fields, models
+from odoo import Command, _, api, fields, models
 from odoo.exceptions import ValidationError
 
 
@@ -84,10 +84,10 @@ class AccountPayment(models.Model):
 
     @api.depends('payment_method_line_id')
     def _compute_use_electronic_payment_method(self):
+        # Get a list of all electronic payment method codes.
+        # These codes are comprised of 'electronic' and the providers of each payment provider.
+        codes = self._get_electronic_payment_method_codes()
         for payment in self:
-            # Get a list of all electronic payment method codes.
-            # These codes are comprised of 'electronic' and the providers of each payment provider.
-            codes = [key for key in dict(self.env['payment.provider']._fields['code']._description_selection(self.env))]
             payment.use_electronic_payment_method = payment.payment_method_code in codes
 
     def _compute_refunds_count(self):
@@ -103,11 +103,23 @@ class AccountPayment(models.Model):
         for payment in self:
             payment.refunds_count = data.get(payment.id, 0)
 
+    #=== HELPER METHODS ===#
+
+    def _get_electronic_payment_method_codes(self):
+        """ Return the list of all electronic payment method codes.
+
+        These codes are comprised of 'electronic' and the code of each payment provider.
+
+        :return: The electronic payment method codes.
+        :rtype: list
+        """
+        return list(dict(self.env['payment.provider']._fields['code']._description_selection(self.env)))
+
     #=== ONCHANGE METHODS ===#
 
     @api.onchange('partner_id', 'payment_method_line_id', 'journal_id')
     def _onchange_set_payment_token_id(self):
-        codes = [key for key in dict(self.env['payment.provider']._fields['code']._description_selection(self.env))]
+        codes = self._get_electronic_payment_method_codes()
         if not (self.payment_method_code in codes and self.partner_id and self.journal_id):
             self.payment_token_id = False
             return
@@ -187,7 +199,7 @@ class AccountPayment(models.Model):
                     "A payment transaction with reference %s already exists.",
                     payment.payment_transaction_id.reference
                 ))
-            elif not payment.payment_token_id:
+            if not payment.payment_token_id:
                 raise ValidationError(_("A token is required to create a new payment transaction."))
 
         transactions = self.env['payment.transaction']
