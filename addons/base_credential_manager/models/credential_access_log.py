@@ -184,8 +184,7 @@ class CredentialAccessLog(models.Model):
         # Run under sudo() and set the cleanup context key to bypass the
         # write-once protection. Using sudo() (rather than a cron hard-wired to
         # base.user_root) keeps cleanup working even if an operator retargets
-        # the cron to a non-superuser service account; the old
-        # env.uid == SUPERUSER_ID gate broke silently under that change.
+        # the cron to a non-superuser service account.
         sudo_self = self.sudo()
         old_logs = sudo_self.search([("timestamp", "<", cutoff_date)])
         count = len(old_logs)
@@ -210,10 +209,9 @@ class CredentialAccessLog(models.Model):
         # ORM writes; env.su rules out regular user code paths.
         #
         # Gate on env.su, not env.uid == SUPERUSER_ID: Odoo 19's sudo() does not
-        # change env.uid, it only sets env.su, so the old uid check made a
-        # cleanly-sudoed cron silently fail and no-op. This is an accident-
-        # prevention gate, not a security boundary — anything with env.su can
-        # already bypass the Python layer (see the class-level threat model).
+        # change env.uid, it only sets env.su. This is an accident-prevention
+        # gate, not a security boundary — anything with env.su can already
+        # bypass the Python layer (see the class-level threat model).
         if not self.env.context.get(self._CLEANUP_CONTEXT_KEY):
             return False
         if not self.env.su:
