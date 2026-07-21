@@ -33,6 +33,18 @@ class TestBarcodeGS1Nomenclature(TransactionCase):
         with self.assertRaises(ValidationError):
             barcode_nomenclature.gs1_date_to_date(date_gs1)
 
+    def test_invalid_fnc1_separator_raises_validation_error(self):
+        """An invalid regex in gs1_separator_fnc1 must raise a clear
+        ValidationError, not a TypeError from formatting the message: the
+        error text uses the named placeholder %(error)s, which requires the
+        exception to be passed as the `error=` keyword, not positionally."""
+        nomenclature = self.env['barcode.nomenclature'].create({
+            'name': 'Test GS1 invalid separator',
+            'is_gs1_nomenclature': True,
+        })
+        with self.assertRaises(ValidationError):
+            nomenclature.gs1_separator_fnc1 = '('  # unbalanced parenthesis: invalid regex
+
     def test_gs1_extanded_barcode_1(self):
         barcode_nomenclature = self.env['barcode.nomenclature'].browse(self.ref('barcodes_gs1_nomenclature.default_gs1_nomenclature'))
         # (01)94019097685457(10)33650100138(3102)002004(15)131018
