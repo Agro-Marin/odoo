@@ -89,7 +89,7 @@ class TestSequenceMixin(TestSequenceMixinCommon):
         self.assertEqual(self.test_move.name_placeholder, "MISC/15-16/01/0001")
         self.assertEqual(fields.Date.to_string(self.test_move.date), "2016-01-01")
 
-        # Never posetd, the number must change if we change the date
+        # Never posted, the number must change if we change the date
         self.test_move.date = "2020-02-02"
         self.assertMoveName(self.test_move, "MISC/19-20/02/0001")
 
@@ -105,10 +105,8 @@ class TestSequenceMixin(TestSequenceMixinCommon):
         self.assertMoveName(self.test_move, "MyMISC/2020/0000001")
 
     def test_sequence_change_date_with_quick_edit_mode(self):
-        """
-        Test the sequence update behavior when changing the date of a move in quick edit mode.
-        The sequence should only be recalculated if a value (year or month) utilized in the sequence is modified.
-        """
+        """Update the sequence when changing the date of a move in quick edit mode."""
+        # The sequence is only recomputed when a value it uses (year or month) changes.
         self.env.company.quick_edit_mode = "out_and_in_invoices"
         self.env.company.fiscalyear_last_day = 30
         self.env.company.fiscalyear_last_month = "12"
@@ -242,7 +240,7 @@ class TestSequenceMixin(TestSequenceMixinCommon):
         new_move.date = fields.Date.to_date("2016-02-01")
         new_moves.date = fields.Date.to_date("2016-03-01")
 
-        # All moves in the previously empty periods should be given a name instead of `/`
+        # All moves in the previously empty periods should be given a name instead of False
         self.assertMoveName(new_move, "MISC/15-16/02/0001")
         self.assertMoveName(new_multiple_move_1, "MISC/15-16/03/0001")
         # Since this is the second one in the same period, both have the same pending name
@@ -252,7 +250,7 @@ class TestSequenceMixin(TestSequenceMixinCommon):
         new_multiple_move_1.date = fields.Date.to_date("2016-01-10")
         new_multiple_move_2.date = fields.Date.to_date("2016-02-10")
 
-        # Moves are not in empty periods, but only the first hsa a posted move. So the first draft should be False and the second should get a name.
+        # Moves are not in empty periods, but only the first has a posted move. So the first draft should be False and the second should get a name.
         self.assertMoveName(new_multiple_move_1, False)
         self.assertMoveName(new_multiple_move_2, "MISC/15-16/02/0001")
 
@@ -270,7 +268,7 @@ class TestSequenceMixin(TestSequenceMixinCommon):
         self.assertMoveName(new_multiple_move_1, "AJ/15-16/01/0001")
         self.assertMoveName(new_multiple_move_2, "AJ/15-16/02/0001")
 
-        # When the date is removed in the form view, the name should not recompute
+        # When the date changes within the same period in the form view, the name should not recompute
         with Form(new_multiple_move_1) as move_form:
             move_form.date = fields.Date.to_date("2016-01-11")
             self.assertMoveName(new_multiple_move_1, "AJ/15-16/01/0001")
@@ -291,14 +289,7 @@ class TestSequenceMixin(TestSequenceMixinCommon):
         self.assertMoveName(invoice_2, "INV/15-16/03/001")
 
     def test_sequence_draft_first_of_period(self):
-        """
-        | Step | Move | Action      | Date       | Name           |
-        | ---- | ---- | ----------- | ---------- | -----------    |
-        | 1    | `A`  | Add         | 2023-02-01 | `2023/02/0001` |
-        | 2    | `B`  | Add         | 2023-02-02 | `/`            |
-        | 3    | `B`  | Post        | 2023-02-02 | `2023/02/0002` |
-        | 4    | `A`  | Cancel      | 2023-02-01 | `2023/02/0001` | -> Assert
-        """
+        """Cancelling the first draft of a period drops its name once another move took the slot."""
         move_a = self.test_move.copy({"date": "2023-02-01"})
         self.assertMoveName(move_a, "MISC/22-23/02/0001")
 
@@ -546,7 +537,7 @@ class TestSequenceMixin(TestSequenceMixinCommon):
         )
 
     def test_journal_override_sequence_regex(self):
-        """There is a possibility to override the regex and change the order of the paramters."""
+        """There is a possibility to override the regex and change the order of the parameters."""
         self.create_move(date="2020-01-01", name="00000876-G 0002/2020")
         next_move = self.create_move(date="2020-01-01")
         next_move.action_post()
@@ -620,7 +611,7 @@ class TestSequenceMixin(TestSequenceMixinCommon):
         copies[3].date = "2019-03-04"
         copies[4].date = "2019-03-05"
         copies[5].date = "2019-03-05"
-        # that entry is actualy the first one of the period, so it already has a name
+        # that entry is actually the first one of the period, so it already has a name
         # set it to False so that it is recomputed at post to be ordered correctly.
         copies[0].name = False
         copies.action_post()
@@ -799,7 +790,7 @@ class TestSequenceMixin(TestSequenceMixinCommon):
         self.assertMoveName(bill_copy_3, "BILL/24-25/04/0001")
 
     def test_sequence_get_more_specific(self):
-        """There is the ability to change the format (i.e. from yearly to montlhy)."""
+        """There is the ability to change the format (i.e. from yearly to monthly)."""
         # Start with a continuous sequence
         self.test_move.name = "MISC/00001"
 
@@ -960,10 +951,10 @@ class TestSequenceMixin(TestSequenceMixinCommon):
 
     def test_change_same_journal_not_change_sequence(self):
         """Changing the journal to the same journal should not change the sequence."""
-        # On first move it's always have same value
+        # the first move of a period always keeps the same value, so use a later one
         self.create_move(date="2025-10-17", post=True)
         move2 = self.create_move(date="2025-10-17", post=True)
-        # we need to create another move to higer the sequence
+        # we need to create another move to higher the sequence
         self.create_move(date="2025-10-17", post=True)
         move2.journal_id = move2.journal_id
         self.assertEqual(move2.name, "MISC/25-26/10/0002")
@@ -986,11 +977,9 @@ class TestSequenceMixin(TestSequenceMixinCommon):
         mock.assert_called_once()
 
     def test_init_recreates_dropped_secondary_index(self):
-        """``init()`` must ensure every sequence index independently.
-
-        Dropping only the secondary index and re-running ``init()`` must bring it
-        back, even though the primary index still exists.
-        """
+        """``init()`` must ensure every sequence index independently."""
+        # Dropping only the secondary index and re-running ``init()`` must bring it
+        # back, even though the primary index still exists.
         move = self.env["account.move"]
         idx2 = move._table + "_sequence_index2"
 
@@ -1008,14 +997,11 @@ class TestSequenceMixin(TestSequenceMixinCommon):
         )
 
     def test_new_sequence_requires_date(self):
-        """Allocating a new sequence without a date fails with a clear message.
-
-        The date drives the period boundaries and month of a fresh sequence.
-        Without it the date maths used to raise an opaque
-        ``'NoneType' object has no attribute 'year'``; callers such as importers
-        that invoke ``_set_next_sequence`` on a dateless move must instead get a
-        ``ValidationError`` naming the missing field.
-        """
+        """Allocating a new sequence without a date fails with a clear message."""
+        # The date drives the period boundaries and month of a fresh sequence, so
+        # callers such as importers invoking ``_set_next_sequence`` on a dateless
+        # move must get a ``ValidationError`` naming the missing field rather than
+        # an opaque ``'NoneType' object has no attribute 'year'``.
         move = self.create_move(date="2099-12-01")
         move.name = False
         move.date = False
@@ -1025,13 +1011,11 @@ class TestSequenceMixin(TestSequenceMixinCommon):
             move._get_next_sequence_format()
 
     def test_sequence_format_param_roundtrip(self):
-        """Lock the documented contract of ``_get_sequence_format_param``.
-
-        For any parseable sequence, ``format.format(**values) == previous`` must
-        hold, and the reset periodicity must be deduced as expected. This pins the
-        regex machinery (deduction + format-string synthesis) across every reset
-        type so refactors there cannot silently change numbering.
-        """
+        """``_get_sequence_format_param`` round-trips a name for every reset type."""
+        # ``format.format(**values)`` must rebuild the given name and the reset
+        # periodicity must be deduced as expected, pinning the regex machinery
+        # (deduction + format-string synthesis) so refactors there cannot
+        # silently change numbering.
         move = self.env["account.move"]
         cases = {
             "MISC/2042/00123": "year",
@@ -1188,10 +1172,7 @@ class TestSequenceMixinDeletion(TestSequenceMixinCommon):
         )
 
     def test_sequence_deletion_1(self):
-        """The last element of a sequence chain should always be deletable if in draft state.
-
-        Trying to delete another part of the chain shouldn't work.
-        """
+        """The last element of a sequence chain should always be deletable if in draft state."""
 
         # A draft move without any name can always be deleted.
         self.move_draft.unlink()
@@ -1223,15 +1204,12 @@ class TestSequenceMixinDeletion(TestSequenceMixinCommon):
         all_moves.unlink()
 
     def test_sequence_chain_with_null_prefix(self):
-        """A move with a NULL stored sequence_prefix must not crash the chain check.
-
-        Legacy/migrated rows can have a real ``name`` but a NULL
-        ``sequence_prefix`` (the compute never ran). The ORM reads that NULL
-        back as ``False``, which ``_get_last_sequence`` used to bind as a SQL
-        boolean, raising ``operator does not exist: character varying =
-        boolean``. The ``with_prefix or ''`` coercion keeps the comparison
-        textual.
-        """
+        """A move with a NULL stored sequence_prefix must not crash the chain check."""
+        # Legacy/migrated rows can have a real ``name`` but a NULL ``sequence_prefix``
+        # (the compute never ran). The ORM reads that NULL back as ``False``, which
+        # ``_get_last_sequence`` would bind as a SQL boolean, raising ``operator does
+        # not exist: character varying = boolean``. The ``with_prefix or ''`` coercion
+        # keeps the comparison textual.
         move = self.move_1_2
         # Reproduce the data anomaly directly: clear the stored prefix without
         # touching ``name`` (so the compute is not re-triggered on read).
@@ -1311,10 +1289,10 @@ class TestSequenceMixinConcurrency(TransactionCase):
             env.cr.close()
 
     def test_sequence_concurency(self):
-        """Computing the same name in concurent transactions is not allowed."""
+        """Computing the same name in concurrent transactions is not allowed."""
         env0, env1, env2 = self.data["envs"]
 
-        # start the transactions here on cr1 to simulate concurency with cr2
+        # start the transactions here on cr1 to simulate concurrency with cr2
         env1.cr.execute("SELECT 1")
 
         # post in cr2
@@ -1322,7 +1300,7 @@ class TestSequenceMixinConcurrency(TransactionCase):
         move.action_post()
         env2.cr.commit()
 
-        # try to post in cr1, the retry sould find the right number
+        # try to post in cr1, the retry should find the right number
         move = env1["account.move"].browse(self.data["move_ids"][2])
         move.action_post()
         env1.cr.commit()
@@ -1346,10 +1324,10 @@ class TestSequenceMixinConcurrency(TransactionCase):
         """Do not lock needlessly when the sequence is not computed"""
         env0, env1, env2 = self.data["envs"]
 
-        # start the transactions here on cr1 to simulate concurency with cr2
+        # start the transactions here on cr1 to simulate concurrency with cr2
         env1.cr.execute("SELECT 1")
 
-        # get the last sequence in cr1 (for instance opening a form view)
+        # get the last sequence in cr2 (for instance opening a form view)
         move = env2["account.move"].browse(self.data["move_ids"][1])
         _ = move.highest_name
         env2.cr.commit()

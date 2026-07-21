@@ -192,7 +192,7 @@ class TestAccountMoveOutRefundOnchanges(AccountTestInvoicingCommon):
         move_form = Form(self.invoice)
         with move_form.invoice_line_ids.edit(0) as line_form:
             # Current price_unit is 1000.
-            # We set quantity = 4, discount = 50%, price_unit = 400. The debit/credit fields don't change because (4 * 500) * 0.5 = 1000.
+            # We set quantity = 4, discount = 50%, price_unit = 500. The debit/credit fields don't change because (4 * 500) * 0.5 = 1000.
             line_form.quantity = 4
             line_form.discount = 50
             line_form.price_unit = 500
@@ -218,7 +218,6 @@ class TestAccountMoveOutRefundOnchanges(AccountTestInvoicingCommon):
         move_form = Form(self.invoice)
         with move_form.invoice_line_ids.edit(0) as line_form:
             # Reset field except the discount that becomes 100%.
-            # /!\ The modification is made on the accounting tab.
             line_form.quantity = 1
             line_form.discount = 100
             line_form.price_unit = 1000
@@ -1175,7 +1174,7 @@ class TestAccountMoveOutRefundOnchanges(AccountTestInvoicingCommon):
                 ],
             }
         )
-        # create invoice
+        # create refund
         move_form = Form(
             self.env["account.move"].with_context(default_move_type="out_refund")
         )

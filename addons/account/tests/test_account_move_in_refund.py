@@ -225,7 +225,6 @@ class TestAccountMoveInRefundOnchanges(AccountTestInvoicingCommon):
         move_form = Form(self.invoice)
         with move_form.invoice_line_ids.edit(0) as line_form:
             # Reset field except the discount that becomes 100%.
-            # /!\ The modification is made on the accounting tab.
             line_form.quantity = 1
             line_form.discount = 100
             line_form.price_unit = 800
@@ -865,9 +864,9 @@ class TestAccountMoveInRefundOnchanges(AccountTestInvoicingCommon):
             # https://github.com/odoo/odoo/blob/385884afd31f25d61e99d139ecd4c574d99a1863/addons/purchase/views/account_move_views.xml#L26
             self.env.user.group_ids -= self.env.ref("purchase.group_purchase_manager")
             self.env.user.group_ids -= self.env.ref("purchase.group_purchase_user")
-        # invisible="state != 'draft' or move_type != 'in_invoice'"
-        # This is an in_refund invoice, `invoice_vendor_bill_id` is not supposed to be visible
-        # and therefore not supposed to be changed.
+        # `invoice_vendor_bill_id` carries
+        # invisible="state != 'draft' or move_type not in ('in_invoice', 'in_refund')";
+        # drop it so the Form can set the field on this refund whatever its state.
         view = self.env.ref("account.view_move_form")
         tree = etree.fromstring(view.arch)
         for node in tree.xpath('//field[@name="invoice_vendor_bill_id"]'):
@@ -971,7 +970,8 @@ class TestAccountMoveInRefundOnchanges(AccountTestInvoicingCommon):
         )
 
     def test_in_refund_write_1(self):
-        # Test creating an account_move with the least information.
+        # Create an account_move with the least information, then add the second
+        # line through write.
         move = self.env["account.move"].create(
             {
                 "move_type": "in_refund",
