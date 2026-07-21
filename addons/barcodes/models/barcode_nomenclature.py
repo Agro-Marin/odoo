@@ -1,8 +1,12 @@
+import logging
 import re
 
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError
 from odoo.libs.barcode import check_barcode_encoding, get_barcode_check_digit
+
+_logger = logging.getLogger(__name__)
+
 
 UPC_EAN_CONVERSIONS = [
     ('none', 'Never'),
@@ -163,6 +167,14 @@ class BarcodeNomenclature(models.Model):
             case 'sscc-96':
                 # Same as SSCC but we have to remove the filter.
                 barcode = self._convert_uri_sscc_data_into_package(barcode, data[1:])
+            case _:
+                # Every matched case above returns a list of result dicts
+                # (see the tests) - callers rely on that shape (len(),
+                # [0]['type'], etc). Returning the raw urn: string here for
+                # an unrecognized identifier would silently break that
+                # contract downstream, so return an empty list instead.
+                _logger.info("Unrecognized URI identifier %r in barcode %r", identifier, barcode)
+                barcode = []
         return barcode
 
     @api.model
