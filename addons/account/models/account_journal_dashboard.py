@@ -416,7 +416,7 @@ class AccountJournal(models.Model):
         return result
 
     def _get_sale_purchase_graph_data(self):
-        today = fields.Date.today()
+        today = fields.Date.context_today(self)
         lang_code = get_lang(self.env).code
         day_of_week = int(format_datetime(today, "e", locale=lang_code))
         first_day_of_week = today + timedelta(days=-day_of_week + 1)

@@ -1492,7 +1492,7 @@ class AccountChartTemplate(models.AbstractModel):
                         if rep_line.get("account_id")
                     ]:
                         local_account = self.env["account.account"].browse(
-                            existing_accounts[account_ids[0]]
+                            existing_accounts.get(account_ids[0])
                         )
                         existing_accounts[account_xml_id] = create_foreign_tax_account(
                             local_account,

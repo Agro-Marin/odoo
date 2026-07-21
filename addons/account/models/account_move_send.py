@@ -1154,17 +1154,12 @@ class AccountMoveSend(models.AbstractModel):
         # A safeguard in case the method is called directly, bypassing the wizards.
         self._check_move_constraints(moves)
         self._check_invoice_report(moves, **custom_settings)
-        assert (
-            all(
-                sending_method
-                in dict(
-                    self.env["res.partner"]._fields["invoice_sending_method"].selection
-                )
-                for sending_method in custom_settings.get("sending_methods", [])
-            )
-            if "sending_methods" in custom_settings
-            else True
-        )
+        if "sending_methods" in custom_settings and not all(
+            sending_method
+            in dict(self.env["res.partner"]._fields["invoice_sending_method"].selection)
+            for sending_method in custom_settings.get("sending_methods", [])
+        ):
+            raise ValidationError(_("Invalid sending method provided."))
 
     @api.model
     def _generate_and_send_invoices(
