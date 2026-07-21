@@ -1,9 +1,10 @@
 import logging
-import odoo.addons.auth_totp.controllers.home
 
 from odoo import http
 from odoo.exceptions import AccessDenied, UserError
 from odoo.http import request
+
+import odoo.addons.auth_totp.controllers.home
 
 _logger = logging.getLogger(__name__)
 
