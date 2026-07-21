@@ -52,7 +52,7 @@ registry.category("web_tour.tours").add("account_tax_group", {
             trigger: ".o_optional_columns_dropdown_toggle",
             run: "click",
         },
-        // Add First product
+        // Add a product line
         {
             content: "Add items",
             trigger:
@@ -75,9 +75,7 @@ registry.category("web_tour.tours").add("account_tax_group", {
             trigger: "input[data-field=invoice_date]",
             run: "edit 2025-12-01",
         },
-        // Save account.move
         ...stepUtils.saveForm(),
-        // Edit tax group amount
         {
             content: "Edit tax group amount",
             trigger: ".o_tax_group_edit",
@@ -98,7 +96,7 @@ registry.category("web_tour.tours").add("account_tax_group", {
             trigger: 'span[name="amount_total"]:contains("800")',
             run: "click",
         },
-        // Modify the quantity of the object
+        // Modify the invoice line quantity
         {
             content: "Select item quantity",
             trigger:
@@ -117,15 +115,13 @@ registry.category("web_tour.tours").add("account_tax_group", {
                 'div[name="invoice_line_ids"] tbody tr.o_data_row .o_list_number[name="quantity"] input',
             run: "press Enter",
         },
-        // Check new tax group value
         {
             content: "Check new value of tax group",
             trigger: '.o_tax_group_amount_value:contains("120")',
             run: "click",
         },
-        // Save form
         ...stepUtils.saveForm(),
-        // Check new tax group value
+        // The recomputed amount must survive the save
         {
             content: "Check new value of tax group",
             trigger: '.o_tax_group_amount_value:contains("120")',

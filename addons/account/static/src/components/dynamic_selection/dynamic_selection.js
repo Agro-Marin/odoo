@@ -26,8 +26,8 @@ export class DynamicSelectionField extends SelectionField {
     }
 
     /**
-     * In dynamic selection field, sometimes we can have no options available.
-     * This override handles that case by adding optional chaining when accessing the found options.
+     * Resolve the label from the filtered `options` rather than the field's full
+     * `selection` metadata, so a value that is not available renders empty.
      * @override
      */
     get string() {

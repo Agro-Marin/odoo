@@ -19,11 +19,7 @@ export class ProductLabelSectionAndNoteListRender extends SectionAndNoteListRend
     processAllColumns(allColumns, list) {
         allColumns = allColumns.map((column) => {
             // Only recompute the move_type-dependent default for columns the arch
-            // explicitly marks optional="conditional" (e.g. account.move lines);
-            // concrete show/hide values must be respected (e.g. sale order lines,
-            // which pin product_template_id as the default-visible product column).
-            // Reading column.optional is stable here because we return a shallow copy
-            // below instead of mutating the cached arch object across renders.
+            // marks optional="conditional"; concrete show/hide values are respected.
             if (
                 column["optional"] !== "conditional" ||
                 !this.conditionalColumns.includes(column["name"])

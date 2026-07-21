@@ -17,9 +17,7 @@ export class AutosaveMany2ManyTaxTagsField extends Many2ManyTaxTagsField {
         useRecordObserver(this.onRecordChange.bind(this));
     }
 
-    // The base binds `this.update` through the prototype chain (see
-    // Many2ManyTagsField.setup), so overriding it as a method is the supported
-    // way. Await super.update so the tag link is committed before we save.
+    // Await super.update so the tag link is committed before we save.
     async update(recordlist) {
         await super.update(recordlist);
         await this._saveOnUpdate();
