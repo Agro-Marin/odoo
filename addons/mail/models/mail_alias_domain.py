@@ -1,5 +1,6 @@
 from odoo import _, api, exceptions, fields, models
 from odoo.exceptions import UserError
+from odoo.tools import ormcache
 
 from odoo.addons.mail.models.mail_alias import dot_atom_text
 
@@ -185,6 +186,57 @@ class MailAliasDomain(models.Model):
                     )
                 )
 
+    @api.model
+    @ormcache(cache="stable")
+    def _get_config(self):
+        """Return every alias domain's routing-relevant values, cached.
+
+        This is a one-to-a-handful-of-rows, effectively immutable configuration
+        table, yet ``search([])`` against it was issued from a dozen call sites
+        -- four or more times for a single inbound ``message_process``, and
+        three times per composer send. Cached like ``ir.config_parameter``
+        (``cache="stable"``, invalidated from CRUD below).
+
+        Read as sudo and cached registry-wide on purpose: the model carries no
+        record rule and is readable by every internal user, so the values are
+        not caller-dependent. They are deployment configuration (the catchall /
+        bounce / default-from addresses this database sends from), not user
+        data.
+
+        :return: tuple of (ids, names, bounce_emails, catchall_emails,
+            default_from_emails), each a tuple, ordered by ``_order``.
+        """
+        domains = self.sudo().search([])
+        return (
+            tuple(domains.ids),
+            tuple(filter(None, domains.mapped("name"))),
+            tuple(filter(None, domains.mapped("bounce_email"))),
+            tuple(filter(None, domains.mapped("catchall_email"))),
+            tuple(filter(None, domains.mapped("default_from_email"))),
+        )
+
+    @api.model
+    def _get_domain_names(self):
+        return self._get_config()[1]
+
+    @api.model
+    def _get_bounce_emails(self):
+        return self._get_config()[2]
+
+    @api.model
+    def _get_catchall_emails(self):
+        return self._get_config()[3]
+
+    @api.model
+    def _get_default_from_emails(self):
+        return self._get_config()[4]
+
+    @api.model
+    def _get_default_domain(self):
+        """The first alias domain per ``_order``, as a recordset (may be void)."""
+        ids = self._get_config()[0]
+        return self.browse(ids[:1])
+
     @api.model_create_multi
     def create(self, vals_list):
         """Sanitize bounce_alias / catchall_alias / default_from"""
@@ -192,6 +244,7 @@ class MailAliasDomain(models.Model):
             self._sanitize_configuration(vals)
 
         alias_domains = super().create(vals_list)
+        self.env.registry.clear_cache("stable")
         alias_domains._check_default_from_not_used_by_users()
 
         # alias domain init: populate companies and aliases at first creation
@@ -214,8 +267,15 @@ class MailAliasDomain(models.Model):
         """Sanitize bounce_alias / catchall_alias / default_from"""
         self._sanitize_configuration(vals)
         ret = super().write(vals)
+        # every cached value derives from stored fields of this model
+        # (name / bounce_alias / catchall_alias / default_from)
+        self.env.registry.clear_cache("stable")
         self._check_default_from_not_used_by_users()
         return ret
+
+    def unlink(self):
+        self.env.registry.clear_cache("stable")
+        return super().unlink()
 
     def _check_default_from_not_used_by_users(self):
         """Check that the default from is not used by a personal mail servers."""
@@ -270,12 +330,8 @@ class MailAliasDomain(models.Model):
         filtered_emails = [e for e in email_list if e and "@" in e]
         if not filtered_emails:
             return filtered_emails
-        all_domains = self.search([])
-        aliases = set(
-            all_domains.mapped("bounce_email")
-            + all_domains.mapped("catchall_email")
-            + all_domains.mapped("default_from_email")
-        )
+        _ids, _names, bounces, catchalls, default_froms = self._get_config()
+        aliases = set(bounces + catchalls + default_froms)
 
         # Get allowed domains and convert to a set for O(1) lookup
         catchall_params = (
@@ -286,7 +342,7 @@ class MailAliasDomain(models.Model):
         )
         catchall_domains_allowed = set(filter(None, catchall_params.split(",")))
         if catchall_domains_allowed:
-            catchall_domains_allowed.update(all_domains.mapped("name"))
+            catchall_domains_allowed.update(_names)
             email_localparts_tocheck = [
                 email.partition("@")[0]
                 for email in filtered_emails

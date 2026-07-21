@@ -346,3 +346,65 @@ class TestPushQueueHardeningV9(MailCommon):
         self.assertIn(
             push, self.env["mail.push"].search(self.env["mail.push"]._get_due_domain())
         )
+
+
+@tagged("-at_install", "post_install", "mail_hardening_v9")
+class TestAliasDomainCacheV9(MailCommon):
+    """``mail.alias.domain`` is cached registry-wide; it must never go stale."""
+
+    def test_cached_config_matches_a_live_read(self):
+        AliasDomain = self.env["mail.alias.domain"]
+        domains = AliasDomain.sudo().search([])
+        self.assertEqual(AliasDomain._get_domain_names(), tuple(domains.mapped("name")))
+        self.assertEqual(
+            AliasDomain._get_catchall_emails(), tuple(domains.mapped("catchall_email"))
+        )
+        self.assertEqual(
+            AliasDomain._get_bounce_emails(), tuple(domains.mapped("bounce_email"))
+        )
+        self.assertEqual(AliasDomain._get_default_domain(), domains[:1])
+
+    def test_cache_is_invalidated_on_create(self):
+        AliasDomain = self.env["mail.alias.domain"]
+        AliasDomain._get_config()  # warm
+        AliasDomain.create(
+            {"name": "v9-cache-new.com", "catchall_alias": "cc", "bounce_alias": "bb"}
+        )
+        self.assertIn("v9-cache-new.com", AliasDomain._get_domain_names())
+        self.assertIn("cc@v9-cache-new.com", AliasDomain._get_catchall_emails())
+
+    def test_cache_is_invalidated_on_write(self):
+        AliasDomain = self.env["mail.alias.domain"]
+        domain = AliasDomain.create(
+            {"name": "v9-cache-w.com", "catchall_alias": "cc", "bounce_alias": "bb"}
+        )
+        AliasDomain._get_config()  # warm
+        domain.write({"catchall_alias": "renamed"})
+        self.assertIn("renamed@v9-cache-w.com", AliasDomain._get_catchall_emails())
+        self.assertNotIn("cc@v9-cache-w.com", AliasDomain._get_catchall_emails())
+
+    def test_cache_is_invalidated_on_unlink(self):
+        AliasDomain = self.env["mail.alias.domain"]
+        domain = AliasDomain.create(
+            {"name": "v9-cache-u.com", "catchall_alias": "cc", "bounce_alias": "bb"}
+        )
+        AliasDomain._get_config()  # warm
+        self.assertIn("v9-cache-u.com", AliasDomain._get_domain_names())
+        domain.unlink()
+        self.assertNotIn("v9-cache-u.com", AliasDomain._get_domain_names())
+
+    def test_gateway_sees_a_freshly_renamed_catchall(self):
+        """End-to-end: a renamed catchall must route on the very next mail."""
+        self.mail_alias_domain.write({"catchall_alias": "v9freshcatch"})
+        new_catchall = self.mail_alias_domain.catchall_email
+        self.assertTrue(new_catchall.startswith("v9freshcatch@"))
+        with self.mock_mail_gateway():
+            self.env["mail.thread"].message_process(
+                None,
+                "From: Outsider <outsider@ext.com>\r\n"
+                f"To: {new_catchall}\r\nSubject: Fresh\r\n"
+                "Message-Id: <v9-fresh@ext>\r\n\r\nbody\r\n",
+            )
+        self.assertEqual(
+            len(self._new_mails), 1, "the renamed catchall must be detected at once"
+        )
