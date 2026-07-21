@@ -1805,7 +1805,7 @@ class AccountChartTemplate(models.AbstractModel):
             if "/" in key:
                 return []
             if model_fields:
-                if model_fields[key].type in ("boolean", "int", "float"):
+                if model_fields[key].type in ("boolean", "integer", "float"):
                     return ast.literal_eval(value)
                 if model_fields[key].type == "char":
                     return value.strip()
