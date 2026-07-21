@@ -63,8 +63,9 @@ class EndpointRateLimiter:
         bucket = bucket_model.get_or_create_bucket(self.endpoint, self.company_id)
 
         # Consume one token atomically. The bucket row is shared across
-        # workers and locked with SELECT FOR UPDATE SKIP LOCKED, so this stays
-        # correct in multi-worker, multi-server deployments.
+        # workers and locked with SELECT ... FOR UPDATE (SKIP LOCKED in the
+        # default fail-open mode), so this stays correct in multi-worker,
+        # multi-server deployments.
         allowed = bucket.consume_token(strict=strict)
 
         if not allowed:

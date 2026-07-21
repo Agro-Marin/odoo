@@ -40,10 +40,7 @@ class CredentialAccessRateLimiter:
             operation) tuples to track; oldest entries are evicted when the
             limit is reached. Default 10000 keys (~1-5MB depending on window).
         """
-        # OrderedDict gives O(1) LRU eviction via popitem(last=False). The
-        # previous implementation used a plain defaultdict(list) plus a linear
-        # scan to find the oldest-most-recent-timestamp, which was O(n * m)
-        # per eviction (n = number of keys, m = timestamps per key).
+        # OrderedDict gives O(1) LRU eviction via popitem(last=False).
         # Key layout: (cred_id, user_id, operation) -> list of timestamps.
         self._attempts: OrderedDict[tuple, list] = OrderedDict()
         self._lock = threading.RLock()
@@ -79,8 +76,7 @@ class CredentialAccessRateLimiter:
             now = fields.Datetime.now()
             window_start = now - timedelta(minutes=window_minutes)
 
-            # Explicit .get() — OrderedDict doesn't auto-insert on lookup
-            # (defaultdict did, which was the source of a prior eviction bug).
+            # Explicit .get() — OrderedDict doesn't auto-insert on lookup.
             existing = self._attempts.get(key, [])
 
             # Remove attempts outside the window (cleanup)
@@ -149,7 +145,6 @@ class CredentialAccessRateLimiter:
 
         # popitem(last=False) is O(1) and pops the LRU key, thanks to the
         # move_to_end that check_rate_limit runs on every successful record.
-        # The previous implementation scanned all keys (O(n * m)) to find it.
         oldest_key, _timestamps = self._attempts.popitem(last=False)
         _logger.debug(
             "Rate limiter evicted LRU key %s (max_keys=%d reached)",
