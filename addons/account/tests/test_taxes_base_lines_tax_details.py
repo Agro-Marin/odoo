@@ -12,9 +12,8 @@ class TestTaxesBaseLinesTaxDetails(TestTaxCommon):
         cls.env.company.tax_calculation_rounding_method = "round_globally"
 
     def test_dispatch_delta_on_base_lines(self):
-        """Make sure that the base line delta is dispatched evenly on base lines.
-        Needed for BIS3 rule PEPPOL-EN16931-R120.
-        """
+        """Check that the base line delta is dispatched evenly on base lines."""
+        # Even dispatching is required by BIS3 rule PEPPOL-EN16931-R120.
         tax_21 = self.percent_tax(21.0)
         document = self.populate_document(
             self.init_document(

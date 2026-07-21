@@ -41,7 +41,7 @@ class StructuredReferenceTest(TransactionCase):
         # Validates edge case where result of % 97 = 0 (check number is 97)
         self.assertTrue(is_valid_structured_reference_be("020343053497"))
         # ...and the check number is 97, never 00: applying `% 97` to the check
-        # field too (the previous behaviour) wrongly accepted "00" here.
+        # field too would wrongly accept "00" here.
         self.assertFalse(is_valid_structured_reference_be("020343053400"))
         # A tampered check that is >= 97 must be rejected even though it shares
         # the same residue mod 97 (98 % 97 == 1 == base % 97 for this base).
@@ -161,7 +161,7 @@ class StructuredReferenceTest(TransactionCase):
         # Accepts 16 digits
         self.assertTrue(is_valid_structured_reference_nl("5000056789012345"))
 
-        # Accepts particular chase (check = 11 or 10)
+        # Accepts particular case (check = 11 or 10)
         self.assertTrue(
             is_valid_structured_reference_nl("0123456788")
         )  # Check of 123456788 == 11 then check = 0

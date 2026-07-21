@@ -27,10 +27,9 @@ def _load_file(
 
 @standalone("all_l10n")
 def test_all_l10n(env):
-    """This test will install all the l10n_* modules.
-    As the module install is not yet fully transactional, the modules will
-    remain installed after the test.
-    """
+    """Install all the l10n_* modules and load their charts of accounts."""
+    # Module installation is not yet fully transactional, so the modules remain
+    # installed after the test.
 
     try_loading = type(env["account.chart.template"]).try_loading
 
@@ -61,7 +60,6 @@ def test_all_l10n(env):
     )
     pre_mods.button_immediate_install()
 
-    # Install the requirements
     _logger.info("Installing all l10n modules")
     l10n_mods = env["ir.module.module"].search(
         [
@@ -118,7 +116,7 @@ def test_all_l10n(env):
             )
             idxs.append(idxname)
 
-    # Install Charts of Accounts
+    # Create one company per chart template that is not loaded yet
     _logger.info("Loading chart of account")
     already_loaded_codes = set(env["res.company"].search([]).mapped("chart_template"))
     not_loaded_codes = [
@@ -145,9 +143,7 @@ def test_all_l10n(env):
     start = time.time()
     env.cr.execute("ANALYZE")
     logger = logging.getLogger("odoo.loading")
-    logger.runbot(
-        "ANALYZE took %s seconds", time.time() - start
-    )  # not sure this one is useful
+    logger.runbot("ANALYZE took %s seconds", time.time() - start)
     for (template_code, _template), company in zip(
         not_loaded_codes, companies, strict=False
     ):
