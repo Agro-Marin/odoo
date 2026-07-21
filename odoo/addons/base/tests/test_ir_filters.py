@@ -512,6 +512,95 @@ class TestConstrainsValidation(FiltersCase):
 
 
 @tagged("post_install", "-at_install")
+class TestDynamicDomainValidation(FiltersCase):
+    """IRF-L3: the web client saves favorite domains *unevaluated* so they stay
+    dynamic (``uid``, ``context_today()``, ...). Validation is structural — it
+    must accept these expressions while still rejecting malformed shapes and
+    non-whitelisted names, so one bad blob cannot poison the shared dropdown.
+    """
+
+    # Real payloads captured from "Save current search" in the web client.
+    DYNAMIC_UID_DOMAIN = '[("create_uid", "=", uid)]'
+    DYNAMIC_DATE_DOMAIN = (
+        '[("activity_date", ">=", '
+        '(context_today() - datetime.timedelta(days = 30)).strftime("%Y-%m-%d"))]'
+    )
+
+    def _create_dynamic(self, domain):
+        return self.env["ir.filters"].create(
+            {"name": "dynamic", "model_id": "res.partner", "domain": domain}
+        )
+
+    def test_create_filter_accepts_dynamic_uid_domain(self):
+        ir_filter = self.env["ir.filters"].create_filter(
+            {
+                "name": "My Document(s)",
+                "model_id": "ir.attachment",
+                "domain": self.DYNAMIC_UID_DOMAIN,
+                "context": "{}",
+            }
+        )
+        self.assertEqual(ir_filter.domain, self.DYNAMIC_UID_DOMAIN)
+
+    def test_create_filter_accepts_dynamic_date_domain(self):
+        ir_filter = self.env["ir.filters"].create_filter(
+            {
+                "name": "Late Activities",
+                "model_id": "res.partner",
+                "domain": self.DYNAMIC_DATE_DOMAIN,
+                "context": "{}",
+            }
+        )
+        self.assertEqual(ir_filter.domain, self.DYNAMIC_DATE_DOMAIN)
+
+    def test_copy_dynamic_row_succeeds(self):
+        # The @api.constrains re-validates domain on copy; a (legacy) dynamic
+        # row must remain copyable.
+        ir_filter = self._create_dynamic(self.DYNAMIC_UID_DOMAIN)
+        copied = ir_filter.copy()
+        self.assertEqual(copied.domain, self.DYNAMIC_UID_DOMAIN)
+
+    def test_write_sort_on_dynamic_row_succeeds(self):
+        # Writing sort triggers the constraint, which re-validates all three
+        # fields together — the untouched dynamic domain must not raise.
+        ir_filter = self._create_dynamic(self.DYNAMIC_DATE_DOMAIN)
+        ir_filter.write({"sort": '["name desc"]'})
+        self.assertEqual(ir_filter.sort, '["name desc"]')
+
+    def test_write_unvalidated_fields_on_dynamic_row_succeeds(self):
+        # name/is_default are outside the constraint's trigger fields.
+        ir_filter = self._create_dynamic(self.DYNAMIC_UID_DOMAIN)
+        ir_filter.write({"name": "renamed", "is_default": True})
+        self.assertEqual(ir_filter.name, "renamed")
+
+    def test_rejects_truncated_domain(self):
+        with self.assertRaises(ValidationError):
+            self.env["ir.filters"].create_filter(
+                {"name": "truncated", "model_id": "res.partner", "domain": "[("}
+            )
+
+    def test_rejects_top_level_non_list(self):
+        with self.assertRaises(ValidationError):
+            self.env["ir.filters"].create_filter(
+                {"name": "dict", "model_id": "res.partner", "domain": "{'a': 1}"}
+            )
+
+    def test_rejects_non_whitelisted_name(self):
+        hostile = "[('a','=',__import__('os').system('x'))]"
+        with self.assertRaises(ValidationError):
+            self.env["ir.filters"].create_filter(
+                {"name": "hostile", "model_id": "res.partner", "domain": hostile}
+            )
+        # The @api.constrains backstop must reject it on raw create too.
+        with self.assertRaises(ValidationError):
+            self._create_dynamic(hostile)
+
+    def test_static_domain_still_accepted(self):
+        ir_filter = self._create_dynamic("[('is_company', '=', True)]")
+        self.assertEqual(ir_filter._get_eval_domain(), [("is_company", "=", True)])
+
+
+@tagged("post_install", "-at_install")
 class TestCrossUserWrite(FiltersCase):
     """IRF-T1: pin the cross-user write contract. Absent a record rule,
     ``ir.filters`` grants full CRUD to ``group_user``, so any internal user can
