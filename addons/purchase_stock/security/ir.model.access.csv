@@ -5,10 +5,12 @@ access_stock_location_purchase_user,stock.location,stock.model_stock_location,pu
 access_stock_warehouse_purchase_user,stock.warehouse,stock.model_stock_warehouse,purchase.group_purchase_user,1,0,0,0
 access_stock_picking_purchase_user,stock.picking,stock.model_stock_picking,purchase.group_purchase_user,1,1,1,1
 access_stock_move_purchase_user,stock.move,stock.model_stock_move,purchase.group_purchase_user,1,1,1,0
+access_stock_move_line_purchase_user,stock.move.line,stock.model_stock_move_line,purchase.group_purchase_user,1,1,1,1
 access_stock_location_purchase_user_manager,stock.location,stock.model_stock_location,purchase.group_purchase_manager,1,0,0,0
 access_stock_warehouse_purchase_user_manager,stock.warehouse,stock.model_stock_warehouse,purchase.group_purchase_manager,1,0,0,0
 access_stock_picking_purchase_user_manager,stock.picking,stock.model_stock_picking,purchase.group_purchase_manager,1,1,1,1
 access_stock_move_purchase_user_manager,stock.move,stock.model_stock_move,purchase.group_purchase_manager,1,1,1,1
+access_stock_move_line_purchase_user_manager,stock.move.line,stock.model_stock_move_line,purchase.group_purchase_manager,1,1,1,1
 access_stock_warehouse_orderpoint_manager,stock.warehouse.orderpoint,stock.model_stock_warehouse_orderpoint,purchase.group_purchase_manager,1,0,0,0
 access_stock_warehouse_orderpoint_user,stock.warehouse.orderpoint,stock.model_stock_warehouse_orderpoint,purchase.group_purchase_user,1,0,0,0
 access_report_purchase_order,vendor.delay.report,model_vendor_delay_report,purchase.group_purchase_manager,1,0,0,0
