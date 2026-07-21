@@ -48,15 +48,31 @@ export const standardErrorDialogProps = {
     close: Function, // prop added by the Dialog service
 };
 
+// Keys are the SERVER-side serialized exception names: serialize_exception
+// (odoo/http/helpers.py) emits `type(exc).__module__ + "." + type(exc).__name__`.
+// This fork renamed MailDeliveryException -> MailDeliveryError and moved
+// ServerActionWithWarningsError from ir_actions.py to ir_actions_server.py, so
+// the fork names below are the ones actually emitted; the upstream names are
+// kept as aliases to defend third-party emitters that still raise/serialize
+// the old classes (the Python alias `MailDeliveryException = MailDeliveryError`
+// keeps old imports working, but `type(exc).__name__` always yields the new
+// name for exceptions raised through it).
 /** @type {Map<string, string>} */
 export const odooExceptionTitleMap = new Map(
     Object.entries({
+        "odoo.addons.base.models.ir_mail_server.MailDeliveryError":
+            _t("MailDeliveryError"),
+        // Legacy upstream alias of MailDeliveryError (renamed in this fork).
         "odoo.addons.base.models.ir_mail_server.MailDeliveryException": _t(
             "MailDeliveryException",
         ),
         "odoo.exceptions.AccessDenied": _t("Access Denied"),
         "odoo.exceptions.MissingError": _t("Missing Record"),
         "odoo.addons.web.controllers.action.MissingActionError": _t("Missing Action"),
+        "odoo.addons.base.models.ir_actions_server.ServerActionWithWarningsError":
+            _t("Invalid Operation"),
+        // Legacy upstream location of ServerActionWithWarningsError (moved to
+        // ir_actions_server.py in this fork).
         "odoo.addons.base.models.ir_actions.ServerActionWithWarningsError":
             _t("Invalid Operation"),
         "odoo.exceptions.UserError": _t("Invalid Operation"),
@@ -247,6 +263,12 @@ registry
     .add("odoo.exceptions.AccessError", WarningDialog)
     .add("odoo.exceptions.MissingError", WarningDialog)
     .add("odoo.addons.web.controllers.action.MissingActionError", WarningDialog)
+    .add(
+        // Fork name: the class lives in ir_actions_server.py here (upstream has
+        // it in ir_actions.py — kept below as an alias for third-party emitters).
+        "odoo.addons.base.models.ir_actions_server.ServerActionWithWarningsError",
+        WarningDialog,
+    )
     .add(
         "odoo.addons.base.models.ir_actions.ServerActionWithWarningsError",
         WarningDialog,
