@@ -123,7 +123,7 @@ class Base(models.AbstractModel):
         if not default_domain and any(
             not comp.alias_domain_id for comp in all_companies
         ):
-            default_domain = self.env["mail.alias.domain"].search([], limit=1)
+            default_domain = self.env["mail.alias.domain"]._get_default_domain()
 
         return {
             record.id: (record_companies[record.id].alias_domain_id or default_domain)

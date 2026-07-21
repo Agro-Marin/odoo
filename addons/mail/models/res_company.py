@@ -5,7 +5,7 @@ class ResCompany(models.Model):
     _inherit = "res.company"
 
     def _default_alias_domain_id(self):
-        return self.env["mail.alias.domain"].search([], limit=1)
+        return self.env["mail.alias.domain"]._get_default_domain()
 
     alias_domain_id = fields.Many2one(
         "mail.alias.domain",
