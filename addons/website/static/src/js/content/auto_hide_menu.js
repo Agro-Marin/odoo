@@ -9,9 +9,40 @@ import { Dropdown } from "@web/libs/bootstrap";
 
 const BREAKPOINT_SIZES = { sm: "575", md: "767", lg: "991", xl: "1199", xxl: "1399" };
 
-let ignoreDOMMutations;
-export function setupIgnoreDOMMutations(fn) {
-    ignoreDOMMutations = fn;
+// Runtime channel for the page editor's history guard, published by
+// `website_edit_service.js` while the builder is open (see `EDIT_HOOKS` there).
+//
+// It has to be a property of the shared `window` rather than an imported
+// symbol, because the two files are in different asset bundles and neither a
+// module import nor a shared registry can bridge them:
+//
+// - This file ships in `web.assets_frontend_minimal`, which esbuild builds with
+//   `--bundle`. An export consumed only by another bundle is dead code inside
+//   its own, so tree-shaking removes it -- which is exactly what happened to
+//   the previous `setupIgnoreDOMMutations` export: the consumer's import
+//   resolved to `undefined` and threw "is not a function", breaking editor
+//   start-up.
+// - The import map cannot redirect the specifier to a copy that kept the
+//   export: by the time the builder bundle is lazily loaded into the iframe,
+//   the specifier is already resolved, and the browser drops a conflicting
+//   later rule ("An import map rule for specifier '...' was removed").
+// - `@web/core/registry` is not a way out either: `frontend_minimal` inlines
+//   its own copy of the registry, so the two bundles hold different instances.
+//
+// The window is the one thing both bundles provably share: same document, same
+// browsing context, no module identity involved.
+const EDIT_HOOKS_KEY = "__odooWebsiteEditHooks";
+
+/**
+ * Run `fn` without the page editor recording its DOM mutations as user edits.
+ *
+ * The "more" dropdown this file builds is a layout artefact, not content, so
+ * while the builder is open its mutations must not enter the edit history.
+ * Outside the builder there is no hook and `fn` simply runs.
+ */
+function withoutEditorTracking(fn) {
+    const ignoreDOMMutations = window[EDIT_HOOKS_KEY]?.ignoreDOMMutations;
+    return ignoreDOMMutations ? ignoreDOMMutations(fn) : fn();
 }
 
 /**
@@ -142,11 +173,7 @@ async function autoHideMenu(el, options) {
     }
 
     function _adapt() {
-        if (ignoreDOMMutations) {
-            ignoreDOMMutations(__adapt);
-            return;
-        }
-        __adapt();
+        withoutEditorTracking(__adapt);
     }
 
     function __adapt() {

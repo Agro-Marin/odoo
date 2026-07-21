@@ -5,7 +5,19 @@ import { patch } from "@web/core/utils/patch";
 import { PublicRoot } from "@web/legacy/js/public/public_root";
 import { Colibri } from "@web/public/colibri";
 import { Interaction } from "@web/public/interaction";
-import { setupIgnoreDOMMutations } from "@website/js/content/auto_hide_menu";
+
+// Runtime channel for public frontend code that produces layout-only DOM
+// mutations and must keep them out of the edit history (currently
+// `auto_hide_menu.js`, whose "more" dropdown is layout, not content).
+//
+// Deliberately a `window` property and not an exported/imported symbol: the
+// consumer ships in `web.assets_frontend_minimal` while this file ships in
+// `website.assets_inside_builder_iframe`, and esbuild tree-shakes any export
+// only another bundle consumes. The import map cannot patch over it either --
+// by the time the builder bundle is lazily loaded the specifier is already
+// resolved, so the conflicting later rule is dropped. See the matching
+// comment in auto_hide_menu.js.
+const EDIT_HOOKS_KEY = "__odooWebsiteEditHooks";
 
 export function buildEditableInteractions(builders) {
     const result = [];
@@ -286,7 +298,9 @@ export const websiteEditService = {
                 removePatch();
             }
             patches.length = 0;
-            setupIgnoreDOMMutations(null);
+            // Withdraw the guard: with the editor gone, public code must go back
+            // to calling its adapt function directly.
+            delete window[EDIT_HOOKS_KEY];
         };
         const applyAction = (actionId, spec) => {
             shared.builderActions.applyAction(actionId, spec);
@@ -335,7 +349,10 @@ export const websiteEditService = {
             );
             Object.assign(shared, ev.shared);
             historyCallbacks.ignoreDOMMutations = shared.history.ignoreDOMMutations;
-            setupIgnoreDOMMutations(shared.history.ignoreDOMMutations);
+            window[EDIT_HOOKS_KEY] = {
+                ...window[EDIT_HOOKS_KEY],
+                ignoreDOMMutations: shared.history.ignoreDOMMutations,
+            };
         };
 
         window.parent.document.addEventListener("edit_page", handleEditPage);
