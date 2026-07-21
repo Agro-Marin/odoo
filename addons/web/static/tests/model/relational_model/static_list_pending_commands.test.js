@@ -72,8 +72,15 @@ function makeList({ loadRecords = async () => [] } = {}) {
                 data: { ...data },
                 _changes: {},
                 _discard() {},
-                _applyChanges(changes) {
-                    Object.assign(this.data, changes);
+                // Mirrors RelationalRecord._applyChanges(changes, serverChanges):
+                // the command engine routes UPDATE payloads through the raw
+                // server slot (second argument).
+                _applyChanges(changes, serverChanges = {}) {
+                    Object.assign(
+                        this.data,
+                        changes,
+                        this._parseServerValues(serverChanges),
+                    );
                 },
                 _applyValues(values) {
                     if (values) {

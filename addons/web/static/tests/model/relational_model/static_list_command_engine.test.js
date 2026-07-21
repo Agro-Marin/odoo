@@ -50,8 +50,15 @@ function makeList(overrides = {}) {
                 resId: data.id || false,
                 _virtualId: virtualId,
                 activeFields: {},
-                _applyChanges(changes) {
-                    Object.assign(this.data, changes);
+                // Mirrors RelationalRecord._applyChanges(changes, serverChanges):
+                // slot 1 takes already-parsed user changes, slot 2 takes RAW
+                // server values which the record parses itself.
+                _applyChanges(changes, serverChanges = {}) {
+                    Object.assign(
+                        this.data,
+                        changes,
+                        this._parseServerValues(serverChanges),
+                    );
                 },
                 _applyValues(values) {
                     if (values) {
@@ -97,8 +104,9 @@ function addRecord(list, resId) {
         _virtualId: null,
         activeFields: {},
         data: { id: resId },
-        _applyChanges(changes) {
-            Object.assign(this.data, changes);
+        // Same two-slot contract as the makeList mock above.
+        _applyChanges(changes, serverChanges = {}) {
+            Object.assign(this.data, changes, this._parseServerValues(serverChanges));
         },
         _applyValues(values) {
             if (values) {
@@ -455,6 +463,30 @@ describe("applyCommands — UPDATE", () => {
         expect(list._unknownRecordCommands[20]).toEqual([
             [UPDATE, 20, { lines: [[5, 0, 0]] }],
         ]);
+    });
+
+    test("routes UPDATE payloads through the SERVER slot of _applyChanges, unparsed", () => {
+        // Regression: the engine used to pre-parse the payload and pass it as
+        // the USER-changes slot (first argument). For a char/text the server
+        // set to false, the user slot stored the parsed "" in _textValues, so
+        // a row modifier like [("field", "=", False)] mis-evaluated until
+        // reload. The server slot (second argument) parses the values itself
+        // and snapshots them RAW, preserving false-vs-"" provenance.
+        const list = makeList();
+        const record = addRecord(list, 20);
+        list.fields = { name: { type: "char" } };
+        record.activeFields = { name: {} };
+        const calls = [];
+        record._applyChanges = (changes, serverChanges = {}) => {
+            calls.push([changes, serverChanges]);
+        };
+
+        applyCommands(list, [[UPDATE, 20, { name: false }]]);
+
+        expect(calls.length).toBe(1);
+        // User slot empty; raw (unparsed) server value in the server slot.
+        expect(calls[0][0]).toEqual({});
+        expect(calls[0][1]).toEqual({ name: false });
     });
 
     test("emits UPDATE command in _commands", () => {

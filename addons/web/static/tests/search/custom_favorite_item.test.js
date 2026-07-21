@@ -14,6 +14,7 @@ import {
     onRpc,
     saveAndEditFavorite,
     saveFavorite,
+    toggleMenuItem,
     toggleSaveFavorite,
     toggleSearchBarMenu,
     validateSearch,
@@ -150,6 +151,45 @@ test("save and edit filter", async () => {
         "CLEAR-CACHES",
         "Edit favorite",
     ]);
+});
+
+test("filter context overriding a user-context key survives into the saved favorite", async () => {
+    // The search context is seeded with user.context (lang "en", tz "taht",
+    // uid 7 in tests). A filter overriding such a key NAME with a DIFFERENT
+    // value is intentional and must reach the ir.filters record; a filter
+    // seeding the SAME value is redundant and stays stripped.
+    onRpc("create_filter", ({ args, route }) => {
+        expect.step(route);
+        const irFilter = args[0];
+        expect(irFilter.context.lang).toBe("fr_FR", {
+            message: "differing override of a user-context key must be kept",
+        });
+        expect("tz" in irFilter.context).toBe(false, {
+            message: "same-value user-context key must still be stripped",
+        });
+        expect("uid" in irFilter.context).toBe(false);
+        return [7]; // fake serverSideId
+    });
+
+    await mountWithSearch(SearchBar, {
+        resModel: "foo",
+        searchMenuTypes: ["filter", "favorite"],
+        searchViewId: false,
+        searchViewArch: `
+            <search>
+                <filter name="french" string="French" context="{'lang': 'fr_FR'}"/>
+                <filter name="same_tz" string="Same TZ" context="{'tz': 'taht'}"/>
+            </search>
+        `,
+    });
+
+    await toggleSearchBarMenu();
+    await toggleMenuItem("French");
+    await toggleMenuItem("Same TZ");
+    await toggleSaveFavorite();
+    await editFavoriteName("My favorite");
+    await saveFavorite();
+    expect.verifySteps(["/web/dataset/call_kw/ir.filters/create_filter"]);
 });
 
 test("dynamic filters are saved dynamic", async () => {

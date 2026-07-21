@@ -1182,7 +1182,10 @@ export class SearchModel extends EventBus {
      * @param {Object} irFilter
      */
     _irFilterToFavorite(irFilter) {
-        return irFilterToFavorite(irFilter);
+        // Passing the field metadata screens out group_by entries naming
+        // removed fields (see irFilterToFavorite) — favorites only; arch-
+        // defined groupbys don't go through this path.
+        return irFilterToFavorite(irFilter, this.searchViewFields);
     }
 
     async _notify() {

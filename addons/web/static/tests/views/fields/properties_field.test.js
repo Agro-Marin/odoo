@@ -2836,6 +2836,70 @@ test("properties: onChange return new properties", async () => {
     expect("[name='properties'] .o_property_field input").toHaveValue("Hello");
 });
 
+test.tags("desktop");
+test("onchange rewriting a many2many property updates tags and save payload", async () => {
+    // Regression: on change-driven parses the cached per-property StaticList
+    // was reused as-is and the onchange-sent membership silently ignored —
+    // the rendered tags (list-view property column) stayed stale until
+    // reload. The membership must be reconciled in place, and the save must
+    // persist the NEW membership.
+    const definition = {
+        name: "property_m2m",
+        string: "Users",
+        type: "many2many",
+        comodel: "res.users",
+        domain: "[]",
+    };
+    ResCompany._records[0].definitions = [definition];
+    for (const record of Partner._records) {
+        record.properties = { property_m2m: false };
+    }
+    Partner._records[0].properties = { property_m2m: [[1, "Alice"]] };
+    Partner._onChanges.display_name = (record) => {
+        record.properties = [{ ...definition, value: [[2, "Bob"]] }];
+    };
+
+    onRpc("has_access", () => true);
+    onRpc("web_save", ({ args }) => {
+        expect.step("web_save");
+        const prop = args[1].properties.find((p) => p.name === "property_m2m");
+        // The save persists the onchange-sent membership, not the stale one.
+        expect(prop.value).toEqual([[2, "Bob"]]);
+    });
+
+    await mountView({
+        resModel: "partner",
+        type: "list",
+        arch: /* xml */ `
+            <list editable="bottom">
+                <field name="display_name"/>
+                <field name="company_id"/>
+                <field name="properties"/>
+            </list>`,
+    });
+    // Enable the optional property column (list property columns consume the
+    // per-property StaticList — the datapoint that used to go stale).
+    await contains(".o_optional_columns_dropdown_toggle").click();
+    await contains(".o-dropdown--menu input[type='checkbox']").click();
+    const tagsSelector =
+        ".o_data_row:eq(0) [name='properties.property_m2m'] .o_tag_badge_text";
+    expect(queryAllTexts(tagsSelector)).toEqual(["Alice"]);
+
+    // Edit display_name (no confirm — Enter would save the row); commit the
+    // field by clicking a sibling cell so the record's onchange runs and
+    // rewrites the m2m property while the row stays in edition.
+    await contains(".o_data_row:eq(0) [name='display_name']").click();
+    await contains(".o_data_row:eq(0) [name='display_name'] input").edit("new name", {
+        confirm: false,
+    });
+    await contains(".o_data_row:eq(0) [name='company_id']").click();
+    await animationFrame();
+    expect(queryAllTexts(tagsSelector)).toEqual(["Bob"]);
+
+    await contains(".o_list_button_save").click();
+    expect.verifySteps(["web_save"]);
+});
+
 test("new property, change record, change property type", async () => {
     for (const record of Partner._records) {
         record.properties = {};
