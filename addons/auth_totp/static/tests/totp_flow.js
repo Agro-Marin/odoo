@@ -161,7 +161,7 @@ registry.category("web_tour.tours").add('totp_login_enabled', {
     async run(helpers) {
         // set the offset in the past, so the token will be always wrong
         await rpc("/totphook", { offset: -2 });
-        helpers.edit("123456");
+        await helpers.edit("123456");
     }
 }, {
     trigger: `button:contains("Log in")`,
@@ -176,7 +176,7 @@ registry.category("web_tour.tours").add('totp_login_enabled', {
     async run(helpers) {
         // send the same token as the one last one from the setup tour
         const token = await rpc("/totphook", { offset: 0 });
-        helpers.edit(token);
+        await helpers.edit(token);
     }
 }, {
     trigger: `button:contains("Log in")`,
@@ -190,7 +190,7 @@ registry.category("web_tour.tours").add('totp_login_enabled', {
     trigger: 'input[name=totp_token]',
     async run(helpers) {
         const token = await rpc('/totphook', { offset: 1 });
-        helpers.edit(token);
+        await helpers.edit(token);
     }
 },
 {
@@ -236,7 +236,7 @@ registry.category("web_tour.tours").add('totp_login_device', {
     trigger: 'input[name=totp_token]',
     async run(helpers) {
         const token = await rpc('/totphook', { offset: 2 });
-        helpers.edit(token);
+        await helpers.edit(token);
     }
 },
 {
