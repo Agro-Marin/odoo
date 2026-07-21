@@ -1,10 +1,8 @@
-# -*- coding: utf-8 -*-
-
 import re
 
 from odoo import api, models
 from odoo.exceptions import UserError, ValidationError
-from odoo. tools import LazyTranslate
+from odoo.tools import LazyTranslate
 
 _lt = LazyTranslate(__name__)  # TODO pass env to functions and remove _lt
 
@@ -62,7 +60,9 @@ def get_iban_part(iban, number_kind):
     # Removing the country code from both the IBAN and the mask, since it can have some mask chars
     iban_nocc = iban[2:]
     template_nocc = _map_iban_template.get(country_code, '').replace(' ', '')[2:]
-    return template_nocc and "".join(c for c, t in zip(iban_nocc, template_nocc) if t == mask_char)
+    # strict=False is intentional: a malformed/wrong-length iban must be truncated to
+    # the shorter of the two, not raise -- this is a best-effort extractor (see docstring).
+    return template_nocc and "".join(c for c, t in zip(iban_nocc, template_nocc, strict=False) if t == mask_char)
 
 
 def validate_iban(iban):
@@ -75,7 +75,7 @@ def validate_iban(iban):
         raise ValidationError(_lt("The IBAN is invalid, it should begin with the country code"))
 
     iban_template = _map_iban_template[country_code]
-    if len(iban) != len(iban_template.replace(' ', '')) or not re.fullmatch("[a-zA-Z0-9]+", iban):
+    if len(iban) != len(iban_template.replace(' ', '')) or not re.fullmatch(r"[a-zA-Z0-9]+", iban):
         raise ValidationError(_lt("The IBAN does not seem to be correct. You should have entered something like this %s\n"
             "Where B = National bank code, S = Branch code, C = Account No, k = Check digit", iban_template))
 
@@ -90,7 +90,7 @@ class ResPartnerBank(models.Model):
 
     @api.model
     def _get_supported_account_types(self):
-        rslt = super(ResPartnerBank, self)._get_supported_account_types()
+        rslt = super()._get_supported_account_types()
         rslt.append(('iban', self.env._('IBAN')))
         return rslt
 
@@ -100,7 +100,7 @@ class ResPartnerBank(models.Model):
             validate_iban(acc_number)
             return 'iban'
         except ValidationError:
-            return super(ResPartnerBank, self).retrieve_acc_type(acc_number)
+            return super().retrieve_acc_type(acc_number)
 
     def get_bban(self):
         if self.acc_type != 'iban':
@@ -116,7 +116,7 @@ class ResPartnerBank(models.Model):
                     vals['acc_number'] = pretty_iban(normalize_iban(vals['acc_number']))
                 except ValidationError:
                     pass
-        return super(ResPartnerBank, self).create(vals_list)
+        return super().create(vals_list)
 
     def write(self, vals):
         if vals.get('acc_number'):
@@ -125,7 +125,7 @@ class ResPartnerBank(models.Model):
                 vals['acc_number'] = pretty_iban(normalize_iban(vals['acc_number']))
             except ValidationError:
                 pass
-        return super(ResPartnerBank, self).write(vals)
+        return super().write(vals)
 
     @api.constrains('acc_number')
     def _check_iban(self):
@@ -177,7 +177,7 @@ _map_iban_template = {
     'hu': 'HUkk BBBS SSSC CCCC CCCC CCCC CCCC',  # Hungary
     'ie': 'IEkk BBBB SSSS SSCC CCCC CC',  # Ireland
     'il': 'ILkk BBBS SSCC CCCC CCCC CCC',  # Israel
-    'is': 'FSkk BBBB SSCC CCCC FFFF FFFF FF',  # Iceland
+    'is': 'ISkk BBBB SSCC CCCC FFFF FFFF FF',  # Iceland
     'it': 'ITkk KBBB BBSS SSSC CCCC CCCC CCC',  # Italy
     'jo': 'JOkk BBBB SSSS CCCC CCCC CCCC CCCC CC',  # Jordan
     'kw': 'KWkk BBBB CCCC CCCC CCCC CCCC CCCC CC',  # Kuwait
