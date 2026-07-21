@@ -13,6 +13,7 @@ from cryptography.hazmat.primitives.serialization import pkcs12
 from cryptography.x509.oid import NameOID
 from psycopg.errors import UniqueViolation
 
+from odoo import Command
 from odoo.exceptions import UserError, ValidationError
 from odoo.tests.common import TransactionCase
 from odoo.tools import mute_logger
@@ -536,10 +537,9 @@ class TestCredentialCredential(TransactionCase):
                 "name": "Company 1 Only",
                 "login": "test_company1_only",
                 "company_id": company1.id,
-                "company_ids": [(6, 0, [company1.id])],
+                "company_ids": [Command.set([company1.id])],
                 "group_ids": [
-                    (
-                        4,
+                    Command.link(
                         self.env.ref(
                             "base_credential_manager.group_credential_user"
                         ).id,
@@ -1750,7 +1750,7 @@ class TestBinaryWireFormatCompat(TransactionCase):
             {
                 "name": "Non-Super Cron Runner",
                 "login": "non-su-cron@test",
-                "group_ids": [(4, admin_group.id)],
+                "group_ids": [Command.link(admin_group.id)],
             }
         )
 
@@ -1932,7 +1932,7 @@ class TestOAuthClientCredentials(TransactionCase):
 
         # The rotation action is gated to Credential Manager administrators.
         self.env.user.group_ids = [
-            (4, self.env.ref("base_credential_manager.group_credential_admin").id)
+            Command.link(self.env.ref("base_credential_manager.group_credential_admin").id)
         ]
 
         with patch.dict(os.environ, {"ODOO_API_ENCRYPTION_KEY": old_key}, clear=True):
