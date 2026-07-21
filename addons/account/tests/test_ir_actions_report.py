@@ -2,7 +2,7 @@ import base64
 import io
 import re
 
-from odoo.exceptions import RedirectWarning
+from odoo.exceptions import RedirectWarning, UserError
 from odoo.tests import tagged
 from odoo.tools import file_open, mute_logger, pdf
 from odoo.tools.pdf import PdfFileReader, PdfFileWriter
@@ -17,6 +17,25 @@ class TestIrActionsReport(AccountTestInvoicingCommon):
         self.file = file_open("base/tests/minimal.pdf", "rb").read()
         self.minimal_reader_buffer = io.BytesIO(self.file)
         self.minimal_pdf_reader = pdf.OdooPdfFileReader(self.minimal_reader_buffer)
+
+    def test_master_reports_are_delete_protected(self):
+        """Every master report xmlid must be protected against unlink.
+
+        Regression: a missing comma fused two xmlids into one bogus string
+        ("action_account_original_vendor_billaccount_invoices_without_payment"),
+        so neither action_account_original_vendor_bill nor
+        account_invoices_without_payment matched their own guard and both
+        lost delete-protection.
+        """
+        for xmlid in (
+            "action_account_original_vendor_bill",
+            "account_invoices_without_payment",
+        ):
+            report = self.env.ref(f"account.{xmlid}")
+            with self.assertRaises(
+                UserError, msg=f"{xmlid} should be delete-protected"
+            ):
+                report.unlink()
 
     def test_download_one_corrupted_pdf(self):
         """
