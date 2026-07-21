@@ -249,6 +249,32 @@ class TestChartTemplate(AccountTestInvoicingCommon):
         cls.ChartTemplate = cls.env["account.chart.template"].with_company(cls.company)
         cls.country_be = cls.env.ref("base.be")
 
+    def test_parse_csv_integer_field_negative_value(self):
+        """CSV Integer columns must be ast.literal_eval'd, including negative
+        values.
+
+        Regression: the type check compared against "int" instead of the real
+        field type "integer", so Integer CSV columns were never
+        ast.literal_eval'd. A positive value like "10" still worked by
+        accident (str.isdigit() lets the ORM coerce it), but a negative value
+        like "-5" fell into the xml_id fallback (self.ref("-5")), raised, and
+        the field was silently dropped.
+        """
+        csv_content = "id,decimal_places\nres_currency_test,-5\n"
+
+        def fake_file_open(path, mode="r"):
+            if path.endswith("res.currency.csv"):
+                return io.StringIO(csv_content)
+            raise FileNotFoundError(path)
+
+        with patch(
+            "odoo.addons.account.models.chart_template.file_open", fake_file_open
+        ):
+            result = self.ChartTemplate._parse_csv(
+                "no_such_template_code", "res.currency", module="account"
+            )
+        self.assertEqual(result["res_currency_test"]["decimal_places"], -5)
+
     def test_tax_report_and_manual_tax_tag(self):
         tax_report = self.env["account.report"].create(
             {
