@@ -1,5 +1,5 @@
 .o_search_panel.account_root {
-    padding: 6px !important; // need to override bootstrap ps-4 rule
+    padding: 6px !important; // need to override bootstrap's !important padding utilities
     scrollbar-width: thin;
     min-width: 55px;
     > button:first-child {
@@ -21,7 +21,7 @@
             width: 0;
         }
         .o_search_panel_category_value {
-            padding-left: 1.2rem !important; // need to override bootstrap ps-4 rule
+            padding-left: 1.2rem !important; // need to override the .o_treeEntry indent
             .o_toggle_fold {
                 width: 0.3rem;
             }

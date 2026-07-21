@@ -8,8 +8,6 @@ import { standardWidgetProps } from "@web/views/widgets/standard_widget_props";
 export class AccountPickCurrencyDate extends Component {
     static template = "account.AccountPickCurrencyDate";
     static props = {
-        // standardWidgetProps already declares `record` (required); onApply
-        // dereferences record.resId/record.data unguarded, so don't loosen it.
         ...standardWidgetProps,
     };
 

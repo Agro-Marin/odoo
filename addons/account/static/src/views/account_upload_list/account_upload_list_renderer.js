@@ -10,7 +10,8 @@ export class AccountUploadListRenderer extends FileUploadListRenderer {
         BillGuide,
     };
 
-    // Add warning background color in the ref column if we detect that the record has a duplicated
+    // Highlight the ref cell of a record having duplicates: danger for an exact duplicate,
+    // warning for a draft.
     getCellClass(column, record) {
         const classNames = super.getCellClass(column, record);
         if (

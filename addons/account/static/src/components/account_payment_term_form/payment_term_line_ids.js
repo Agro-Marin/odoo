@@ -6,8 +6,8 @@ import { useAddInlineRecord } from "@web/fields/relational/x2many_crud";
 export class PaymentTermLineIdsOne2Many extends X2ManyField {
     setup() {
         super.setup();
-        // Overloads the addInLine method to mark all new records as 'dirty' by calling update with an empty object.
-        // This prevents the records from being abandoned if the user clicks globally or on an existing record.
+        // Mark new records as dirty so they are not abandoned when the user
+        // clicks globally or on an existing record.
         this.addInLine = useAddInlineRecord({
             addNew: async (...args) => {
                 const newRecord = await this.list.addNewRecord(...args);

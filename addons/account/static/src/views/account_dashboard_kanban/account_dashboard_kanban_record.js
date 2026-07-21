@@ -6,7 +6,6 @@ import { user } from "@web/services/user";
 import { KanbanDropdownMenuWrapper } from "@web/views/kanban/kanban_dropdown_menu_wrapper";
 import { KanbanRecord } from "@web/views/kanban/kanban_record";
 
-// Accounting Dashboard
 export class DashboardKanbanDropdownMenuWrapper extends KanbanDropdownMenuWrapper {
     onClick(ev) {
         // Keep the dropdown open as we need the fileupload to remain in the dom

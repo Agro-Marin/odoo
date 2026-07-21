@@ -9,10 +9,9 @@ export class AccountTaxRepartitionLineFactorPercent extends FloatField {
         digits: [16, 12],
     };
 
-    /*
+    /**
      * @override
-     * We don't want to display all amounts with 12 digits behind so we remove the trailing 0
-     * as much as possible.
+     * Strip trailing zeros so values are not displayed with all 12 digits.
      */
     get formattedValue() {
         const value = super.formattedValue;
@@ -31,10 +30,10 @@ export class AccountTaxRepartitionLineFactorPercent extends FloatField {
         return value.substring(0, value.length - nbTrailingZeroToRemove);
     }
 
-    /*
+    /**
      * @override
-     * Prevent the users of showing a rounding at 12 digits on the screen but
-     * getting an unrounded value after typing "= 2/3" on the field when saving.
+     * Round to the field precision so an expression like "= 2/3" saves the
+     * rounded value shown on screen, not the unrounded result.
      */
     parse(value) {
         const parsedValue = super.parse(value);

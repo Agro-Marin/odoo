@@ -8,7 +8,6 @@ export const accountNotificationService = {
         bus_service.subscribe(
             "account_notification",
             ({ message, sticky, title, type, action_button }) => {
-                // action_button is optional: senders that only need a plain toast omit it.
                 const buttons = action_button
                     ? [
                           {
