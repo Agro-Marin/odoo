@@ -33,7 +33,6 @@ export class ResPartner extends Record {
             }
             this.previousPresencechannel = this.presenceChannel;
         },
-        eager: true,
     });
     /** @type {string} */
     avatar_128_access_token;

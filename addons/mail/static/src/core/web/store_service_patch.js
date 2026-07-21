@@ -42,7 +42,6 @@ const StorePatch = {
             onUpdate() {
                 this.updateAppBadge();
             },
-            eager: true,
         });
         this.inbox = fields.One("Thread");
         this.starred = fields.One("Thread");

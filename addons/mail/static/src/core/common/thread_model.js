@@ -103,7 +103,6 @@ export class Thread extends Record {
                 return this.store;
             }
         },
-        eager: true,
     });
     /**
      * Whether this thread is a discuss channel (any channel_type), i.e. a

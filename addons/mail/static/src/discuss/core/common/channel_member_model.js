@@ -113,7 +113,6 @@ export class ChannelMember extends Record {
         compute() {
             return this.isTyping ? this.channel_id : undefined;
         },
-        eager: true,
         onDelete() {
             browser.clearTimeout(this.typingTimeoutId);
         },

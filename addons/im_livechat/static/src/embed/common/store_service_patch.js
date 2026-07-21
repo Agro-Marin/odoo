@@ -33,7 +33,6 @@ const StorePatch = {
                     `mail.guest_${this.guest_token}`,
                 );
             },
-            eager: true,
         });
         this.livechat_rule = fields.One("im_livechat.channel.rule");
         this.livechat_available = false;
