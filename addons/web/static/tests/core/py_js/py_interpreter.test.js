@@ -1138,12 +1138,15 @@ describe("duck-typing guards", () => {
         expect(evaluateExpr("not d", { d: { isTrue: 1 } })).toBe(false);
         expect(evaluateExpr("bool(d)", { d: {} })).toBe(false);
         expect(() => evaluateExpr("-d", { d: { negate: 1 } })).toThrow(/bad operand/);
-        // abs() must not call a data value: `d.negate`/`d.total_seconds` are
-        // keys here, not the PyTimeDelta protocol.
+        // abs() must not CALL a data value: `d.negate`/`d.total_seconds` are
+        // keys here, not the PyTimeDelta protocol — so it falls through to the
+        // numeric guard and raises a clean TypeError (as CPython does for
+        // `abs(dict)`), instead of crashing on `d.negate()` or silently
+        // returning NaN into a domain.
         expect(evaluateExpr("abs(-3.5)")).toBe(3.5);
         expect(() =>
             evaluateExpr("abs(d)", { d: { negate: 1, total_seconds: 2 } }),
-        ).not.toThrow();
+        ).toThrow(/bad operand/);
     });
 
     test("a literal '__proto__' dict key is a plain entry", () => {

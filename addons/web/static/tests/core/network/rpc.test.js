@@ -182,6 +182,37 @@ test("abort during body streaming stays silent, no InvalidResponseError", async 
     expect.verifySteps(["RPC:RESPONSE"]);
 });
 
+test("a non-2xx JSON response rejects instead of resolving undefined", async () => {
+    // Regression: a rate limiter (429) or SSO proxy (401) can return a JSON body
+    // with no `error` field. A JSON-RPC endpoint always answers 200, so a non-2xx
+    // here is an intermediary and must be classified as an error — not parsed as
+    // a success envelope, which resolved `undefined` and blew up the view on
+    // `result.records` with an opaque TypeError.
+    mockFetch(
+        () =>
+            new Response('{"detail": "rate limited"}', {
+                status: 429,
+                headers: { "Content-Type": "application/json" },
+            }),
+    );
+    const error = await rpc("/test/").catch((e) => e);
+    expect(error).toBeInstanceOf(InvalidResponseError);
+});
+
+test("a 500 JSON response is a retryable ServerOverloadError", async () => {
+    // A 5xx with a JSON body (outside the 502-504 gateway range handled above)
+    // is transient server trouble, not a JSON-RPC envelope.
+    mockFetch(
+        () =>
+            new Response('{"msg": "boom"}', {
+                status: 500,
+                headers: { "Content-Type": "application/json" },
+            }),
+    );
+    const error = await rpc("/test/").catch((e) => e);
+    expect(error).toBeInstanceOf(ServerOverloadError);
+});
+
 // settings.timeout / ConnectionTimeoutError
 //
 // ``AbortSignal.timeout()`` is native — hoot's mocked timers do not drive it —

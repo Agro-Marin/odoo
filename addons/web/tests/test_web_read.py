@@ -121,3 +121,69 @@ class TestWebReadRelational(common.TransactionCase):
         self.assertNotIn(
             secret.id, returned_ids, "inaccessible co-record id must not leak"
         )
+
+
+@common.tagged("post_install", "-at_install", "web_unit", "web_read")
+class TestWebResequence(common.TransactionCase):
+    """web_resequence must not silently bypass write() semantics.
+
+    The cache-dirty fast path skips write() entirely, so a model that overrides
+    write (guards, tracking, cache invalidation) must fall back to per-record
+    write(). Regression for the fork optimization that dropped write().
+    """
+
+    def test_resequence_calls_write_on_overriding_model(self):
+        from unittest.mock import patch
+
+        Partner = self.env["res.partner"]  # overrides write()
+        recs = Partner.create([{"name": f"P{i}", "color": 9} for i in range(3)])
+        self.env.flush_all()
+
+        real_write = type(Partner).write
+        calls = []
+
+        def counting_write(self, vals):
+            if self._name == "res.partner":
+                calls.append((tuple(self.ids), dict(vals)))
+            return real_write(self, vals)
+
+        with patch.object(type(Partner), "write", counting_write):
+            recs.web_resequence({"id": {}}, field_name="color")
+
+        # res.partner overrides write, so the fallback path must run it once
+        # per record — the whole point of the fix.
+        self.assertEqual(
+            len(calls), 3, "write() must fire once per record on an overriding model"
+        )
+        self.assertEqual(recs.mapped("color"), [0, 1, 2])
+
+    def test_resequence_persists_values(self):
+        Partner = self.env["res.partner"]
+        recs = Partner.create([{"name": f"Q{i}", "color": 5} for i in range(4)])
+        recs.web_resequence({"id": {}}, field_name="color", offset=10)
+        self.env.flush_all()
+        self.assertEqual(recs.mapped("color"), [10, 11, 12, 13])
+
+
+@common.tagged("post_install", "-at_install", "web_unit", "web_read")
+class TestWebReadFieldContext(common.TransactionCase):
+    """An x2many spec with `order` on a field whose context collides with the
+    caller's env context must not raise TypeError (fork double-splat regression).
+    """
+
+    def test_ordered_x2many_with_active_test_context(self):
+        # res.partner.child_ids declares context={'active_test': ...}; a caller
+        # passing active_test in context previously triggered
+        # "with_context() got multiple values for keyword argument 'active_test'".
+        parent = self.env["res.partner"].create({"name": "Parent"})
+        self.env["res.partner"].create(
+            [{"name": "C1", "parent_id": parent.id},
+             {"name": "C2", "parent_id": parent.id}]
+        )
+        self.env.flush_all()
+        res = parent.with_context(active_test=False).web_read(
+            {"child_ids": {"fields": {"display_name": {}}, "order": "id desc"}}
+        )
+        # Must return without raising; ordering honored.
+        child_ids = [c["id"] for c in res[0]["child_ids"]]
+        self.assertEqual(child_ids, sorted(child_ids, reverse=True))

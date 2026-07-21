@@ -663,6 +663,21 @@ export class StaticList extends DataPoint {
             ),
             _currentIds: [...this._currentIds],
             count: this.count,
+            // Snapshot the off-page command stash and loading set too:
+            // ``_discard``'s savepoint branch must RESTORE these, not wipe
+            // them. ``_unknownRecordCommands`` is the sole carrier of the
+            // payload for an ``[UPDATE, id]`` on a row never loaded into
+            // ``_cache`` (an onchange touching an off-page record in a
+            // paginated list). Clearing it on a savepoint-restore discard
+            // (sub-dialog open + Cancel) silently dropped that edit from the
+            // next web_save. Deep-copy the command tuples like ``_commands``.
+            _unknownRecordCommands: Object.fromEntries(
+                Object.entries(this._unknownRecordCommands).map(([id, cmds]) => [
+                    id,
+                    cmds.map((c) => c.map((el) => (Array.isArray(el) ? [...el] : el))),
+                ]),
+            ),
+            _loadingStubIds: new Set(this._loadingStubIds),
         });
     }
 
@@ -906,6 +921,16 @@ export class StaticList extends DataPoint {
      */
     _pruneCache() {
         const activeIds = new Set(this._currentIds);
+        // Pin the server-truth ids too: ``_discard``'s no-savepoint branch
+        // reverts ``_currentIds`` to ``this.resIds`` and rebuilds ``records``
+        // by mapping them through ``_cache``. A ``Command.set`` that shrinks
+        // membership prunes those ids here, so a later savepoint-less discard
+        // (the normal "edit form, click Discard" path) would map evicted ids to
+        // ``undefined`` holes. resIds is the bounded persisted relation, so
+        // pinning it does not reintroduce unbounded cache growth.
+        for (const id of this.resIds) {
+            activeIds.add(id);
+        }
         if (this._savePoint) {
             for (const id of this._savePoint._currentIds) {
                 activeIds.add(id);
@@ -927,13 +952,22 @@ export class StaticList extends DataPoint {
             this._commands = this._savePoint._commands;
             this._currentIds = this._savePoint._currentIds;
             this.count = this._savePoint.count;
+            // Restore the off-page stash instead of wiping it (see the
+            // snapshot rationale in ``_addSavePoint``). Reassign the object
+            // (matches the ``= {}`` idiom) but restore the Set's contents in
+            // place to keep its identity stable.
+            this._unknownRecordCommands = this._savePoint._unknownRecordCommands;
+            this._loadingStubIds.clear();
+            for (const id of this._savePoint._loadingStubIds) {
+                this._loadingStubIds.add(id);
+            }
         } else {
             this._commands = [];
             this._currentIds = [...this.resIds];
             this.count = this.resIds.length;
+            this._unknownRecordCommands = {};
+            this._loadingStubIds.clear();
         }
-        this._unknownRecordCommands = {};
-        this._loadingStubIds.clear();
         const limit = this.limit - this._tmpIncreaseLimit;
         this._tmpIncreaseLimit = 0;
         this.model._patchConfig(this.config, { limit });

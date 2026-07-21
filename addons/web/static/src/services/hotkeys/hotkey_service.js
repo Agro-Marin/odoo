@@ -71,7 +71,7 @@ export const hotkeyService = {
                 .every((part) => hotkey.includes(part));
         }
 
-        addListeners(/** @type {any} */ (browser));
+        const removeWindowListeners = addListeners(/** @type {any} */ (browser));
 
         /**
          * @param {Window} target
@@ -481,6 +481,17 @@ export const hotkeyService = {
              */
             registerIframe(iframe) {
                 return addListeners(iframe.contentWindow);
+            },
+            /**
+             * Detach the four ``window`` listeners on env teardown. Without it
+             * every env (each JS-test mount, each embedded/public context) leaks
+             * a keydown/keyup/blur/click handler that retains ``registrations``
+             * and the ``ui`` closure — and every keypress then runs every prior
+             * env's ``dispatch``. Mirrors the destroy() its sibling
+             * window-listener services (name, slow_rpc, navigation) added.
+             */
+            destroy() {
+                removeWindowListeners();
             },
         };
     },

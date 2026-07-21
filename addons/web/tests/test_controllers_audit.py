@@ -97,6 +97,33 @@ class TestBarcodeDimensionClampHttp(HttpCase):
         self.assertEqual(response.status_code, HTTPStatus.OK)
         self.assertEqual(response.headers.get("Content-Type"), "image/png")
 
+    def test_oversized_value_rejected(self):
+        # An overlong value drives reportlab's superlinear pure-Python 1-D
+        # encoders into an unauthenticated CPU-DoS. It must be rejected as a
+        # clean 400 before reaching the encoder, not spend seconds of CPU.
+        huge = "A" * 40000
+        response = self.url_open(f"/report/barcode/Code128/{huge}")
+        self.assertEqual(response.status_code, HTTPStatus.BAD_REQUEST)
+
+    def test_normal_value_still_renders(self):
+        # A realistic value stays under the cap and renders normally.
+        response = self.url_open("/report/barcode/Code128/HELLO-12345")
+        self.assertEqual(response.status_code, HTTPStatus.OK)
+        self.assertEqual(response.headers.get("Content-Type"), "image/png")
+
+
+@tagged("web_http", "web_controllers_audit")
+class TestImageDimensionGuard(HttpCase):
+    """/web/image is public; a non-numeric ?width must not 500 + traceback."""
+
+    def test_garbage_width_does_not_500(self):
+        # Unauthenticated ?width=abc previously raised ValueError uncaught by the
+        # route's `except UserError` → 500 + full traceback per request. It must
+        # now degrade to the placeholder (missing binary) instead.
+        response = self.url_open("/web/image/99999999?width=abc&height=xyz")
+        self.assertEqual(response.status_code, HTTPStatus.OK)
+        self.assertEqual(response.headers.get("Content-Type"), "image/png")
+
 
 @tagged("web_controllers_audit")
 class TestCsvFormulaNeutralization(BaseCase):
@@ -180,6 +207,36 @@ class TestPivotNegativeInputs(HttpCase):
             },
         )
         self.assertEqual(response.status_code, HTTPStatus.OK)
+
+    def test_export_xlsx_huge_indent_is_clamped(self):
+        """A huge row `indent` must be clamped, not build a multi-GB string.
+
+        `indent` multiplies a 5-char string per row; MAX_EXPORT_CELLS counts
+        cells, not per-cell string length, so an unclamped indent OOM-kills the
+        worker. The clamp keeps the request cheap and the response bounded.
+        """
+        self.authenticate("admin", "admin")
+        jdata = {
+            "title": "Test",
+            "model": "res.partner",
+            "measure_count": 1,
+            "origin_count": 1,
+            "col_group_headers": [],
+            "measure_headers": [],
+            "origin_headers": [],
+            "rows": [{"indent": 400_000_000, "title": "row", "values": []}],
+        }
+        response = self.url_open(
+            "/web/pivot/export_xlsx",
+            data={
+                "data": json_dumps(jdata),
+                "csrf_token": http.Request.csrf_token(self),
+            },
+        )
+        self.assertEqual(response.status_code, HTTPStatus.OK)
+        # Clamped to 50 indents * 5 chars, so the whole xlsx stays tiny — a
+        # multi-GB string would have blown up long before this assertion.
+        self.assertLess(len(response.content), 1_000_000)
 
 
 @tagged("web_http", "web_controllers_audit")

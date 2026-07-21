@@ -13,20 +13,30 @@ import { registry } from "@web/core/registry";
  * @property {(limit?: number) => string[]} getMostFrequent
  */
 
+/**
+ * Parse the stored frequent-emoji map defensively. ``JSON.parse("null")``
+ * returns ``null`` (which passes a bare try/catch), and any non-object value
+ * then throws in ``Object.entries`` on every render via ``computeRecentEmojis``
+ * — permanently bricking the emoji picker until localStorage is cleared by
+ * hand. Accept ONLY a plain object; anything else degrades to ``{}``.
+ * @param {string | null} raw
+ * @returns {Record<string, number>}
+ */
+function parseFrequent(raw) {
+    try {
+        const value = JSON.parse(raw || "{}");
+        return value && typeof value === "object" && !Array.isArray(value) ? value : {};
+    } catch {
+        return {};
+    }
+}
+
 export const frequentEmojiService = {
     /** @returns {FrequentEmojiState} */
     start() {
         const state = reactive({
             /** @type {Record<string, number>} */
-            all: (() => {
-                try {
-                    return JSON.parse(
-                        browser.localStorage.getItem("web.emoji.frequent") || "{}",
-                    );
-                } catch {
-                    return {};
-                }
-            })(),
+            all: parseFrequent(browser.localStorage.getItem("web.emoji.frequent")),
             /**
              * Increment usage count for the given emoji codepoints.
              * @param {string} codepoints - the emoji codepoints identifier
@@ -56,17 +66,21 @@ export const frequentEmojiService = {
                     .map(([codepoints]) => codepoints);
             },
         });
-        browser.addEventListener("storage", (ev) => {
+        const onStorage = (ev) => {
             if (ev.key === "web.emoji.frequent") {
-                try {
-                    state.all = ev.newValue ? JSON.parse(ev.newValue) : {};
-                } catch {
-                    state.all = {};
-                }
+                state.all = parseFrequent(ev.newValue);
             } else if (ev.key === null) {
+                // Whole storage cleared (e.g. logout).
                 state.all = {};
             }
-        });
+        };
+        browser.addEventListener("storage", onStorage);
+        // Remove the window listener on env teardown — without this each env
+        // (every JS test mount, every embedded/public context) leaks a
+        // ``storage`` handler pinning this reactive state forever, and every
+        // storage event fans out to all of them. Mirrors the destroy() the
+        // sibling window-listener services (name, slow_rpc, tooltip) added.
+        state.destroy = () => browser.removeEventListener("storage", onStorage);
         return state;
     },
 };

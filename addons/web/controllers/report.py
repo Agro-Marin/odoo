@@ -23,6 +23,13 @@ _logger = logging.getLogger(__name__)
 # would otherwise draw is refused by this clamp.
 _MAX_BARCODE_DIM = 10_000
 
+# Cap the encoded value length on the public /report/barcode route. reportlab's
+# 1-D encoders (Code128, Code39, …) are pure-Python and superlinear in input
+# length, so an unbounded value is an unauthenticated CPU-DoS (40 KB ≈ 9.5 s of
+# CPU per GET). 4096 comfortably exceeds every real symbology (QR alphanumeric
+# tops out at 4296) while keeping the worst case sub-second.
+_MAX_BARCODE_VALUE_LEN = 4096
+
 
 def _clamp_barcode_dimension(raw: Any, default: int) -> int:
     """Coerce a query-string dimension to an int in ``[1, _MAX_BARCODE_DIM]``."""
@@ -129,6 +136,11 @@ class ReportController(http.Controller):
         :param barLevel: QR code Error Correction Levels. Default is 'L'.
         ref: https://hg.reportlab.com/hg-public/reportlab/file/830157489e00/src/reportlab/graphics/barcode/qr.py#l101
         """
+        # Reject an oversized encoded value before it reaches reportlab's
+        # superlinear pure-Python encoders (unauthenticated CPU-DoS on this
+        # public route). No legitimate barcode needs more than _MAX_BARCODE_VALUE_LEN.
+        if value is not None and len(value) > _MAX_BARCODE_VALUE_LEN:
+            raise werkzeug.exceptions.BadRequest("Barcode value is too long.")
         # Clamp caller-supplied dimensions before they reach reportlab's
         # allocator (defense-in-depth against oversized-image DoS on this
         # public route). Only override when the caller actually passed a value,

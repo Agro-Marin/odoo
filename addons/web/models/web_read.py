@@ -669,11 +669,26 @@ class Base(models.AbstractModel):
                                     [("id", "in", co_records.ids)],
                                     order=field_spec["order"],
                                 )
-                                .with_context(**co_records.env.context, **field_context)
+                                # Reapply the original RPC context (dropping the
+                                # active_test=False used only for the search),
+                                # then layer the field's own context on top.
+                                # Positional dict + kwargs so a key present in
+                                # BOTH (e.g. active_test on res.partner.child_ids)
+                                # is OVERRIDDEN by field_context, not passed twice
+                                # — the **env.context/**field_context double-splat
+                                # raised TypeError on any shared key.
+                                .with_context(
+                                    co_records.env.context, **field_context
+                                )
                             )
-                        # Keep UserError if the model does not accept the search
-                        # (e.g. account.code.mapping).
-                        except AccessError, UserError:
+                        # Degrade to an empty list on any failure the ordered
+                        # search can raise: AccessError/UserError (model rejects
+                        # the search, e.g. account.code.mapping) OR ValueError (a
+                        # client ``order`` spec on a non-stored field — "Cannot
+                        # convert to SQL because it is not stored"). Letting the
+                        # ValueError escape would 500 the whole parent read,
+                        # while the sibling failure modes here already degrade.
+                        except AccessError, UserError, ValueError:
                             co_records = co_records.browse()
                     order_key = {
                         co_record.id: index
@@ -934,6 +949,28 @@ class Base(models.AbstractModel):
             return []
 
         field = self._fields[field_name]
+
+        # Fast path eligibility. The cache-dirty path below skips ``write()``
+        # entirely, so it is only correct when nothing observes the write:
+        #   - the model must not override ``write`` (guards, tracking, cache
+        #     invalidation all live inside it);
+        #   - the field must be a plain stored Integer with no ``inverse``
+        #     (an inverse must run) and no ``compute`` (computed fields are not
+        #     written this way).
+        # Otherwise fall back to per-record ``write()`` so overrides, inverses
+        # and mail tracking all fire — same semantics as a manual edit.
+        fast_path = (
+            type(self).write is models.BaseModel.write
+            and field.store
+            and field.type == "integer"
+            and not field.compute
+            and not field.inverse
+        )
+
+        if not fast_path:
+            for i, record in enumerate(self, start=offset):
+                record.write({field_name: i})
+            return self.web_read(specification)
 
         # Access checks — once for all records instead of once per write()
         self.check_access("write")

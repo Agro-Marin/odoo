@@ -150,7 +150,17 @@ export function applyCommands(
                 const absorbedIntoSet =
                     command[0] === UNLINK &&
                     absorbUnlinkIntoSet(list._commands, command[1]);
-                if (!absorbedIntoSet) {
+                if (absorbedIntoSet) {
+                    // ``absorbUnlinkIntoSet`` spliced this id out of the staged
+                    // SET in ``list._commands`` in place, but ``list._commands``
+                    // is rebuilt below from ``commandsByIds`` — a snapshot taken
+                    // BEFORE the splice. Empty this id's bucket (keyed by the
+                    // record id; the SET lives under ``false``) so its staged
+                    // ``[UPDATE, id]`` is not resurrected — otherwise the save
+                    // replaces the relation AND writes edits into a record the
+                    // SET no longer contains.
+                    getOwnCommands(command[1]).splice(0);
+                } else {
                     const ownCommands = getOwnCommands(command[1]);
                     if (command[0] === DELETE) {
                         if (shouldEmitDelete(ownCommands)) {

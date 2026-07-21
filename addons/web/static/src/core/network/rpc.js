@@ -849,6 +849,24 @@ function _rpcOnce(url, params, settings) {
                 // a success RPC:RESPONSE for this data.id.
                 return;
             }
+            if (!parsed.error && !response.ok) {
+                // Parseable JSON, a non-2xx status, and no ``error`` field: this
+                // is NOT a JSON-RPC envelope — a JSON-RPC endpoint always answers
+                // 200 with the result/error in the body. A non-2xx here came from
+                // an intermediary (a rate limiter 429, an SSO proxy 401, a WAF).
+                // Without this guard the ``!parsed.error`` success path below
+                // resolves ``parsed.result`` — usually ``undefined`` — and the
+                // view then dies on ``result.records`` with an opaque TypeError.
+                // Placed AFTER a SUCCESSFUL parse so it never disturbs the
+                // unparseable-body / non-JSON classifications above.
+                const error =
+                    response.status >= 500
+                        ? new ServerOverloadError(url, response.status)
+                        : new InvalidResponseError(url, response.status);
+                rpcBus.trigger(RpcEvent.RESPONSE, { data, settings, error });
+                settleReject(error);
+                return;
+            }
             if (!parsed.error) {
                 // Plan-C envelope versioning: ``@versioned_envelope`` methods
                 // (web/models/_versioning.py) lift a content hash to
