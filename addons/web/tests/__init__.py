@@ -7,6 +7,7 @@ from . import test_database_controller
 from . import test_db_manager
 from . import test_domain
 from . import test_esm_pipeline
+from . import test_export
 from . import test_favorite
 from . import test_feature_flags
 from . import test_health
