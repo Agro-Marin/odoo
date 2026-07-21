@@ -175,9 +175,18 @@ class AccountMoveLine(models.Model):
         price_unit = super()._get_cogs_value()
         sudo_order = self.move_id.sudo().pos_order_ids
         if sudo_order:
-            price_unit = sudo_order._get_pos_anglo_saxon_price_unit(
+            # The POS valuation only sees moves the delivery already valued, so
+            # it yields 0 whenever none match -- typically a `shipping_date`
+            # order invoiced before its picking is done. Taking that 0 would
+            # discard a sound super() value, leaving the expense account
+            # undebited and the stock interim account uncleared, so fall back
+            # rather than override. `_compute_total_cost` guards the margin
+            # path against the same case.
+            pos_price_unit = sudo_order._get_pos_anglo_saxon_price_unit(
                 self.product_id, self.move_id.partner_id.id, self.quantity
             )
+            if not self.product_id.sudo().cost_currency_id.is_zero(pos_price_unit):
+                price_unit = pos_price_unit
         return price_unit
 
     def _compute_name(self):
