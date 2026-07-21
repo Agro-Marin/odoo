@@ -47,7 +47,7 @@ def dict_to_xml(
 
     def convert_tag_to_lxml_convention(tag):
         if ":" in tag:
-            namespace, local_name = tag.split(":")
+            namespace, local_name = tag.split(":", 1)
             if namespace in nsmap:
                 return etree.QName(nsmap[namespace], local_name).text
         return tag

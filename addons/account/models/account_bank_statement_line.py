@@ -709,19 +709,6 @@ class AccountBankStatementLine(models.Model):
             limit=1,
         )
 
-    @api.model
-    def _get_default_statement(self, journal_id=None, date=None):
-        statement = self.search(
-            domain=[
-                ("journal_id", "=", journal_id or self._get_default_journal().id),
-                ("date", "<=", date or fields.Date.today()),
-            ],
-            limit=1,
-        ).statement_id
-        if not statement.is_complete:
-            return statement
-        return None
-
     def _get_accounting_amounts_and_currencies(self):
         """Retrieve the transaction amount, journal amount and the company amount with their corresponding currencies
         from the journal entry linked to the statement line.
