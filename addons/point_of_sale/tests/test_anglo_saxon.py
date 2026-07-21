@@ -1,6 +1,5 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-from unittest import skip
 
 from odoo import Command
 from odoo.tests import tagged
@@ -117,7 +116,20 @@ class TestAngloSaxonCommon(AccountTestInvoicingCommon):
 
 @tagged("post_install", "-at_install")
 class TestAngloSaxonFlow(TestAngloSaxonCommon):
-    @skip("Temporary to fast merge new valuation")
+    def _enable_delivery_time_cogs(self):
+        """Recognise COGS when the goods leave stock, rather than at invoicing.
+
+        Under the new valuation engine the delivery-side counterpart account
+        (formerly the category's "stock output" account) lives on the destination
+        location: `stock.move._should_create_account_move` requires it, and
+        `_get_account_move_line_vals` uses it as the debit side. It must stay unset
+        for invoiced anglo-saxon flows, where the invoice books COGS itself --
+        setting both would relieve stock valuation twice for a single delivery.
+        """
+        self.env.ref(
+            "stock.stock_location_customers"
+        ).valuation_account_id = self.category.property_account_expense_categ_id
+
     def test_create_account_move_line(self):
         # This test will check that the correct journal entries are created when a product in real time valuation
         # is sold in a company using anglo-saxon
@@ -275,7 +287,6 @@ class TestAngloSaxonFlow(TestAngloSaxonCommon):
 
         return self.PosOrder.create(pos_order_values)
 
-    @skip("Temporary to fast merge new valuation")
     def test_fifo_valuation_no_invoice(self):
         """Register a payment and validate a session after selling a fifo
         product without making an invoice for the customer"""
@@ -359,10 +370,10 @@ class TestAngloSaxonFlow(TestAngloSaxonCommon):
             "As it is a fifo product, the move's value should be 5*5 + 2*1",
         )
 
-    @skip("Temporary to fast merge new valuation")
     def test_cogs_with_ship_later_no_invoicing(self):
         # This test will check that the correct journal entries are created when a product in real time valuation
         # is sold using the ship later option and no invoice is created in a company using anglo-saxon
+        self._enable_delivery_time_cogs()
         self.pos_config.open_ui()
         current_session = self.pos_config.current_session_id
         self.cash_journal.loss_account_id = self.account
@@ -440,59 +451,52 @@ class TestAngloSaxonFlow(TestAngloSaxonCommon):
         current_session.picking_ids.button_validate()
 
         # I test that the generated journal entries are correct.
-        account_output = self.category.property_stock_account_output_categ_id
+        #
+        # Under the new valuation engine there is no "stock output" clearing
+        # account any more, so the COGS accrual the PoS session used to post at
+        # closing (debit expense / credit stock output, later reconciled against
+        # the delivery entry) is gone. COGS is now recognised once, by the stock
+        # move itself when the goods actually leave: debit the destination
+        # location's valuation account (the expense account, set in setUpClass)
+        # and credit the product's stock valuation account. The net accounting is
+        # the same as before; only the intermediate account and the timing differ.
+        valuation_account = self.category.property_stock_valuation_account_id
         expense_account = self.category.property_account_expense_categ_id
         aml = current_session._get_related_account_moves().line_ids
-        aml_output = aml.filtered(lambda l: l.account_id.id == account_output.id)
+        aml_valuation = aml.filtered(lambda l: l.account_id.id == valuation_account.id)
         aml_expense = aml.filtered(lambda l: l.account_id.id == expense_account.id)
 
+        # A single COGS entry, posted in the company's stock journal at delivery.
+        self.assertEqual(len(aml_valuation), 1)
+        self.assertEqual(len(aml_expense), 1)
         self.assertEqual(
-            len(aml_output), 2, "There should be 2 output account move lines"
+            aml_valuation.move_id.journal_id,
+            self.company.account_stock_journal_id,
+            "The COGS entry is posted in the company stock journal",
         )
-        # 2 moves in POS journal (Pos order + manual entry at delivery)
-        self.assertEqual(
-            len(
-                aml_output.move_id.filtered(
-                    lambda l: l.journal_id == self.pos_config.journal_id
-                )
-            ),
-            1,
-        )
-        # 1 move in stock journal (delivery from stock layers)
-        self.assertEqual(
-            len(
-                aml_output.move_id.filtered(
-                    lambda l: l.journal_id == self.category.property_stock_journal
-                )
-            ),
-            1,
-        )
-        # Check the lines created after the picking validation
-        self.assertEqual(
-            aml_output[1].credit,
-            self.product.standard_price,
-            "Cost of Good Sold entry missing or mismatching",
-        )
-        self.assertEqual(
-            aml_output[1].debit, 0.0, "Cost of Good Sold entry missing or mismatching"
-        )
-        self.assertEqual(
-            aml_expense[0].debit,
-            self.product.standard_price,
-            "Cost of Good Sold entry missing or mismatching",
-        )
-        self.assertEqual(
-            aml_expense[0].credit, 0.0, "Cost of Good Sold entry missing or mismatching"
-        )
-        # Check the lines created by the PoS session
-        self.assertEqual(
-            aml_output[0].debit, 100.0, "Cost of Good Sold entry missing or mismatching"
-        )
-        self.assertEqual(
-            aml_output[0].credit, 0.0, "Cost of Good Sold entry missing or mismatching"
+        self.assertEqual(aml_valuation.move_id, aml_expense.move_id)
+        # The PoS closing entry no longer carries any COGS accrual.
+        self.assertFalse(
+            (aml_valuation | aml_expense).move_id & current_session.move_id,
         )
 
-    @skip("Temporary to fast merge new valuation")
+        self.assertEqual(
+            aml_valuation.credit,
+            self.product.standard_price,
+            "Cost of Good Sold entry missing or mismatching",
+        )
+        self.assertEqual(
+            aml_valuation.debit, 0.0, "Cost of Good Sold entry missing or mismatching"
+        )
+        self.assertEqual(
+            aml_expense.debit,
+            self.product.standard_price,
+            "Cost of Good Sold entry missing or mismatching",
+        )
+        self.assertEqual(
+            aml_expense.credit, 0.0, "Cost of Good Sold entry missing or mismatching"
+        )
+
     def test_action_pos_order_invoice(self):
         self.company.point_of_sale_update_stock_quantities = "closing"
 
@@ -541,14 +545,28 @@ class TestAngloSaxonFlow(TestAngloSaxonCommon):
         # Invoice the pos order afterward (session still running)
         self.pos_order_pos0.action_pos_order_invoice()
 
-        # Check that the stock output journal item from the invoice is reconciled (with its counterpart from the valuation entry)
-        stock_output_account = self.category.property_stock_account_output_categ_id
+        # There is no "stock output" clearing account any more, so there is no
+        # longer a pair of journal items to reconcile. Invoicing an anglo-saxon
+        # order books COGS exactly once, crediting stock valuation directly; the
+        # delivery itself posts nothing (the customer location has no valuation
+        # account), so stock valuation is relieved once for the one unit sold.
+        valuation_account = self.category.property_stock_valuation_account_id
+        expense_account = self.category.property_account_expense_categ_id
         related_amls = current_session._get_related_account_moves().line_ids
-        stock_output_amls = related_amls.filtered_domain(
-            [("account_id", "=", stock_output_account.id)]
+        valuation_amls = related_amls.filtered_domain(
+            [("account_id", "=", valuation_account.id)]
+        )
+        expense_amls = related_amls.filtered_domain(
+            [("account_id", "=", expense_account.id)]
         )
 
-        self.assertTrue(all(stock_output_amls.mapped("reconciled")))
+        self.assertEqual(len(valuation_amls), 1)
+        self.assertEqual(valuation_amls.move_id, self.pos_order_pos0.account_move)
+        self.assertEqual(valuation_amls.credit, self.product.standard_price)
+        self.assertEqual(valuation_amls.debit, 0.0)
+        self.assertEqual(len(expense_amls), 1)
+        self.assertEqual(expense_amls.debit, self.product.standard_price)
+        self.assertEqual(expense_amls.credit, 0.0)
 
     def test_action_pos_order_invoice_with_discount(self):
         """This test make sure that the line containing 'Discoun from' is correctly added to the invoice"""
@@ -607,12 +625,19 @@ class TestAngloSaxonFlow(TestAngloSaxonCommon):
             context_make_payment
         ).create(
             {
-                "amount": 450.0,
+                # Must settle the order exactly: `_is_pos_order_paid` compares the
+                # tendered amount against the rounded total, so any other figure
+                # leaves the order in `draft` and it is not invoiceable.
+                "amount": 103.79,
                 "payment_method_id": self.cash_payment_method.id,
             }
         )
         context_payment = {"active_id": self.pos_order_pos0.id}
         self.pos_make_payment_0.with_context(context_payment).check()
+        # `to_invoice` makes the wizard invoice on the spot, so the order lands on
+        # `done` rather than `paid`; either way it must be settled before the
+        # explicit invoice call below.
+        self.assertIn(self.pos_order_pos0.state, ("paid", "done"))
 
         res = self.pos_order_pos0.action_pos_order_invoice()
         invoice = self.env["account.move"].browse(res["res_id"])
@@ -634,10 +659,10 @@ class TestAngloSaxonFlow(TestAngloSaxonCommon):
             product_line.price_total, 103.79
         )  # Taxes applied with price_total
 
-    @skip("Temporary to fast merge new valuation")
     def test_cogs_with_ship_later_with_backorder(self):
         # This test will check that the correct journal entries are created when 2 products are sold
         # using the ship later option and one of them is processed in a backorder
+        self._enable_delivery_time_cogs()
         self.pos_config.open_ui()
         current_session = self.pos_config.current_session_id
         self.cash_journal.loss_account_id = self.account
@@ -744,31 +769,27 @@ class TestAngloSaxonFlow(TestAngloSaxonCommon):
         ).process()
 
         # I test that the generated journal entries are correct.
-        out = self.product_1.categ_id.property_stock_account_output_categ_id
+        #
+        # As in test_cogs_with_ship_later_no_invoicing, COGS is no longer accrued
+        # in the PoS closing entry: it is posted by the stock move at delivery, in
+        # the company stock journal.
+        out = self.product_1.categ_id.property_stock_valuation_account_id
         exp = self.product_1._get_product_accounts()["expense"]
+        cogs_journal = self.company.account_stock_journal_id
         aml = current_session._get_related_account_moves().line_ids
         aml_output = aml.filtered(
-            lambda l: (
-                l.account_id.id == out.id and l.journal_id == self.pos_config.journal_id
-            )
+            lambda l: l.account_id.id == out.id and l.journal_id == cogs_journal
         )
         aml_expense = aml.filtered(
-            lambda l: (
-                l.account_id.id == exp.id and l.journal_id == self.pos_config.journal_id
-            )
+            lambda l: l.account_id.id == exp.id and l.journal_id == cogs_journal
         )
 
-        self.assertEqual(
-            len(aml_expense), 1, "There should be 1 output account move lines"
-        )
-        self.assertEqual(aml_expense.debit, 20)
-        self.assertEqual(aml_expense.credit, 0)
-
-        self.assertEqual(
-            len(aml_output), 1, "There should be 1 output account move lines"
-        )
-        self.assertEqual(aml_output.debit, 0)
-        self.assertEqual(aml_output.credit, 20)
+        # Only the shipped product_2 (cost 20) is expensed; product_1 is still
+        # in the backorder.
+        self.assertEqual(sum(aml_expense.mapped("debit")), 20)
+        self.assertEqual(sum(aml_expense.mapped("credit")), 0)
+        self.assertEqual(sum(aml_output.mapped("debit")), 0)
+        self.assertEqual(sum(aml_output.mapped("credit")), 20)
 
         backorder_picking = current_session.picking_ids.filtered(
             lambda p: p.state == "confirmed"
@@ -779,27 +800,20 @@ class TestAngloSaxonFlow(TestAngloSaxonCommon):
         # As the second item has no cost, the account move line should be the same as before
         aml = current_session._get_related_account_moves().line_ids
         aml_output = aml.filtered(
-            lambda l: (
-                l.account_id.id == out.id and l.journal_id == self.pos_config.journal_id
-            )
+            lambda l: l.account_id.id == out.id and l.journal_id == cogs_journal
         )
         aml_expense = aml.filtered(
-            lambda l: (
-                l.account_id.id == exp.id and l.journal_id == self.pos_config.journal_id
-            )
+            lambda l: l.account_id.id == exp.id and l.journal_id == cogs_journal
         )
 
-        self.assertEqual(
-            len(aml_expense), 1, "There should be 1 output account move lines"
-        )
-        self.assertEqual(aml_expense.debit, 20)
-        self.assertEqual(aml_expense.credit, 0)
-
-        self.assertEqual(
-            len(aml_output), 1, "There should be 1 output account move lines"
-        )
-        self.assertEqual(aml_output.debit, 0)
-        self.assertEqual(aml_output.credit, 20)
+        # Shipping the backorder posts a second, zero-value COGS entry for the
+        # cost-less product_1, so the recognised cost is still exactly 20. The
+        # totals are asserted rather than the line count: the new valuation engine
+        # posts one entry per delivered move, including zero-value ones.
+        self.assertEqual(sum(aml_expense.mapped("debit")), 20)
+        self.assertEqual(sum(aml_expense.mapped("credit")), 0)
+        self.assertEqual(sum(aml_output.mapped("debit")), 0)
+        self.assertEqual(sum(aml_output.mapped("credit")), 20)
 
     def test_cogs_multi_products_perpetual(self):
         """

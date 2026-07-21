@@ -783,8 +783,13 @@ class PosSession(models.Model):
             st_line_vals = {
                 "journal_id": self.cash_journal_id.id,
                 "amount": amount,
-                "date": self.statement_line_ids.sorted()[-1:].date
-                or fields.Date.context_today(self),
+                # Date the difference on the last cash movement of the session.
+                # Take the max explicitly rather than relying on `_order`
+                # (`internal_index desc`, i.e. newest first).
+                "date": max(
+                    self.statement_line_ids.mapped("date"),
+                    default=fields.Date.context_today(self),
+                ),
                 "pos_session_id": self.id,
             }
 
@@ -2250,12 +2255,20 @@ class PosSession(models.Model):
     ):
         """Add `amounts_to_add` to `old_amounts`, handling currency conversion.
 
-        `amount` (and `base_amount`) are in the session currency; this method
-        derives `amount_converted` (in company currency), which `amounts_to_add`
-        does not carry.
+        `amount` (and `base_amount`) are in the session currency. `amount_converted`
+        (company currency) is taken from `amounts_to_add` when the caller supplies
+        it, and derived by FX conversion otherwise.
+
+        Callers that already hold an authoritative company-currency figure — the
+        tax engine's `balance` for sales and tax lines — must pass it as
+        `amount_converted`: re-deriving it here converts and rounds once per
+        contribution, and since the debit and credit sides of the closing entry
+        accumulate a different number of contributions, those rounding errors do
+        not cancel and leave the entry unbalanced at non-exact rates.
 
         :param dict old_amounts: amounts to update
-        :param dict amounts_to_add: amounts to add (no `amount_converted` field)
+        :param dict amounts_to_add: amounts to add; may carry an already-converted
+            `amount_converted` (company currency), which then wins over conversion
         :param date date: date used for conversion
         :param bool round: as in `res.currency._convert`; set False to round globally
         :param bool force_company_currency: if True, `amounts_to_add` values are
@@ -2267,10 +2280,12 @@ class PosSession(models.Model):
         new_amounts = {**old_amounts}
 
         amount = amounts_to_add.get("amount")
-        if self.is_in_company_currency or force_company_currency:
-            amount_converted = amount
-        else:
-            amount_converted = self._amount_converter(amount, date, round)
+        amount_converted = amounts_to_add.get("amount_converted")
+        if amount_converted is None:
+            if self.is_in_company_currency or force_company_currency:
+                amount_converted = amount
+            else:
+                amount_converted = self._amount_converter(amount, date, round)
 
         # update amount and amount converted
         new_amounts["amount"] += amount
@@ -2281,13 +2296,21 @@ class PosSession(models.Model):
         if amounts_to_add.get("base_amount"):
             base_amount = amounts_to_add.get("base_amount")
 
-            # update base_amount and base_amount_converted
+            # No conversion here: unlike `amount`, `base_amount` already arrives in
+            # company currency (`account.tax` rounds `tax_base_amount` with the
+            # company currency), so both keys take it as-is despite the naming.
             new_amounts["base_amount"] += base_amount
             new_amounts["base_amount_converted"] += base_amount
 
         return new_amounts
 
     def _round_amounts(self, amounts):
+        """Round an accumulated amounts dict, each key in its own currency.
+
+        Counterpart of `_update_amounts(..., round=False)`: it rounds once at the
+        end instead of once per contribution. No caller in this module passes
+        `round=False` today, so this is only reachable from overrides.
+        """
         new_amounts = {}
         for key, amount in amounts.items():
             if key == "amount_converted":

@@ -15,4 +15,5 @@ from . import pos_load_mixin
 from . import pos_preset
 from . import res_partner
 from . import res_country
+from . import res_country_state
 from . import mail_template

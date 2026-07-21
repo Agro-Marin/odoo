@@ -1,7 +1,7 @@
 import { describe, expect, test } from "@odoo/hoot";
+import { DataServiceOptions } from "@point_of_sale/app/models/data_service_options";
 import { makeMockServer } from "@web/../tests/web_test_helpers";
 
-import { DataServiceOptions } from "@point_of_sale/app/models/data_service_options";
 import { definePosModels } from "../data/generate_model_definitions.js";
 import { getRelatedModelsInstance } from "../data/get_model_definitions.js";
 
@@ -74,5 +74,59 @@ describe("AUDIT_CHALLENGE A3 purge asymmetry", () => {
         // order reloads as a header with no lines/payments.
         expect(linePurged).toBe(orderPurged); // line purge must match parent
         expect(payPurged).toBe(orderPurged); // payment purge must match parent
+    });
+
+    // product.attribute.custom.value used the degenerate `finalized && isSynced`
+    // form the three other entries were fixed out of, so a current-session
+    // order's custom values were purged while the order itself was kept.
+    test("A3b: all four purge conditions agree with the parent order", () => {
+        const CUR = 1;
+        globalThis.odoo = globalThis.odoo || {};
+        odoo.pos_session_id = CUR;
+
+        const tables = new DataServiceOptions().databaseTable;
+        // custom value reaches the order through pos_order_line_id.order_id.
+        const purgeAll = (order) => ({
+            order: tables["pos.order"].condition(order),
+            line: tables["pos.order.line"].condition({ order_id: order }),
+            payment: tables["pos.payment"].condition({ pos_order_id: order }),
+            customValue: tables["product.attribute.custom.value"].condition({
+                order_id: order,
+            }),
+        });
+
+        // Paid + synced, but the session is still open: keep the whole family.
+        expect(
+            purgeAll({
+                finalized: true,
+                isSynced: true,
+                id: 7,
+                session_id: { id: CUR },
+            }),
+        ).toEqual({ order: false, line: false, payment: false, customValue: false });
+
+        // Same order once its session is closed: purge the whole family.
+        expect(
+            purgeAll({
+                finalized: true,
+                isSynced: true,
+                id: 7,
+                session_id: { id: CUR + 1 },
+            }),
+        ).toEqual({ order: true, line: true, payment: true, customValue: true });
+
+        // An unsynced draft is always kept — it exists only in IndexedDB.
+        expect(
+            purgeAll({ finalized: false, isSynced: false, session_id: { id: CUR } }),
+        ).toEqual({ order: false, line: false, payment: false, customValue: false });
+
+        // A broken parent chain must resolve to a definite false:
+        // _synchronizeLocalDataInIndexedDB treats undefined as "remove".
+        expect(purgeAll(undefined)).toEqual({
+            order: false,
+            line: false,
+            payment: false,
+            customValue: false,
+        });
     });
 });

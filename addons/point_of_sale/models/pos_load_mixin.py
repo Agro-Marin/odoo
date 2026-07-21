@@ -27,6 +27,21 @@ class PosLoadMixin(models.AbstractModel):
         return []
 
     @api.model
+    def _load_pos_data_referenced_ids(self, data, model, field):
+        """Return the ids referenced by `field` on the already loaded `model`.
+
+        Domains that scope a model to what the session actually reaches depend on
+        another model having been loaded first. `data` only holds the models loaded
+        so far, and `load_data` accepts a partial model list, so that dependency can
+        legitimately be absent: treat it as "nothing is referenced" instead of
+        raising, since `load_data` only shields itself from `AccessError`.
+
+        Records in `data` come from `read(load=False)`, so a many2one field is a
+        plain id (or `False`), never an `(id, name)` pair.
+        """
+        return {record[field] for record in data.get(model, []) if record.get(field)}
+
+    @api.model
     def _server_date_to_domain(self, domain):
         """Optionally restrict the domain to records modified after the last server sync"""
         if domain is False:

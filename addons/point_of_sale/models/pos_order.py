@@ -1642,13 +1642,19 @@ class PosOrder(models.Model):
                 and not aml_entry["partner_id"]
             ]
 
+            # `amount_currency` is in the order currency, `balance` in the company
+            # currency. Bind both once so the aggregate and append branches below
+            # cannot assign them to opposite keys (they used to, which produced an
+            # unbalanced move on any config whose currency differs from the
+            # company's -- invisible when the two currencies match).
+            amount_currency = payment_id.amount
+            balance = self.session_id._amount_converter(
+                payment_id.amount, self.date_order, False
+            )
+
             if aml_vals_entry_found and not is_split_transaction:
-                aml_vals_entry_found[0]["amount_currency"] += (
-                    self.session_id._amount_converter(
-                        payment_id.amount, self.date_order, False
-                    )
-                )
-                aml_vals_entry_found[0]["balance"] += payment_id.amount
+                aml_vals_entry_found[0]["amount_currency"] += amount_currency
+                aml_vals_entry_found[0]["balance"] += balance
             else:
                 aml_vals_list_per_nature["payment_terms"].append(
                     {
@@ -1658,10 +1664,8 @@ class PosOrder(models.Model):
                         "name": f"{reversed_move_receivable_account_id.code} {reversed_move_receivable_account_id.name}",
                         "account_id": reversed_move_receivable_account_id.id,
                         "currency_id": self.currency_id.id,
-                        "amount_currency": payment_id.amount,
-                        "balance": self.session_id._amount_converter(
-                            payment_id.amount, self.date_order, False
-                        ),
+                        "amount_currency": amount_currency,
+                        "balance": balance,
                         "display_type": "payment_term",
                     }
                 )
@@ -1763,6 +1767,22 @@ class PosOrder(models.Model):
         return self.payment_ids.sudo().with_company(self.company_id)
 
     def _generate_pos_order_invoice(self):
+        # Only a paid (or already posted) order may be invoiced. Without this the
+        # `state = "done"` below happily promotes a cancelled or unpaid draft order
+        # into a posted customer invoice: revenue and output VAT are recognised for
+        # an order that was voided or never paid, and nothing ever reverses it
+        # (cancelled orders are excluded from the session closing entry). The form
+        # view hides the button for those states and `pos.make.invoice` filters them
+        # out, but the RPC entry point (`action_pos_order_invoice`) and the public
+        # `/pos/ticket/validate` route both reach this method directly.
+        if invalid_orders := self.filtered(lambda o: o.state not in ("paid", "done")):
+            raise UserError(
+                _(
+                    "The following orders cannot be invoiced because they are not"
+                    " paid: %(orders)s",
+                    orders=", ".join(invalid_orders.mapped("name")),
+                )
+            )
         if not self.env["res.company"]._with_locked_records(self, allow_raising=False):
             raise UserError(
                 _("Some orders are already being invoiced. Please try again later.")

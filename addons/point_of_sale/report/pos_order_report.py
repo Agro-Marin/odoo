@@ -74,7 +74,10 @@ class ReportPosOrder(models.Model):
             first_pos_category AS (
                 SELECT
                     pt.id AS product_template_id,
-                    (array_agg(pc.id))[1] AS id
+                    -- ORDER BY makes the pick deterministic: a product template may
+                    -- belong to several PoS categories, and without it the reported
+                    -- pos_categ_id could differ between runs of the same query.
+                    (array_agg(pc.id ORDER BY pc.id))[1] AS id
                 FROM product_template pt
                 LEFT JOIN pos_category_product_template_rel pcpt ON (pt.id = pcpt.product_template_id)
                 LEFT JOIN pos_category pc ON (pcpt.pos_category_id = pc.id)
@@ -127,9 +130,6 @@ class ReportPosOrder(models.Model):
                 LEFT JOIN pos_payment_method ppm ON (pm.payment_method_id=ppm.id)
                 LEFT JOIN first_pos_category fpc ON (pt.id = fpc.product_template_id)
         """
-
-    def _group_by(self):
-        return ""
 
     def init(self):
         tools.drop_view_if_exists(self.env.cr, self._table)

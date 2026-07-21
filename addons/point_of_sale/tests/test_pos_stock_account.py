@@ -1,6 +1,5 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-from unittest import skip
 
 import odoo
 
@@ -8,7 +7,6 @@ from odoo.addons.point_of_sale.tests.common import TestPoSCommon
 
 
 @odoo.tests.tagged("post_install", "-at_install")
-@skip("Temporary to fast merge new valuation")
 class TestPoSStock(TestPoSCommon):
     """Tests for anglo saxon accounting scenario."""
 
@@ -43,7 +41,7 @@ class TestPoSStock(TestPoSCommon):
             [self.product1, self.product2, self.product3], [25, 25, 25]
         )
 
-        self.output_account = self.categ_anglo.property_stock_account_output_categ_id
+        self.output_account = self.categ_anglo.property_stock_valuation_account_id
         self.expense_account = self.categ_anglo.property_account_expense_categ_id
         self.valuation_account = self.categ_anglo.property_stock_valuation_account_id
 
@@ -181,7 +179,12 @@ class TestPoSStock(TestPoSCommon):
                                 "partner_id": False,
                                 "debit": 0,
                                 "credit": 327,
-                                "reconciled": True,
+                                # Not reconciled any more: the new valuation engine
+                                # has no "stock output" clearing account, so this
+                                # COGS credit to stock valuation has no delivery-side
+                                # counterpart to reconcile against. Stock valuation is
+                                # still relieved exactly once, here at session closing.
+                                "reconciled": False,
                             },
                         ],
                     },
@@ -365,7 +368,12 @@ class TestPoSStock(TestPoSCommon):
                                 "partner_id": False,
                                 "debit": 0,
                                 "credit": 206,
-                                "reconciled": True,
+                                # Not reconciled any more: the new valuation engine
+                                # has no "stock output" clearing account, so this
+                                # COGS credit to stock valuation has no delivery-side
+                                # counterpart to reconcile against. Stock valuation is
+                                # still relieved exactly once, here at session closing.
+                                "reconciled": False,
                             },
                         ],
                     },

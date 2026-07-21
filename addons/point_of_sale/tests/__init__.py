@@ -1,5 +1,6 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 from . import common_setup_methods
+from . import test_common_harness
 from . import test_point_of_sale_flow
 from . import test_frontend
 from . import test_performances
@@ -26,9 +27,12 @@ from . import test_res_config_settings
 from . import test_pos_product_variants
 from . import test_generic_localization
 from . import test_pos_accounting_units
+from . import test_pos_closing_rounding
+from . import test_pos_invoice_guards
 from . import test_zzz_audit
 from . import test_zzz_audit2
 
 from . import test_js
 from . import test_zzz_audit3
 from . import test_zzz_audit4
+from . import test_pos_load_scoping
