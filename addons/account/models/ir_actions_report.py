@@ -92,9 +92,9 @@ class IrActionsReport(models.Model):
                 # of converting it to space-separated CSS classes like the JS
                 # implementation does.
                 #
-                # Root cause: ir_qweb._post_processing_att (ir_qweb.py:3338)
-                # does not handle dict values for the 'class' attribute —
-                # it should convert truthy-valued keys to CSS class strings.
+                # Root cause: ir_qweb._post_processing_att does not handle dict
+                # values for the 'class' attribute — it should convert
+                # truthy-valued keys to CSS class strings.
                 #
                 # TODO: Fix QWeb _post_processing_att to convert dict class
                 # values to "key1 key2 ..." strings, then remove this fallback.

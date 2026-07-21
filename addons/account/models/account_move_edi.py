@@ -75,18 +75,16 @@ class AccountMove(models.Model):
 
     @contextmanager
     def _get_edi_creation(self):
-        """Get an environment to import documents from other sources.
-
-        Allow to edit the current move or create a new one.
-        This will prevent computing the dynamic lines at each invoice line added and only
-        compute everything at the end.
-        """
+        """Get an environment to import documents from other sources."""
         container = {"records": self}
+        # Defer dynamic-line computation to the end of the block instead of
+        # recomputing on every invoice line added.
         with (
             self._check_balanced(container),
             self._disable_discount_precision(),
             self._sync_dynamic_lines(container),
         ):
+            # Edit the current move, or create a new one on an empty recordset.
             move = self or self.create({})
             # Register the created move before yield: if the body raises, the
             # guards' cleanup still needs to know which record they wrapped.
@@ -95,12 +93,9 @@ class AccountMove(models.Model):
 
     @contextmanager
     def _disable_discount_precision(self):
-        """Disable the user defined precision for discounts.
-
-        This is useful for importing documents coming from other softwares and providers.
-        The reasonning is that if the document that we are importing has a discount, it
-        shouldn't be rounded to the local settings.
-        """
+        """Disable the user-defined precision for discounts."""
+        # A discount on a document imported from other software/providers must
+        # keep its original value rather than be rounded to the local settings.
         with self._disable_recursion({"records": self}, "ignore_discount_precision"):
             yield
 
@@ -116,11 +111,10 @@ class AccountMove(models.Model):
         pass
 
     def _prepare_edi_vals_to_export(self):
-        """The purpose of this helper is to prepare values in order to export an invoice through the EDI system.
-        This includes the computation of the tax details for each invoice line that could be very difficult to
-        handle regarding the computation of the base amount.
+        """Prepare values to export an invoice through the EDI system.
 
-        :return: A python dict containing default pre-processed values.
+        :return: pre-processed values for the EDI export
+        :rtype: dict
         """
         self.ensure_one()
 
@@ -130,7 +124,8 @@ class AccountMove(models.Model):
             "invoice_line_vals_list": [],
         }
 
-        # Invoice lines details.
+        # Per-line values, including the tax details whose base-amount
+        # computation is handled by the line-level helper.
         for index, line in enumerate(
             self.invoice_line_ids.filtered(lambda line: line.display_type == "product"),
             start=1,
