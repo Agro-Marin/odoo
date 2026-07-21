@@ -175,14 +175,14 @@ export class TOTPEnable extends Interaction {
                 }
 
                 try {
-                    await handleCheckIdentity(
+                    await this.waitFor(handleCheckIdentity(
                         this.waitFor(this.services.orm.call(model, "enable",
                             [ record.id ],
                             { 'context': {'code': inputEl.value} },
                         )),
                         this.services.orm,
                         this.services.dialog
-                    );
+                    ));
                 } catch (e) {
                     const errorMessage = (
                         !e.message ? e.toString()
