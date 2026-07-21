@@ -97,13 +97,37 @@ class PosCategory(models.Model):
 
     @api.ondelete(at_uninstall=False)
     def _unlink_except_session_open(self):
-        if self.search_count([("id", "in", self.ids)]):
-            if self.env["pos.session"].sudo().search_count([("state", "!=", "closed")]):
-                raise UserError(
-                    _(
-                        "You cannot delete a point of sale category while a session is still opened."
-                    )
+        # Only a session that could actually be showing one of these categories may
+        # block the deletion. `sudo` is required to see sessions across companies,
+        # so the domain has to do the scoping that the ACL no longer does --
+        # otherwise any session open anywhere in the database, in an unrelated
+        # company, permanently blocks every category deletion.
+        blocking_session = (
+            self.env["pos.session"]
+            .sudo()
+            .search(
+                [
+                    ("state", "!=", "closed"),
+                    ("company_id", "in", self.env.companies.ids),
+                    "|",
+                    "|",
+                    # A config that does not restrict its categories loads them all.
+                    ("config_id.limit_categories", "=", False),
+                    ("config_id.iface_available_categ_ids", "in", self.ids),
+                    ("config_id.printer_ids.product_categories_ids", "in", self.ids),
+                ],
+                limit=1,
+            )
+        )
+        if blocking_session:
+            raise UserError(
+                _(
+                    "You cannot delete a point of sale category while the session"
+                    " %(session)s of %(config)s is still opened.",
+                    session=blocking_session.name,
+                    config=blocking_session.config_id.name,
                 )
+            )
 
     @api.depends("image_128")
     def _compute_has_image(self):
@@ -120,19 +144,19 @@ class PosCategory(models.Model):
     @api.constrains("hour_until", "hour_after")
     def _check_hour(self):
         for category in self:
-            if category.hour_until and not (0.0 <= category.hour_until <= 24.0):
+            # Both fields are non-nullable floats, and 0.0 is a legal clock value
+            # (midnight) as well as the default of `hour_after`. Guarding these
+            # checks on truthiness disabled them for exactly the window that can
+            # never open, e.g. "after 10:00" with the until-field cleared to 0.0.
+            if not 0.0 <= category.hour_until <= 24.0:
                 raise ValidationError(
                     _("The Availability Until must be set between 00:00 and 24:00")
                 )
-            if category.hour_after and not (0.0 <= category.hour_after <= 24.0):
+            if not 0.0 <= category.hour_after <= 24.0:
                 raise ValidationError(
                     _("The Availability After must be set between 00:00 and 24:00")
                 )
-            if (
-                category.hour_until
-                and category.hour_after
-                and category.hour_until < category.hour_after
-            ):
+            if category.hour_until < category.hour_after:
                 raise ValidationError(
                     _("The Availability Until must be greater than Availability After.")
                 )

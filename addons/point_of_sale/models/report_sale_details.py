@@ -169,11 +169,17 @@ class ReportPoint_Of_SaleReport_Saledetails(models.AbstractModel):
             if session_ids:
                 sessions = self.env["pos.session"].search([("id", "in", session_ids)])
             else:
+                # Overlap, not containment: orders are selected by `date_order`
+                # falling in the window, so a session merely straddling it (opened
+                # before `date_start`, or still open and hence `stop_at` NULL) also
+                # contributes orders and must appear in the payment breakdown.
                 sessions = self.env["pos.session"].search(
                     [
                         ("config_id", "in", configs.ids),
-                        ("start_at", ">=", date_start),
-                        ("stop_at", "<=", date_stop),
+                        ("start_at", "<=", date_stop),
+                        "|",
+                        ("stop_at", "=", False),
+                        ("stop_at", ">=", date_start),
                     ]
                 )
         else:
@@ -197,16 +203,22 @@ class ReportPoint_Of_SaleReport_Saledetails(models.AbstractModel):
         # nested loop below (N sessions x M methods). Iterating the not-yet-mutated
         # `payments` here is safe: the synthetic cash rows added later via
         # `payments.insert(0, ...)` are cash lines and never need a diff move.
-        diff_move_by_ref = {}
-        ref_values = {
-            "Closing difference in %s (%s)" % (payment["name"], session.name)
+        # `pos.session._get_diff_account_move_ref` is the single source of truth
+        # for this ref and it is translated, so the ref must be rebuilt through it
+        # rather than re-spelled here: a literal English form matches nothing in a
+        # non-English database and the difference silently vanishes from the report.
+        diff_ref_by_key = {
+            (session.id, payment["id"]): session._get_diff_account_move_ref(
+                self.env["pos.payment.method"].browse(payment["id"])
+            )
             for session in sessions
             for payment in payments
             if payment["session"] == session.id and not payment["cash"]
         }
-        if ref_values:
+        diff_move_by_ref = {}
+        if diff_ref_by_key:
             for move in self.env["account.move"].search(
-                [("ref", "in", list(ref_values))]
+                [("ref", "in", list(set(diff_ref_by_key.values())))]
             ):
                 # Keep the first match per ref (mirrors the old per-ref limit=1).
                 diff_move_by_ref.setdefault(move.ref, move)
@@ -230,10 +242,7 @@ class ReportPoint_Of_SaleReport_Saledetails(models.AbstractModel):
             for payment in payments:
                 if payment["session"] == session.id:
                     if not payment["cash"]:
-                        ref_value = "Closing difference in %s (%s)" % (
-                            payment["name"],
-                            session.name,
-                        )
+                        ref_value = diff_ref_by_key.get((session.id, payment["id"]))
                         account_move = diff_move_by_ref.get(
                             ref_value, self.env["account.move"]
                         )
@@ -374,9 +383,13 @@ class ReportPoint_Of_SaleReport_Saledetails(models.AbstractModel):
                     + session.cash_real_transaction
                 )
                 cash_difference = session.cash_register_balance_end_real - final_count
+                # `date` is day-granular, so same-day lines tie; `sorted` is stable
+                # and would then preserve the recordset order, which is
+                # `internal_index desc` (newest first). Break the tie on `id` to
+                # actually get chronological order.
                 cash_moves = statement_lines_by_session.get(
                     session.id, self.env["account.bank.statement.line"]
-                ).sorted("date")
+                ).sorted(lambda line: (line.date, line.id))
                 cash_in_out_list = []
 
                 if previous_session.cash_register_balance_end_real > 0:
@@ -387,9 +400,21 @@ class ReportPoint_Of_SaleReport_Saledetails(models.AbstractModel):
                         }
                     )
 
-                # If there is a cash difference, we remove the last cash move which is the cash difference
-                if session.currency_id.round(cash_difference) != 0:
-                    cash_moves = cash_moves[:-1]
+                # The closing cash difference is posted as an ordinary statement
+                # line (`_post_statement_difference`), and it must not be listed
+                # among the genuine cash movements. Identify it by its counterpart
+                # being the cash journal's loss/profit account -- not by position,
+                # which dropped whichever line happened to sort last.
+                diff_accounts = (
+                    session.cash_journal_id.loss_account_id
+                    | session.cash_journal_id.profit_account_id
+                )
+                if diff_accounts:
+                    cash_moves = cash_moves.filtered(
+                        lambda line, accounts=diff_accounts: (
+                            not (line.move_id.line_ids.account_id & accounts)
+                        )
+                    )
 
                 for cash_move in cash_moves:
                     cash_in_out_list.append(
