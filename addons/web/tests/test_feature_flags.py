@@ -100,6 +100,48 @@ class TestFeatureFlagsResolver(TransactionCase):
         result = self.ir_http._resolve_feature_flags(self.ICP)
         self.assertIs(result["bare"], True)
 
+    # -- ormcache behavior (cache="stable") -----------------------------------
+
+    def test_flags_cached_second_call_issues_no_query(self):
+        """The flag set is ormcached: a second resolve within the same cache
+        generation must not touch the database at all."""
+        self._set("cache_probe", "true")
+        first = self.ir_http._resolve_feature_flags(self.ICP)
+        self.assertIs(first["cache_probe"], True)
+        with self.assertQueryCount(0):
+            second = self.ir_http._resolve_feature_flags(self.ICP)
+        self.assertEqual(second, first)
+
+    def test_param_change_invalidates_cache(self):
+        """The cache lives in the "stable" group, the one
+        ``ir.config_parameter`` create()/write()/unlink() clear — so every
+        mutation path must be reflected by the next resolve."""
+        self._set("inval_probe", "1")
+        self.assertEqual(
+            self.ir_http._resolve_feature_flags(self.ICP)["inval_probe"], 1
+        )
+        # write() path
+        self._set("inval_probe", "2")
+        self.assertEqual(
+            self.ir_http._resolve_feature_flags(self.ICP)["inval_probe"], 2
+        )
+        # create() path
+        self._set("created_probe", "true")
+        self.assertIs(
+            self.ir_http._resolve_feature_flags(self.ICP)["created_probe"], True
+        )
+        # unlink() path
+        self.ICP.search([("key", "=", "web.feature.inval_probe")]).unlink()
+        self.assertNotIn("inval_probe", self.ir_http._resolve_feature_flags(self.ICP))
+
+    def test_returned_dict_mutation_cannot_poison_cache(self):
+        """_resolve_feature_flags builds a fresh dict per call; mutating a
+        returned dict must not alter what later calls observe."""
+        self._set("mut_probe", "true")
+        flags = self.ir_http._resolve_feature_flags(self.ICP)
+        flags["mut_probe"] = "tampered"
+        self.assertIs(self.ir_http._resolve_feature_flags(self.ICP)["mut_probe"], True)
+
     def test_value_typing_parity_with_js(self):
         """The Python parser must agree with ``_parseValue`` in feature_flags.js
         on every literal documented in the cascade comment block.

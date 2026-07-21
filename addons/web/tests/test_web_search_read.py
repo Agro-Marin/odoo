@@ -96,3 +96,38 @@ class TestWebSearchRead(common.TransactionCase):
         result = self.env["res.partner"].web_name_search("", {"display_name": {}})[0]
         self.assertIn("display_name", result)
         self.assertIn("__formatted_display_name", result)
+
+    # -- unknown-field screening of the specification (stale cached views) ----
+
+    def test_stale_specification_key_is_screened(self):
+        """A stale field name in the spec must be dropped (mirroring
+        web_read's tolerance), not 500: ``_determine_fields_to_fetch`` is
+        strict and used to ValueError on the whole call."""
+        res = self.env["res.partner"].web_search_read(
+            domain=[],
+            specification={"id": {}, "display_name": {}, "stale_zz": {}},
+            limit=2,
+        )
+        self.assertTrue(res["records"])
+        for rec in res["records"]:
+            self.assertIn("display_name", rec)
+            self.assertNotIn("stale_zz", rec)
+
+    def test_stale_sub_specification_key_is_screened(self):
+        """Stale names inside a relational sub-spec are screened too."""
+        parent = self.env["res.partner"].create(
+            {"name": "WSR Sub Parent", "is_company": True}
+        )
+        child = self.env["res.partner"].create(
+            {"name": "WSR Sub Child", "parent_id": parent.id}
+        )
+        res = self.env["res.partner"].web_search_read(
+            domain=[("id", "=", child.id)],
+            specification={
+                "id": {},
+                "parent_id": {"fields": {"display_name": {}, "stale_sub_zz": {}}},
+            },
+        )
+        [rec] = res["records"]
+        self.assertEqual(rec["parent_id"]["display_name"], "WSR Sub Parent")
+        self.assertNotIn("stale_sub_zz", rec["parent_id"])

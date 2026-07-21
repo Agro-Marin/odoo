@@ -83,6 +83,14 @@ class Base(models.AbstractModel):
             if not field_names:
                 return {}
 
+        # ONE unknown-field policy at the web boundary: drop unknown names from
+        # the fields SPEC at every nesting level (mirroring web_read's graceful
+        # degradation) instead of 500ing. Without this, a stale spec KeyErrors
+        # in the first-call defaults loop (``self._fields[field_name]`` below),
+        # ValueErrors in ``self.fetch(fields_spec.keys())``, or KeyErrors deep
+        # inside RecordSnapshot.fetch on a stale x2many sub-field.
+        fields_spec = self._screen_fields_spec(fields_spec)
+
         if first_call:
             # field_names is rebuilt from the client-supplied ``values`` keys, so
             # the guard above (which only saw an empty field_names on first_call)
@@ -315,6 +323,55 @@ class Base(models.AbstractModel):
             }
 
         return result
+
+    def _screen_fields_spec(
+        self, fields_spec: dict, _dropped: list[str] | None = None
+    ) -> dict:
+        """Return *fields_spec* with unknown field names dropped, recursively.
+
+        A stale/cached view (e.g. a module upgrade removed a field) can send a
+        web spec referencing that field at ANY nesting level. This applies the
+        single unknown-field policy of the web boundary — degrade gracefully,
+        warn, keep serving the valid fields — the same way ``read()`` (and thus
+        ``web_read``) tolerates unknown names. Consumed by :meth:`onchange` and
+        :meth:`web_search_read`.
+
+        Recurses into relational sub-specs (``fields`` of many2one/x2many);
+        ``reference``/``many2one_reference`` sub-specs cannot be screened
+        statically (comodel unknown until the value is read) and ``properties``
+        sub-keys are property names, not model fields — both pass through
+        untouched. All dropped names are collected and logged in ONE warning
+        per request. The input dicts are never mutated.
+        """
+        top_call = _dropped is None
+        if top_call:
+            _dropped = []
+        screened = {}
+        for field_name, field_spec in fields_spec.items():
+            field = self._fields.get(field_name)
+            if field is None:
+                _dropped.append(f"{self._name}.{field_name}")
+                continue
+            if (
+                field.type in ("many2one", "one2many", "many2many")
+                and isinstance(field_spec, dict)
+                and isinstance(field_spec.get("fields"), dict)
+            ):
+                field_spec = dict(
+                    field_spec,
+                    fields=self.env[field.comodel_name]._screen_fields_spec(
+                        field_spec["fields"], _dropped
+                    ),
+                )
+            screened[field_name] = field_spec
+        if top_call and _dropped:
+            _logger.warning(
+                "%s: ignoring unknown field(s) %s from web fields specification"
+                " (stale client view?)",
+                self._name,
+                _dropped,
+            )
+        return screened
 
     def web_override_translations(self, values: dict[str, str]) -> None:
         """
