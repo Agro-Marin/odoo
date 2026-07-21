@@ -147,7 +147,7 @@ class PortalAccount(portal.PortalAccount, PaymentPortal):
         }
         payment_form_values = {
             'show_tokenize_input_mapping': PaymentPortal._compute_show_tokenize_input_mapping(
-                providers_sudo
+                providers_sudo, **kwargs
             ),
         }
         payment_context = {
@@ -163,8 +163,7 @@ class PortalAccount(portal.PortalAccount, PaymentPortal):
             'payment_reference': invoices_data.get('payment_reference', False),
         }
         # Merge the dictionaries while allowing the redefinition of keys.
-        values = portal_page_values | payment_form_values | payment_context | self._get_extra_payment_form_values(**kwargs)
-        return values
+        return portal_page_values | payment_form_values | payment_context | self._get_extra_payment_form_values(**kwargs)
 
     @http.route()
     def portal_my_invoice_detail(self, invoice_id, payment_token=None, amount=None, **kw):

@@ -27,8 +27,8 @@ class PaymentPortal(payment_portal.PaymentPortal):
             invoice_sudo = self._document_check_access('account.move', invoice_id, access_token)
         except MissingError as error:
             raise error  # noqa: TRY201
-        except AccessError:
-            raise ValidationError(_("The access token is invalid."))  # noqa: B904
+        except AccessError as error:
+            raise ValidationError(_("The access token is invalid.")) from error
 
         logged_in = not request.env.user._is_public()
         partner_sudo = request.env.user.partner_id if logged_in else invoice_sudo.partner_id
