@@ -223,6 +223,14 @@ export async function postprocessReadGroup(config, response, deps) {
                     count: 0,
                     length: 0,
                     records: [],
+                    // Nested subgroups must be reset along with the records:
+                    // the re-inserted group claims count 0, so spreading the
+                    // stale ``groups`` of a multi-level grouping would render
+                    // rows that dropped out of the response (e.g. deleted
+                    // records) as live records under a "(0)" parent. Leaf
+                    // groups ignore the extra key (Group picks the list class
+                    // from config.list.groupBy, not from the data shape).
+                    groups: [],
                     aggregates,
                 });
                 cursor++;

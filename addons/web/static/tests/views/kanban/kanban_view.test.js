@@ -9806,6 +9806,72 @@ test("progress bar recompute after filter selection (aggregates)", async () => {
     expect.verifySteps(["read_progress_bar", "web_read_group"]);
 });
 
+test("progress bar aggregates stay filtered on reload (mixed group)", async () => {
+    // DISCRIMINATING fixture: after the search filter, the group still mixes
+    // active-bar records (yop: 15 + 20 = 35) with other records (blip: 100),
+    // so the filtered sum (35) differs from the unfiltered group sum (135).
+    // The reload reseeds the counter from the web_read_group aggregates, which
+    // the server computes under group-domain AND progressbar_domain for groups
+    // with an active bar (only __count stays unfiltered) — with equal sums
+    // (previous fixtures), a counter fed unfiltered aggregates went unnoticed.
+    Partner._records.push({ foo: "yop", bar: true, float_field: 100, int_field: 15 });
+    Partner._records.push({ foo: "yop", bar: true, float_field: 100, int_field: 20 });
+    Partner._records.push({ foo: "blip", bar: true, float_field: 100, int_field: 100 });
+
+    stepAllNetworkCalls();
+
+    await mountView({
+        type: "kanban",
+        resModel: "partner",
+        arch: `
+            <kanban>
+                <progressbar field="foo" colors='{"yop": "success", "gnap": "warning", "blip": "danger"}' sum_field="int_field"/>
+                <templates>
+                    <t t-name="card">
+                        <field name="foo"/>
+                    </t>
+                </templates>
+            </kanban>`,
+        searchViewArch: `
+            <search>
+                <filter name="my_filter" string="My filter" domain="[['float_field', '=', 100]]"/>
+            </search>`,
+        groupBy: ["bar"],
+    });
+
+    expect(getKanbanColumnTooltips()).toEqual(["1 blip", "3 yop", "1 gnap", "2 blip"]);
+    expect(getKanbanCounters()).toEqual(["-4", "171"]);
+    expect.verifySteps([
+        "/web/webclient/translations",
+        "/web/webclient/load_menus",
+        "get_views",
+        "read_progress_bar",
+        "web_read_group",
+        "has_group",
+    ]);
+
+    // Select the "yop" bar: the counter shows the filtered sum.
+    await contains(".progress-bar.bg-success", { root: getKanbanColumn(1) }).click();
+
+    expect(getKanbanCounters()).toEqual(["-4", "45"]);
+    expect.verifySteps([
+        "formatted_read_group", // recomputes aggregates
+        "web_search_read",
+        "read_progress_bar",
+        "formatted_read_group",
+        "formatted_read_group",
+    ]);
+
+    // Trigger a search-filter reload: the counter must STILL show the sum of
+    // the active bar's records only (35), not the unfiltered group sum (135).
+    await toggleSearchBarMenu();
+    await toggleMenuItem("My filter");
+
+    expect(getKanbanColumnTooltips()).toEqual(["2 yop", "1 blip"]);
+    expect(getKanbanCounters()).toEqual(["35"]);
+    expect.verifySteps(["read_progress_bar", "web_read_group"]);
+});
+
 test("progress bar with monetary aggregate and multi currencies", async () => {
     const aed = {
         id: 3,
