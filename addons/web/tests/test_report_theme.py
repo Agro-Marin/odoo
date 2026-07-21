@@ -76,3 +76,32 @@ class TestReportTheme(TransactionCase):
         after = self.env.ref("web.asset_styles_company_report").datas
         self.assertNotEqual(before, after)
         self.assertIn("Georgia", base64.b64decode(after).decode())
+
+    def test_editing_theme_token_regenerates_company_stylesheet(self):
+        """Editing a theme's own tokens reflows the shared company stylesheet.
+
+        The asset is otherwise only rebuilt on res.company writes, so without
+        the report.theme write hook a theme edit would not reach any report.
+        """
+        theme = self.env.ref("web.report_theme_modern")
+        self.env.company.report_theme_id = theme
+        before = self.env.ref("web.asset_styles_company_report").datas
+        theme.row_padding = "2.5rem"
+        after = self.env.ref("web.asset_styles_company_report").datas
+        self.assertNotEqual(before, after)
+        self.assertIn("2.5rem", base64.b64decode(after).decode())
+
+    def test_editing_theme_non_token_field_skips_regeneration(self):
+        """A non-token write (e.g. sequence) leaves the shared asset untouched."""
+        theme = self.env.ref("web.report_theme_modern")
+        self.env.company.report_theme_id = theme
+        before = self.env.ref("web.asset_styles_company_report").datas
+        theme.sequence += 5
+        after = self.env.ref("web.asset_styles_company_report").datas
+        self.assertEqual(before, after)
+
+    def test_condensed_theme_shipped(self):
+        """The Condensed theme ships and emits its condensed display face."""
+        theme = self.env.ref("web.report_theme_condensed")
+        css = str(theme._report_css_vars("#111", "#222", "Lato"))
+        self.assertIn("--rp-font-display: Oswald", css)
