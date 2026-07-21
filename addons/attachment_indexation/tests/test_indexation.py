@@ -1,4 +1,5 @@
 import io
+import zipfile
 from pathlib import Path
 from unittest import skipIf
 from unittest.mock import patch
@@ -9,6 +10,14 @@ from odoo.tests.common import TransactionCase, tagged
 from odoo.tools.misc import file_open
 
 directory = Path(__file__).parent
+
+
+def _build_docx(document_xml):
+    """Build minimal .docx-shaped zip bytes with a single word/document.xml entry."""
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, 'w') as zf:
+        zf.writestr('word/document.xml', document_xml)
+    return buf.getvalue()
 
 try:
     from pdfminer.pdfinterp import PDFResourceManager
@@ -25,6 +34,41 @@ class TestCaseIndexation(TransactionCase):
             pdf = file.read()
             text = self.env['ir.attachment']._index(pdf, 'application/pdf')
             self.assertEqual(text, 'TestContent!!', 'the index content should be correct')
+
+    def test_docx_indexation_happy_path(self):
+        """A well-formed .docx parses normally and its text is extracted."""
+        document_xml = (
+            b'<?xml version="1.0"?>'
+            b'<w:document xmlns:w="ns"><w:body><w:p>Hello</w:p></w:body></w:document>'
+        )
+        text = self.env['ir.attachment']._index_docx(_build_docx(document_xml))
+        self.assertIn('Hello', text)
+
+    def test_docx_indexation_rejects_entity_declarations(self):
+        """A .docx whose document.xml declares an XML entity must not be
+        parsed with entity substitution: defusedxml must reject it outright
+        (caught by the broad except, buf stays empty), instead of silently
+        expanding it like the plain xml.dom.minidom parser used to."""
+        document_xml = (
+            b'<?xml version="1.0"?>'
+            b'<!DOCTYPE w:document [<!ENTITY xxe "boom">]>'
+            b'<w:document xmlns:w="ns"><w:body><w:p>&xxe;</w:p></w:body></w:document>'
+        )
+        text = self.env['ir.attachment']._index_docx(_build_docx(document_xml))
+        self.assertEqual(text, '', "entity declarations must not be substituted into the index")
+
+    def test_docx_indexation_skips_oversized_entry(self):
+        """A word/document.xml entry larger than _INDEX_MAX_BYTES must be
+        skipped before parsing, not read/parsed in full (zip-bomb guard)."""
+        Att = self.env['ir.attachment']
+        padding = b'<!-- ' + b'a' * (Att._INDEX_MAX_BYTES + 1) + b' -->'
+        document_xml = (
+            b'<?xml version="1.0"?>'
+            b'<w:document xmlns:w="ns">' + padding +
+            b'<w:body><w:p>Hello</w:p></w:body></w:document>'
+        )
+        text = Att._index_docx(_build_docx(document_xml))
+        self.assertEqual(text, '', "an oversized entry must be skipped, not parsed")
 
     def test_index_read_size_documents_read_full(self):
         """Parsed document mimetypes request a full read-back from the streaming
