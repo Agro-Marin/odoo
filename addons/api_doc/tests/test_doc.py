@@ -54,7 +54,7 @@ class TestDoc(HttpCaseWithUserDemo):
             scope='rpc', name='test', expiration_date=datetime.now() + timedelta(days=0.5))
         self._doc_index('doc-bearer', headers={"Authorization": f"Bearer {key}"})
 
-    def _doc_index(self, prefix, headers={}):
+    def _doc_index(self, prefix, headers={}):  # noqa: B006
         res = self.url_open(f'/{prefix}/index.json', allow_redirects=False, headers=headers)
         res.raise_for_status()
         self.assertEqual(res.status_code, 200)
@@ -92,7 +92,7 @@ class TestDoc(HttpCaseWithUserDemo):
             scope='rpc', name='test', expiration_date=datetime.now() + timedelta(days=0.5))
         self._doc_model('doc-bearer', headers={"Authorization": f"Bearer {key}"})
 
-    def _doc_model(self, prefix, headers={}):
+    def _doc_model(self, prefix, headers={}):  # noqa: B006
         res = self.url_open(f'/{prefix}/res.partner.json', allow_redirects=False, headers=headers)
         res.raise_for_status()
         self.assertEqual(res.status_code, 200)
@@ -225,10 +225,7 @@ class TestDoc(HttpCaseWithUserDemo):
                 )
 
     def test_ghost_model_robustness(self):
-        """
-        Ensure the documentation generator does not crash when encountering
-        a model in the database (state='base') that is missing from the registry.
-        """
+        """/doc/index.json skips ir.model rows that are absent from the registry."""
 
         ghost_model_name = 'ir.min.cron.mixin.test.ghost'
         self.env['ir.model'].create({
