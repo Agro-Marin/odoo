@@ -84,10 +84,10 @@ class AccountPayment(models.Model):
 
     @api.depends('payment_method_line_id')
     def _compute_use_electronic_payment_method(self):
+        # Get a list of all electronic payment method codes.
+        # These codes are comprised of 'electronic' and the providers of each payment provider.
+        codes = self._get_electronic_payment_method_codes()
         for payment in self:
-            # Get a list of all electronic payment method codes.
-            # These codes are the codes of the payment providers.
-            codes = list(dict(self.env['payment.provider']._fields['code']._description_selection(self.env)))
             payment.use_electronic_payment_method = payment.payment_method_code in codes
 
     def _compute_refunds_count(self):
@@ -103,11 +103,23 @@ class AccountPayment(models.Model):
         for payment in self:
             payment.refunds_count = data.get(payment.id, 0)
 
+    #=== HELPER METHODS ===#
+
+    def _get_electronic_payment_method_codes(self):
+        """ Return the list of all electronic payment method codes.
+
+        These codes are comprised of 'electronic' and the code of each payment provider.
+
+        :return: The electronic payment method codes.
+        :rtype: list
+        """
+        return list(dict(self.env['payment.provider']._fields['code']._description_selection(self.env)))
+
     #=== ONCHANGE METHODS ===#
 
     @api.onchange('partner_id', 'payment_method_line_id', 'journal_id')
     def _onchange_set_payment_token_id(self):
-        codes = list(dict(self.env['payment.provider']._fields['code']._description_selection(self.env)))
+        codes = self._get_electronic_payment_method_codes()
         if not (self.payment_method_code in codes and self.partner_id and self.journal_id):
             self.payment_token_id = False
             return

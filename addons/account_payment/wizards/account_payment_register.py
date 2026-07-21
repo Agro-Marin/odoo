@@ -48,9 +48,10 @@ class AccountPaymentRegister(models.TransientModel):
 
     @api.depends('payment_method_line_id')
     def _compute_use_electronic_payment_method(self):
+        # Get a list of all electronic payment method codes.
+        # These codes are comprised of the codes of each payment provider.
+        codes = list(dict(self.env['payment.provider']._fields['code']._description_selection(self.env)))
         for wizard in self:
-            # The electronic payment method codes are the codes of the payment providers.
-            codes = list(dict(self.env['payment.provider']._fields['code']._description_selection(self.env)))
             wizard.use_electronic_payment_method = wizard.payment_method_code in codes
 
     @api.depends('can_edit_wizard', 'suitable_payment_token_ids', 'journal_id')
