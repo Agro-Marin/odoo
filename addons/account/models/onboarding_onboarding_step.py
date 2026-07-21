@@ -94,7 +94,8 @@ class OnboardingOnboardingStep(models.Model):
 
     @api.model
     def action_open_step_chart_of_accounts(self):
-        """Called by the 'Chart of Accounts' button of the dashboard onboarding panel."""
+        """Validate the chart of accounts step and open the accounts view."""
+        # Triggered by the "Chart of Accounts" button of the dashboard onboarding panel.
         company = (
             self.env["account.journal"]
             .browse(self.env.context.get("journal_id", None))

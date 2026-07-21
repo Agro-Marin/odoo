@@ -10,10 +10,8 @@ class AccountChartTemplate(models.AbstractModel):
     def _get_generic_coa_template_data(self):
         """Return the data necessary for the chart template.
 
-        :return: all the values that are not stored but are used to instancieate
-                 the chart of accounts. Common keys are:
-                 * property_*
-                 * code_digits
+        :return: values not stored on records but used to instantiate the chart
+                 of accounts (e.g. property_* account references, code_digits)
         :rtype: dict
         """
         return {
@@ -27,8 +25,7 @@ class AccountChartTemplate(models.AbstractModel):
     def _get_generic_coa_res_company(self):
         """Return the data to be written on the company.
 
-        The data is a mapping the XMLID to the create/write values of a record.
-
+        :return: mapping of XMLID or record id to its create/write values
         :rtype: dict[(str, int), dict]
         """
         return {
