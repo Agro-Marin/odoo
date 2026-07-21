@@ -1,6 +1,6 @@
 import re
 
-from odoo import api, fields, models, _
+from odoo import _, api, fields, models
 from odoo.exceptions import ValidationError
 
 
@@ -57,7 +57,7 @@ class BarcodeRule(models.Model):
             try:
                 re.compile(rule.pattern)
             except re.error as error:
-                raise ValidationError(_("The rule pattern '%(rule)s' is not a valid Regex: %(error)s", rule=rule.name, error=error))
+                raise ValidationError(_("The rule pattern '%(rule)s' is not a valid Regex: %(error)s", rule=rule.name, error=error)) from error
             groups = re.findall(r'\([^)]*\)', rule.pattern)
             if len(groups) != 2:
                 raise ValidationError(_(
