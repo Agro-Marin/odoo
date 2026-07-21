@@ -755,20 +755,31 @@ export class PivotModel extends Model {
         }
         const activeMeasures = processedMeasures || this.metaData.activeMeasures;
         const metaData = this._buildMetaData({ activeMeasures });
+        // Copy every source array into metaData: ``closeGroup`` splices
+        // ``metaData.rowGroupBys``/``colGroupBys`` in place, so metaData must
+        // OWN them. ``searchParams.context.pivot_{row,column}_groupby`` is the
+        // action's context array returned by reference (unlike the groupBy
+        // getter, which already deep-copies for exactly this reason), so without
+        // the copy a collapsed group permanently truncates the action's declared
+        // grouping for the rest of its lifetime.
         if (!this.reload) {
-            metaData.rowGroupBys =
-                searchParams.context.pivot_row_groupby ||
-                (searchParams.groupBy.length
-                    ? searchParams.groupBy
-                    : metaData.rowGroupBys);
+            metaData.rowGroupBys = [
+                ...(searchParams.context.pivot_row_groupby ||
+                    (searchParams.groupBy.length
+                        ? searchParams.groupBy
+                        : metaData.rowGroupBys)),
+            ];
             this.reload = true;
         } else {
-            metaData.rowGroupBys = searchParams.groupBy.length
-                ? searchParams.groupBy
-                : searchParams.context.pivot_row_groupby || metaData.rowGroupBys;
+            metaData.rowGroupBys = [
+                ...(searchParams.groupBy.length
+                    ? searchParams.groupBy
+                    : searchParams.context.pivot_row_groupby || metaData.rowGroupBys),
+            ];
         }
-        metaData.colGroupBys =
-            searchParams.context.pivot_column_groupby || this.metaData.colGroupBys;
+        metaData.colGroupBys = [
+            ...(searchParams.context.pivot_column_groupby || this.metaData.colGroupBys),
+        ];
 
         if (
             JSON.stringify(metaData.rowGroupBys) !==
