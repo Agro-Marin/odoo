@@ -56,7 +56,7 @@ function closePreferencesDialog({content, totp_state}) {
     return [{
         content,
         trigger: 'a[role=tab]:contains("Security").active',
-    }, 
+    },
     {
         trigger,
         async run(helpers) {
@@ -174,7 +174,7 @@ registry.category("web_tour.tours").add('totp_login_enabled', {
     content: "reuse same code",
     trigger: 'input[name=totp_token]',
     async run(helpers) {
-        // send the same token as the one last one from the setup tour
+        // send the same token as the last one from the setup tour
         const token = await rpc("/totphook", { offset: 0 });
         await helpers.edit(token);
     }
