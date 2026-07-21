@@ -6,9 +6,7 @@ from odoo.addons.account.tests.common import AccountTestInvoicingCommon
 @tagged("post_install", "-at_install")
 class TestSetupWizard(AccountTestInvoicingCommon):
     def test_setup_bank_account(self):
-        """
-        Test that no error is raised when creating the bank setup wizard
-        """
+        """Creating the bank setup wizard raises no error."""
         wizard = self.env["account.setup.bank.manual.config"].create(
             [
                 {
