@@ -1,8 +1,8 @@
 import json
-
 from contextlib import contextmanager
-from lxml import html
 from unittest.mock import patch
+
+from lxml import html
 
 from odoo.http import request
 from odoo.tests import tagged
@@ -13,7 +13,9 @@ from odoo.addons.base.tests.common import HttpCaseWithUserDemo
 
 class PasskeyTest(HttpCaseWithUserDemo):
     @classmethod
-    def setUpClass(self):
+    def setUpClass(self):  # noqa: N804 - body uses `self.` throughout to set class attrs; a
+        # partial rename to `cls` would only fix the signature and break every
+        # `self.foo = ...` reference below (~130 lines) - not a safe mechanical fix
         super().setUpClass()
 
         self.admin_user = self.env.ref('base.user_admin')
