@@ -167,11 +167,10 @@ class AccountMergeWizard(models.TransientModel):
 
     @api.model
     def _action_merge(self, accounts):
-        """Merge `accounts`:
-        - the first account is extended to each company of the others, keeping their codes and names;
-        - the others are deleted; and
-        - journal items and other references are retargeted to the first account.
-        """
+        """Merge `accounts` into the first one."""
+        # The first account is extended to each company of the others, keeping their codes and
+        # names; the others are deleted; and journal items and other references are retargeted
+        # to the first account.
         # Step 1: Keep track of the company_ids and codes we should write on the account.
         # We will do so only at the end, to avoid triggering the constraint that prevents duplicate codes.
         company_ids_to_write = accounts.sudo().company_ids
@@ -332,12 +331,11 @@ class AccountMergeWizardLine(models.TransientModel):
 
     @api.depends("account_id", "wizard_id.wizard_line_ids.is_selected", "display_type")
     def _compute_info(self):
-        """This re-computes the error message for each wizard line every time the user selects or deselects a wizard line.
-
-        In reality accounts will only affect the mergeability of other accounts in the same merge group.
-        Therefore this method delegates the logic of determining whether an account can be merged to
-        `_apply_different_companies_constraint` and `_apply_hashed_moves_constraint` which work on a merge group basis.
-        """
+        """Recompute the error message for each wizard line."""
+        # Runs on every select/deselect. An account only affects the mergeability of other
+        # accounts in its own merge group, so this delegates to
+        # `_apply_different_companies_constraint` and `_apply_hashed_moves_constraint`, which
+        # work on a merge-group basis.
         for wizard_line in self.filtered(lambda l: l.display_type == "line_section"):
             wizard_line.info = wizard_line._get_group_name()
         for wizard_line_group in (
@@ -352,9 +350,8 @@ class AccountMergeWizardLine(models.TransientModel):
             wizard_line_group._apply_hashed_moves_constraint()
 
     def _get_group_name(self):
-        """Return a human-readable name for a wizard line's group, based on its `account_id`, in the format:
-        '{Trade/Non-trade} Receivable {USD} {Reconcilable} {Deprecated}'
-        """
+        """Return a human-readable name for a wizard line's group, based on its `account_id`."""
+        # Format: '{Trade/Non-trade} Receivable {USD} {Reconcilable} {Deprecated}'.
         self.ensure_one()
 
         account_type_label = dict(
@@ -389,13 +386,9 @@ class AccountMergeWizardLine(models.TransientModel):
         return grouping_key_name
 
     def _apply_different_companies_constraint(self):
-        """Set `info` on wizard lines if an account cannot be merged
-        because it belongs to the same company as another account.
-
-        If users want to do that, they should mass-edit the account on the journal items.
-
-        The wizard lines in `self` should have the same `grouping_key`.
-        """
+        """Set `info` on wizard lines if an account cannot be merged because it belongs to the same company as another account."""
+        # If users want to merge such accounts, they should mass-edit the account on the
+        # journal items instead. The wizard lines in `self` should have the same `grouping_key`.
         companies_seen = self.env["res.company"]
         account_belonging_to_company = {}
         for wizard_line in self:
@@ -414,14 +407,10 @@ class AccountMergeWizardLine(models.TransientModel):
                             )
 
     def _apply_hashed_moves_constraint(self):
-        """Set `info` on wizard lines if an account cannot be merged because it
-        has hashed entries.
-
-        If there are hashed entries in an account, then the merge must preserve that account's ID.
-        So we cannot merge two accounts that contain hashed entries.
-
-        The wizard lines in `self` should have the same `grouping_key`.
-        """
+        """Set `info` on wizard lines if an account cannot be merged because it has hashed entries."""
+        # If an account has hashed entries, the merge must preserve that account's ID, so two
+        # accounts that both contain hashed entries cannot be merged. The wizard lines in `self`
+        # should have the same `grouping_key`.
         account_to_merge_into = None
         for wizard_line in self:
             if (

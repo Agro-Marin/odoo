@@ -147,12 +147,7 @@ class AccountResequenceWizard(models.TransientModel):
 
     @api.depends("first_name", "move_ids", "sequence_number_reset")
     def _compute_new_values(self):
-        """Compute the proposed new values.
-
-        Sets a json string on new_values representing a dictionary thats maps account.move
-        ids to a dictionary containing the name if we execute the action, and information
-        relative to the preview widget.
-        """
+        """Compute the proposed new values."""
 
         def _get_move_key(move_id):
             company = move_id.company_id
@@ -171,6 +166,9 @@ class AccountResequenceWizard(models.TransientModel):
                 return (move_id.date.year, move_id.date.month)
             return "default"
 
+        # new_values maps account.move ids to a dict with the name to apply if the
+        # action is executed, plus information for the preview widget; serialized to
+        # json on the new_values field.
         self.new_values = "{}"
         for record in self.filtered("first_name"):
             moves_by_period = defaultdict(
