@@ -172,9 +172,15 @@ class TestActivityTypeUnlink(MailCommon):
 class TestLoopSenderDomain(MailCommon):
     def test_domain_is_anchored_and_escaped(self):
         """The base mail.thread._detect_loop_sender_domain fallback must build
-        an anchored, wildcard-escaped match, not an unanchored substring ilike
+        anchored, wildcard-escaped matches, not an unanchored substring ilike
         that over-matches (models with the blacklist mixin override it with an
-        exact email_normalized match, so test the fallback on the base)."""
+        exact email_normalized match, so test the fallback on the base).
+
+        Two alternatives are required, not one: message_new stores the *raw*
+        FROM, so the column holds either a bare address or the full
+        ``"Name" <addr>`` form. Matching only the bare form made the loop guard
+        match nothing at all on the standard gateway create path.
+        """
         MailThread = self.env["mail.thread"]
         with patch.object(
             type(MailThread),
@@ -182,14 +188,40 @@ class TestLoopSenderDomain(MailCommon):
             lambda self: "email",
         ):
             domain = MailThread._detect_loop_sender_domain("a_b%c@x.com")
-        self.assertEqual(len(domain), 1)
-        _field, operator, value = domain[0]
-        self.assertEqual(operator, "=ilike")
+        self.assertEqual(domain[0], "|", "must accept both stored forms")
+        leaves = domain[1:]
+        self.assertEqual(len(leaves), 2)
+        escaped = "a\\_b\\%c@x.com"
+        for _field, operator, value in leaves:
+            self.assertEqual(
+                operator,
+                "=ilike",
+                "anchored equality only — a bare ilike over-matches",
+            )
+            self.assertIn(
+                escaped,
+                value,
+                "LIKE metacharacters valid in an address must be escaped",
+            )
         self.assertEqual(
-            value,
-            "a\\_b\\%c@x.com",
-            "LIKE metacharacters valid in an address must be escaped",
+            [value for _f, _o, value in leaves],
+            [escaped, f"%<{escaped}>"],
+            "exact address, or the display-name form anchored on <addr>",
         )
+
+    def test_domain_is_none_for_unparseable_sender(self):
+        """A FROM that cannot be normalized (``undisclosed-recipients:;``,
+        ``<>``, a bare display name) yields False from email_normalize. Building
+        a domain from it used to raise AttributeError out of message_process --
+        and fetchmail acked the message anyway, losing the mail permanently."""
+        MailThread = self.env["mail.thread"]
+        with patch.object(
+            type(MailThread),
+            "_mail_get_primary_email_field",
+            lambda self: "email",
+        ):
+            self.assertIsNone(MailThread._detect_loop_sender_domain(False))
+            self.assertIsNone(MailThread._detect_loop_sender_domain(""))
 
 
 @tagged("post_install", "-at_install")

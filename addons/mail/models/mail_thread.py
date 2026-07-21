@@ -911,10 +911,21 @@ class MailThread(models.AbstractModel):
                 if record.id in bodies
                 else record._track_get_default_log_message(changes)
             )
+            if subtype and not subtype.exists():
+                # Reading ``subtype.name`` here raised MissingError -- on a
+                # record we had just proven absent -- so the guard meant to
+                # degrade gracefully instead propagated out of _track_finalize,
+                # through cr.flush(), and failed the whole write(). Log the id
+                # (always readable) and fall through to the tracking-only log
+                # below so the tracking values are not discarded either.
+                _logger.warning(
+                    "mail.message.subtype %s no longer exists, logging %s "
+                    "tracking without a subtype",
+                    subtype.id,
+                    self._name,
+                )
+                subtype = self.env["mail.message.subtype"]
             if subtype:
-                if not subtype.exists():
-                    _logger.debug('subtype "%s" not found', subtype.name)
-                    continue
                 record.message_post(
                     body=body,
                     author_id=author_id,
@@ -1400,22 +1411,37 @@ class MailThread(models.AbstractModel):
 
         :param email_from_normalized: FROM of the incoming email, normalized
         """
+        if not email_from_normalized:
+            # An unparseable FROM (``undisclosed-recipients:;``, ``<>``, a bare
+            # display name) normalizes to False. Without this guard the escaping
+            # below raised AttributeError out of message_process, and fetchmail
+            # still acked the message -- losing the mail for good.
+            return None
+
         primary_email = self._mail_get_primary_email_field()
         if primary_email:
-            # Anchored, case-insensitive equality: a plain ``ilike`` wraps the
-            # value in %...% and treats % / _ as wildcards, so it both
-            # over-matches unrelated addresses sharing a substring (e.g.
-            # jane@x.com / mike@x.com for a sender e@x.com) and lets a crafted
-            # local part such as ``%@dom.com`` match a whole domain — either way
-            # inflating the loop counter and bouncing legitimate senders. Use
-            # ``=ilike`` and escape the LIKE metacharacters that are valid in an
-            # address so the pattern matches only the exact sender.
+            # Escape the LIKE metacharacters that are valid in an address: a
+            # plain ``ilike`` treats % / _ as wildcards, so a crafted local part
+            # such as ``%@dom.com`` would match a whole domain and inflate the
+            # loop counter, bouncing legitimate senders.
             escaped = (
                 email_from_normalized.replace("\\", "\\\\")
                 .replace("%", "\\%")
                 .replace("_", "\\_")
             )
-            return [(primary_email, "=ilike", escaped)]
+            # The column holds whatever the gateway wrote, and ``message_new``
+            # stores the *raw* FROM -- ``"Eve" <eve@ex.com>`` just as often as a
+            # bare ``eve@ex.com``. Anchored equality against the normalized
+            # address alone therefore matched nothing on the standard create
+            # path, silently disabling loop detection for every model that does
+            # not override this (blacklist models compare email_normalized and
+            # were unaffected). Accept both stored forms, still anchored so no
+            # unrelated address sharing a substring can match.
+            return [
+                "|",
+                (primary_email, "=ilike", escaped),
+                (primary_email, "=ilike", f"%<{escaped}>"),
+            ]
 
         _logger.info("Primary email missing on %s", self._name)
         return None
@@ -4701,26 +4727,35 @@ class MailThread(models.AbstractModel):
                         for recipient_id in recipients_ids_chunk
                     ]
                 emails += new_email
-            # create one MailMail per email-only recipient. Partner recipients are
-            # personalized per-recipient by _prepare_outgoing_list, but email-only
-            # recipients have no partner, so joining them into a single email_to
-            # (as before) disclosed every external address to all the others in
-            # the To header. One mail each keeps them isolated.
-            for recipient_email in recipients_emails:
+            # create MailMail for email-only recipients
+            #
+            # These share one mail deliberately. Splitting into one mail per
+            # address was tried to keep external recipients from seeing each
+            # other, but it bought nothing: base_mail_values carries the
+            # X-Msg-To-Add header built from *all* external recipients, and
+            # ir_mail_server._alter_message__ appends it into the visible To of
+            # every mail -- so each recipient still received the full list. That
+            # header is intentional (it is what makes reply-all work across
+            # external correspondents, and it is already capped by
+            # _CUSTOMER_HEADERS_LIMIT_COUNT). The split only multiplied
+            # mail.mail rows and SMTP sends, and inflated len(emails) so the
+            # force-send limit queued far earlier than intended.
+            if recipients_emails:
                 mail_values = self._notify_by_email_get_final_mail_values(
                     [],
                     base_mail_values,
                     additional_values={"body_html": mail_body},
                 )
-                mail_values["email_to"] = recipient_email
+                mail_values["email_to"] = ",".join(recipients_emails)
                 new_email = SafeMail.create(mail_values)
-                notif_create_values.append(
+                notif_create_values += [
                     {
-                        "mail_email_address": recipient_email,
+                        "mail_email_address": email,
                         "mail_mail_id": new_email.id,
                         **base_notification_values,
                     }
-                )
+                    for email in recipients_emails
+                ]
                 emails += new_email
 
         if notif_create_values:

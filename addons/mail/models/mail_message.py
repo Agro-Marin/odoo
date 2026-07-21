@@ -1519,6 +1519,16 @@ class MailMessage(models.Model):
         return [field_name]
 
     def _to_store_defaults(self, target: Store.Target):
+        # The incoming-email envelope (from / to / cc) travels as one unit: it is
+        # the addresses of everyone the original mail went to. Gating the sender
+        # while shipping the recipient list to portal users and guests leaked the
+        # higher-value half -- an internal colleague on Cc of a mail threaded onto
+        # a customer-visible record was disclosed to that customer.
+        def envelope_visible(message):
+            return target.is_internal(self.env) or (
+                not message.author_id and not message.author_guest_id
+            )
+
         field_names = [
             # sudo: mail.message - reading attachments on accessible message is allowed
             Store.Many(
@@ -1543,15 +1553,9 @@ class MailMessage(models.Model):
             "body",
             "create_date",
             "date",
-            Store.Attr(
-                "email_from",
-                predicate=lambda m: (
-                    target.is_internal(self.env)
-                    or (not m.author_id and not m.author_guest_id)
-                ),
-            ),
-            "incoming_email_cc",
-            "incoming_email_to",
+            Store.Attr("email_from", predicate=envelope_visible),
+            Store.Attr("incoming_email_cc", predicate=envelope_visible),
+            Store.Attr("incoming_email_to", predicate=envelope_visible),
             # sudo: mail.message - reading link preview on accessible message is allowed
             "message_format",
             "message_link_preview_ids",
@@ -1732,11 +1736,17 @@ class MailMessage(models.Model):
                 "thread": Store.One(record, [], as_thread=True),
             }
 
-            if message.incoming_email_cc:
+            # Same envelope gate as _to_store_defaults: this re-add ships the
+            # parsed tuples and would otherwise hand the recipient list to
+            # portal users and guests regardless of the predicate above.
+            envelope_visible = store.target.is_internal(self.env) or (
+                not message.author_id and not message.author_guest_id
+            )
+            if envelope_visible and message.incoming_email_cc:
                 data["incoming_email_cc"] = tools.mail.email_split_tuples(
                     message.incoming_email_cc
                 )
-            if message.incoming_email_to:
+            if envelope_visible and message.incoming_email_to:
                 data["incoming_email_to"] = tools.mail.email_split_tuples(
                     message.incoming_email_to
                 )
