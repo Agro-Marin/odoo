@@ -93,10 +93,14 @@ export class ListController extends MultiRecordController {
 
         // Multi-edit save/invalidity checks fire on field change, which also fires on
         // mousedown — including a mousedown on "Discard". Track that with a flag to
-        // suppress the save, and replay it via `nextActionAfterMouseup` if the mouseup
+        // suppress the save, and replay it via `nextActionsAfterMouseup` if the mouseup
         // lands elsewhere (i.e. "Discard" wasn't actually clicked).
+        // A LIST, not a single slot: one mousedown gesture can defer more than one
+        // action (e.g. two fields marked invalid, or a save plus an invalid-field
+        // marking). A single slot kept only the LAST, silently dropping the rest and
+        // leaving the selection in an inconsistent validated/unsaved state.
         this.hasMousedownDiscard = false;
-        this.nextActionAfterMouseup = null;
+        this.nextActionsAfterMouseup = [];
 
         // Optional-column visibility, OWNED by the controller: the renderer
         // receives this reactive object as a prop and reads/writes it in
@@ -468,16 +472,18 @@ export class ListController extends MultiRecordController {
                 this.hasMousedownDiscard = false;
                 if (status(this) === "destroyed") {
                     // Action switch mid-press: never replay the deferred
-                    // save against a torn-down model.
-                    this.nextActionAfterMouseup = null;
+                    // actions against a torn-down model.
+                    this.nextActionsAfterMouseup = [];
                     return;
                 }
                 if (mouseUpEvent.target !== mouseDownEvent.target) {
-                    if (this.nextActionAfterMouseup) {
-                        this.nextActionAfterMouseup();
+                    // Replay every deferred action, in the order they were
+                    // deferred — not just the last one.
+                    for (const action of this.nextActionsAfterMouseup) {
+                        action();
                     }
                 }
-                this.nextActionAfterMouseup = null;
+                this.nextActionsAfterMouseup = [];
             },
             { capture: true, once: true },
         );
@@ -595,8 +601,9 @@ export class ListController extends MultiRecordController {
      */
     onWillSaveMulti(editedRecord, changes) {
         if (this.hasMousedownDiscard) {
-            this.nextActionAfterMouseup = () =>
-                this.model.root.multiSave(editedRecord, changes);
+            this.nextActionsAfterMouseup.push(() =>
+                this.model.root.multiSave(editedRecord, changes),
+            );
             return false;
         }
         return true;
@@ -611,7 +618,7 @@ export class ListController extends MultiRecordController {
      */
     onWillSetInvalidField(record, fieldName) {
         if (this.hasMousedownDiscard) {
-            this.nextActionAfterMouseup = () => record.setInvalidField(fieldName);
+            this.nextActionsAfterMouseup.push(() => record.setInvalidField(fieldName));
             return false;
         }
         return true;
