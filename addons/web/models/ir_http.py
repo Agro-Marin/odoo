@@ -4,7 +4,7 @@ from typing import Any
 import odoo
 from odoo import api, fields, models
 from odoo.http import DEFAULT_LANG, DEFAULT_MAX_CONTENT_LENGTH, request
-from odoo.tools import config
+from odoo.tools import config, ormcache
 from odoo.tools.misc import hmac, str2bool
 
 # Debug mode is stored in session and should always be a string.
@@ -185,7 +185,7 @@ class IrHttp(models.AbstractModel):
 
     _FEATURE_FLAG_PREFIX = "web.feature."
 
-    def _resolve_feature_flags(self, ir_config_sudo: Any) -> dict[str, Any]:
+    def _resolve_feature_flags(self, ir_config_sudo: Any = None) -> dict[str, Any]:
         """Collect deployment-wide feature flags into a name -> typed-value dict.
 
         Reads every ``ir.config_parameter`` row whose key starts with
@@ -196,18 +196,47 @@ class IrHttp(models.AbstractModel):
         original string.  An empty dict is a valid return value — the
         JS side falls through to call-site defaults when no key matches.
 
-        :param ir_config_sudo: sudoed ``ir.config_parameter`` recordset
+        The underlying lookup is cached per registry (see
+        :meth:`_resolve_feature_flags_cached`); a fresh dict is built on
+        every call so callers can never mutate the cached value.
+
+        :param ir_config_sudo: unused; kept so existing call sites passing the
+            sudoed ``ir.config_parameter`` recordset keep working. The cached
+            helper builds its own recordset — the cache key must not depend on
+            any caller-supplied recordset/env state.
         :return: dict suitable for inclusion in session_info
         :rtype: dict[str, Any]
         """
-        rows = ir_config_sudo.search(
-            [("key", "=like", self._FEATURE_FLAG_PREFIX + "%")]
+        return dict(self._resolve_feature_flags_cached())
+
+    # INVALIDATION CONTRACT: this cache MUST live in the "stable" cache group.
+    # ir.config_parameter's create()/write()/unlink() invalidate exactly that
+    # group (``self.env.registry.clear_cache("stable")`` — same group as its
+    # own ``_get_param`` ormcache), and clear_cache signals the invalidation
+    # to every other worker on commit. Any other group would leave stale flags
+    # served after a ``web.feature.*`` parameter changes (worst on multi-worker
+    # deployments, where only the writing worker would ever notice).
+    # The cached method deliberately takes NO arguments: the flag set is
+    # deployment-wide (independent of uid/context/companies), so the cache key
+    # is just the registry + method.
+    @ormcache(cache="stable")
+    def _resolve_feature_flags_cached(self) -> tuple[tuple[str, Any], ...]:
+        """Return ``((name, parsed_value), ...)`` for every ``web.feature.*``
+        parameter. Returns an immutable tuple so a cache hit can be shared
+        safely; :meth:`_resolve_feature_flags` wraps it in a fresh dict."""
+        rows = (
+            self.env["ir.config_parameter"]
+            .sudo()
+            .search_fetch(
+                [("key", "=like", self._FEATURE_FLAG_PREFIX + "%")],
+                ["key", "value"],
+            )
         )
         prefix_len = len(self._FEATURE_FLAG_PREFIX)
-        return {
-            row.key[prefix_len:]: self._parse_feature_flag_value(row.value)
+        return tuple(
+            (row.key[prefix_len:], self._parse_feature_flag_value(row.value))
             for row in rows
-        }
+        )
 
     # Numeric pattern intentionally mirrors the JS regex in
     # ``feature_flags.js:_parseValue`` exactly: signed integer or decimal,

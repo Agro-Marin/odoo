@@ -115,6 +115,51 @@ class TestOnchange(common.TransactionCase):
             f"diff query count scales with link lines (N+1): {few} vs {many}",
         )
 
+    # -- unknown-field screening of the fields SPEC (stale cached views) ------
+
+    def test_stale_top_level_spec_field_dropped(self):
+        """An unknown name in the top-level fields_spec must be dropped, not
+        500 (``self.fetch(fields_spec.keys())`` is strict and raised
+        ValueError). Valid fields still recompute."""
+        result = self.env["res.partner"].onchange(
+            {"company_type": "company", "is_company": False},
+            ["company_type"],
+            {"company_type": {}, "is_company": {}, "stale_field_zz": {}},
+        )
+        self.assertIn("value", result)
+        self.assertTrue(result["value"].get("is_company"))
+        self.assertNotIn("stale_field_zz", result["value"])
+
+    def test_stale_sub_spec_field_dropped(self):
+        """An unknown name inside an x2many sub-spec must be dropped at that
+        nesting level: it used to ValueError in the o2m line prefetch
+        (``lines.fetch(sub_fields_spec.keys())``) and KeyError inside
+        ``RecordSnapshot.fetch`` (record_snapshot sub-spec)."""
+        Partner = self.env["res.partner"]
+        child = Partner.create({"name": "OC Sub Child"})
+        parent = Partner.create({"name": "OC Sub Parent", "child_ids": [(4, child.id)]})
+        result = parent.onchange(
+            # LINK command in values drives the o2m prefetch branch too.
+            {"name": "Renamed", "child_ids": [[4, child.id, False]]},
+            ["name"],
+            {
+                "name": {},
+                "child_ids": {"fields": {"name": {}, "stale_sub_zz": {}}},
+            },
+        )
+        self.assertIn("value", result)
+
+    def test_first_call_stale_spec_dropped(self):
+        """First call (empty field_names): a stale spec name must not KeyError
+        in the defaults loop (``self._fields[field_name]``); defaults for the
+        valid fields are still seeded."""
+        result = self.env["res.partner"].onchange(
+            {}, [], {"name": {}, "active": {}, "stale_first_zz": {}}
+        )
+        self.assertIn("value", result)
+        self.assertTrue(result["value"].get("active"))
+        self.assertNotIn("stale_first_zz", result["value"])
+
     def test_changed_field_absent_from_values_does_not_crash(self):
         """A known changed field missing from ``values`` must fail open, not 500.
 

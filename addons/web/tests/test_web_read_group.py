@@ -202,3 +202,190 @@ class TestWebReadGroup(TransactionCase):
             aggregates=["create_date:max"],
         )
         self.assertEqual(order2, "create_date:month desc")
+
+
+@tagged("web_unit", "web_read_group")
+class TestWebReadGroupContracts(TransactionCase):
+    """Pins the web_read_group client contracts: within-group order tiebreaker,
+    fold-restore vs auto-unfold caps, progress-bar aggregate filtering, and
+    fill_temporal tolerance under group pagination."""
+
+    def test_group_pagination_order_no_dup_no_loss(self):
+        """Within-group order contract: page 1 (web_read_group) and page 2+
+        (web_search_read with the client's "user order, id" string) must slice
+        ONE consistent ordering.
+
+        All 120 records share the same name (so the model ``_order``
+        "complete_name ASC, id DESC" cannot break ties) and the sort field has
+        only 2 values: every comparison inside "function ASC" is a tie.
+        Before the fix, page 1 appended the ``_order`` residue (ties resolved
+        id DESC) while page 2 used the client's "function ASC, id" (id ASC):
+        the two pages overlapped on some records and lost others.
+        """
+        Partner = self.env["res.partner"]
+        partners = Partner.create(
+            [
+                {"name": "WRG Page Tie", "function": "fA" if i % 2 else "fB"}
+                for i in range(120)
+            ]
+        )
+        domain = [("id", "in", partners.ids)]
+        result = Partner.web_read_group(
+            domain=domain,
+            groupby=["is_company"],
+            aggregates=["__count"],
+            order="function ASC",
+            auto_unfold=True,
+            unfold_read_specification={"id": {}},
+            unfold_read_default_limit=80,
+        )
+        [group] = result["groups"]
+        page1 = [rec["id"] for rec in group["__records"]]
+        self.assertEqual(len(page1), 80)
+
+        # Page 2+ exactly as the client sends it: user order + "id" tiebreaker.
+        page2 = [
+            rec["id"]
+            for rec in Partner.web_search_read(
+                domain=domain,
+                specification={"id": {}},
+                offset=80,
+                limit=80,
+                order="function ASC, id",
+            )["records"]
+        ]
+        self.assertEqual(len(page2), 40)
+        self.assertFalse(set(page1) & set(page2), "no record may appear on two pages")
+        self.assertEqual(
+            set(page1) | set(page2),
+            set(partners.ids),
+            "no record may be lost between pages",
+        )
+        # Both pages are slices of the SAME (function ASC, id ASC) ordering.
+        expected = [p.id for p in sorted(partners, key=lambda p: (p.function, p.id))]
+        self.assertEqual(page1, expected[:80])
+        self.assertEqual(page2, expected[80:])
+
+    def _make_function_groups(self, count):
+        partners = self.env["res.partner"].create(
+            [
+                {"name": f"WRG Fold {i}", "function": f"wrgfn{i:02d}"}
+                for i in range(count)
+            ]
+        )
+        return partners, [("id", "in", partners.ids)]
+
+    def test_opening_info_restores_more_groups_than_auto_cap(self):
+        """Explicit ``opening_info`` entries with ``folded: False`` must be
+        honored past the 10-group auto-unfold cap (regression: the cap also
+        truncated the saved-state restore path, force-folding groups the user
+        had opened — and the client permanently adopted the forced fold)."""
+        _partners, domain = self._make_function_groups(12)
+        opening_info = [{"value": f"wrgfn{i:02d}", "folded": False} for i in range(12)]
+        result = self.env["res.partner"].web_read_group(
+            domain=domain,
+            groupby=["function"],
+            aggregates=["__count"],
+            opening_info=opening_info,
+            unfold_read_specification={"id": {}},
+        )
+        self.assertEqual(len(result["groups"]), 12)
+        for group in result["groups"]:
+            self.assertIn(
+                "__records",
+                group,
+                f"explicitly-opened group {group['function']!r} must be restored open",
+            )
+            self.assertEqual(len(group["__records"]), 1)
+
+    def test_auto_unfold_cap_still_ten(self):
+        """The AUTO-unfold path keeps its tight cap of 10 opened groups."""
+        _partners, domain = self._make_function_groups(12)
+        result = self.env["res.partner"].web_read_group(
+            domain=domain,
+            groupby=["function"],
+            aggregates=["__count"],
+            auto_unfold=True,
+            unfold_read_specification={"id": {}},
+        )
+        opened = [g for g in result["groups"] if "__records" in g]
+        self.assertEqual(len(opened), 10, "auto-unfold must stop at 10 groups")
+
+    def test_progressbar_domain_filters_aggregates_keeps_count(self):
+        """Progress-bar aggregate contract: when a ``progressbar_domain``
+        applies to a group, sum-style aggregates describe the FILTERED records
+        (the ones in ``__records``) while ``__count`` stays UNFILTERED (it
+        feeds the "Other"-bar remainder math, the pager, and the stale-offset
+        reset)."""
+        Partner = self.env["res.partner"]
+        Partner.create(
+            [
+                {
+                    "name": f"WRG PB {i}",
+                    "function": "wrgpb",
+                    "is_company": i < 5,
+                    "color": 7,
+                }
+                for i in range(10)
+            ]
+        )
+        domain = [("function", "=", "wrgpb")]
+        result = Partner.web_read_group(
+            domain=domain,
+            groupby=["function"],
+            aggregates=["color:sum"],
+            opening_info=[
+                {
+                    "value": "wrgpb",
+                    "folded": False,
+                    "offset": 0,
+                    "limit": 80,
+                    "progressbar_domain": [("is_company", "=", True)],
+                }
+            ],
+            unfold_read_specification={"id": {}},
+        )
+        [group] = result["groups"]
+        self.assertEqual(group["__count"], 10, "__count must stay unfiltered")
+        self.assertEqual(
+            group["color:sum"], 35, "aggregates must be progressbar-filtered"
+        )
+        self.assertEqual(len(group["__records"]), 5)
+
+        # Control: without a progressbar_domain the aggregates stay unfiltered.
+        result = Partner.web_read_group(
+            domain=domain,
+            groupby=["function"],
+            aggregates=["color:sum"],
+            opening_info=[{"value": "wrgpb", "folded": False}],
+            unfold_read_specification={"id": {}},
+        )
+        [group] = result["groups"]
+        self.assertEqual(group["__count"], 10)
+        self.assertEqual(group["color:sum"], 70)
+        self.assertEqual(len(group["__records"]), 10)
+
+    def test_fill_temporal_ignored_with_limit_or_offset(self):
+        """A truthy ``fill_temporal`` context must not kill a paginated
+        web_read_group (hole-filling is meaningless on a paginated group set);
+        ``formatted_read_group`` keeps the strict ValueError for graph/pivot."""
+        Partner = self.env["res.partner"]
+        partner = Partner.create({"name": "WRG FT"})
+        domain = [("id", "=", partner.id)]
+        model = Partner.with_context(fill_temporal=True)
+
+        result = model.web_read_group(
+            domain, ["create_date:month"], ["__count"], limit=80
+        )
+        self.assertEqual(result["groups"][0]["__count"], 1)
+
+        result = model.web_read_group(
+            domain, ["create_date:month"], ["__count"], limit=80, offset=1
+        )
+        self.assertEqual(result["groups"], [])
+
+        # Direct formatted_read_group callers (graph/pivot) keep the trap.
+        with self.assertRaises(ValueError):
+            model.formatted_read_group(
+                domain, ["create_date:month"], ["__count"], limit=80
+            )

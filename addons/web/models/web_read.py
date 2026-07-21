@@ -11,6 +11,7 @@ from typing import Any
 from odoo import api, models
 from odoo.api import DomainType, NewId
 from odoo.exceptions import AccessError, UserError
+from odoo.fields import Command
 from odoo.fields import Datetime as FieldsDatetime
 from odoo.tools import OrderedSet
 from odoo.tools.cache_version import versioned, versioned_envelope
@@ -82,6 +83,13 @@ class Base(models.AbstractModel):
         count_limit: int | None = None,
     ) -> dict[str, int | list]:
         """Search records and return them formatted per *specification*."""
+        # Unknown-field policy at the web boundary: screen the specification
+        # the same way ``web_read`` effectively tolerates stale names —
+        # ``read()`` drops unknown fields with a warning and web_read's
+        # relational loop skips them — so the response simply lacks that key.
+        # Without screening, ``_determine_fields_to_fetch`` below is strict
+        # and a single stale name in a cached view's spec 500s the whole call.
+        specification = self._screen_fields_spec(specification)
         # Build the search query once — domain processing + access rules.
         # We retain the query to reuse its FROM/WHERE for the count,
         # avoiding the overhead of a second _search() call.
@@ -180,6 +188,7 @@ class Base(models.AbstractModel):
         path additionally avoids false conflicts from unrelated background
         writes.
         """
+        self._validate_web_save_vals(vals)
         if self:
             # web_save supports a multi-record set: the list view mass-edit calls
             # it with several ids (dynamic_list._multiSave -> webSave, non-x2many
@@ -260,6 +269,76 @@ class Base(models.AbstractModel):
         if next_id:
             record = self.browse(next_id)
         return record.with_context(bin_size=True).web_read(specification)
+
+    # x2many commands whose second element is the id of an EXISTING database
+    # row (UPDATE/DELETE/UNLINK/LINK); SET carries its id list in the third
+    # element. CREATE's second element is a client-side placeholder (0 /
+    # virtual ref) that never reaches SQL, so it is exempt.
+    _X2M_ROW_ID_COMMANDS = (
+        Command.UPDATE,
+        Command.DELETE,
+        Command.UNLINK,
+        Command.LINK,
+    )
+
+    def _validate_web_save_vals(self, vals: dict) -> None:
+        """Validate client-supplied *vals* at the web boundary, before write().
+
+        Two cheap checks against raw client JSON, both raising a clean,
+        translated ``UserError`` instead of an opaque 500:
+
+        * Unknown field names (a stale cached form view still referencing a
+          field removed by a module upgrade) — the write would otherwise die
+          in a raw KeyError. The values are deliberately NOT silently dropped
+          (unlike read paths, which degrade): discarding user-entered data on
+          save is worse than failing, so the user is told to reload.
+        * Non-integer row ids in x2many command lists — the JS model can leak
+          a virtual id (e.g. ``[1, "virtual_zz", {...}]``), which otherwise
+          reaches SQL and fails as a raw psycopg error. Shallow on purpose:
+          only the command lists themselves are inspected, never the nested
+          command vals.
+        """
+        unknown = [name for name in vals if name not in self._fields]
+        if unknown:
+            raise UserError(
+                self.env._(
+                    "This form is out of date and references field(s) that no "
+                    "longer exist (%s). Your changes were not saved — please "
+                    "reload the page and re-apply them.",
+                    ", ".join(unknown),
+                )
+            )
+        for name, value in vals.items():
+            field = self._fields[name]
+            if field.type not in ("one2many", "many2many") or not isinstance(
+                value, (list, tuple)
+            ):
+                continue
+            for command in value:
+                if not isinstance(command, (list, tuple)) or len(command) < 2:
+                    continue
+                if command[0] in self._X2M_ROW_ID_COMMANDS:
+                    row_ids = (command[1],)
+                elif (
+                    command[0] == Command.SET
+                    and len(command) > 2
+                    and isinstance(command[2], (list, tuple))
+                ):
+                    row_ids = command[2]
+                else:
+                    continue
+                for row_id in row_ids:
+                    # bool is an int subclass; True/False are not valid row ids.
+                    if not isinstance(row_id, int) or isinstance(row_id, bool):
+                        raise UserError(
+                            self.env._(
+                                'Invalid record reference %(row_id)r in field "'
+                                '%(field)s". Your changes were not saved — '
+                                "please reload the page and re-apply them.",
+                                row_id=row_id,
+                                field=field.string or name,
+                            )
+                        )
 
     # Only unambiguous primitives + many2one (compared by id) are concurrency-
     # checkable. date/datetime are deliberately excluded: their client
@@ -504,6 +583,9 @@ class Base(models.AbstractModel):
             msg = "Each record must have a corresponding vals entry."
             raise ValueError(msg)
 
+        for vals in vals_list:
+            self._validate_web_save_vals(vals)
+
         if known_values is not None:
             self._check_concurrent_field_changes_multi_list(vals_list, known_values)
 
@@ -677,9 +759,7 @@ class Base(models.AbstractModel):
                                 # is OVERRIDDEN by field_context, not passed twice
                                 # — the **env.context/**field_context double-splat
                                 # raised TypeError on any shared key.
-                                .with_context(
-                                    co_records.env.context, **field_context
-                                )
+                                .with_context(co_records.env.context, **field_context)
                             )
                         # Degrade to an empty list on any failure the ordered
                         # search can raise: AccessError/UserError (model rejects

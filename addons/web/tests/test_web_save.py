@@ -388,6 +388,53 @@ class TestWebSaveOptimisticLocking(common.TransactionCase):
         )
         self.assertEqual([r["phone"] for r in result], ["a1", "a2"])
 
+    # -- vals validation at the web boundary ----------------------------------
+
+    def test_stale_field_in_vals_raises_usererror(self):
+        """A stale field name in web_save VALS (outdated cached form view)
+        must raise a clean UserError telling the user to reload — NOT a raw
+        KeyError 500, and NOT a silent drop (discarding user-entered data on
+        save is worse than failing)."""
+        with self.assertRaises(UserError):
+            self.partner.web_save(
+                {"phone": "222", "stale_field_zz": 1},
+                specification={"phone": {}},
+            )
+        # Same policy on the create path.
+        with self.assertRaises(UserError):
+            self.env["res.partner"].web_save(
+                {"name": "New", "stale_field_zz": 1},
+                specification={"name": {}},
+            )
+        # Nothing was persisted by the failed write.
+        self.env.cr.execute(
+            "SELECT phone FROM res_partner WHERE id = %s", (self.partner.id,)
+        )
+        self.assertEqual(self.env.cr.fetchone()[0], "111")
+
+    def test_x2many_virtual_command_id_raises_usererror(self):
+        """A non-integer row id in an x2many command (a leaked JS virtual id,
+        e.g. ``[1, "virtual_zz", {...}]``) must raise a clean UserError instead
+        of reaching SQL as a raw psycopg error."""
+        with self.assertRaises(UserError):
+            self.partner.web_save(
+                {"child_ids": [[1, "virtual_zz", {"name": "x"}]]},
+                specification={"id": {}},
+            )
+        # SET command ids are validated too.
+        with self.assertRaises(UserError):
+            self.partner.web_save(
+                {"category_id": [[6, False, ["virtual_1"]]]},
+                specification={"id": {}},
+            )
+        # Control: valid commands are unaffected (CREATE's second element is a
+        # client-side placeholder ref and stays exempt).
+        result = self.partner.web_save(
+            {"child_ids": [[0, "virtual_ok", {"name": "WS Cmd Child"}]]},
+            specification={"child_ids": {"fields": {"name": {}}}},
+        )
+        self.assertIn("WS Cmd Child", [c["name"] for c in result[0]["child_ids"]])
+
     def test_web_save_multi_missing_baseline_fails_open(self):
         """A record with no baseline entry is skipped (fail open) — its
         concurrent change does not block the batch."""
