@@ -1,7 +1,6 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-from odoo import api, fields, models, modules, _
-from odoo.tools import config
+from odoo import _, api, fields, models, modules
 
 
 class ResPartner(models.Model):
@@ -21,9 +20,9 @@ class ResPartner(models.Model):
         return super().write(vals)
 
     @api.model
-    def _geo_localize(self, street='', zip='', city='', state='', country=''):
+    def _geo_localize(self, street='', zip_code='', city='', state='', country=''):
         geo_obj = self.env['base.geocoder']
-        search = geo_obj.geo_query_address(street=street, zip=zip, city=city, state=state, country=country)
+        search = geo_obj.geo_query_address(street=street, zip_code=zip_code, city=city, state=state, country=country)
         result = geo_obj.geo_find(search, force_country=country)
         if result is None:
             search = geo_obj.geo_query_address(city=city, state=state, country=country)
