@@ -4,9 +4,7 @@ from odoo.tools.translate import _
 
 
 class AccountMoveReversal(models.TransientModel):
-    """
-    Account move reversal wizard, it cancel an account move by reversing it.
-    """
+    """Account move reversal wizard that cancels an account move by reversing it."""
 
     _name = "account.move.reversal"
     _description = "Account Move Reversal"

@@ -169,10 +169,8 @@ class AccountSetupBankManualConfig(models.TransientModel):
 
     @api.model_create_multi
     def create(self, vals_list):
-        """This wizard is only used to setup an account for the current active
-        company, so we always inject the corresponding partner when creating
-        the model.
-        """
+        """Inject the active company's partner when creating the wizard record."""
+        # This wizard only sets up an account for the current active company.
         for vals in vals_list:
             vals["partner_id"] = self.env.company.partner_id.id
             vals["new_journal_name"] = vals["acc_number"]
@@ -257,9 +255,8 @@ class AccountSetupBankManualConfig(models.TransientModel):
                 selected_journal.name = record.new_journal_name
 
     def validate(self):
-        """Called by the validation button of this wizard. Serves as an
-        extension hook in account_bank_statement_import.
-        """
+        """Called by the validation button of this wizard."""
+        # Extension hook overridden in account_bank_statement_import.
         return {"type": "ir.actions.client", "tag": "soft_reload"}
 
     def _compute_company_id(self):

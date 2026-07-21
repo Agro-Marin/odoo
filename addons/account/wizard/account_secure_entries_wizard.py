@@ -6,9 +6,7 @@ from odoo.fields import Command, Domain
 
 
 class AccountSecureEntriesWizard(models.TransientModel):
-    """
-    This wizard is used to secure journal entries (with a hash)
-    """
+    """Secure journal entries (with a hash)."""
 
     _name = "account.secure.entries.wizard"
     _description = "Secure Journal Entries"
@@ -280,11 +278,11 @@ class AccountSecureEntriesWizard(models.TransientModel):
     def _get_unhashed_moves_in_hashed_period_domain(
         self, company_id, hash_date, domain=False
     ):
+        """Return the domain matching all moves on or before ``hash_date`` that have not been hashed yet.
+
+        :return: a search domain
         """
-        Return the domain to find all moves before `self.hash_date` that have not been hashed yet.
-        We ignore whether hashing is activated for the journal or not.
-        :return a search domain
-        """
+        # We ignore whether hashing is activated for the journal or not.
         if not (company_id and hash_date):
             return Domain.FALSE
         return Domain.AND(
