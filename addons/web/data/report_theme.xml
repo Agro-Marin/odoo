@@ -32,6 +32,20 @@
         <field name="rule_weight">3px</field>
     </record>
 
+    <record id="report_theme_condensed" model="report.theme">
+        <field name="name">Condensed</field>
+        <field name="sequence">4</field>
+        <!-- Oswald (a condensed grotesque, shipped in web.report_assets_common)
+             turns the document number, headings and totals into a tall, upright
+             typographic feature; running text stays on the company body font.
+             Squared corners and an efficient row height read as a crisp, printed
+             administrative document. -->
+        <field name="font_display">Oswald, 'Arial Narrow', sans-serif</field>
+        <field name="row_padding">0.5rem</field>
+        <field name="border_radius">0</field>
+        <field name="rule_weight">2px</field>
+    </record>
+
     <!-- Backfill: give companies created before this feature the default theme.
          Idempotent — only fills unset values, so it never clobbers a choice. -->
     <function model="res.company" name="_set_default_report_theme" />

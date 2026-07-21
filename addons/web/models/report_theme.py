@@ -30,15 +30,16 @@ class ReportTheme(models.Model):
 
     # Typography. Empty falls back (in the emit) to the company ``font``, so a
     # theme need only override the roles it cares about. ``font_display`` styles
-    # headings, the document number and totals; ``font_body`` styles running
-    # text. Values are CSS font-family stacks, e.g. ``Georgia, serif``.
+    # the document title and grand total (the identity elements); ``font_body``
+    # styles running text. Values are CSS font-family stacks, e.g.
+    # ``Georgia, serif``.
     font_body = fields.Char(
         string="Body font",
         help="CSS font-family for running text. Empty uses the company font.",
     )
     font_display = fields.Char(
         string="Display font",
-        help="CSS font-family for headings, document number and totals. "
+        help="CSS font-family for the document title and grand total. "
         "Empty uses the body font.",
     )
 
@@ -59,6 +60,39 @@ class ReportTheme(models.Model):
         default="1px",
         help="Thickness of the accent rule under table headers (CSS length).",
     )
+
+    # Fields whose value is baked into the shared company report stylesheet;
+    # a change to any of them must regenerate that asset (mirrors the trigger on
+    # res.company._REPORT_STYLE_FIELDS for the company side).
+    _STYLE_FIELDS = frozenset(
+        {"font_body", "font_display", "row_padding", "border_radius", "rule_weight"}
+    )
+
+    def write(self, vals):
+        """Reflow the shared company stylesheet when a skin token changes.
+
+        Editing a theme changes every company that uses it, but the asset is
+        only regenerated on res.company writes — so without this the edit would
+        not reach any rendered report until an unrelated company write.
+        """
+        res = super().write(vals)
+        if not self._STYLE_FIELDS.isdisjoint(vals):
+            self.env["res.company"]._update_asset_style()
+        return res
+
+    def unlink(self):
+        """Reflow the stylesheet when a theme still in use is deleted.
+
+        The referencing companies fall back to the built-in token defaults, so
+        the shared asset must be rebuilt to match.
+        """
+        in_use = bool(
+            self.env["res.company"].sudo().search_count([("report_theme_id", "in", self.ids)])
+        )
+        res = super().unlink()
+        if in_use:
+            self.env["res.company"]._update_asset_style()
+        return res
 
     def _report_css_vars(self, primary: str, secondary: str, base_font: str) -> Markup:
         """Return the ``--rp-*`` custom-property block as raw (unescaped) CSS.

@@ -157,7 +157,12 @@ li.oe-nested {
         font-variant-numeric: tabular-nums;
     }
 
-    h2[name="document_title"] {
+    // Display face (theme font_display): the document title and the grand-total
+    // figure — the two elements that carry a document's identity at a glance.
+    // Falls back to the body font when a theme sets no display face, so a
+    // company without a display theme renders exactly as before.
+    h2[name="document_title"],
+    .o_total_table .o_total {
         font-family: var(--rp-font-display, var(--rp-font, var(--co-font, $o-default-report-font)));
     }
 
