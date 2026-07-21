@@ -58,12 +58,22 @@ export const fieldService = {
             // A transient fields_get failure breaks every view for the model until
             // reload; fields_get is idempotent, so one retry smooths a cold-fetch
             // failure without masking a persistent outage.
-            // ``immutable``: warm hits share the frozen cached payload instead of
-            // cloning per hit — consumers must treat field defs as read-only.
-            return orm
+            // ``immutable``: the cached payload is deep-frozen once and shared, so
+            // warm hits avoid a per-caller DEEP clone. We hand out a SHALLOW copy
+            // of it: several consumers legitimately inject extra top-level field
+            // defs (the mrp_workorder shop-floor action, the spreadsheet pivot,
+            // and a standalone <Record> on a properties model all add/replace
+            // entries) and would otherwise throw on the frozen object. This costs
+            // O(fields) references, not a deep clone. The individual def objects
+            // stay shared and frozen — spread a def before mutating it in place.
+            const fields = await orm
                 .cache({ type: "disk", immutable: true })
                 .retry(1)
-                .call(resModel, "fields_get", [options.fieldNames, options.attributes]);
+                .call(resModel, "fields_get", [
+                    options.fieldNames,
+                    options.attributes,
+                ]);
+            return { ...fields };
         }
 
         /**
