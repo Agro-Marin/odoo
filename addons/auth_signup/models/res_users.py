@@ -6,7 +6,7 @@ from ast import literal_eval
 
 from dateutil.relativedelta import relativedelta
 
-from odoo import _, api, fields, models
+from odoo import Command, _, api, fields, models
 from odoo.exceptions import UserError
 from odoo.fields import Domain
 
@@ -75,7 +75,7 @@ class ResUsers(models.Model):
                 })
                 if partner.company_id:
                     values['company_id'] = partner.company_id.id
-                    values['company_ids'] = [(6, 0, [partner.company_id.id])]
+                    values['company_ids'] = [Command.set([partner.company_id.id])]
                 partner_user = self._signup_create_user(values)
         else:
             # no token, sign up an external user
@@ -127,7 +127,7 @@ class ResUsers(models.Model):
                 return template_user.with_context(no_reset_password=True).copy(values)
         except Exception as e:
             # copy may failed if asked login is not available.
-            raise SignupError(str(e))  # noqa: B904
+            raise SignupError(str(e)) from e
 
     def reset_password(self, login):
         """ retrieve the user corresponding to login (login or email),
@@ -137,9 +137,9 @@ class ResUsers(models.Model):
         if not users:
             users = self.search(self._get_email_domain(login))
         if not users:
-            raise Exception(_('No account found for this login'))  # noqa: TRY002
+            raise UserError(_('No account found for this login'))
         if len(users) > 1:
-            raise Exception(_('Multiple accounts found for this login'))  # noqa: TRY002
+            raise UserError(_('Multiple accounts found for this login'))
         return users.action_reset_password()
 
     def action_reset_password(self):
