@@ -1,11 +1,10 @@
-# -*- coding: utf-8 -*-
 import re
-
 from datetime import datetime, timedelta
 
-from odoo import http, _
+from odoo import _, http
 from odoo.exceptions import AccessDenied
 from odoo.http import request
+
 from odoo.addons.web.controllers import home as web_home
 
 TRUSTED_DEVICE_COOKIE = 'td_id'

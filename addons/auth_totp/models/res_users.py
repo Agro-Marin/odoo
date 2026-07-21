@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 import base64
@@ -6,16 +5,15 @@ import functools
 import logging
 import os
 import re
-
 from datetime import datetime, timedelta
 
 from odoo import _, api, fields, models
-from odoo.addons.base.models.res_users import check_identity
 from odoo.exceptions import AccessDenied, UserError
 from odoo.http import request
 from odoo.tools import sql
 
 from odoo.addons.auth_totp.models.totp import TOTP, TOTP_SECRET_SIZE
+from odoo.addons.base.models.res_users import check_identity
 
 _logger = logging.getLogger(__name__)
 
@@ -50,6 +48,7 @@ class ResUsers(models.Model):
             return r
         if self.totp_enabled:
             return 'totp'
+        return None
 
     def _mfa_url(self):
         r = super()._mfa_url()
@@ -57,10 +56,13 @@ class ResUsers(models.Model):
             return r
         if self._mfa_type() == 'totp':
             return '/web/login/totp'
+        return None
 
     @api.depends('totp_secret')
     def _compute_totp_enabled(self):
-        for r, v in zip(self, self.sudo()):
+        # self and self.sudo() are recordsets over the identical id set, so
+        # they're always equal length - strict=True would be a no-op.
+        for r, v in zip(self, self.sudo(), strict=True):
             r.totp_enabled = bool(v.totp_secret)
 
     def _rpc_api_keys_only(self):
@@ -100,6 +102,12 @@ class ResUsers(models.Model):
             _logger.info("2FA enable: REJECT for %s %r", self, self.login)
             return False
 
+        # Rate-limit code-verification attempts here too, matching
+        # _check_credentials' 'totp' branch: without it, the setup wizard's
+        # secret + code pair (the code space is only 10**DIGITS) could be
+        # brute-forced through repeated enable() calls.
+        self._totp_rate_limit('code_check')
+
         secret = compress(secret).upper()
         match = TOTP(base64.b32decode(secret)).match(code)
         if match is None:
@@ -108,6 +116,7 @@ class ResUsers(models.Model):
 
         self.sudo().totp_secret = secret
         self.sudo().totp_last_counter = match
+        self._totp_rate_limit_purge('code_check')
         if request:
             self.env.flush_all()
             # update session token so the user does not get logged out (cache cleared by change)
@@ -188,8 +197,10 @@ class ResUsers(models.Model):
 
         secret_bytes_count = TOTP_SECRET_SIZE // 8
         secret = base64.b32encode(os.urandom(secret_bytes_count)).decode()
-        # format secret in groups of 4 characters for readability
-        secret = ' '.join(map(''.join, zip(*[iter(secret)]*4)))
+        # format secret in groups of 4 characters for readability. TOTP_SECRET_SIZE
+        # is fixed (RFC 4226 R6), so the base32-encoded secret's length is always a
+        # multiple of 4 - strict=True documents/enforces that invariant defensively.
+        secret = ' '.join(map(''.join, zip(*[iter(secret)] * 4, strict=True)))
         w = self.env['auth_totp.wizard'].create({
             'user_id': self.id,
             'secret': secret,
@@ -227,7 +238,7 @@ class ResUsers(models.Model):
     def _inverse_token(self):
         self.sudo().totp_last_counter = False
         for user in self:
-            secret = user.totp_secret if user.totp_secret else None
+            secret = user.totp_secret or None
             self.env.cr.execute('UPDATE res_users SET totp_secret = %s WHERE id=%s', (secret, user.id))
 
     def _totp_enable_search(self, operator, value):
