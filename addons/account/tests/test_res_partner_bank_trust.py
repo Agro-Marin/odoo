@@ -6,10 +6,7 @@ from odoo.tests import TransactionCase, tagged
 
 @tagged("post_install", "-at_install")
 class TestResPartnerBankTrust(TransactionCase):
-    """Regression tests for the account extension of res.partner.bank:
-    money-transfer detection, trust locking, transient display_name, and the
-    archived-account guard in create(). See account/models/res_partner_bank.py.
-    """
+    """Tests for the account extension of res.partner.bank."""
 
     @classmethod
     def setUpClass(cls):
@@ -44,8 +41,7 @@ class TestResPartnerBankTrust(TransactionCase):
     # -- money-transfer detection (institution codes are Belgian) --------------
 
     def test_money_transfer_belgian_account_detected(self):
-        """A Belgian IBAN whose bank code (positions 5-7) is a money-transfer
-        service is flagged."""
+        """A Belgian IBAN with a money-transfer bank code (positions 5-7) is flagged."""
         acc = self.RPB.create(
             {"acc_number": "BE40967000000063", "partner_id": self.partner_be.id}
         )
@@ -56,8 +52,7 @@ class TestResPartnerBankTrust(TransactionCase):
             self.assertTrue(acc.has_money_transfer_warning)
 
     def test_money_transfer_foreign_account_not_false_positive(self):
-        """A French IBAN whose national bank code happens to be '967' must NOT be
-        mislabelled as the Belgian money-transfer service 'Wise'."""
+        """A French IBAN with bank code "967" is not mislabelled as "Wise"."""
         acc = self.RPB.create(
             {
                 "acc_number": "FR7296700000000000000000000",
@@ -71,8 +66,7 @@ class TestResPartnerBankTrust(TransactionCase):
             self.assertFalse(acc.has_money_transfer_warning)
 
     def test_money_transfer_service_independent_of_trust(self):
-        """money_transfer_service depends only on the account number, not on the
-        trust flag (regression: allow_out_payment was a spurious dependency)."""
+        """money_transfer_service depends on the account number, not the trust flag."""
         acc = self.RPB.create(
             {"acc_number": "BE40967000000063", "partner_id": self.partner_be.id}
         )
@@ -84,8 +78,7 @@ class TestResPartnerBankTrust(TransactionCase):
     # -- transient display_name ------------------------------------------------
 
     def test_display_name_transient_record_has_no_literal_false(self):
-        """On a NewId/onchange record without acc_number, display_name must not
-        render the literal string 'False'."""
+        """display_name never renders the literal "False" on a NewId record."""
         new_rec = self.RPB.with_context(display_account_trust=True).new(
             {"partner_id": self.partner_fr.id}
         )
@@ -114,8 +107,7 @@ class TestResPartnerBankTrust(TransactionCase):
             acc.with_user(self.clerk).write({"allow_out_payment": True})
 
     def test_clerk_cannot_untrust(self):
-        """Per the decided policy, changing the trust flag in EITHER direction
-        requires the group — un-trusting is blocked too."""
+        """Un-trusting an account also requires the trust group."""
         acc = self.RPB.create(
             {"acc_number": "BE71096123456769", "partner_id": self.partner_be.id}
         )
@@ -136,8 +128,8 @@ class TestResPartnerBankTrust(TransactionCase):
             )
 
     def test_create_rejects_archived_duplicate_ignoring_formatting(self):
-        """The archived check matches on the sanitized number, so a differently
-        formatted (spaces/case) number still collides."""
+        """A differently formatted number still collides with the archived one."""
+        # The check keys on the sanitized number, so spaces/case still match.
         acc = self.RPB.create(
             {"acc_number": "BE68539007547034", "partner_id": self.partner_be.id}
         )
@@ -151,8 +143,8 @@ class TestResPartnerBankTrust(TransactionCase):
             )
 
     def test_create_multi_detects_archived_duplicate(self):
-        """A collision on ANY record of a batched create is detected (the check is
-        batched into a single query but still per-pair correct)."""
+        """A collision on ANY record of a batched create is detected."""
+        # The guard runs one query for the whole batch, yet stays per-pair correct.
         acc = self.RPB.create(
             {"acc_number": "BE62510007547061", "partner_id": self.partner_be.id}
         )
