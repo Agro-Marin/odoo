@@ -1,20 +1,16 @@
-"""Pure planning logic for the dynamic-lines synchronization engine.
+"""Pure planning logic for the dynamic-lines synchronization engine."""
 
-`plan_dynamic_line_sync` is the decision core of
-``AccountMove._sync_dynamic_line``: given snapshots of the existing dynamic
-lines (before/after the wrapped operation) and of the needed lines, it decides
-what to create, update and delete.
-
-It is deliberately free of any ORM dependency — line handles and keys are
-opaque hashables, values are plain dicts — so the historically most bug-prone
-logic of account_move.py can be unit-tested without a database (Tier 1, see
-doc/coding_guidelines.rst §6).
-"""
+# `plan_dynamic_line_sync` is the decision core of `AccountMove._sync_dynamic_line`:
+# given snapshots of the existing dynamic lines (before/after the wrapped operation)
+# and of the needed lines, it decides what to create, update and delete. It is
+# deliberately free of any ORM dependency — line handles and keys are opaque
+# hashables, values are plain dicts — so the historically most bug-prone logic of
+# account_move.py can be unit-tested without a database (Tier 1, see
+# doc/coding_guidelines.rst §6).
 
 
 def filter_trivial(mapping):
-    """Drop entries whose key carries an ``id`` marker (technical keys that do
-    not represent user-relevant lines)."""
+    """Drop entries whose key carries an ``id`` marker (technical lines)."""
     return {k: v for k, v in mapping.items() if "id" not in v}
 
 

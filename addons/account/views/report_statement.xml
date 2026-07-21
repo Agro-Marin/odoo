@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
     <data>
-        <!-- The internal_layout header now uses CSS Grid (grid-template-columns: 1fr auto 1fr)
-             which already handles long company names well. No column overrides needed. -->
+        <!-- Empty override: the web.internal_layout header is a CSS grid
+             (grid-template-columns: 1fr auto 1fr), so no column overrides are needed. -->
         <template id="report_statement_internal_layout" inherit_id="web.internal_layout" primary="True">
         </template>
 

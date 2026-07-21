@@ -1,9 +1,7 @@
-"""Tier-1 (DB-free) tests for the dynamic-lines sync planner.
+"""Tier-1 (DB-free) tests for the dynamic-lines sync planner."""
 
-The planner is pure: line handles are opaque hashables (plain strings here),
-keys are hashable mappings, values are dicts. See
-account/tools/dynamic_lines.py.
-"""
+# The planner is pure: line handles are opaque hashables (plain strings here),
+# keys are hashable mappings, values are dicts. See account/tools/dynamic_lines.py.
 
 from addons.account.tools.dynamic_lines import (
     filter_trivial,

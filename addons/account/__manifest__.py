@@ -104,7 +104,7 @@ You could use this simplified accounting in case you work with an (external) acc
             "account/static/src/components/**/*",
             # tests_shared_js_python is a JS/Python tax-parity test harness, not product
             # UI. The glob above would ship it to every backend user; it is loaded where
-            # it is actually needed via web.assets_frontend / web.assets_unit_tests.
+            # it is actually needed via web.assets_frontend below.
             ("remove", "account/static/src/components/tests_shared_js_python/**/*"),
             "account/static/src/services/*.js",
             "account/static/src/views/**/*",

@@ -35,11 +35,12 @@ def dict_to_xml(
 
     :param node: The Python dict to render.
     :param nsmap: (optional) A dict of namespaces to be used for rendering the node.
-    :param template: (optional) A Python dict providing default values and an order of keys for rendering the node.
+    :param template: (optional) A Python dict providing the order of keys, a fallback '_tag' and the templates of the child nodes.
     :param render_empty_nodes: (optional) If True, empty nodes will be rendered in the XML tree.
     :param tag: (optional) The tag of the node to render (needed only for recursive calls).
     :param path: (optional) The path of the currently rendered node in the XML tree (needed only for recursive calls).
-    :return: The rendered XML node as an lxml.Element.
+    :return: The rendered XML node as an lxml.Element, or None if the node is empty and render_empty_nodes is False.
+    :raise ValueError: if no tag can be determined, or if a non-empty child node is missing from the template.
     """
 
     if nsmap is None:

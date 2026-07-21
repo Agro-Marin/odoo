@@ -194,7 +194,7 @@ class AccountInvoiceReport(models.Model):
         )
 
     def _read_group_select(self, aggregate_spec: str, query: Query) -> SQL:
-        """This override allows us to correctly calculate the average price of products."""
+        """Aggregate ``price_average`` as SUM(price_subtotal) / SUM(quantity)."""
         if aggregate_spec != "price_average:avg":
             return super()._read_group_select(aggregate_spec, query)
         return SQL(

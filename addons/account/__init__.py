@@ -1,9 +1,7 @@
 def _set_fiscal_country(env):
-    """Sets the fiscal country on existing companies when installing the module.
-    That field is an editable computed field. It doesn't automatically get computed
-    on existing records by the ORM when installing the module, so doing that by hand
-    ensures existing records will get a value for it if needed.
-    """
+    """Set the fiscal country on existing companies when installing the module."""
+    # The field is an editable computed field: the ORM does not compute it on
+    # preexisting records at install time, so trigger the compute by hand.
     env["res.company"].search([])._compute_account_fiscal_country_id()
 
 
