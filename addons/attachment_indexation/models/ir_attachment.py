@@ -1,10 +1,12 @@
-import io
 import importlib.util
+import io
 import logging
 import re
 import warnings
-import xml.dom.minidom
+import xml.dom
 import zipfile
+
+from defusedxml.minidom import parseString as defused_parse_string
 from lxml import etree
 
 from odoo import api, models
@@ -22,7 +24,7 @@ FTYPES = ['docx', 'pptx', 'xlsx', 'opendoc', 'pdf']
 index_content_cache = LRU(1)
 
 def textToString(element):
-    buff = u""
+    buff = ""
     for node in element.childNodes:
         if node.nodeType == xml.dom.Node.TEXT_NODE:
             buff += node.nodeValue
@@ -66,44 +68,66 @@ def _csv_escape(value):
 class IrAttachment(models.Model):
     _inherit = 'ir.attachment'
 
+    def _read_zip_entry(self, zf, info):
+        """Read one zip entry, refusing to inflate anything past _INDEX_MAX_BYTES.
+
+        Guards against a zip bomb: a small, well-formed office document
+        (.docx/.pptx/.odt) whose inner XML entry declares a huge
+        uncompressed size can otherwise force a full in-memory inflate
+        of attacker-controlled content on every attachment create/write.
+        """
+        if info.file_size > self._INDEX_MAX_BYTES:
+            _logger.info(
+                "attachment_indexation: skipping oversized zip entry %r (%d bytes)",
+                info.filename, info.file_size,
+            )
+            return None
+        return zf.read(info)
+
     def _index_docx(self, bin_data):
         '''Index Microsoft .docx documents'''
-        buf = u""
+        buf = ""
         f = io.BytesIO(bin_data)
         if zipfile.is_zipfile(f):
             try:
                 zf = zipfile.ZipFile(f)
-                content = xml.dom.minidom.parseString(zf.read("word/document.xml"))
+                raw = self._read_zip_entry(zf, zf.getinfo("word/document.xml"))
+                if raw is None:
+                    return buf
+                content = defused_parse_string(raw)
                 for val in ["w:p", "w:h", "text:list"]:
                     for element in content.getElementsByTagName(val):
                         buf += textToString(element) + "\n"
             except Exception:
-                pass
+                _logger.debug("attachment_indexation: failed to index docx content", exc_info=True)
         return buf
 
     def _index_pptx(self, bin_data):
         '''Index Microsoft .pptx documents'''
 
-        buf = u""
+        buf = ""
         f = io.BytesIO(bin_data)
         if zipfile.is_zipfile(f):
             try:
                 zf = zipfile.ZipFile(f)
                 zf_filelist = [x for x in zf.namelist() if x.startswith('ppt/slides/slide')]
                 for i in range(1, len(zf_filelist) + 1):
-                    content = xml.dom.minidom.parseString(zf.read('ppt/slides/slide%s.xml' % i))
+                    raw = self._read_zip_entry(zf, zf.getinfo('ppt/slides/slide%s.xml' % i))
+                    if raw is None:
+                        continue
+                    content = defused_parse_string(raw)
                     for val in ["a:t"]:
                         for element in content.getElementsByTagName(val):
                             buf += textToString(element) + "\n"
             except Exception:
-                pass
+                _logger.debug("attachment_indexation: failed to index pptx content", exc_info=True)
         return buf
 
     def _index_xlsx(self, bin_data):
         '''Index Microsoft .xlsx documents'''
 
         try:
-            from openpyxl import load_workbook  # noqa: PLC0415
+            from openpyxl import load_workbook
             logging.getLogger("openpyxl").setLevel(logging.CRITICAL)
         except ImportError:
             _logger.info('openpyxl is not installed.')
@@ -129,8 +153,8 @@ class IrAttachment(models.Model):
                     sheet_data = '\n'.join(sheet_rows)
                     if sheet_data:
                         all_sheets.append(sheet_data)
-        except Exception:  # noqa: BLE001
-            pass
+        except Exception:
+            _logger.debug("attachment_indexation: failed to index xlsx content", exc_info=True)
 
         all_sheets_str = '\n\n'.join(all_sheets)
         return _clean_text_content(all_sheets_str)
@@ -199,14 +223,21 @@ class IrAttachment(models.Model):
         if zipfile.is_zipfile(f):
             try:
                 zf = zipfile.ZipFile(f)
-                content = etree.fromstring(zf.read('content.xml'))
+                raw = self._read_zip_entry(zf, zf.getinfo('content.xml'))
+                if raw is None:
+                    return _clean_text_content('')
+                # Explicit hardened parser (defense-in-depth): don't rely
+                # solely on the process-wide lxml default set in
+                # odoo/tools/misc.py to guard against XXE/entity-expansion.
+                parser = etree.XMLParser(resolve_entities=False, no_network=True)
+                content = etree.fromstring(raw, parser=parser)
                 mime_type = zf.read('mimetype').decode('utf-8').strip()
                 if mime_type and 'spreadsheet' in mime_type:
                     buf.extend(extract_spreadsheet(content))
                 else:
                     buf.extend(extract_text(content))
             except Exception:
-                pass
+                _logger.debug("attachment_indexation: failed to index opendoc content", exc_info=True)
 
         buf_str = '\n\n'.join(buf)
         return _clean_text_content(buf_str)
@@ -218,10 +249,13 @@ class IrAttachment(models.Model):
         try:
             if not importlib.util.find_spec('pdfminer.high_level'):
                 return ""
-            from pdfminer.pdfinterp import PDFResourceManager, PDFPageInterpreter  # noqa: PLC0415
-            from pdfminer.converter import TextConverter  # noqa: PLC0415
-            from pdfminer.layout import LAParams  # noqa: PLC0415
-            from pdfminer.pdfpage import PDFPage  # noqa: PLC0415
+            from pdfminer.converter import TextConverter
+            from pdfminer.layout import LAParams
+            from pdfminer.pdfinterp import (
+                PDFPageInterpreter,
+                PDFResourceManager,
+            )
+            from pdfminer.pdfpage import PDFPage
             logging.getLogger("pdfminer").setLevel(logging.CRITICAL)
         except ImportError:
             # warned already during init of module
@@ -247,7 +281,8 @@ class IrAttachment(models.Model):
 
                 buf = content.getvalue()
             return _clean_text_content(buf)
-        except Exception:  # noqa: BLE001
+        except Exception:
+            _logger.debug("attachment_indexation: failed to index pdf content", exc_info=True)
             return ""
 
     @api.model
@@ -263,7 +298,7 @@ class IrAttachment(models.Model):
                 res = buf.replace('\x00', '')
                 break
 
-        res = res or super(IrAttachment, self)._index(bin_data, mimetype, checksum=checksum)
+        res = res or super()._index(bin_data, mimetype, checksum=checksum)
         if checksum:
             index_content_cache[checksum] = res
         return res
