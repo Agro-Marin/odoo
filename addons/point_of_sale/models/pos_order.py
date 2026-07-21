@@ -395,16 +395,16 @@ class PosOrder(models.Model):
         return invoice_lines
 
     def _get_pos_anglo_saxon_price_unit(self, product, partner_id, quantity):
-        moves = (
-            self.mapped("picking_ids.move_ids")
-            .filtered(
-                lambda m: (
-                    m.is_valued
-                    and m.product_id.valuation == "real_time"
-                    and m.product_id.id == product.id
-                )
+        # `partner_id` and `quantity` are unused here but belong to the override
+        # contract: pos_mrp explodes a phantom BoM and calls super() once per
+        # component with that component's own quantity.
+        # Returns 0 when nothing matches; callers must treat that as "unknown".
+        moves = self.mapped("picking_ids.move_ids").filtered(
+            lambda m: (
+                m.is_valued
+                and m.product_id.valuation == "real_time"
+                and m.product_id.id == product.id
             )
-            .sorted(lambda x: x.date)
         )
         return moves._get_price_unit()
 
@@ -665,12 +665,17 @@ class PosOrder(models.Model):
             if order.session_id:
                 order.config_id = order.session_id.config_id
 
-    @api.depends("lines.refund_orderline_ids", "lines.refunded_orderline_id")
+    @api.depends(
+        "lines.refund_orderline_ids",
+        "lines.refund_orderline_ids.order_id.state",
+        "lines.refunded_orderline_id",
+    )
     def _compute_refund_related_fields(self):
         for order in self:
-            order.refund_orders_count = len(
-                order.mapped("lines.refund_orderline_ids.order_id")
-            )
+            # Cancelled refunds are voided: _compute_refund_qty already ignores
+            # them, so counting them here would offer a smart button opening a
+            # list of orders that never refunded anything.
+            order.refund_orders_count = len(order._get_refund_orders())
             order.refunded_order_id = next(
                 iter(order.lines.refunded_orderline_id.order_id), False
             )
@@ -1134,10 +1139,14 @@ class PosOrder(models.Model):
             "view_mode": "list,form",
             "res_model": "pos.order",
             "type": "ir.actions.act_window",
-            "domain": [
-                ("id", "in", self.mapped("lines.refund_orderline_ids.order_id").ids)
-            ],
+            "domain": [("id", "in", self._get_refund_orders().ids)],
         }
+
+    def _get_refund_orders(self):
+        """Refund orders of `self`, excluding cancelled ones."""
+        return self.mapped("lines.refund_orderline_ids.order_id").filtered(
+            lambda o: o.state != "cancel"
+        )
 
     def _is_pos_order_paid(self):
         amount_total = self.amount_total
@@ -2445,7 +2454,11 @@ class PosOrderLine(models.Model):
             "combo_line_ids",
         ]
 
-    @api.depends("refund_orderline_ids", "refund_orderline_ids.order_id.state")
+    @api.depends(
+        "refund_orderline_ids",
+        "refund_orderline_ids.qty",
+        "refund_orderline_ids.order_id.state",
+    )
     def _compute_refund_qty(self):
         for orderline in self:
             refund_order_line = orderline.refund_orderline_ids.filtered(
@@ -2490,25 +2503,28 @@ class PosOrderLine(models.Model):
         return super().create(vals_list)
 
     def write(self, vals):
-        if vals.get("pack_lot_line_ids"):
-            for pl in vals.get("pack_lot_ids"):
-                if pl[2].get("server_id"):
-                    pl[2]["id"] = pl[2]["server_id"]
-                    del pl[2]["server_id"]
-        if (
-            self.order_id.config_id.order_edit_tracking
-            and vals.get("qty") is not None
-            and vals.get("qty") < self.qty
-        ):
-            self.is_edited = True
-            body = _(
-                "%(product_name)s: Ordered quantity: %(old_qty)s",
-                product_name=self.full_product_name,
-                old_qty=self.qty,
-            )
-            body += Markup("&rarr;") + str(vals.get("qty"))
+        new_qty = vals.get("qty")
+        if new_qty is not None:
+            # Per record: the comparison and the log body both read the line's
+            # own qty and name, so evaluating them once against a multi-record
+            # `self` raises ValueError and would mislabel every line but one.
+            # Same fix already applied in PosOrder.write.
+            digits = self.env["decimal.precision"].precision_get("Product Unit")
+            edited = self.browse()
             for line in self:
+                if not line.order_id.config_id.order_edit_tracking:
+                    continue
+                if float_compare(new_qty, line.qty, digits) >= 0:
+                    continue
+                edited |= line
+                body = _(
+                    "%(product_name)s: Ordered quantity: %(old_qty)s",
+                    product_name=line.full_product_name,
+                    old_qty=line.qty,
+                )
+                body += Markup("&rarr;") + str(new_qty)
                 line.order_id.message_post(body=line.order_id._prepare_pos_log(body))
+            edited.is_edited = True
         return super().write(vals)
 
     @api.model
@@ -2673,8 +2689,10 @@ class PosOrderLine(models.Model):
             if not reference_ids:
                 # References are system-managed plumbing: PoS users have no
                 # create rights on stock.reference.
-                reference_ids = self.env["stock.reference"].sudo().create(
-                    line._prepare_reference_vals()
+                reference_ids = (
+                    self.env["stock.reference"]
+                    .sudo()
+                    .create(line._prepare_reference_vals())
                 )
                 line.order_id.stock_reference_ids = [Command.set(reference_ids.ids)]
 
