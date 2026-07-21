@@ -12,6 +12,7 @@ from odoo.exceptions import AccessError, UserError, ValidationError
 from odoo.fields import Command, Domain
 from odoo.libs.constants import PREFETCH_MAX
 from odoo.tools import float_compare, float_is_zero, frozendict, plaintext2html
+from odoo.tools.sql import create_index
 
 _logger = logging.getLogger(__name__)
 
@@ -479,6 +480,49 @@ class PosSession(models.Model):
                 :1
             ].journal_id
             session.cash_journal_id = cash_journal
+
+    def init(self):
+        """Back the one-open-session-per-config rule with a partial unique index.
+
+        `_check_pos_config` below can only see rows its own transaction can see, so
+        two cashiers opening the same point of sale concurrently both pass it and
+        both commit -- and the second session then inherits the same opening float
+        as the first. Only the database can arbitrate that race.
+
+        A database that already carries duplicates (they were reachable until this
+        index existed) cannot build it. Report them and carry on rather than making
+        the module impossible to upgrade; the Python constraint still applies to
+        every new session in the meantime.
+        """
+        super().init()
+        self.env.cr.execute(
+            """
+            SELECT config_id, array_agg(id ORDER BY id)
+              FROM pos_session
+             WHERE state != 'closed' AND rescue IS NOT TRUE
+          GROUP BY config_id
+            HAVING count(*) > 1
+            """
+        )
+        if duplicates := self.env.cr.fetchall():
+            _logger.error(
+                "Cannot enforce one open pos.session per pos.config: these configs "
+                "already have several. Close the extra sessions, then upgrade "
+                "point_of_sale again to install the index. %s",
+                ", ".join(
+                    f"config {config_id}: sessions {ids}" for config_id, ids in duplicates
+                ),
+            )
+            return
+        create_index(
+            self.env.cr,
+            indexname="pos_session_open_per_config_uniq",
+            tablename=self._table,
+            expressions=["config_id"],
+            where="state != 'closed' AND rescue IS NOT TRUE",
+            unique=True,
+            comment="At most one non-rescue open session per point of sale.",
+        )
 
     @api.constrains("config_id")
     def _check_pos_config(self):
