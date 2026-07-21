@@ -48,6 +48,7 @@ class AccountPaymentMethod(models.Model):
         """
         :param code: string of the payment method line code to check.
         :param with_currency: if False (default True), ignore the currency_id domain if it exists.
+        :param with_country: if False (default True), ignore the country_id domain if it exists.
         :return: The domain specifying which journal can accommodate this payment method.
         """
         if not code:
@@ -77,7 +78,7 @@ class AccountPaymentMethod(models.Model):
           "unique" if the method cannot be used twice on the same company,
           "electronic" if the method cannot be used twice on the same company for the same 'payment_provider_id',
           "multi" if the method can be duplicated on the same journal.
-        - ``type``: Tuple containing one or both of these items: "bank" and "cash"
+        - ``type``: Tuple containing one or more of these items: "bank", "cash" and "credit".
         - ``currency_ids``: The ids of the currency necessary on the journal (or company) for it to be eligible.
         - ``country_id``: The id of the country needed on the company for it to be eligible.
         """
@@ -87,10 +88,7 @@ class AccountPaymentMethod(models.Model):
 
     @api.model
     def _get_sdd_payment_method_code(self):
-        """
-        TO OVERRIDE
-        This hook will be used to return the list of sdd payment method codes
-        """
+        """Return the list of SDD payment method codes (override hook)."""
         return []
 
     def unlink(self):
@@ -157,10 +155,7 @@ class AccountPaymentMethodLine(models.Model):
         self.journal_id._check_payment_method_line_ids_multiplicity()
 
     def unlink(self):
-        """
-        Payment method lines which are used in a payment should not be deleted from the database,
-        only the link betweend them and the journals must be broken.
-        """
+        """Unlink payment method lines, breaking only the journal link for those still used in a payment."""
         unused_payment_method_lines = self
         for line in self:
             payment_count = (
@@ -177,8 +172,9 @@ class AccountPaymentMethodLine(models.Model):
 
     @api.model
     def _auto_toggle_account_to_reconcile(self, account_id):
-        """This method is deprecated and will be removed.
-        Automatically toggle the account to reconcile if allowed.
+        """Toggle the account to reconcile if allowed.
+
+        This method is deprecated and will be removed.
 
         :param account_id: The id of an account.account.
         """

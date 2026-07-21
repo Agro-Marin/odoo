@@ -243,15 +243,13 @@ class AccountLock_Exception(models.Model):
         raise UserError(_("You cannot duplicate a Lock Date Exception."))
 
     def _recreate(self):
-        """
-        1. Copy all exceptions in self but update the company lock date.
-        2. Revoke all exceptions in self.
-        3. Return the new records from step 1.
-        """
+        """Recreate the exceptions in self with a refreshed company lock date."""
         if not self:
             return self.env["account.lock_exception"]
+        # company_lock_date has copy=False, so create() refreshes it to the current company value
         vals_list = self.with_context(active_test=False).copy_data()
         new_records = self.create(vals_list)
+        # Revoke the originals; the new records returned above supersede them
         self.sudo().action_revoke()
         return new_records
 
