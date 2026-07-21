@@ -1142,6 +1142,41 @@ class IrQweb(models.AbstractModel):
                     secondary_stubs = self._secondary_parent_stubs(
                         bundle, assets_params
                     )
+                    # Dynamic-child specs must be EXCLUDED from the parent
+                    # bundle so they load lazily from their own child bundle.
+                    # A bare ``--external:<spec>`` does NOT achieve this: the
+                    # per-addon package alias (``--alias:@web=…``) is applied
+                    # first and wins, so esbuild inlines the "lazy" module
+                    # anyway (e.g. 450 KiB of emoji_data on every page load).
+                    # Use the SAME module-exact stub-alias mechanism as the
+                    # secondary stubs — a module-exact ``--alias`` outranks the
+                    # package alias, so esbuild inlines a tiny shim reading
+                    # ``odoo.loader.modules.get(spec)`` instead of the real
+                    # module. At runtime the consumer ``loadBundle(child)``s
+                    # first (registering the real module), then its ``import()``
+                    # resolves to the shim which returns that registered
+                    # instance — preserving true lazy loading. A secondary stub
+                    # for the same spec (unlikely) wins, hence the order.
+                    #
+                    # esbuild rejects an ``--alias`` NAME containing ``..`` (e.g.
+                    # the ``@web/../lib/hoot-dom/…`` vendored-lib specs), so those
+                    # keep the ``--external`` path (imperfect — the package alias
+                    # may still inline them — but they must not break the build).
+                    dynamic_child_specs = None
+                    if _child_specs:
+                        aliasable = {
+                            s
+                            for s in _child_specs
+                            if "/../" not in s and not s.startswith("../")
+                        }
+                        if aliasable:
+                            child_stubs = asset_bundle._bridges.build_shim_sources(
+                                aliasable
+                            )
+                            secondary_stubs = {**child_stubs, **secondary_stubs}
+                        dynamic_child_specs = (
+                            frozenset(_child_specs - aliasable) or None
+                        )
                     try:
                         esbuild_result = asset_bundle.esbuild_native_bundle(
                             timeout_s=self._get_esbuild_setting(
@@ -1157,7 +1192,11 @@ class IrQweb(models.AbstractModel):
                                 "source_maps",
                                 default=EsbuildCompiler._ESBUILD_SOURCE_MAPS,
                             ),
-                            dynamic_child_specs=frozenset(_child_specs) or None,
+                            # Aliasable dynamic children are excluded via
+                            # module-exact stub-aliases in ``secondary_stubs``;
+                            # only the ``..``-bearing specs esbuild can't alias
+                            # remain here on the (imperfect) ``--external`` path.
+                            dynamic_child_specs=dynamic_child_specs,
                             secondary_parent_stubs=secondary_stubs or None,
                         )
                         self._esbuild_circuit_record_success(bundle)
