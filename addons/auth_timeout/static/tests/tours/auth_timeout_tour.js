@@ -32,7 +32,13 @@ const patchPasskey = {
     },
 };
 const unpatchPasskey = {
-    trigger: "body",
+    content: "Wait for the identity check to complete before restoring the passkey lib",
+    // The "Use passkey" click triggers an async submit that awaits an RPC
+    // before calling the (patched) startAuthentication. Unpatching on a bare
+    // "body" trigger races that chain and can restore the real WebAuthn lib
+    // mid-flight; the dialog only closes once the whole chain succeeded, so
+    // anchor on its disappearance.
+    trigger: "body:not(:has(form.o_check_identity_form))",
     run: function () {
         unpatchPasskeyMethod();
     },
