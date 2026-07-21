@@ -22,7 +22,6 @@ import { EpsonPrinter } from "@point_of_sale/app/utils/printer/epson_printer";
 import { HWPrinter } from "@point_of_sale/app/utils/printer/hw_printer";
 import { WithLazyGetterTrap } from "@point_of_sale/lazy_getter";
 import {
-    Counter,
     deduceUrl,
     orderUsageUTCtoLocalUtil,
     random5Chars,
@@ -105,6 +104,8 @@ import {
 
 const { DateTime } = luxon;
 export const CONSOLE_COLOR = "#F5B427";
+// Cap on order.uiState.lastPrints — see recordLastPrint().
+const MAX_LAST_PRINTS = 10;
 
 export class PosStore extends WithLazyGetterTrap {
     loadingSkipButtonIsShown = false;
@@ -168,10 +169,12 @@ export class PosStore extends WithLazyGetterTrap {
         this.notification = notification;
         this.unwatched = markRaw({});
         this.pushOrderMutex = new Mutex();
+        // Serializes the nb_print read-modify-write (see incrementReceiptPrintCount).
+        this.printCountMutex = new Mutex();
         this.router.popStateCallback = this.handleUrlParams.bind(this);
 
-        // Object mapping the order's name (which contains the uuid) to it's server_id after
-        // validation (order paid then sent to the backend).
+        // Write-only here, but pos_online_payment's order_payment_validation
+        // assigns into it, so the initialisation must stay until that writer goes.
         this.validated_orders_name_server_id_map = {};
         this.numpadMode = "quantity";
         this.mobile_pane = "right";
@@ -207,8 +210,6 @@ export class PosStore extends WithLazyGetterTrap {
         // hits its first await, so a promise created here was unresolvable by
         // any consumer (fork-carried confusion, absent upstream).
         this.scale = pos_scale;
-
-        this.orderCounter = new Counter(0);
 
         // FIXME POSREF: the hardwareProxy needs the pos and the pos needs the hardwareProxy. Maybe
         // the hardware proxy should just be part of the pos service?
@@ -620,6 +621,8 @@ export class PosStore extends WithLazyGetterTrap {
 
     async deleteOrders(orders, serverIds = [], ignoreChange = false) {
         const ordersToDelete = [];
+        const failedOrders = [];
+        let serverIdsFailed = false;
         const actionPosOrderCancelCall = async (orderIds) => {
             await this.data.call("pos.order", "action_pos_order_cancel", [orderIds], {
                 context: {
@@ -637,7 +640,18 @@ export class PosStore extends WithLazyGetterTrap {
         }
         try {
             for (const order of orders) {
-                if (order) {
+                if (!order) {
+                    continue;
+                }
+                // Per-order isolation: the remote steps below (preparation
+                // ticket, action_pos_order_cancel) can reject for ONE order —
+                // typically because another device already invoiced it. Without
+                // this catch the exception escaped mid-loop while `finally` had
+                // already deleted locally exactly the prefix that succeeded, and
+                // it propagated into `t-on-click` arrow handlers that don't
+                // catch, so the batch caller (e.g. ClosePosPopup) never ran and
+                // the cashier saw a raw traceback naming no order at all.
+                try {
                     if (
                         !ignoreChange &&
                         order.isSynced &&
@@ -657,19 +671,39 @@ export class PosStore extends WithLazyGetterTrap {
                         await actionPosOrderCancelCall([order.id]);
                     }
                     ordersToDelete.push(order);
+                } catch (error) {
+                    failedOrders.push(order);
+                    logPosMessage(
+                        "Store",
+                        "deleteOrders",
+                        `Failed to cancel order ${order.uuid}`,
+                        CONSOLE_COLOR,
+                        [error],
+                    );
                 }
             }
 
             if (serverIds.length > 0) {
-                await actionPosOrderCancelCall([
-                    ...new Set(serverIds.filter((id) => typeof id === "number")),
-                ]);
-                // A successfully cancelled id must leave pendingOrder.delete,
-                // otherwise every subsequent sync re-sends the cancel for the
-                // rest of the session (and a later server-side rejection of a
-                // stale id would block syncing entirely).
-                for (const id of serverIds) {
-                    this.pendingOrder.delete.delete(id);
+                try {
+                    await actionPosOrderCancelCall([
+                        ...new Set(serverIds.filter((id) => typeof id === "number")),
+                    ]);
+                    // A successfully cancelled id must leave pendingOrder.delete,
+                    // otherwise every subsequent sync re-sends the cancel for the
+                    // rest of the session (and a later server-side rejection of a
+                    // stale id would block syncing entirely).
+                    for (const id of serverIds) {
+                        this.pendingOrder.delete.delete(id);
+                    }
+                } catch (error) {
+                    serverIdsFailed = true;
+                    logPosMessage(
+                        "Store",
+                        "deleteOrders",
+                        "Failed to cancel server-side order ids",
+                        CONSOLE_COLOR,
+                        [error],
+                    );
                 }
             }
         } finally {
@@ -678,6 +712,27 @@ export class PosStore extends WithLazyGetterTrap {
                 this.removeOrder(order, false);
                 this.removePendingOrder(order);
             }
+        }
+
+        if (failedOrders.length || serverIdsFailed) {
+            // Name the survivors: the orders that could not be cancelled are
+            // still on screen, so the cashier needs to know which ones to
+            // handle by hand instead of guessing from a generic failure.
+            const names = failedOrders
+                .map((order) => order.getName() || order.pos_reference || order.uuid)
+                .join(", ");
+            this.dialog.add(AlertDialog, {
+                title: _t("Some orders could not be cancelled"),
+                body: names
+                    ? _t(
+                          "These orders are still open and were not cancelled: %s.\nPlease check them and try again.",
+                          names,
+                      )
+                    : _t(
+                          "Some orders could not be cancelled. Please check them and try again.",
+                      ),
+            });
+            return false;
         }
 
         return true;
@@ -716,22 +771,31 @@ export class PosStore extends WithLazyGetterTrap {
 
     async handleUrlParams() {
         const orderPathUuid = this.router.state.params.orderUuid;
+        if (!orderPathUuid) {
+            // Paramless routes (/ticket, /login, /saver, /action/{name}) carry
+            // no order, so leave the selection alone — this runs as the router's
+            // popStateCallback, and clearing it made the back button deselect
+            // the order while forward navigation never does (pos_navigation only
+            // *assigns* selectedOrderUuid when a uuid is present). The unguarded
+            // getOrder() derefs downstream then threw and wedged the POS.
+            return;
+        }
         const order = this.models["pos.order"].find(
             (order) => order.uuid === orderPathUuid,
         );
-        if (orderPathUuid && !order) {
-            await this.data.loadServerOrders([["uuid", "=", orderPathUuid]]);
-            const order = this.models["pos.order"].find(
-                (order) => order.uuid === orderPathUuid,
-            );
-            if (order) {
-                this.setOrder(order);
-            } else {
-                const next = this.defaultPage;
-                this.router.navigate(next.page, next.params);
-            }
-        } else {
+        if (order) {
             this.setOrder(order);
+            return;
+        }
+        await this.data.loadServerOrders([["uuid", "=", orderPathUuid]]);
+        const loadedOrder = this.models["pos.order"].find(
+            (order) => order.uuid === orderPathUuid,
+        );
+        if (loadedOrder) {
+            this.setOrder(loadedOrder);
+        } else {
+            const next = this.defaultPage;
+            this.router.navigate(next.page, next.params);
         }
     }
 
@@ -867,6 +931,9 @@ export class PosStore extends WithLazyGetterTrap {
 
     async setTip(tip) {
         const currentOrder = this.getOrder();
+        if (!currentOrder) {
+            return;
+        }
         const tipProduct = this.config.tip_product_id;
         let line = currentOrder.lines.find(
             (line) => line.product_id.id === tipProduct.id,
@@ -1778,7 +1845,7 @@ export class PosStore extends WithLazyGetterTrap {
         this.numberBuffer.capture();
         const currentOrder = this.getOrder();
 
-        if (!currentOrder.canPay()) {
+        if (!currentOrder?.canPay()) {
             return;
         }
 
@@ -2049,16 +2116,7 @@ export class PosStore extends WithLazyGetterTrap {
         );
         if (!printBillActionTriggered) {
             if (result) {
-                const count = order.nb_print ? order.nb_print + 1 : 1;
-                if (order.isSynced) {
-                    const wasDirty = order.isDirty();
-                    await this.data.write("pos.order", [order.id], { nb_print: count });
-                    if (!wasDirty) {
-                        order._dirty = false;
-                    }
-                } else {
-                    order.nb_print = count;
-                }
+                await this.incrementReceiptPrintCount(order);
             }
         } else if (!order.nb_print) {
             order.nb_print = 0;
@@ -2067,6 +2125,39 @@ export class PosStore extends WithLazyGetterTrap {
             this.displayPrinterWarning(result, _t("Receipt Printer"));
         }
         return result;
+    }
+    /**
+     * Record one more receipt print on the order.
+     * @param {import("@point_of_sale/app/models/pos_order").PosOrder} order
+     * @returns {Promise<number>} the resulting print count
+     */
+    async incrementReceiptPrintCount(order) {
+        // nb_print is a read-modify-write, so it has to be serialized: two
+        // prints fired back to back both read the same value and both wrote the
+        // same increment, losing one.
+        return this.printCountMutex.exec(async () => {
+            const count = (order.nb_print || 0) + 1;
+            if (!order.isSynced) {
+                order.nb_print = count;
+                return count;
+            }
+            const wasDirty = order.isDirty();
+            const records = await this.data.write("pos.order", [order.id], {
+                nb_print: count,
+            });
+            if (!wasDirty) {
+                // _markClean(), not `_dirty = false`: clearing the flag alone
+                // left a non-empty _dirtyFields behind, an impossible state that
+                // _syncAllOrders' in-flight-edit re-application replays as a
+                // phantom change on the next sync.
+                order._markClean();
+            }
+            // The write resolves only once the server response has been applied,
+            // so prefer the echoed value over the one computed above — another
+            // device may have printed the same order in the meantime.
+            const written = records?.find?.((record) => record.id === order.id);
+            return written?.nb_print ?? count;
+        });
     }
     get printOptions() {
         return { webPrintFallback: true };
@@ -2135,6 +2226,7 @@ export class PosStore extends WithLazyGetterTrap {
         if (this.config.printerCategories.size && !opts.byPassPrint) {
             try {
                 let reprint = false;
+                let changeToRecord = null;
                 let orderChange = changesToOrder(
                     order,
                     this.config.printerCategories,
@@ -2164,7 +2256,7 @@ export class PosStore extends WithLazyGetterTrap {
                         shouldPrint = false;
                     }
                 } else {
-                    order.uiState.lastPrints.push(orderChange);
+                    changeToRecord = orderChange;
                     orderChange = [orderChange];
                 }
 
@@ -2174,6 +2266,17 @@ export class PosStore extends WithLazyGetterTrap {
 
                 if (shouldPrint) {
                     isPrinted = await this.printChanges(order, orderChange, reprint);
+                    // Record AFTER the attempt: pushing beforehand meant a
+                    // change set that threw (or that every printer rejected)
+                    // still became the source for a later explicit reprint.
+                    // An empty printer list can't have failed — a
+                    // preparation-display-only setup must keep its history.
+                    if (
+                        changeToRecord &&
+                        (isPrinted || !this.unwatched.printers?.length)
+                    ) {
+                        this.recordLastPrint(order, changeToRecord);
+                    }
                 }
             } catch (e) {
                 changeSetFailed = true;
@@ -2194,6 +2297,22 @@ export class PosStore extends WithLazyGetterTrap {
         // We need to check if a preparation display is configured to avoid unnecessary sync
         if (isPrinted && !this.models["pos.prep.display"]?.length) {
             await this.syncAllOrders({ orders: [order] });
+        }
+    }
+    /**
+     * Append a printed change set to the order's reprint history, bounded.
+     * uiState is serialized to IndexedDB on every debounced sync, so an
+     * unbounded history made that payload grow with every send. The tail is
+     * kept rather than only the last entry because TicketScreen's "reprint all"
+     * replays the whole array, not just `at(-1)`.
+     * @param {import("@point_of_sale/app/models/pos_order").PosOrder} order
+     * @param {Object} change
+     */
+    recordLastPrint(order, change) {
+        const history = order.uiState.lastPrints;
+        history.push(change);
+        if (history.length > MAX_LAST_PRINTS) {
+            history.splice(0, history.length - MAX_LAST_PRINTS);
         }
     }
     async sendOrderInPreparationUpdateLastChange(o, opts) {
@@ -2292,41 +2411,22 @@ export class PosStore extends WithLazyGetterTrap {
         return filterChangeByCategories(this, categories, currentOrderChange);
     }
 
-    connectToProxy() {
-        return new Promise((resolve, reject) => {
-            this.barcodeReader?.disconnectFromProxy();
-            this.loadingSkipButtonIsShown = true;
-            this.hardwareProxy.autoConnect({ force_ip: this.config.proxy_ip }).then(
-                () => {
-                    if (this.config.iface_scan_via_proxy) {
-                        this.barcodeReader?.connectToProxy();
-                    }
-                    resolve();
-                },
-                (statusText, url) => {
-                    // this should reject so that it can be captured when we wait for pos.ready
-                    // in the chrome component.
-                    // then, if it got really rejected, we can show the error.
-                    if (
-                        statusText === "error" &&
-                        window.location.protocol === "https:"
-                    ) {
-                        // FIXME POSREF this looks like it's dead code.
-                        reject({
-                            title: _t("HTTPS connection to IoT Box failed"),
-                            body: _t(
-                                "Make sure you are using IoT Box v18.12 or higher. Navigate to %s to accept the certificate of your IoT Box.",
-                                url,
-                            ),
-                            popup: "alert",
-                        });
-                    } else {
-                        resolve();
-                    }
-                },
-            );
-        });
+    // autoConnect() never rejects — connect() swallows every failure and a
+    // missing url yields a forever-pending promise — so the old rejection arm
+    // (an HTTPS/IoT-certificate dialog) was unreachable and is gone with it.
+    async connectToProxy() {
+        this.barcodeReader?.disconnectFromProxy();
+        this.loadingSkipButtonIsShown = true;
+        await this.hardwareProxy.autoConnect({ force_ip: this.config.proxy_ip });
+        if (this.config.iface_scan_via_proxy) {
+            this.barcodeReader?.connectToProxy();
+        }
     }
+    /**
+     * Extra context for the partner form opened by editPartner().
+     * @param {import("@point_of_sale/app/models/res_partner").ResPartner?} partner
+     *        undefined when creating a new partner
+     */
     editPartnerContext(partner) {
         return {};
     }
@@ -2339,7 +2439,7 @@ export class PosStore extends WithLazyGetterTrap {
             "point_of_sale.res_partner_action_edit_pos",
             {
                 props: { resId: partner?.id },
-                additionalContext: this.editPartnerContext(),
+                additionalContext: this.editPartnerContext(partner),
             },
         );
         const newPartner = await this.data.read("res.partner", record.config.resIds);
@@ -2554,7 +2654,7 @@ export class PosStore extends WithLazyGetterTrap {
     }
     // There for override to do something before adding partner to current order from partner list
     setPartnerToCurrentOrder(partner) {
-        this.getOrder().setPartner(partner);
+        this.getOrder()?.setPartner(partner);
     }
     async selectPartner(currentOrder = this.getOrder()) {
         // FIXME, find order to refund when we are in the ticketscreen.
@@ -2804,7 +2904,7 @@ export class PosStore extends WithLazyGetterTrap {
             ["PaymentScreen", "ActionScreen"].includes(this.router.state.current)
         ) {
             if (this.router.state.current === "ProductScreen") {
-                this.getOrder().deselectOrderline();
+                this.getOrder()?.deselectOrderline();
             }
 
             this.mobile_pane =
