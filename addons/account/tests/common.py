@@ -27,9 +27,7 @@ _logger = logging.getLogger(__name__)
 
 
 def skip_unless_external(func):
-    """
-    Skip a test unless the test is run in external mode.
-    """
+    """Skip a test unless it is run in external mode."""
 
     @wraps(func)
     def wrapper(*args, **kwargs):
@@ -288,7 +286,7 @@ class AccountTestInvoicingCommon(ProductCommon):
                 "login": "simple_accountman",
                 "password": "simple_accountman",
                 "group_ids": [
-                    # the `account` specific groups from get_default_groups()
+                    # the `account` manager/user groups from get_default_groups()
                     Command.link(cls.env.ref("account.group_account_manager").id),
                     Command.link(cls.env.ref("account.group_account_user").id),
                 ],
@@ -782,10 +780,9 @@ class AccountTestInvoicingCommon(ProductCommon):
         )
         move_form.invoice_date = invoice_date or fields.Date.from_string("2019-01-01")
         # According to the state or type of the invoice, the date field is sometimes visible or not
-        # Besides, the date field can be put multiple times in the view
-        # "invisible": "['|', ('state', '!=', 'draft'), ('auto_post', '!=', 'at_date')]"
-        # "invisible": ['|', '|', ('state', '!=', 'draft'), ('auto_post', '=', 'no'), ('auto_post', '=', 'at_date')]
-        # "invisible": "['&', ('move_type', 'in', ['out_invoice', 'out_refund', 'out_receipt']), ('quick_edit_mode', '=', False)]"
+        # Besides, the date field can be put multiple times in the view; only the one in the form
+        # view carries an `invisible` modifier:
+        # invisible="move_type in ('out_invoice', 'out_refund', 'out_receipt') and not quick_edit_mode and not (state == 'posted' and date != invoice_date)"
         # :TestAccountMoveOutInvoiceOnchanges, :TestAccountMoveOutRefundOnchanges, .test_00_debit_note_out_invoice, :TestAccountEdi
         if not move_form._get_modifier("date", "invisible"):
             move_form.date = move_form.invoice_date
@@ -980,14 +977,7 @@ class AccountTestInvoicingCommon(ProductCommon):
         post=False,
         **invoice_args,
     ):
-        """
-        This method quickly generates an ``account.move`` record with some quality of life helpers.
-        These quality of life helpers are:
-
-        - if `invoice_date`/`date` is filled but not the other, autofill the other date fields
-        - if no `date` or `invoice_date` is passed, set the `invoice_date` to today by default
-        - allow passing record immediately instead of getting the id / creating [Command.set(...)] everytime for one2many/many2many fields
-        - allow passing None value in `invoice_args`, they will be filtered out before calling the move `create` method
+        """Generate an ``account.move`` record with quality of life helpers.
 
         :param post: if True, the invoice will be posted
         :param invoice_args: additional overrides on the `account.move` `create` call
@@ -1226,13 +1216,16 @@ class AccountTestInvoicingCommon(ProductCommon):
     def _create_down_payment_invoice(
         cls, sale_order, amount_type: str, amount: float, post=False
     ):
-        """
+        """Invoice a down payment on the given sale order.
+
         :param sale_order:      The SO as a sale.order record.
-        :param amount_type:     The type of the global discount: ('percent'/'percentage'), 'fixed', or 'delivered'.
+        :param amount_type:     The type of the down payment: ('percent'/'percentage'), 'fixed', or 'delivered'.
         :param amount:          The amount to consider.
                                 For 'percent', it should be a percentage [0-100].
                                 For 'fixed', any amount.
                                 For 'delivered', this value is not used.
+        :param post:            If True, the generated invoice will be posted.
+        :return: the created ``account.move`` record
         """
         cls.ensure_installed("sale")
 
@@ -1272,12 +1265,14 @@ class AccountTestInvoicingCommon(ProductCommon):
 
     @classmethod
     def _apply_sale_order_discount(cls, sale_order, amount_type: str, amount: float):
-        """
+        """Apply a global discount on the given sale order.
+
         :param sale_order:      The SO as a sale.order record.
         :param amount_type:     The type of the global discount: 'percent', 'all' (also percentage), or 'fixed'.
         :param amount:          The amount to consider.
                                 For 'percent' and 'all', it should be a percentage [0-100].
                                 For 'fixed', any amount.
+        :return: the ``sale.order.discount`` wizard record
         """
         cls.ensure_installed("sale")
 
@@ -1313,8 +1308,9 @@ class AccountTestInvoicingCommon(ProductCommon):
     # -------------------------------------------------------------------------
 
     def replace_ignore(self, to_compare):
-        """Because we put jsons in separate files, we can not use ANY from unittest Mock there, so we can just apply
-        this method on the dicts to be compared before doing assertDictEqual"""
+        """Replace every ``___ignore___`` marker by unittest's ``ANY`` sentinel."""
+        # JSON expectations live in separate files, where `ANY` cannot be spelled out;
+        # apply this on the dicts to be compared before calling assertDictEqual.
         if isinstance(to_compare, dict):
             return {k: self.replace_ignore(v) for k, v in to_compare.items()}
         if isinstance(to_compare, list):
@@ -1503,20 +1499,13 @@ class AccountTestInvoicingCommon(ProductCommon):
 
     @classmethod
     def _get_xml_ignore_schema(cls, subfolder: str) -> etree._Element | None:
-        """
-        Recursively look for the closest `ignore_schema.xml` from the given `subfolder`, and
-        return its content as an XML element object if found.
+        """Return the closest `ignore_schema.xml` as an XML element.
 
-        For example, if the given `subfolder` parameter is `foo/bar/egg`, this method will search for
-        an `ignore_schema.xml` file from these paths, in order:
-
-        - /tests/test_files/foo/bar/egg/ignore_schema.xml
-        - /tests/test_files/foo/bar/ignore_schema.xml
-        - /tests/test_files/foo/ignore_schema.xml
-        - /tests/test_files/ignore_schema.xml
+        The lookup walks up from `<test_module>/tests/test_files/<subfolder>` to
+        `<test_module>/tests/test_files` and stops on the first existing file.
 
         :param subfolder: the subfolder of the path of XML file to save/assert. (e.g. "folder_1", "folder_outer/folder_inner")
-        :return: _Element object if an `ignore_schema.xml` file is found, otherwise nothing will be returned.
+        :return: an _Element object, or None if no `ignore_schema.xml` file is found.
         """
         if ignore_schema_bytes := cls._get_ignore_schema(
             subfolder, "ignore_schema.xml"
@@ -1534,9 +1523,7 @@ class AccountTestInvoicingCommon(ProductCommon):
 
     @classmethod
     def _clear_xml_content(cls, xml_element: etree._Element, clean_namespaces=True):
-        """
-        Clears an _Element object by removing all its children and deleting all of their attributes and namespaces.
-        """
+        """Clear an _Element object by removing its children, attributes and namespaces."""
         for child in xml_element:
             xml_element.remove(child)
 
@@ -1554,55 +1541,14 @@ class AccountTestInvoicingCommon(ProductCommon):
         overwrite_on_conflict=True,
         add_on_absent=True,
     ):
-        """
-        This method takes two _Element objects, and merge the content of the second _Element to the first one recursively.
-        Here, we go through every text, and attribute of the secondary_xml and its children; and apply the following operation:
-
-        - Search for a matching child element / attribute on the `primary_xml`
-        - If a match is found, overwrite the matching `primary_xml` attribute/child/text if `overwrite_on_conflict` is True
-        - If a match is not found, add on `primary_xml` if `add_on_absent` is True
-
-        Warning: The `tag` of the two `_Element` object must be the same.
-
-        For example:
-        Before calling this method,
-        primary_xml
-        <a attr_1="old_attr_1">
-            <b>old b text</b>
-        </a>
-
-        secondary_xml
-        <a attr_1="new_attr_1" attr_2="new_attr_2>
-            <b attr_b="new_attr_b">new text</b>
-            <c>new element</c>
-        </a>
-
-        [#1] Resulting primary_xml post call with default optional parameters (overwrite_on_conflict True, add_on_absent True)
-        <a attr_1="new_attr_1" attr_2="new_attr_2>
-            <b attr_b="new_attr_b">new text</b>
-            <c>new element</c>
-        </a>
-
-        [#2] Resulting primary_xml post call with (overwrite_on_conflict True, add_on_absent False)
-        <a attr_1="new_attr_1">
-            <b>new text</b>
-        </a>
-
-        [#3] Resulting primary_xml post call with (overwrite_on_conflict False, add_on_absent True)
-        <a attr_1="old_attr_1" attr_2="new_attr_2>
-            <b attr_b="new_attr_b">old b text</b>
-            <c>new element</c>
-        </a>
-
-        [#4] Resulting primary_xml post call with (overwrite_on_conflict False, add_on_absent False)
-        No change will be made with these configuration.
+        """Merge the content of `secondary_xml` into `primary_xml`, recursively.
 
         :param primary_xml: The primary _Element object to be written on to.
         :param secondary_xml: The second _Element object in which content is used as reference.
         :param overwrite_on_conflict: If True and matching attribute/child element is found, the original content is overwritten.
         :param add_on_absent: If True and matching attribute/child element is not found, it will be added on the primary_xml.
-        :return:
         """
+        # Both elements must share the same tag, otherwise there is nothing to merge.
         if primary_xml.tag != secondary_xml.tag:
             return
 
@@ -1635,12 +1581,9 @@ class AccountTestInvoicingCommon(ProductCommon):
 
     @classmethod
     def _prepare_xml_ignore_schema(cls, xml_schema: etree._Element):
-        """
-        Hook method called on a found ignore schema XML element before we apply them to the main XML element to save.
-        Here, we preprocess the `___inherit___` attribute of the main schema XML and process them,
-        so that the final `xml_schema` contains the schema of the parent schema(s) too.
+        """Resolve the `___inherit___` attribute of an ignore schema before it is applied.
 
-        This method can optionally be extended to modify the schema manually python-side.
+        The resolved `xml_schema` ends up containing the schema of its parent schema(s) too.
         """
         # TO EXTEND
         if "___inherit___" in xml_schema.attrib:
@@ -1720,20 +1663,17 @@ class AccountTestInvoicingCommon(ProductCommon):
                     cls._apply_json_ignore_schema(data[i], ignore_schema[i])
 
     def assert_json(self, content_to_assert: dict | list, test_name: str, subfolder=""):
-        """
-        Helper to save/assert a dictionary to a JSON file located in the corresponding module `test_files`.
-        By default, this method will assert the dictionary with the JSON content.
-        To switch to save mode, add a `SAVE_JSON` tag when calling the test;
-        the `content_to_assert` dictionary will then be written in to the test file.
+        """Assert a dictionary against a JSON file in the module `test_files`, or save it.
 
-        Before asserting, the dictionary will first be serialized to ensure it is in the same format of the saved JSON.
-        This means that for example: all tuples within the dictionary will be converted to list, etc.
+        Save mode is triggered by the `SAVE_JSON` test tag; it writes `content_to_assert`
+        into the test file instead of asserting.
 
         :param content_to_assert: dictionary | list to save or assert to the corresponding test file
         :param test_name: the test file name
         :param subfolder: the test file subfolder(s), separated by `/` if there is more than one
         """
         json_path = self._get_test_file_path(f"{test_name}.json", subfolder=subfolder)
+        # Round-trip through JSON so the content matches the saved format (tuples become lists, ...)
         content_to_assert = json.loads(json.dumps(content_to_assert))
         if json_ignore_schema := self._get_json_ignore_schema(subfolder):
             self._apply_json_ignore_schema(content_to_assert, json_ignore_schema)
@@ -1753,22 +1693,14 @@ class AccountTestInvoicingCommon(ProductCommon):
         test_name: str,
         subfolder="",
     ):
-        """
-        Helper to save/assert an XML element/string/bytes to an XML file.
-        By default, this method will assert the passed XML content to the test XML file.
-        To switch to save mode, add a `SAVE_XML` tag when calling the test;
-        This mode will instead do the following:
+        """Assert an XML element/string/bytes against an XML test file, or save it.
 
-        - Reindent the XML element by `\t`
-        - Save the XML element to a temporary folder for potential external testing
-        - Patch the XML element with `___ignore___` values, following the corresponding schema on the closest `ignore_schema.xml`
-        - Canonicalize the XML element to ensure consistency in their namespaces & attributes order
-        - Save the XML element content to the test file
+        Save mode is triggered by the `SAVE_XML` test tag; it reindents, patches with
+        `___ignore___` values, canonicalizes and writes the element instead of asserting.
 
         :param xml_element: the _Element/str/bytes content to be saved or asserted
         :param test_name: the test file name
         :param subfolder: the test file subfolder(s), separated by `/` if there is more than one
-        :return:
         """
         file_name = f"{test_name}.xml"
         test_file_path = self._get_test_file_path(file_name, subfolder=subfolder)
@@ -2821,17 +2753,7 @@ class TestAccountMergeCommon(AccountTestInvoicingCommon):
         )
 
     def _create_references_to_account(self, account):
-        """Create records that reference the given account using different types
-        of reference fields: Many2one, Many2many, company-dependent Many2one,
-        and Many2oneReference.
-
-        The Many2one, Many2many and Many2oneReference records are created with a
-        `company_id` set to `account.company_ids`.
-
-        The company-dependent Many2one record is created with the context company
-        set to `account.company_ids`.
-
-        This allows correct testing of merging and de-merging accounts.
+        """Create records referencing the given account through every reference field type.
 
         :return: a dict {record: account_field} of all created records and the
                  field names on the records that reference the account.
@@ -2907,10 +2829,10 @@ class TestAccountMergeCommon(AccountTestInvoicingCommon):
 
 
 class PatchRequestsMixin(TestCase):
-    """Mock external HTTP requests made through the `requests` library.
-    Assert expected requests and provide mocked responses in a record/replay fashion.
-    """
+    """Mock external HTTP requests made through the `requests` library."""
 
+    # Set to True to let the requests through (live test), or to 'warn' to let them
+    # through while logging any divergence from the expected requests / responses.
     external_mode = False
 
     @contextmanager
@@ -2919,44 +2841,12 @@ class PatchRequestsMixin(TestCase):
     ):
         """Assert expected requests and provide mocked responses in a record/replay fashion.
 
-        Patches `requests.Session.request`, which is the main method internally used by the
-        `requests` library to perform HTTP requests, asserts the request contents and serves
-        the provided mocked responses.
-
-        To transform the mocked test into a live test, set the `external_mode` attribute to:
-        - True to let the requests through;
-        - 'warn' to let the requests through but issue a warning if the requests / responses
-          differ from the expected requests / mocked responses.
-
         :param expected_requests_and_responses: A list of tuples, each containing
                                                 an expected request and a mocked response.
                                                 The expected request is a dictionary of arguments
                                                 passed to `requests.Session.request`,
                                                 and the mocked response is an object that supports
                                                 the `requests.Response` interface.
-
-        Example usage:
-        ```
-        mocked_response = requests.Response()
-        mocked_response.status_code = 200
-        mocked_response._content = json.dumps({"message": "Success"})
-
-        with self.assertRequestsMade(
-            [
-                (
-                    {
-                        "method": "POST",
-                        "url": "https://example.com/send",
-                        "json": {"message": "Hello World!"},
-                    },
-                    mocked_response,
-                ),
-            ]
-        ):
-            response = requests.post(
-                "https://example.com/send", json={"message": "Hello World!"}
-            )
-        ```
         """
         if self.external_mode is True:
             yield  # Full external mode: don't patch `requests.Session.request` at all
@@ -3044,14 +2934,14 @@ class PatchRequestsMixin(TestCase):
             _logger.warning("Expected request not made: %s", expected_request)
 
     def assertRequestsEqual(self, actual_request, expected_request):
-        """Method used to validate that the actual request is identical to the expected one.
-        Can be overridden to customize the validation."""
+        """Validate that the actual request is identical to the expected one; override to customize."""
         return self.assertEqual(actual_request, expected_request)
 
     def difference_between_responses(self, actual_response, expected_response):
-        """Method used by the `patch_requests_warn` method to know whether
-        the actual response is identical to the mocked response when live-testing.
-        Can be overridden to customize this behaviour."""
+        """Return a diff between the actual and the mocked response, or None if they match.
+
+        Used by `patch_requests_warn` when live-testing; override to customize this behaviour.
+        """
 
         def generate_diff(d1, d2):
             return "\n".join(
