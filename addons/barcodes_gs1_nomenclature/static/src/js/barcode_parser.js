@@ -36,7 +36,7 @@ patch(BarcodeParser.prototype, {
      */
     gs1_date_to_date(gs1Date) {
         // See 7.12 Determination of century in dates:
-        // https://www.gs1.org/sites/default/files/docs/barcodes/GS1_General_Specifications.pdfDetermination of century
+        // https://www.gs1.org/sites/default/files/docs/barcodes/GS1_General_Specifications.pdf
         const now = new Date();
         const substractYear = parseInt(gs1Date.slice(0, 2)) - (now.getFullYear() % 100);
         let century = Math.floor(now.getFullYear() / 100);
@@ -60,7 +60,7 @@ patch(BarcodeParser.prototype, {
     /**
      * Perform interpretation of the barcode value depending of the rule.gs1_content_type
      *
-     * @param {Array} match Result of a regex match with atmost 2 groups (ia and value)
+     * @param {Array} match Result of a regex match with at most 2 groups (ai and value)
      * @param {Object} rule Matched Barcode Rule
      * @returns {Object|null}
      */
