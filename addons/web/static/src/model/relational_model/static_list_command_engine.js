@@ -137,11 +137,15 @@ export function applyCommands(
                             deferredChanges,
                         ]);
                     }
-                    record._applyChanges(
-                        record._parseServerValues(changes, {
-                            currentValues: record.data,
-                        }),
-                    );
+                    // Server slot, not user slot: these UPDATE payloads are
+                    // server-originated (onchange commands), and _applyChanges
+                    // parses server values itself. Pre-parsing them into the
+                    // USER slot corrupted _textValues provenance: a char/text
+                    // the server set to false was stored as the parsed "", so
+                    // a modifier like [("field", "=", False)] on the row
+                    // mis-evaluated until reload (the server slot snapshots
+                    // the RAW values via _getTextValues).
+                    record._applyChanges({}, changes);
                 }
                 break;
             }

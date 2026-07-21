@@ -51,6 +51,26 @@ function makePropertyRecord({
     return record;
 }
 
+/**
+ * Minimal cached-StaticList mock for the m2m reuse/reconcile paths: exposes
+ * the members processProperties reads (``currentIds``) and records the
+ * commands it applies.
+ *
+ * @param {number[]} currentIds
+ * @returns {Object}
+ */
+function makeStaticListMock(currentIds) {
+    return {
+        __isStaticList: true,
+        currentIds: [...currentIds],
+        appliedCommands: [],
+        _applyCommands(commands) {
+            this.appliedCommands.push(...commands);
+        },
+        _trackCommandsPromise() {},
+    };
+}
+
 // processProperties — empty input and schema splice basics
 
 describe("processProperties — empty input and splice basics", () => {
@@ -295,7 +315,7 @@ describe("processProperties — many2many value shaping", () => {
 
     test("reuses an existing StaticList from currentValues (does not recreate)", () => {
         let createCalled = false;
-        const existing = { __isStaticList: true, marker: "existing" };
+        const existing = makeStaticListMock([1]);
         const rec = makePropertyRecord({
             createStaticList: () => {
                 createCalled = true;
@@ -318,6 +338,73 @@ describe("processProperties — many2many value shaping", () => {
         );
         expect(createCalled).toBe(false);
         expect(result["props.tags"]).toBe(existing);
+        // Membership already matches — no reconciliation commands.
+        expect(existing.appliedCommands).toEqual([]);
+    });
+
+    test("reconciles cached StaticList membership with the incoming value", () => {
+        // Regression: on change-driven parses the cached list was reused and
+        // the server-sent membership silently ignored — the displayed tags
+        // stayed stale until reload. The list must be diffed in place
+        // (identity stable) via UNLINK/LINK commands.
+        const existing = makeStaticListMock([1, 2]);
+        const rec = makePropertyRecord();
+        const result = processProperties(
+            rec,
+            [
+                {
+                    name: "tags",
+                    type: "many2many",
+                    comodel: "res.tag",
+                    value: [
+                        [2, "B"],
+                        [3, "C"],
+                    ],
+                },
+            ],
+            "props",
+            false,
+            { "props.tags": existing },
+        );
+        // Same datapoint object (OWL reactivity), reconciled membership.
+        expect(result["props.tags"]).toBe(existing);
+        expect(existing.appliedCommands).toEqual([
+            [3, 1, false], // UNLINK 1 (no longer a member)
+            [4, 3, { id: 3, display_name: "C" }], // LINK 3 with server data
+        ]);
+    });
+
+    test("value === false empties the cached StaticList membership", () => {
+        const existing = makeStaticListMock([1, 2]);
+        const rec = makePropertyRecord();
+        processProperties(
+            rec,
+            [{ name: "tags", type: "many2many", comodel: "res.tag", value: false }],
+            "props",
+            false,
+            { "props.tags": existing },
+        );
+        expect(existing.appliedCommands).toEqual([
+            [3, 1, false],
+            [3, 2, false],
+        ]);
+    });
+
+    test("a non-array, non-false value (e.g. a live StaticList) is not diffed", () => {
+        // preprocessPropertiesChanges (list-cell property edit) can re-enter
+        // with the cached StaticList itself as the property value — that is
+        // the current membership, not a server payload to reconcile against.
+        const existing = makeStaticListMock([1]);
+        const rec = makePropertyRecord();
+        const result = processProperties(
+            rec,
+            [{ name: "tags", type: "many2many", comodel: "res.tag", value: existing }],
+            "props",
+            false,
+            { "props.tags": existing },
+        );
+        expect(result["props.tags"]).toBe(existing);
+        expect(existing.appliedCommands).toEqual([]);
     });
 });
 

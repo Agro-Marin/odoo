@@ -17,6 +17,7 @@ import {
     FAVORITE_PRIVATE_GROUP,
     FAVORITE_SHARED_GROUP,
 } from "@web/search/search_state";
+import { user } from "@web/services/user";
 
 describe.current.tags("headless");
 
@@ -110,6 +111,48 @@ describe("irFilterToFavorite", () => {
 
         expect(favorite.isDefault).toBe(undefined);
     });
+
+    test("screens out group_by entries naming unknown fields (with warning)", () => {
+        // A shared default favorite grouping by a since-removed field 500s
+        // web_read_group for everyone — unknown fields must be dropped at
+        // import when field metadata is available.
+        const fields = {
+            name: { type: "char" },
+            date_field: { type: "date" },
+            props: { type: "properties" },
+        };
+        const warnings = [];
+        const originalWarn = console.warn;
+        console.warn = (...args) => warnings.push(args.join(" "));
+        let favorite;
+        try {
+            favorite = irFilterToFavorite(
+                makeIrFilter({
+                    context:
+                        "{'group_by': ['ghost_field', 'name', 'date_field:month', 'props.subkey', 'gone.subkey']}",
+                }),
+                fields,
+            );
+        } finally {
+            console.warn = originalWarn;
+        }
+        expect(warnings.length).toBe(2);
+        expect(warnings[0]).toInclude("ghost_field");
+        expect(warnings[1]).toInclude("gone.subkey");
+
+        // Valid plain field, granularity, and properties sub-key group-bys
+        // survive; unknown field and unknown properties parent are dropped.
+        expect(favorite.groupBys).toEqual(["name", "date_field:month", "props.subkey"]);
+        expect(favorite.isInvalid).toBe(false);
+    });
+
+    test("without field metadata, group_bys are imported unscreened", () => {
+        const favorite = irFilterToFavorite(
+            makeIrFilter({ context: "{'group_by': ['ghost_field']}" }),
+        );
+
+        expect(favorite.groupBys).toEqual(["ghost_field"]);
+    });
 });
 
 describe("buildIrFilterDescription", () => {
@@ -143,6 +186,31 @@ describe("buildIrFilterDescription", () => {
         expect("search_default_x" in irFilter.context).toBe(false);
         expect(irFilter.user_ids).toEqual([]);
         expect(irFilter.is_default).toBe(true);
+    });
+
+    test("keeps intentional overrides of user-context keys, strips seeded values", () => {
+        // The composed search context is seeded with the whole user context;
+        // those seeded entries must not be persisted. But a filter that
+        // deliberately overrides a user-context key NAME with a DIFFERENT
+        // value (e.g. context="{'lang': ...}") is a real part of the favorite
+        // and used to be silently dropped on name collision alone.
+        const userCtx = user.context;
+        const overriddenLang = userCtx.lang === "fr_FR" ? "nl_NL" : "fr_FR";
+        const { irFilter, preFavorite } = buildIrFilterDescription(
+            makeParams({
+                getContext: () => ({
+                    ...userCtx, // seeded: same values → stripped
+                    lang: overriddenLang, // intentional override → kept
+                    custom_key: 1,
+                }),
+            }),
+        );
+
+        expect(irFilter.context.lang).toBe(overriddenLang);
+        expect(preFavorite.context.lang).toBe(overriddenLang);
+        expect(irFilter.context.custom_key).toBe(1);
+        expect("tz" in irFilter.context).toBe(false);
+        expect("uid" in irFilter.context).toBe(false);
     });
 
     test("round-trips through irFilterToFavorite", () => {

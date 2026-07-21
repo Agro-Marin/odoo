@@ -16,9 +16,13 @@ import { FAVORITE_PRIVATE_GROUP, FAVORITE_SHARED_GROUP } from "./search_state.js
  * Convert an ir.filter record to a favorite search item.
  *
  * @param {Object} irFilter
+ * @param {Object} [fields=null] search-model field metadata
+ *  (``searchViewFields``). When provided (and non-empty), ``group_by``
+ *  entries naming unknown fields are screened out (see below); when absent,
+ *  group-bys are imported as-is.
  * @returns {Object} favorite search item (pre-group format)
  */
-export function irFilterToFavorite(irFilter) {
+export function irFilterToFavorite(irFilter, fields = null) {
     const userIds = irFilter.user_ids;
     const groupNumber =
         userIds.length === 1 ? FAVORITE_PRIVATE_GROUP : FAVORITE_SHARED_GROUP;
@@ -36,6 +40,29 @@ export function irFilterToFavorite(irFilter) {
             ? context.group_by
             : [context.group_by];
         delete context.group_by;
+        // Screen out group-bys naming fields that no longer exist: the stored
+        // ``group_by`` list is applied with no validation downstream, and the
+        // server keeps web_read_group strict — a shared default favorite
+        // grouping by a since-removed field 500s the whole view for everyone
+        // on load. Screening only here keeps arch-defined groupbys untouched.
+        // A ``field:granularity`` entry is validated on its field part, and a
+        // ``propertiesField.propName`` entry (property group-by) on its
+        // properties parent field.
+        if (fields && Object.keys(fields).length) {
+            groupBys = groupBys.filter((groupBy) => {
+                const fieldName = String(groupBy).split(":")[0];
+                const baseName = fieldName.split(".")[0];
+                const field = fields[baseName];
+                const isValid =
+                    !!field && (baseName === fieldName || field.type === "properties");
+                if (!isValid) {
+                    console.warn(
+                        `Favorite "${irFilter.name}": dropping group_by "${groupBy}" — unknown field "${baseName}"`,
+                    );
+                }
+                return isValid;
+            });
+        }
     }
     let sort;
     try {
@@ -185,7 +212,18 @@ export function buildIrFilterDescription({
     const context = makeContext([getContext(), localContext]);
     const userContext = user.context;
     for (const key of Object.keys(context)) {
-        if (key in userContext || /^search(panel)?_default_/.test(key)) {
+        // The search context is seeded with the whole user context
+        // (computeSearchContext), so keys carrying the user-context VALUE are
+        // stripped before saving. A user-context key NAME with a DIFFERENT
+        // value is an intentional override (e.g. a filter with
+        // context="{'lang': 'en_US'}" while the user's lang differs) and must
+        // survive into the ir.filters record — deleting on name alone
+        // silently dropped it. Strict equality is enough for the seeded case:
+        // seeding copies primitive values and nested references as-is.
+        if (
+            (key in userContext && context[key] === userContext[key]) ||
+            /^search(panel)?_default_/.test(key)
+        ) {
             delete context[key];
         }
     }

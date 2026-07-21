@@ -18,7 +18,9 @@
  *      {@link field_metadata.createPropertyActiveField}, patching in the
  *      parent m2o's id/display_name so the view can render the breadcrumb
  *      back to the definition record.
- *   3. Shapes the value by type: m2m builds a StaticList datapoint, m2o
+ *   3. Shapes the value by type: m2m builds a StaticList datapoint (or, on
+ *      change-driven calls, reconciles the cached list's membership with the
+ *      incoming value via LINK/UNLINK — see the inline comment), m2o
  *      handles the "No Access" placeholder (server sends ``null``
  *      ``display_name`` when the id is readable but the record isn't),
  *      scalars pass through unchanged.
@@ -36,6 +38,7 @@
 
 import { _t } from "@web/core/l10n/translation";
 
+import { x2ManyCommands } from "./commands.js";
 import { createPropertyActiveField } from "./field_metadata.js";
 import { invalidateModifierDependencies } from "./record_utils.js";
 
@@ -112,6 +115,50 @@ export function processProperties(
                     })),
                     propertyFieldName,
                 );
+            } else if (
+                typeof staticList._applyCommands === "function" &&
+                (Array.isArray(property.value) || property.value === false)
+            ) {
+                // Change-driven call with a cached StaticList: the incoming
+                // ``property.value`` is the FULL membership ([[id, label], …]
+                // tuples, or ``false`` for empty). It used to be silently
+                // ignored, so an onchange rewriting an m2m property left the
+                // displayed tags (and the row eval context) stale until
+                // reload. Reconcile by diffing membership into LINK/UNLINK
+                // commands applied to the SAME list — mutating in place keeps
+                // datapoint identity stable for OWL reactivity and preserves
+                // any pending command log. LINK carries {id, display_name} so
+                // no record load is triggered. (The value bag only matters
+                // for tuple-array shapes: a live StaticList arriving here —
+                // e.g. a list-cell property edit re-entering through
+                // preprocessPropertiesChanges — is the cached list itself and
+                // must not be diffed against. The _applyCommands duck-check
+                // additionally skips a truthy non-list left in currentValues
+                // by a property whose TYPE just changed to many2many — same
+                // reuse behavior as before for that edge.)
+                const target = property.value || [];
+                const currentIds = new Set(staticList.currentIds);
+                const targetIds = new Set(target.map((rec) => rec[0]));
+                const commands = [];
+                for (const id of currentIds) {
+                    if (!targetIds.has(id)) {
+                        commands.push(x2ManyCommands.unlink(id));
+                    }
+                }
+                for (const rec of target) {
+                    if (!currentIds.has(rec[0])) {
+                        commands.push([
+                            x2ManyCommands.LINK,
+                            rec[0],
+                            { id: rec[0], display_name: rec[1] },
+                        ]);
+                    }
+                }
+                if (commands.length) {
+                    staticList._trackCommandsPromise(
+                        staticList._applyCommands(commands),
+                    );
+                }
             }
             data[propertyFieldName] = staticList;
         } else if (property.type === "many2one") {

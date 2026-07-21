@@ -739,6 +739,47 @@ test("process favorite filters", async () => {
     ]);
 });
 
+test("favorite group_bys naming removed fields are screened at import", async () => {
+    // A shared default favorite can carry a group_by on a field that was
+    // since removed — web_read_group is strict server-side, so applying it
+    // 500s the whole view on load. Unknown fields are dropped (with a
+    // console warning) when the favorite is materialized; valid group-bys —
+    // including date granularities — survive.
+    const warnings = [];
+    const originalWarn = console.warn;
+    console.warn = (...args) => warnings.push(args.join(" "));
+    let model;
+    try {
+        model = await createSearchModel({
+            irFilters: [
+                {
+                    user_ids: [],
+                    name: "Ghost grouping",
+                    id: 5,
+                    context: `{"group_by": ["ghost_field", "name", "date_field:month"]}`,
+                    sort: "[]",
+                    domain: "[]",
+                    is_default: true,
+                    model_id: "foo",
+                    action_id: false,
+                },
+            ],
+        });
+    } finally {
+        console.warn = originalWarn;
+    }
+    expect(warnings.length).toBe(1);
+    expect(warnings[0]).toInclude("ghost_field");
+
+    const favorite = Object.values(model.searchItems).find(
+        (item) => item.type === "favorite",
+    );
+    expect(favorite.groupBys).toEqual(["name", "date_field:month"]);
+    // The default favorite is active: the model group-by must only contain
+    // the surviving fields (this is what reaches web_read_group).
+    expect(model.groupBy).toEqual(["name", "date_field:month"]);
+});
+
 test("process dynamic filters", async () => {
     const model = await createSearchModel({
         dynamicFilters: [
