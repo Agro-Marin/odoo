@@ -137,10 +137,7 @@ class TestTOTP(TestTOTPMixin, HttpCase):
 
     @mute_logger('odoo.http')
     def test_totp_authenticate(self):
-        """
-        Ensure we don't leak the session info from an half-logged-in
-        user.
-        """
+        """Ensure we don't leak session info from a half-logged-in user."""
         self.start_tour('/odoo', 'totp_tour_setup', login='test_user')
         self.url_open('/web/session/logout')
 
