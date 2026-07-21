@@ -18,9 +18,20 @@ const threadPatch = {
 
     /** @param {string[]} requestList */
     async fetchThreadData(requestList) {
-        this.isLoadingAttachments =
-            this.isLoadingAttachments || requestList.includes("attachments");
-        await super.fetchThreadData(requestList);
+        const loadsAttachments = requestList.includes("attachments");
+        this.isLoadingAttachments = this.isLoadingAttachments || loadsAttachments;
+        try {
+            await super.fetchThreadData(requestList);
+        } catch (error) {
+            // Only the server payload used to clear this flag, so any rejection
+            // (network blip, ConnectionLostError, access error) left it stuck on
+            // the shared Thread record and the chatter spinner span forever. The
+            // sibling fetchMoreAttachments already guards this way.
+            if (loadsAttachments) {
+                this.isLoadingAttachments = false;
+            }
+            throw error;
+        }
         if (
             !this.message_main_attachment_id &&
             this.attachmentsInWebClientView.length > 0

@@ -798,21 +798,32 @@ const threadPatch = {
         if (alreadyReadBySelf) {
             return;
         }
+        // Reset inside the callback, not on the outer markReadSequential
+        // promise: those are different chains. useSequential resolves a queued
+        // call immediately when a newer one supersedes it, and runs the next
+        // callback synchronously after resolving the previous one -- so an
+        // outer .finally() cleared the flag while a later RPC was still in
+        // flight, defeating the `!thread.markingAsRead` dedup guard in
+        // utils/common/thread_read.js and firing duplicate mark_as_read calls.
         this.markReadSequential(async () => {
             this.markingAsRead = true;
-            return rpc(
-                "/discuss/channel/mark_as_read",
-                {
-                    channel_id: this.id,
-                    last_message_id: newestPersistentMessage.id,
-                },
-                { silent: true },
-            ).catch((e) => {
-                if (e.code !== 404) {
-                    throw e;
-                }
-            });
-        }).finally(() => (this.markingAsRead = false));
+            try {
+                return await rpc(
+                    "/discuss/channel/mark_as_read",
+                    {
+                        channel_id: this.id,
+                        last_message_id: newestPersistentMessage.id,
+                    },
+                    { silent: true },
+                ).catch((e) => {
+                    if (e.code !== 404) {
+                        throw e;
+                    }
+                });
+            } finally {
+                this.markingAsRead = false;
+            }
+        });
     },
     /**
      * To be overridden.

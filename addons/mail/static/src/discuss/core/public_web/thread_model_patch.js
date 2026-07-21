@@ -163,6 +163,15 @@ const threadPatch = {
         if (searchTerm) {
             // Ignore holes in the sub-channel list that may arise when
             // searching for a specific term.
+            //
+            // KNOWN LIMITATION: this also means a search never advances
+            // `lastSubChannelLoaded`, so a search matching more than `limit`
+            // sub-channels re-fetches its first page forever and later results
+            // are unreachable. Fixing that needs a *separate* cursor for the
+            // search: `lastSubChannelLoaded` / `loadSubChannelsDone` describe
+            // the unfiltered list, and letting a filtered page write them
+            // wrongly terminates the unfiltered pagination (it breaks the
+            // test_discuss_sub_channel_search tour).
             return;
         }
         const subChannels = threads.filter((thread) =>
