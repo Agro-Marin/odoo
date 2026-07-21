@@ -1,18 +1,24 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 import logging
-import werkzeug
 from urllib.parse import urlencode
 
-from odoo import http, tools, _
-from odoo.addons.auth_signup.models.res_users import SignupError
-from odoo.addons.web.controllers.home import ensure_db, Home, SIGN_UP_REQUEST_PARAMS, LOGIN_SUCCESSFUL_PARAMS
-from odoo.addons.web.models.res_users import SKIP_CAPTCHA_LOGIN
-from odoo.addons.web.controllers.settings import BaseSetup
-from odoo.exceptions import UserError
-from odoo.tools.translate import LazyTranslate
-from odoo.http import request
+import werkzeug
 from markupsafe import Markup
+
+from odoo import _, http, tools
+from odoo.exceptions import UserError
+from odoo.http import request
+from odoo.tools.translate import LazyTranslate
+
+from odoo.addons.auth_signup.models.res_users import SignupError
+from odoo.addons.web.controllers.home import (
+    LOGIN_SUCCESSFUL_PARAMS,
+    SIGN_UP_REQUEST_PARAMS,
+    Home,
+    ensure_db,
+)
+from odoo.addons.web.controllers.settings import BaseSetup
+from odoo.addons.web.models.res_users import SKIP_CAPTCHA_LOGIN
 
 _lt = LazyTranslate(__name__)
 _logger = logging.getLogger(__name__)
@@ -41,7 +47,7 @@ class AuthSignupHome(Home):
         qcontext = self.get_auth_signup_qcontext()
 
         if not qcontext.get('token') and not qcontext.get('signup_enabled'):
-            raise werkzeug.exceptions.NotFound()
+            raise werkzeug.exceptions.NotFound
 
         if 'error' not in qcontext and request.httprequest.method == 'POST':
             try:
@@ -89,7 +95,7 @@ class AuthSignupHome(Home):
         qcontext = self.get_auth_signup_qcontext()
 
         if not qcontext.get('token') and not qcontext.get('reset_password_enabled'):
-            raise werkzeug.exceptions.NotFound()
+            raise werkzeug.exceptions.NotFound
 
         if 'error' not in qcontext and request.httprequest.method == 'POST':
             try:
@@ -103,7 +109,19 @@ class AuthSignupHome(Home):
                     _logger.info(
                         "Password reset attempt for <%s> by user <%s> from %s",
                         login, request.env.user.login, request.httprequest.remote_addr)
-                    request.env['res.users'].sudo().reset_password(login)
+                    # `reset_password` raises a plain Exception distinguishing
+                    # "no account"/"multiple accounts" from a successful send;
+                    # letting that message reach the user is a login/email
+                    # enumeration oracle (classic password-reset attack
+                    # surface). Log the real outcome server-side and always
+                    # show the same generic message regardless of it.
+                    try:
+                        request.env['res.users'].sudo().reset_password(login)
+                    except Exception:
+                        _logger.info(
+                            "Password reset for <%s> did not send an email "
+                            "(no or multiple matching accounts, or a delivery error)",
+                            login, exc_info=True)
                     qcontext['message'] = _("Password reset instructions sent to your email address.")
             except UserError as e:
                 qcontext['error'] = e.args[0]
@@ -142,10 +160,13 @@ class AuthSignupHome(Home):
         if qcontext.get('token'):
             try:
                 # retrieve the user info (name, login or email) corresponding to a signup token
+                # `_signup_retrieve_info` returns None for an invalid/expired token, so the
+                # expected failure here is AttributeError on `.items()` - catch only that,
+                # not every exception, so an unrelated bug isn't masked as "Invalid signup token".
                 token_infos = request.env['res.partner'].sudo()._signup_retrieve_info(qcontext.get('token'))
                 for k, v in token_infos.items():
                     qcontext.setdefault(k, v)
-            except:
+            except AttributeError:
                 qcontext['error'] = _("Invalid signup token")
                 qcontext['invalid_token'] = True
         return qcontext
