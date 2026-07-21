@@ -1,10 +1,9 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 import logging
 
-from odoo import api, fields, models, modules, tools, _
+from odoo import _, api, fields, models, modules, tools
 from odoo.exceptions import UserError
 from odoo.http import request
-
 
 _logger = logging.getLogger(__name__)
 
@@ -35,11 +34,11 @@ class BaseGeocoder(models.AbstractModel):
         return provider
 
     @api.model
-    def geo_query_address(self, street=None, zip=None, city=None, state=None, country=None):
+    def geo_query_address(self, street=None, zip_code=None, city=None, state=None, country=None):
         """ Converts address fields into a valid string for querying
         geolocation APIs.
         :param street: street address
-        :param zip: zip code
+        :param zip_code: zip code
         :param city: city
         :param state: state
         :param country: country
@@ -48,10 +47,10 @@ class BaseGeocoder(models.AbstractModel):
         provider = self._get_provider().tech_name
         if hasattr(self, '_geo_query_address_' + provider):
             # Makes the transformation defined for provider
-            return getattr(self, '_geo_query_address_' + provider)(street, zip, city, state, country)
+            return getattr(self, '_geo_query_address_' + provider)(street, zip_code, city, state, country)
         else:
             # By default, join the non-empty parameters
-            return self._geo_query_address_default(street=street, zip=zip, city=city, state=state, country=country)
+            return self._geo_query_address_default(street=street, zip_code=zip_code, city=city, state=state, country=country)
 
     @api.model
     def geo_find(self, addr, **kw):
@@ -64,10 +63,10 @@ class BaseGeocoder(models.AbstractModel):
         try:
             service = getattr(self, '_call_' + provider)
             result = service(addr, **kw)
-        except AttributeError:
+        except AttributeError as exc:
             raise UserError(_(
                 'Provider %s is not implemented for geolocation service.',
-                provider))
+                provider)) from exc
         except UserError:
             raise
         except Exception:
@@ -84,11 +83,11 @@ class BaseGeocoder(models.AbstractModel):
         if not addr:
             _logger.info('invalid address given')
             return None
-        import requests  # noqa: PLC0415
+        import requests
         url = 'https://nominatim.openstreetmap.org/search'
         try:
             headers = {'User-Agent': 'Odoo (http://www.odoo.com/contactus)'}
-            response = requests.get(url, headers=headers, params={'format': 'json', 'q': addr})
+            response = requests.get(url, headers=headers, params={'format': 'json', 'q': addr}, timeout=10)
             _logger.info('openstreetmap nominatim service called')
             if response.status_code != 200:
                 _logger.warning('Request to openstreetmap failed.\nCode: %s\nContent: %s', response.status_code, response.content)
@@ -112,7 +111,7 @@ class BaseGeocoder(models.AbstractModel):
             return None
         if tools.config['test_enable'] or modules.module.current_test:
             raise UserError(_("OpenStreetMap calls disabled in testing environment."))
-        import requests  # noqa: PLC0415
+        import requests
         try:
             headers = {"User-Agent": "Odoo (http://www.odoo.com/contactus)"}
             response = requests.get(
@@ -129,7 +128,7 @@ class BaseGeocoder(models.AbstractModel):
                     response.content,
                 )
             result = response.json()
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             self._raise_query_error(e)
         return result
 
@@ -148,9 +147,9 @@ class BaseGeocoder(models.AbstractModel):
         params = {'sensor': 'false', 'address': addr, 'key': apikey}
         if kw.get('force_country'):
             params['components'] = 'country:%s' % kw['force_country']
-        import requests  # noqa: PLC0415
+        import requests
         try:
-            result = requests.get(url, params).json()
+            result = requests.get(url, params, timeout=10).json()
         except Exception as e:
             self._raise_query_error(e)
 
@@ -173,23 +172,22 @@ class BaseGeocoder(models.AbstractModel):
             return None
 
     @api.model
-    def _geo_query_address_default(self, street=None, zip=None, city=None, state=None, country=None):
+    def _geo_query_address_default(self, street=None, zip_code=None, city=None, state=None, country=None):
         address_list = [
             street,
-            ("%s %s" % (zip or '', city or '')).strip(),
+            ("%s %s" % (zip_code or '', city or '')).strip(),
             state,
             country
         ]
         return ', '.join(filter(None, address_list))
 
     @api.model
-    def _geo_query_address_googlemap(self, street=None, zip=None, city=None, state=None, country=None):
+    def _geo_query_address_googlemap(self, street=None, zip_code=None, city=None, state=None, country=None):
         # put country qualifier in front, otherwise GMap gives wrong# results
         #  e.g. 'Congo, Democratic Republic of the' =>  'Democratic Republic of the Congo'
-        if country and ',' in country and (
-                country.endswith(' of') or country.endswith(' of the')):
+        if country and ',' in country and country.endswith((' of', ' of the')):
             country = '{1} {0}'.format(*country.split(',', 1))
-        return self._geo_query_address_default(street=street, zip=zip, city=city, state=state, country=country)
+        return self._geo_query_address_default(street=street, zip_code=zip_code, city=city, state=state, country=country)
 
     def _raise_query_error(self, error):
         raise UserError(_('Error with geolocation server: %s', error))
