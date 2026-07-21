@@ -686,6 +686,18 @@ describe("misc", () => {
         expect(check("context_today().strftime('%Y-%m-%d')", formatDate)).toBe(true);
     });
 
+    test("context_today is the client-zone date, not UTC", () => {
+        // The client zone is luxon's Settings.defaultZone, set from the user's
+        // res.users.tz at boot (boot/start.js) so the client matches the server.
+        // 18:30 at UTC-10 is 04:30 the NEXT day in UTC, so context_today() must
+        // be the local (client-zone) date 07-20, not the UTC date 07-21.
+        mockDate("2026-07-20 18:30:00", -10);
+        expect(evaluateExpr("context_today().strftime('%Y-%m-%d')")).toBe("2026-07-20");
+        // Same instant, a UTC+9 user: already 07-21 there.
+        mockDate("2026-07-21 13:30:00", +9);
+        expect(evaluateExpr("context_today().strftime('%Y-%m-%d')")).toBe("2026-07-21");
+    });
+
     test("today", () => {
         expect(check("today", formatDate)).toBe(true);
     });
