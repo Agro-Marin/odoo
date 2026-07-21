@@ -138,7 +138,7 @@ class TestAccountPayment(AccountTestInvoicingCommon, MailCommon):
         self.assertRecordValues(payment, [{"state": "canceled"}])
 
     def test_payment_move_sync_update_journal_custom_accounts(self):
-        """The objective is to edit the journal of a payment in order to check if the accounts are updated."""
+        """Check the payment lines use the outstanding account of its own journal."""
 
         # Create two different inbound accounts
         outstanding_payment_A = self.inbound_payment_method_line.payment_account_id
@@ -165,7 +165,7 @@ class TestAccountPayment(AccountTestInvoicingCommon, MailCommon):
         pay_form.payment_type = "inbound"
         pay_form.partner_id = self.partner_a
         pay_form.journal_id = journal_A
-        # Save the form (to create move and move line)
+        # Save the form (the move and its lines are only generated on post)
         payment = pay_form.save()
         payment.action_post()
 
@@ -399,9 +399,7 @@ class TestAccountPayment(AccountTestInvoicingCommon, MailCommon):
             self.assertTrue(p._get_mail_thread_data_attachments())
 
     def test_compute_currency_id(self):
-        """When creating a new account.payment without specifying a currency, the default currency should be the one
-        set on the journal.
-        """
+        """Check a payment created without a currency falls back to the journal currency."""
         self.company_data["default_journal_bank"].currency_id = self.other_currency
         self.company_data[
             "default_journal_bank"
@@ -576,10 +574,7 @@ class TestAccountPayment(AccountTestInvoicingCommon, MailCommon):
         self.assertRecordValues(payment.move_id.line_ids, [{"reconciled": True}] * 2)
 
     def test_payment_without_default_company_account(self):
-        """The purpose of this test is to check the specific behavior when duplicating an inbound payment, then change
-        the copy to an outbound payment when we set the outstanding accounts (payments and receipts) on a journal but
-        not on the company level.
-        """
+        """Check switching an inbound payment to outbound when the outstanding accounts (payments and receipts) are set on the journal but not on the company."""
         bank_journal = self.company_data["default_journal_bank"]
 
         bank_journal.outbound_payment_method_line_ids.payment_account_id = (
@@ -680,9 +675,7 @@ class TestAccountPayment(AccountTestInvoicingCommon, MailCommon):
         )
 
     def test_reconciliation_with_old_oustanding_account(self):
-        """
-        Test the reconciliation of an invoice with a payment after changing the outstanding account of the journal.
-        """
+        """Reconcile an invoice with a payment after changing the outstanding account of the journal."""
         outstanding_account_2 = (
             self.inbound_payment_method_line.payment_account_id.copy()
         )
@@ -761,7 +754,7 @@ class TestAccountPayment(AccountTestInvoicingCommon, MailCommon):
         # Use the existing payment method line from the initial journal
         payment_method_line = initial_journal.inbound_payment_method_line_ids[0]
 
-        # Ensure the new journal has the correct payment method line
+        # Give the new journal's payment method line an outstanding account
         new_journal.inbound_payment_method_line_ids[
             0
         ].payment_account_id = self.payment_debit_account_id
@@ -779,13 +772,13 @@ class TestAccountPayment(AccountTestInvoicingCommon, MailCommon):
         )
         payment.action_post()
 
-        # Change the journal, reset the payment to draft, and post again
+        # Reset the payment to draft, change the journal, and post again
         payment.action_draft()
         payment.journal_id = new_journal
         payment.payment_method_line_id = new_journal.inbound_payment_method_line_ids[0]
         payment.action_post()
 
-        # Verify the journal entry's name were updated correctly
+        # Verify the journal entry name now uses the new journal code
         self.assertRegex(payment.move_id.name, rf"^P{new_journal.code}/")
 
     def test_payments_copy_data(self):
@@ -1124,9 +1117,7 @@ class TestAccountPayment(AccountTestInvoicingCommon, MailCommon):
             )
 
     def test_resequence_change_payment_name(self):
-        """
-        Test that when resequencing the journal entry corresponding to a payment, the payment is also renamed
-        """
+        """Check the payment is renamed when its journal entry is resequenced."""
         invoice = self.env["account.move"].create(
             [
                 {

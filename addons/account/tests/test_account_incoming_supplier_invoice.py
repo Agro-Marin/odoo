@@ -99,11 +99,6 @@ class TestAccountInvoiceImportMixin:
                 }
             }
         }
-
-        which for each newly-created invoice indicates:
-            (1) which of the files it should be linked to, and, for each file
-                (a) whether it should be attached to the invoice or merely to a message on the invoice.
-                (b) whether it should have been decoded on the invoice
         """
         # Because no decoders are defined in `account` itself, if we want to test the decoder flow we need
         # to define a fictional format that will be decoded, and patch the `_get_import_file_type`
@@ -157,16 +152,17 @@ class TestAccountInvoiceImportMixin:
 
     @contextlib.contextmanager
     def _patch_import_methods(self):
-        """Patch the `_get_import_file_type` and `_get_edi_decoder` methods to accept the 'test_xml' format."""
+        """Patch `_get_import_file_type` and `_get_edi_decoder` so that 'test_xml' and 'pdf' files get decoded.
+
+        :return: the list of `(invoice, file_data, new)` tuples the decoders were called with.
+        """
 
         original_get_import_file_type = self.env.registry[
             "account.move"
         ]._get_import_file_type
 
         def patched_get_import_file_type(self, file_data):
-            """Patch _get_import_file_type in order to recognize the 'test_xml' format
-            which is an XML whose root tag is 'TestFileFormat'.
-            """
+            """Recognize the 'test_xml' format: an XML whose root tag is 'TestFileFormat'."""
             if (
                 file_data["xml_tree"] is not None
                 and file_data["xml_tree"].tag == "TestFileFormat"
@@ -242,7 +238,6 @@ class TestAccountInvoiceImportMixin:
 
     def _upload_and_import_attachments(self, origin, attachments_vals):
         """Simulate the upload of one or more attachments and their processing by the import framework.
-        Keeps track of the created attachments, messages and invoices, and returns them.
 
         :param origin: The source from which the attachments should be introduced into Odoo.
                        Possible values:
@@ -254,11 +249,7 @@ class TestAccountInvoiceImportMixin:
 
         :param attachments_vals: A list of values representing attachments to upload into Odoo.
 
-        :return: a dict {
-            'ir.attachment': created_attachments,
-            'mail.message': created_messages,
-            'account.move': created_invoices,
-        }
+        :return: the tuple (created_attachments, created_messages, created_invoices).
         """
 
         with (
@@ -315,8 +306,8 @@ class TestAccountInvoiceImportMixin:
         """Build a raw RFC822 email string with the given attachments.
 
         :param attachments_vals: list of attachment values.
-        :param email_to: string that will fill email_to field in the email, probably you'll want to use some journal alias here.
-        :param message_id: Optional. Custom message ID for the email. If not provided, a UUID will be generated.
+        :param email_to: value of the email's `To` header, typically a journal alias.
+        :param message_id: custom message ID for the email; a UUID is generated when omitted.
         :return: Formatted email string.
         """
         if not message_id:
@@ -444,8 +435,7 @@ class TestAccountIncomingSupplierInvoice(
         self.assertRegex(invoice.name_placeholder, r"BILL/\d{4}/\d{2}/0001")
 
     def test_supplier_invoice_forwarded_by_internal_user_without_supplier(self):
-        """In this test, the bill was forwarded by an employee,
-        but no partner email address is found in the body."""
+        """The bill is forwarded by an employee and no partner email address is found in the body."""
         message_parsed = {
             "message_id": "message-id-dead-beef",
             "message_type": "email",
@@ -475,8 +465,7 @@ class TestAccountIncomingSupplierInvoice(
         self.assertEqual(invoice.message_partner_ids, self.env.user.partner_id)
 
     def test_supplier_invoice_forwarded_by_internal_with_supplier_in_body(self):
-        """In this test, the bill was forwarded by an employee,
-        and the partner email address is found in the body."""
+        """The bill is forwarded by an employee and the partner email address is found in the body."""
         message_parsed = {
             "message_id": "message-id-dead-beef",
             "message_type": "email",
@@ -508,8 +497,7 @@ class TestAccountIncomingSupplierInvoice(
         self.assertEqual(following_partners, self.env.user.partner_id)
 
     def test_supplier_invoice_forwarded_by_internal_with_internal_in_body(self):
-        """In this test, the bill was forwarded by an employee,
-        and the internal user email address is found in the body."""
+        """The bill is forwarded by an employee and the internal user email address is found in the body."""
         message_parsed = {
             "message_id": "message-id-dead-beef",
             "message_type": "email",
@@ -1266,7 +1254,8 @@ class TestAccountIncomingSupplierInvoice(
         )
 
     def test_import_with_traceback(self):
-        # Verify that even an Exception does not cause the import to fail, and that we log the attachment in the chatter
+        # Verify that even an Exception does not cause the import to fail, and that the attachment
+        # stays linked to the created invoice
         attachment = self.env["ir.attachment"].create(self.xml1_vals)
 
         with (
