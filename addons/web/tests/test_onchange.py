@@ -7,6 +7,28 @@ access-error case in ``test_partner``.
 
 from odoo.tests import common
 
+from odoo.addons.web.models.record_snapshot import RecordSnapshot
+
+
+def _count_selects(cr, fn):
+    """Run *fn* and return how many SELECT statements it issued on *cr*."""
+    cls = type(cr)
+    orig = cls.execute
+    n = [0]
+
+    def patched(self, query, params=None, *args, **kwargs):
+        code = query if isinstance(query, str) else getattr(query, "code", str(query))
+        if str(code).lstrip()[:6].upper() == "SELECT":
+            n[0] += 1
+        return orig(self, query, params, *args, **kwargs)
+
+    cls.execute = patched
+    try:
+        fn()
+    finally:
+        cls.execute = orig
+    return n[0]
+
 
 @common.tagged("post_install", "-at_install", "web_unit", "web_onchange")
 class TestOnchange(common.TransactionCase):
@@ -59,6 +81,39 @@ class TestOnchange(common.TransactionCase):
             {"company_type": {}, "is_company": {}},
         )
         self.assertEqual(result, {})
+
+    def test_snapshot_diff_link_lines_are_batched(self):
+        """``RecordSnapshot.diff`` must not issue one query per LINK line.
+
+        When an onchange links several existing records to an x2many, the diff
+        used to call ``base_line.web_read`` once per link line (an N+1). The
+        origins are now primed with a single batched read, so the query count is
+        bounded and does NOT scale with the number of link lines.
+        """
+        Partner = self.env["res.partner"]
+        spec = {"child_ids": {"fields": {"name": {}, "email": {}, "phone": {}}}}
+
+        def diff_queries(n):
+            kids = Partner.create([{"name": f"kid{i}"} for i in range(n)])
+            parent = Partner.new({"child_ids": [(6, 0, kids.ids)]})
+            snap = RecordSnapshot(parent, spec)
+            empty = RecordSnapshot(Partner.new({}), spec, fetch=False)
+            self.env.invalidate_all()
+            queries = _count_selects(self.env.cr, lambda: snap.diff(empty))
+            result = snap.diff(empty)
+            link_cmds = [c for c in result.get("child_ids", []) if c[0] == 4]
+            self.assertEqual(len(link_cmds), n, "one LINK command per linked line")
+            return queries
+
+        few = diff_queries(3)
+        many = diff_queries(12)
+        # Constant, not N-proportional: a per-line N+1 would make ``many`` grow
+        # by ~9 relative to ``few``.
+        self.assertEqual(
+            few,
+            many,
+            f"diff query count scales with link lines (N+1): {few} vs {many}",
+        )
 
     def test_changed_field_absent_from_values_does_not_crash(self):
         """A known changed field missing from ``values`` must fail open, not 500.
