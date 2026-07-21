@@ -1,9 +1,8 @@
 import re
 
-from odoo import models, fields, api, _
+from odoo import _, api, fields, models
 from odoo.exceptions import UserError
 from odoo.libs.barcode import check_barcode_encoding, get_barcode_check_digit
-
 
 UPC_EAN_CONVERSIONS = [
     ('none', 'Never'),
@@ -60,15 +59,15 @@ class BarcodeNomenclature(models.Model):
         }
 
         barcode = barcode.replace('\\', '\\\\').replace('{', '\\{').replace('}', '\\}').replace('.', '\\.')
-        numerical_content = re.search("[{][N]*[D]*[}]", pattern)  # look for numerical content in pattern
+        numerical_content = re.search(r"[{][N]*[D]*[}]", pattern)  # look for numerical content in pattern
 
         if numerical_content:  # the pattern encodes a numerical content
             num_start = numerical_content.start()  # start index of numerical content
             num_end = numerical_content.end()  # end index of numerical content
             value_string = barcode[num_start:num_end - 2]  # numerical content in barcode
 
-            whole_part_match = re.search("[{][N]*[D}]", numerical_content.group())  # looks for whole part of numerical content
-            decimal_part_match = re.search("[{N][D]*[}]", numerical_content.group())  # looks for decimal part
+            whole_part_match = re.search(r"[{][N]*[D}]", numerical_content.group())  # looks for whole part of numerical content
+            decimal_part_match = re.search(r"[{N][D]*[}]", numerical_content.group())  # looks for decimal part
             whole_part = value_string[:whole_part_match.end() - 2]  # retrieve whole part of numerical content in barcode
             decimal_part = "0." + value_string[decimal_part_match.start():decimal_part_match.end() - 1]  # retrieve decimal part
             if whole_part == '':
@@ -145,13 +144,13 @@ class BarcodeNomenclature(models.Model):
     @api.model
     def parse_uri(self, barcode):
         """ Convert supported URI format (lgtin, sgtin, sgtin-96, sgtin-198,
-        sscc and ssacc-96) into a GS1 barcode.
+        sscc and sscc-96) into a GS1 barcode.
         :param barcode str: the URI as a string.
         :rtype: str
         """
         if not re.match(r'^urn:', barcode):
             return barcode
-        identifier, data = (bc_part.strip() for bc_part in re.split(':', barcode)[-2:])
+        identifier, data = (bc_part.strip() for bc_part in re.split(r':', barcode)[-2:])
         data = re.split(r'\.', data)
         match identifier:
             case 'lgtin' | 'sgtin':

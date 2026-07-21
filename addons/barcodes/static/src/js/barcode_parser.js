@@ -34,7 +34,7 @@ export class BarcodeParser {
      * It is also valid for EAN-8, EAN-12 (UPC-A), EAN-13 check digit after sanitizing.
      * https://www.gs1.org/sites/default/files/docs/barcodes/GS1_General_Specifications.pdf
      *
-     * @param {String} numericBarcode Need to have a length of 18
+     * @param {String} numericBarcode
      * @returns {number} Check Digit
      */
     get_barcode_check_digit(numericBarcode) {

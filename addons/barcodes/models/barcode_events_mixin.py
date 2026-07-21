@@ -1,15 +1,14 @@
-# -*- coding: utf-8 -*-
 
-from odoo import models, fields, api
+from odoo import api, fields, models
 
 
 class BarcodesBarcode_Events_Mixin(models.AbstractModel):
-    """ Mixin class for objects reacting when a barcode is scanned in their form views
-        which contains `<field name="_barcode_scanned" widget="barcode_handler"/>`.
-        Models using this mixin must implement the method on_barcode_scanned. It works
-        like an onchange and receives the scanned barcode in parameter.
-    """
+    """Mixin for models that react to a barcode scanned in their form view."""
 
+    # The form view must contain
+    # `<field name="_barcode_scanned" widget="barcode_handler"/>`. Models using
+    # this mixin must implement `on_barcode_scanned`: it works like an onchange
+    # and receives the scanned barcode as parameter.
     _name = 'barcodes.barcode_events_mixin'
     _description = 'Barcode Event Mixin'
 
@@ -21,6 +20,7 @@ class BarcodesBarcode_Events_Mixin(models.AbstractModel):
         if barcode:
             self._barcode_scanned = ""
             return self.on_barcode_scanned(barcode)
+        return None
 
     def on_barcode_scanned(self, barcode):
         raise NotImplementedError(self.env._("In order to use barcodes.barcode_events_mixin, method on_barcode_scanned must be implemented"))

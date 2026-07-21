@@ -54,8 +54,7 @@ class TestBarcodeNomenclature(common.TransactionCase):
         self.assertEqual(res['value'], 0, "No value must be located into the barcode")
 
     def test_barcode_nomenclature_parse_barcode_ean8_02_validation_error(self):
-        """ Try to parse a barcode with a wrong barcode rule.
-        """
+        """ Ensures invalid barcode-rule patterns raise a ValidationError. """
         barcode_rule = self.env['barcode.rule'].create({
             'name': 'Rule Test #1',
             'barcode_nomenclature_id': self.nomenclature.id,
@@ -144,7 +143,7 @@ class TestBarcodeNomenclature(common.TransactionCase):
             'pattern': '66{NN}....',
         })
 
-        # Only fits the second barcode rule.
+        # Only fits the first barcode rule.
         res = self.nomenclature.parse_barcode('11012344')
         self.assertEqual(res['code'], '11012344')
         self.assertEqual(res['type'], 'product')
@@ -187,7 +186,7 @@ class TestBarcodeNomenclature(common.TransactionCase):
         self.assertEqual(res['base_code'], '0002')
         self.assertEqual(res['value'], 0)
 
-        # Must fail because wrong checksum (last digit).
+        # Must fail because too short for an EAN-13 (only 8 digits).
         res = self.nomenclature.parse_barcode('12345678')
         self.assertEqual(res['code'], '12345678')
         self.assertEqual(res['type'], 'error', "Must fail because the checksum digit is wrong")
@@ -225,7 +224,7 @@ class TestBarcodeNomenclature(common.TransactionCase):
         # Invalids the cache to reset the nomenclature barcode rules' order.
         self.nomenclature.invalidate_recordset(['rule_ids'])
 
-        # Only fits the second barcode rule.
+        # Only fits the first barcode rule.
         res = self.nomenclature.parse_barcode('2012345610255')
         self.assertEqual(res['code'], '2012345610255')
         self.assertEqual(res['type'], 'product')
@@ -254,7 +253,7 @@ class TestBarcodeNomenclature(common.TransactionCase):
         self.assertEqual(res['value'], 456.1025)
 
     def test_barcode_uri_conversion(self):
-        """ This test ensures URIs are correctly converted into barcode data."""
+        """ Ensures URIs are correctly converted into barcode data. """
 
         uri = 'urn:epc:class:lgtin : 4012345.012345.998877'
         barcode_data = self.nomenclature.parse_barcode(uri)
