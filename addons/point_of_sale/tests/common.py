@@ -1233,6 +1233,8 @@ class TestPoSCommon(ValuationReconciliationTestCommon):
                 self._assert_account_move(invoice, expected_values[uid]["invoice"])
                 _logger.info("DONE: Check of invoice for order %s.", uid)
 
+            expected_payments = expected_values[uid].get("payments", [])
+            consumed = set()
             for pos_payment in order.payment_ids:
                 if pos_payment.payment_method_id == self.pay_later_pm:
                     # Skip the pay later payments since there are no journal entries
@@ -1253,8 +1255,10 @@ class TestPoSCommon(ValuationReconciliationTestCommon):
 
                 self._find_then_assert_values(
                     pos_payment.account_move_id,
-                    expected_values[uid]["payments"],
+                    expected_payments,
                     predicate,
+                    consumed,
+                    f"invoice payment of order {uid}",
                 )
                 _logger.info(
                     "DONE: Check of invoice payment (%s, %s) for order %s.",
@@ -1262,6 +1266,10 @@ class TestPoSCommon(ValuationReconciliationTestCommon):
                     pos_payment.amount,
                     uid,
                 )
+
+            self._assert_expectations_consumed(
+                expected_payments, consumed, f"invoice payment of order {uid}"
+            )
 
     def _check_session_journal_entries(self, pos_session, expected_values):
         """Checks the journal entries after closing the session excluding entries checked in `_check_invoice_journal_entries`."""
@@ -1274,6 +1282,8 @@ class TestPoSCommon(ValuationReconciliationTestCommon):
         _logger.info("DONE: Check of the session's account move.")
 
         # check expected cash journal entries
+        expected_cash_statement = expected_values["cash_statement"]
+        cash_consumed = set()
         for statement_line in pos_session.statement_line_ids:
 
             def statement_line_predicate(args, statement_line=statement_line):
@@ -1284,12 +1294,19 @@ class TestPoSCommon(ValuationReconciliationTestCommon):
 
             self._find_then_assert_values(
                 statement_line.move_id,
-                expected_values["cash_statement"],
+                expected_cash_statement,
                 statement_line_predicate,
+                cash_consumed,
+                "cash statement line",
             )
+        self._assert_expectations_consumed(
+            expected_cash_statement, cash_consumed, "cash statement line"
+        )
         _logger.info("DONE: Check of cash statement lines.")
 
         # check expected bank payments
+        expected_bank_payments = expected_values["bank_payments"]
+        bank_consumed = set()
         for bank_payment in pos_session.bank_payment_ids:
 
             def bank_payment_predicate(args, bank_payment=bank_payment):
@@ -1299,18 +1316,62 @@ class TestPoSCommon(ValuationReconciliationTestCommon):
 
             self._find_then_assert_values(
                 bank_payment.move_id,
-                expected_values["bank_payments"],
+                expected_bank_payments,
                 bank_payment_predicate,
+                bank_consumed,
+                "bank payment",
             )
+        self._assert_expectations_consumed(
+            expected_bank_payments, bank_consumed, "bank payment"
+        )
         _logger.info("DONE: Check of bank account payments.")
 
     def _find_then_assert_values(
-        self, account_move, source_of_expected_vals, predicate
+        self, account_move, source_of_expected_vals, predicate, consumed, description
     ):
-        expected_move_vals = next(
-            move_vals for args, move_vals in source_of_expected_vals if predicate(args)
+        """Assert `account_move` against the first *unconsumed* expected entry
+        matching `predicate`, and record its index in the `consumed` set.
+
+        Consuming matters twice over: the caller uses `consumed` to detect declared
+        expectations that no actual record ever matched (see
+        `_assert_expectations_consumed`), and skipping already-matched entries stops
+        two identical actual records from both being checked against the same
+        expectation while a second, equally valid one goes unverified.
+        """
+        match = next(
+            (
+                (index, move_vals)
+                for index, (args, move_vals) in enumerate(source_of_expected_vals)
+                if index not in consumed and predicate(args)
+            ),
+            None,
         )
+        self.assertIsNotNone(
+            match,
+            f"No unconsumed expected {description} matches the actual record "
+            f"{account_move!r}. Declared entries: "
+            f"{[args for args, _ in source_of_expected_vals]!r}.",
+        )
+        index, expected_move_vals = match
+        consumed.add(index)
         self._assert_account_move(account_move, expected_move_vals)
+
+    def _assert_expectations_consumed(
+        self, source_of_expected_vals, consumed, description
+    ):
+        """Fail when an expected entry was declared but never matched by any actual
+        record -- otherwise a missing (or unread) recordset silently verifies nothing.
+        """
+        unmatched = [
+            args
+            for index, (args, _) in enumerate(source_of_expected_vals)
+            if index not in consumed
+        ]
+        self.assertFalse(
+            unmatched,
+            f"Expected {description} entries were declared but never found among "
+            f"the actual records: {unmatched!r}.",
+        )
 
     def _assert_account_move(self, account_move, expected_account_move_vals):
         if expected_account_move_vals:

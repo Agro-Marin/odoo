@@ -263,6 +263,14 @@ class PosController(PortalAccount):
         if not pos_order:
             return request.not_found()
 
+        # An access token is enough to reach this public route, so the order state
+        # has to be checked here too: a draft or cancelled order must never be
+        # invoicable from it. `_generate_pos_order_invoice` enforces the same rule,
+        # but raising there would surface a traceback on a public page instead of a
+        # 404.
+        if pos_order.state not in ("paid", "done"):
+            return request.not_found()
+
         # Set the proper context in case of unauthenticated user accessing
         # from the main company website
         pos_order = pos_order.with_company(pos_order.company_id).with_context(

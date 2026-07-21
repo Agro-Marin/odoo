@@ -4,10 +4,12 @@
 export class DataServiceOptions {
     get databaseTable() {
         // A pos.order is purged from IndexedDB once it is finalized, synced, and
-        // belongs to a PAST session. Its children (lines, payments) must follow
-        // the SAME predicate on their parent order — otherwise a kept
-        // current-session order has its lines/payments purged and reloads as a
-        // corrupt header with no lines and a zero total.
+        // belongs to a PAST session. Its children (lines, payments, custom
+        // attribute values) must follow the SAME predicate on their parent order
+        // — otherwise a kept current-session order has its lines/payments purged
+        // and reloads as a corrupt header with no lines and a zero total.
+        // Boolean() matters: a broken parent chain yields undefined, and
+        // _synchronizeLocalDataInIndexedDB treats undefined as "remove".
         // NB: the JS field is session_id (pos_session_id does not exist on the
         // model — the old clause was always true, so the condition silently
         // degenerated to `finalized && isSynced`).
@@ -32,9 +34,8 @@ export class DataServiceOptions {
             },
             "product.attribute.custom.value": {
                 key: "id",
-                condition: (record) =>
-                    record.order_id?.finalized &&
-                    typeof record.order_id.id === "number",
+                // order_id is a two-hop getter (pos_order_line_id?.order_id).
+                condition: (record) => orderIsPurgeable(record.order_id),
             },
         };
     }

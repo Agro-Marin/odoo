@@ -1,5 +1,3 @@
-from unittest import skip
-
 import odoo
 
 from odoo.addons.point_of_sale.tests.common import TestPoSCommon
@@ -298,7 +296,6 @@ class TestPosMargin(TestPoSCommon):
         # close session
         self.pos_session.action_pos_session_validate()
 
-    @skip("Temporary to fast merge new valuation")
     def test_fifo_margin_real_time(self):
         """
         Test margin where there is product in FIFO with stock update in real time
@@ -316,6 +313,10 @@ class TestPosMargin(TestPoSCommon):
                     "product_id": product1.id,
                     "product_uom_id": self.uom_unit.id,
                     "product_uom_qty": 2,
+                    # `value_manual` (not `price_unit`) is what gives an ad-hoc
+                    # stock.move a cost basis under the new valuation engine:
+                    # `_get_value_data` never reads `price_unit`.
+                    "value_manual": 2 * 3,
                     "price_unit": 3,
                 }
             )
@@ -336,6 +337,7 @@ class TestPosMargin(TestPoSCommon):
                     "product_id": product1.id,
                     "product_uom_id": self.uom_unit.id,
                     "product_uom_qty": 1,
+                    "value_manual": 1 * 7,
                     "price_unit": 7,
                 }
             )
@@ -370,7 +372,6 @@ class TestPosMargin(TestPoSCommon):
         # close session
         self.pos_session.action_pos_session_validate()
 
-    @skip("Temporary to fast merge new valuation")
     def test_avco_margin_closing_time(self):
         """
         Test margin where there is product in AVCO with stock update in closing
@@ -390,6 +391,9 @@ class TestPosMargin(TestPoSCommon):
                     "product_id": product1.id,
                     "product_uom_id": self.uom_unit.id,
                     "product_uom_qty": 2,
+                    # see test_fifo_margin_real_time: the new valuation engine
+                    # takes an ad-hoc move's cost basis from `value_manual`.
+                    "value_manual": 2 * 3,
                     "price_unit": 3,
                 }
             )
@@ -410,6 +414,7 @@ class TestPosMargin(TestPoSCommon):
                     "product_id": product1.id,
                     "product_uom_id": self.uom_unit.id,
                     "product_uom_qty": 1,
+                    "value_manual": 1 * 6,
                     "price_unit": 6,
                 }
             )
