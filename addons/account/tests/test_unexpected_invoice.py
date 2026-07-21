@@ -128,7 +128,7 @@ class TestUnexpectedAmount(AccountTestInvoicingCommon):
             self._invoice_vals(date=date(2020, 11, 30))
         )
         self.assertFalse(move_november.abnormal_date_warning)
-        # The next invoice being on the last day of november is expected
+        # The next invoice being on the last day of october is expected
         move_october = self.env["account.move"].create(
             self._invoice_vals(date=date(2020, 10, 31))
         )
