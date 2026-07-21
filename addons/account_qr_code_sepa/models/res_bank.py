@@ -1,7 +1,10 @@
-# -*- coding: utf-8 -*-
 
-from odoo import models, fields, api, _
-from odoo.addons.account.tools import is_valid_structured_reference, sanitize_structured_reference
+from odoo import _, api, models
+
+from odoo.addons.account.tools import (
+    is_valid_structured_reference,
+    sanitize_structured_reference,
+)
 
 
 class ResPartnerBank(models.Model):
@@ -16,7 +19,7 @@ class ResPartnerBank(models.Model):
                 structured_communication = ''
                 comment = free_communication or ''
 
-            qr_code_vals = [
+            return [
                 'BCD',                                                  # Service Tag
                 '002',                                                  # Version
                 '1',                                                    # Character Set
@@ -30,7 +33,6 @@ class ResPartnerBank(models.Model):
                 comment[:141],                                          # Remittance Information (Unstructured) (can't be set if there is a structured one)
                 '',                                                     # Beneficiary to Originator Information
             ]
-            return qr_code_vals
         return super()._get_qr_vals(qr_method, amount, currency, debtor_partner, free_communication, structured_communication)
 
     def _get_qr_code_generation_params(self, qr_method, amount, currency, debtor_partner, free_communication, structured_communication):
