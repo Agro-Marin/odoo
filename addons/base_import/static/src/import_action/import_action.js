@@ -93,7 +93,7 @@ export class ImportAction extends Component {
 
     async onWillStart() {
         const action = await this.actionService.currentAction;
-        // this.props.action.params.model is there for retro-compatiblity issues
+        // this.props.action.params.model is there for retro-compatibility issues
         const activeModel =
             this.props.action.params?.model || this.props.action.params?.active_model;
         if (activeModel) {
