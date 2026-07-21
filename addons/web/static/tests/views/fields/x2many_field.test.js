@@ -23,6 +23,8 @@ import {
     mountView,
     onRpc,
 } from "@web/../tests/web_test_helpers";
+import { registry } from "@web/core/registry";
+import { X2ManyField, x2ManyField } from "@web/fields/relational/x2many/x2many_field";
 
 describe.current.tags("desktop");
 
@@ -218,5 +220,70 @@ describe("dialog mode", () => {
         // X2ManyFieldDialog should be visible
         expect(".o_dialog").toHaveCount(1);
         expect(".o_dialog .o_form_view").toHaveCount(1);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Renderer resolution
+// ---------------------------------------------------------------------------
+
+describe("renderer resolution", () => {
+    test("kanban mode works when a subclass froze `components` into a static field", async () => {
+        // `X2ManyField.components` is a static GETTER so the renderers can be
+        // read from the `views` registry lazily. Roughly 40 subclasses across
+        // the codebase override it the natural way:
+        //
+        //     static components = { ...super.components, ListRenderer: Mine };
+        //
+        // A static FIELD replaces the inherited getter with a plain data
+        // property whose initializer runs once at module-load time — before
+        // the kanban view registers itself — so `KanbanRenderer` freezes as
+        // `undefined` forever.
+        //
+        // Nothing notices on desktop, where x2manys render through the
+        // ListRenderer branch; on small screens they render as a kanban, hit
+        // the frozen `undefined` and throw "Cannot find the definition of
+        // component KanbanRenderer", taking the whole form down (this killed
+        // the sale order form on mobile). `mode="kanban"` below forces that
+        // branch without needing a mobile viewport.
+        //
+        // `KanbanRenderer: undefined` is spelled out rather than relying on
+        // import order, so the test pins the behaviour deterministically.
+        class FrozenComponentsX2Many extends X2ManyField {
+            static components = {
+                ...X2ManyField.components,
+                KanbanRenderer: undefined,
+            };
+        }
+        registry.category("fields").add("frozen_components_x2many", {
+            ...x2ManyField,
+            component: FrozenComponentsX2Many,
+        });
+
+        await mountView({
+            type: "form",
+            resModel: "partner",
+            resId: 1,
+            arch: `
+                <form>
+                    <field name="turtles" widget="frozen_components_x2many" mode="kanban">
+                        <kanban>
+                            <templates>
+                                <t t-name="card">
+                                    <field name="name"/>
+                                </t>
+                            </templates>
+                        </kanban>
+                    </field>
+                </form>`,
+        });
+
+        // Renders instead of throwing, and falls back to the real kanban
+        // renderer. `:not(...)` filters the ghost spacers and the "add" tile,
+        // which also carry `.o_kanban_record`.
+        expect(".o_field_widget[name=turtles] .o_kanban_renderer").toHaveCount(1);
+        expect(
+            ".o_field_widget[name=turtles] .o_kanban_record:not(.o_kanban_ghost):not(.o-kanban-button-new)",
+        ).toHaveText("donatello");
     });
 });
