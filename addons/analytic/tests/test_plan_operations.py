@@ -1,6 +1,6 @@
 import psycopg
 
-from odoo.exceptions import UserError
+from odoo.exceptions import UserError, ValidationError
 from odoo.tests import tagged
 from odoo.tests.common import TransactionCase
 from odoo.tools import mute_logger
@@ -61,6 +61,16 @@ class TestAnalyticPlanOperations(TransactionCase):
         plan.parent_id = parent
         self.assertFalse(plan._find_plan_column("account.analytic.line"))
         self.assertTrue(plan._find_related_field("account.analytic.line"))
+
+    def test_project_plan_cannot_be_reparented(self):
+        # `_onchange_parent_id` only guards the form UI; a direct write (RPC,
+        # scripts, other modules) must be blocked too, since the "Project"
+        # plan referenced by `analytic.project_plan` is assumed to always be
+        # a root plan (see the comment in `data/analytic_data.xml`).
+        project_plan, __ = self.env["account.analytic.plan"]._get_all_plans()
+        other_plan = self.env["account.analytic.plan"].create({"name": "Other Plan"})
+        with self.assertRaises(ValidationError):
+            project_plan.parent_id = other_plan.id
 
     def test_delete_plan_with_view(self):
         plan = self.env["account.analytic.plan"].create({"name": "Test Plan"})

@@ -2,7 +2,7 @@ import re
 from random import randint
 
 from odoo import _, api, fields, models
-from odoo.exceptions import UserError
+from odoo.exceptions import UserError, ValidationError
 from odoo.tools import create_index, frozendict, make_index_name, ormcache
 
 from odoo.addons.base.models.ir_model_common import MODULE_UNINSTALL_FLAG
@@ -207,6 +207,19 @@ class AccountAnalyticPlan(models.Model):
         project_plan, __ = self._get_all_plans()
         if self._origin.id == project_plan.id:
             raise UserError(
+                _("You cannot add a parent to the base plan '%s'", project_plan.name)
+            )
+
+    @api.constrains("parent_id")
+    def _check_project_plan_has_no_parent(self):
+        # Companion check to `_onchange_parent_id`: the onchange only guards the
+        # form UI, so a direct write()/create() (RPC, scripts, other modules)
+        # could still reparent the "Project" plan referenced by
+        # `analytic.project_plan` and silently invalidate `root_id`/
+        # `_column_name()` for every model using `auto_account_id`.
+        project_plan, __ = self._get_all_plans()
+        if project_plan in self and project_plan.parent_id:
+            raise ValidationError(
                 _("You cannot add a parent to the base plan '%s'", project_plan.name)
             )
 
