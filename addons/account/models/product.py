@@ -108,10 +108,7 @@ class ProductTemplate(models.Model):
         }
 
     def _get_category_account(self, field_name):
-        """
-        Return the first account defined on the product category hierarchy
-        for the given field.
-        """
+        """Return the first account defined on the product category hierarchy for ``field_name``."""
         categ = self.categ_id
         while categ:
             account = categ[field_name]
@@ -294,9 +291,9 @@ class ProductProduct(models.Model):
         product_taxes=None,
         fiscal_position=None,
     ):
-        """Helper to get the price unit from different models.
-        This is needed to compute the same unit price in different models (sale order, account move, etc.) with same parameters.
-        """
+        """Get the price unit for the product."""
+        # Centralised so different models (sale order, account move, etc.)
+        # compute the same unit price from the same parameters.
         self.ensure_one()
         company.ensure_one()
 
@@ -428,12 +425,9 @@ class ProductProduct(models.Model):
             return None
 
         def find_product_by_name_similarity(values):
-            """Return the product whose name is *most* similar to the provided
-            name, as long as the best similarity ratio meets the configured
-            threshold. Returning the best match (rather than the first one over
-            the threshold) avoids auto-linking a weaker candidate that merely
-            happens to sort earlier. Ties keep the first candidate in search
-            order (``self._order``)."""
+            """Return the product whose name is most similar to ``name`` when the best ratio meets the configured threshold."""
+            # Returning the best match (not the first one over the threshold)
+            # avoids auto-linking a weaker candidate that merely sorts earlier.
             similarity_threshold = self._get_product_name_similarity_threshold()
             all_product_ids = self.search(
                 Domain.AND(
@@ -474,20 +468,18 @@ class ProductProduct(models.Model):
         }
 
     def _get_import_product_classification_specs(self):
-        """Classification-code criteria used to refine product retrieval during
-        import.
-
-        Each spec ties an incoming ``product_values`` key to the model and field
-        that store that classification on the product, so retrieval can both
-        filter and rank on a matching classification. Localization modules should
-        override this to contribute their own codes rather than have ``account``
-        name their (possibly not-installed) models.
+        """Classification-code criteria used to refine product retrieval during import.
 
         :return: list of dicts with keys ``value_key`` (the ``product_values``
             key), ``field`` (the product field), ``comodel`` (the classification
             model) and ``code_field`` (the field matched on that model).
         :rtype: list[dict]
         """
+        # Each spec ties an incoming ``product_values`` key to the model and
+        # field that store that classification on the product, so retrieval can
+        # both filter and rank on a matching classification. Localization modules
+        # override this to contribute their own codes rather than have ``account``
+        # name their (possibly not-installed) models.
         return [
             {
                 "value_key": "intrastat_code",
@@ -644,7 +636,7 @@ class ProductProduct(models.Model):
         :param barcode:         The barcode of the product.
         :param company:         The company of the product.
         :param extra_domain:    Any extra domain to add to the search.
-        :returns:               A product or an empty recordset if not found.
+        :return:                A product or an empty recordset if not found.
         """
         self._import_retrieve_product(
             search_plan=[
