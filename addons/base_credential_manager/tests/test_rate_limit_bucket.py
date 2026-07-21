@@ -17,8 +17,8 @@ class TestRateLimitBucket(TransactionCase):
     def setUpClass(cls):
         super().setUpClass()
 
-        # Create a mock endpoint model for testing
-        # We'll use credential.credential as the endpoint since it has the required fields
+        # Use credential.category as the stand-in endpoint: it has the fields
+        # (rate_limit_*) the bucket reads.
         cls.MockEndpoint = cls.env["credential.category"]
 
     def test_bucket_creation(self):
@@ -208,15 +208,11 @@ class TestRateLimitBucketTokenConsumption(TransactionCase):
         )
 
     def test_consume_token_fail_open_on_exception(self):
-        """Default (non-strict) mode: internal exception → allow request (S3).
-
-        Webhook semantics prioritize availability, so a bug inside the bucket
-        path must not lock the whole endpoint. This test forces an exception
-        by patching _get_endpoint_config and confirms consume_token returns
-        True (fail-open).
-        """
+        """Default (non-strict) mode: internal exception → allow request (S3)."""
         bucket = self._make_bucket("strict_mode_fail_open")
 
+        # Webhook semantics prioritize availability: a bug inside the bucket
+        # path must not lock the whole endpoint, so default mode fails open.
         def _explode(self_):
             raise RuntimeError("simulated bucket failure")
 
@@ -229,14 +225,11 @@ class TestRateLimitBucketTokenConsumption(TransactionCase):
         self.assertTrue(result, "Default mode must fail OPEN (allow request)")
 
     def test_consume_token_fail_closed_on_exception_strict(self):
-        """Strict mode: internal exception → deny request (S3).
-
-        Credential-sensitive endpoints opt into strict=True so a rate-limiter
-        bug denies instead of allowing. This test forces an exception and
-        confirms consume_token(strict=True) returns False.
-        """
+        """Strict mode: internal exception → deny request (S3)."""
         bucket = self._make_bucket("strict_mode_fail_closed")
 
+        # Credential-sensitive endpoints opt into strict=True so a rate-limiter
+        # bug denies instead of allowing.
         def _explode(self_):
             raise RuntimeError("simulated bucket failure")
 
@@ -253,14 +246,8 @@ class TestEndpointRateLimiterStrictMode(TransactionCase):
     """Test that EndpointRateLimiter propagates strict mode from the endpoint."""
 
     def test_endpoint_rate_limiter_reads_strict_flag(self):
-        """EndpointRateLimiter reads rate_limit_strict off the endpoint record.
-
-        When the endpoint model exposes a truthy rate_limit_strict attribute,
-        the tool must call bucket.consume_token(strict=True). When it is
-        absent or falsy, consume_token is called without strict (i.e. default
-        fail-open). This test uses a lightweight stand-in endpoint and a mock
-        bucket to record the kwargs.
-        """
+        """EndpointRateLimiter passes strict=True to consume_token when the
+        endpoint has a truthy rate_limit_strict, strict=False otherwise."""
         strict_endpoint = SimpleNamespace(
             _name="credential.category",
             id=1,
