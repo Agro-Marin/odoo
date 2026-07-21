@@ -237,7 +237,7 @@ class TestAccountMovePaymentsWidget(AccountTestInvoicingCommon):
     def test_outstanding_payments_foreign_currency(self):
         """Test the outstanding payments widget on invoices having a foreign currency."""
 
-        # Customer invoice of 2500.0 in curr_1.
+        # Customer invoice of 7500.0 in curr_2.
         out_invoice = self.env["account.move"].create(
             {
                 "move_type": "out_invoice",
@@ -250,7 +250,7 @@ class TestAccountMovePaymentsWidget(AccountTestInvoicingCommon):
         )
         out_invoice.action_post()
 
-        # Vendor bill of 2500.0 in curr_1.
+        # Vendor bill of 7500.0 in curr_2.
         in_invoice = self.env["account.move"].create(
             {
                 "move_type": "in_invoice",
@@ -279,9 +279,11 @@ class TestAccountMovePaymentsWidget(AccountTestInvoicingCommon):
         )
 
     def test_payments_with_exchange_difference_payment(self):
-        """Test the payments widget on invoices having a foreign currency that triggers an exchange difference on the payment."""
+        """Test the payments widget on invoices having a foreign currency that
+        triggers an exchange difference on the payment.
+        """
 
-        # Customer invoice of 300 in GOL at exchage rate 3:1. 300 GOL -> 100 USD
+        # Customer invoice of 300 curr_2 at exchange rate 3:1. 300 curr_2 -> 100 curr_1
         out_invoice = self.env["account.move"].create(
             {
                 "move_type": "out_invoice",
@@ -302,7 +304,7 @@ class TestAccountMovePaymentsWidget(AccountTestInvoicingCommon):
         )
         out_invoice.action_post()
 
-        # Payment at exchange rate 2:1. 300 GOL -> 150 USD
+        # Payment at exchange rate 2:1. 300 curr_2 -> 150 curr_1
         payment = (
             self.env["account.payment.register"]
             .with_context(active_model="account.move", active_ids=out_invoice.ids)
@@ -319,9 +321,11 @@ class TestAccountMovePaymentsWidget(AccountTestInvoicingCommon):
         self.assert_invoice_outstanding_reconciled_widget(out_invoice, expected_amounts)
 
     def test_payments_with_exchange_difference_invoice(self):
-        """Test the payments widget on invoices having a foreign currency that triggers an exchange difference on the invoice."""
+        """Test the payments widget on invoices having a foreign currency that
+        triggers an exchange difference on the invoice.
+        """
 
-        # Customer invoice of 300 in GOL at exchage rate 2:1. 300 GOL -> 150 USD
+        # Customer invoice of 300 curr_2 at exchange rate 2:1. 300 curr_2 -> 150 curr_1
         out_invoice = self.env["account.move"].create(
             {
                 "move_type": "out_invoice",
@@ -342,7 +346,7 @@ class TestAccountMovePaymentsWidget(AccountTestInvoicingCommon):
         )
         out_invoice.action_post()
 
-        # Payment at exchange rate 3:1. 300 GOL -> 100 USD
+        # Payment at exchange rate 3:1. 300 curr_2 -> 100 curr_1
         payment = (
             self.env["account.payment.register"]
             .with_context(active_model="account.move", active_ids=out_invoice.ids)

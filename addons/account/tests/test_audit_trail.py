@@ -273,7 +273,7 @@ class TestAuditTrailAttachment(AccountTestInvoicingHttpCommon):
         first_attachment = self._send_and_print(invoice)
         self.assertTrue(first_attachment)
 
-        # Remove the attachment, it should only archive it instead of deleting it
+        # Remove the attachment, it should only detach it from the field instead of deleting it
         first_attachment.unlink()
         self.assertTrue(first_attachment.exists())
         # But we cannot entirely remove it

@@ -50,13 +50,11 @@ class TestAccountPartner(AccountTestInvoicingCommon):
         self.assertEqual(partner.days_sales_outstanding, 50)
 
     def test_credit_search_matches_credit_on_archived_account(self):
-        """The ``credit`` search must agree with the computed Total Receivable.
-
-        Odoo allows archiving a receivable account that still carries an open
-        residual. ``_compute_credit_debit`` ignores ``account.active``, so the
-        form keeps showing the debt; the search behind ``credit`` must not filter
-        it out either (regression: it used to ``AND acc.active``).
-        """
+        """The ``credit`` search must agree with the computed Total Receivable."""
+        # A receivable account can be archived while still carrying an open
+        # residual. ``_compute_credit_debit`` ignores ``account.active``, so the
+        # form keeps showing the debt and the search behind ``credit`` must not
+        # filter on that column either.
         partner = self.env["res.partner"].create({"name": "ArchivedAcctDebtor"})
         move = self.init_invoice(
             "out_invoice", partner, invoice_date="2023-01-01", amounts=[1000], post=True
@@ -81,9 +79,9 @@ class TestAccountPartner(AccountTestInvoicingCommon):
         )
 
     def test_move_counts_roll_up_to_parent(self):
-        """A child contact's moves count towards its parent -- exercises the
-        shared ``_aggregate_by_partner_hierarchy`` helper (also behind
-        ``total_invoiced`` and ``supplier_invoice_count``)."""
+        """A child contact's moves count towards its parent."""
+        # Exercises the shared ``_aggregate_by_partner_hierarchy`` helper, also
+        # behind ``total_invoiced`` and ``supplier_invoice_count``.
         parent = self.env["res.partner"].create({"name": "RollupParent"})
         child = self.env["res.partner"].create(
             {"name": "RollupChild", "parent_id": parent.id}
@@ -276,9 +274,8 @@ class TestAccountPartner(AccountTestInvoicingCommon):
 
     @freeze_time("2023-06-30")
     def test_days_sales_outstanding_never_negative(self):
-        """A customer in credit balance (a paid invoice plus an unpaid refund)
-        used to produce a negative DSO; it must be clamped to a non-negative KPI.
-        """
+        """DSO must stay non-negative for a customer in credit balance."""
+        # Credit balance here = a fully paid invoice plus an unpaid refund.
         partner = self.env["res.partner"].create({"name": "NegDSO"})
         inv = self.init_invoice(
             "out_invoice", partner, invoice_date="2023-01-01", amounts=[5000], post=True
@@ -333,9 +330,8 @@ class TestAccountPartner(AccountTestInvoicingCommon):
         self.assertIn(partner, Partner.search([("credit", ">", 0)]))
 
     def test_map_tax_account_singleton_contract(self):
-        """``map_tax``/``map_account``: an empty position is a no-op; a
-        multi-record position raises a clear singleton error rather than failing
-        deep inside the mapping comprehension.
+        """``map_tax``/``map_account``: an empty position is a no-op, a
+        multi-record position raises a singleton error.
         """
         FP = self.env["account.fiscal.position"]
         tax = self.tax_sale_a
