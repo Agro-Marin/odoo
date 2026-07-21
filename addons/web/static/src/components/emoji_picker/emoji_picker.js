@@ -414,7 +414,11 @@ export class EmojiPicker extends Component {
             // Persisted codepoints may no longer exist after an emoji data update.
             .filter(Boolean);
         if (this.searchTerm && recent.length) {
-            return fuzzyLookup(this.searchTerm, recent, getEmojiSearchStrings);
+            // getEmojiSearchStrings returns pre-normalized strings — skip the
+            // per-candidate re-normalization on every keystroke.
+            return fuzzyLookup(this.searchTerm, recent, getEmojiSearchStrings, {
+                preNormalized: true,
+            });
         }
         return recent.slice(0, 42);
     }
@@ -601,10 +605,14 @@ export class EmojiPicker extends Component {
             );
         }
         if (this.searchTerm.length) {
+            // getEmojiSearchStrings returns pre-normalized strings — skip the
+            // per-candidate re-normalization (~94% of the search cost, run
+            // synchronously in onWillRender on every keystroke).
             emojisToDisplay = fuzzyLookup(
                 this.searchTerm,
                 emojisToDisplay,
                 getEmojiSearchStrings,
+                { preNormalized: true },
             );
         }
         this._emojisCacheKey = cacheKey;
