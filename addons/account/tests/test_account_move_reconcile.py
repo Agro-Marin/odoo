@@ -11,9 +11,7 @@ from odoo.addons.account.tests.common import AccountTestInvoicingCommon
 
 @tagged("post_install", "-at_install")
 class TestAccountMoveReconcile(AccountTestInvoicingCommon):
-    """Tests about the account.partial.reconcile model, not the reconciliation itself but mainly the computation of
-    the residual amounts on account.move.line.
-    """
+    """Test the residual amounts computed on account.move.line by account.partial.reconcile."""
 
     @classmethod
     def setUpClass(cls):
@@ -527,8 +525,7 @@ class TestAccountMoveReconcile(AccountTestInvoicingCommon):
         self.assertTrue(payment_term_line.reconciled)
 
     def test_reconcile_lines_corner_case_1_zero_balance_same_foreign_currency(self):
-        """Test the reconciliation of lines having a zero balance in different currencies. In that case, the reconciliation should not be full until
-        an additional move is added with the right foreign currency amount."""
+        """Test the reconciliation of lines having a zero balance in the same foreign currency."""
         currency = self.other_currency
 
         line_1 = self.create_line_for_reconciliation(0.0, -0.02, currency, "2017-01-01")
@@ -573,12 +570,12 @@ class TestAccountMoveReconcile(AccountTestInvoicingCommon):
         self,
     ):
         """Test a corner case when both lines have something to reconcile in company currency but nothing
-        in foreign currency. It could be due to:
-        - a bad usage of the `no_exchange_difference` context key
-        - a partial reconciliation made before migrating to this version
-        - some rounding error when dealing with currencies having != decimal places
-        - strange journal items made by the user
+        in foreign currency.
         """
+        # Such journal items can come from: a bad usage of the `no_exchange_difference`
+        # context key, a partial reconciliation made before migrating to this version, a
+        # rounding error between currencies having != decimal places, or entries encoded
+        # by hand.
         currency = self.other_currency
 
         line_1 = self.create_line_for_reconciliation(-0.01, 0.0, currency, "2017-01-01")
@@ -619,9 +616,9 @@ class TestAccountMoveReconcile(AccountTestInvoicingCommon):
         )
 
     def test_reconcile_lines_corner_case_3_zero_balance_one_foreign_currency(self):
-        """Test the special case when one line (credit) has a zero residual amount in company currency probably due to
+        """Test the special case when one line (debit) has a zero residual amount in company currency probably due to
         some rounding issues or accumulated rounding due to multiple reconciliations.
-        This line is matched with another line (debit) using the company currency.
+        This line is matched with another line (credit) using the company currency.
         """
         comp_curr = self.company_data["currency"]
         foreign_curr = self.other_currency
@@ -746,12 +743,12 @@ class TestAccountMoveReconcile(AccountTestInvoicingCommon):
         self,
     ):
         """Test a corner case when both lines have something to reconcile in company currency but one has nothing
-        in foreign currency. It could be due to:
-        - a bad usage of the `no_exchange_difference` context key
-        - a partial reconciliation made before migrating to this version
-        - some rounding error when dealing with currencies having != decimal places
-        - strange journal items made by the user
+        in foreign currency.
         """
+        # Such journal items can come from: a bad usage of the `no_exchange_difference`
+        # context key, a partial reconciliation made before migrating to this version, a
+        # rounding error between currencies having != decimal places, or entries encoded
+        # by hand.
         currency = self.other_currency
 
         line_1 = self.create_line_for_reconciliation(-0.06, 0.0, currency, "2017-01-01")
@@ -2687,9 +2684,7 @@ class TestAccountMoveReconcile(AccountTestInvoicingCommon):
         )
 
     def test_reverse_with_multiple_lines(self):
-        """
-        Test if all lines from a reversed entry are fully reconciled
-        """
+        """Test that all lines from a reversed entry are fully reconciled."""
         move = self.env["account.move"].create(
             {
                 "move_type": "entry",
@@ -3320,7 +3315,7 @@ class TestAccountMoveReconcile(AccountTestInvoicingCommon):
             },
         )
 
-        # 2th reconciliation refund1 + inv2
+        # 2nd reconciliation refund1 + inv2
         self.assert_invoice_outstanding_to_reconcile_widget(
             refund1,
             {
@@ -3413,7 +3408,7 @@ class TestAccountMoveReconcile(AccountTestInvoicingCommon):
         )
         self.assert_invoice_outstanding_to_reconcile_widget(refund1, {})
 
-        # 3th reconciliation inv1 + pay1
+        # 3rd reconciliation inv2 + pay1
         self.assert_invoice_outstanding_reconciled_widget(
             inv2,
             {
@@ -3824,7 +3819,7 @@ class TestAccountMoveReconcile(AccountTestInvoicingCommon):
             },
         )
 
-        # 2th reconciliation refund1 + inv2
+        # 2nd reconciliation inv2 + pay1
         self.assert_invoice_outstanding_to_reconcile_widget(
             inv2,
             {
@@ -3923,7 +3918,7 @@ class TestAccountMoveReconcile(AccountTestInvoicingCommon):
             },
         )
 
-        # 3th reconciliation refund1 + inv2
+        # 3rd reconciliation refund1 + inv2
         self.assert_invoice_outstanding_to_reconcile_widget(
             refund1,
             {
@@ -4233,7 +4228,7 @@ class TestAccountMoveReconcile(AccountTestInvoicingCommon):
             ],
         )
 
-        # Fix 'line_2' & 'line_4' using the "new" reconciliation.
+        # Fix 'line_2' & 'line_3' using the "new" reconciliation.
         line_4 = self.create_line_for_reconciliation(
             0.0, 600.0, foreign_curr1, "2016-01-01"
         )
@@ -4622,13 +4617,10 @@ class TestAccountMoveReconcile(AccountTestInvoicingCommon):
         return cash_basis_move, payment_move
 
     def test_reconcile_cash_basis_workflow_single_currency(self):
-        """Test the generated journal entries during the reconciliation to manage the cash basis taxes.
-        Also,
-        - Test the case when there is multiple receivable/payable accounts.
-        - Test the reconciliation with tiny amounts.
-        - Check there is no rounding issue when making the percentage.
-        - Check there is no lost cents when the journal entry is fully reconciled.
-        """
+        """Test the journal entries generated during the reconciliation to manage the cash basis taxes."""
+        # The fixture also covers: multiple receivable/payable accounts, tiny amounts, no
+        # rounding issue when computing the percentages and no lost cent once the journal
+        # entry is fully reconciled.
         cash_basis_move, payment_move = self._prepare_cash_basis_move_and_payment()
         (cash_basis_move + payment_move).action_post()
 
@@ -4905,10 +4897,9 @@ class TestAccountMoveReconcile(AccountTestInvoicingCommon):
         )
 
     def test_reconcile_draft_cash_basis_surprise_use_case(self):
-        """Use case: a reconciliation is made on a draft invoice, with no caba move created, but a cash basis tax is added
-        later on the invoice. When it gets posted, the reconciliation should be removed so that redoing the reconcilation
-        will create the caba move.
-        """
+        """Posting a draft invoice whose tax became cash basis after reconciliation removes that reconciliation."""
+        # Redoing the reconciliation then creates the caba move that was missing while the
+        # invoice was still carrying a non cash basis tax.
         self.env.company.tax_exigibility = True
         caba_tax = self.env["account.tax"].create(
             {
@@ -5078,17 +5069,13 @@ class TestAccountMoveReconcile(AccountTestInvoicingCommon):
         self.assertEqual(tax_cash_basis_moves.state, "posted")
 
     def test_reconcile_cash_basis_mixed_posted_draft_transfer_account(self):
-        """Reconcile ONE posted payment against two cash-basis origin moves in a
-        single plan: one posted, one draft. This produces cash basis moves with
-        mixed both_move_posted, and (with the tax on a reconcilable transfer
-        account) two 'to_reconcile_after' entries pointing at different origin
-        moves.
-
-        Regression guard: the cash basis moves must be created without any
-        post/draft reordering, otherwise the recorded move index desynchronizes
-        and each origin's transfer tax line gets reconciled against the *other*
-        origin's cash basis move.
-        """
+        """Reconcile one posted payment against a posted and a draft cash basis origin move in a single plan."""
+        # The two origins produce cash basis moves with mixed both_move_posted and, the tax
+        # sitting on a reconcilable transfer account, two 'to_reconcile_after' entries
+        # pointing at different origin moves. The cash basis moves must be created without
+        # any post/draft reordering: the recorded move index would desynchronize and each
+        # origin's transfer tax line would be reconciled against the *other* origin's cash
+        # basis move.
         self.env.company.tax_exigibility = True
         tax = self.cash_basis_tax_a_third_amount
         tax_rep_line = tax.invoice_repartition_line_ids.filtered(
@@ -5137,7 +5124,7 @@ class TestAccountMoveReconcile(AccountTestInvoicingCommon):
         # Reconciliation pairs lines ordered by (date, currency, amount): the
         # smaller receivable is matched first. Make the draft origin the smaller
         # one so its (draft) cash basis move is processed/appended before the
-        # posted one -- the order that used to desynchronize the recorded index.
+        # posted one -- the order that desynchronizes the recorded index.
         origin_draft = _origin_move(100.0, 33.33)  # receivable 133.33
         origin_posted = _origin_move(200.0, 66.66)  # receivable 266.66
         origin_posted.action_post()
@@ -5474,7 +5461,7 @@ class TestAccountMoveReconcile(AccountTestInvoicingCommon):
         self.assertEqual(exchange_moves.mapped("state"), ["posted", "posted"])
 
     def test_reconcile_cash_basis_workflow_multi_currency(self):
-        """Same as before with a foreign currency."""
+        """Test the journal entries generated for cash basis taxes in a foreign currency."""
 
         self.env.company.tax_exigibility = True
         currency_id = self.other_currency.id
@@ -6167,9 +6154,7 @@ class TestAccountMoveReconcile(AccountTestInvoicingCommon):
     def test_reconcile_cash_basis_exchange_difference_transfer_account_check_entries_1(
         self,
     ):
-        """Test the generation of the exchange difference for a tax cash basis journal entry when the transfer
-        account is not reconcilable.
-        """
+        """Test the generation of the exchange difference for a tax cash basis journal entry."""
         self.env.company.tax_exigibility = True
         currency_id = self.other_currency.id
 
@@ -6362,9 +6347,7 @@ class TestAccountMoveReconcile(AccountTestInvoicingCommon):
     def test_reconcile_cash_basis_exchange_difference_transfer_account_check_entries_2(
         self,
     ):
-        """Test the generation of the exchange difference for a tax cash basis journal entry when the transfer
-        account is not a reconcile one.
-        """
+        """Test the generation of the exchange difference for a tax cash basis journal entry."""
         self.env.company.tax_exigibility = True
         currency_id = self.setup_other_currency(
             "CHF", rates=[("2016-01-01", 0.5), ("2017-01-01", 0.66666666666666)]
@@ -6525,9 +6508,7 @@ class TestAccountMoveReconcile(AccountTestInvoicingCommon):
     def test_reconcile_cash_basis_exchange_difference_transfer_account_check_entries_3(
         self,
     ):
-        """Test the generation of the exchange difference for a tax cash basis journal entry when the transfer
-        account is not a reconcile one.
-        """
+        """Test the generation of the exchange difference for a tax cash basis journal entry."""
         self.env.company.tax_exigibility = True
         currency_id = self.setup_other_currency(
             "CHF", rates=[("2016-01-01", 0.5), ("2017-01-01", 0.66666666666666)]
@@ -6684,8 +6665,8 @@ class TestAccountMoveReconcile(AccountTestInvoicingCommon):
     def test_reconcile_cash_basis_exchange_difference_transfer_account_check_entries_4(
         self,
     ):
-        """Test the generation of the exchange difference for a tax cash basis journal entry when the tax
-        account is a reconcile one.
+        """Test the generation of the exchange difference for a tax cash basis journal entry using a
+        dedicated cash basis transition account.
         """
         self.env.company.tax_exigibility = True
         currency_id = self.other_currency.id
@@ -6808,7 +6789,7 @@ class TestAccountMoveReconcile(AccountTestInvoicingCommon):
         self.assertEqual(len(tax_cash_basis_moves), 1)
 
         # Tax values based on payment
-        # Invoice amount 300 (amount currency) with payment rate 2 (400 payment amount divided by 200 invoice balance)
+        # Invoice amount 300 (amount currency) with payment rate 2 (400 payment amount divided by 200 payment balance)
         #  - Base amount: 150 company currency
         #  - Tax amount: 50 company currency
         self.assertRecordValues(
@@ -7580,7 +7561,7 @@ class TestAccountMoveReconcile(AccountTestInvoicingCommon):
         self.assertRecordValues(
             tax_cash_basis_moves.line_ids,
             [
-                # Base amount x 2 because there is two taxes:
+                # Base amount, in a single pair carrying both taxes:
                 {
                     "debit": 100.0,
                     "credit": 0.0,
@@ -7962,8 +7943,6 @@ class TestAccountMoveReconcile(AccountTestInvoicingCommon):
     def test_caba_dest_acc_reconciliation_partial_pmt(self):
         """Test the reconciliation of tax lines (when using a reconcilable tax account)
         for partially paid invoices with cash basis taxes.
-        This test is especially useful to check the implementation of the use case tested by
-        test_reconciliation_cash_basis_foreign_currency_low_values does not have unwanted side effects.
         """
 
         # Make the tax account reconcilable
@@ -8175,15 +8154,12 @@ class TestAccountMoveReconcile(AccountTestInvoicingCommon):
         )
 
     def test_caba_tax_group(self):
-        """Test the CABA entries generated from an invoice with
-        a tax group
-        """
+        """Test the CABA entries generated from an invoice with a tax group."""
         self.env.company.tax_exigibility = True
 
         # Make the tax account reconcilable
         self.tax_account_1.reconcile = True
 
-        # Create an invoice with a CABA tax using 'Include in analytic cost'
         move_form = Form(
             self.env["account.move"].with_context(default_move_type="in_invoice")
         )
@@ -8202,7 +8178,7 @@ class TestAccountMoveReconcile(AccountTestInvoicingCommon):
             }
         )
 
-        # line with analytic account, will generate 2 lines in CABA move
+        # The base line taxed by the group generates 2 lines in the CABA move.
         invoice = (
             self.env["account.move"]
             .with_context(skip_invoice_sync=True)
@@ -8327,9 +8303,7 @@ class TestAccountMoveReconcile(AccountTestInvoicingCommon):
         )
 
     def test_cash_basis_taxline_without_account(self):
-        """
-        Make sure that cash basis taxlines that don't have an account are handled properly.
-        """
+        """Make sure that cash basis taxlines that don't have an account are handled properly."""
         self.env.company.tax_exigibility = True
 
         tax = self.env["account.tax"].create(
@@ -8573,10 +8547,7 @@ class TestAccountMoveReconcile(AccountTestInvoicingCommon):
         self.assertTrue(line_3.full_reconcile_id)
 
     def test_reconcile_payment_custom_rate(self):
-        """When reconciling a payment we want to take the accounting rate and not the odoo rate.
-        Most likely the payment information are derived from information of the bank, therefore have
-        the relevant rate.
-        """
+        """Test the reconciliation of a payment uses its accounting rate instead of the odoo rate."""
         company_currency = self.company_data["currency"]
         foreign_currency = self.other_currency
 
@@ -8609,7 +8580,8 @@ class TestAccountMoveReconcile(AccountTestInvoicingCommon):
             }
         )
         payment.action_post()
-        # unlink the rate to simulate a custom rate on the payment
+        # Payment information usually comes from the bank, so it carries the relevant rate:
+        # unlink the odoo rate to simulate a custom rate on the payment.
         self.env["res.currency.rate"].search(
             [("currency_id", "=", foreign_currency.id)]
         ).unlink()
@@ -8625,9 +8597,7 @@ class TestAccountMoveReconcile(AccountTestInvoicingCommon):
         )
 
     def test_reconcile_payment_with_no_exchange_diff_journal(self):
-        """
-        Test that the currency exchange journal is only required when creating exchange difference entries.
-        """
+        """Test that the currency exchange journal is only required when creating exchange difference entries."""
 
         # Make sure the currency exchange journal is unset.
         self.env.company.currency_exchange_journal_id = False
@@ -8662,7 +8632,7 @@ class TestAccountMoveReconcile(AccountTestInvoicingCommon):
             self.env["account.payment.register"]
             .with_context(active_model="account.move", active_ids=invoice_no_diff.ids)
             .create({**payment_vals, "payment_date": "2017-01-01", "amount": 3000})
-        )  # 3000 EUR = 1000 USD.
+        )  # 3000 EUR = 1500 USD.
         wizard_no_diff._create_payments()
 
         # Then check that an error is raised when trying to create a payment with an exchange difference.
@@ -8679,10 +8649,7 @@ class TestAccountMoveReconcile(AccountTestInvoicingCommon):
             wizard_diff._create_payments()
 
     def test_cash_basis_with_analytic_distribution(self):
-        """
-        Check that the analytic distribution is applied correctly to the cash basis move lines.
-        The tax used here is not an analytic tax (field `analytic` on the tax is `False`).
-        """
+        """Check the analytic distribution on the cash basis move lines of a non-analytic tax."""
         self.env.company.tax_exigibility = True
 
         analytic_plan = self.env["account.analytic.plan"].create(
@@ -8903,10 +8870,7 @@ class TestAccountMoveReconcile(AccountTestInvoicingCommon):
         )
 
     def test_cash_basis_with_analytic_distribution_analytic_tax(self):
-        """
-        Check that the analytic distribution is applied correctly to the cash basis move lines.
-        The tax used here is not an analytic tax (field `analytic` on the tax is `True`).
-        """
+        """Check the analytic distribution on the cash basis move lines of an analytic tax."""
         self.env.company.tax_exigibility = True
 
         analytic_plan = self.env["account.analytic.plan"].create(
@@ -9278,10 +9242,7 @@ class TestAccountMoveReconcile(AccountTestInvoicingCommon):
             self.assertEqual(payment1.state, "in_process")
 
     def test_reconcile_partial_reconciliations(self):
-        """
-        Check that it is only possible to reconcile entries belonging to a partial matching group if at least one of the
-        selected entries from that group is not fully reconciled. (.reconciled == False)
-        """
+        """Reconciling entries of a partial matching group requires at least one selected entry not fully reconciled."""
         aml1 = self.create_line_for_reconciliation(
             1000.0, 1000.0, self.company_data["currency"], "2016-01-01"
         )
@@ -9652,10 +9613,7 @@ class TestAccountMoveReconcile(AccountTestInvoicingCommon):
         self.assertEqual(rec_lines.mapped("reconciled"), [True, True])
 
     def test_links_between_move_and_payment(self):
-        """
-        Test links between move and payment, via account.partial.reconcile and account_move__account_payment
-        In the context of an outstanding account
-        """
+        """Test the links between move and payment for an invoice paid through an outstanding account."""
         invoice_outstanding = self.init_invoice(
             move_type="out_invoice", amounts=[300], post=True
         )
@@ -9670,11 +9628,7 @@ class TestAccountMoveReconcile(AccountTestInvoicingCommon):
         self.assertEqual(payment.reconciled_invoice_ids, invoice_outstanding)
 
     def test_reconciliation_currency_exchange_matching_number(self):
-        """
-        Test that reconciliation assigns the same matching number to
-        invoice, payment, and currency exchange lines when those lines
-        are directly reconciled (in the case of an import, for instance).
-        """
+        """Test that directly reconciled invoice, payment and currency exchange lines share the matching number."""
         currency_chf = self.env.ref("base.CHF")
 
         account_receivable = self.company_data["default_account_receivable"]
@@ -9748,9 +9702,7 @@ class TestAccountMoveReconcile(AccountTestInvoicingCommon):
         )
 
     def test_exchange_move_assignment_with_group_payment(self):
-        """
-        Test that when doing a group payment the exchange_moves are correctly assigned to the invoices
-        """
+        """Test that the exchange moves of a group payment are correctly assigned to the invoices."""
         foreign_curr = self.setup_other_currency(
             "EUR",
             rates=[
