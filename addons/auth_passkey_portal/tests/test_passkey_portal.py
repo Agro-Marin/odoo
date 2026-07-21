@@ -2,20 +2,21 @@ from odoo import Command
 from odoo.exceptions import AccessError
 from odoo.tests import tagged
 from odoo.tools import SQL
+
 from odoo.addons.auth_passkey.tests.test_passkey_demo import PasskeyTest
 
 
 @tagged('post_install', '-at_install')
 class PasskeyTestPortal(PasskeyTest):
     @classmethod
-    def setUpClass(self):
+    def setUpClass(cls):
         super().setUpClass()
         login = 'passkey_portal'
-        self.portal_user = self.env['res.users'].create({
+        cls.portal_user = cls.env['res.users'].create({
             'name': login,
             'login': login,
             'password': login,
-            'group_ids': [Command.set([self.env.ref('base.group_portal').id])],
+            'group_ids': [Command.set([cls.env.ref('base.group_portal').id])],
         })
 
     def test_passkey_portal_create(self):
