@@ -2673,3 +2673,99 @@ class TestProcessLimitRealTimeLog:
         assert "virtual" not in fmt, "wall time must not be mislabeled 'virtual'"
         rendered = fmt % ts.logger.warning.call_args.args[1:]
         assert "12.7" in rendered, f"fractional seconds must survive; got {rendered!r}"
+
+
+# ---------------------------------------------------------------------------
+# ThreadedWSGIServerReloadable — websocket upgrade releases the bounded slot
+# ---------------------------------------------------------------------------
+
+
+class _FakeConnection:
+    """Weakref-able stand-in for a request socket (sockets support weakref)."""
+
+    def shutdown(self, how):
+        pass
+
+    def close(self):
+        pass
+
+
+@pytest.fixture()
+def bounded_server(srv):
+    """ThreadedWSGIServerReloadable with a 1-slot bound, no socket machinery.
+
+    Bypasses ``__init__`` (which binds a listen socket) and populates only the
+    semaphore-accounting state, mirroring the ``prefork_server`` fixture.
+    """
+    import weakref
+
+    obj = object.__new__(srv.ThreadedWSGIServerReloadable)
+    obj.max_http_threads = 1
+    obj.http_threads_sem = threading.Semaphore(1)
+    obj._sem_released_requests = weakref.WeakSet()
+    return obj
+
+
+class TestHttpSlotReleaseOnWebsocketUpgrade:
+    """Regression: a websocket connection parks its handler thread for the
+    connection's lifetime while keeping its ``max_http_threads`` slot, so once
+    every slot was held by an idle websocket the accept loop starved and no
+    further request was ever accepted (one browser tab was enough to wedge the
+    dev/test server when the bound computed to 1, e.g. ``--db_maxconn 5``).
+    The upgrade handshake (101) must return the slot early, and the eventual
+    ``shutdown_request`` for the same connection must not double-release.
+    """
+
+    def test_upgrade_releases_slot_early(self, bounded_server):
+        conn = _FakeConnection()
+        assert bounded_server.http_threads_sem.acquire(blocking=False)  # accept
+        bounded_server.release_upgraded_request_slot(conn)
+        assert bounded_server.http_threads_sem.acquire(blocking=False), (
+            "the upgraded connection's slot must be free for the next request"
+        )
+
+    def test_shutdown_after_upgrade_does_not_double_release(self, bounded_server):
+        conn = _FakeConnection()
+        assert bounded_server.http_threads_sem.acquire(blocking=False)  # accept
+        bounded_server.release_upgraded_request_slot(conn)
+        bounded_server.shutdown_request(conn)  # websocket eventually closes
+        assert bounded_server.http_threads_sem.acquire(blocking=False)
+        assert not bounded_server.http_threads_sem.acquire(blocking=False), (
+            "a double release would inflate the bound beyond max_http_threads"
+        )
+
+    def test_release_is_noop_without_bound(self, srv):
+        # ``max_http_threads = 0`` opts out of the semaphore entirely — the
+        # server then has no ``http_threads_sem`` and the release must not
+        # AttributeError.
+        obj = object.__new__(srv.ThreadedWSGIServerReloadable)
+        obj.max_http_threads = 0
+        obj.release_upgraded_request_slot(_FakeConnection())
+
+    def test_send_response_101_triggers_release(self, srv):
+        handler = object.__new__(srv.RequestHandler)
+        handler.server = MagicMock()
+        handler.request = _FakeConnection()
+        with patch.object(http.server.BaseHTTPRequestHandler, "send_response"):
+            handler.send_response(101)
+        handler.server.release_upgraded_request_slot.assert_called_once_with(
+            handler.request
+        )
+
+    def test_send_response_200_does_not_release(self, srv):
+        handler = object.__new__(srv.RequestHandler)
+        handler.server = MagicMock()
+        handler.request = _FakeConnection()
+        with patch.object(http.server.BaseHTTPRequestHandler, "send_response"):
+            handler.send_response(200)
+        handler.server.release_upgraded_request_slot.assert_not_called()
+
+    def test_send_response_101_survives_server_without_semaphore(self, srv):
+        # ``RequestHandler`` is only wired to ``ThreadedWSGIServerReloadable``,
+        # but the handler must stay safe if reused on a server lacking the
+        # release hook (guarded getattr).
+        handler = object.__new__(srv.RequestHandler)
+        handler.server = object()
+        handler.request = _FakeConnection()
+        with patch.object(http.server.BaseHTTPRequestHandler, "send_response"):
+            handler.send_response(101)  # must not raise
