@@ -1022,9 +1022,7 @@ class MailThread(models.AbstractModel):
         if bounce_from := self.env.company.bounce_email:
             email_from = formataddr(("MAILER-DAEMON", bounce_from))
         if not email_from:
-            catchall_aliases = (
-                self.env["mail.alias.domain"].search([]).mapped("catchall_email")
-            )
+            catchall_aliases = self.env["mail.alias.domain"]._get_catchall_emails()
             if not any(
                 catchall_email in (message["To"] or "")
                 for catchall_email in catchall_aliases
@@ -1039,7 +1037,9 @@ class MailThread(models.AbstractModel):
             noreply = (
                 self.env.company.default_from_email
                 or self.env.company.catchall_email
-                or self.env["mail.alias.domain"].search([], limit=1).default_from_email
+                or self.env["mail.alias.domain"]
+                ._get_default_domain()
+                .default_from_email
             )
             email_from = formataddr(
                 ("MAILER-DAEMON", noreply or self.env.user.email_normalized)
@@ -1368,7 +1368,7 @@ class MailThread(models.AbstractModel):
             we also need to verify if the message come from "mailer-daemon"
         """
         # detection based on email_to
-        bounce_aliases = self.env["mail.alias.domain"].search([]).mapped("bounce_email")
+        bounce_aliases = self.env["mail.alias.domain"]._get_bounce_emails()
         email_to_list = [
             email_normalize(e) or e for e in email_split(message_dict["to"])
         ]
@@ -1648,9 +1648,7 @@ class MailThread(models.AbstractModel):
           otherwise (legacy strict) only when *all* recipients are catchall.
         """
         if catchall_aliases is None:
-            catchall_aliases = (
-                self.env["mail.alias.domain"].search([]).mapped("catchall_email")
-            )
+            catchall_aliases = self.env["mail.alias.domain"]._get_catchall_emails()
 
         email_to_list = [email_normalize(e) or e for e in email_split(msg_dict["to"])]
         # check it does not directly contact catchall; either (legacy) strict aka
@@ -1746,9 +1744,9 @@ class MailThread(models.AbstractModel):
             )
         )
         if catchall_domains_allowed:
-            catchall_domains_allowed += (
-                self.env["mail.alias.domain"].search([]).mapped("name")
-            )
+            catchall_domains_allowed += self.env[
+                "mail.alias.domain"
+            ]._get_domain_names()
 
         def _filter_excluded_local_part(email):
             left, _at, domain = email.partition("@")
@@ -1931,9 +1929,7 @@ class MailThread(models.AbstractModel):
 
         # 2. Handle new incoming email by checking aliases and applying their settings
         # prefetch catchall aliases as they are used several times
-        catchall_aliases = (
-            self.env["mail.alias.domain"].search([]).mapped("catchall_email")
-        )
+        catchall_aliases = self.env["mail.alias.domain"]._get_catchall_emails()
         if rcpt_tos_list:
             # no route found for a matching reference (or reply), so parent is invalid
             message_dict.pop("parent_id", None)
