@@ -1,9 +1,9 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 from odoo import Command
-from odoo.addons.base.tests.common import TransactionCaseWithUserDemo
 from odoo.tests import Form, tagged
+
+from odoo.addons.base.tests.common import TransactionCaseWithUserDemo
 
 
 @tagged("post_install", "-at_install")

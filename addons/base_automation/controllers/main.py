@@ -1,4 +1,5 @@
-from odoo.http import request, route, Controller
+from odoo.http import Controller, request, route
+
 from odoo.addons.base_automation.models.base_automation import (
     get_webhook_request_payload,
 )
@@ -39,6 +40,6 @@ class BaseAutomationController(Controller):
         data = get_webhook_request_payload()
         try:
             rule._execute_webhook(data)
-        except Exception:  # noqa: BLE001
+        except Exception:
             return request.make_json_response({"status": "error"}, status=500)
         return request.make_json_response({"status": "ok"}, status=200)
