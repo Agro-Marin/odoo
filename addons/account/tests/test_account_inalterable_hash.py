@@ -49,9 +49,9 @@ class TestAccountMoveInalterableHash(AccountTestInvoicingCommon):
         return reversal
 
     def _get_secure_sequence(self):
-        """Before hash v4, we had a secure_sequence on hashed journals.
-        We removed it starting v4, however, to test previous versions, we need to create it
-        to mock the old behavior."""
+        """Create the sequence that hashed journals had before hash v4."""
+        # It was removed starting v4, but the pre-v4 behavior has to be mocked
+        # to test the previous hash versions.
         return self.env["ir.sequence"].create(
             {
                 "name": "SECURE_SEQUENCE",
@@ -270,7 +270,7 @@ class TestAccountMoveInalterableHash(AccountTestInvoicingCommon):
             "INV/",
         )
 
-        # Let's try with the one of the subfields
+        # Let's try with one of the subfields
         Model.write(
             second_chain_moves[-1].line_ids[0], {"partner_id": self.partner_b.id}
         )
@@ -292,8 +292,7 @@ class TestAccountMoveInalterableHash(AccountTestInvoicingCommon):
         )
 
     def test_account_move_hash_versioning_1(self):
-        """We are updating the hash algorithm. We want to make sure that we do not break the integrity report.
-        This test focuses on the case where the user has only moves with the old hash algorithm."""
+        """Test the integrity report when every move uses the v1 hash algorithm."""
         self.company_data["default_journal_sale"].restrict_mode_hash_table = True
         secure_sequence = self._get_secure_sequence()
         moves = self._init_and_post(
@@ -337,8 +336,7 @@ class TestAccountMoveInalterableHash(AccountTestInvoicingCommon):
         )
 
     def test_account_move_hash_versioning_2(self):
-        """We are updating the hash algorithm. We want to make sure that we do not break the integrity report.
-        This test focuses on the case where the user has only moves with the new hash algorithm."""
+        """Test the integrity report when every move uses the v2 hash algorithm."""
         self.company_data["default_journal_sale"].restrict_mode_hash_table = True
         secure_sequence = self._get_secure_sequence()
         moves = self._init_and_post(
@@ -382,8 +380,7 @@ class TestAccountMoveInalterableHash(AccountTestInvoicingCommon):
         )
 
     def test_account_move_hash_versioning_v1_to_v2(self):
-        """We are updating the hash algorithm. We want to make sure that we do not break the integrity report.
-        This test focuses on the case where the user has moves with both hash algorithms."""
+        """Test the integrity report when moves use both the v1 and v2 hash algorithms."""
         self.company_data["default_journal_sale"].restrict_mode_hash_table = True
         secure_sequence = self._get_secure_sequence()
         moves_v1 = self._init_and_post(
@@ -488,12 +485,10 @@ class TestAccountMoveInalterableHash(AccountTestInvoicingCommon):
         )
 
     def test_account_move_hash_versioning_3(self):
-        """
-        Version 2 does not take into account floating point representation issues.
-        Test that version 3 covers correctly this case
-        """
+        """Test that hash version 3 covers floating point representation issues."""
         self.company_data["default_journal_sale"].restrict_mode_hash_table = True
         secure_sequence = self._get_secure_sequence()
+        # Version 2 does not take these into account, hence the 30 * 0.17 amount
         moves = self._init_and_post(
             [
                 {
@@ -528,10 +523,7 @@ class TestAccountMoveInalterableHash(AccountTestInvoicingCommon):
         )
 
     def test_account_move_hash_versioning_v2_to_v3(self):
-        """
-        We are updating the hash algorithm. We want to make sure that we do not break the integrity report.
-        This test focuses on the case with version 2 and version 3.
-        """
+        """Test the integrity report when moves use both the v2 and v3 hash algorithms."""
         self.company_data["default_journal_sale"].restrict_mode_hash_table = True
         secure_sequence = self._get_secure_sequence()
         moves_v2 = self._init_and_post(
@@ -640,18 +632,14 @@ class TestAccountMoveInalterableHash(AccountTestInvoicingCommon):
         )
 
     def test_retroactive_hashing_backwards_compatibility(self):
-        """
-        Simulate old version where the hash was not retroactive
-        We should not consider these moves now either
-        We should hash after the last moved hashed
-        """
+        """Test that moves left unhashed by an old non-retroactive version stay unhashed."""
         move1 = self.init_invoice(
             "out_invoice", self.partner_a, "2024-01-01", amounts=[1000], post=True
         )
 
         self.company_data["default_journal_sale"].restrict_mode_hash_table = True
 
-        # Posting a new move also posts the previous move (move1)
+        # Posting a new move also hashes the previous move (move1)
         self.init_invoice(
             "out_invoice", self.partner_a, "2024-01-02", amounts=[1000], post=True
         )
@@ -890,11 +878,7 @@ class TestAccountMoveInalterableHash(AccountTestInvoicingCommon):
         )
 
     def test_hash_on_lock_date(self):
-        """
-        The lock date and hashing should not interfere with each other.
-          * We should be able to hash moves protected by a lock date.
-          * We should be able to lock a period containing unhashed moves.
-        """
+        """Test that the lock date and hashing do not interfere with each other."""
         for lock_date_field in [
             "hard_lock_date",
             "fiscalyear_lock_date",
@@ -948,7 +932,7 @@ class TestAccountMoveInalterableHash(AccountTestInvoicingCommon):
                     "2024-01-31"
                 )
 
-                # Let's has just one and revert the lock date
+                # Let's revert the lock date and hash just one move
                 if lock_date_field == "hard_lock_date":
 
                     def _validate_locks(*args, **kwargs):
@@ -1017,10 +1001,7 @@ class TestAccountMoveInalterableHash(AccountTestInvoicingCommon):
         self._verify_integrity(move1, "Entries are correctly hashed", move1, move6)
 
     def test_account_move_hash_versioning_v3_to_v4(self):
-        """
-        We are updating the hash algorithm. We want to make sure that we do not break the integrity report.
-        This test focuses on the case with version 3 and version 4.
-        """
+        """Test the integrity report when moves use both the v3 and v4 hash algorithms."""
         # Let's simulate v3 where the hash was on post and not retroactive
         # First let's create some moves that shouldn't be hashed (before restrict mode)
         secure_sequence = self._get_secure_sequence()
@@ -1036,7 +1017,7 @@ class TestAccountMoveInalterableHash(AccountTestInvoicingCommon):
 
         self.company_data["default_journal_sale"].restrict_mode_hash_table = True
 
-        # Now create some moves in v3 that should be hashed on post and have a secure_sequence_id
+        # Now create some moves in v3 that should be hashed on post and have a secure_sequence_number
         moves_v3_post_restrict_mode = self.env["account.move"]
         last_hash = ""
         for _ in range(3):
@@ -1090,7 +1071,7 @@ class TestAccountMoveInalterableHash(AccountTestInvoicingCommon):
         ):
             moves_v3_pre_restrict_mode.button_hash()
 
-        # Test that we allow holes that are not in the moves_to_hash and
+        # Test that we allow holes that are not in the moves to hash
         moves_v3_pre_restrict_mode[2].action_draft()  # Create hole in sequence
         moves_v4 |= self.init_invoice(
             "out_invoice", self.partner_a, "2024-01-01", amounts=[1000, 2000], post=True
@@ -1206,9 +1187,7 @@ class TestAccountMoveInalterableHash(AccountTestInvoicingCommon):
             )
 
     def test_error_on_unreconciled_bank_statement_lines(self):
-        """
-        Check that an error is raised when we try to hash entries with unreconciled bank statement lines.
-        """
+        """Test that hashing entries with unreconciled bank statement lines raises."""
         unreconciled_bank_statement_line = self.env[
             "account.bank.statement.line"
         ].create(
@@ -1228,10 +1207,9 @@ class TestAccountMoveInalterableHash(AccountTestInvoicingCommon):
             unreconciled_move.button_hash()
 
     def test_account_move_unhashed_entries(self):
-        """
-        Test that when _get_chain_info is called with early_stop=True (e.g., when checking if a journal has unhashed
-        entries), no error is raised and the right value is returned based on whether there are unhashed documents.
-        """
+        """Test that ``_get_chain_info`` with ``early_stop=True`` reports whether unhashed documents exist."""
+        # The early-stop path must not raise: it is used to check whether a
+        # journal has unhashed entries.
         sales_journal = self.company_data["default_journal_sale"]
         # Create a move before the journal is set to 'Hash on post', allowing to test if the journal has unhashed entries.
         self._init_and_post(
@@ -1255,10 +1233,8 @@ class TestAccountMoveInalterableHash(AccountTestInvoicingCommon):
         )
 
     def test_account_group_account_secured(self):
-        """
-        Test that user is not granted the group account secured if only entries from a journal without 'Hash on Post' is
-        secured. Once entries from a journal without 'Hash on Post' are secured, the user is granted the access rights.
-        """
+        """Test that the account secured group requires securing entries from a journal without 'Hash on Post'."""
+        # Securing entries from a journal with 'Hash on Post' is not enough.
         group_account_secured = self.env.ref("account.group_account_secured")
         # `group_account_secured` can be by default in user groups (e.g. l10n_de)
         group_account_secured_in_user_groups = (
@@ -1290,11 +1266,7 @@ class TestAccountMoveInalterableHash(AccountTestInvoicingCommon):
         )
 
     def test_wizard_hashes_all_journals(self):
-        """
-        Test that the wizard hashes all journals.
-          * Regardless of the `restrict_mode_hash_table` setting on the journal.
-          * Regardless of the lock date
-        """
+        """Test that the wizard hashes all journals, whatever the lock date or ``restrict_mode_hash_table``."""
         moves = self.env["account.move"].create(
             [
                 {
@@ -1335,10 +1307,8 @@ class TestAccountMoveInalterableHash(AccountTestInvoicingCommon):
         self.assertTrue(False not in moves.mapped("inalterable_hash"))
 
     def test_wizard_ignores_sequence_prefixes_with_unreconciled_entries(self):
-        """
-        Test that the wizard does not try to hash sequence prefixes containing unreconciled bank statement lines.
-        But it should still hash the remaining sequence prefixes from the same journal.
-        """
+        """Test that the wizard skips sequence prefixes containing unreconciled bank statement lines."""
+        # The remaining sequence prefixes of the same journal must still be hashed.
         # Create 2 reconciled moves from different sequences
         reconciled_bank_statement_line_2016 = self.env[
             "account.bank.statement.line"
@@ -1396,13 +1366,10 @@ class TestAccountMoveInalterableHash(AccountTestInvoicingCommon):
         )
 
     def test_wizard_backwards_compatibility(self):
-        """
-        The wizard was introduced in odoo 17.5 when the hash version was 4.
-        We check that:
-          * We do not hash unhashed moves before the start of the hash sequence
-          * The wizard displays information about the date of the first unhashed move:
-            This excludes moves before the hard lock date.
-        """
+        """Test that the wizard leaves moves before the start of the hash sequence unhashed."""
+        # The wizard was introduced in odoo 17.5, when the hash version was 4. It
+        # also reports the date of the first unhashed move, excluding moves before
+        # the hard lock date.
         # Let's simulate v3 where the hash was on post and not retroactive
         # First let's create some moves that shouldn't be hashed (before restrict mode)
         secure_sequence = self._get_secure_sequence()
@@ -1418,7 +1385,7 @@ class TestAccountMoveInalterableHash(AccountTestInvoicingCommon):
 
         self.company_data["default_journal_sale"].restrict_mode_hash_table = True
 
-        # Now create some moves in v3 that should be hashed on post and have a secure_sequence_id
+        # Now create some moves in v3 that should be hashed on post and have a secure_sequence_number
         moves_v3_post_restrict_mode = self.env["account.move"]
         last_hash = ""
         for _ in range(3):
@@ -1476,7 +1443,7 @@ class TestAccountMoveInalterableHash(AccountTestInvoicingCommon):
         # We can ignore the moves by setting the hard lock date:
         self.assertEqual(wizard.max_hash_date, fields.Date.from_string("2023-12-31"))
         self.company_data["company"].hard_lock_date = "2024-01-01"
-        # There is nothing to hash
+        # There is no unhashable move blocking the hash date anymore
         wizard = self.env["account.secure.entries.wizard"].create(
             {"hash_date": "2024-01-03"}
         )
