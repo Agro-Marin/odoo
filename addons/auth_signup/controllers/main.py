@@ -109,7 +109,19 @@ class AuthSignupHome(Home):
                     _logger.info(
                         "Password reset attempt for <%s> by user <%s> from %s",
                         login, request.env.user.login, request.httprequest.remote_addr)
-                    request.env['res.users'].sudo().reset_password(login)
+                    # `reset_password` raises a plain Exception distinguishing
+                    # "no account"/"multiple accounts" from a successful send;
+                    # letting that message reach the user is a login/email
+                    # enumeration oracle (classic password-reset attack
+                    # surface). Log the real outcome server-side and always
+                    # show the same generic message regardless of it.
+                    try:
+                        request.env['res.users'].sudo().reset_password(login)
+                    except Exception:
+                        _logger.info(
+                            "Password reset for <%s> did not send an email "
+                            "(no or multiple matching accounts, or a delivery error)",
+                            login, exc_info=True)
                     qcontext['message'] = _("Password reset instructions sent to your email address.")
             except UserError as e:
                 qcontext['error'] = e.args[0]
@@ -148,10 +160,13 @@ class AuthSignupHome(Home):
         if qcontext.get('token'):
             try:
                 # retrieve the user info (name, login or email) corresponding to a signup token
+                # `_signup_retrieve_info` returns None for an invalid/expired token, so the
+                # expected failure here is AttributeError on `.items()` - catch only that,
+                # not every exception, so an unrelated bug isn't masked as "Invalid signup token".
                 token_infos = request.env['res.partner'].sudo()._signup_retrieve_info(qcontext.get('token'))
                 for k, v in token_infos.items():
                     qcontext.setdefault(k, v)
-            except:  # noqa: E722
+            except AttributeError:
                 qcontext['error'] = _("Invalid signup token")
                 qcontext['invalid_token'] = True
         return qcontext
