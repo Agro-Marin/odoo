@@ -24,6 +24,7 @@
             <t t-elif="props.type === 'integer'">
                 <input
                     t-att-id="props.id"
+                    t-ref="input"
                     class="o_input o_field_property_input"
                     type="text"
                     autocomplete="off"
@@ -34,6 +35,7 @@
             <t t-elif="props.type === 'float'">
                 <input
                     t-att-id="props.id"
+                    t-ref="input"
                     class="o_input o_field_property_input"
                     type="text"
                     autocomplete="off"
@@ -51,6 +53,7 @@
                     <span class="opacity-0" t-if="this.currency?.position === 'before'" t-out="this.currency.symbol + this.nbsp"/>
                     <input
                         t-att-id="props.id"
+                        t-ref="input"
                         class="o_input o_field_property_input flex-grow-1 flex-shrink-1"
                         type="text"
                         autocomplete="off"
@@ -156,6 +159,7 @@
             <t t-elif="props.type === 'text'">
                 <PropertyText
                     value="propertyValue || ''"
+                    record="props.record"
                     updateProperty="(event) => this.onValueChange(event.target.value)"
                 />
             </t>
@@ -163,6 +167,7 @@
                 <input
                     class="o_input"
                     t-att-id="props.id"
+                    t-ref="input"
                     type="text"
                     autocomplete="off"
                     t-att-value="propertyValue || ''"

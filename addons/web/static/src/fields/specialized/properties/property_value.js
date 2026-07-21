@@ -3,13 +3,14 @@
 
 /** @module @web/fields/specialized/properties/property_value - Polymorphic value editor component supporting all property field types */
 
-import { Component } from "@odoo/owl";
+import { Component, useRef } from "@odoo/owl";
 import { CheckBox } from "@web/components/checkbox/checkbox";
 import { DateTimeInput } from "@web/components/datetime/datetime_input";
 import { Dropdown } from "@web/components/dropdown/dropdown";
 import { DropdownItem } from "@web/components/dropdown/dropdown_item";
 import { TagsList } from "@web/components/tags_list/tags_list";
 import { Domain } from "@web/core/domain";
+import { ModelEvent } from "@web/core/events";
 import {
     deserializeDate,
     deserializeDateTime,
@@ -22,7 +23,7 @@ import { _t } from "@web/core/l10n/translation";
 import { deepCopy } from "@web/core/utils/collections/objects";
 import { formatFloat } from "@web/core/utils/format/numbers";
 import { nbsp } from "@web/core/utils/format/strings";
-import { useService } from "@web/core/utils/hooks";
+import { useBus, useService } from "@web/core/utils/hooks";
 import { imageUrl } from "@web/core/utils/urls";
 import { formatInteger, formatMany2one, formatMonetary } from "@web/fields/formatters";
 import { parseFloat, parseInteger, parseMonetary } from "@web/fields/parsers";
@@ -77,6 +78,28 @@ export class PropertyValue extends Component {
 
         this.orm = useService("orm");
         this.action = useService("action");
+
+        // Flush a typed-but-unblurred raw-input value on save. The property
+        // inputs commit only on the native ``change`` (blur) event, but neither
+        // Ctrl+S (``record.save()`` → NEED_LOCAL_CHANGES) nor tab-close (the
+        // beacon urgent save → WILL_SAVE_URGENTLY) blurs the input, so the value
+        // was silently dropped from the write. Only the FOCUSED input can hold an
+        // uncommitted value (anything else already committed on blur), so commit
+        // exactly that one and let the save await the mutex-queued update. The
+        // ``text`` type uses the PropertyText child, which flushes itself.
+        // ``record`` is optional on this component, so guard on it.
+        if (this.props.record) {
+            /** @type {any} */
+            this.inputRef = useRef("input");
+            const flush = (ev) => {
+                const el = this.inputRef.el;
+                if (el && el === document.activeElement) {
+                    ev.detail?.proms?.push(this.onValueChange(el.value));
+                }
+            };
+            useBus(this.props.record.model.bus, ModelEvent.NEED_LOCAL_CHANGES, flush);
+            useBus(this.props.record.model.bus, ModelEvent.WILL_SAVE_URGENTLY, flush);
+        }
 
         this.openMany2X = useOpenMany2XRecord(
             /** @type {any} */ ({
@@ -322,8 +345,10 @@ export class PropertyValue extends Component {
             }
         }
 
-        // trigger the onchange event to notify the parent component
-        this.props.onChange(newValue);
+        // trigger the onchange event to notify the parent component. Return the
+        // resulting promise (``onPropertyValueChange`` → ``_updateRecordProperties``,
+        // queued on model.mutex) so the save-flush can await it before serializing.
+        return this.props.onChange(newValue);
     }
 
     /**

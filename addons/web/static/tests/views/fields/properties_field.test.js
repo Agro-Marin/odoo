@@ -24,6 +24,7 @@ import {
     defineModels,
     fields,
     getService,
+    hideTab,
     models,
     mountView,
     mountWithCleanup,
@@ -737,6 +738,57 @@ test("properties: text", async () => {
 
     expect(".o_field_properties textarea").toHaveCount(1);
     expect(".o_field_properties textarea").toHaveValue("text value");
+});
+
+test.tags("desktop");
+test("properties: a typed-but-unblurred value is flushed on tab-close", async () => {
+    // Regression (F2): the property inputs commit only on their native change
+    // (blur) event, but the urgent save on tab-close does not blur — so a value
+    // typed and not yet blurred was silently dropped from the write.
+    onRpc("has_access", () => true);
+    let saved = null;
+    onRpc("web_save", ({ args }) => {
+        saved = args[1];
+        expect.step("web_save");
+    });
+
+    Partner._records = [
+        { id: 1337, company_id: 42, properties: { property_1: "old text" } },
+    ];
+    ResCompany._records.push({
+        id: 42,
+        name: "Company 2",
+        definitions: [{ name: "property_1", string: "My Text", type: "text" }],
+    });
+
+    await mountView({
+        type: "form",
+        resModel: "partner",
+        resId: 1337,
+        arch: /* xml */ `
+            <form>
+                <sheet>
+                    <group>
+                        <field name="company_id"/>
+                        <field name="properties"/>
+                    </group>
+                </sheet>
+            </form>`,
+    });
+
+    // Type a new value WITHOUT confirming: no native change fires, the value
+    // lives only in the (still-focused) textarea, the record is not yet dirty.
+    await contains(".o_field_properties textarea").edit("new typed text", {
+        confirm: false,
+    });
+    expect(".o_field_properties textarea").toHaveValue("new typed text");
+
+    // Tab-close triggers the urgent (beacon) save without blurring the textarea.
+    await hideTab();
+
+    // The flush must have committed the typed value into the write.
+    expect.verifySteps(["web_save"]);
+    expect(JSON.stringify(saved)).toInclude("new typed text");
 });
 
 test.tags("desktop");
