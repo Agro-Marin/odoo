@@ -56,8 +56,12 @@ registry.category("web_tour.tours").add("test_product_replenishment", {
             run: "click",
         },
         {
-            content: "Wait for the reordering rule to be added",
-            trigger: '.o_data_row td:contains("Book Shelf")',
+            // Must wait for the row to leave edit mode, not merely to exist:
+            // the editable row already renders the product name before the
+            // save round-trips, so a bare presence check lets the tour finish
+            // — and the browser tear down — with the write still in flight.
+            content: "Wait for the reordering rule to be saved",
+            trigger: '.o_data_row:not(.o_selected_row) td:contains("Book Shelf")',
         },
     ],
 });
