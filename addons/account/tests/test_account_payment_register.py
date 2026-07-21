@@ -296,7 +296,7 @@ class TestAccountPaymentRegister(AccountTestInvoicingCommon, PaymentCommon):
             + cls.in_invoice_epd_not_applied
         ).action_post()
 
-        # Credit note
+        # Credit notes
         cls.in_refund_1 = cls.env["account.move"].create(
             {
                 "move_type": "in_refund",
@@ -576,7 +576,7 @@ class TestAccountPaymentRegister(AccountTestInvoicingCommon, PaymentCommon):
         )
 
     def test_register_payment_single_batch_grouped_writeoff_lower_amount_credit(self):
-        """Pay 800.0 with 'reconcile' as payment difference handling on two vendor billes (1000 + 2000)."""
+        """Pay 800.0 with 'reconcile' as payment difference handling on two vendor bills (1000 + 2000)."""
         active_ids = (self.in_invoice_1 + self.in_invoice_2).ids
         payments = (
             self.env["account.payment.register"]
@@ -636,7 +636,7 @@ class TestAccountPaymentRegister(AccountTestInvoicingCommon, PaymentCommon):
         )
 
     def test_register_payment_single_batch_grouped_writeoff_higher_amount_credit(self):
-        """Pay 3100.0 with 'reconcile' as payment difference handling on two vendor billes (1000 + 2000)."""
+        """Pay 3100.0 with 'reconcile' as payment difference handling on two vendor bills (1000 + 2000)."""
         active_ids = (self.in_invoice_1 + self.in_invoice_2).ids
         payments = (
             self.env["account.payment.register"]
@@ -759,7 +759,7 @@ class TestAccountPaymentRegister(AccountTestInvoicingCommon, PaymentCommon):
         )
 
     def test_register_payment_different_type_single_batch_not_grouped(self):
-        """Choose to pay a bill and a refund with separated payments (1000 + -2000)."""
+        """Choose to pay a bill and a refund with separated payments (1000 + -1600)."""
         active_ids = (self.in_invoice_1 + self.in_refund_1).ids
         payments = (
             self.env["account.payment.register"]
@@ -968,7 +968,7 @@ class TestAccountPaymentRegister(AccountTestInvoicingCommon, PaymentCommon):
                     "amount_currency": 2000.0,
                     "reconciled": True,
                 },
-                # Receivable line:
+                # Payable line:
                 {
                     "debit": 0.0,
                     "credit": 1600.0,
@@ -988,9 +988,7 @@ class TestAccountPaymentRegister(AccountTestInvoicingCommon, PaymentCommon):
         )
 
     def test_register_payment_multi_batches_grouped(self):
-        """Choose to pay multiple batches, one with two customer invoices (1000 + 2000)
-        and one with a vendor bill of 600, by grouping payments.
-        """
+        """Pay a batch of two vendor bills (1000 + 2000) and a foreign-currency one (3000), by grouping payments."""
         active_ids = (self.in_invoice_1 + self.in_invoice_2 + self.in_invoice_3).ids
         payment_register = (
             self.env["account.payment.register"]
@@ -1058,9 +1056,7 @@ class TestAccountPaymentRegister(AccountTestInvoicingCommon, PaymentCommon):
         )
 
     def test_register_payment_multi_batches_grouped_with_credit_note(self):
-        """Choose to pay multiple batches, one with customer A bill + refund (1000 - 500)
-        and one with customer B bill (1000).
-        """
+        """Pay two batches, one with partner_a's bill + refund (1000 - 500) and one with partner_b's bill (1000)."""
         partner_b = self.partner_b.copy({"property_account_position_id": False})
         self.env["res.partner.bank"].create(
             {
@@ -1114,9 +1110,7 @@ class TestAccountPaymentRegister(AccountTestInvoicingCommon, PaymentCommon):
         )
 
     def test_register_payment_multi_batches_not_grouped(self):
-        """Choose to pay multiple batches, one with two customer invoices (1000 + 2000)
-        and one with a vendor bill of 600, by splitting payments.
-        """
+        """Pay a batch of two vendor bills (1000 + 2000) and a foreign-currency one (3000), by splitting payments."""
         self.in_invoice_1.with_context(
             skip_readonly_check=True
         ).partner_bank_id = self.partner_bank_account1
@@ -1229,9 +1223,7 @@ class TestAccountPaymentRegister(AccountTestInvoicingCommon, PaymentCommon):
             ).create({})
 
     def test_register_payment_doesnt_send_email(self):
-        """When registering a payment manually with a payment register,
-        we shouldn't sent email notification automatically.
-        """
+        """Registering a payment manually must not send the invoice email automatically."""
         self.env["ir.config_parameter"].set_param("sale.automatic_invoice", True)
         if self.env["ir.module.module"]._get("payment_demo").state == "installed":
             payment_token = self._create_token(
@@ -1601,7 +1593,7 @@ class TestAccountPaymentRegister(AccountTestInvoicingCommon, PaymentCommon):
             }
         )
         invoice.action_post()
-        # 1998 GOL = 999 USD
+        # 1998 EUR = 999 USD
         payment = (
             self.env["account.payment.register"]
             .with_context(active_model="account.move", active_ids=invoice.ids)
@@ -1663,7 +1655,7 @@ class TestAccountPaymentRegister(AccountTestInvoicingCommon, PaymentCommon):
         )
         default_tax.tax_exigibility = "on_payment"
 
-        # 1150 GOL = 575 USD
+        # 1150 EUR = 575 USD
         invoice = self.env["account.move"].create(
             {
                 "move_type": "out_invoice",
@@ -1684,7 +1676,7 @@ class TestAccountPaymentRegister(AccountTestInvoicingCommon, PaymentCommon):
         )
         invoice.action_post()
 
-        # 1110 GOL = 370 USD
+        # 1110 EUR = 370 USD
         payment = (
             self.env["account.payment.register"]
             .with_context(active_model="account.move", active_ids=invoice.ids)
@@ -1894,7 +1886,7 @@ class TestAccountPaymentRegister(AccountTestInvoicingCommon, PaymentCommon):
         )
 
     def test_register_payment_invoice_foreign_curr_payment_comp_curr(self):
-        # Invoice 1200 Gol = 400 USD
+        # Invoice 1200 EUR = 400 USD
         invoice = self.env["account.move"].create(
             {
                 "move_type": "out_invoice",
@@ -1915,8 +1907,8 @@ class TestAccountPaymentRegister(AccountTestInvoicingCommon, PaymentCommon):
         )
         invoice.action_post()
 
-        # Payment of 600 USD (equivalent to 1200 Gol in 2017).
-        # 600.0 USD should be computed correctly to fully paid the invoices.
+        # Payment of 600 USD (equivalent to 1200 EUR in 2017).
+        # 600.0 USD should be computed correctly to fully pay the invoice.
         wizard = (
             self.env["account.payment.register"]
             .with_context(active_model="account.move", active_ids=invoice.ids)
@@ -1961,7 +1953,7 @@ class TestAccountPaymentRegister(AccountTestInvoicingCommon, PaymentCommon):
         )
 
     def test_register_payment_invoice_comp_curr_payment_foreign_curr(self):
-        # Invoice of 600 USD (equivalent to 1200 Gol in 2017).
+        # Invoice of 600 USD (equivalent to 1200 EUR in 2017).
         invoice = self.env["account.move"].create(
             {
                 "move_type": "out_invoice",
@@ -1982,8 +1974,8 @@ class TestAccountPaymentRegister(AccountTestInvoicingCommon, PaymentCommon):
         )
         invoice.action_post()
 
-        # Payment of 600 USD = 1200 Gol.
-        # 1200.0 Gol should be computed correctly to fully paid the invoices.
+        # Payment of 600 USD = 1200 EUR.
+        # 1200.0 EUR should be computed correctly to fully pay the invoice.
         wizard = (
             self.env["account.payment.register"]
             .with_context(active_model="account.move", active_ids=invoice.ids)
@@ -2028,7 +2020,7 @@ class TestAccountPaymentRegister(AccountTestInvoicingCommon, PaymentCommon):
         )
 
     def test_payment_method_different_type_single_batch_not_grouped(self):
-        """Test payment methods when paying a bill and a refund with separated payments (1000 + -2000)."""
+        """Test payment methods when paying two bills (1000 each) and two refunds (1600 each) with separated payments."""
         invoice_1 = self.in_invoice_1
         invoice_2 = invoice_1.copy(
             {"invoice_date": invoice_1.invoice_date, "partner_id": self.partner_b.id}
@@ -2195,7 +2187,7 @@ class TestAccountPaymentRegister(AccountTestInvoicingCommon, PaymentCommon):
             payments[2].move_id.line_ids.sorted("balance"),
             [
                 # == Payment 3: to pay invoice_2 ==
-                # Payable line:
+                # Liquidity line:
                 {
                     "debit": 0.0,
                     "credit": 1000.0,
@@ -2203,7 +2195,7 @@ class TestAccountPaymentRegister(AccountTestInvoicingCommon, PaymentCommon):
                     "amount_currency": -1000.0,
                     "reconciled": False,
                 },
-                # Liquidity line:
+                # Payable line:
                 {
                     "debit": 1000.0,
                     "credit": 0.0,
@@ -2218,7 +2210,7 @@ class TestAccountPaymentRegister(AccountTestInvoicingCommon, PaymentCommon):
             payments[1].move_id.line_ids.sorted("balance"),
             [
                 # == Payment 2: to pay refund_1 ==
-                # Liquidity line:
+                # Payable line:
                 {
                     "debit": 0.0,
                     "credit": 1600.0,
@@ -2226,7 +2218,7 @@ class TestAccountPaymentRegister(AccountTestInvoicingCommon, PaymentCommon):
                     "amount_currency": -1600.0,
                     "reconciled": True,
                 },
-                # Payable line:
+                # Liquidity line:
                 {
                     "debit": 1600.0,
                     "credit": 0.0,
@@ -2491,7 +2483,7 @@ class TestAccountPaymentRegister(AccountTestInvoicingCommon, PaymentCommon):
             ],
         )
 
-        # Paying less switch the wizard in full mode.
+        # Paying less switches the wizard to full mode.
         wizard.amount = 114.0
         self.assertRecordValues(
             wizard,
@@ -2521,7 +2513,7 @@ class TestAccountPaymentRegister(AccountTestInvoicingCommon, PaymentCommon):
             ],
         )
 
-        # Paying more switch the wizard in full mode.
+        # Paying more switches the wizard to full mode.
         wizard.amount = 116.0
         self.assertRecordValues(
             wizard,
@@ -2676,7 +2668,7 @@ class TestAccountPaymentRegister(AccountTestInvoicingCommon, PaymentCommon):
             .create({"payment_date": "2016-01-07"})
         )
 
-        # Some installments are overdue for the second bill, but not the first one, so it is in next
+        # Both bills have overdue installments, so the wizard is in overdue mode
         self.assertRecordValues(
             wizard,
             [
@@ -2759,7 +2751,7 @@ class TestAccountPaymentRegister(AccountTestInvoicingCommon, PaymentCommon):
             .with_context(
                 active_domain=[
                     ["next_payment_date", "=", "2017-01-07"]
-                ],  # To mimick next_payment date in the search
+                ],  # To mimic next_payment_date in the search
                 active_model="account.move",
                 active_ids=invoice_2.ids,
             )
@@ -2772,7 +2764,7 @@ class TestAccountPaymentRegister(AccountTestInvoicingCommon, PaymentCommon):
             wizard,
             [
                 {
-                    "amount": 400,  # The switch amount computed above
+                    "amount": 400,  # 10% + 30% of 1000: the installments due before 2017-01-07
                     "installments_mode": "before_date",
                     "installments_switch_amount": 1000,  # The full amount
                 }
@@ -2780,9 +2772,7 @@ class TestAccountPaymentRegister(AccountTestInvoicingCommon, PaymentCommon):
         )
 
     def test_payment_with_branch(self):
-        """
-        Test register payment with branches when different receivable accounts are used in each branch with combinations of invoices and selected companies
-        """
+        """Register payments on branch invoices for combinations of invoices and selected companies."""
 
         def test_register_payment_flow(cases):
             for group_payment, case in product((False, True), cases):
@@ -2859,7 +2849,7 @@ class TestAccountPaymentRegister(AccountTestInvoicingCommon, PaymentCommon):
                     active_ids=branch_invoices.ids,
                 ).create({})
 
-        # test also with two differents companies
+        # test also with two different companies
         with self.assertRaisesRegex(
             UserError, "for entries belonging to different companies."
         ):
