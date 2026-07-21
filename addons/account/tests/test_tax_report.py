@@ -194,10 +194,9 @@ class TaxReportTest(AccountTestInvoicingCommon):
         )
 
     def test_edit_multi_line_tagname_all_different_new(self):
-        """Writing a new, common formula on expressions with distinct formulas should create a single pair of new + and - tag, and not
-        delete any of the previously-set tags (those can be archived by the user if he wants to hide them, but this way we don't loose previous
-        history in case we need to revert the change).
-        """
+        """Writing a new, common formula on expressions with distinct formulas should create a single new tag."""
+        # Previously-set tags are not deleted; the user can archive them to hide them, and keeping them
+        # preserves the previous history in case the change has to be reverted.
         lines = (
             self.tax_report_line_1_1
             + self.tax_report_line_2_2
@@ -220,9 +219,8 @@ class TaxReportTest(AccountTestInvoicingCommon):
         )
 
     def test_tax_report_change_country(self):
-        """Tests that duplicating and modifying the country of a tax report works as intended
-        (countries wanting to use the tax report of another country need that).
-        """
+        """Duplicating a tax report and then modifying the country of the copy works as intended."""
+        # Countries wanting to reuse the tax report of another country depend on this.
         # Copy our first report
         country_1_tags_before_copy = self._get_tax_tags(self.test_country_1)
         copied_report_1 = self.tax_report_1.copy()
@@ -299,9 +297,7 @@ class TaxReportTest(AccountTestInvoicingCommon):
                     )
 
     def test_unlink_report_line_tags_used_by_amls(self):
-        """
-        Deletion of a report line whose tags are still referenced by an aml should archive tags and not delete them.
-        """
+        """Deletion of a report line whose tags are still referenced by an aml should archive the tags and not delete them."""
         tag_name = "55b"
         tax_report_line = self._create_basic_tax_report_line(
             self.tax_report_1, "Line 55 bis", tag_name
@@ -366,7 +362,7 @@ class TaxReportTest(AccountTestInvoicingCommon):
         tags_after = self._get_tax_tags(
             self.test_country_1, tag_name=tag_name, active_test=False
         )
-        # only the +tag_name should be kept (and archived), -tag_name should be unlinked
+        # the tag should still exist, but archived, because an aml references it
         self.assertEqual(
             tags_after.mapped("active"),
             [False],
@@ -379,12 +375,10 @@ class TaxReportTest(AccountTestInvoicingCommon):
         )
 
     def test_unlink_report_line_tags_used_by_other_expression(self):
-        """
-        Deletion of a report line whose tags are still referenced in other expression should not delete nor archive tags.
-        """
+        """Deletion of a report line whose tags are still referenced by another expression should neither delete nor archive the tags."""
         tag_name = (
             self.tax_report_line_1_1.expression_ids.formula
-        )  # tag "O1" is used in both line 1.1 and line 2.1
+        )  # tag "01" is used in both line 1.1 and line 2.1
         tags_before = self._get_tax_tags(
             self.test_country_1, tag_name=tag_name, active_test=False
         )
@@ -406,11 +400,7 @@ class TaxReportTest(AccountTestInvoicingCommon):
         )
 
     def test_tag_recreation_archived(self):
-        """
-        In a situation where we have only one of the two (+ and -) sign that exist
-        we want only the missing sign to be re-created if we try to reuse the same tag name.
-        (We can get into this state when only one of the signs were used by aml: then we archived it and deleted the complement.)
-        """
+        """Reusing the formula of a deleted or archived tax tag should leave a single tag with that name."""
         tag_name = self.tax_report_line_1_55.expression_ids.formula
         tags_before = self._get_tax_tags(
             self.test_country_1, tag_name=tag_name, active_test=False
