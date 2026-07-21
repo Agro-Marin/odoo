@@ -1084,24 +1084,48 @@ export class PosData extends SignalStore {
         }
     }
 
-    write(model, ids, vals) {
+    async write(model, ids, vals) {
         const records = [];
 
         for (const id of ids) {
             const record = this.models[model].get(id);
+            if (!record) {
+                // execute()'s write branch guards the same lookup; without this
+                // a stale id threw a TypeError straight out of a sync method.
+                continue;
+            }
             delete vals.id;
+
+            const keysToUpdate = Object.keys(vals);
+            // Snapshot before mutating so a rejected ORM write can be undone.
+            // The update is optimistic and used to be left applied on failure —
+            // the ORM call was fired unawaited and uncaught, so the tab stayed
+            // diverged from the server for the rest of the session with no
+            // retry and no queue entry. x2many values are live arrays; copy
+            // them or the "revert" would re-apply the new value.
+            const previous = {};
+            for (const key of keysToUpdate) {
+                const value = record[key];
+                previous[key] = Array.isArray(value) ? [...value] : value;
+            }
             record.update(vals, { omitUnknownField: true });
 
             const dataToUpdate = {};
-            const keysToUpdate = Object.keys(vals);
-
             for (const key of keysToUpdate) {
                 dataToUpdate[key] = vals[key];
             }
 
             records.push(record);
             if (typeof id === "number") {
-                this.ormWrite(model, [record.id], dataToUpdate);
+                try {
+                    // ormWrite queues the operation instead of throwing when
+                    // offline, so only a real rejection (AccessError, RPCError,
+                    // a validation failure) reaches this handler.
+                    await this.ormWrite(model, [record.id], dataToUpdate);
+                } catch (error) {
+                    record.update(previous, { omitUnknownField: true });
+                    throw error;
+                }
             }
         }
 

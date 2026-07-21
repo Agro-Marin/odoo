@@ -6,6 +6,13 @@ import { AlertDialog } from "@web/ui/dialog/confirmation_dialog";
 const BATCH_SIZE = 500; // Can be adjusted based on performance testing
 const TRANSACTION_TIMEOUT = 5000; // 5 seconds timeout for transactions
 const CONSOLE_COLOR = "#3ba9ff";
+// Reconnect backoff. A reopen that never settles (upgrade blocked by another
+// tab that is never closed) must still be treated as a failure, or the
+// reconnect latch is held forever.
+const RECONNECT_BASE_DELAY = 3000;
+const RECONNECT_MAX_DELAY = 60000;
+const MAX_RECONNECT_ATTEMPTS = 5;
+const OPEN_BLOCKED_TIMEOUT = 10000;
 
 export default class IndexedDB {
     constructor(dbName, dbVersion, dbStores, whenReady, dialog = null) {
@@ -17,6 +24,7 @@ export default class IndexedDB {
         this.activeTransactions = new Set();
         this.dialog = dialog;
         this._isReconnecting = false;
+        this._reconnectAttempts = 0;
         this._reloadDialogShown = false;
         this.databaseEventListener(whenReady);
     }
@@ -44,6 +52,21 @@ export default class IndexedDB {
         } else {
             dbInstance = indexedDB.open(this.dbName);
         }
+        // Exactly one of success / failure may act on this open request: a
+        // request declared failed (errored, or blocked past the timeout) may
+        // still fire onsuccess later, by which time a retry owns the
+        // connection.
+        let settled = false;
+        const openFailed = (reason) => {
+            if (settled) {
+                return;
+            }
+            settled = true;
+            clearTimeout(blockedTimeoutId);
+            this._openFailed(reason);
+        };
+        let blockedTimeoutId;
+
         dbInstance.onerror = (event) => {
             const err = event.target.error;
             logPosMessage(
@@ -56,8 +79,13 @@ export default class IndexedDB {
             // by the OS. No reconnect will succeed — only a page reload
             // restores the daemon (upstream 00da82dbb99).
             if (err?.message?.includes("Connection to Indexed Database server lost")) {
+                settled = true;
+                clearTimeout(blockedTimeoutId);
+                this._isReconnecting = false;
                 this._showReloadDialog();
+                return;
             }
+            openFailed(err?.message || "open failed");
         };
         dbInstance.onblocked = () => {
             // A versioned reopen (schema upgrade) is blocked by another tab
@@ -69,8 +97,21 @@ export default class IndexedDB {
                 "IndexedDB upgrade blocked by another open POS tab — close other tabs of this POS.",
                 CONSOLE_COLOR,
             );
+            blockedTimeoutId = setTimeout(
+                () => openFailed("open blocked by another tab"),
+                OPEN_BLOCKED_TIMEOUT,
+            );
         };
         dbInstance.onsuccess = (event) => {
+            if (settled) {
+                // A retry already took over; close this late arrival so it does
+                // not hold the database open and block the live connection's
+                // upgrades.
+                event.target.result.close();
+                return;
+            }
+            settled = true;
+            clearTimeout(blockedTimeoutId);
             this.db = event.target.result;
             // Yield to schema upgrades initiated by another (newer) tab, so a
             // versioned reopen there is never blocked by this connection.
@@ -117,6 +158,8 @@ export default class IndexedDB {
                 return;
             }
 
+            this._isReconnecting = false;
+            this._reconnectAttempts = 0;
             this._setupVisibilityProbe();
             logPosMessage(
                 "IndexedDB",
@@ -166,22 +209,38 @@ export default class IndexedDB {
                 this.activeTransactions.delete(transaction);
             };
 
-            // Mark transaction as finished in all cases
-            transaction.oncomplete = doneMethod;
-            transaction.onabort = doneMethod;
-            transaction.onerror = doneMethod;
-            transaction.onsuccess = doneMethod;
-
             const batchPromise = new Promise((resolve, reject) => {
                 const store = transaction.objectStore(storeName);
-                let completed = 0;
-                let hasError = false;
+                let firstError = null;
+
+                const fail = (error) => {
+                    doneMethod();
+                    reject(
+                        error ||
+                            firstError ||
+                            new Error(`IndexedDB ${method} on ${storeName} failed`),
+                    );
+                };
+
+                // IndexedDB only guarantees durability at COMMIT time, not when
+                // the last request reports success — QuotaExceededError in
+                // particular is raised while committing. Resolving from
+                // request.onsuccess therefore reported batches as written that
+                // then aborted and rolled back, and callers that check the
+                // per-batch status (data_service's data-loss guard) were told a
+                // paid order was durable when it existed nowhere.
+                transaction.oncomplete = () => {
+                    doneMethod();
+                    resolve();
+                };
+                transaction.onabort = () => fail(transaction.error);
+                transaction.onerror = () => fail(transaction.error);
 
                 timeoutId = setTimeout(() => {
                     if (!finished) {
-                        reject(new Error("IndexedDB transaction timeout"));
+                        firstError = new Error("IndexedDB transaction timeout");
                         try {
-                            transaction.abort();
+                            transaction.abort(); // onabort rejects
                         } catch (e) {
                             logPosMessage(
                                 "IndexedDB",
@@ -189,6 +248,7 @@ export default class IndexedDB {
                                 `Error aborting transaction: ${e.message}`,
                                 CONSOLE_COLOR,
                             );
+                            fail(firstError);
                         }
                     }
                 }, TRANSACTION_TIMEOUT);
@@ -205,40 +265,35 @@ export default class IndexedDB {
                         const deepCloned = JSON.parse(JSON.stringify(data));
                         const request = store[method](deepCloned);
 
-                        request.onsuccess = () => {
-                            completed++;
-                            if (completed === batch.length && !hasError && !finished) {
-                                clearTimeout(timeoutId);
-                                resolve();
-                            }
-                        };
-
                         request.onerror = (event) => {
-                            hasError = true;
-                            clearTimeout(timeoutId);
+                            firstError ??= event.target?.error;
                             logPosMessage(
                                 "IndexedDB",
                                 method,
                                 `Error processing ${method} for ${storeName}: ${event.target?.error}`,
                                 CONSOLE_COLOR,
                             );
-                            reject(event.target?.error || "Unknown error");
+                            // Make a failed batch all-or-nothing. Rejecting
+                            // without aborting let the records that already
+                            // succeeded commit anyway, so a partial write was
+                            // reported to the caller as a total failure.
+                            try {
+                                transaction.abort(); // onabort rejects
+                            } catch {
+                                fail(firstError); // transaction already finishing
+                            }
                         };
                     } catch {
-                        // Count the unserializable item as processed so a single bad
-                        // record can't stall the whole batch until TRANSACTION_TIMEOUT
-                        // fires and aborts (rolling back every successful put in it).
-                        completed++;
+                        // Skip the unserializable item rather than abort: the
+                        // transaction still commits the rest of the batch, and
+                        // no counter has to be kept in sync now that resolution
+                        // comes from the commit itself.
                         logPosMessage(
                             "IndexedDB",
                             method,
                             `Error processing ${method} for ${storeName}: Invalid data format`,
                             CONSOLE_COLOR,
                         );
-                        if (completed === batch.length && !hasError && !finished) {
-                            clearTimeout(timeoutId);
-                            resolve();
-                        }
                     }
                 }
             });
@@ -291,11 +346,45 @@ export default class IndexedDB {
             }
             this.db = null;
         }
-        setTimeout(() => {
-            this.databaseEventListener(() => {
-                this._isReconnecting = false;
-            });
-        }, 3000);
+        // Reopen at whatever version is on disk: a previous self-upgrade pinned
+        // this.dbVersion, and reopening at that now-stale version after another
+        // tab upgraded further raises VersionError — a dead end that used to
+        // leave the latch set and local persistence permanently dead.
+        this.dbVersion = false;
+
+        const delay = Math.min(
+            RECONNECT_BASE_DELAY * 2 ** this._reconnectAttempts,
+            RECONNECT_MAX_DELAY,
+        );
+        this._reconnectAttempts++;
+        setTimeout(() => this.databaseEventListener(), delay);
+    }
+
+    /**
+     * A reopen attempt failed. The latch MUST be released here: clearing it
+     * only on success meant one failed reopen poisoned it forever, and every
+     * later _attemptReconnect() returned immediately while the POS traded on
+     * with zero local persistence.
+     */
+    _openFailed(reason) {
+        if (!this._isReconnecting) {
+            return; // initial open, not a reconnect: nothing to release
+        }
+        this._isReconnecting = false;
+
+        if (this._reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
+            logPosMessage(
+                "IndexedDB",
+                "_openFailed",
+                `Giving up reconnecting to IndexedDB after ${this._reconnectAttempts} attempts (${reason})`,
+                CONSOLE_COLOR,
+            );
+            // Out of retries and no local persistence left — the user must know
+            // rather than keep trading against a dead database.
+            this._showReloadDialog();
+            return;
+        }
+        this._attemptReconnect(); // backs off, so this cannot hot-loop
     }
 
     _setupVisibilityProbe() {
