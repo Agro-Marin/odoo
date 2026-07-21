@@ -7361,9 +7361,9 @@ class AccountMove(models.Model):
         self._detach_attachments()
 
     def _get_fields_to_detach(self):
-        """ "
-        Returns a list of field names to detach on resetting an invoice to draft. Can be overridden by other modules to
-        add more fields.
+        """Return the field names to detach when resetting an invoice to draft.
+
+        Override in other modules to detach additional fields.
         """
         return ["invoice_pdf_report_file"]
 
