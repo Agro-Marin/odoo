@@ -6,9 +6,7 @@ from .dict_to_xml import dict_to_xml
 
 
 class LegacyHTTPAdapter(requests.adapters.HTTPAdapter):
-    """An adapter to allow unsafe legacy renegotiation necessary to connect to
-    gravely outdated ETA production servers.
-    """
+    """Adapter allowing the unsafe legacy renegotiation outdated ETA servers require."""
 
     def init_poolmanager(self, *args, **kwargs):
         # This is not defined before Python 3.12

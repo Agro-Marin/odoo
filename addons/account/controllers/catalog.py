@@ -14,15 +14,7 @@ class ProductCatalogAccountController(ProductCatalogController):
         :param int order_id: The order id.
         :param string child_field: The field name of the lines in the order model.
         :rtype: list
-        :return: A list of dictionaries containing section information with following structure:
-            [
-                {
-                    'id': int,
-                    'name': string,
-                    'sequence': int,
-                    'line_count': int,
-                },
-            ]
+        :return: A list of section dicts with 'id', 'name', 'sequence' and 'line_count'.
         """
         order = request.env[res_model].browse(order_id)
         return order.with_company(order.company_id)._get_sections(child_field, **kwargs)
@@ -67,7 +59,7 @@ class ProductCatalogAccountController(ProductCatalogController):
     ):
         """Reorder the sections of a given order.
 
-        param string res_model: The order model.
+        :param string res_model: The order model.
         :param int order_id: The order id.
         :param list sections:  A list of section dictionaries with their sequence.
         :param string child_field: The field name of the lines in the order model.

@@ -191,8 +191,8 @@ class PortalAccount(CustomerPortal):
         values.update(
             {
                 "date": date_begin,
-                # content according to pager and archive selected
-                # lambda function to get the invoices recordset when the pager will be defined in the main method of a route
+                # Deferred as a lambda: the pager offset is only known once the
+                # route method has built the pager.
                 "invoices": lambda pager_offset: (
                     [
                         invoice._get_invoice_portal_extra_values()
@@ -265,7 +265,8 @@ class PortalAccount(CustomerPortal):
         elif report_type in ("html", "pdf", "text"):
             has_generated_invoice = bool(invoice_sudo.invoice_pdf_report_id)
             request.update_context(proforma_invoice=not has_generated_invoice)
-            # If the partner's language is RTL, set the context language to match, ensuring the report shows the correct text direction.
+            # Match the context language to an RTL partner language so the report
+            # renders with the correct text direction.
             partner_lang = invoice_sudo.partner_id.lang
             if (
                 partner_lang
@@ -273,8 +274,8 @@ class PortalAccount(CustomerPortal):
                 == "rtl"
             ):
                 request.update_context(lang=partner_lang)
-            # Use the template set on the related partner if there is.
-            # This is not perfect as the invoice can still have been computed with another template, but it's a slight fix/imp for stable.
+            # Use the template set on the related partner, if any. The stored PDF
+            # may still have been rendered with a different template.
             pdf_report_name = (
                 invoice_sudo.partner_id.invoice_template_pdf_report_id.report_name
                 or "account.account_invoices"
@@ -317,7 +318,8 @@ class PortalAccount(CustomerPortal):
                 return _render({"error": _("Invalid token")}, 403)
             journal = request.env["account.journal"].sudo().browse(journal_id)
         else:
-            # Legacy link for authenticated user trying to unsubscribe (needs access rights on journal)
+            # Legacy link: an authenticated user unsubscribing without a token
+            # needs write access rights on the journal.
             journal = request.env["account.journal"].browse(journal_id)
 
         if access_token:

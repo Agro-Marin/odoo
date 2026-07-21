@@ -97,8 +97,6 @@ class AccountChartTemplate(models.AbstractModel):
             + self.ref("demo_move_auto_reconcile_7")
         )
 
-        # the invoice_extract acts like a placeholder for the OCR to be ran and doesn't contain
-        # any lines yet
         for move in invoices:
             try:
                 move.action_post()
@@ -886,7 +884,7 @@ class AccountChartTemplate(models.AbstractModel):
         """Find the most appropriate account possible for demo data creation.
 
         :param str xml_id: the xml_id of the account template in the generic coa
-        :param str account_type: the full xml_id of the account type wanted
+        :param str account_type: the ``account_type`` selection value wanted
         :param company: the company for which we search the account
         :return: the most appropriate ``account.account`` record found
         """

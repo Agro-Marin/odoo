@@ -2,7 +2,6 @@
 <odoo>
     <data>
 
-        <!--Account Move lines-->
         <record id="validate_account_move_view" model="ir.ui.view">
             <field name="name">Confirm Entries</field>
             <field name="model">validate.account.move</field>

@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
     <data>
-        <!-- account incoterms -->
         <record id="view_incoterms_tree" model="ir.ui.view">
             <field name="name">account.incoterms.list</field>
             <field name="model">account.incoterms</field>

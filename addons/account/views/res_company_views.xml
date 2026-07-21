@@ -12,14 +12,14 @@
                 <chatter/>
             </xpath>
             <field name="vat" position="before">
-                <field name="company_vat_placeholder" invisible="1"/> <!-- Needed for the placeholder widget -->
+                <field name="company_vat_placeholder" invisible="1"/> <!-- Read by the placeholder_field option on vat -->
             </field>
             <field name="vat" position="attributes">
                 <attribute name="options">{'placeholder_field': 'company_vat_placeholder'}</attribute>
             </field>
 
             <field name="company_registry" position="before">
-                <field name="company_registry_placeholder" invisible="1"/> <!-- Needed for the placeholder widget -->
+                <field name="company_registry_placeholder" invisible="1"/> <!-- Read by the placeholder_field option on company_registry -->
             </field>
             <field name="company_registry" position="attributes">
                 <attribute name="options">{'placeholder_field': 'company_registry_placeholder'}</attribute>

@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
     <data>
-        <!-- QWeb Reports -->
         <record id="account_invoices" model="ir.actions.report">
             <field name="name">Invoice PDF</field>
             <field name="model">account.move</field>
@@ -52,7 +51,7 @@
             <field name="binding_type">report</field>
         </record>
 
-        <!-- The top margin on the default A4 format is way too big -->
+        <!-- A4 with a larger top margin (52 vs 30) to fit the statement header -->
         <record id="paperformat_euro_bank_statement" model="report.paperformat">
             <field name="name">A4 - statement</field>
             <field name="format">A4</field>

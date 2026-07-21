@@ -6,24 +6,27 @@ from stdnum.iso7064 import mod_97_10
 
 
 def sanitize_structured_reference(reference):
-    """Removes whitespace and specific characters from Belgian structured references:
+    """Strip whitespace from a reference, and the framing characters from Belgian ones.
 
-    Example: ` RF18 1234 5678 9  ` -> `RF18123456789`
-             `+++020/3430/57642+++` -> `020343057642`
-             `***020/3430/57642***` -> `020343057642`
+    :param reference: the reference to sanitize
+    :return: the sanitized reference
+    :rtype: str
     """
     ref = re.sub(r"\s", "", reference)
+    # Belgian framing: `+++020/3430/57642+++` / `***020/3430/57642***` -> `020343057642`
     if re.fullmatch(r"(\+{3}|\*{3}|)\d{3}/\d{4}/\d{5}\1", ref):
         return re.sub(r"[+*/]", "", ref)
     return ref
 
 
 def format_structured_reference_iso(number):
-    """Format a string into a Structured Creditor Reference.
+    """Format a string into a Structured Creditor Reference (ISO 11649).
 
-    The Creditor Reference is an international standard (ISO 11649).
-    Example: `123456789` -> `RF18 1234 5678 9`
+    :param number: the reference to format
+    :return: the formatted reference
+    :rtype: str
     """
+    # `123456789` -> `RF18 1234 5678 9`: RF, the mod-97-10 check digits, groups of 4.
     check_digits = mod_97_10.calc_check_digits(f"{number}RF")
     return "RF{} {}".format(
         check_digits,
@@ -60,11 +63,11 @@ def is_valid_structured_reference_be(reference):
 
 def is_valid_structured_reference_dk(reference):
     """Check whether the provided reference is a valid structured reference for Denmark.
-    Example: +71<022646321691226+88655702<
 
     :param reference: the reference to check
     """
     ref = sanitize_structured_reference(reference)
+    # Form: `+71<022646321691226+88655702<` (15 payment digits after `71<`, 16 after `75<`)
     match = re.fullmatch(r"\+?(?:71<(\d{15})|75<(\d{16}))\+\d{8}<", ref)
     if not match:
         return False
@@ -100,13 +103,10 @@ def is_valid_structured_reference_no_se(reference):
 
 
 def is_valid_structured_reference_nl(reference):
-    """Generates a valid Dutch structured payment reference (betalingskenmerk)
-    by ensuring it follows the correct format.
+    """Check whether the provided reference is a valid Dutch reference (betalingskenmerk).
 
-    Valid reference lengths:
-    - 7 digits: Simple reference with no check digit.
-    - 9-14 digits: Includes a check digit and a length code.
-    - 16 digits: Contains only a check digit, commonly used for wire transfers.
+    Accepted lengths: 7 digits (no check digit), 9-14 and 16 digits (leading
+    digit is a MOD 11 check digit).
 
     :param reference: the reference to check
     :return: True if reference is a structured reference, False otherwise
@@ -140,12 +140,10 @@ def is_valid_structured_reference_nl(reference):
 
 
 def is_valid_structured_reference_si(reference):
-    """Validates a Slovenian structured reference using Model 01 (SI01).
+    """Check whether the provided reference is a valid Slovenian reference (model SI01).
 
-    Format: SI01 (P1-P2-P3)K
-    - Starts with 'SI01'
-    - P1, P2, P3 are numeric segments (max 20 digits total, up to 2 hyphens)
-    - K is a check digit calculated using MOD 11
+    Format: ``SI01`` followed by three digit segments separated by two hyphens,
+    the last digit of the third segment being a MOD 11 check digit.
 
     :param reference: the reference to check
     :return: True if reference is a structured reference, False otherwise
@@ -187,8 +185,7 @@ def is_valid_structured_reference_si(reference):
 
 
 def is_valid_structured_reference(reference):
-    """Check whether the provided reference is a valid structured reference.
-    This is currently supporting SEPA enabled countries. More specifically countries covered by functions in this file.
+    """Check the reference against every country supported here, ISO 11649 last.
 
     :param reference: the reference to check
     """

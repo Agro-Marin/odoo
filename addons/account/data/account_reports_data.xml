@@ -2,7 +2,6 @@
 <odoo>
     <data>
 
-        <!-- GENERIC TAX REPORT -->
         <record id="generic_tax_report" model="account.report">
             <field name="name">Generic Tax report</field>
             <field name="filter_multi_company">tax_units</field>

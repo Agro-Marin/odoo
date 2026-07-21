@@ -733,8 +733,6 @@
         <field name="view_mode">list,pivot,graph,kanban</field>
     </record>
 
-    <!-- ADDED IN STABLE - DO NOT USE IN 18.0 -->
-
     <record id="action_amounts_to_settle" model="ir.actions.act_window">
         <field name="name">Amounts to Settle</field>
         <field name="res_model">account.move.line</field>
