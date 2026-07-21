@@ -3,6 +3,8 @@
 
 /** @module @web/core/py_js/py_date - Python date, datetime, time, and relativedelta emulation in JavaScript */
 
+import { DateTime } from "@web/core/l10n/luxon";
+
 import { bindArgs } from "./py_args.js";
 import {
     assert,
@@ -136,16 +138,19 @@ function assertTimeComponents(hour, minute, second, microsecond = 0) {
 
 export class PyDate {
     /**
-     * The current date in the USER's timezone. Date fields are timezone-
-     * naive (stored/shipped as-is), so a ``date_field >= today`` domain
-     * must use the user-perceived today — unlike ``PyDateTime.now``, which
-     * is UTC. ``context_today()`` (py_builtin.js) aliases this.
+     * The current date in the USER's timezone. The client's zone is luxon's
+     * ``Settings.defaultZone``, set from ``res.users.tz`` at boot (services/
+     * user.js), so this matches the server's ``fields.Date.context_today``
+     * (also the user tz) — not the browser zone, which ``new Date()`` would
+     * give. Date fields are timezone-naive, so a ``date_field >= today`` domain
+     * must use the user-perceived today; ``PyDateTime.now`` stays UTC.
+     * ``context_today()`` (py_builtin.js) aliases this.
      *
      * @returns {PyDate}
      */
     static today() {
-        const d = new Date();
-        return new PyDate(d.getFullYear(), d.getMonth() + 1, d.getDate());
+        const now = DateTime.now();
+        return new PyDate(now.year, now.month, now.day);
     }
 
     /**

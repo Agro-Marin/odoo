@@ -6,6 +6,7 @@
 import { Component, whenReady } from "@odoo/owl";
 import { hasTouch } from "@web/core/browser/feature_detection";
 import { localization } from "@web/core/l10n/localization";
+import { Settings } from "@web/core/l10n/luxon";
 import { rpc } from "@web/core/network/rpc";
 import { RPCCache } from "@web/core/network/rpc_cache";
 import { assetLog } from "@web/core/utils/asset_log";
@@ -119,6 +120,21 @@ export async function startWebClient(Webclient) {
         isEnterprise,
     };
     /** @type {any} */ (odoo).isReady = false;
+
+    // Align the client's date zone with the user's Odoo timezone (res.users.tz),
+    // so datetime fields, domain evaluation, calendars and
+    // PyDate.today()/context_today() all match the SERVER, which presents dates
+    // in the user tz (UTC is only the storage zone). Without this, luxon's
+    // ``Settings.defaultZone`` is unset and the whole client silently falls back
+    // to the BROWSER zone — diverging from the server whenever the browser and
+    // the user's Odoo tz disagree (Odoo's own ``timezone_mismatch`` widget warns
+    // the user about exactly that gap). A falsy tz keeps luxon's "system" default
+    // (the browser zone), the correct fallback. Set at boot only — Hoot unit
+    // tests mount via ``makeMockEnv`` and never run ``startWebClient``, so they
+    // keep full control of the zone through ``mockTimeZone``.
+    if (user.tz) {
+        Settings.defaultZone = user.tz;
+    }
 
     // Only the DISK layer of the RPC cache needs SubtleCrypto (secure
     // context) and the per-database secret; RAM caching needs neither.
