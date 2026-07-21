@@ -205,9 +205,7 @@ class TestAccountPayment(AccountPaymentCommon):
         )
 
     def test_prevent_unlink_apml_with_active_provider(self):
-        """ Deleting an account.payment.method.line that is related to a provider in 'test' or 'enabled' state
-        should raise an error.
-        """
+        """ Test that deleting an `account.payment.method.line` linked to an active provider raises. """
         self.assertEqual(self.dummy_provider.state, 'test')
         with self.assertRaises(UserError):
             self.dummy_provider.journal_id.inbound_payment_method_line_ids.unlink()
@@ -268,10 +266,8 @@ class TestAccountPayment(AccountPaymentCommon):
         })
 
     def test_payment_invoice_same_receivable(self):
-        """
-        Test that when creating a payment transaction, the payment uses the same account_id as the related invoice
-        and not the partner accound_id
-        """
+        """ Test that the payment of a transaction takes its destination account from the invoice
+        line rather than from the partner's receivable account. """
         payment_term = self.env['account.payment.term'].create({
             'name': "early_payment_term",
             'company_id': self.company_data['company'].id,
@@ -315,9 +311,7 @@ class TestAccountPayment(AccountPaymentCommon):
         self.assertEqual(payment.destination_account_id, invoice.line_ids[-1].account_id)
 
     def test_vendor_payment_name_remains_same_after_repost(self):
-        """
-        Test that modifying and reposting a vendor payment does not change its name, except when the journal is changed.
-        """
+        """ Test that reposting a vendor payment keeps its name, unless the journal changed. """
         journal = self.company_data['default_journal_bank']
 
         payment = self.env['account.payment'].create({
@@ -371,9 +365,8 @@ class TestAccountPayment(AccountPaymentCommon):
         )
 
     def test_post_process_does_not_fail_on_cancelled_invoice(self):
-        """ If the payment state is 'pending' and the invoice gets cancelled, and later the payment is confirmed,
-            ensure that the _post_process() method does not raise an error.
-        """
+        """ Test that `_post_process` does not raise when the transaction is confirmed after its
+        invoice was cancelled. """
         invoice = self.env['account.move'].create({
             'move_type': 'out_invoice',
             'partner_id': self.partner.id,
@@ -465,9 +458,7 @@ class TestAccountPayment(AccountPaymentCommon):
             self.assertTrue(payment_qr_mock.called)
 
     def test_partial_reconcile_with_payments_coming_from_provider(self):
-        """ Test that we not allow partial reconcile on payments coming from
-            payment provider.
-        """
+        """ Test that partial reconciliation is not allowed on payments coming from a provider. """
         provider = self.env['payment.provider'].create({
             'name': 'Test',
             'journal_id': self.company_data['default_journal_bank'].id,

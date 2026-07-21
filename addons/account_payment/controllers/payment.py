@@ -20,15 +20,15 @@ class PaymentPortal(payment_portal.PaymentPortal):
         :param dict kwargs: Locally unused data passed to `_create_transaction`
         :return: The mandatory values for the processing of the transaction
         :rtype: dict
-        :raise: ValidationError if the invoice id or the access token is invalid
+        :raise ValidationError: If the invoice id or the access token is invalid.
         """
         # Check the invoice id and the access token
         try:
             invoice_sudo = self._document_check_access('account.move', invoice_id, access_token)
         except MissingError as error:
-            raise error
+            raise error  # noqa: TRY201
         except AccessError:
-            raise ValidationError(_("The access token is invalid."))
+            raise ValidationError(_("The access token is invalid."))  # noqa: B904
 
         logged_in = not request.env.user._is_public()
         partner_sudo = request.env.user.partner_id if logged_in else invoice_sudo.partner_id
@@ -43,7 +43,8 @@ class PaymentPortal(payment_portal.PaymentPortal):
         :param dict kwargs: Locally unused data passed to `_create_transaction`
         :return: The mandatory values for the processing of the transaction
         :rtype: dict
-        :raise: ValidationError if the user is not logged in, or all the overdue invoices don't share the same currency.
+        :raise ValidationError: If the user is not logged in, or if the overdue invoices don't all
+                               share the same currency.
         """
         logged_in = not request.env.user._is_public()
         if not logged_in:
@@ -78,7 +79,7 @@ class PaymentPortal(payment_portal.PaymentPortal):
         """ Override of `payment` to replace the missing transaction values by that of the invoice.
 
         :param str amount: The (possibly partial) amount to pay used to check the access token.
-        :param str invoice_id: The invoice for which a payment id made, as an `account.move` id.
+        :param str invoice_id: The invoice for which a payment is made, as an `account.move` id.
         :param str access_token: The access token used to authenticate the partner.
         :return: The result of the parent method.
         :rtype: str
@@ -114,7 +115,7 @@ class PaymentPortal(payment_portal.PaymentPortal):
     def _get_extra_payment_form_values(self, invoice_id=None, access_token=None, **kwargs):
         """ Override of `payment` to reroute the payment flow to the portal view of the invoice.
 
-        :param str invoice_id: The invoice for which a payment id made, as an `account.move` id.
+        :param str invoice_id: The invoice for which a payment is made, as an `account.move` id.
         :param str access_token: The portal or payment access token, respectively if we are in a
                                  portal or payment link flow.
         :return: The extended rendering context values.

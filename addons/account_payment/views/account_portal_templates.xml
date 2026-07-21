@@ -227,8 +227,8 @@
                                             </t>
                                         </div>
                                     </div>
-                                    <!-- set default amount as the max. amount due, the 'amount'
-                                         will be updated/set js-side depending the active tab -->
+                                    <!-- Default to the full amount due; the 'amount' is then set
+                                         js-side depending on the active tab. -->
                                     <t t-call="account_payment.form">
                                         <t t-set="amount" t-value="amount_due"/>
                                     </t>

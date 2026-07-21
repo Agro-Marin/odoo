@@ -39,8 +39,6 @@ class PaymentTransaction(models.Model):
     def action_view_invoices(self):
         """ Return the action for the views of the invoices linked to the transaction.
 
-        Note: self.ensure_one()
-
         :return: The action
         :rtype: dict
         """
@@ -67,18 +65,15 @@ class PaymentTransaction(models.Model):
 
     @api.model
     def _compute_reference_prefix(self, separator, **values):
-        """ Compute the reference prefix from the transaction values.
-
-        If the `values` parameter has an entry with 'invoice_ids' as key and a list of (4, id, O) or
-        (6, 0, ids) X2M command as value, the prefix is computed based on the invoice name(s).
-        Otherwise, an empty string is returned.
+        """ Compute the reference prefix from the invoice names in the transaction values.
 
         Note: This method should be called in sudo mode to give access to documents (INV, SO, ...).
 
         :param str separator: The custom separator used to separate data references
         :param dict values: The transaction values used to compute the reference prefix. It should
                             have the structure {'invoice_ids': [(X2M command), ...], ...}.
-        :return: The computed reference prefix if invoice ids are found, an empty string otherwise
+        :return: The computed reference prefix if invoice ids are found, the result of the super
+                 call otherwise
         :rtype: str
         """
         command_list = values.get('invoice_ids')
@@ -88,6 +83,7 @@ class PaymentTransaction(models.Model):
             invoices = self.env['account.move'].browse(invoice_ids).exists()
             if len(invoices) == len(invoice_ids):  # All ids are valid
                 prefix = separator.join(invoices.filtered(lambda inv: inv.name).mapped('name'))
+                # An installment name, when given, takes precedence over the invoice names.
                 if name := values.get('name_next_installment'):
                     prefix = name
                 return prefix
@@ -96,12 +92,7 @@ class PaymentTransaction(models.Model):
     #=== BUSINESS METHODS - POST-PROCESSING ===#
 
     def _post_process(self):
-        """ Override of `payment` to add account-specific logic to the post-processing.
-
-        In particular, for confirmed transactions we write a message in the chatter with the payment
-        and transaction references, post relevant fiscal documents, and create missing payments. For
-        cancelled transactions, we cancel the payment.
-        """
+        """ Override of `payment` to add account-specific logic to the post-processing. """
         super()._post_process()
         for tx in self.filtered(lambda t: t.state == 'done'):
             # Validate invoices automatically once the transaction is confirmed.
@@ -120,6 +111,7 @@ class PaymentTransaction(models.Model):
             ):
                 tx.with_company(tx.company_id)._create_payment()
 
+            # Log the payment and transaction references on the linked documents.
             if tx.payment_id:
                 message = _(
                     "The payment related to transaction %(ref)s has been posted: %(link)s",
@@ -134,8 +126,6 @@ class PaymentTransaction(models.Model):
         """Create an `account.payment` record for the current transaction.
 
         If the transaction is linked to some invoices, their reconciliation is done automatically.
-
-        Note: self.ensure_one()
 
         :param dict extra_create_values: Optional extra create values
         :return: The created payment
@@ -215,14 +205,11 @@ class PaymentTransaction(models.Model):
     def _log_message_on_linked_documents(self, message):
         """ Log a message on the payment and the invoices linked to the transaction.
 
-        For a module to implement payments and link documents to a transaction, it must override
-        this method and call super, then log the message on documents linked to the transaction.
-
-        Note: self.ensure_one()
-
         :param str message: The message to be logged
         :return: None
         """
+        # Modules linking other documents to a transaction must override this method, call super,
+        # then log the message on their own documents.
         self.ensure_one()
         if self.env.uid == SUPERUSER_ID or self.env.context.get('payment_backend_action'):
             author = self.env.user.partner_id

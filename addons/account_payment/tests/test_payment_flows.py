@@ -1,11 +1,11 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-from datetime import datetime, timedelta
+from datetime import timedelta
 from unittest.mock import patch
 
 from odoo import Command
 from odoo.exceptions import AccessError
-from odoo.tests import tagged, JsonRpcException
+from odoo.tests import JsonRpcException, tagged
 from odoo.tools import mute_logger
 
 from odoo.addons.account_payment.controllers.payment import PaymentPortal
@@ -19,7 +19,7 @@ from odoo.addons.portal.controllers.portal import CustomerPortal
 class TestFlows(AccountPaymentCommon, PaymentHttpCommon):
 
     def test_invoice_payment_flow(self):
-        """Test the payment of an invoice through the payment/pay route"""
+        """Test that paying an invoice through `/payment/pay` links the transaction to it."""
 
         # Pay for this invoice (no impact even if amounts do not match)
         route_values = self._prepare_pay_values()
@@ -42,9 +42,8 @@ class TestFlows(AccountPaymentCommon, PaymentHttpCommon):
                 tx_route=tx_context['transaction_route'], **tx_route_values
             )
         tx_sudo = self._get_tx(processing_values['reference'])
-        # Note: strangely, the check
-        # self.assertEqual(tx_sudo.invoice_ids, invoice)
-        # doesn't work, and cache invalidation doesn't work either.
+        # The transaction was created by the RPC call, in another environment, so the invoice's
+        # cache must be invalidated before reading the link back.
         self.invoice.invalidate_recordset(['transaction_ids'])
         self.assertEqual(self.invoice.transaction_ids, tx_sudo)
 
@@ -79,7 +78,7 @@ class TestFlows(AccountPaymentCommon, PaymentHttpCommon):
         with patch.object(
             CustomerPortal, '_document_check_access', _document_check_access_mock
         ), patch('odoo.addons.payment.utils.check_access_token') as check_payment_access_token_mock:
-            try:
+            try:  # noqa: SIM105
                 payment_portal_controller._get_extra_payment_form_values(
                     invoice_id=self.invoice.id, access_token='whatever'
                 )
@@ -142,19 +141,16 @@ class TestFlows(AccountPaymentCommon, PaymentHttpCommon):
         self.assertTrue(invoice.payment_state in ('in_payment', 'paid'))
 
     def test_invoice_overdue_payment_flow(self):
-        """
-        Test the overdue payment of an invoice is correctly processed
-        with the invoice amount
-        """
-        # Create an user and partner to create invoice and to authenticate while making an http request
+        """ Test that the overdue payment flow processes an invoice for its full amount. """
+        # A dedicated user is needed to authenticate the portal request.
         partner = self.env['res.partner'].create({'name': 'Alsh'})
-        account_user = self.env['res.users'].create({
+        self.env['res.users'].create({
             'login': 'TestUser',
             'password': 'Odoo@123',
             'group_ids': [Command.set(self.env.ref('account.group_account_manager').ids)],
             'partner_id': partner.id
         })
-        # Create an invoice with invoice due date must be in past with payment status to be not paid
+        # The invoice must be past its due date and unpaid to show up as overdue.
         invoice = self.init_invoice(
             "out_invoice", partner, amounts=[1000.0], currency=self.currency,
         )
@@ -164,21 +160,18 @@ class TestFlows(AccountPaymentCommon, PaymentHttpCommon):
         invoice.action_post()
         self.assertEqual(invoice.payment_state, 'not_paid')
 
-        # Must be authenticated before making an http resqest
+        # The overdue page redirects to /my for users without read access on invoices.
         self.authenticate('TestUser', 'Odoo@123')
         overdue_url = self._build_url('/my/invoices/overdue')
         resp = self._make_http_get_request(overdue_url, {})
 
-        # Validate the response status code
         self.assertEqual(resp.status_code, 200)
 
         tx_context = self._get_payment_context(resp)
 
-        # Validate the transaction context amount and payment_reference
         self.assertEqual(tx_context.get('amount'), invoice.amount_total)
         self.assertEqual(tx_context['payment_reference'], invoice.payment_reference)
 
-        # Prepare the transaction route values
         tx_route_values = {
             'provider_id': self.provider.id,
             'payment_method_id': self.payment_method_id,
@@ -196,7 +189,6 @@ class TestFlows(AccountPaymentCommon, PaymentHttpCommon):
         tx_sudo = self._get_tx(processing_values['reference'])
         tx_sudo._set_done()
 
-        # Validate the transaction amount is equal to the invoice amount
         self.assertEqual(tx_sudo.amount, invoice.amount_total)
 
         url = self._build_url('/payment/status/poll')

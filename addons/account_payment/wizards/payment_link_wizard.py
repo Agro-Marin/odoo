@@ -67,7 +67,7 @@ class PaymentLinkWizard(models.TransientModel):
 
     @api.depends('open_installments')
     def _compute_display_open_installments(self):
-        # hides the installments section if only one installment
+        """ Show the installments section only when there are several installments. """
         for wizard in self:
             installments = wizard.open_installments or []
             wizard.display_open_installments = len(installments) > 1
@@ -94,7 +94,7 @@ class PaymentLinkWizard(models.TransientModel):
         }
 
     def _prepare_access_token(self):
-        """ Override of `payment` to generate the access token only based on the amount. """
+        """ Override of `payment` to generate the access token from the invoice and the amount. """
         res = super()._prepare_access_token()
         if self.res_model != 'account.move':
             return res
