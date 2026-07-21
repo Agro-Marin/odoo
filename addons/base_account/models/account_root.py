@@ -6,13 +6,10 @@ from odoo.tools import Query
 
 
 class AccountRoot(models.Model):
-    """Virtual model for the first two characters of an account code.
+    """Virtual model for the first two characters of an account code."""
 
-    Used by the search panel in the Chart of Accounts list view to provide
-    a quick prefix-based navigation.  Not backed by a real table
-    (``_auto = False``).
-    """
-
+    # Backs the Chart of Accounts list-view search panel for quick prefix-based
+    # navigation; not a real table (``_auto = False``).
     _name = "account.root"
     _description = "Account codes first 2 digits"
     _auto = False

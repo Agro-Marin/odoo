@@ -1,9 +1,8 @@
 """Fast, self-contained tests for the ``base_account`` foundation.
 
-These exercise the extracted chart-of-accounts logic without pulling in the
-heavy ``account`` accounting stack (journals, taxes, moves).  The downstream
-``account`` module has its own ``post_install`` suite; the point here is that
-the foundation can be validated -- and refactored -- on its own.
+Exercise the extracted chart-of-accounts logic without pulling in the heavy
+``account`` accounting stack (journals, taxes, moves); the downstream
+``account`` module has its own ``post_install`` suite.
 """
 
 from odoo import Command
@@ -192,7 +191,7 @@ class TestAccountCodeMapping(TransactionCase):
     def test_offset_roundtrip(self):
         # The virtual mapping id encodes (account_id, company_id); check both the
         # ``_search`` path and the ``code_mapping_ids`` One2many decode back to the
-        # right account/company/code.  Note: the One2many is cached empty right
+        # right account/company/code.  The One2many is cached empty right
         # after create() until invalidated (it is populated lazily by _search),
         # so invalidate before reading it.
         acc = self.env["account.account"].create(
