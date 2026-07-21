@@ -286,7 +286,6 @@ class TestAccountPaymentTerms(AccountTestInvoicingCommon):
                 "discount_balance": computed_term_a.get("discount_balance"),
                 "line_ids": computed_term_a.get("line_ids"),
             },
-            # What should be obtained
             {
                 "total_amount": 1150.0,
                 "discount_balance": 1035.0,
@@ -330,7 +329,6 @@ class TestAccountPaymentTerms(AccountTestInvoicingCommon):
                 ),
                 "line_ids": computed_term_a.get("line_ids"),
             },
-            # What should be obtained
             {
                 "total_amount": 434.18,
                 "discount_balance": 390.78,
@@ -362,7 +360,6 @@ class TestAccountPaymentTerms(AccountTestInvoicingCommon):
                 "discount_balance": computed_term_b.get("discount_balance"),
                 "line_ids": computed_term_b.get("line_ids"),
             },
-            # What should be obtained
             {
                 "total_amount": 1150.0,
                 "discount_balance": 0,
@@ -411,7 +408,6 @@ class TestAccountPaymentTerms(AccountTestInvoicingCommon):
                 ),
                 "line_ids": computed_term_b.get("line_ids"),
             },
-            # What should be obtained
             {
                 "total_amount": 434.18,
                 "discount_balance": 0,
@@ -457,7 +453,6 @@ class TestAccountPaymentTerms(AccountTestInvoicingCommon):
                 "discount_balance": computed_term_a.get("discount_balance"),
                 "line_ids": computed_term_a.get("line_ids"),
             },
-            # What should be obtained
             {
                 "total_amount": 1150.0,
                 "discount_balance": 1050.0,
@@ -720,11 +715,10 @@ class TestAccountPaymentTerms(AccountTestInvoicingCommon):
         )
 
     def test_payment_term_percent_round_calculation(self):
-        """
-        the sum function might not sum the floating numbers properly
-        if there are a lot of lines with floating numbers
-        so this test verifies the round function changes
-        """
+        """Percent lines summing to 100 only after rounding must pass validation."""
+        # Plain float summation of many decimal percentages drifts away from
+        # 100, so the constraint rounds before comparing. This term
+        # (50 + 20 * 1.66 + 16.8) exercises that rounding.
         self.env["account.payment.term"].create(
             {
                 "name": "test_payment_term_percent_round_calculation",
@@ -888,11 +882,8 @@ class TestAccountPaymentTerms(AccountTestInvoicingCommon):
         )
 
     def test_payment_term_days_end_of_month_on_the(self):
-        """
-        This test will check that payment terms with a delay_type 'days_end_of_month_on_the' works as expected.
-        It will check if the date of the date maturity is correctly calculated depending on the invoice date and payment
-        term selected.
-        """
+        """`date_maturity` of a 'days_end_of_month_on_the' term follows the invoice date."""
+        # 2023-12-12 + 30 days = 2024-01-11, then the 10th of the next month.
         with Form(self.invoice) as basic_case:
             basic_case.invoice_payment_term_id = self.pay_term_days_end_of_month_10
             basic_case.invoice_date = "2023-12-12"
@@ -908,6 +899,7 @@ class TestAccountPaymentTerms(AccountTestInvoicingCommon):
             expected_date_basic_case[0], [fields.Date.from_string("2024-02-10")]
         )
 
+        # Same 2024-01-11 base, but day 31 clamps to the last day of February.
         with Form(self.invoice) as special_case:
             special_case.invoice_payment_term_id = self.pay_term_days_end_of_month_31
             special_case.invoice_date = "2023-12-12"
@@ -989,23 +981,10 @@ class TestAccountPaymentTerms(AccountTestInvoicingCommon):
         self.assertEqual(invoice_terms[2].debit, invoice.amount_total * 0.3)
 
     def test_payment_term_days_end_of_month_nb_days_0(self):
-        """
-        This test will check that payment terms with a delay_type 'days_end_of_month_on_the'
-        in combination with nb_days works as expected
-        Invoice date = 2024-05-23
-        # case 1
-        'nb_days' = 0
-        `days_next_month` = 29
-            -> 2024-05-23 + 0 days = 2024-05-23
-            => `date_maturity` -> 2024-06-29
-        # case 2
-        'nb_days' = 0
-        `days_next_month` = 31
-            -> 2024-05-23 + 0 days = 2024-05-23
-            => `date_maturity` -> 2024-06-30
-        """
+        """'days_end_of_month_on_the' with `nb_days` = 0 lands on `days_next_month`."""
         self.pay_term_days_end_of_month_29.line_ids.nb_days = 0
         self.pay_term_days_end_of_month_31.line_ids.nb_days = 0
+        # 2024-05-23 + 0 days = 2024-05-23, then the 29th of the next month.
         with Form(self.invoice) as case_1:
             case_1.invoice_payment_term_id = self.pay_term_days_end_of_month_29
             case_1.invoice_date = "2024-05-23"
@@ -1015,6 +994,7 @@ class TestAccountPaymentTerms(AccountTestInvoicingCommon):
         ).mapped("date_maturity")
         self.assertEqual(expected_date_case_1, [fields.Date.from_string("2024-06-29")])
 
+        # Same 2024-05-23 base, but day 31 clamps to the last day of June.
         with Form(self.invoice) as case_2:
             case_2.invoice_payment_term_id = self.pay_term_days_end_of_month_31
             case_2.invoice_date = "2024-05-23"
@@ -1025,24 +1005,11 @@ class TestAccountPaymentTerms(AccountTestInvoicingCommon):
         self.assertEqual(expected_date_case_2, [fields.Date.from_string("2024-06-30")])
 
     def test_payment_term_days_end_of_month_nb_days_15(self):
-        """
-        This test will check that payment terms with a delay_type 'days_end_of_month_on_the'
-        in combination with nb_days works as expected
-        Invoice date = 2024-05-23
-        # case 1
-        'nb_days' = 15
-        `days_next_month` = 30
-            -> 2024-05-23 + 15 days = 2024-06-07
-            => `date_maturity` -> 2024-07-30
-        # case 2
-        'nb_days' = 15
-        `days_next_month` = 31
-            -> 2024-05-23 + 15 days = 2024-06-07
-            => `date_maturity` -> 2024-07-31
-        """
+        """'days_end_of_month_on_the' shifts by `nb_days` before `days_next_month`."""
         self.pay_term_days_end_of_month_30.line_ids.nb_days = 15
         self.pay_term_days_end_of_month_31.line_ids.nb_days = 15
 
+        # 2024-05-24 + 15 days = 2024-06-08, then the 30th of the next month.
         with Form(self.invoice) as case_1:
             case_1.invoice_payment_term_id = self.pay_term_days_end_of_month_30
             case_1.invoice_date = "2024-05-24"
@@ -1052,6 +1019,7 @@ class TestAccountPaymentTerms(AccountTestInvoicingCommon):
         ).mapped("date_maturity")
         self.assertEqual(expected_date_case_1, [fields.Date.from_string("2024-07-30")])
 
+        # 2024-05-23 + 15 days = 2024-06-07, then the 31st of the next month.
         with Form(self.invoice) as case_2:
             case_2.invoice_payment_term_id = self.pay_term_days_end_of_month_31
             case_2.invoice_date = "2024-05-23"
@@ -1074,11 +1042,7 @@ class TestAccountPaymentTerms(AccountTestInvoicingCommon):
         self.assertEqual(expected_date_case_1, [fields.Date.from_string("2024-05-31")])
 
     def test_payment_term_multi_company(self):
-        """
-        Ensure that the payment term is determined by `move.company_id` rather than `user.company_id`.
-        OdooBot has `res.company(1)` set as the default company. The test checks that the payment term correctly reflects
-        the company associated with the move, independent of the user's default company.
-        """
+        """The payment term is determined by `move.company_id`, not `user.company_id`."""
         user_company = self.env["res.company"].create({"name": "user_company"})
         other_company = self.company_data.get("company")
         self.env.user.write(
