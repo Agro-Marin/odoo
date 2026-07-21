@@ -5727,6 +5727,54 @@ test(`groups can be sorted on non-aggregable fields if a group isn't folded with
     expect.verifySteps(["web_read_group: foo ASC"]);
 });
 
+test.tags("desktop");
+test(`paging within a sorted group appends an id tiebreak to the order`, async () => {
+    // All records tie on the sort field, and they are STORED in shuffled id
+    // order: a bare "int_field ASC" page-2 read (stable sort over storage
+    // order: C, A, D, B) would return [D, B] — duplicating B from page 1 and
+    // never showing C — while web_read_group serves page 1 ordered by
+    // "user order + id". Group-owned lists must page over that same total
+    // order by appending the id tiebreak.
+    Foo._records = [
+        { id: 3, foo: "C", bar: true, int_field: 10 },
+        { id: 1, foo: "A", bar: true, int_field: 10 },
+        { id: 4, foo: "D", bar: true, int_field: 10 },
+        { id: 2, foo: "B", bar: true, int_field: 10 },
+    ];
+    onRpc("web_read_group", ({ kwargs }) => {
+        expect.step(`web_read_group: ${kwargs.order}`);
+    });
+    onRpc("web_search_read", ({ kwargs }) => {
+        expect.step(`web_search_read: ${kwargs.order}`);
+    });
+
+    await mountView({
+        resModel: "foo",
+        type: "list",
+        arch: `<list limit="2"><field name="foo"/><field name="int_field" sum="Sum"/></list>`,
+        groupBy: ["bar"],
+    });
+    expect.verifySteps(["web_read_group: "]);
+
+    // Open the group: no user order — the order string must stay EMPTY so the
+    // server keeps its model ``_order`` fallback (no id appended).
+    await contains(`.o_group_header`).click();
+    expect.verifySteps(["web_search_read: "]);
+
+    // Sort by the tied column: the open group's page 1 comes back from
+    // web_read_group, ordered by "int_field ASC, id".
+    await contains(`.o_column_sortable[data-name='int_field']`).click();
+    expect.verifySteps(["web_read_group: int_field ASC"]);
+    expect(queryAllTexts(`.o_data_cell[name='foo']`)).toEqual(["A", "B"]);
+
+    // Page within the group: the client-side read must request the same
+    // total order (user order + id tiebreak) — page 1 ∪ page 2 then covers
+    // all 4 records with no duplicate.
+    await contains(`.o_group_header .o_pager_next`).click();
+    expect.verifySteps(["web_search_read: int_field ASC, id ASC"]);
+    expect(queryAllTexts(`.o_data_cell[name='foo']`)).toEqual(["C", "D"]);
+});
+
 test(`properly apply onchange in simple case`, async () => {
     Foo._onChanges = {
         foo(record) {

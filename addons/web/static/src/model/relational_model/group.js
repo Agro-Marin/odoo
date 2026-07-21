@@ -32,6 +32,15 @@ export class Group extends DataPoint {
         } else {
             List = this.model.Class.DynamicRecordList;
         }
+        // Mark the nested list's config as group-owned. Every group list —
+        // whether seeded by the web_read_group postprocessor or by
+        // ``DynamicGroupList._createGroup`` — is instantiated here, and always
+        // before its first client-side load (page 1 comes from web_read_group
+        // itself), so this is the single authoritative site for the flag.
+        // ``RelationalModel._loadUngroupedList`` relies on it to append the
+        // ``id`` order tiebreak that ``web_read_group`` applies server-side to
+        // a group's ``__records`` (and that a root/ungrouped list must NOT get).
+        config.list.isGroupList = true;
         /** @type {any} DynamicRecordList or DynamicGroupList depending on groupBy depth */
         this.list = new List(this.model, config.list, data);
         this._useGroupCountForList();

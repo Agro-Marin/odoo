@@ -59,6 +59,7 @@ import { UrgentSaveCoordinator } from "./urgent_save_coordinator.js";
  *  openGroupsByDefault?: boolean;
  *  extraDomain?: import("@web/core/domain").DomainListRepr;
  *  isFolded?: boolean;
+ *  isGroupList?: boolean;
  *  rawContext?: Record<string, unknown>;
  *  [key: string]: any;
  * }} RelationalModelConfig
@@ -638,6 +639,20 @@ export class RelationalModel extends Model {
      */
     async _loadUngroupedList(config, cache) {
         const orderBy = config.orderBy.filter((o) => o.name !== "__count");
+        let order = orderByToString(orderBy);
+        if (config.isGroupList && order && !orderBy.some((o) => o.name === "id")) {
+            // Group-owned lists only (see ``isGroupList``): ``web_read_group``
+            // orders a group's ``__records`` by ``user order + "id"`` whenever
+            // a non-empty order is sent, so later client-side page loads for
+            // that same group (group pager, kanban "load more", progress-bar
+            // filter) must page over that same total order — with a bare user
+            // order, a tie on the last sort value can duplicate a record
+            // across pages and never show another. An EMPTY order must stay
+            // empty (both sides then fall back to the model ``_order``), and
+            // root/ungrouped lists keep their bare user order (appending "id"
+            // there would be a separate semantic change).
+            order += ", id ASC";
+        }
         const kwargs = {
             specification: getFieldsSpec(
                 config.activeFields,
@@ -645,7 +660,7 @@ export class RelationalModel extends Model {
                 config.context,
             ),
             offset: config.offset,
-            order: orderByToString(orderBy),
+            order,
             limit: config.limit,
             context: { bin_size: true, ...config.context },
             count_limit:

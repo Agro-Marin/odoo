@@ -202,8 +202,15 @@ class ProgressBarState {
                     ?.count ?? 0;
 
             if (this._aggregateFields.length) {
-                // No need to recompute: formatted_read_group already ran
-                // with the correct (filtered) domain.
+                // No need to recompute: this group's entry in
+                // ``_aggregateValues`` was just reseeded from
+                // ``group.aggregates``, and ``web_read_group`` computes the
+                // aggregates of a group that carries a ``progressbar_domain``
+                // (sent in ``opening_info``, see read_group_builder.js) under
+                // group-domain AND progressbar_domain — i.e. already filtered
+                // to the active bar. Only ``__count`` stays UNFILTERED in that
+                // response: it feeds the "Other" bar remainder math and the
+                // pager/"load more" totals, which need the full group count.
                 this.activeBars[group.serverValue].aggregates = _findGroup(
                     this._aggregateValues,
                     group.groupByField,

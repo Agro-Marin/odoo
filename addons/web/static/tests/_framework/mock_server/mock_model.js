@@ -3130,6 +3130,38 @@ export class Model extends Array {
                     ...mainDomain,
                     ...extraDomain,
                 ];
+                if (extraDomain.length && aggregates.length) {
+                    // Mirror the server contract for progress-bar filtered
+                    // groups: a group opened with a ``progressbar_domain``
+                    // reports its AGGREGATES computed under group-domain AND
+                    // progressbar_domain, while ``__count`` stays UNFILTERED
+                    // (it feeds the "Other"-bar remainder and pager math).
+                    const filteredAggregates = aggregates.filter(
+                        (spec) => spec !== "__count",
+                    );
+                    if (filteredAggregates.length) {
+                        const [filteredValues] = this.formatted_read_group(
+                            groupDomain,
+                            [],
+                            filteredAggregates,
+                        );
+                        for (const spec of filteredAggregates) {
+                            group[spec] = filteredValues[spec];
+                        }
+                    }
+                }
+                if (argsRead.order) {
+                    // Mirror the server contract: with a non-empty order, a
+                    // group's ``__records`` are fetched with exactly
+                    // ``user order + "id"`` as final tiebreak (an empty order
+                    // keeps the model ``_order`` fallback).
+                    const orderedFields = argsRead.order
+                        .split(",")
+                        .map((part) => part.trim().split(" ")[0]);
+                    if (!orderedFields.includes("id")) {
+                        argsRead.order += ", id ASC";
+                    }
+                }
                 group.__records = this.web_search_read(
                     groupDomain,
                     .../** @type {[any, any, any, any]} */ (Object.values(argsRead)),

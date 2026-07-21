@@ -97,4 +97,54 @@ describe("sticky-empty group re-insertion", () => {
 
         expect(groups.map((g) => g.value)).toEqual(["B"]);
     });
+
+    test("a re-inserted group resets its nested subgroups (2-level grouping)", async () => {
+        const config = {
+            ...makeConfig(),
+            fields: {
+                bar: { type: "char", name: "bar" },
+                name: { type: "char", name: "name" },
+            },
+            groupBy: ["bar", "name"],
+        };
+        const makeNestedGroupData = (bar, subNames) => ({
+            __count: subNames.length,
+            __extra_domain: [["bar", "=", bar]],
+            bar,
+            __groups: {
+                groups: subNames.map((name) => ({
+                    __count: 1,
+                    __extra_domain: [["name", "=", name]],
+                    name,
+                    __records: [{ id: subNames.indexOf(name) + 1, name }],
+                })),
+                length: subNames.length,
+            },
+        });
+        const run = (names) =>
+            postprocessReadGroup(
+                config,
+                {
+                    groups: names.map((name) => makeNestedGroupData(name, ["x", "y"])),
+                    length: names.length,
+                },
+                DEPS,
+            );
+        await run(["A", "B"]);
+
+        // Same-params reload where A drops out of the response (e.g. its
+        // records were all deleted): the sticky re-insertion claims count 0,
+        // so its stale nested subgroups (still holding the deleted records)
+        // must be reset too — they used to be spread as-is and rendered the
+        // deleted records as live rows under a "(0)" parent.
+        const { groups } = await run(["B"]);
+
+        expect(groups.map((g) => g.value)).toEqual(["A", "B"]);
+        const sticky = groups[0];
+        expect(sticky.count).toBe(0);
+        expect(sticky.length).toBe(0);
+        expect(sticky.groups).toEqual([]);
+        // The surviving group keeps its nested subgroups untouched.
+        expect(groups[1].groups.map((g) => g.value)).toEqual(["x", "y"]);
+    });
 });
