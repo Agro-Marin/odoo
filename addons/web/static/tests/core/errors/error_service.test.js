@@ -15,14 +15,20 @@ import {
 import {
     ClientErrorDialog,
     RPCErrorDialog,
+    SessionExpiredDialog,
     standardErrorDialogProps,
+    WarningDialog,
 } from "@web/components/errors/error_dialogs";
 import {
     defaultHandler,
     supersededErrorHandler,
 } from "@web/components/errors/error_handlers";
 import { browser } from "@web/core/browser/browser";
-import { ConnectionLostError, RPCError } from "@web/core/network/rpc";
+import {
+    ConnectionLostError,
+    makeErrorFromResponse,
+    RPCError,
+} from "@web/core/network/rpc";
 import { registry } from "@web/core/registry";
 import { omit } from "@web/core/utils/collections/objects";
 import { SupersededError } from "@web/core/utils/concurrency";
@@ -169,6 +175,78 @@ test("handle normal RPC_ERROR of type='server' and associated custom dialog clas
     Promise.reject(error);
     await animationFrame();
     expect.verifyErrors(["RPC_ERROR: A normal error occured"]);
+});
+
+test("session-expired RPC error (code 100) routes to SessionExpiredDialog", async () => {
+    // Seam-pinning test: the key registered in the error_dialogs registry MUST
+    // match the SERVER serialized name. serialize_exception (odoo/http/helpers.py)
+    // emits `type(exc).__module__ + "." + type(exc).__name__`, and
+    // SessionExpiredException pins `__module__ = "odoo.http"` (its public
+    // re-export path) in odoo/http/exceptions.py, so the wire name is
+    // "odoo.http.SessionExpiredException". A mismatch degrades the expired-
+    // session UX to a generic RPCErrorDialog traceback.
+    expect.assertions(3); // 2 in dialog.add + verifyErrors
+    expect.errors(1);
+    const error = makeErrorFromResponse({
+        code: 100,
+        message: "Odoo Session Expired",
+        data: {
+            name: "odoo.http.SessionExpiredException",
+            message: "Session expired",
+            arguments: [],
+            context: {},
+            debug: "",
+        },
+    });
+    mockService("dialog", {
+        add(dialogClass, props) {
+            expect(dialogClass).toBe(SessionExpiredDialog);
+            expect(props.exceptionName).toBe("odoo.http.SessionExpiredException");
+        },
+    });
+    await makeMockEnv();
+    Promise.reject(error);
+    await animationFrame();
+    expect.verifyErrors(["RPC_ERROR: Odoo Session Expired"]);
+});
+
+test("ServerActionWithWarningsError routes to WarningDialog (fork and legacy names)", async () => {
+    // This fork moved ServerActionWithWarningsError from ir_actions.py to
+    // ir_actions_server.py, changing its serialized name. Both the fork name
+    // (actually emitted by the server) and the upstream/legacy name (kept as a
+    // registry alias for third-party emitters) must select WarningDialog.
+    expect.errors(2);
+    mockService("dialog", {
+        add(dialogClass, props) {
+            expect(dialogClass).toBe(WarningDialog);
+            expect.step(props.exceptionName);
+        },
+    });
+    await makeMockEnv();
+    const serializedNames = [
+        "odoo.addons.base.models.ir_actions_server.ServerActionWithWarningsError",
+        "odoo.addons.base.models.ir_actions.ServerActionWithWarningsError",
+    ];
+    for (const name of serializedNames) {
+        const error = makeErrorFromResponse({
+            code: 200,
+            message: "Odoo Server Error",
+            data: {
+                name,
+                message: "The server action has warnings",
+                arguments: ["The server action has warnings"],
+                context: {},
+                debug: "",
+            },
+        });
+        Promise.reject(error);
+        await animationFrame();
+    }
+    expect.verifyErrors([
+        "RPC_ERROR: Odoo Server Error",
+        "RPC_ERROR: Odoo Server Error",
+    ]);
+    expect.verifySteps(serializedNames);
 });
 
 test("handle CONNECTION_LOST_ERROR", async () => {
