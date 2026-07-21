@@ -513,14 +513,17 @@ export class SearchBar extends Component {
      */
     removeFacet(facet) {
         this.env.searchModel.deactivateGroup(facet.groupId);
-        this.inputRef.el.focus();
+        // Guard el like the FOCUS_SEARCH handler / computeState: the input may
+        // not be rendered (collapsed search bar on small screens), so a bare
+        // .focus() would throw. ``?.`` no-ops when there is nothing to focus.
+        this.inputRef.el?.focus();
     }
 
     resetState(options = { focus: true }) {
         this.state.subItemsLimits = {};
         this.computeState({ expanded: [], query: "", subItems: [] });
         if (options.focus) {
-            this.inputRef.el.focus();
+            this.inputRef.el?.focus();
         }
     }
 
