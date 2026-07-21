@@ -357,7 +357,9 @@ class ResConfigSettings(models.TransientModel):
         for config in self:
             config.module_account_bank_statement_extract = (
                 config.module_account_extract
-                and self.env["ir.module.module"]._get("account_invoice_extract").state
+                and self.env["ir.module.module"]
+                ._get("account_bank_statement_extract")
+                .state
                 == "installed"
             )
 
