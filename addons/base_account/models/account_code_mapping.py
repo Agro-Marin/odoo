@@ -8,8 +8,8 @@ from odoo.tools import Query
 # the pair to round-trip, ``company_id`` must stay strictly below the offset --
 # otherwise it overflows into the account_id part and silently decodes to the
 # wrong account *and* the wrong company.  10**6 comfortably clears any realistic
-# ``res.company`` id (the previous 10**4 could be exceeded by a long-lived DB
-# whose company sequence has climbed past 10k through creations + deletions).
+# ``res.company`` id; 10**4 would be too small for a long-lived DB whose company
+# sequence has climbed past 10k through creations + deletions.
 COMPANY_OFFSET = 10**6
 
 
@@ -24,14 +24,10 @@ def _pack_mapping_id(account_id, company_id):
 
 
 class AccountCodeMapping(models.Model):
-    """Virtual mapping of account codes per company.
+    """Virtual mapping of account codes per company, shown in the account form."""
 
-    This model is used purely for UI, to display the account codes for
-    each company in the account form.  It is not stored in DB.  Instead,
-    records are populated in cache by the ``_search`` override when
-    accessing the One2many on ``account.account``.
-    """
-
+    # Not stored in DB (``_auto = False``); records are populated in cache by the
+    # ``_search`` override when accessing the One2many on ``account.account``.
     _name = "account.code.mapping"
     _description = "Mapping of account codes per company"
     _auto = False
@@ -58,13 +54,11 @@ class AccountCodeMapping(models.Model):
 
     @api.model_create_multi
     def create(self, vals_list):
-        """Create virtual mappings by computing IDs from account+company.
-
-        Deduplicates by ``(account_id, company_id)`` — when multiple commands
-        target the same pair (e.g. from Form onchange + defaults), entries
-        with a truthy ``code`` take precedence so that user-edited values are
-        not overwritten by empty defaults.
-        """
+        """Create virtual mappings by computing IDs from account+company."""
+        # Deduplicate by ``(account_id, company_id)``: when multiple commands target
+        # the same pair (e.g. from Form onchange + defaults), entries with a truthy
+        # ``code`` take precedence so user-edited values are not overwritten by empty
+        # defaults.
         by_key: dict[tuple[int, int], dict] = {}
         for vals in vals_list:
             key = (vals.get("account_id", 0), vals["company_id"])

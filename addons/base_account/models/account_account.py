@@ -15,13 +15,7 @@ ACCOUNT_CODE_NUMBER_REGEX = re.compile(r"(.*?)(\d*)(\D*?)$")
 
 
 class AccountAccount(models.Model):
-    """Chart of Accounts foundation.
-
-    Defines the core structure of an account: code, type, tags, and
-    multi-company support.  Heavier accounting behaviour (journal items,
-    opening balances, tax integration, mail tracking) is added by the
-    ``account`` module via ``_inherit``.
-    """
+    """Chart of Accounts foundation: code, type, tags, and multi-company support."""
 
     _name = "account.account"
     _description = "Account"
@@ -532,7 +526,7 @@ class AccountAccount(models.Model):
             accounts_with_codes[account["code"]] = account[field_name]
         # ``all_accounts`` is fetched ordered by ``code``, so the dict keys are
         # already sorted -- build the bisect list once instead of rebuilding it
-        # for every account to process (was O(process x total), now O(total)).
+        # for every account to process.
         codes_list = list(accounts_with_codes.keys())
         for account in accounts_to_process:
             closest_index = bisect_left(codes_list, account.code) - 1
