@@ -24,7 +24,7 @@
                     <field name="refunds_count" widget="statinfo" string="Refunds"/>
                 </button>
             </xpath>
-            <xpath expr='//group[2]' position="inside">
+            <xpath expr="//group[@name='group2']" position="inside">
                 <field name="source_payment_id" invisible="not source_payment_id"/>
                 <field name="payment_transaction_id" groups="base.group_no_one" invisible="not use_electronic_payment_method"/>
             </xpath>

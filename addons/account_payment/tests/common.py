@@ -1,7 +1,6 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-from unittest.mock import patch
-from contextlib import contextmanager
+from odoo import Command
 
 from odoo.addons.account.tests.common import AccountTestInvoicingCommon
 from odoo.addons.payment.tests.common import PaymentCommon
@@ -24,13 +23,13 @@ class AccountPaymentCommon(PaymentCommon, AccountTestInvoicingCommon):
             'currency_id': cls.currency_euro.id,
             'partner_id': cls.partner.id,
             'line_ids': [
-                (0, 0, {
+                Command.create({
                     'account_id': cls.account.id,
                     'debit': 100.0,
                     'credit': 0.0,
                     'amount_currency': 200.0,
                 }),
-                (0, 0, {
+                Command.create({
                     'account_id': cls.account.id,
                     'debit': 0.0,
                     'credit': 100.0,
