@@ -1,14 +1,4 @@
-"""Regression tests for marin-fork correctness fixes on account.move.
-
-Each test below fails on the pre-fix code and passes after it:
-
-* ``@api.depends`` completeness so cached compute values are not stale
-  (``partner_credit_warning``, ``has_reconciled_entries``, ``tax_totals``,
-  ``display_inactive_currency_warning``, ``payment_term_details``);
-* ``_sanitize_vals`` / ``_reverse_moves`` no longer mutate caller-owned
-  dicts/lists;
-* the partial-deductibility group reveal extracted out of ``_post``.
-"""
+"""Regression tests for marin-fork correctness guarantees on account.move."""
 
 from odoo import Command, fields
 from odoo.tests import tagged
@@ -32,8 +22,8 @@ class TestAccountMoveMarinDepends(AccountTestInvoicingCommon):
         self.assertIn("line_ids.matched_debit_ids", recon)
         self.assertIn("line_ids.matched_credit_ids", recon)
         self.assertIn("line_ids.amount_currency", self._deps("payment_term_details"))
-        # show_delivery_date branches on is_sale_document() (move_type) but
-        # historically depended only on delivery_date.
+        # show_delivery_date branches on is_sale_document(), which keys off
+        # move_type.
         self.assertIn("move_type", self._deps("show_delivery_date"))
 
     def test_show_delivery_date_recomputes_on_move_type_change(self):
@@ -80,10 +70,10 @@ class TestAccountMoveMarinDepends(AccountTestInvoicingCommon):
         )
 
     def test_outstanding_widget_batched_across_moves(self):
-        """Two invoices for one partner + an unreconciled payment: both must see
-        the same outstanding credit. `_compute_payments_widget_to_reconcile_info`
-        batches the lookup by (company, partner, direction); this guards that the
-        batching still yields each move its correct content."""
+        """Two invoices of one partner both surface the same outstanding credit."""
+        # `_compute_payments_widget_to_reconcile_info` batches the lookup by
+        # (company, commercial partner, payment direction); this guards that the
+        # batching still yields each move its own correct content.
         inv1 = self.init_invoice(
             "out_invoice", partner=self.partner_a, amounts=[100.0], post=True
         )
