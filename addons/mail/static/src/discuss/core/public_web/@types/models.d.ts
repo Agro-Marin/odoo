@@ -29,9 +29,12 @@ declare module "models" {
         displayInSidebar: boolean;
         from_message_id: Message;
         hasSubChannelFeature: Readonly<boolean>;
+        lastSearchSubChannelLoaded: Thread|null;
         lastSubChannelLoaded: Thread|null;
         loadMoreSubChannels: (param0: { searchTerm: string }) => Promise<Thread[]|undefined>;
         loadSubChannelsDone: boolean;
+        searchSubChannelsDone: boolean;
+        subChannelSearchTerm: string;
         parent_channel_id: Thread;
         sub_channel_ids: Thread[];
     }

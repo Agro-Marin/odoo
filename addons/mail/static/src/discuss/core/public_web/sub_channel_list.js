@@ -73,6 +73,12 @@ export class SubChannelList extends Component {
         this.state.searching = false;
         this.state.loading = false;
         this.state.subChannels = this.props.thread.sub_channel_ids;
+        // Drop the search pagination cursor too, so re-running the *same* query
+        // later starts from the first page instead of resuming where the
+        // previous run stopped.
+        this.props.thread.subChannelSearchTerm = "";
+        this.props.thread.lastSearchSubChannelLoaded = null;
+        this.props.thread.searchSubChannelsDone = false;
     }
 
     onKeydownSearch(ev) {
