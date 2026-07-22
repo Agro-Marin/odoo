@@ -6,7 +6,10 @@ one is anchored to the specific defect it guards, so a future refactor that
 reintroduces the defect fails loudly rather than silently.
 """
 
+from unittest.mock import MagicMock, patch
+
 import psycopg
+import requests
 import werkzeug
 
 from odoo.http import request
@@ -17,6 +20,17 @@ from odoo.tools import mute_logger
 from odoo.addons.http_routing.tests.common import MockRequest
 from odoo.addons.website.controllers.form import WebsiteForm
 from odoo.addons.website.controllers.main import Website
+
+
+def _fake_google_response(content, content_type):
+    """A minimal stand-in for a streamed ``requests`` response."""
+    resp = MagicMock()
+    resp.raise_for_status.return_value = None
+    resp.headers = {"content-type": content_type}
+    resp.iter_content.return_value = [content]
+    resp.__enter__.return_value = resp
+    resp.__exit__.return_value = False
+    return resp
 
 
 @tagged("post_install", "-at_install")
@@ -483,3 +497,71 @@ class TestPlausibleShareUrlParsing(TransactionCase):
         config._onchange_shared_key()
         self.assertEqual(config.plausible_shared_key, "SECRET123")
         self.assertEqual(config.plausible_site, "example.com")
+
+
+@tagged("post_install", "-at_install")
+class TestGoogleFontFetchHardening(TransactionCase):
+    """Localising a Google font validates and bounds the remote responses.
+
+    The fetch runs inside the settings-save transaction and stores *public*
+    attachments, so a failed/oversized/mistyped response must degrade the font
+    to online rather than 500 the save or persist arbitrary bytes.
+    """
+
+    _CSS = (
+        b"@font-face{font-family:'Test';"
+        b"src: url(https://fonts.gstatic.com/s/test/v1/abc.woff2) format('woff2');}"
+    )
+
+    def _localize(self, css_response, bin_response):
+        def fake_get(url, **kw):
+            return css_response() if "fonts.googleapis.com" in url else bin_response()
+
+        with patch(
+            "odoo.addons.website.models.assets.requests.get", side_effect=fake_get
+        ):
+            return self.env["website.assets"]._localize_google_fonts({"Test": ""})
+
+    def _binary_count(self):
+        return self.env["ir.attachment"].search_count(
+            [("name", "=like", "google-font-%")]
+        )
+
+    def test_happy_path_localises_and_rewrites(self):
+        resolved = self._localize(
+            lambda: _fake_google_response(self._CSS, "text/css"),
+            lambda: _fake_google_response(b"woff2-bytes", "font/woff2"),
+        )
+        self.assertTrue(resolved.get("Test"), "font should be localised")
+        css = self.env["ir.attachment"].browse(resolved["Test"])
+        self.assertIn(b"/web/content/", css.raw, "src rewritten to a local url")
+
+    def test_network_failure_drops_font_without_raising(self):
+        def boom():
+            raise requests.ConnectionError("boom")
+
+        resolved = self._localize(
+            boom, lambda: _fake_google_response(b"x", "font/woff2")
+        )
+        self.assertNotIn("Test", resolved, "an unfetchable font is dropped, not a 500")
+
+    def test_oversized_binary_is_not_stored(self):
+        before = self._binary_count()
+        oversized = b"x" * (5 * 1024 * 1024 + 1)
+        resolved = self._localize(
+            lambda: _fake_google_response(self._CSS, "text/css"),
+            lambda: _fake_google_response(oversized, "font/woff2"),
+        )
+        css = self.env["ir.attachment"].browse(resolved["Test"])
+        self.assertIn(b"fonts.gstatic.com", css.raw, "remote src kept on reject")
+        self.assertEqual(before, self._binary_count(), "oversized bytes not stored")
+
+    def test_non_font_content_type_is_rejected(self):
+        before = self._binary_count()
+        resolved = self._localize(
+            lambda: _fake_google_response(self._CSS, "text/css"),
+            lambda: _fake_google_response(b"<html>nope", "text/html"),
+        )
+        css = self.env["ir.attachment"].browse(resolved["Test"])
+        self.assertIn(b"fonts.gstatic.com", css.raw)
+        self.assertEqual(before, self._binary_count(), "non-font payload rejected")
