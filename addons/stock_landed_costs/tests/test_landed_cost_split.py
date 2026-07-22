@@ -106,6 +106,27 @@ class TestLandedCostSplit(TransactionCase):
         self.assertEqual(len(adjustments), 2)
         self.assertEqual(adjustments.mapped("additional_landed_cost"), [50.0, 50.0])
 
+    def test_validate_periodic_products_posts_no_entry(self):
+        """Validation completes without a journal entry for periodic products."""
+        product = self._product("LC fifo E", self.fifo_category)
+        cost = self.env["stock.landed.cost"].create(
+            {
+                "picking_ids": [Command.set(self._picking_with_move(product, 2.0).ids)],
+                "cost_lines": [
+                    Command.create(
+                        {
+                            "product_id": self.cost_product.id,
+                            "price_unit": 100.0,
+                            "split_method": "equal",
+                        }
+                    )
+                ],
+            }
+        )
+        cost.button_validate()
+        self.assertEqual(cost.state, "done")
+        self.assertFalse(cost.account_move_id)
+
     def test_compute_landed_cost_split_by_quantity(self):
         """A by-quantity split weighs each move by its received quantity."""
         product_a = self._product("LC fifo C", self.fifo_category)
