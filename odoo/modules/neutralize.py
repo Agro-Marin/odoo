@@ -38,7 +38,12 @@ def get_neutralization_queries(modules: Iterable[str]) -> Iterator[str]:
         filename = f"{module}/data/neutralize.sql"
         with suppress(FileNotFoundError):
             with file_open(filename) as file:
-                yield file.read().strip()
+                # Skip whitespace-only files: an empty string is not a query,
+                # and consumers should not have to filter it out. (psycopg 3
+                # tolerates executing "", so this is contract hygiene, not
+                # crash prevention.)
+                if content := file.read().strip():
+                    yield content
 
 
 def neutralize_database(cursor: Cursor) -> None:

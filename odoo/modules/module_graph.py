@@ -274,7 +274,8 @@ class ModuleGraph:
                     missing = [dep for dep in depends if dep not in self._modules]
                     _logger.warning(
                         "module %s: some depends are not loaded (%s), skipped",
-                        name, ", ".join(missing),
+                        name,
+                        ", ".join(missing),
                     )
                     self._remove(name)
 
@@ -286,7 +287,8 @@ class ModuleGraph:
         for cycle_member in self._find_cycle_members():
             if cycle_member in self._modules:
                 _logger.warning(
-                    "module %s: in a dependency loop, skipped", cycle_member,
+                    "module %s: in a dependency loop, skipped",
+                    cycle_member,
                 )
                 self._remove(cycle_member)
         # With cycles removed, depth recursion is bounded by graph diameter.
@@ -311,7 +313,9 @@ class ModuleGraph:
         def deps_of(name: str) -> list[str]:
             # Filter out dependencies that are not in the graph (they may have
             # been pruned for being missing or non-installable).
-            return [d.name for d in self._modules[name].depends if d.name in self._modules]
+            return [
+                d.name for d in self._modules[name].depends if d.name in self._modules
+            ]
 
         for root in list(self._modules):
             if root in indices:

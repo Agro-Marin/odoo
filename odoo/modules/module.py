@@ -601,6 +601,15 @@ def _load_manifest(module: str, manifest_content: dict) -> dict:
         manifest["depends"] = ["base"]
 
     depends = manifest["depends"]
+    # Reject strings before the Collection check: str IS a Collection, so
+    # `'depends': 'base'` (forgot the brackets) would silently be iterated
+    # character by character downstream ('b', 'a', 's', 'e' as module names).
+    if isinstance(depends, str):
+        raise TypeError(
+            f"module {module}: 'depends' must be a list of module names; got"
+            f" string {depends!r} (did you forget the brackets, e.g."
+            f" ['{depends}']?)"
+        )
     # depends comes from the developer-authored manifest; a non-Collection is a
     # programmer error, so assert is appropriate.
     assert isinstance(depends, Collection)
@@ -639,9 +648,19 @@ def _load_manifest(module: str, manifest_content: dict) -> dict:
 
     try:
         manifest["version"] = adapt_version(str(manifest["version"]))
-    except ValueError as e:
+    except ValueError:
+        # Degrade instead of raising: a raise here propagates through every
+        # all-manifests consumer (db.initialize, update_list, graph build), so
+        # one stray third-party addon with e.g. version "1.0-beta" anywhere on
+        # the addons path would prevent bootstrapping ANY database.  Marking it
+        # uninstallable quarantines the module and its dependents instead.
         if manifest["installable"]:
-            raise ValueError(f"Module {module}: invalid manifest") from e
+            _logger.warning(
+                "The module %s has an invalid version %r, setting installable=False",
+                module,
+                manifest["version"],
+            )
+            manifest["installable"] = False
     if manifest["installable"] and not check_version(
         str(manifest["version"]), should_raise=False
     ):
@@ -692,8 +711,10 @@ def load_odoo_module(module_name: str) -> None:
         # Call the module's post-load hook. This can be done before any model or
         # data has been initialized. This is ok as the post-load hook is for
         # server-wide (instead of registry-specific) functionalities.
+        # Guard against a missing manifest: `None.get` would raise an
+        # AttributeError that the circular-import handler below misreports.
         manifest = Manifest.for_addon(module_name)
-        if post_load := manifest.get("post_load"):
+        if manifest and (post_load := manifest.get("post_load")):
             getattr(sys.modules[qualname], post_load)()
 
     except AttributeError as err:
@@ -752,7 +773,14 @@ def adapt_version(version: str) -> str:
 
 def check_version(version: str, should_raise: bool = True) -> bool:
     """Check that the version is in a valid format for the current release."""
-    version = adapt_version(version)
+    try:
+        version = adapt_version(version)
+    except ValueError:
+        # honour should_raise for structurally malformed versions too;
+        # otherwise the flag lies to callers probing arbitrary input
+        if should_raise:
+            raise
+        return False
     serie = release.major_version
     # Accept exactly the serie ("19.0"): adapt_version leaves it as-is (a
     # bare-serie module version is valid, meaning the series itself).
