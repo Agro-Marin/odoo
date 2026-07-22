@@ -76,7 +76,7 @@ class TestWorkEntryLeave(TestWorkEntryHolidaysBase):
         })
         self.richard_emp.user_id = user
         with freeze_time(datetime(2022, 3, 21)):
-            # Tests that cancelling a leave archives the work entries.
+            # A leave stops being cancellable once its work entries are validated (locked).
             leave = self.env['hr.leave'].with_user(user).create({
                 'name': 'Sick 1 week during christmas snif',
                 'employee_id': self.richard_emp.id,
