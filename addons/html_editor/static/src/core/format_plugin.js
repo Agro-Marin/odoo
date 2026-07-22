@@ -662,7 +662,6 @@ export class FormatPlugin extends Plugin {
                 this.getResource("format_class_predicates").some((p) => p(c)),
             )
         ) {
-            // Original comment from web_editor:
             // We only remove the empty element if it has no class, to ensure we
             // don't break visual styles (in that case, its ZWS was kept to
             // ensure the cursor can be placed in it).

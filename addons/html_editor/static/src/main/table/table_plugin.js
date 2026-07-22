@@ -1516,10 +1516,6 @@ export class TablePlugin extends Plugin {
      * programmatically inserted markup that carries a thead would otherwise
      * produce a table the row/column operations cannot manipulate.
      *
-     * Ported from upstream along with its ``before_insert_processors``
-     * registration; the by-hand port in 3655b4ba25d dropped both, leaving the
-     * consumer with no table normalization at all.
-     *
      * @param {HTMLElement|DocumentFragment} container
      * @returns {HTMLElement|DocumentFragment} the same container
      */
