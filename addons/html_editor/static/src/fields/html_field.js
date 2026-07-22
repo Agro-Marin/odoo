@@ -429,6 +429,9 @@ export const htmlField = {
                 options.cleanEmptyStructuralContainers,
             );
         }
+        if ("debounceHints" in options) {
+            editorConfig.debounceHints = Boolean(options.debounceHints);
+        }
         return {
             editorConfig,
             isCollaborative: options.collaborative,
