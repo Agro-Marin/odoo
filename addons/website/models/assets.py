@@ -1,6 +1,7 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 import base64
+import logging
 import re
 from urllib.parse import quote, urlsplit
 
@@ -10,7 +11,24 @@ from odoo import api, models
 from odoo.libs.constants import DOTTED_ASSET_EXTENSIONS as EXTENSIONS
 from odoo.tools import misc
 
+_logger = logging.getLogger(__name__)
+
 _match_asset_file_url_regex = re.compile(r"^(/_custom/([^/]+))?/(\w+)/([/\w]+\.\w+)$")
+
+# Bounds/validation for the (untrusted, remote) Google Fonts fetch triggered
+# when a designer localises a font. Kept tight on purpose: the request runs
+# inside the settings-save transaction and the bytes are stored as *public*
+# attachments, so a slow/oversized/mistyped response must not stall the worker
+# or land arbitrary content on the site.
+_GOOGLE_FONT_TIMEOUT = 5
+_MAX_GOOGLE_FONTS = 20
+_MAX_GOOGLE_FONT_SOURCES = 40
+_MAX_GOOGLE_FONT_BYTES = 5 * 1024 * 1024
+_GOOGLE_FONT_HEADERS = {
+    # Google serves the format based on the UA; this one gets the woff2 variant
+    # that every supported browser accepts.
+    "user-agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/101.0.4951.41 Safari/537.36",
+}
 
 
 class WebsiteAssets(models.AbstractModel):
@@ -223,73 +241,7 @@ class WebsiteAssets(models.AbstractModel):
             google_local_fonts = dict(
                 re.findall(r"'([^']+)': '?(\d*)", google_local_fonts)
             )
-            # Google is serving different font format (woff, woff2, ttf, eot..)
-            # based on the user agent. We need to get the woff2 as this is
-            # supported by all the browers we support.
-            headers_woff2 = {
-                "user-agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/101.0.4951.41 Safari/537.36",
-            }
-            for font_name in google_local_fonts:
-                if google_local_fonts[font_name]:
-                    google_local_fonts[font_name] = int(google_local_fonts[font_name])
-                else:
-                    font_family_attachments = IrAttachment
-                    font_content = requests.get(
-                        f"https://fonts.googleapis.com/css?family={quote(font_name)}:300,300i,400,400i,700,700i&display=swap",
-                        timeout=5,
-                        headers=headers_woff2,
-                    ).content.decode()
-
-                    def fetch_google_font(src):
-                        statement = src.group()
-                        match = re.match(r"src: url\(([^\)]+)\) (.+)", statement)
-                        if not match:
-                            # Google changed its @font-face CSS shape: leave the
-                            # statement untouched instead of crashing the whole
-                            # settings save on ``None.groups()``.
-                            return statement
-                        url, font_format = match.groups()
-                        req = requests.get(url, timeout=5, headers=headers_woff2)
-                        # https://fonts.gstatic.com/s/modak/v18/EJRYQgs1XtIEskMB-hRp7w.woff2
-                        # -> s-modak-v18-EJRYQgs1XtIEskMB-hRp7w.woff2
-                        name = urlsplit(url).path.lstrip("/").replace("/", "-")
-                        attachment = IrAttachment.create(
-                            {
-                                "name": f"google-font-{name}",
-                                "type": "binary",
-                                "datas": base64.b64encode(req.content),
-                                "public": True,
-                            }
-                        )
-                        nonlocal font_family_attachments
-                        font_family_attachments += attachment
-                        return "src: url(/web/content/%s/%s) %s" % (
-                            attachment.id,
-                            name,
-                            font_format,
-                        )
-
-                    font_content = re.sub(
-                        r"src: url\(.+\)", fetch_google_font, font_content
-                    )
-
-                    attach_font = IrAttachment.create(
-                        {
-                            "name": f"{font_name} (google-font)",
-                            "type": "binary",
-                            "datas": base64.encodebytes(font_content.encode()),
-                            "mimetype": "text/css",
-                            "public": True,
-                        }
-                    )
-                    google_local_fonts[font_name] = attach_font.id
-                    # That field is meant to keep track of the original
-                    # image attachment when an image is being modified (by the
-                    # website builder for instance). It makes sense to use it
-                    # here to link font family attachment to the main font
-                    # attachment. It will ease the unlink later.
-                    font_family_attachments.original_id = attach_font.id
-
+            google_local_fonts = self._localize_google_fonts(google_local_fonts)
             # {'font_x': 45, 'font_y': 55} -> "('font_x': 45, 'font_y': 55)"
             values["google-local-fonts"] = (
                 str(google_local_fonts).replace("{", "(").replace("}", ")")
@@ -324,6 +276,159 @@ class WebsiteAssets(models.AbstractModel):
                 )
 
         self.save_asset(url, "web.assets_frontend", updatedFileContent, "scss")
+
+    def _localize_google_fonts(self, google_local_fonts):
+        """Resolve a ``{font_name: size_or_empty}`` map to ``{font_name: id}``.
+
+        A font already localised keeps its stored attachment id; a font with no
+        id is fetched from Google (CSS + woff2 files) and stored as attachments.
+        The number of families fetched per save is bounded, and a family that
+        cannot be fetched is dropped from the map (it falls back to the online
+        Google font) rather than aborting the whole settings save.
+        """
+        resolved = {}
+        fetched = 0
+        for font_name, size in google_local_fonts.items():
+            if size:
+                resolved[font_name] = int(size)
+                continue
+            if fetched >= _MAX_GOOGLE_FONTS:
+                _logger.warning(
+                    "Refusing to fetch more than %s Google fonts in one save; "
+                    "%r left online.",
+                    _MAX_GOOGLE_FONTS,
+                    font_name,
+                )
+                continue
+            fetched += 1
+            attachment_id = self._fetch_google_local_font(font_name)
+            if attachment_id:
+                resolved[font_name] = attachment_id
+            else:
+                _logger.warning(
+                    "Could not localise Google font %r; leaving it online.",
+                    font_name,
+                )
+        return resolved
+
+    def _fetch_google_local_font(self, font_name):
+        """Fetch a Google font family (CSS + woff2 files) and store attachments.
+
+        Returns the id of the main CSS attachment, or ``None`` if the family's
+        stylesheet could not be fetched.
+        """
+        IrAttachment = self.env["ir.attachment"]
+        css = self._http_get_google_font(
+            f"https://fonts.googleapis.com/css?family={quote(font_name)}"
+            ":300,300i,400,400i,700,700i&display=swap",
+            expect_binary=False,
+        )
+        if css is None:
+            return None
+        font_content = css.decode()
+
+        font_family_attachments = IrAttachment
+        source_count = 0
+
+        def replace_src(match):
+            nonlocal source_count, font_family_attachments
+            statement = match.group()
+            m = re.match(r"src: url\(([^\)]+)\) (.+)", statement)
+            if not m:
+                # Google changed its @font-face CSS shape: leave the statement
+                # untouched instead of crashing on ``None.groups()``.
+                return statement
+            if source_count >= _MAX_GOOGLE_FONT_SOURCES:
+                _logger.warning(
+                    "Google font %r exposes more than %s sources; truncating.",
+                    font_name,
+                    _MAX_GOOGLE_FONT_SOURCES,
+                )
+                return statement
+            source_count += 1
+            url, font_format = m.groups()
+            content = self._http_get_google_font(url, expect_binary=True)
+            if content is None:
+                # Keep the remote URL rather than mint a broken local one.
+                return statement
+            # https://fonts.gstatic.com/s/modak/v18/EJRYQgs1XtIEskMB-hRp7w.woff2
+            # -> s-modak-v18-EJRYQgs1XtIEskMB-hRp7w.woff2
+            name = urlsplit(url).path.lstrip("/").replace("/", "-")
+            attachment = IrAttachment.create(
+                {
+                    "name": f"google-font-{name}",
+                    "type": "binary",
+                    "datas": base64.b64encode(content),
+                    "public": True,
+                }
+            )
+            font_family_attachments += attachment
+            return "src: url(/web/content/%s/%s) %s" % (
+                attachment.id,
+                name,
+                font_format,
+            )
+
+        font_content = re.sub(r"src: url\(.+\)", replace_src, font_content)
+        attach_font = IrAttachment.create(
+            {
+                "name": f"{font_name} (google-font)",
+                "type": "binary",
+                "datas": base64.encodebytes(font_content.encode()),
+                "mimetype": "text/css",
+                "public": True,
+            }
+        )
+        # ``original_id`` normally tracks the origin of a modified image; reuse
+        # it here to link the family's binaries to the main CSS attachment, which
+        # eases their unlink later.
+        if font_family_attachments:
+            font_family_attachments.original_id = attach_font.id
+        return attach_font.id
+
+    def _http_get_google_font(self, url, *, expect_binary):
+        """GET a Google Fonts resource with a timeout, size cap and validation.
+
+        Returns the response bytes, or ``None`` when the request fails, is too
+        large, or (for a binary) is not served as a font — so the caller never
+        stores arbitrary remote bytes as a public attachment.
+        """
+        try:
+            with requests.get(
+                url,
+                timeout=_GOOGLE_FONT_TIMEOUT,
+                headers=_GOOGLE_FONT_HEADERS,
+                stream=True,
+            ) as response:
+                response.raise_for_status()
+                if expect_binary:
+                    content_type = response.headers.get("content-type", "").lower()
+                    if not any(
+                        token in content_type
+                        for token in ("font", "woff", "octet-stream")
+                    ):
+                        _logger.warning(
+                            "Unexpected content-type %r for Google font %s",
+                            content_type,
+                            url,
+                        )
+                        return None
+                chunks = []
+                total = 0
+                for chunk in response.iter_content(64 * 1024):
+                    total += len(chunk)
+                    if total > _MAX_GOOGLE_FONT_BYTES:
+                        _logger.warning(
+                            "Google Fonts resource exceeds %s bytes: %s",
+                            _MAX_GOOGLE_FONT_BYTES,
+                            url,
+                        )
+                        return None
+                    chunks.append(chunk)
+                return b"".join(chunks)
+        except requests.RequestException:
+            _logger.warning("Google Fonts request failed: %s", url)
+            return None
 
     @api.model
     def _get_custom_attachment(self, custom_url, op="="):
