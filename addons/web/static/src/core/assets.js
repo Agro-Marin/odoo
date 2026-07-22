@@ -358,7 +358,18 @@ export const assets = {
                 for (const { src, type } of Object.values(result)) {
                     if (type === "link" && src) {
                         cssLibs.push(src);
-                    } else if (type === "script" && src) {
+                    } else if (type === "script" && src && !src.includes(".esm.")) {
+                        // Same ``.esm.`` skip as the ``is_esm`` branch above,
+                        // and for the same reason. A bundle outside
+                        // ``dynamic_bundle_names`` is served as this flat node
+                        // list, yet it can still carry the esbuild ESM output:
+                        // ``web.assets_frontend`` does, and the website builder
+                        // tests lazy-load it into the editor iframe. The node
+                        // list drops the node's ``type="module"``, so without
+                        // this guard the URL reached ``loadJS``, was injected as
+                        // a classic <script>, and threw an uncaught "Cannot use
+                        // import statement outside a module" — which aborts the
+                        // whole page, not merely the caller.
                         jsLibs.push(src);
                     }
                 }

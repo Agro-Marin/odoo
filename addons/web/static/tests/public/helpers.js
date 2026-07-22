@@ -62,11 +62,21 @@ export async function startInteractions(
         fixture.closest("html").dataset.edit_translations = "1";
     }
     if (activeInteractions) {
+        // Known interactions = the import-time snapshot PLUS whatever is
+        // registered right now. `clearRegistry` swaps `elementRegistry.content`
+        // for a fresh object, so `content` only ever reflects the modules that
+        // registered before this file was imported. A test registering its own
+        // interaction (a stub it drives, from `beforeEach`) writes into the
+        // live object, and consulting `content` alone lost it the moment any
+        // earlier test had cleared the registry once — the suite then passed
+        // in isolation and failed with "White-listed Interaction does not
+        // exist" in a full run.
+        const known = { ...content, ...elementRegistry.content };
         clearRegistry(elementRegistry);
         if (!options.editMode) {
             for (const name of activeInteractions) {
-                if (name in content) {
-                    elementRegistry.add(name, content[name][1]);
+                if (name in known) {
+                    elementRegistry.add(name, known[name][1]);
                 } else {
                     throw new Error(
                         `White-listed Interaction does not exist: ${name}.`,
