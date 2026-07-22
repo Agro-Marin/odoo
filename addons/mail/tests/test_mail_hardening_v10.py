@@ -44,9 +44,7 @@ class TestNotifyConfigRobustnessV10(MailCommon):
         )
         # message_notify fans out through _notify_thread_by_email, which reads
         # both ICPs; before the fix this raised ValueError.
-        message = record.message_notify(
-            partner_ids=partner.ids, body="cfg robustness"
-        )
+        message = record.message_notify(partner_ids=partner.ids, body="cfg robustness")
         self.assertTrue(message)
 
 
