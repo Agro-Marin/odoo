@@ -35,7 +35,7 @@ export class DependencyManager extends EventBus {
     /**
      * @param {string} id
      * @param {BuilderOptionDependency} value
-     * @param {Boolean} ignored - should not add the dependency to the map
+     * @param {Boolean} ignored - if true, do not override a dependency already registered under this id
      */
     add(id, value, ignored = false) {
         // In case the dependency is added after a dependent try to get it

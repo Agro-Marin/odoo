@@ -17,7 +17,7 @@ import { withSequence } from "@html_editor/utils/resource";
  */
 /**
  * @typedef {{
- *      getButtons: (target: HTMLElement) => BuilderButtonDescriptor;
+ *      getButtons: (target: HTMLElement) => BuilderButtonDescriptor[];
  * }[]} get_overlay_buttons
  */
 
