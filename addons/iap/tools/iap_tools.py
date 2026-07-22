@@ -1,11 +1,11 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 import logging
-import requests
 import uuid
 
-from odoo import exceptions, modules, _
+import requests
+
+from odoo import _, exceptions, modules
 from odoo.tools import email_normalize
 
 _logger = logging.getLogger(__name__)
@@ -49,9 +49,9 @@ _MAIL_DOMAIN_BLACKLIST = _MAIL_PROVIDERS | {'odoo.com'}
 
 # List of country codes for which we should offer state filtering when mining new leads.
 # See crm.iap.lead.mining.request#_compute_available_state_ids() or task-2471703 for more details.
-_STATES_FILTER_COUNTRIES_WHITELIST = set([
+_STATES_FILTER_COUNTRIES_WHITELIST = {
     'AR', 'AU', 'BR', 'CA', 'IN', 'MY', 'MX', 'NZ', 'AE', 'US'
-])
+}
 
 
 #----------------------------------------------------------
@@ -87,8 +87,7 @@ def mail_prepare_for_domain_search(email, min_email_length=0):
 
 
 def iap_get_endpoint(env):
-    url = env['ir.config_parameter'].sudo().get_param('iap.endpoint', DEFAULT_ENDPOINT)
-    return url
+    return env['ir.config_parameter'].sudo().get_param('iap.endpoint', DEFAULT_ENDPOINT)
 
 
 class InsufficientCreditError(Exception):
@@ -126,16 +125,15 @@ def iap_jsonrpc(url, method='call', params=None, timeout=15):
                 credit_error = InsufficientCreditError(response['error']['data'].get('message'))
                 credit_error.data = response['error']['data']
                 raise credit_error
-            else:
-                raise IAPServerError("An error occurred on the IAP server")
+            raise IAPServerError("An error occurred on the IAP server")
         return response.get('result')
-    except requests.exceptions.Timeout:
+    except requests.exceptions.Timeout as err:
         _logger.warning("iap jsonrpc %s timed out", url)
         raise exceptions.AccessError(
             _('The request to the service timed out. Please contact the author of the app. The URL it tried to contact was %s', url)
-        )
+        ) from err
     except (requests.exceptions.RequestException, IAPServerError) as e:
-        _logger.warning("iap jsonrpc %s failed, %s: %s", url, e.__class__.__name__, str(e))
+        _logger.warning("iap jsonrpc %s failed, %s: %s", url, e.__class__.__name__, e)
         raise exceptions.AccessError(
             _("An error occurred while reaching %s. Please contact Odoo support if this error persists.", url)
-        )
+        ) from e

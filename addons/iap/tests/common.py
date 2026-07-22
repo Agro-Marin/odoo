@@ -1,20 +1,20 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 from contextlib import contextmanager
 from unittest.mock import patch
 
 from odoo import exceptions
-from odoo.addons.iap.tools import iap_tools
-from odoo.addons.iap.models.iap_enrich_api import IapEnrichApi
 from odoo.tests import common
+
+from odoo.addons.iap.models.iap_enrich_api import IapEnrichApi
+from odoo.addons.iap.tools import iap_tools
 
 
 class MockIAPEnrich(common.TransactionCase):
 
     @classmethod
     def setUpClass(cls):
-        super(MockIAPEnrich, cls).setUpClass()
+        super().setUpClass()
         cls._init_iap_mock()
 
     @contextmanager
@@ -40,7 +40,7 @@ class MockIAPEnrich(common.TransactionCase):
                 for lead_id, email in params['domains'].items():
                     if sim_error and sim_error == 'credit':
                         raise iap_tools.InsufficientCreditError('InsufficientCreditError')
-                    elif sim_error and sim_error == 'jsonrpc_exception':
+                    if sim_error and sim_error == 'jsonrpc_exception':
                         raise exceptions.AccessError(
                             'The url that this service requested returned an error. Please contact the author of the app. The url it tried to contact was ' + local_endpoint
                         )
@@ -48,6 +48,7 @@ class MockIAPEnrich(common.TransactionCase):
                     if email_data and email_data.get(email):
                         result[str(lead_id)].update(email_data[email])
                 return result
+            return None
 
         with patch.object(IapEnrichApi, '_contact_iap', side_effect=_contact_iap):
             yield
