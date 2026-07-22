@@ -4,7 +4,7 @@ import base64
 
 from odoo import Command
 from odoo.fields import Domain
-from odoo.tests import tagged, TransactionCase, Form
+from odoo.tests import Form, TransactionCase, tagged
 
 
 @tagged('recruitment')
@@ -37,7 +37,7 @@ class TestRecruitment(TransactionCase):
         self.assertEqual(applicant.partner_id.lang, 'pl_PL', 'Context langague not used for partner creation')
 
     def test_duplicate_email(self):
-        # Tests that duplicate email matching is case insesitive
+        # Tests that duplicate email matching is case insensitive
         dup1, dup2, no_dup = self.env['hr.applicant'].create([
             {
                 'partner_name': 'Application 1',
@@ -57,7 +57,7 @@ class TestRecruitment(TransactionCase):
         self.assertEqual(no_dup.application_count, 1)
 
     def test_similar_applicants_count(self):
-        """Test that we find same applicant based on simmilar mail or phone."""
+        """Test that we find same applicant based on similar mail or phone."""
         A, B, C, D, E, F, _ = self.env['hr.applicant'].create([
             {
                 'active': False,  # Refused/archived application should still count
@@ -165,13 +165,7 @@ class TestRecruitment(TransactionCase):
         self.assertEqual(G.talent_pool_count, 1)
 
     def test_compute_and_search_is_applicant_in_pool(self):
-        """
-        Test that the _compute_is_applicant_in_pool and _search_is_applicant_in_pool
-        methods return correct information.
-        An application is considered to be in a pool if it is either directly linked
-        to a pool (through pool_applicant_id or talents_pool_ids) or shares a phone number,
-        email or linkedin with another directly linked application.
-        """
+        """Test that _compute_is_applicant_in_pool and _search_is_applicant_in_pool return correct results."""
         talent_pool = self.env["hr.talent.pool"].create({"name": "Cool Pool"})
         job = self.env["hr.job"].create(
             {
@@ -225,6 +219,10 @@ class TestRecruitment(TransactionCase):
         )
         B.pool_applicant_id = A.id
         H.pool_applicant_id = G.id
+
+        # An application is "in a pool" if it is directly linked to a pool (via
+        # pool_applicant_id or talent_pool_ids) or shares a phone number, email
+        # or linkedin with another directly linked application.
 
         # Testing the compute
 
@@ -433,14 +431,7 @@ class TestRecruitment(TransactionCase):
         )
 
     def test_open_other_applications_count(self):
-        """
-        The smart button labeled 'Other Applications N' (where N represents the number of
-        other job applications linked to the same applicant) should, when clicked, open a list view
-        displaying all related applications.
-
-        This list should include both the N other applications and the current one,
-        resulting in a total of N + 1 records.
-        """
+        """Opening the 'Other Applications' smart button lists the current application plus its N linked ones (N + 1 total)."""
 
         A1, _, _ = self.env["hr.applicant"].create(
             [
