@@ -1,17 +1,19 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 import json
 import logging
-import requests
 
+import requests
 from werkzeug.exceptions import Forbidden
 
 from odoo import _, http
 from odoo.exceptions import UserError
 from odoo.http import request
 from odoo.tools import consteq, email_normalize
-from odoo.addons.google_gmail.models.google_gmail_mixin import GMAIL_TOKEN_REQUEST_TIMEOUT
+
+from odoo.addons.google_gmail.models.google_gmail_mixin import (
+    GMAIL_TOKEN_REQUEST_TIMEOUT,
+)
 
 _logger = logging.getLogger(__name__)
 
@@ -37,9 +39,9 @@ class GoogleGmailController(http.Controller):
             model_name = state['model']
             rec_id = state['id']
             csrf_token = state['csrf_token']
-        except Exception:
+        except Exception as e:
             _logger.error('Google Gmail: Wrong state value %r.', state)
-            raise Forbidden()
+            raise Forbidden from e
 
         record_sudo = self._get_gmail_record(model_name, rec_id, csrf_token)
 
@@ -74,16 +76,16 @@ class GoogleGmailController(http.Controller):
         if not isinstance(model, request.env.registry['google.gmail.mixin']):
             # The model must inherits from the "google.gmail.mixin" mixin
             _logger.error('Google Gmail: Wrong model %r.', model_name)
-            raise Forbidden()
+            raise Forbidden
 
         record = model.browse(int(rec_id)).exists().sudo()
         if not record:
             _logger.error('Google Gmail: No record found.')
-            raise Forbidden()
+            raise Forbidden
 
         if not csrf_token or not consteq(csrf_token, record._get_gmail_csrf_token()):
             _logger.error('Google Gmail: Wrong CSRF token during Gmail authentication.')
-            raise Forbidden()
+            raise Forbidden
 
         return record
 
@@ -99,7 +101,7 @@ class GoogleGmailController(http.Controller):
             )
             if not response.ok:
                 _logger.error('Google Gmail: Could not verify the token information: %s.', response.text)
-                raise Forbidden()
+                raise Forbidden
 
             response = response.json()
 
