@@ -413,7 +413,7 @@ class TestApplicantSkills(TransactionCase):
         """
         applicant_form = Form(self.t_applicant)
         old_applicant_skills = self.t_applicant.applicant_skill_ids
-        for i in range(3):
+        for _ in range(3):
             with applicant_form.current_applicant_skill_ids.new() as cas:
                 cas.skill_type_id = self.t_skill_type
                 cas.skill_id = self.t_skill_3
