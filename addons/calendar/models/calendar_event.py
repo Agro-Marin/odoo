@@ -6,29 +6,30 @@ import math
 import uuid
 from datetime import datetime, timedelta
 from itertools import repeat
-from markupsafe import Markup
-
-import pytz
 from urllib.parse import urlsplit, urlunsplit
 
+import pytz
+from markupsafe import Markup
+
 from odoo import api, fields, models
+from odoo.exceptions import UserError, ValidationError
 from odoo.fields import Command, Domain
+from odoo.libs.intervals import intervals_overlap
+from odoo.tools import html2plaintext, html_sanitize, is_html_empty, single_email_re
+from odoo.tools.misc import get_lang
+from odoo.tools.translate import _
+
 from odoo.addons.base.models.res_partner import _tz_get
 from odoo.addons.calendar.models.calendar_attendee import CalendarAttendee
 from odoo.addons.calendar.models.calendar_recurrence import (
-    weekday_to_field,
-    RRULE_TYPE_SELECTION,
+    BYDAY_SELECTION,
     END_TYPE_SELECTION,
     MONTH_BY_SELECTION,
+    RRULE_TYPE_SELECTION,
     WEEKDAY_SELECTION,
-    BYDAY_SELECTION,
+    weekday_to_field,
 )
 from odoo.addons.calendar.models.utils import interval_from_events
-from odoo.libs.intervals import intervals_overlap
-from odoo.tools.translate import _
-from odoo.tools.misc import get_lang
-from odoo.tools import html2plaintext, html_sanitize, is_html_empty, single_email_re
-from odoo.exceptions import UserError, ValidationError
 
 _logger = logging.getLogger(__name__)
 
@@ -140,13 +141,13 @@ class CalendarEvent(models.Model):
     @api.model
     def _default_start(self):
         now = fields.Datetime.now()
-        return now + (datetime.min - now) % timedelta(minutes=30)
+        return now + (datetime.min - now) % timedelta(minutes=30)  # noqa: DTZ901 - fields.Datetime.now() is naive (Odoo convention); datetime.min is used only as a naive rounding-arithmetic anchor, not compared for timezone meaning
 
     @api.model
     def _default_stop(self):
         now = fields.Datetime.now()
         duration_hours = self.get_default_duration()
-        start = now + (datetime.min - now) % timedelta(minutes=30)
+        start = now + (datetime.min - now) % timedelta(minutes=30)  # noqa: DTZ901 - same reasoning as _default_start
         return start + timedelta(hours=duration_hours)
 
     # description
@@ -509,7 +510,7 @@ class CalendarEvent(models.Model):
         """
         for event in self:
             organizer = event.attendee_ids.filtered(
-                lambda a: a.partner_id == event.partner_id
+                lambda a: a.partner_id == event.partner_id  # noqa: B023 - filtered() is invoked eagerly within this same loop iteration, not deferred
             )
             all_declined = not any(
                 (event.attendee_ids - organizer).filtered(
@@ -681,9 +682,7 @@ class CalendarEvent(models.Model):
     @api.depends("recurrence_id", "recurrency", "rrule_type_ui")
     def _compute_recurrence(self):
         recurrence_fields = self._get_recurrent_fields()
-        false_values = {
-            field: False for field in recurrence_fields
-        }  # computes need to set a value
+        false_values = dict.fromkeys(recurrence_fields, False)  # computes need to set a value
         defaults = self.env["calendar.recurrence"].default_get(recurrence_fields)
         default_rrule_values = self.recurrence_id.default_get(recurrence_fields)
         for event in self:
@@ -864,7 +863,7 @@ class CalendarEvent(models.Model):
                 if values["activity_ids"] and not existing_event:
                     continue
                 res_model = all_models.filtered(
-                    lambda m: m.id == values["res_model_id"]
+                    lambda m: m.id == values["res_model_id"]  # noqa: B023 - filtered() is invoked eagerly within this same loop iteration, not deferred
                 )
                 res_id = values["res_id"]
                 if (
@@ -883,7 +882,7 @@ class CalendarEvent(models.Model):
                     meeting_activity_type = existing_type
                 if not meeting_activity_type:
                     meeting_activity_type = meeting_activity_types.filtered(
-                        lambda act: act.res_model in {False, res_model.model}
+                        lambda act: act.res_model in {False, res_model.model}  # noqa: B023 - filtered() is invoked eagerly within this same loop iteration, not deferred
                     )
                 if not meeting_activity_type:
                     continue
@@ -952,7 +951,7 @@ class CalendarEvent(models.Model):
                 self.env["res.partner"].browse(partner_ids).with_prefetch(partner_ids)
             )
 
-            for vals, vals_partner_ids in zip(vals_list, vals_partner_list):
+            for vals, vals_partner_ids in zip(vals_list, vals_partner_list, strict=True):
                 contact_description = self._get_contact_details_description(
                     organizers.browse(vals.get("user_id", False)),
                     partners.browse(vals_partner_ids),
@@ -977,7 +976,7 @@ class CalendarEvent(models.Model):
         recurring_events = super().create(recurring_vals)
         events += recurring_events
 
-        for event, vals in zip(recurring_events, recurring_vals):
+        for event, vals in zip(recurring_events, recurring_vals, strict=True):
             recurrence_values = {
                 field: vals.pop(field) for field in recurrence_fields if field in vals
             }
@@ -995,7 +994,14 @@ class CalendarEvent(models.Model):
         # above manually. Heuristic: a new command (0, 0, vals) is considered as
         # complete
         to_sync_activities = self.browse()
-        for event, event_values in zip(events, vals_list):
+        # NOTE (t24068 audit, task t24132): `events` is ordered
+        # [other_vals events..., recurring_events...] (see the split above),
+        # while `vals_list` retains the caller's ORIGINAL order. If a single
+        # create() call interleaves recurring and non-recurring vals, this
+        # zip() silently pairs each event with the WRONG vals dict. Not fixed
+        # here (patterns-only pass) - filed as t24132, requires restructuring
+        # to preserve original-order event/vals correlation.
+        for event, event_values in zip(events, vals_list, strict=True):
             if any(
                 command[0] != 0 for command in event_values.get("activity_ids") or []
             ):
@@ -1006,7 +1012,8 @@ class CalendarEvent(models.Model):
 
         if not self.env.context.get("dont_notify"):
             alarm_events = self.env["calendar.event"]
-            for event, values in zip(events, vals_list):
+            # NOTE: same events/vals_list order mismatch as above (t24132)
+            for event, values in zip(events, vals_list, strict=True):
                 if values.get("allday"):
                     # All day events will trigger the _inverse_date method which will create the trigger.
                     continue
@@ -1090,7 +1097,7 @@ class CalendarEvent(models.Model):
                 self.videocall_channel_id.add_members(new_partner_ids)
 
         time_fields = self.env["calendar.event"]._get_time_fields()
-        if any([values.get(key) for key in time_fields]):
+        if any(values.get(key) for key in time_fields):
             update_alarms = True
             update_time = True
         if "alarm_ids" in values:
@@ -1098,8 +1105,8 @@ class CalendarEvent(models.Model):
 
         if (
             not recurrence_update_setting
-            or recurrence_update_setting == "self_only"
-            and len(self) == 1
+            or (recurrence_update_setting == "self_only"
+            and len(self) == 1)
         ) and "follow_recurrence" not in values:
             if any(
                 {field: values.get(field) for field in time_fields if field in values}
@@ -1329,7 +1336,7 @@ class CalendarEvent(models.Model):
         new_events = super(
             CalendarEvent, self.with_context(skip_contact_description=True)
         ).copy(default)
-        for old_event, new_event in zip(self, new_events):
+        for old_event, new_event in zip(self, new_events, strict=True):
             new_event.write({"partner_ids": [(Command.set(old_event.partner_ids.ids))]})
         return new_events
 
@@ -1377,6 +1384,7 @@ class CalendarEvent(models.Model):
                 "target": "new",
                 "views": [(False, "form")],
             }
+        return None
 
     def _mail_get_operation_for_mail_message_operation(self, message_operation):
         # reading messages on private events requires write access, not just read access
@@ -1439,7 +1447,7 @@ class CalendarEvent(models.Model):
         ]  # Removes and delete
 
         attendee_commands += [
-            [0, 0, dict(partner_id=partner_id)] for partner_id in added_partner_ids
+            [0, 0, {"partner_id": partner_id}] for partner_id in added_partner_ids
         ]
         return attendee_commands
 
@@ -1555,14 +1563,14 @@ class CalendarEvent(models.Model):
             "default_composition_mode",
             self.env.context.get("composition_mode", "comment"),
         )
-        compose_ctx = dict(
-            default_composition_mode=default_composition_mode,
-            default_model="calendar.event",
-            default_res_ids=self.ids,
-            default_template_id=template_id,
-            default_partner_ids=self.partner_ids.ids,
-            mail_tz=self.env.user.tz,
-        )
+        compose_ctx = {
+            "default_composition_mode": default_composition_mode,
+            "default_model": "calendar.event",
+            "default_res_ids": self.ids,
+            "default_template_id": template_id,
+            "default_partner_ids": self.partner_ids.ids,
+            "mail_tz": self.env.user.tz,
+        }
         return {
             "type": "ir.actions.act_window",
             "name": _("Contact Attendees"),
@@ -1695,8 +1703,8 @@ class CalendarEvent(models.Model):
                 at = event.start - timedelta(minutes=alarm.duration_minutes)
                 create_trigger = (
                     not existing_trigger
-                    or existing_trigger
-                    and existing_trigger.call_at != at
+                    or (existing_trigger
+                    and existing_trigger.call_at != at)
                 )
                 if create_trigger and (not cron.lastcall or at > cron.lastcall):
                     # Don't trigger for past alarms, they would be skipped by design

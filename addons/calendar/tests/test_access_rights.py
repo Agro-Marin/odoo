@@ -2,9 +2,9 @@
 
 from datetime import datetime, timedelta
 
-from odoo.tests.common import TransactionCase, new_test_user
-from odoo.tests import Form
 from odoo.exceptions import AccessError
+from odoo.tests import Form
+from odoo.tests.common import TransactionCase, new_test_user
 from odoo.tools import mute_logger
 
 

@@ -2,8 +2,9 @@
 
 import pytz
 
-from odoo import models, fields, tools, _
+from odoo import _, fields, models, tools
 from odoo.tools import is_html_empty
+
 from odoo.addons.mail.tools.discuss import Store
 
 
