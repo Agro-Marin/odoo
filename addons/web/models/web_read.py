@@ -693,9 +693,15 @@ class Base(models.AbstractModel):
                 if co_records:
                     # _filtered_access already returns an order-preserving
                     # accessible subset, so no manual browse rebuild is needed.
-                    readable_records = co_records.with_context(
-                        active_test=False
-                    )._filtered_access("read")
+                    # active_test=False widens _filtered_access to also vet
+                    # archived targets; restore the original context before the
+                    # recursive read so the sub-spec never runs under a leaked
+                    # active_test=False (mirrors the x2many branch below).
+                    readable_records = (
+                        co_records.with_context(active_test=False)
+                        ._filtered_access("read")
+                        .with_context(co_records.env.context)
+                    )
                 else:
                     readable_records = co_records
 

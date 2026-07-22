@@ -209,12 +209,18 @@ export function humanNumber(number, options = { decimals: 0, minDigits: 1 }) {
     const minDigits = options.minDigits || 1;
     const d2 = 10 ** decimals;
     const numberMagnitude = +number.toExponential().split("e+")[1];
-    number = Math.round(number * d2) / d2;
+    // roundDecimals (HALF-UP, away from zero), not Math.round (ties toward +Inf):
+    // a bare Math.round makes negatives asymmetric with positives and with the
+    // rest of the numeric stack — humanNumber(-1.5) would print "-1" while
+    // humanNumber(1.5) prints "2". roundDecimals matches roundPrecision/formatFloat.
+    number = roundDecimals(number, decimals);
     // the case numberMagnitude >= 21 corresponds to a number
     // better expressed in the scientific format.
     if (numberMagnitude >= 21) {
         // we do not use number.toExponential(decimals) because we want to
         // avoid the possible useless O decimals: 1e.+24 preferred to 1.0e+24
+        // (Math.round, not roundDecimals: the scientific-format branch keeps its
+        // toward-+Inf tie behavior, pinned by the humanReadable test.)
         number = Math.round(number * 10 ** (decimals - numberMagnitude)) / d2;
         return `${number}e+${numberMagnitude}`;
     }

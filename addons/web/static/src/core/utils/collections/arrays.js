@@ -144,18 +144,22 @@ export function sortBy(iterable, criterion, order = "asc") {
         .sort((x, y) => {
             const a = x.key;
             const b = y.key;
-            // Use numeric subtraction only when both values are actual numbers.
-            // Comparison operators handle strings, dates, and mixed types
-            // without the NaN-returning subtraction that makes sort order
-            // undefined.
-            const result =
-                typeof a === "number" && typeof b === "number"
-                    ? a - b
-                    : a > b
-                      ? 1
-                      : a < b
-                        ? -1
-                        : 0;
+            let result;
+            if (typeof a === "number" && typeof b === "number") {
+                // Both numbers: subtract — but NaN is also `typeof "number"`
+                // and `a - b` would return NaN, leaving the engine's sort order
+                // undefined (neighbors left unsorted). Give NaN a consistent
+                // rank (last in ascending order) so the comparator stays total:
+                // `aNaN - bNaN` is 0 when both/neither are NaN, +1 when only `a`
+                // is, -1 when only `b` is.
+                const aNaN = Number.isNaN(a);
+                const bNaN = Number.isNaN(b);
+                result = aNaN || bNaN ? aNaN - bNaN : a - b;
+            } else {
+                // Comparison operators handle strings, dates, and mixed types
+                // without the NaN-returning subtraction above.
+                result = a > b ? 1 : a < b ? -1 : 0;
+            }
             return sign * result;
         })
         .map((x) => x.el);

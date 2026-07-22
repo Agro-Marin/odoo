@@ -35,6 +35,10 @@ beforeEach(() => {
         decimalPoint: ".",
         thousandsSep: ",",
         grouping: [3, 0],
+        // ``code`` is required by any plural-aware formatter (formatX2many ->
+        // _pl -> Intl.PluralRules(localization.code)); the localization Proxy
+        // throws on an unset key, so an incomplete fixture crashed those tests.
+        code: "en_US",
     });
 });
 
@@ -101,6 +105,13 @@ test("formatFloatTime", () => {
     );
     expect(formatFloatTime(56 / 3600, { displaySeconds: true })).toBe("00:00:56");
     expect(formatFloatTime(-0.5)).toBe("-00:30");
+    // A sub-minute negative residue rounds to zero and must NOT keep the sign
+    // (no confusing signed zero "-00:00").
+    expect(formatFloatTime(-0.004)).toBe("00:00");
+    expect(formatFloatTime(-1e-15)).toBe("00:00");
+    expect(formatFloatTime(-1e-15, { displaySeconds: true })).toBe("00:00:00");
+    // A negative that still has a non-zero second keeps its sign.
+    expect(formatFloatTime(-0.004, { displaySeconds: true })).toBe("-00:00:14");
 
     const options = { noLeadingZeroHour: true };
     expect(formatFloatTime(2, options)).toBe("2:00");

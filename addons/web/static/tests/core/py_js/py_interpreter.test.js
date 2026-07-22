@@ -312,6 +312,19 @@ describe("containment", () => {
         expect(evaluateExpr("-2 not in (1,2,3)")).toBe(true);
         expect(evaluateExpr("-2 not in (1,-2,3)")).toBe(false);
     });
+
+    test("string literals 'not' / 'is' before in/not are not fused into an operator", () => {
+        // The `not in` / `is not` fusion must only combine the *operator*
+        // not/is, never a String literal that happens to spell "not"/"is" --
+        // otherwise these crashed at parse time instead of evaluating.
+        expect(evaluateExpr("'not' in ['not', 'a']")).toBe(true);
+        expect(evaluateExpr("'not' in ['a']")).toBe(false);
+        expect(evaluateExpr("'is' not in ['a']")).toBe(true);
+        expect(evaluateExpr("'is' in ['is']")).toBe(true);
+        expect(evaluateExpr("x == 'not' in tags", { x: "not", tags: ["not"] })).toBe(
+            true,
+        );
+    });
 });
 
 describe("conversions", () => {

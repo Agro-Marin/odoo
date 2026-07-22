@@ -1113,7 +1113,18 @@ export class StaticList extends DataPoint {
                 this._createRecordDatapoint(record);
             }
         }
+        // A linked row concurrently deleted server-side makes `_loadRecords`
+        // return fewer records than requested (it only throws when *zero* come
+        // back). Drop the ids that never landed in the cache instead of leaving
+        // `undefined` holes in `records` that the renderer would crash on, and
+        // keep `_currentIds` in sync so the missing id isn't re-requested every
+        // reload — mirroring the guard in static_list_command_engine.js.
         this.records = currentIds.map((id) => this._cache[id]);
+        if (this.records.includes(undefined)) {
+            const missing = new Set(currentIds.filter((id) => !this._cache[id]));
+            this.records = this.records.filter(Boolean);
+            nextCurrentIds = nextCurrentIds.filter((id) => !missing.has(id));
+        }
         this._currentIds = nextCurrentIds;
         this.model._patchConfig(this.config, { limit, offset, orderBy });
     }

@@ -46,6 +46,20 @@ class TestImage(HttpCase):
         image = Image.open(io.BytesIO(response.content))
         self.assertEqual(image.size, (256, 256))
 
+    def test_01b_broken_image_download_false_serves_placeholder(self):
+        """``?download=false`` on a missing image must serve the placeholder
+        (200), not 404. The ``except UserError`` branch used to test the raw
+        query string, where the string "false" is truthy; it now coerces with
+        ``str2bool`` like the send_file path.
+        """
+        # download=false -> render inline -> placeholder image, 200
+        resp = self.url_open("/web/image/fake/0/image_128?download=false")
+        self.assertEqual(resp.status_code, 200)
+        self.assertTrue(resp.headers["Content-Type"].startswith("image/"))
+        # download=true -> explicit download of a missing image -> 404 (control)
+        resp = self.url_open("/web/image/fake/0/image_128?download=true")
+        self.assertEqual(resp.status_code, 404)
+
     def test_02_content_image_Etag_304(self):
         """Check that a matching If-None-Match returns 304 Not Modified."""
 

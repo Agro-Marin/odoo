@@ -85,6 +85,33 @@ describe("sortby", () => {
         expect(toSort).toEqual([2, 3, 1]);
     });
 
+    test("sortBy places NaN keys consistently and keeps finite keys ordered", () => {
+        // NaN is `typeof "number"`, so `a - b` returned NaN and left the whole
+        // ordering engine-defined. Finite keys must still sort ascending, with
+        // NaN(s) ranked last (asc) / first (desc), never scrambling neighbors.
+        expect(sortBy([3, NaN, 1])).toEqual([1, 3, NaN]);
+        expect(sortBy([5, 3, NaN, 8, 1, 9, 2, 7, NaN, 4, 6, 0])).toEqual([
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            NaN,
+            NaN,
+        ]);
+        expect(sortBy([3, NaN, 1], undefined, "desc")).toEqual([NaN, 3, 1]);
+        expect(sortBy([{ x: 3 }, { x: NaN }, { x: 1 }], "x")).toEqual([
+            { x: 1 },
+            { x: 3 },
+            { x: NaN },
+        ]);
+    });
+
     test("sortBy (no criterion)", () => {
         expect(sortBy([])).toEqual([]);
         expect(sortBy([2, 1, 5])).toEqual([1, 2, 5]);

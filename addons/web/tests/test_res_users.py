@@ -183,6 +183,28 @@ class TestWebCreateUsers(TransactionCase):
         )
         self.assertEqual(len(matches), 1, "must not create a duplicate user")
 
+    def test_web_create_users_dedups_within_batch(self):
+        """Two inputs in one call that normalise to the same address must dedup.
+
+        Before fix: ``new_emails`` was filtered only against *existing* users, so
+        ``["bob@x.com", "Bob <bob@x.com>"]`` (both normalising to ``bob@x.com``)
+        produced two ``create`` rows with the same ``login`` and raised an opaque
+        ``UniqueViolation`` — the very failure the up-front ``invalid`` guard is
+        meant to prevent. After fix: the running ``seen`` set drops the in-batch
+        duplicate, so exactly one user is created.
+        """
+        if "email_normalized" not in self.env["res.users"]._fields:
+            self.skipTest("email_normalized not available (mail not installed)")
+        email = "batch_dup@example.com"
+        # must not raise IntegrityError / UniqueViolation
+        self.env["res.users"].web_create_users([email, f"Batch Dup <{email}>"])
+        matches = (
+            self.env["res.users"]
+            .with_context(active_test=False)
+            .search([("login", "=", email)])
+        )
+        self.assertEqual(len(matches), 1, "in-batch duplicate must create one user")
+
     def test_web_create_users_reactivates_deactivated(self):
         """``web_create_users`` must reactivate a previously deactivated user."""
         if "email_normalized" not in self.env["res.users"]._fields:

@@ -312,6 +312,16 @@ export function pick(object, ...properties) {
  * which case `target` is returned. Arrays are not deep-merged; `extension`
  * replaces `target` entirely for array values.
  *
+ * Aliasing contract: only paths where BOTH sides hold a plain object are
+ * rebuilt fresh (via recursion). A subtree taken wholesale from one side —
+ * present on only one side, or an object/array replacing a primitive — is
+ * shared BY REFERENCE with that input; it is NOT deep-cloned. This is
+ * deliberate: config objects routinely carry functions, and deep-cloning
+ * (structuredClone / JSON) would silently drop them. Callers must therefore
+ * treat the merged result's nested subtrees as read-only (or clone a subtree
+ * themselves before mutating it), otherwise mutating the result mutates the
+ * input it was taken from.
+ *
  * @param {any} target - The base value.
  * @param {any} extension - The value to merge on top of target.
  * @returns {any} - The merged result.

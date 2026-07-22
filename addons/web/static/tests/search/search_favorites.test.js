@@ -104,6 +104,17 @@ describe("irFilterToFavorite", () => {
         expect(favorite.orderBy).toEqual([]);
     });
 
+    test("quarantines a sort array with non-string elements instead of crashing", () => {
+        // JSON.parse("[null]") → [null], an array (passes Array.isArray); then
+        // order.trim() would TypeError inside load() and take down the whole
+        // search view for every user of a shared/default filter.
+        for (const sort of ["[null]", "[123]", '["ok", null]']) {
+            const favorite = irFilterToFavorite(makeIrFilter({ sort }));
+            expect(favorite.isInvalid).toBe(true);
+            expect(favorite.orderBy).toEqual([]);
+        }
+    });
+
     test("a quarantined favorite never becomes the default", () => {
         const favorite = irFilterToFavorite(
             makeIrFilter({ sort: "false", is_default: true }),
@@ -264,6 +275,29 @@ describe("reconciliateFavorites", () => {
         // A merge would have kept the stale isDefault: true.
         expect("isDefault" in searchItems[3]).toBe(false);
         expect(query).toEqual([{ searchItemId: 3 }]);
+    });
+
+    test("deactivates an active favorite that reloads as invalid", () => {
+        // F is active in the query; server-side it was edited to an unparseable
+        // domain before this reload. `toggleSearchItem` refuses to activate an
+        // invalid favorite, so an already-active one is the only way an invalid
+        // favorite reaches domain build — where `new Domain(badString)` throws
+        // and poisons the search model. Reconcile must drop it from the query.
+        const searchItems = {
+            3: { id: 3, groupId: 9, type: "favorite", serverSideId: 7 },
+        };
+        const query = [{ searchItemId: 3 }];
+
+        reconciliateFavorites(
+            searchItems,
+            query,
+            [makeIrFilter({ domain: "[('foo', '=', " })], // unparseable
+            irFilterToFavorite,
+            () => {},
+        );
+
+        expect(searchItems[3].isInvalid).toBe(true);
+        expect(query).toEqual([]);
     });
 
     test("removes favorites deleted server-side, along with their query entries", () => {

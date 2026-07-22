@@ -186,6 +186,22 @@ describe("isSafeUrlScheme", () => {
         expect(isSafeUrlScheme(42)).toBe(false);
     });
 
+    test("leading C0 control characters cannot hide a dangerous scheme", () => {
+        // The URL parser strips leading C0 controls (U+0000-U+001F) and space
+        // before resolving, so a control before "javascript:" / "//" executes
+        // on navigation. `\s` covers only U+000B/U+000C among the controls, so
+        // these slipped past the whitespace anchors (String.fromCharCode keeps
+        // the literal control bytes out of the source).
+        for (const code of [0x00, 0x01, 0x08, 0x0b, 0x0c, 0x1f]) {
+            const c = String.fromCharCode(code);
+            expect(isSafeUrlScheme(c + "javascript:alert(1)")).toBe(false);
+            expect(isSafeUrlScheme(c + "//evil.example")).toBe(false);
+        }
+        // ...but a leading control before a safe/relative value stays safe.
+        expect(isSafeUrlScheme(String.fromCharCode(1) + "https://x.com")).toBe(true);
+        expect(isSafeUrlScheme(String.fromCharCode(0) + "/relative/path")).toBe(true);
+    });
+
     test("embedded tab/newline/CR cannot hide a dangerous scheme", () => {
         // The WHATWG URL parser strips these before resolving, so "java\tscript:"
         // executes as "javascript:" on navigation — the detector must see through it.

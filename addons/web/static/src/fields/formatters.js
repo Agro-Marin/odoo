@@ -218,10 +218,16 @@ export function formatFloatTime(value, options = {}) {
         hourStr = hourStr.padStart(2, "0");
     }
     let sec = "";
+    let secValue = 0;
     if (options.displaySeconds) {
-        sec = ":" + String(Math.floor((milliSecLeft % 60000) / 1000)).padStart(2, "0");
+        secValue = Math.floor((milliSecLeft % 60000) / 1000);
+        sec = ":" + String(secValue).padStart(2, "0");
     }
-    return `${isNegative ? "-" : ""}${hourStr}:${minStr}${sec}`;
+    // Only show the sign if something non-zero survives the rounding: a tiny
+    // negative residue (e.g. -0.004h from an aggregated balance) rounds to
+    // 00:00 and must render "00:00", not a confusing signed zero "-00:00".
+    const showSign = isNegative && (hour !== 0 || min !== 0 || secValue !== 0);
+    return `${showSign ? "-" : ""}${hourStr}:${minStr}${sec}`;
 }
 formatFloatTime.extractOptions = ({ options }) => ({
     displaySeconds: options.displaySeconds,

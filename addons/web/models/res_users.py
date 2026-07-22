@@ -123,9 +123,18 @@ class ResUsers(models.Model):
             all_matching.mapped("login")
         )
 
-        new_emails = [
-            e for e, n in zip(emails, emails_normalized, strict=True) if n not in done
-        ]
+        # Dedupe within the batch too, not only against existing users: two
+        # inputs that normalise to the same address (e.g. "bob@x.com" and
+        # "Bob <bob@x.com>") would otherwise both reach ``create`` with the same
+        # ``login`` and raise the opaque UniqueViolation the ``invalid`` guard
+        # above exists to prevent. Seed a running set with the existing matches
+        # (``done``) and grow it as we accept each new address -- first wins.
+        seen = set(done)
+        new_emails = []
+        for e, n in zip(emails, emails_normalized, strict=True):
+            if n not in seen:
+                new_emails.append(e)
+                seen.add(n)
         vals_list = []
         for email in new_emails:
             name, email_normalized = tools.mail.parse_contact_from_email(email)
