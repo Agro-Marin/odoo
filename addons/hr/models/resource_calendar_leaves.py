@@ -36,11 +36,15 @@ class ResourceCalendarLeaves(models.Model):
             end_dt = (
                 date2datetime(contract.date_end + timedelta(days=1), tz)
                 if contract.date_end
-                else datetime.max
+                else datetime.max  # noqa: DTZ901 - naive sentinel, compared only
+                # against other naive datetimes (date2datetime always strips
+                # tzinfo, Odoo Datetime fields are always naive); see
+                # hr_attendance_gantt/hr_work_entry_attendance/calendar
+                # precedent from this campaign.
             )
             # only modify leaves that fall under the active contract
             leaves.filtered(
-                lambda leave: leave.date_from and start_dt <= leave.date_from < end_dt
+                lambda leave, start_dt=start_dt, end_dt=end_dt: leave.date_from and start_dt <= leave.date_from < end_dt
             ).calendar_id = contract.resource_calendar_id
 
         super(ResourceCalendarLeaves, remaining)._compute_calendar_id()

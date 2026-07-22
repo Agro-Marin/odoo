@@ -9,8 +9,6 @@ from odoo.exceptions import AccessError
 from odoo.fields import Domain
 from odoo.tools.misc import clean_context
 
-from odoo.addons.mail.tools.discuss import Store
-
 HR_READABLE_FIELDS = [
     "active",
     "child_ids",
