@@ -1,15 +1,14 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 import ast
-
 from collections import defaultdict
+from itertools import batched
+
 from dateutil.relativedelta import relativedelta
 
 from odoo import api, fields, models, modules
 from odoo.exceptions import UserError
 from odoo.fields import Domain
-from itertools import batched
-
 from odoo.tools import _
 
 # When recycle_mode = automatic, _recycle_records calls action_validate.
@@ -100,7 +99,7 @@ class Data_RecycleModel(models.Model):
             ['__count'])
         counts = {recycle_model.id: count for recycle_model, count in count_data}
         for model in self:
-            model.records_to_recycle_count = counts[model.id] if model.id in counts else 0
+            model.records_to_recycle_count = counts.get(model.id, 0)
 
     def _cron_recycle_records(self):
         self.sudo().search([])._recycle_records(batch_commits=True)
@@ -136,7 +135,7 @@ class Data_RecycleModel(models.Model):
             } for record in records_to_recycle if record.id not in mapped_existing_records[recycle_model]]
 
             if recycle_model.recycle_mode == 'automatic':
-                for records_to_create_batch in batched(records_to_create, DR_CREATE_STEP_AUTO):
+                for records_to_create_batch in batched(records_to_create, DR_CREATE_STEP_AUTO, strict=False):
                     self.env['data_recycle.record'].create(records_to_create_batch).action_validate()
                     if batch_commits and not is_test:
                         # Commit after each batch iteration to avoid complete rollback on timeout as
@@ -144,7 +143,7 @@ class Data_RecycleModel(models.Model):
                         self.env.cr.commit()
             else:
                 records_to_clean = records_to_clean + records_to_create
-        for records_to_clean_batch in batched(records_to_clean, DR_CREATE_STEP_MANUAL):
+        for records_to_clean_batch in batched(records_to_clean, DR_CREATE_STEP_MANUAL, strict=False):
             self.env['data_recycle.record'].create(records_to_clean_batch)
             if batch_commits and not is_test:
                 self.env.cr.commit()
@@ -208,4 +207,4 @@ class Data_RecycleModel(models.Model):
         self.sudo()._recycle_records()
         if self.recycle_mode == 'manual':
             return self.open_records()
-        return
+        return None

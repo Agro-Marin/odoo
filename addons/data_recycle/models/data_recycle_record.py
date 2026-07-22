@@ -1,9 +1,8 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 from collections import defaultdict
 
-from odoo import models, api, fields, _
+from odoo import _, api, fields, models
 
 
 class Data_RecycleRecord(models.Model):
@@ -60,7 +59,7 @@ class Data_RecycleRecord(models.Model):
 
         for model, record_ids in records_per_model.items():
             recs = self.env[model].with_context(active_test=False).sudo().browse(record_ids).exists()
-            records += [r for r in recs]
+            records += list(recs)
         return records
 
     def action_validate(self):
