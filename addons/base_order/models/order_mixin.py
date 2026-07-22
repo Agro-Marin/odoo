@@ -1113,6 +1113,12 @@ class OrderMixin(models.AbstractModel):
 
         self.flush_model(["company_id", "partner_id", ref_field, "origin", "state"])
 
+        # `o.state != 'cancel'` is a defensive guard, not a behavior change:
+        # the sole caller (`_compute_duplicated_order_ids`) already filters to
+        # draft orders before calling this method, but the method itself used
+        # to trust that discipline instead of enforcing it — a future direct
+        # caller passing confirmed/cancelled orders would have silently
+        # gotten duplicate results for them too (t24068).
         result = self.env.execute_query(
             SQL(
                 """
@@ -1129,6 +1135,7 @@ class OrderMixin(models.AbstractModel):
                         OR o.%(ref_field)s = duplicate_order.%(ref_field)s
                    )
                  WHERE o.id IN %(order_ids)s
+                   AND o.state != 'cancel'
                  GROUP BY o.id
                 """,
                 table=SQL.identifier(self._table),

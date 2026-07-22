@@ -488,7 +488,13 @@ class OrderLineAmountMixin(models.AbstractModel):
     def _merge_order_line(self, source_line):
         """Merge a source line into this line by combining quantities.
 
-        Takes the best (lowest) price between the two lines.
+        Only ever called on lines that already matched on
+        ``order.merge.mixin._merge_get_line_key()``, which includes
+        ``price_unit``/``tax_ids`` — so both lines are guaranteed to share
+        the same price/taxes here; the ``min()`` is a no-op safety net, not
+        a real "pick the lower price" policy (t24068: it used to silently
+        pick a price and drop taxes for lines that only matched on
+        product/UoM/discount but differed in price or tax).
         Called by ``order.merge.mixin._merge_lines()``.
         """
         self.product_qty += source_line.product_qty
