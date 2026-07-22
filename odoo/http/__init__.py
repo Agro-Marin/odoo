@@ -123,8 +123,6 @@ from .constants import (
     CSRF_TOKEN_MAX_AGE,
     DEFAULT_LANG,
     DEFAULT_MAX_CONTENT_LENGTH,
-    GEOIP_EMPTY_CITY,
-    GEOIP_EMPTY_COUNTRY,
     MISSING_CSRF_WARNING,
     NOT_FOUND_NODB,
     ROUTING_KEYS,
@@ -137,8 +135,6 @@ from .constants import (
     STATIC_CACHE_LONG,
     STORED_SESSION_BYTES,
     get_default_session,
-    geoip2,
-    maxminddb,
 )
 
 # Session internals (for tests)
@@ -186,7 +182,13 @@ from .session import (
 )
 
 # GeoIP
-from .geoip import GeoIP
+from .geoip import (
+    GEOIP_EMPTY_CITY,
+    GEOIP_EMPTY_COUNTRY,
+    GeoIP,
+    geoip2,
+    maxminddb,
+)
 
 # Core request state
 from .core import (

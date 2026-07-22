@@ -174,8 +174,14 @@ def route(route: str | Iterable[str] | None = None, **routing: Any) -> Callable:
                 fname,
             )
             routing["methods"] = wrong
-        if routing.get("auth") == "bearer":
-            routing.setdefault("save_session", False)  # stateless
+        # NB: ``save_session``'s bearer default is NOT baked in here. Doing so put
+        # a concrete ``False`` in this fragment's routing, which then leaked
+        # through the inheritance merge: an extension re-decorating a bearer route
+        # as ``auth='user'`` (without restating ``save_session``) silently kept the
+        # stateless ``False`` and never persisted its session cookie. The default
+        # is instead resolved from the *final merged* auth in
+        # :func:`_generate_routing_rules`, so it tracks the auth the route actually
+        # ends up with. An explicit ``save_session=`` on any fragment still wins.
 
         # Classify the endpoint's accepted params once; route_wrapper runs on
         # every request and ``inspect.signature`` is comparatively expensive.
@@ -374,6 +380,14 @@ def _generate_routing_rules(
 
             if nodb_only and merged_routing["auth"] != "none":
                 continue
+
+            # Resolve ``save_session``'s default from the FINAL merged auth (see
+            # the ``route`` decorator): a ``bearer`` route is stateless by default,
+            # everything else persists its session. An explicit ``save_session=``
+            # anywhere in the chain is already in ``merged_routing`` and wins.
+            merged_routing.setdefault(
+                "save_session", merged_routing["auth"] != "bearer"
+            )
 
             # Freeze the merged routing so dispatchers can't mutate it at request
             # time; convert the ``methods`` list to a tuple too.

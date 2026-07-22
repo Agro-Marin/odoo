@@ -176,7 +176,9 @@ class _RequestResponseMixin:
         environ = self.httprequest.raw_environ.copy()
         environ["PATH_INFO"] = path
         environ["QUERY_STRING"] = query_string
-        environ["RAW_URI"] = f"{path}?{query_string}"
+        # Only append ``?<qs>`` when there is a query string, so an empty one
+        # doesn't leave a dangling ``?`` on RAW_URI.
+        environ["RAW_URI"] = f"{path}?{query_string}" if query_string else path
         # REQUEST_URI left as-is so it still contains the original URI
 
         # Create and expose a new request from the modified WSGI env

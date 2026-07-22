@@ -20,11 +20,10 @@ from odoo.tools.misc import real_time
 from .constants import (
     ENSURE_DB_PATH_PREFIX,
     ENSURE_DB_PATHS,
-    geoip2,
-    maxminddb,
 )
 from .core import _request_stack, request
 from .exceptions import RegistryError, SessionExpiredException
+from .geoip import geoip2, maxminddb
 from .request_class import Request
 from .routing import _generate_routing_rules, rule_routing_kwargs
 from .session import FilesystemSessionStore, Session

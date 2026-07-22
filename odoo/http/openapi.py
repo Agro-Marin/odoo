@@ -44,20 +44,55 @@ _RULE_ARG_RE = re.compile(
 # HTTP verbs werkzeug adds implicitly; not emitted as OpenAPI operations.
 _IMPLICIT_METHODS = frozenset({"HEAD", "OPTIONS"})
 
+# When a route declares no ``methods`` allow-list, werkzeug lets it match every
+# verb. The framework's own default for that case (``Dispatcher.pre_dispatch``'s
+# CORS ``Access-Control-Allow-Methods``) is POST for ``jsonrpc`` and GET+POST
+# otherwise; mirror it here so the document and the runtime can't drift and an
+# unrestricted route is no longer emitted with zero operations.
+_DEFAULT_METHODS_JSONRPC = frozenset({"POST"})
+_DEFAULT_METHODS_OTHER = frozenset({"GET", "POST"})
+
+
+def _effective_methods(route: RouteInfo) -> frozenset[str]:
+    """The verbs to document for ``route``, applying the no-allow-list default."""
+    real = route.methods - _IMPLICIT_METHODS
+    if real:
+        return real
+    if route.routing.get("type") == "jsonrpc":
+        return _DEFAULT_METHODS_JSONRPC
+    return _DEFAULT_METHODS_OTHER
+
+
 # Characters not allowed in an operationId slug (collapsed to ``_``).
 _ID_SANITIZE_RE = re.compile(r"[^a-zA-Z0-9]+")
 
 
-def _operation_id(method: str, template: str) -> str:
+def _operation_id(method: str, template: str, used: set[str] | None = None) -> str:
     """Build a document-unique operationId from the method and path template.
 
     OpenAPI requires operationIds to be unique across the document. Deriving the
     id from the handler ``__name__`` (the previous scheme) collides as soon as two
-    controllers reuse a method name (two ``index`` handlers → two ``index_get``);
-    ``(method, path)`` is unique by construction.
+    controllers reuse a method name (two ``index`` handlers → two ``index_get``).
+
+    ``(method, path)`` is *nearly* unique, but the slug sanitizer collapses every
+    non-alphanumeric run to ``_``, so distinct templates that differ only in their
+    separators still clash (``/shop/cart`` and ``/shop-cart`` both → ``shop_cart``).
+    When ``used`` is supplied, a clash is broken deterministically with a numeric
+    suffix (``…_2``, ``…_3``); the chosen id is recorded in ``used``. The order is
+    the caller's iteration order over the routing map, which is stable for a
+    deployment, so ids stay stable across regenerations.
     """
     slug = _ID_SANITIZE_RE.sub("_", template).strip("_") or "root"
-    return f"{method.lower()}_{slug}"
+    base = f"{method.lower()}_{slug}"
+    if used is None:
+        return base
+    candidate = base
+    suffix = 2
+    while candidate in used:
+        candidate = f"{base}_{suffix}"
+        suffix += 1
+    used.add(candidate)
+    return candidate
 
 
 class RouteInfo(NamedTuple):
@@ -128,15 +163,17 @@ def build_operation(
     template: str,
     path_params: list[dict[str, Any]],
     security_schemes: dict[str, dict[str, str]],
+    used_operation_ids: set[str] | None = None,
 ) -> dict[str, Any]:
     """Build one OpenAPI operation object for ``route`` served via ``method``.
 
     ``template`` is the OpenAPI path (from :func:`_path_template`); with
-    ``method`` it forms the document-unique ``operationId``. Registers any
-    security scheme it uses into ``security_schemes`` (mutated).
+    ``method`` it forms the document-unique ``operationId`` (disambiguated against
+    ``used_operation_ids`` when supplied). Registers any security scheme it uses
+    into ``security_schemes`` (mutated).
     """
     operation: dict[str, Any] = {
-        "operationId": _operation_id(method, template),
+        "operationId": _operation_id(method, template, used_operation_ids),
         "responses": {"200": {"description": "Successful response"}},
     }
     if summary := _summary(route.handler):
@@ -200,15 +237,21 @@ def build_openapi(
     """
     paths: dict[str, dict[str, Any]] = {}
     security_schemes: dict[str, dict[str, str]] = {}
+    used_operation_ids: set[str] = set()
 
     for route in routes:
         if typed_only and not route.routing.get("typed"):
             continue
         template, path_params = _path_template(route.rule)
         path_item = paths.setdefault(template, {})
-        for method in sorted(route.methods - _IMPLICIT_METHODS):
+        for method in sorted(_effective_methods(route)):
             path_item[method.lower()] = build_operation(
-                route, method, template, path_params, security_schemes
+                route,
+                method,
+                template,
+                path_params,
+                security_schemes,
+                used_operation_ids,
             )
 
     document: dict[str, Any] = {

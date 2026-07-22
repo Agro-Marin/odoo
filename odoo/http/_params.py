@@ -130,11 +130,15 @@ def _coerce_scalar(name: str, value: Any, target: type) -> Any:
     if target is str:
         if isinstance(value, str):
             return value
-        # A JSON object/array for a str param would silently arrive as its
-        # Python ``repr`` — never what the caller meant; reject it instead.
-        if isinstance(value, (dict, list)):
-            raise BadRequest(f"parameter {name!r} must be a string")
-        return str(value)
+        # Whitelist what may be stringified: only JSON scalars (int/float/bool)
+        # convert to a meaningful string. Anything else — a dict/list, raw
+        # ``bytes``, or a werkzeug ``FileStorage`` posted under a str-typed field
+        # — would silently arrive as its Python ``repr`` (e.g.
+        # ``"<FileStorage: 'x.png' ...>"``), never what the caller meant, so
+        # reject it. ``bool`` is an ``int`` subclass, covered here.
+        if isinstance(value, (int, float)):
+            return str(value)
+        raise BadRequest(f"parameter {name!r} must be a string")
     if target is bool:
         return _to_bool(name, value)
     if target is int:

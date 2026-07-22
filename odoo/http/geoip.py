@@ -2,16 +2,78 @@ import collections.abc
 import functools
 from typing import TYPE_CHECKING, Any
 
-from .constants import (
-    _GEOIP_NULL,
-    GEOIP_EMPTY_CITY,
-    GEOIP_EMPTY_COUNTRY,
-    geoip2,
-    maxminddb,
-)
-
 if TYPE_CHECKING:
     from collections.abc import Iterator
+
+
+# GeoIP / MaxMind — only available if geoip2 is installed (maxminddb is a
+# transitive dependency, imported together so both are present or both ``None``).
+# Code referencing ``maxminddb.InvalidDatabaseError`` /
+# ``geoip2.errors.AddressNotFoundError`` in an ``except`` must guard with
+# ``if geoip2 is not None`` — else the clause evaluates against ``None`` and
+# raises AttributeError. These live here (the geoip domain module) rather than in
+# ``constants``, which stays a leaf of plain literals with no third-party imports.
+
+
+class _GeoIPNull:
+    """Chainable null sentinel returned by :class:`GeoIP` when geoip2 isn't installed.
+
+    Mimics an empty geoip2 record so chained access (``g.country.iso_code``,
+    ``g.location.latitude``) returns this same instance instead of raising,
+    while ``bool(g)`` and ``g == None`` are False/True respectively.
+    """
+
+    __slots__ = ()
+
+    def __getattr__(self, _name):
+        return self
+
+    def __bool__(self):
+        return False
+
+    def __eq__(self, other):
+        return other is self or other is None
+
+    def __ne__(self, other):
+        return not self.__eq__(other)
+
+    def __hash__(self):
+        return hash(None)
+
+    def __iter__(self):
+        return iter(())
+
+    def __len__(self):
+        return 0
+
+    def __getitem__(self, _key):
+        # Subdivisions[0] etc. are always gated by truthiness in callers.
+        raise IndexError
+
+    def __str__(self):
+        return ""
+
+    def __repr__(self):
+        return "<GeoIPNull>"
+
+
+_GEOIP_NULL = _GeoIPNull()
+
+try:
+    import geoip2.database
+    import geoip2.errors
+    import geoip2.models
+    import maxminddb
+
+    # geoip2 >= 2.x builds its model from the raw response mapping; ``{}`` is the
+    # empty placeholder (``None`` raised AttributeError as of geoip2 2.9).
+    GEOIP_EMPTY_COUNTRY = geoip2.models.Country({})
+    GEOIP_EMPTY_CITY = geoip2.models.City({})
+except ImportError:
+    geoip2 = None
+    maxminddb = None
+    GEOIP_EMPTY_COUNTRY = _GEOIP_NULL
+    GEOIP_EMPTY_CITY = _GEOIP_NULL
 
 
 def _none_if_null(value: Any) -> Any:
