@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 from odoo import _, api, fields, models
@@ -84,7 +83,7 @@ class EventRegistration(models.Model):
                     self.env['sale.order.line'].browse(vals['sale_order_line_id'])
                 )
                 vals.update(so_line_vals)
-        registrations = super(EventRegistration, self).create(vals_list)
+        registrations = super().create(vals_list)
         for registration in registrations:
             if registration.sale_order_id:
                 registration.message_post_with_source(
@@ -107,11 +106,14 @@ class EventRegistration(models.Model):
         if vals.get('event_ticket_id'):
             updated_fields_to_notify.append(('event.event.ticket', 'event_ticket_id'))
         for model, field in updated_fields_to_notify:
+            # B023: lambda references loop variable `field`, but it is invoked
+            # eagerly on this same line (chained `.filtered(...)._sale_order_...`
+            # call within this iteration) - no late-binding risk.
             self.filtered(
-                lambda registration: registration[field] and registration[field].id != vals[field]
+                lambda registration: registration[field] and registration[field].id != vals[field]  # noqa: B023
             )._sale_order_registration_data_change_notify(field, self.env[model].browse(vals[field]))
 
-        return super(EventRegistration, self).write(vals)
+        return super().write(vals)
 
     def _synchronize_so_line_values(self, so_line):
         if so_line:
@@ -154,7 +156,7 @@ class EventRegistration(models.Model):
         return res
 
     def _get_registration_summary(self):
-        res = super(EventRegistration, self)._get_registration_summary()
+        res = super()._get_registration_summary()
         res.update({
             'sale_status': self.sale_status,
             'sale_status_value': self.sale_status and dict(self._fields['sale_status']._description_selection(self.env))[self.sale_status],

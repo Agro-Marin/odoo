@@ -1,6 +1,6 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-from odoo import fields, models, _
+from odoo import _, fields, models
 from odoo.exceptions import ValidationError
 from odoo.fields import Domain
 
@@ -14,14 +14,14 @@ class SaleOrder(models.Model):
         """ Synchronize partner from SO to registrations. This is done notably
         in website_sale controller shop/address that updates customer, but not
         only. """
-        result = super(SaleOrder, self).write(vals)
+        result = super().write(vals)
         if any(line.service_tracking == 'event' for line in self.line_ids) and vals.get('partner_id'):
             registrations_toupdate = self.env['event.registration'].sudo().search([('sale_order_id', 'in', self.ids)])
             registrations_toupdate.write({'partner_id': vals['partner_id']})
         return result
 
     def action_confirm(self):
-        res = super(SaleOrder, self).action_confirm()
+        res = super().action_confirm()
 
         for so in self:
             if not any(line.service_tracking == 'event' for line in so.line_ids):
