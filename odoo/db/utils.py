@@ -40,15 +40,21 @@ def is_maintenance_db(db_name: str) -> bool:
     """True for system/template databases Odoo must never hold connections to.
 
     An idle connection to a template blocks ``CREATE DATABASE ... TEMPLATE``
-    ("source database is being accessed by other users"), so the pool both
-    discards borrowed connections to these on cursor close
-    (:meth:`Cursor._close`) and refuses to keep ``minconn`` warm connections
-    to them (:meth:`ConnectionPool._get_or_create_pool`) — either alone is
-    insufficient: psycopg_pool refills to ``min_size`` right after a discard.
-    ``db_template`` is read per call (not frozen at import) so tests and
-    runtime reconfiguration see the current value.
+    ("source database is being accessed by other users"), so the pool never
+    pools these at all: :meth:`ConnectionPool.borrow` routes them to
+    :meth:`ConnectionPool._borrow_direct` — a dedicated psycopg connection,
+    closed unconditionally on :meth:`ConnectionPool.give_back`.  (Discarding
+    pooled connections on cursor close was insufficient: psycopg_pool replaces
+    every discarded connection to hold its count, leaving an idle replacement
+    parked on the database.)  ``db_template`` is read per call (not frozen at
+    import) so tests and runtime reconfiguration see the current value.
     """
-    return db_name in ("template0", "template1", "postgres", tools.config["db_template"])
+    return db_name in (
+        "template0",
+        "template1",
+        "postgres",
+        tools.config["db_template"],
+    )
 
 
 # Query categorization patterns — debug-stats only, not correctness.  The
