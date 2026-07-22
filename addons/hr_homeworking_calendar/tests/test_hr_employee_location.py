@@ -1,10 +1,12 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
+from datetime import datetime
+
 from freezegun import freeze_time
+
+from odoo.tests import tagged
 
 from odoo.addons.hr_homeworking_calendar.tests.common import TestHrHomeworkingCommon
 
-from odoo.tests import tagged
-from datetime import datetime
 
 @tagged('post_install', '-at_install', "homeworking_tests")
 class TestHrHomeworkingHrEmployeeLocation(TestHrHomeworkingCommon):
