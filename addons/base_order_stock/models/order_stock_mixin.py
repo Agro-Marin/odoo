@@ -15,7 +15,6 @@ Field naming matches actual sale_stock/purchase_stock conventions:
 
 from odoo import api, fields, models
 
-
 TRANSFER_STATE = [
     ("no", "Nothing to transfer"),
     ("to do", "To transfer"),
