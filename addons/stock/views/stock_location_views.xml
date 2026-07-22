@@ -65,6 +65,12 @@
         </field>
     </record>
 
+    <!-- noupdate: `active` is runtime-managed by
+         ResConfigSettings.set_values() based on group_stock_multi_locations
+         (see addons/stock/wizard/res_config_settings.py) — without
+         noupdate, a module update resets `active` to its XML default
+         (True), drifting out of sync with the actual setting. -->
+    <data noupdate="1">
     <record id="view_stock_location_list_2_editable" model="ir.ui.view">
         <field name="name">stock.location.list2.editable</field>
         <field name="model">stock.location</field>
@@ -75,6 +81,7 @@
             </xpath>
         </field>
     </record>
+    </data>
 
     <!-- Precedence-->
     <record id="act_product_location_open" model="ir.actions.act_window">
@@ -160,6 +167,9 @@
         </field>
     </record>
 
+    <!-- noupdate: same reasoning as view_stock_location_list_2_editable
+         above — runtime-managed `active`, must survive module updates. -->
+    <data noupdate="1">
     <record id="view_stock_location_form_editable" model="ir.ui.view">
         <field name="name">stock.location.form.editable</field>
         <field name="model">stock.location</field>
@@ -170,6 +180,7 @@
             </xpath>
         </field>
     </record>
+    </data>
 
     <record id="action_stock_storage_category_locations" model="ir.actions.act_window">
         <field name="name">Locations</field>
