@@ -1,5 +1,6 @@
 import threading
 from concurrent.futures import ThreadPoolExecutor
+
 from psycopg import OperationalError
 
 from odoo import SUPERUSER_ID, api
@@ -79,23 +80,31 @@ class TestConcurrencyPromoCode(BaseCase):
             for env in cls.envs:
                 env.cr.close()
 
+            params = {
+                'program_id': cls.promo_code_program.id,
+                'sol_ids': list(cls.order_lines.ids),
+                'so_ids': [cls.order_partner_1.id, cls.order_partner_2.id],
+                'partner_ids': [cls.partner_1.id, cls.partner_2.id],
+                'product_id': cls.product.id,
+            }
+            # One execute per statement (FK-safe order preserved): psycopg3
+            # rejects multiple parameterised commands in a single prepared
+            # execute -- "cannot insert multiple commands into a prepared
+            # statement" -- unlike psycopg2, so joining them with ';' made this
+            # class-cleanup raise.
+            statements = (
+                "DELETE FROM loyalty_card WHERE program_id = %(program_id)s",
+                "DELETE FROM loyalty_rule WHERE program_id = %(program_id)s",
+                "DELETE FROM loyalty_reward WHERE program_id = %(program_id)s",
+                "DELETE FROM loyalty_program WHERE id = %(program_id)s",
+                "DELETE FROM sale_order_line WHERE id = ANY(%(sol_ids)s)",
+                "DELETE FROM sale_order WHERE id = ANY(%(so_ids)s)",
+                "DELETE FROM res_partner WHERE id = ANY(%(partner_ids)s)",
+                "DELETE FROM product_product WHERE id = %(product_id)s",
+            )
             with cls.registry.cursor() as cr:
-                cr.execute("""
-                    DELETE FROM loyalty_card WHERE program_id = %(program_id)s;
-                    DELETE FROM loyalty_rule WHERE program_id = %(program_id)s;
-                    DELETE FROM loyalty_reward WHERE program_id = %(program_id)s;
-                    DELETE FROM loyalty_program WHERE id = %(program_id)s;
-                    DELETE FROM sale_order_line WHERE id = ANY(%(sol_ids)s);
-                    DELETE FROM sale_order WHERE id = ANY(%(so_ids)s);
-                    DELETE FROM res_partner WHERE id = ANY(%(partner_ids)s);
-                    DELETE FROM product_product WHERE id = %(product_id)s;
-                """, {
-                    'program_id': cls.promo_code_program.id,
-                    'sol_ids': list(cls.order_lines.ids),
-                    'so_ids': [cls.order_partner_1.id, cls.order_partner_2.id],
-                    'partner_ids': [cls.partner_1.id, cls.partner_2.id],
-                    'product_id': cls.product.id,
-                })
+                for statement in statements:
+                    cr.execute(statement, params)
         cls.addClassCleanup(reset)
 
     @mute_logger('odoo.db')
