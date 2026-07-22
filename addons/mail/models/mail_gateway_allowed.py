@@ -1,6 +1,7 @@
 from markupsafe import Markup
 
 from odoo import _, api, fields, models, tools
+from odoo.exceptions import ValidationError
 
 
 class MailGatewayAllowed(models.Model):
@@ -31,6 +32,22 @@ class MailGatewayAllowed(models.Model):
     def _compute_email_normalized(self):
         for record in self:
             record.email_normalized = tools.email_normalize(record.email)
+
+    @api.constrains("email")
+    def _check_email_normalizes(self):
+        """Reject an entry whose address does not normalize.
+
+        ``email`` is only ``required``; a value like "Support Team" stored a
+        NULL ``email_normalized`` (indexed, searched with ``=``). Such a row is
+        a meaningless no-op -- it can never match a real normalized ``From``,
+        and matching an unparseable ``From`` (also NULL) has no effect either,
+        since loop detection already treats a null sender as a no-op. Refuse the
+        bad value at the source anyway, the way ``mail.blacklist`` does, so the
+        allow list cannot accumulate confusing dead rows.
+        """
+        for record in self:
+            if not tools.email_normalize(record.email):
+                raise ValidationError(_("Invalid email address “%s”", record.email))
 
     @api.model
     def get_empty_list_help(self, help_message):

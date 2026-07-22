@@ -28,11 +28,13 @@ silently reintroduce it. Coverage:
    so a message scheduled beyond the 4-day dedupe window produced two replies.
 """
 
+import json
 from datetime import timedelta
 from unittest.mock import patch
 
 from odoo import fields
-from odoo.tests import tagged
+from odoo.exceptions import UserError, ValidationError
+from odoo.tests import HttpCase, tagged
 
 from odoo.addons.mail.tests.common import MailCommon
 
@@ -407,4 +409,51 @@ class TestAliasDomainCacheV9(MailCommon):
             )
         self.assertEqual(
             len(self._new_mails), 1, "the renamed catchall must be detected at once"
+        )
+
+
+@tagged("-at_install", "post_install", "mail_hardening_v9")
+class TestGatewayRobustnessV9(MailCommon):
+    """Input-validation robustness on the gateway and its allow/deny lists."""
+
+    def test_malformed_allowlist_row_is_rejected(self):
+        """`mail.gateway.allowed` must refuse a value that does not normalize.
+
+        Such a value stored a NULL ``email_normalized`` -- a meaningless no-op
+        row. Reject it at the source, like ``mail.blacklist`` does.
+        """
+        with self.assertRaises(ValidationError):
+            self.env["mail.gateway.allowed"].create({"email": "Support Team"})
+
+    def test_blacklist_write_raises_clean_error_on_bad_email(self):
+        """`mail.blacklist.write` must raise UserError, not IntegrityError."""
+        entry = self.env["mail.blacklist"].create({"email": "real@x.com"})
+        with self.assertRaises(UserError):
+            entry.write({"email": "not an address"})
+
+
+@tagged("-at_install", "post_install", "mail_hardening_v9")
+class TestGuestControllerRobustnessV9(HttpCase, MailCommon):
+    """The guest rename route must not 500 on a non-integer id."""
+
+    def test_update_name_rejects_non_integer_id(self):
+        guest = self.env["mail.guest"].create({"name": "Visitor"})
+        self.authenticate(None, None)
+        self.opener.cookies[guest._cookie_name] = guest._format_auth_cookie()
+        res = self.url_open(
+            "/mail/guest/update_name",
+            data=json.dumps(
+                {
+                    "jsonrpc": "2.0",
+                    "method": "call",
+                    "params": {"guest_id": "not-an-int", "name": "X"},
+                }
+            ),
+            headers={"Content-Type": "application/json"},
+        )
+        # 404 is surfaced as a jsonrpc error, NOT a 500 traceback
+        payload = res.json()
+        self.assertIn("error", payload)
+        self.assertEqual(
+            payload["error"]["data"]["name"], "werkzeug.exceptions.NotFound"
         )
