@@ -19,6 +19,23 @@ from odoo import modules
 _logger = logging.getLogger(__name__)
 
 
+class StubAssetFetcher:
+    """Minimal stand-in for ``OdooURLFetcher`` in stylesheet-parsing tests.
+
+    ``_parse_stylesheet`` keys its process-wide cache on
+    ``(url, fetcher.asset_checksum(url))`` — the URL alone is not a content
+    address — so a fetcher sentinel must answer that call. A bare ``object()``
+    raises ``AttributeError``, which the method's broad ``except`` turns into a
+    silent "unparsable stylesheet" instead of a cache hit.
+    """
+
+    def __init__(self, checksum: str = "stub-checksum"):
+        self.checksum = checksum
+
+    def asset_checksum(self, url: str) -> str | None:
+        return self.checksum
+
+
 @odoo.tests.tagged("post_install", "-at_install", "post_install_l10n")
 class TestReports(odoo.tests.TransactionCase):
     def test_get_report_rejects_bool_reference(self):
@@ -95,8 +112,12 @@ class TestReports(odoo.tests.TransactionCase):
         debug_body = body.replace("/abc123/", "/debug/")
         sentinel = object()
         with patch.object(iar.weasyprint, "CSS", return_value=sentinel) as css_cls:
-            _html0, css0 = engine._process_body_html(body, "", {}, fetcher=object())
-            _html1, css1 = engine._process_body_html(body, "", {}, fetcher=object())
+            _html0, css0 = engine._process_body_html(
+                body, "", {}, fetcher=StubAssetFetcher()
+            )
+            _html1, css1 = engine._process_body_html(
+                body, "", {}, fetcher=StubAssetFetcher()
+            )
             self.assertEqual(css_cls.call_count, 1, "second render must hit the cache")
             self.assertEqual(css0, [sentinel])
             self.assertEqual(css1, [sentinel])
@@ -104,8 +125,8 @@ class TestReports(odoo.tests.TransactionCase):
                 css_cls.call_args.kwargs.get("font_config"),
                 "@font-face registration needs the shared font config at parse time",
             )
-            engine._process_body_html(debug_body, "", {}, fetcher=object())
-            engine._process_body_html(debug_body, "", {}, fetcher=object())
+            engine._process_body_html(debug_body, "", {}, fetcher=StubAssetFetcher())
+            engine._process_body_html(debug_body, "", {}, fetcher=StubAssetFetcher())
             self.assertEqual(css_cls.call_count, 3, "debug assets must not be cached")
 
     def test_render_entry_points_do_not_mutate_caller_data(self):
