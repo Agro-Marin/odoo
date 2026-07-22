@@ -1,5 +1,4 @@
-# coding: utf-8
-from odoo import models, fields, api
+from odoo import api, fields, models
 
 
 class AccountTax(models.Model):
