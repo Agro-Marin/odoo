@@ -162,12 +162,10 @@ export class GoogleMapsOptionPlugin extends Plugin {
     }
 
     /**
-     * Test the validity of the API key provided if any. If none was provided,
-     * or the key was invalid, or the `force` argument is `true`, open the API
-     * key dialog to prompt the user to provide a new API key.
+     * Open the Google Maps API key dialog to let the user provide or replace
+     * the key, then re-validate the maps depending on it.
      *
-     * @param {Object} param
-     * @param {string} [param.apiKey]
+     * @param {string} [apiKey] the current API key, prefilled in the dialog.
      * @returns {Promise<boolean>} true if a new API key was written to db.
      */
     async configureGMapsAPI(apiKey) {

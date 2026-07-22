@@ -243,7 +243,22 @@ export class CustomizeWebsitePlugin extends Plugin {
         ]);
     }
     reloadBundles = debounce(this._reloadBundles.bind(this), 0);
+
+    destroy() {
+        super.destroy();
+        // Cancel pending trailing executions so a debounced SCSS/bundle flush
+        // cannot fire after teardown: _reloadBundles calls into edit_interaction
+        // (which throws "website edit service not loaded" once torn down) and
+        // issues RPCs on a dead plugin.
+        this.debouncedSCSSVariablesCusto.cancel();
+        this.debouncedSCSSColorsCusto.cancel();
+        this.reloadBundles.cancel();
+    }
+
     async _reloadBundles() {
+        if (this.isDestroyed) {
+            return;
+        }
         const bundles = await rpc("/website/theme_customize_bundle_reload");
         const allLinksIframeEls = [];
         const proms = [];
@@ -279,6 +294,10 @@ export class CustomizeWebsitePlugin extends Plugin {
                 el.remove();
             }
         });
+        // The plugin may have been torn down while the RPC/link loads awaited.
+        if (this.isDestroyed) {
+            return;
+        }
         this.dependencies.edit_interaction.restartInteractions();
     }
 

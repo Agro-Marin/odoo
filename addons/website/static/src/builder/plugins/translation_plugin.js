@@ -331,6 +331,11 @@ export class TranslationPlugin extends Plugin {
         const translationEl = dummyDoc.querySelector(
             "[data-oe-translation-source-sha]",
         );
+        if (!translationEl) {
+            // The parsed translation did not contain the expected node; record
+            // nothing rather than throwing on `translationEl.dataset`.
+            return;
+        }
         if (!this.elToTranslationInfoMap.get(translateEl)) {
             this.elToTranslationInfoMap.set(translateEl, {});
         }
@@ -348,8 +353,8 @@ export class TranslationPlugin extends Plugin {
         for (const [translateEl, translationInfo] of this.elToTranslationInfoMap) {
             for (const [attr, data] of Object.entries(translationInfo)) {
                 if (
-                    this.originalElToTranslationInfoMap.get(translateEl)[attr]
-                        .translation !== data.translation
+                    this.originalElToTranslationInfoMap.get(translateEl)?.[attr]
+                        ?.translation !== data.translation
                 ) {
                     const spanEl = document.createElement("span");
                     for (const [name, value] of Object.entries(data)) {

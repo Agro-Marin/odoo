@@ -226,6 +226,30 @@ export class CarouselOptionPlugin extends Plugin {
         );
 
         return new Promise((resolve) => {
+            let settled = false;
+            const finalize = () => {
+                if (settled) {
+                    return;
+                }
+                settled = true;
+                // Setting the active indicator manually, as Bootstrap could not
+                // do it because the `data-bs-slide-to` attribute is not here in
+                // edit mode anymore.
+                const itemEls = editingElement.querySelectorAll(".carousel-item");
+                const activeItemEl = editingElement.querySelector(
+                    ".carousel-item.active",
+                );
+                const activeIndex = [...itemEls].indexOf(activeItemEl);
+                // Full toggle (guards the index and, crucially, clears the
+                // previously-active indicator — the manual classList.add only
+                // ever added, leaving several indicators marked active).
+                updateCarouselIndicators(editingElement, activeIndex);
+
+                // Activate the active item.
+                this.dependencies["builderOptions"].setNextTarget(activeItemEl);
+
+                resolve();
+            };
             editingElement.addEventListener(
                 "slid.bs.carousel",
                 () => {
@@ -235,30 +259,17 @@ export class CarouselOptionPlugin extends Plugin {
                     // retargeting edition, which should be enough...
                     const slideDuration =
                         window.performance.now() - this.slideTimestamp;
-                    setTimeout(() => {
-                        // Setting the active indicator manually, as Bootstrap
-                        // could not do it because the `data-bs-slide-to`
-                        // attribute is not here in edit mode anymore.
-                        const itemEls =
-                            editingElement.querySelectorAll(".carousel-item");
-                        const activeItemEl = editingElement.querySelector(
-                            ".carousel-item.active",
-                        );
-                        const activeIndex = [...itemEls].indexOf(activeItemEl);
-                        // Full toggle (guards the index and, crucially, clears
-                        // the previously-active indicator — the manual
-                        // classList.add only ever added, leaving several
-                        // indicators marked active).
-                        updateCarouselIndicators(editingElement, activeIndex);
-
-                        // Activate the active item.
-                        this.dependencies["builderOptions"].setNextTarget(activeItemEl);
-
-                        resolve();
-                    }, 0.2 * slideDuration);
+                    setTimeout(finalize, 0.2 * slideDuration);
                 },
                 { once: true },
             );
+            // Safety net: bootstrap may never emit `slid.bs.carousel` (the
+            // carousel gets detached mid-transition, or the emulated
+            // transitionEnd is suppressed), which would leave this promise —
+            // and every SlideCarouselAction/addSlide awaiting it — pending for
+            // the rest of the edit session. Resolve anyway after a bound well
+            // beyond any real transition.
+            setTimeout(finalize, 3000);
 
             const carouselInstance = Carousel.getOrCreateInstance(editingElement, {
                 ride: false,
