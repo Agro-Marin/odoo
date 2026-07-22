@@ -53,7 +53,16 @@ def pager(url, total, page=1, step=30, scope=5, url_args=None):
     def get_url(page):
         _url = f"{url}/page/{page}" if page > 1 else url
         if url_args:
-            _url = f"{_url}?{urlencode(url_args)}"
+            # Drop None-valued args (a None must not serialize to the literal
+            # string "None" — the shop passes ``tags=None`` to clear the filter,
+            # and the reader then int-parses "None" -> HTTP 500), mirroring how
+            # QueryURL already omits falsy values. doseq=True so a list value
+            # (e.g. the shop's ``attribute_values``, read back with
+            # ``request.args.getlist``) is emitted as repeated ``key=a&key=b``
+            # params rather than a single ``key=['a', 'b']`` Python-repr.
+            query = {k: v for k, v in url_args.items() if v is not None}
+            if query:
+                _url = f"{_url}?{urlencode(query, doseq=True)}"
         return _url
 
     # Build page list based on conditions. ``scope`` is the target width of the
