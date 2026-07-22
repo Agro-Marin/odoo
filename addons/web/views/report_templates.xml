@@ -9,9 +9,7 @@
             <head>
                 <meta charset="utf-8" />
                 <meta name="viewport" content="initial-scale=1" />
-                <title>
-                    <t t-out="title or 'Odoo Report'" />
-                </title>
+                <title t-out="title or 'Odoo Report'" />
                 <t t-call-assets="web.report_assets_common" t-autoprefix="true" />
                 <!-- Temporary code: only used to maintain CSS for legacy HTML reports (full
                 width...) -->
@@ -44,9 +42,7 @@
             <head>
                 <meta charset="utf-8" />
                 <meta name="viewport" content="initial-scale=1" />
-                <title>
-                    <t t-out="title or 'Odoo Report'" />
-                </title>
+                <title t-out="title or 'Odoo Report'" />
                 <t t-call-assets="web.report_assets_common" t-js="false" />
                 <style>
                     <t t-out="preview_css" />
@@ -267,10 +263,12 @@
                      <title> becomes /Title (the record name, e.g. INV/2026/00001),
                      description becomes /Subject (the print action's label),
                      author becomes /Author, generator becomes /Creator and
-                     dcterms.created becomes /CreationDate. -->
-                <title>
-                    <t t-out="title or 'Odoo Report'" />
-                </title>
+                     dcterms.created becomes /CreationDate.
+                     `t-out` sits on <title> itself rather than on a nested
+                     <t>: the nested form leaves this file's indentation as
+                     text nodes inside the element, and WeasyPrint copies that
+                     verbatim, so /Title came out as "\n    INV/2026/00001\n". -->
+                <title t-out="title or 'Odoo Report'" />
                 <meta name="author" t-att-content="res_company.display_name" />
                 <meta name="generator" content="Odoo" />
                 <meta t-if="subject and subject != title" name="description" t-att-content="subject" />
