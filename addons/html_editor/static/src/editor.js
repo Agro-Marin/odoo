@@ -407,10 +407,19 @@ export class Editor {
     }
 
     destroy(willBeRemoved) {
+        // Every plugin must be destroyed even if one of them throws: aborting
+        // the loop would leak the DOM listeners, intervals and observers of
+        // every plugin registered before the thrower, and leave `isDestroyed`
+        // false. Errors are collected and re-raised once teardown is complete.
+        const errors = [];
         if (this.editable) {
             let plugin;
             while ((plugin = this.plugins.pop())) {
-                plugin.destroy();
+                try {
+                    plugin.destroy();
+                } catch (error) {
+                    errors.push(error);
+                }
             }
             this.shared = {};
             if (!willBeRemoved) {
@@ -423,5 +432,10 @@ export class Editor {
             this.editable = null;
         }
         this.isDestroyed = true;
+        if (errors.length) {
+            throw errors.length === 1
+                ? errors[0]
+                : new AggregateError(errors, "Errors while destroying plugins");
+        }
     }
 }

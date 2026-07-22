@@ -368,18 +368,19 @@ export class TableResizePlugin extends Plugin {
                 }
                 this.resizeTable(ev, direction, target1, target2);
             };
+            let stopDrag = () => {};
             const stopResizing = (ev) => {
                 ev.preventDefault();
                 this.isResizingTable = false;
                 this.setTableResizeCursor(false);
                 this.dependencies.history.addStep();
-                this.document.removeEventListener("mousemove", resizeTable);
-                this.document.removeEventListener("mouseup", stopResizing);
-                this.document.removeEventListener("mouseleave", stopResizing);
+                stopDrag();
             };
-            this.document.addEventListener("mousemove", resizeTable);
-            this.document.addEventListener("mouseup", stopResizing);
-            this.document.addEventListener("mouseleave", stopResizing);
+            stopDrag = this.addTransientDomListeners(this.document, {
+                mousemove: resizeTable,
+                mouseup: stopResizing,
+                mouseleave: stopResizing,
+            });
         }
     }
     onMousemove(ev) {
