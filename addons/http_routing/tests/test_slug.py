@@ -93,6 +93,29 @@ class TestSlug(TransactionCase):
     def test_unslug_url_only_touches_last_segment(self):
         self.assertEqual(self.IrHttp._unslug_url("/a/b-2/c-5"), "/a/b-2/5")
 
+    def test_unslug_url_keeps_query_and_fragment(self):
+        # _unslug() accepts "?" and "#" as segment terminators, so the raw last
+        # split("/") chunk unslugs fine -- but replacing that whole chunk with
+        # the bare id used to take the query string/fragment down with it
+        # ("/blog/my-blog-1?page=2" -> "/blog/1").
+        self.assertEqual(
+            self.IrHttp._unslug_url("/blog/my-blog-1?page=2"), "/blog/1?page=2"
+        )
+        self.assertEqual(
+            self.IrHttp._unslug_url("/blog/my-blog-1#comments"), "/blog/1#comments"
+        )
+        self.assertEqual(
+            self.IrHttp._unslug_url("/blog/my-blog-1?a=b#c"), "/blog/1?a=b#c"
+        )
+        # a "#" inside the query string must not be mistaken for the fragment
+        # start of a *later* "?"
+        self.assertEqual(self.IrHttp._unslug_url("/blog/x-1#f?a=b"), "/blog/1#f?a=b")
+
+    def test_unslug_url_no_id_keeps_url_verbatim(self):
+        self.assertEqual(
+            self.IrHttp._unslug_url("/blog/about?page=2"), "/blog/about?page=2"
+        )
+
     # NOTE: get_nearest_lang() is covered in test_lang.py. In this module its
     # base implementation is a pure function of the active languages (no
     # ``request``), so it is unit-testable here; website's override (which reads
