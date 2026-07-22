@@ -1,7 +1,5 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-from operator import itemgetter
 from odoo import api, models
 
 
@@ -11,7 +9,7 @@ class IrUiView(models.Model):
     @api.model
     def _validate_custom_views(self, model):
         # views from imported modules should be considered as custom views
-        result = super(IrUiView, self)._validate_custom_views(model)
+        result = super()._validate_custom_views(model)
 
         self.env.cr.execute("""
             SELECT max(v.id)

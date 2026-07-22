@@ -1,32 +1,29 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 import base64
 import json
-
 from io import BytesIO
 from pathlib import Path
+from unittest.mock import patch
 from zipfile import ZipFile
 
 import odoo.tests
-from odoo.tests import new_test_user
-
-
-from unittest.mock import patch
-
 from odoo import release
-from odoo.addons import __path__ as __addons_path__
 from odoo.exceptions import UserError
+from odoo.tests import new_test_user
 from odoo.tools import file_open, file_open_temporary_directory, mute_logger
 from odoo.tools.translate import TranslationModuleReader
+
+from odoo.addons import __path__ as __addons_path__
 
 
 @odoo.tests.tagged('post_install', '-at_install')
 class TestImportModule(odoo.tests.TransactionCase):
 
-    def manifest_content(self, manifest={}, /, **values):
+    def manifest_content(self, manifest=None, /, **values):
         return json.dumps({
             'author': 'Odoo S.A.',
             'license': 'LGPL-3',
-            **manifest,
+            **(manifest or {}),
             **values,
         }).encode()
 
@@ -52,7 +49,7 @@ class TestImportModule(odoo.tests.TransactionCase):
                 </data>
             """),
             ('foo/res.partner.csv',
-                b'"id","name"\n' \
+                b'"id","name"\n'
                 b'bar,bar'
             ),
             ('foo/data.sql', b"INSERT INTO res_currency (name, symbol, active) VALUES ('New Currency', 'NCU', TRUE);"),
@@ -224,7 +221,7 @@ class TestImportModule(odoo.tests.TransactionCase):
         files = [
             ('foo/__manifest__.py', self.manifest_content(data=['res.partner.xls'])),
             ('foo/res.partner.xls',
-                b'"id","name"\n' \
+                b'"id","name"\n'
                 b'foo,foo'
             ),
         ]
@@ -246,7 +243,7 @@ class TestImportModule(odoo.tests.TransactionCase):
                 </data>
             """),
             ('foo/res.partner.xls',
-                b'"id","name"\n' \
+                b'"id","name"\n'
                 b'foo,foo'
             ),
             ('foo/static/css/style.css', b".foo{color: black;}"),
@@ -258,8 +255,7 @@ class TestImportModule(odoo.tests.TransactionCase):
         def _import_module(self, *args, **kwargs):
             _module, path = args
             for root, _dirs, files in Path(path).walk():
-                for file in files:
-                    extracted_files.append(str((root / file).relative_to(path)))
+                extracted_files.extend(str((root / file).relative_to(path)) for file in files)
             addons_path.extend(__addons_path__)
             return origin_import_module(self, *args, **kwargs)
         with patch.object(type(self.env['ir.module.module']), '_import_module', _import_module):
@@ -282,6 +278,27 @@ class TestImportModule(odoo.tests.TransactionCase):
         self.assertFalse(
             set(addons_path).difference(__addons_path__),
             'No directory must be added in the addons path during import')
+
+    def test_import_zip_cumulative_size_cap(self):
+        """ t24068: `ZipInfo.file_size` (checked against MAX_FILE_SIZE per-file)
+        is declared, attacker-controlled metadata — it does not bound the real
+        decompressed size of a hand-crafted deflate stream (zip-bomb). The real
+        guard checks bytes actually written to disk, cumulatively, against
+        MAX_TOTAL_EXTRACTED_SIZE. Patched down to a tiny cap here so a normal
+        small fixture file trips it without fabricating an actual large file. """
+        files = [
+            ('foo/__manifest__.py', self.manifest_content(data=['data.xml'])),
+            ('foo/data.xml', b"""
+                <data>
+                    <record id="foo" model="res.partner">
+                        <field name="name">foo</field>
+                    </record>
+                </data>
+            """),
+        ]
+        with patch('odoo.addons.base_import_module.models.ir_module.MAX_TOTAL_EXTRACTED_SIZE', 10):
+            with self.assertRaises(UserError):
+                self.import_zipfile(files)
 
     def test_import_and_uninstall_module(self):
         bundle = 'web.assets_backend'

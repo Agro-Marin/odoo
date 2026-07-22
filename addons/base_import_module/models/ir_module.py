@@ -3,7 +3,6 @@ import base64
 import io
 import json
 import logging
-import traceback
 import zipfile
 from collections import defaultdict
 from io import BytesIO
@@ -39,7 +38,14 @@ from odoo.addons.base.models.ir_asset import is_wildcard_glob
 _logger = logging.getLogger(__name__)
 
 APPS_URL = "https://apps.odoo.com"
-MAX_FILE_SIZE = 100 * 1024 * 1024  # in megabytes
+MAX_FILE_SIZE = 100 * 1024 * 1024  # in bytes (100 MB)
+# Cumulative cap across every file actually written to disk while extracting
+# an uploaded module zip. `ZipInfo.file_size` (used for the per-file MAX_FILE_SIZE
+# check above) is declared, attacker-controlled metadata from the zip's central
+# directory — it does not bound the real decompressed size of a hand-crafted
+# deflate stream (classic zip-bomb). This second cap is checked against bytes
+# actually on disk after each extraction (t24068).
+MAX_TOTAL_EXTRACTED_SIZE = 500 * 1024 * 1024  # in bytes (500 MB)
 
 
 class IrModuleModule(models.Model):
@@ -444,6 +450,16 @@ class IrModuleModule(models.Model):
                     )
 
             with file_open_temporary_directory(self.env) as module_dir:
+                extracted_total_size = 0
+
+                def _extract(zip_info):
+                    nonlocal extracted_total_size
+                    path = z.extract(zip_info, module_dir)
+                    extracted_total_size += Path(path).stat().st_size
+                    if extracted_total_size > MAX_TOTAL_EXTRACTED_SIZE:
+                        raise UserError(_("The module archive is too large once extracted."))
+                    return path
+
                 manifest_files = sorted(
                     (file.filename.split("/")[0], file)
                     for file in z.infolist()
@@ -453,7 +469,7 @@ class IrModuleModule(models.Model):
                 module_data_files = defaultdict(list)
                 dependencies = defaultdict(list)
                 for mod_name, manifest in manifest_files:
-                    _manifest_path = z.extract(manifest, module_dir)
+                    _manifest_path = _extract(manifest)
                     module_dir_path = Path(module_dir)
                     terp = Manifest._from_path(
                         str(module_dir_path / mod_name), env=self.env
@@ -499,22 +515,28 @@ class IrModuleModule(models.Model):
                         "%s/i18n" % mod_name
                     ) and filename.endswith(".po")
                     if is_data_file or is_static or is_translation:
-                        z.extract(file, module_dir)
+                        _extract(file)
 
                 for mod_name in sorted_dirs:
                     module_names.append(mod_name)
                     try:
-                        # assert mod_name.startswith('theme_')
                         path = str(Path(module_dir) / mod_name)
                         self.sudo()._import_module(
                             mod_name, path, force=force, with_demo=with_demo
                         )
                     except Exception as e:
+                        # Full traceback (file paths, line numbers) goes to the
+                        # server log only; the user-facing UserError carries just
+                        # the exception's own message (t24068 — this message was
+                        # embedding traceback.format_exc() verbatim, surfaced
+                        # as-is in both the wizard's error dialog and the CLI
+                        # deploy endpoint's HTTP 500 body).
+                        _logger.exception("Error while importing module %r from zip", mod_name)
                         raise UserError(
                             _(
-                                "Error while importing module '%(module)s'.\n\n %(error_message)s \n\n",
+                                "Error while importing module '%(module)s'.\n\n%(error_message)s",
                                 module=mod_name,
-                                error_message=traceback.format_exc(),
+                                error_message=e,
                             )
                         ) from e
         return "", module_names
