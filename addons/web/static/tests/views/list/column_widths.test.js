@@ -136,7 +136,18 @@ defineModels([Foo, Bar, Currency, ResCompany, ResPartner, ResUsers]);
 beforeEach(() => {
     resize({ width: 800 });
     document.body.style.fontFamily = "sans-serif";
+    // date/datetime column widths are measured once from the live font and
+    // cached module-globally in @web/fields/field_widths. This suite pins the
+    // font above so those measurements are reproducible, but the pin only holds
+    // if the cache is recomputed afterwards: a date-column test in an earlier
+    // suite can populate the cache under a different font, and without this
+    // reset those stale widths leak in and shift the expected pixel values
+    // (5 tests failed this way only in a full run, never in isolation).
+    resetDateFieldWidths();
 });
+// Clear the sans-serif measurement on the way out too, so this suite does not
+// leak its own cached widths into a later suite that measures under its font.
+after(resetDateFieldWidths);
 
 function getColumnWidths() {
     return queryAllProperties(".o_list_table thead th", "offsetWidth");

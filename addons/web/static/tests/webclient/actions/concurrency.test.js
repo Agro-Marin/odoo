@@ -27,7 +27,6 @@ import { browser } from "@web/core/browser/browser";
 import { router } from "@web/core/browser/router";
 import { AppEvent } from "@web/core/events";
 import { registry } from "@web/core/registry";
-import { SupersededError } from "@web/core/utils/concurrency";
 import { redirect } from "@web/core/utils/urls";
 import { ControlPanel } from "@web/search/control_panel/control_panel";
 import { SearchBar } from "@web/search/search_bar/search_bar";
@@ -898,7 +897,16 @@ test("superseded clearBreadcrumbs skeleton wait doesn't leave doAction pending",
     // fires ACTION_MANAGER:UPDATE and replaces (destroys-before-mount) that
     // skeleton. Its Deferred is resolved only from the skeleton's onMounted, so
     // without a supersession guard the superseded doAction promise would hang
-    // forever. The guard rejects it with SupersededError (swallowed globally).
+    // forever.
+    //
+    // The newer inline dispatch rejects the parked skeleton's Deferred with
+    // SupersededError, and `_dispatchInline` *contains* that error at its source
+    // (it returns instead of re-throwing — see action_service._dispatchInline).
+    // So the superseded doAction settles by resolving cleanly: no hang, and no
+    // caller-visible rejection that would surface as an unhandled rejection —
+    // which debug=assets (the mode these suites run in) reports as a spurious
+    // error. Supersession stays observable through the UI swap below: the
+    // winning navigation's controller mounts and the parked one never does.
     class ClientActionA extends Component {
         static template = xml`<div class="client-a">A</div>`;
         static props = ["*"];
@@ -916,10 +924,14 @@ test("superseded clearBreadcrumbs skeleton wait doesn't leave doAction pending",
     // Client actions have no RPC, so A reaches `await def` in pure microtasks.
     // Its SkeletonView only mounts on an animation frame — which we deliberately
     // withhold — so flushing microtasks parks A exactly at the skeleton wait.
+    let aSettled = false;
     let aError = null;
     const promA = action.doAction("clientA", { clearBreadcrumbs: true }).then(
-        () => expect.step("A resolved (unexpected)"),
+        () => {
+            aSettled = true;
+        },
         (err) => {
+            aSettled = true;
             aError = err;
         },
     );
@@ -930,9 +942,12 @@ test("superseded clearBreadcrumbs skeleton wait doesn't leave doAction pending",
 
     // A newer clearBreadcrumbs navigation supersedes the parked skeleton.
     action.doAction("clientB", { clearBreadcrumbs: true });
-    // Without the fix this await never returns (defA never settles).
+    // Without the guard this await never returns (defA never settles).
     await promA;
-    expect(aError).toBeInstanceOf(SupersededError);
+    // Settled gracefully: the superseded dispatch resolves with no
+    // caller-visible error (the SupersededError is contained at its source).
+    expect(aSettled).toBe(true);
+    expect(aError).toBe(null);
 
     // The winning navigation still lands normally.
     await animationFrame();

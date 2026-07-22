@@ -1213,7 +1213,10 @@ test("execute smart button and fails on desktop", async () => {
     expect(".o_kanban_view").toHaveCount(1);
 
     def.resolve();
-    await animationFrame();
+    // The smart-button navigation fails on web_search_read and the previous
+    // form view is restored; wait for that restoration deterministically rather
+    // than after a single frame (the failure travels several async hops).
+    await waitFor(".o_form_view");
     expect(".o_form_view").toHaveCount(1);
     expect(".o_form_button_create:not([disabled]):visible").toHaveCount(1);
     expect.verifySteps([
@@ -1228,7 +1231,7 @@ test("execute smart button and fails on desktop", async () => {
         "has_group",
         "web_read",
     ]);
-    expect.verifyErrors(["Oups"]);
+    await expect.waitForErrors(["Oups"]);
 });
 
 test.tags("mobile");

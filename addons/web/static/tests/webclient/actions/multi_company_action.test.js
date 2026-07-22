@@ -153,8 +153,10 @@ test("form view in dialog shows wrong company error", async () => {
         resModel: "res.partner",
         resId: 1,
     });
-    await animationFrame();
-    expect.verifyErrors([
+    // The onWillStart failure reaches the error channel several async hops
+    // later; wait on it instead of a single frame so the assertion does not
+    // race the propagation (a late error would otherwise fail a later test).
+    await expect.waitForErrors([
         'Error: The following error occurred in onWillStart: "Wrong Company"',
     ]);
     expect(cookie.get("cids")).toBe("1"); // cookies were not modified

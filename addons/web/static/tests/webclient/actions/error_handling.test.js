@@ -1,7 +1,7 @@
 // @ts-check
 
 import { expect, test } from "@odoo/hoot";
-import { queryAllTexts } from "@odoo/hoot-dom";
+import { queryAllTexts, waitFor } from "@odoo/hoot-dom";
 import { animationFrame, mockFetch, runAllTimers } from "@odoo/hoot-mock";
 import { Component, onMounted, xml } from "@odoo/owl";
 import {
@@ -151,9 +151,11 @@ test("connection lost when opening form view from kanban", async () => {
         throw new Error(); // simulate a ConnectionLost error
     });
     await contains(".o_kanban_record").click();
-    // Wait a tick for the notification service's reactive mutation to
-    // propagate through OWL before asserting on `.o_notification`.
-    await animationFrame();
+    // Wait for the connection-lost notification to appear rather than betting on
+    // a single frame: the error travels several async hops (failed RPC -> error
+    // service -> notification service reactive mutation -> OWL render), which one
+    // animationFrame does not deterministically cover.
+    await waitFor(".o_notification");
     expect(".o_kanban_view").toHaveCount(1);
     expect(".o_notification").toHaveCount(1);
     expect(".o_notification").toHaveText("Connection lost. Trying to reconnect...");
