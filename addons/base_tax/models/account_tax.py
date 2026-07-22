@@ -543,7 +543,15 @@ class AccountTax(models.Model):
     def _search_price_include(self, operator, value):
         if operator not in ("in", "not in"):
             return NotImplemented
-        assert list(value) == [True]
+        if list(value) != [True]:
+            # `assert` is stripped under `-O`; a malformed direct domain call
+            # (e.g. `('price_include', 'in', [True, False])`) would otherwise
+            # silently fall through to the wrong domain below instead of
+            # failing loudly (t24068).
+            raise ValueError(
+                f"_search_price_include only supports boolean-normalized "
+                f"domains, got {operator!r} {value!r}"
+            )
         tax_value = "tax_included" if operator == "in" else "tax_excluded"
         if "account_price_include" not in self.env["res.company"]._fields:
             return [("price_include_override", "=", tax_value)]
