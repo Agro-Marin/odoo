@@ -304,7 +304,7 @@ export class FileSelector extends Component {
                     "original_id",
                 ],
                 order: "id desc",
-                // Try to fetch first record of next page just to know whether there is a next page.
+                // A full page of results (limit records) implies there may be more to load.
                 limit,
                 offset,
             });

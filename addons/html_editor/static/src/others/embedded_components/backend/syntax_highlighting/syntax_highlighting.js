@@ -97,7 +97,8 @@ export class EmbeddedSyntaxHighlightingComponent extends Component {
     }
 
     /**
-     * Handle tabulation in the textarea.
+     * Handle keydown events in the textarea: tab indentation, backspace out of
+     * an empty block, and arrow navigation to the adjacent block.
      *
      * @param {KeyboardEvent} ev
      */

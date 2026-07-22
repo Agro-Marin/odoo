@@ -33,8 +33,6 @@ export class NoInlineRootPlugin extends Plugin {
 
     /**
      * Places the cursor in a safe place (not the editable root).
-     * Inserts an empty paragraph if selection results from mouse click and
-     * there's no other way to insert text before/after a block.
      *
      * @param {import("./selection_plugin").EditorSelection} selection
      * @returns {boolean} Whether the selection was fixed
