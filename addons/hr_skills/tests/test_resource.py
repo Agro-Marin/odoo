@@ -6,9 +6,7 @@ from odoo.tests.common import TransactionCase
 
 class TestResourceSkills(TransactionCase):
     def test_availability_skills_infos_resource(self):
-        """ Ensure that all the infos related to skill needed to display the avatar
-            popover card are available on the model resource.resource.
-        """
+        """Ensure skill info for the avatar popover card is available on resource.resource."""
         user = self.env['res.users'].create([{
             'name': 'Test user',
             'login': 'test',
