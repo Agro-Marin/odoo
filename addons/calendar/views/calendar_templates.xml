@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
-    <!-- Template rendered in route auth=None, for anonymous user. This allow them to see meeting details -->
+    <!-- Rendered by the token-gated auth="calendar" route /calendar/meeting/view (validates the invitation token, then falls back to public auth), letting an invitee see meeting details even when not logged in -->
     <template id="invitation_page_anonymous" name="Calendar Invitation Page for anonymous users">
         <t t-call="web.layout">
             <t t-set="head">
