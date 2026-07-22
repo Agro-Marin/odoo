@@ -1,6 +1,7 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 from freezegun import freeze_time
 
+from odoo.exceptions import UserError
 from odoo.tests import common
 
 
@@ -73,3 +74,11 @@ class TestHrHomeworkingCommon(common.TransactionCase):
         self.employee_1.wednesday_location_id = self.work_office_1.id
         self.assertEqual(self.employee_1.work_location_name, "Office 1")
         self.assertEqual(self.employee_1.work_location_type, "office")
+
+    def test_unlink_location_used_on_some_days(self):
+        "A location used on only some weekdays (not all seven) must block deletion."
+        # employee_1 uses work_home on Monday and Wednesday only. The ondelete
+        # guard must OR the weekday fields; an AND-combined domain would let the
+        # delete through and silently set-null the schedule.
+        with self.assertRaises(UserError):
+            self.work_home.unlink()
