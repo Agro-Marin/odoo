@@ -3,11 +3,13 @@
 import copy
 import logging
 import uuid
+
 from lxml import etree, html
 
-from odoo import api, models, _
-from odoo.exceptions import ValidationError, MissingError
+from odoo import _, api, models
+from odoo.exceptions import MissingError, ValidationError
 from odoo.fields import Domain
+
 from odoo.addons.base.models.ir_ui_view import MOVABLE_BRANDING
 
 _logger = logging.getLogger(__name__)
@@ -79,12 +81,12 @@ class IrUiView(models.Model):
                 if callable(Model._fields[field].translate):
                     self._copy_custom_snippet_translations(record, field)
 
-        except (ValueError, TypeError):
+        except (ValueError, TypeError) as err:
             raise ValidationError(_(
                 "Invalid field value for %(field_name)s: %(value)s",
                 field_name=Model._fields[field].string,
                 value=el.text_content().strip(),
-            ))
+            )) from err
 
     def save_oe_structure(self, el):
         self.ensure_one()
@@ -129,7 +131,7 @@ class IrUiView(models.Model):
         try:
             tree = html.fromstring(lang_value)
         except etree.ParserError as e:
-            raise ValidationError(str(e))
+            raise ValidationError(str(e)) from e
 
         for custom_snippet_el in tree.xpath('//*[hasclass("s_custom_snippet")]'):
             custom_snippet_name = custom_snippet_el.get('data-name')
@@ -198,7 +200,7 @@ class IrUiView(models.Model):
 
         # 2. Set translations
         new_value = {
-            lang: field_to.translate(lambda term: translation_dictionary.get(term, {}).get(lang), record_to[name_field_to])
+            lang: field_to.translate(lambda term, lang=lang: translation_dictionary.get(term, {}).get(lang), record_to[name_field_to])
             for lang in langs
         }
         record_to.env.cache.update_raw(record_to, field_to, [new_value], dirty=True)
@@ -223,7 +225,7 @@ class IrUiView(models.Model):
             return False
         if len(arch1) != len(arch2):
             return False
-        return all(self._are_archs_equal(child1, child2) for child1, child2 in zip(arch1, arch2))
+        return all(self._are_archs_equal(child1, child2) for child1, child2 in zip(arch1, arch2, strict=True))
 
     @api.model
     def _get_allowed_root_attrs(self):

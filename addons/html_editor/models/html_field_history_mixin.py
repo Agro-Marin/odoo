@@ -3,7 +3,12 @@
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError, ValidationError
 
-from .diff_utils import apply_patch, generate_comparison, generate_patch, generate_unified_diff
+from .diff_utils import (
+    apply_patch,
+    generate_comparison,
+    generate_patch,
+    generate_unified_diff,
+)
 
 
 class HtmlFieldHistoryMixin(models.AbstractModel):
