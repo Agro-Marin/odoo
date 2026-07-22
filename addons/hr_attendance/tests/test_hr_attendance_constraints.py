@@ -1,8 +1,7 @@
-# -*- coding: utf-8 -*-
 
 import time
 
-from odoo.tests.common import tagged, TransactionCase
+from odoo.tests.common import TransactionCase, tagged
 
 
 @tagged('jesaispas')
@@ -11,7 +10,7 @@ class TestHrAttendance(TransactionCase):
 
     @classmethod
     def setUpClass(cls):
-        super(TestHrAttendance, cls).setUpClass()
+        super().setUpClass()
         cls.attendance = cls.env['hr.attendance']
         cls.test_employee = cls.env['hr.employee'].create({'name': "Jacky", 'ruleset_id': False})
         # demo data contains set up for cls.test_employee

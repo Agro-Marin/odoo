@@ -1,5 +1,6 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 from datetime import date, datetime
+
 from freezegun import freeze_time
 
 from odoo import Command
@@ -854,7 +855,7 @@ class TestHrAttendanceOvertime(HttpCase):
 
     def _check_overtimes(self, overtimes, vals_list):
         self.assertEqual(len(overtimes), len(vals_list), "Wrong number of overtimes")
-        for overtime, vals in zip(overtimes, vals_list):
+        for overtime, vals in zip(overtimes, vals_list, strict=True):
             for k, v in vals.items():
                 self.assertEqual(overtime[k], v)
 
@@ -1153,7 +1154,7 @@ class TestHrAttendanceOvertime(HttpCase):
             attendance_6.overtime_hours,
         )
 
-        for a, e in zip(actual, expected):
+        for a, e in zip(actual, expected, strict=True):
             self.assertAlmostEqual(a, e)
 
     def test_employee_tolerance_multiple_attendances(self):
@@ -1200,7 +1201,7 @@ class TestHrAttendanceOvertime(HttpCase):
             attendance_6.overtime_hours,
         )
 
-        for a, e in zip(actual, expected):
+        for a, e in zip(actual, expected, strict=True):
             self.assertAlmostEqual(a, e)
 
     def test_check_linked_overtime_to_attendance(self):
