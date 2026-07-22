@@ -1,7 +1,6 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-from odoo import _, api, models, fields
+from odoo import _, api, fields, models
 from odoo.exceptions import ValidationError
 
 
@@ -38,7 +37,7 @@ class EventEventConfigurator(models.TransientModel):
             ('event_id.date_end', '>=', fields.Date.today())],
             ['product_id'],
             ['__count'])
-        mapped_data = {product: ticket_count for product, ticket_count in product_ticket_data}
+        mapped_data = dict(product_ticket_data)
         for configurator in self:
             configurator.has_available_tickets = bool(mapped_data.get(configurator.product_id, 0))
 
