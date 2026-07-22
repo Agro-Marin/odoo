@@ -80,6 +80,25 @@ class TestWebCwvMetric(TransactionCase):
         self.assertEqual(_clamp_latency(1200), 1200.0)
         self.assertEqual(_clamp_cls(0.05), 0.05)
 
+    def test_rate_limiter_key_map_stays_bounded(self):
+        """A flood of distinct client keys must not grow ``_rate_state`` without
+        bound. Pruning stale windows can't help when every key is fresh (spoofed
+        X-Forwarded-For), so eviction hard-caps the map. The batch drops it to a
+        low-water mark via ``heapq`` (O(n)) rather than re-sorting the whole map
+        (O(n log n)) on every over-cap call.
+        """
+        from odoo.addons.web.controllers import observability as obs
+
+        obs._rate_state.clear()
+        self.addCleanup(obs._rate_state.clear)
+        for i in range(obs._RATE_LIMIT_MAX_KEYS + 500):
+            obs._rate_limited(f"flood:{i}")
+        self.assertLessEqual(
+            len(obs._rate_state),
+            obs._RATE_LIMIT_MAX_KEYS,
+            "the key map must stay bounded under a distinct-key flood",
+        )
+
 
 @tagged("-at_install", "post_install", "web_http", "web_cwv")
 class TestWebCwvBeacon(HttpCase):
@@ -180,4 +199,31 @@ class TestWebCwvBeacon(HttpCase):
         self.assertTrue(
             all(s == 429 for s in statuses[3:]),
             f"js_error beacons over the cap must be rejected with 429, got {statuses}",
+        )
+
+    def test_cwv_and_js_error_have_separate_budgets(self):
+        # The two public beacon endpoints are namespaced per route, so a client
+        # that exhausts its CWV budget can still send JS-error beacons (and vice
+        # versa) — one endpoint's volume must not starve the other's bucket.
+        from odoo.addons.web.controllers import observability as obs
+
+        obs._rate_state.clear()
+        self.addCleanup(obs._rate_state.clear)
+
+        with patch.object(obs, "_RATE_LIMIT_MAX", 2):
+            cwv = [
+                self._beacon(
+                    {"url": "/odoo", "pageview_id": f"sep-{i}", "lcp": 1000.0}
+                ).status_code
+                for i in range(3)
+            ]
+            err = self.url_open(
+                "/web/observability/js_error",
+                data=json.dumps({"message": "boom", "kind": "error"}),
+                headers={"Content-Type": "application/json"},
+            ).status_code
+
+        self.assertEqual(cwv, [204, 204, 429], "CWV budget must be exhausted")
+        self.assertEqual(
+            err, 204, "js_error has its own budget, not starved by CWV volume"
         )

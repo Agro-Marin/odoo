@@ -73,8 +73,12 @@ export function irFilterToFavorite(irFilter, fields = null) {
     }
     // JSON.parse returns non-arrays without throwing (e.g. `false` for a NULL
     // column read); quarantine those like an unparseable blob instead of
-    // crashing on sort.map below.
-    if (!Array.isArray(sort)) {
+    // crashing on sort.map below. Also validate the *elements*: a `[null]` /
+    // `[123]` (slipped in via migration, import, or raw SQL) is an array, so it
+    // passes Array.isArray, then `order.trim()` below throws a TypeError that
+    // escapes load() and takes down the whole search view for every user of a
+    // shared/default filter.
+    if (!Array.isArray(sort) || sort.some((s) => typeof s !== "string")) {
         isInvalid = true;
         sort = [];
     }
@@ -159,11 +163,25 @@ export function reconciliateFavorites(
             // irFilterToFavorite only sets when truthy). Keep the identity
             // keys assigned at creation time.
             const { id, groupId } = item;
-            searchItems[id] = Object.assign(irFilterToFavoriteFn(irFilter), {
+            const replacement = Object.assign(irFilterToFavoriteFn(irFilter), {
                 id,
                 groupId,
             });
+            searchItems[id] = replacement;
             delete mapping[item.serverSideId];
+            // If the reloaded copy is now invalid (domain/sort broken
+            // server-side since this favorite was activated), drop it from the
+            // query. `toggleSearchItem` refuses to activate an invalid favorite,
+            // so leaving an already-active one in place would be the one way an
+            // invalid favorite drives a domain build — `computeSearchItemDomain`
+            // returns its raw bad domain string and `new Domain(...)` throws,
+            // poisoning the whole search model on the next facet/domain access.
+            if (replacement.isInvalid) {
+                const queryIndex = query.findIndex((q) => q.searchItemId === id);
+                if (queryIndex !== -1) {
+                    query.splice(queryIndex, 1);
+                }
+            }
         } else {
             const queryIndex = query.findIndex((q) => q.searchItemId === item.id);
             if (queryIndex !== -1) {
