@@ -48,15 +48,15 @@ class HrApplicant(models.Model):
 
         self.survey_id.check_validity()
         template = self.env.ref('hr_recruitment_survey.mail_template_applicant_interview_invite', raise_if_not_found=False)
-        local_context = dict(  # noqa: C408
-            default_applicant_id=self.id,
-            default_partner_ids=self.partner_id.ids,
-            default_survey_id=self.survey_id.id,
-            default_use_template=bool(template),
-            default_template_id=(template and template.id) or False,
-            default_email_layout_xmlid='mail.mail_notification_light',
-            default_deadline=fields.Datetime.now() + timedelta(days=15)
-        )
+        local_context = {
+            'default_applicant_id': self.id,
+            'default_partner_ids': self.partner_id.ids,
+            'default_survey_id': self.survey_id.id,
+            'default_use_template': bool(template),
+            'default_template_id': (template and template.id) or False,
+            'default_email_layout_xmlid': 'mail.mail_notification_light',
+            'default_deadline': fields.Datetime.now() + timedelta(days=15),
+        }
 
         return {
             'type': 'ir.actions.act_window',

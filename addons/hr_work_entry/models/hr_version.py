@@ -104,7 +104,7 @@ class HrVersion(models.Model):
             if version.work_entry_source != 'calendar':
                 continue
             employees_by_calendar[version.resource_calendar_id] |= version.employee_id
-        result = dict()  # noqa: C408
+        result = {}
         for calendar, employees in employees_by_calendar.items():
             if not calendar:
                 for employee in employees:

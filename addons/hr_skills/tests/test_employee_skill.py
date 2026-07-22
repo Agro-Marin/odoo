@@ -12,10 +12,10 @@ from odoo.tests.common import TransactionCase
 class TestEmployeeSkills(TransactionCase):
 
     @classmethod
-    def _create_skill_types(self, vals_list):  # noqa: N804
-        skill_types = self.env['hr.skill.type']
+    def _create_skill_types(cls, vals_list):
+        skill_types = cls.env['hr.skill.type']
         for vals in vals_list:
-            with Form(self.env['hr.skill.type']) as skill_type_form:
+            with Form(cls.env['hr.skill.type']) as skill_type_form:
                 skill_type_form.name = vals['name']
                 skill_type_form.is_certification = vals.get('certificate', False)
                 for skill_val in vals['skills']:
@@ -395,7 +395,7 @@ class TestEmployeeSkills(TransactionCase):
         """
         employee_form = Form(self.employee)
         previous_employee_skills = self.employee.employee_skill_ids
-        for i in range(3):  # noqa: B007
+        for _i in range(3):
             with employee_form.current_employee_skill_ids.new() as employee_skill_form:
                 employee_skill_form.skill_type_id = self.certification
                 employee_skill_form.skill_id = self.certification.skill_ids[0]

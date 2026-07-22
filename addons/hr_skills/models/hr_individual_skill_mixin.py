@@ -278,10 +278,11 @@ class HrIndividualSkillMixin(models.AbstractModel):
                     "skill_level_id": skill.skill_level_id.id,
                     "is_certification": skill.is_certification
             } for skill in to_archive])
-            new_overlapped_skill_ids = []
-            for new_skills in overlapping_dict.values():
-                for new_skill in new_skills:
-                    new_overlapped_skill_ids.append(new_skill['id'])  # noqa: PERF401
+            new_overlapped_skill_ids = [
+                new_skill['id']
+                for new_skills in overlapping_dict.values()
+                for new_skill in new_skills
+            ]
             changed_to_remove = to_archive.filtered(lambda ind_skill: ind_skill.id in new_overlapped_skill_ids)
             to_archive -= changed_to_remove
             to_remove += changed_to_remove
@@ -422,7 +423,7 @@ class HrIndividualSkillMixin(models.AbstractModel):
             field_type = self._fields[field].type
             if field_type == "many2one":
                 return skill[field].id
-            if field_type == "many2many" or field_type == "one2many":  # noqa: PLR1714
+            if field_type in ("many2many", "one2many"):
                 return skill[field].ids
             return skill[field]
 

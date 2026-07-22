@@ -59,7 +59,7 @@ class HrApplicant(models.Model):
             job_skill_map = {js.skill_id: js.level_progress for js in job_skills}
 
             matching_applicant_skills = applicant.current_applicant_skill_ids.filtered(
-                lambda a: a.skill_id in job_skill_map,  # noqa: B023
+                lambda a, job_skill_map=job_skill_map: a.skill_id in job_skill_map,
             )
             applicant_degree = applicant.type_id.score * 100 if job_degree > 1 else 0
             applicant_total = (
