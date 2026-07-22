@@ -565,3 +565,108 @@ class TestGoogleFontFetchHardening(TransactionCase):
         css = self.env["ir.attachment"].browse(resolved["Test"])
         self.assertIn(b"fonts.gstatic.com", css.raw)
         self.assertEqual(before, self._binary_count(), "non-font payload rejected")
+
+
+@tagged("post_install", "-at_install")
+class TestVisitorUpsertSeam(TransactionCase):
+    """The visitor upsert core is exercisable without a request.
+
+    `_upsert_visitor` takes its attributes as explicit keyword arguments
+    (falling back to `request` in production), so its SQL -- the 8h visit-count
+    window, the timezone back-fill on conflict, and the anonymous-vs-partner
+    token branch -- is now coverable from a plain TransactionCase.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.Visitor = self.env["website.visitor"]
+        self.website = self.env["website"].browse(1)
+        self.lang = self.env["res.lang"].search([("active", "=", True)], limit=1)
+
+    def test_upsert_creates_visitor_with_explicit_values(self):
+        vid, inserted = self.Visitor._upsert_visitor(
+            "a" * 32,
+            lang_id=self.lang.id,
+            country_code="US",
+            website_id=self.website.id,
+            timezone="Europe/Brussels",
+        )
+        self.assertTrue(inserted, "a fresh token must INSERT")
+        self.env.invalidate_all()
+        visitor = self.Visitor.browse(vid)
+        self.assertEqual(visitor.access_token, "a" * 32)
+        self.assertEqual(visitor.lang_id, self.lang)
+        self.assertEqual(visitor.website_id, self.website)
+        self.assertEqual(visitor.timezone, "Europe/Brussels")
+        self.assertEqual(visitor.country_id.code, "US")
+        self.assertFalse(visitor.partner_id, "a 32-char token is anonymous")
+
+    def test_upsert_backfills_timezone_on_conflict(self):
+        token = "b" * 32
+        vid, _ = self.Visitor._upsert_visitor(
+            token,
+            lang_id=self.lang.id,
+            country_code="",
+            website_id=self.website.id,
+            timezone="",
+        )
+        self.env.invalidate_all()
+        self.assertFalse(self.Visitor.browse(vid).timezone)
+        vid2, inserted = self.Visitor._upsert_visitor(
+            token,
+            lang_id=self.lang.id,
+            country_code="",
+            website_id=self.website.id,
+            timezone="Asia/Tokyo",
+        )
+        self.assertFalse(inserted, "the same token must UPDATE, not insert")
+        self.assertEqual(vid2, vid)
+        self.env.invalidate_all()
+        self.assertEqual(
+            self.Visitor.browse(vid).timezone,
+            "Asia/Tokyo",
+            "a tz that arrives on a later visit must be back-filled",
+        )
+
+    def test_upsert_visit_count_respects_the_8h_window(self):
+        token = "c" * 32
+        kw = {
+            "lang_id": self.lang.id,
+            "country_code": "",
+            "website_id": self.website.id,
+            "timezone": "",
+        }
+        vid, _ = self.Visitor._upsert_visitor(token, **kw)
+        self.env.invalidate_all()
+        self.assertEqual(self.Visitor.browse(vid).visit_count, 1)
+        # A second hit within 8h is the same visit.
+        self.Visitor._upsert_visitor(token, **kw)
+        self.env.invalidate_all()
+        self.assertEqual(self.Visitor.browse(vid).visit_count, 1)
+        # Backdate the last connection beyond 8h -> the next hit is a new visit.
+        self.env.cr.execute(
+            "UPDATE website_visitor "
+            "SET last_connection_datetime = (now() at time zone 'UTC') - INTERVAL '9 hours' "
+            "WHERE id = %s",
+            (vid,),
+        )
+        self.env.invalidate_all()
+        self.Visitor._upsert_visitor(token, **kw)
+        self.env.invalidate_all()
+        self.assertEqual(self.Visitor.browse(vid).visit_count, 2)
+
+    def test_upsert_partner_token_links_partner(self):
+        partner = self.env["res.partner"].create({"name": "Audit Visitor"})
+        vid, _ = self.Visitor._upsert_visitor(
+            partner.id,
+            lang_id=self.lang.id,
+            country_code="",
+            website_id=self.website.id,
+            timezone="",
+        )
+        self.env.invalidate_all()
+        self.assertEqual(
+            self.Visitor.browse(vid).partner_id,
+            partner,
+            "a non-32-char (partner id) token links the partner",
+        )
