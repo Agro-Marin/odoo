@@ -99,7 +99,7 @@ export class DropZonePlugin extends Plugin {
      *   - `true` if the elements in grid mode are considered,
      *   - `"filterOnly"` if the grids should only be filtered out,
      *   - `false`
-     * @returns {Object} [selectorChildren, selectorSiblings]
+     * @returns {Selectors}
      */
     getSelectors(snippetEl, checkLockedWithin = false, withGrids = false) {
         let selectorChildren = [];
@@ -457,7 +457,7 @@ export class DropZonePlugin extends Plugin {
     /**
      * @typedef Options
      * @property {Boolean} toInsertInline true if the dragged element is inline
-     * @property {Boolean}isContentInIframe true if the content is inside an
+     * @property {Boolean} isContentInIframe true if the content is inside an
      * iframe
      */
     /**
@@ -466,7 +466,7 @@ export class DropZonePlugin extends Plugin {
      *
      * @param {Selectors} selectors
      * @param {Options} options
-     * @returns
+     * @returns {HTMLElement[]}
      */
     activateDropzones(
         { selectorSiblings, selectorChildren, selectorSanitized, selectorGrids },
