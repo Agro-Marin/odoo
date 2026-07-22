@@ -1,7 +1,8 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 from datetime import date
-from dateutil.relativedelta import relativedelta, MO, FR
+
+from dateutil.relativedelta import FR, MO, relativedelta
 
 from odoo.addons.hr_holidays.tests.common import TestHrHolidaysCommon
 

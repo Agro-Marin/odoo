@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 
 from odoo import fields, models
 
@@ -16,7 +15,7 @@ class HrDepartment(models.Model):
     def _compute_new_applicant_count(self):
         if self.env.user.has_group('hr_recruitment.group_hr_recruitment_interviewer'):
             applicant_data = self.env['hr.applicant']._read_group(
-                [('department_id', 'in', self.ids), ('stage_id.sequence', '<=', '1')],
+                [('department_id', 'in', self.ids), ('stage_id.sequence', '<=', 1)],
                 ['department_id'], ['__count'])
             result = {department.id: count for department, count in applicant_data}
             for department in self:

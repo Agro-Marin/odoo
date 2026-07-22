@@ -1,14 +1,14 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-from datetime import date
-from dateutil.relativedelta import relativedelta
-from dateutil.rrule import DAILY, rrule
 import logging
 import time
+from datetime import date
+
+from dateutil.relativedelta import relativedelta
+from dateutil.rrule import DAILY, rrule
 
 from odoo import Command
-from odoo.tests.common import tagged
-from odoo.tests.common import TransactionCase
+from odoo.tests.common import TransactionCase, tagged
 
 _logger = logging.getLogger(__name__)
 
@@ -75,12 +75,14 @@ class TestHrAttendancePerformance(TransactionCase):
 
         vals = []
         for employee in employees:
-            for day in rrule(DAILY, dtstart=date.today() - relativedelta(months=2), until=date.today()):
-                vals.append({
+            vals.extend(
+                {
                     'employee_id': employee.id,
                     'check_in': day.replace(hour=8, minute=0),
                     'check_out': day.replace(hour=17, minute=36),
-                })
+                }
+                for day in rrule(DAILY, dtstart=date.today() - relativedelta(months=2), until=date.today())
+            )
         cls.attendances = cls.env['hr.attendance'].create(vals)
 
     def test_regenerate_overtime_line(self):

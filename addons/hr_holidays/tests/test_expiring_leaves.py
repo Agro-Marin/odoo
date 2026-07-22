@@ -1,13 +1,13 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 from datetime import date
+
 from dateutil.relativedelta import relativedelta
 from freezegun import freeze_time
 
-from odoo.addons.base.tests.common import HttpCase
-from odoo.tests.common import tagged
-from odoo.tests.common import users
+from odoo.tests.common import tagged, users
 
+from odoo.addons.base.tests.common import HttpCase
 from odoo.addons.hr_holidays.tests.common import TestHrHolidaysCommon
 
 

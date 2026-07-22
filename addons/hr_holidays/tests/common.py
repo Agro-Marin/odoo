@@ -3,9 +3,10 @@
 from datetime import datetime
 
 from odoo import Command, fields
-from odoo.tests import common, Form
-from odoo.tests.common import TransactionCase
 from odoo.fields import Datetime
+from odoo.tests import Form, common
+from odoo.tests.common import TransactionCase
+
 from odoo.addons.mail.tests.common import mail_new_test_user
 
 
@@ -13,7 +14,7 @@ class TestHrHolidaysCommon(common.TransactionCase):
 
     @classmethod
     def setUpClass(cls):
-        super(TestHrHolidaysCommon, cls).setUpClass()
+        super().setUpClass()
         cls.env.user.tz = 'Europe/Brussels'
         cls.env.user.company_id.resource_calendar_id.tz = "Europe/Brussels"
 

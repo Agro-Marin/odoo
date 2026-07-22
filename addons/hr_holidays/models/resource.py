@@ -1,12 +1,14 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-from odoo import fields, models, api, _
+from datetime import datetime, time
+
+import pytz
+
+from odoo import _, api, fields, models
 from odoo.exceptions import ValidationError
 from odoo.fields import Domain
 from odoo.tools import babel_locale_parse
 from odoo.tools.date_utils import weeknumber
-import pytz
-from datetime import datetime, time
 
 
 class ResourceCalendarLeaves(models.Model):
@@ -26,13 +28,16 @@ class ResourceCalendarLeaves(models.Model):
         ])
         for record in self:
             if not record.resource_id:
+                # B023: lambdas reference loop variable `record` but are
+                # invoked eagerly on these statements (results consumed
+                # within this same iteration) - no late-binding risk.
                 existing_leaves = all_existing_leaves.filtered(lambda leave:
-                        record.id != leave.id
-                        and record['company_id'] == leave['company_id']
-                        and record['date_from'] <= leave['date_to']
-                        and record['date_to'] >= leave['date_from'])
+                        record.id != leave.id  # noqa: B023
+                        and record['company_id'] == leave['company_id']  # noqa: B023
+                        and record['date_from'] <= leave['date_to']  # noqa: B023
+                        and record['date_to'] >= leave['date_from'])  # noqa: B023
                 if record.calendar_id:
-                    existing_leaves = existing_leaves.filtered(lambda l: not l.calendar_id or l.calendar_id == record.calendar_id)
+                    existing_leaves = existing_leaves.filtered(lambda l: not l.calendar_id or l.calendar_id == record.calendar_id)  # noqa: B023
                 if existing_leaves:
                     raise ValidationError(_('Two public holidays cannot overlap each other for the same working hours.'))
 
@@ -71,7 +76,7 @@ class ResourceCalendarLeaves(models.Model):
         })
         sick_time_status = self.env.ref('hr_holidays.leave_type_sick_time_off', raise_if_not_found=False)
         leaves_to_recreate = self.env['hr.leave']
-        for previous_duration, leave, state in zip(previous_durations, leaves, previous_states):
+        for previous_duration, leave, state in zip(previous_durations, leaves, previous_states, strict=False):
             duration_difference = previous_duration - leave.number_of_days
             message = False
             if duration_difference > 0 and leave.holiday_status_id.requires_allocation:
@@ -105,8 +110,7 @@ class ResourceCalendarLeaves(models.Model):
         """
         naive_datetime_from = utc_naive_datetime.astimezone(tz_from).replace(tzinfo=None)
         aware_datetime_to = tz_to.localize(naive_datetime_from)
-        utc_naive_datetime_to = aware_datetime_to.astimezone(pytz.utc).replace(tzinfo=None)
-        return utc_naive_datetime_to
+        return aware_datetime_to.astimezone(pytz.utc).replace(tzinfo=None)
 
     def _ensure_datetime(self, datetime_representation, date_format=None):
         """

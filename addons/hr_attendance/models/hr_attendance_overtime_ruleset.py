@@ -1,6 +1,6 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-from odoo import models, fields
+from odoo import fields, models
 
 
 class HrAttendanceOvertimeRuleset(models.Model):
@@ -41,11 +41,10 @@ class HrAttendanceOvertimeRuleset(models.Model):
         elligible_version = self.env['hr.version'].search([('ruleset_id', '=', self.id)])
         if not elligible_version:
             return self.env['hr.attendance']
-        elligible_attendances = self.env['hr.attendance'].search([
+        return self.env['hr.attendance'].search([
             ('employee_id', 'in', elligible_version.employee_id.ids),
             ('date', '>=', min(elligible_version.mapped('date_version'))),
         ])
-        return elligible_attendances
 
     def action_regenerate_overtimes(self):
         self._attendances_to_regenerate_for()._update_overtime()

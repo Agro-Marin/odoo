@@ -1,21 +1,22 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-from odoo.service.common import exp_version
-from odoo import http, _
-from odoo.http import request
+import datetime
+
+from requests.exceptions import RequestException
+
+from odoo import _, http
 from odoo.exceptions import UserError
 from odoo.fields import Domain
-from odoo.tools import float_round, py_to_js_locale, SQL
+from odoo.http import request
+from odoo.service.common import exp_version
+from odoo.tools import SQL, float_round, py_to_js_locale
 from odoo.tools.image import image_data_uri
 
-import datetime
-from requests.exceptions import RequestException
 
 class HrAttendance(http.Controller):
     @staticmethod
     def _get_company(token):
-        company = request.env['res.company'].sudo().search([('attendance_kiosk_key', '=', token)])
-        return company
+        return request.env['res.company'].sudo().search([('attendance_kiosk_key', '=', token)])
 
     @staticmethod
     def _get_user_attendance_data(employee):

@@ -1,10 +1,11 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 from datetime import date, datetime
+
 from freezegun import freeze_time
 
 from odoo import Command
-from odoo.tests import new_test_user, Form
-from odoo.tests.common import tagged, TransactionCase
+from odoo.tests import Form, new_test_user
+from odoo.tests.common import TransactionCase, tagged
 
 
 @tagged('hr_attendance_overtime_ruleset')

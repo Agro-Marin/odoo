@@ -1,9 +1,9 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 from odoo import api, fields, models, tools
+from odoo.exceptions import ValidationError
 
 from odoo.addons.base.models.res_partner import _tz_get
-from odoo.exceptions import ValidationError
 
 
 class HrLeaveReportCalendar(models.Model):

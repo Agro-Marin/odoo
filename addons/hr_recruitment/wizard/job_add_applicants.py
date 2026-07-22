@@ -20,15 +20,14 @@ class JobAddApplicants(models.TransientModel):
             for job in self.job_ids:
                 job_stages = ((stage_per_job.get(job) or self.env['hr.recruitment.stage']) +
                               (stage_per_job.get(self.env['hr.job']) or self.env['hr.recruitment.stage']))
-                stage = min(job_stages, key=lambda job: job.sequence) if job_stages else self.env['hr.job']
+                stage = min(job_stages, key=lambda s: s.sequence) if job_stages else self.env['hr.recruitment.stage']
                 new_applicants_vals.append({
                     **applicant,
                     'job_id': job.id,
                     'talent_pool_ids': False,
                     'stage_id': stage.id,
                 })
-        new_applicants = self.env["hr.applicant"].create(new_applicants_vals)
-        return new_applicants
+        return self.env["hr.applicant"].create(new_applicants_vals)
 
     def action_add_applicants_to_job(self):
         new_applicants = self._add_applicants_to_job()

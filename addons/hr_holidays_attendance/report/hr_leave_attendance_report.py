@@ -58,16 +58,21 @@ class HrLeaveAttendanceReport(models.Model):
 
         for rec in self:
             leaves = leaves_by_employees.get(rec.employee_id, self.env['hr.leave'])
+            # B023: lambda references loop variable `rec` but is invoked
+            # eagerly on this statement (result consumed within this same
+            # iteration) - no late-binding risk.
             rec_date_leaves = leaves.filtered(
-                lambda lv: self._timestamped(lv.date_from) <= rec.date <= self._timestamped(lv.date_to),
+                lambda lv: self._timestamped(lv.date_from) <= rec.date <= self._timestamped(lv.date_to),  # noqa: B023
             )
             rec.leave_ids = rec_date_leaves.ids
             leave_type_ids = rec_date_leaves.mapped('holiday_status_id')
             rec.leave_type_names = ', '.join(leave_type_ids.mapped('name'))
 
             attendances = attendances_by_employees.get(rec.employee_id, self.env['hr.attendance'])
+            # B023: same as above - `rec` referenced eagerly, result consumed
+            # on the same statement.
             rec.attendance_ids = attendances.filtered(
-                lambda att: self._timestamped(att.check_in) == rec.date,
+                lambda att: self._timestamped(att.check_in) == rec.date,  # noqa: B023
             ).ids
 
     def _timestamped(self, date):

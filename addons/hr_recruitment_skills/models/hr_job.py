@@ -30,7 +30,7 @@ class HrJob(models.Model):
             job_skill_map = {js.skill_id.id: js.level_progress for js in job_skills}
 
             matching_applicant_skills = applicant.current_applicant_skill_ids.filtered(
-                lambda a: a.skill_id.id in job_skill_map,
+                lambda a, job_skill_map=job_skill_map: a.skill_id.id in job_skill_map,
             )
             applicant_degree = applicant.type_id.score * 100 if job_degree > 1 else 0
             applicant_total = (
@@ -41,7 +41,7 @@ class HrJob(models.Model):
                 + applicant_degree
             )
 
-            job.applicant_matching_score = applicant_total / job_total * 100
+            job.applicant_matching_score = applicant_total / job_total * 100 if job_total else 0
 
     def action_search_matching_applicants(self):
         self.ensure_one()

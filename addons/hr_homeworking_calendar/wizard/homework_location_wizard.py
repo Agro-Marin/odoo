@@ -42,20 +42,19 @@ class HomeworkLocationWizard(models.TransientModel):
             employee_id.sudo().user_id.write({
                 default_location_for_current_date: self.work_location_id.id,
             })
+        # check if work_location_id is the same as the default one for that day
+        elif self.work_location_id.id == employee_id[default_location_for_current_date].id:
+            employee_location.unlink()
+        # check if worklocation is set for that employee that day
+        elif employee_location:
+            # employee_location was searched by (date, employee_id), so only
+            # work_location_id can differ — rewriting the other two is a no-op.
+            employee_location.write({
+                'work_location_id': self.work_location_id.id
+            })
         else:
-            # check if work_location_id is the same as the default one for that day
-            if self.work_location_id.id == employee_id[default_location_for_current_date].id:
-                employee_location.unlink()
-            # check if worklocation is set for that employee that day
-            elif employee_location:
-                employee_location.write({
-                    'date': self.date,
-                    'employee_id': employee_id.id,
-                    'work_location_id': self.work_location_id.id
-                })
-            else:
-                self.env['hr.employee.location'].create({
-                    'date': self.date,
-                    'employee_id': employee_id.id,
-                    'work_location_id': self.work_location_id.id
-                })
+            self.env['hr.employee.location'].create({
+                'date': self.date,
+                'employee_id': employee_id.id,
+                'work_location_id': self.work_location_id.id
+            })

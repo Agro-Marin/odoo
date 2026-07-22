@@ -1,6 +1,6 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-from odoo import fields, models, _
+from odoo import _, fields, models
 
 
 class HrJob(models.Model):
@@ -12,8 +12,7 @@ class HrJob(models.Model):
 
     def action_test_survey(self):
         self.ensure_one()
-        action = self.survey_id.action_test_survey()
-        return action
+        return self.survey_id.action_test_survey()
 
     def action_new_survey(self):
         self.ensure_one()
@@ -22,12 +21,10 @@ class HrJob(models.Model):
         })
         self.write({'survey_id': survey.id})
 
-        action = {
+        return {
                 'name': _('Survey'),
                 'view_mode': 'form,list',
                 'res_model': 'survey.survey',
                 'type': 'ir.actions.act_window',
                 'res_id': survey.id,
             }
-
-        return action

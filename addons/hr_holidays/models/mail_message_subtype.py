@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 import logging
@@ -33,17 +32,18 @@ class MailMessageSubtype(models.Model):
                     'relation_field': 'department_id',
                 })
             return department_subtype
+        return None
 
     @api.model_create_multi
     def create(self, vals_list):
-        result = super(MailMessageSubtype, self).create(vals_list)
+        result = super().create(vals_list)
         result.filtered(
             lambda st: st.res_model in ['hr.leave', 'hr.leave.allocation']
         )._update_department_subtype()
         return result
 
     def write(self, vals):
-        result = super(MailMessageSubtype, self).write(vals)
+        result = super().write(vals)
         self.filtered(
             lambda subtype: subtype.res_model in ['hr.leave', 'hr.leave.allocation']
         )._update_department_subtype()

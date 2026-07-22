@@ -2,7 +2,7 @@
 
 from datetime import datetime
 
-from odoo import api, fields, models, _
+from odoo import _, api, fields, models
 from odoo.exceptions import ValidationError
 from odoo.fields import Domain
 
@@ -59,8 +59,7 @@ class HrLeaveAllocation(models.Model):
         return res
 
     def action_refuse(self):
-        res = super().action_refuse()
-        return res
+        return super().action_refuse()
 
     def _get_accrual_plan_level_work_entry_prorata(self, level, start_period, start_date, end_period, end_date):
         self.ensure_one()

@@ -14,7 +14,7 @@ from odoo.addons.hr_holidays.tests.common import TestHrHolidaysCommon
 class TestAllocations(TestHrHolidaysCommon):
     @classmethod
     def setUpClass(cls):
-        super(TestAllocations, cls).setUpClass()
+        super().setUpClass()
         cls.leave_type = cls.env['hr.leave.type'].create({
             'name': 'Time Off with no validation for approval',
             'time_type': 'leave',
