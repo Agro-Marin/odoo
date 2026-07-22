@@ -1141,8 +1141,17 @@ export class BaseOptionComponent extends Component {
         const comp = useComponent();
         const editor = comp.env.editor;
 
-        if (!comp.constructor.components) {
-            comp.constructor.components = {};
+        // Give the class its OWN `components` before assigning into it.
+        // `components` is a static, so a subclass that declares none resolves
+        // to its base class's object: assigning in place published this
+        // editor's builder components onto the *base* class, where they
+        // outlived the editor that owned them and were then inherited by every
+        // later component and editor. Subclassing an option is routine (the
+        // builder tests do it constantly), and the stale, cross-editor entries
+        // made the base option fail to build and silently disappear from the
+        // sidebar in whatever ran next.
+        if (!Object.hasOwn(comp.constructor, "components")) {
+            comp.constructor.components = { ...comp.constructor.components };
         }
         const Components = editor.shared.builderComponents.getComponents();
         Object.assign(comp.constructor.components, Components);

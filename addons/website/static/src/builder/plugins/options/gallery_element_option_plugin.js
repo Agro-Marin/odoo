@@ -23,6 +23,13 @@ export class GalleryElementOption extends BaseOptionComponent {
     static selector =
         ".s_image_gallery img, .s_carousel .carousel-item, .s_quotes_carousel .carousel-item, .s_carousel_intro .carousel-item, .s_carousel_cards .carousel-item";
     setup() {
+        // `BaseOptionComponent.setup` wires the editor context and injects the
+        // builder components (BuilderRow, BuilderButton, ...) that this
+        // option's template uses; skipping it raised "Cannot find the
+        // definition of component BuilderRow" at render time. It only appeared
+        // to work because a sibling option's setup used to publish those
+        // components onto the shared base class.
+        super.setup();
         this.state = useDomState((editingElement) => {
             const isImageWall = editingElement.closest(
                 '[data-snippet="s_images_wall"]',
