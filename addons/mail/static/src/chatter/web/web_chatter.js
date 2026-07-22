@@ -488,15 +488,20 @@ export class WebChatter extends Chatter {
             const self = this;
             this.uploadHandlers.set(threadLocalId, async function handleUpload(data) {
                 try {
-                    // Resolve the thread at upload time. onClickAttachFile may have
-                    // just saved the record, so the `thread` captured at render is
-                    // still the transient (id-less) one; uploadFile prefers this
-                    // explicit thread over the reassigned attachmentUploader.thread,
-                    // so uploading against it sends thread_id=false and the files
-                    // silently vanish. Mirror the onDrop id fallback.
+                    // Upload against the thread this handler was created for, NOT
+                    // whatever `state.thread` happens to be once the file finishes
+                    // being read: the browser's file read is async, so a pager
+                    // navigation in that window would silently re-target the
+                    // upload at the record now on screen.
+                    // The one case the captured thread is wrong is the transient
+                    // record: onClickAttachFile may have just saved it, so the
+                    // thread captured at render is still the id-less one and
+                    // uploading against it would send thread_id=false and make the
+                    // files vanish. Only then fall back to the record's freshly
+                    // assigned resId. Mirror the onDrop id fallback.
                     const uploadThread =
-                        self.state.thread.id || !self.props.record.resId
-                            ? self.state.thread
+                        thread.id || !self.props.record.resId
+                            ? thread
                             : self.store.Thread.insert({
                                   model: self.props.threadModel,
                                   id: self.props.record.resId,
