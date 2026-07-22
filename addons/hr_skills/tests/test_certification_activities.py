@@ -69,20 +69,14 @@ class TestCertificationActivities(TransactionCase):
         )
 
     def test_employee_with_no_certifications_gets_activity(self):
-        """
-        Assert that if an employee has none of the certifications from the job,
-        an activity will be created for each missing certification.
-        """
+        """Employee missing all job certifications gets one activity per missing certification."""
         activities = self.env["hr.employee"]._add_certification_activity_to_employees()
         self.assertEqual(len(activities), 2)
         self.assertEqual(self.t_job.job_skill_ids.mapped("display_name"), activities.mapped("summary"))
         self.assertEqual(set(activities.mapped("res_id")), set(self.t_employee_1.ids))
 
     def test_employee_with_correct_certifications_gets_no_activity(self):
-        """
-        Assert that if an employee has all of the certifications from the job,
-        no activities will be created.
-        """
+        """Employee with all job certifications gets no activity."""
         self.env["hr.employee.skill"].create(
             [
                 {
@@ -107,10 +101,7 @@ class TestCertificationActivities(TransactionCase):
         self.assertFalse(activities)
 
     def test_employee_with_wrong_certifications_gets_activity(self):
-        """
-        Assert that if an employee has the correct certification(skill_id) but
-        the wrong level compared to the job, an activity is created.
-        """
+        """Employee with the correct certification but the wrong level gets an activity."""
         self.env["hr.employee.skill"].create(
             {
                 "employee_id": self.t_employee_1.id,
@@ -127,10 +118,7 @@ class TestCertificationActivities(TransactionCase):
         self.assertEqual(set(activities.mapped("res_id")), set(self.t_employee_1.ids))
 
     def test_employee_with_one_correct_certification_gets_one_activity(self):
-        """
-        Assert that if an employee has one certification out of two from the job,
-        only one activity is created.
-        """
+        """Employee with one of two job certifications gets one activity."""
         self.env["hr.employee.skill"].create(
             {
                 "employee_id": self.t_employee_1.id,
@@ -147,10 +135,7 @@ class TestCertificationActivities(TransactionCase):
         self.assertEqual(set(activities.mapped("res_id")), set(self.t_employee_1.ids))
 
     def test_employee_with_correct_but_expired_certifications_gets_activity(self):
-        """
-        Assert that if an employee has the same certifications as the job but
-        they are expired (valid_to < today), activities are created.
-        """
+        """Employee whose job certifications are expired (valid_to < today) gets activities."""
         self.env["hr.employee.skill"].create(
             [
                 {
@@ -177,10 +162,7 @@ class TestCertificationActivities(TransactionCase):
         self.assertEqual(set(activities.mapped("res_id")), set(self.t_employee_1.ids))
 
     def test_employee_with_correct_but_expiring_in_3_months_certifications_gets_activity(self):
-        """
-        Assert that if an employee has the same certifications as the job but
-        one of them is expiring within the next 3 months, an activity is created.
-        """
+        """Employee with a job certification expiring within the next 3 months gets an activity."""
         self.env["hr.employee.skill"].create(
             [
                 {
@@ -207,9 +189,7 @@ class TestCertificationActivities(TransactionCase):
         self.assertEqual(set(activities.mapped("res_id")), set(self.t_employee_1.ids))
 
     def test_activities_are_only_created_once(self):
-        """
-        Assert that an activity is only created once if an employee is missing skills.
-        """
+        """An activity is created only once for an employee missing skills."""
         activities = self.env["hr.employee"]._add_certification_activity_to_employees()
         self.assertEqual(len(activities), 2)
         self.assertEqual(self.t_job.job_skill_ids.mapped("display_name"), activities.mapped("summary"))
@@ -219,9 +199,7 @@ class TestCertificationActivities(TransactionCase):
         self.assertFalse(new_activities)
 
     def test_activities_are_created_for_multiple_employees_with_no_certification(self):
-        """
-        Assert that activities are created for multiple employees with no certifications.
-        """
+        """Activities are created for multiple employees with no certifications."""
         employee_2 = self.env["hr.employee"].create(
             {"name": "test employee 2", "job_id": self.t_job.id, "user_id": self.t_user_2.id},
         )
@@ -231,9 +209,7 @@ class TestCertificationActivities(TransactionCase):
         self.assertEqual(set(activities.mapped("res_id")), set(self.t_employee_1.ids) | set(employee_2.ids))
 
     def test_no_activities_are_created_for_multiple_employees_with_certification(self):
-        """
-        Assert that no activities are created for multiple employees with the correct certifications.
-        """
+        """No activities are created for multiple employees with the correct certifications."""
         employee_2 = self.env["hr.employee"].create(
             {"name": "test employee 2", "job_id": self.t_job.id, "user_id": self.t_user_2.id},
         )
