@@ -170,6 +170,26 @@ class TestRestoreDbSubprocessFailure:
             "stdout=subprocess.STDOUT would redirect stderr to /dev/null"
         )
 
+    def test_restore_creates_target_from_bare_template(
+        self, db_mod, bypass_db_mgmt, zip_dump
+    ):
+        """The restore target must be created from template0 with unaccent
+        forced indexable — NOT from the configured db_template.  A dump is
+        self-contained: any object a populated template pre-creates (e.g.
+        orm_signaling_*) collides with the dump's own copy and aborts the
+        replay under ON_ERROR_STOP; and pg_dump cannot carry the IMMUTABLE
+        marking of unaccent, which the dump's expression indexes may need."""
+        patches = self._make_patches(db_mod, "any error")
+
+        with patches["exp_db_exist"], patches["create_empty"] as mock_create, \
+             patches["drop_database"], patches["subprocess_run"]:
+            with pytest.raises(RuntimeError):
+                db_mod.restore_db("newdb", zip_dump)
+
+        mock_create.assert_called_once_with(
+            "newdb", template="template0", force_unaccent=True
+        )
+
 
 # ---------------------------------------------------------------------------
 # restore_db — cleanup on non-pg failure

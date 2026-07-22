@@ -144,16 +144,29 @@ def _check_faketime_mode(db_name: str) -> None:
         _logger.warning("Unable to set faketime NOW(): %s", e)
 
 
-def _create_empty_database(name: str) -> None:
+def _create_empty_database(
+    name: str, template: str | None = None, force_unaccent: bool = False
+) -> None:
     """Create an empty database.
 
     Lets PostgreSQL be the source of truth for existence (a pre-flight
     ``SELECT`` is racy): attempt ``CREATE DATABASE`` directly and translate PG's
     ``42P04`` (``DuplicateDatabase``) into the canonical ``DatabaseExists``.
+
+    :param template: override the configured ``db_template``. ``restore_db``
+        passes ``"template0"``: a dump replay needs a bare canvas — any object
+        a populated template pre-creates (e.g. ``orm_signaling_*``) collides
+        with the dump's own copy and aborts the restore under ON_ERROR_STOP.
+    :param force_unaccent: install and mark ``unaccent`` indexable regardless
+        of ``config['unaccent']``. ``restore_db`` needs this: the *source*
+        database decided whether unaccent expression indexes exist in the
+        dump, and pg_dump cannot carry the IMMUTABLE marking of an
+        extension-owned function — without it the replay fails with
+        "functions in index expression must be marked IMMUTABLE".
     """
     db = odoo.db.db_connect("postgres")
     with closing(db.cursor()) as cr:
-        chosen_template = odoo.tools.config["db_template"]
+        chosen_template = template or odoo.tools.config["db_template"]
         # database-altering operations cannot be executed inside a transaction
         cr.rollback()
         cr.connection.autocommit = True
@@ -191,7 +204,7 @@ def _create_empty_database(name: str) -> None:
         db = odoo.db.db_connect(name)
         with db.cursor() as cr:
             cr.execute("CREATE EXTENSION IF NOT EXISTS pg_trgm")
-            if odoo.tools.config["unaccent"]:
+            if force_unaccent or odoo.tools.config["unaccent"]:
                 cr.execute("CREATE EXTENSION IF NOT EXISTS unaccent")
                 # From PostgreSQL's point of view, making 'unaccent' immutable is incorrect
                 # because it depends on external data - see
@@ -907,7 +920,14 @@ def restore_db(
     _assert_filestore_dest_free(fs_dest, f"Cannot restore to {db!r}")
 
     _logger.info("RESTORING DB: %s", db)
-    _create_empty_database(db)
+    # template0, NOT the configured db_template: the dump is self-contained
+    # (schema, CREATE EXTENSION IF NOT EXISTS, framework tables), so anything
+    # a populated template pre-creates collides with the dump's own copy and
+    # aborts the replay under ON_ERROR_STOP / --exit-on-error.
+    # force_unaccent: the dump may carry unaccent expression indexes whose
+    # replay needs the function installed and marked IMMUTABLE up front (see
+    # the parameter's docstring).
+    _create_empty_database(db, template="template0", force_unaccent=True)
 
     filestore_path = None
     try:

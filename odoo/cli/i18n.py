@@ -32,6 +32,9 @@ class I18n(DatabaseCommand):
 
     def __init__(self) -> None:
         super().__init__()
+        # On the main parser too, so `i18n -c cfg export …` works like
+        # `i18n export -c cfg …` (same both-levels pattern as `db`).
+        self.add_config_arguments(self.parser)
         subparsers = self.parser.add_subparsers(
             dest="subcommand", required=True, help="Subcommands help"
         )
@@ -63,7 +66,7 @@ class I18n(DatabaseCommand):
             self.export_parser,
             self.loadlang_parser,
         ):
-            self.add_config_arguments(parser)
+            self.add_config_arguments(parser, on_subparser=True)
             parser.epilog = textwrap.dedent("""\
                 Language codes must follow the XPG (POSIX) locale format.
                 see: https://www.gnu.org/software/libc/manual/html_node/Locale-Names.html
@@ -88,7 +91,14 @@ class I18n(DatabaseCommand):
             "-w",
             "--overwrite",
             action="store_true",
-            help="overwrite existing terms",
+            help="overwrite existing terms; records flagged noupdate in "
+            "ir_model_data keep theirs (see --force-overwrite)",
+        )
+        self.import_parser.add_argument(
+            "--force-overwrite",
+            action="store_true",
+            help="overwrite existing terms even on noupdate records "
+            "(implies --overwrite)",
         )
         self.import_parser.add_argument(
             "-l",
@@ -217,7 +227,10 @@ class I18n(DatabaseCommand):
                     translation_importer.load(
                         infile, path.suffix.removeprefix("."), language.code
                     )
-            translation_importer.save(overwrite=parsed_args.overwrite)
+            translation_importer.save(
+                overwrite=parsed_args.overwrite or parsed_args.force_overwrite,
+                force_overwrite=parsed_args.force_overwrite,
+            )
 
     def _export(self, parsed_args: argparse.Namespace) -> None:
         export_pot = "pot" in parsed_args.languages
