@@ -1,9 +1,6 @@
-# -*- coding: utf-8 -*-
-import functools
-
 from odoo import _
-from odoo.exceptions import AccessError
-from odoo.http import Controller, route, request, Response
+from odoo.exceptions import AccessError, UserError
+from odoo.http import Controller, Response, request, route
 
 
 class ImportModule(Controller):
@@ -13,7 +10,7 @@ class ImportModule(Controller):
     def login_upload(self, login, password, force='', mod_file=None, **kw):
         try:
             if not request.db:
-                raise Exception(_("Could not select database '%s'", request.db))
+                raise UserError(_("Could not select a database."))
             credential = {'login': login, 'password': password, 'type': 'password'}
             request.session.authenticate(request.env, credential)
             # request.env.uid is None in case of MFA
