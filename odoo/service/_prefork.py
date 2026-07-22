@@ -72,6 +72,11 @@ def _graceful_stop_timeout(logger: logging.Logger) -> float:
 WORKER_MIN_HEALTHY_LIFETIME_S = 30.0
 WORKER_RESPAWN_BACKOFF_CAP_S = 30.0
 
+# Grace (seconds) the master gives the evented subprocess to exit after SIGTERM
+# before escalating to SIGKILL (``_stop_long_polling``).  Overridable via
+# ``ODOO_EVENTED_STOP_TIMEOUT``; 0 restores the legacy immediate-SIGKILL.
+EVENTED_STOP_TIMEOUT_S = 5.0
+
 
 class PreforkServer(CommonServer):
     """Multiprocessing inspired by (g)unicorn.
@@ -92,9 +97,14 @@ class PreforkServer(CommonServer):
             config["limit_time_real"] if config["limit_time_real"] > 0 else None
         )
         self.limit_request = config["limit_request"]
-        self.cron_timeout = config["limit_time_real_cron"] or None
-        if self.cron_timeout == -1:
-            self.cron_timeout = self.timeout
+        # ``limit_time_real_cron``: > 0 is the cron watchdog, 0 disables it, and
+        # ANY negative value inherits ``limit_time_real`` (the documented -1
+        # semantic).  Letting another negative (say -5) through as a literal
+        # timeout would make ``process_timeout`` SIGKILL every cron worker on
+        # its first beat — and a master-watchdog kill pops the worker before
+        # the reap, bypassing the fast-death throttle: an undamped fork loop.
+        cron_timeout = config["limit_time_real_cron"]
+        self.cron_timeout = self.timeout if cron_timeout < 0 else cron_timeout or None
         # working vars
         self.beat = 4
         self.socket = None
@@ -580,14 +590,55 @@ class PreforkServer(CommonServer):
             self.logger.info("New server has started")
         return phoenix_hatched
 
+    def _stop_long_polling(self) -> None:
+        """Stop the evented subprocess: SIGTERM, bounded wait, SIGKILL fallback.
+
+        ``EventServer`` turns SIGTERM into a graceful stop (``serve_forever``
+        unwinds and the ``on_stop`` hooks close its PG connections), so try
+        that first — the unconditional SIGKILL this replaces predated that
+        handler.  A wedged child still cannot stall shutdown or keep
+        ``gevent_port`` bound into the next master's spawn: after the grace
+        period it is SIGKILLed.  ``psutil.Process.wait`` (not ``waitpid``)
+        because on the reload path the child belongs to the re-exec'd master,
+        which reaps it via ``process_zombie``.
+        """
+        pid = self.long_polling_pid
+        if pid is None:
+            return
+        self.long_polling_pid = None
+        try:
+            proc = psutil.Process(pid)
+        except psutil.NoSuchProcess:
+            return
+        timeout_s = env_float(
+            "ODOO_EVENTED_STOP_TIMEOUT",
+            EVENTED_STOP_TIMEOUT_S,
+            minimum=0.0,
+            logger=self.logger,
+        )
+        with contextlib.suppress(ProcessLookupError):
+            os.kill(pid, signal.SIGTERM)
+        try:
+            proc.wait(timeout=timeout_s)
+        except psutil.TimeoutExpired:
+            self.logger.warning(
+                "Evented subprocess (%s) still alive %.0fs after SIGTERM; "
+                "sending SIGKILL",
+                pid,
+                timeout_s,
+            )
+            with contextlib.suppress(ProcessLookupError):
+                os.kill(pid, signal.SIGKILL)
+            # Bounded reap of the SIGKILLed child; SIGKILL is uncatchable, so
+            # a further timeout means only that someone else must reap it.
+            with contextlib.suppress(psutil.TimeoutExpired):
+                proc.wait(timeout=5)
+
     def stop_workers_gracefully(self) -> None:
         """Signal all workers to finish their current request then exit."""
         self.logger.info("Stopping workers gracefully")
 
-        if self.long_polling_pid is not None:
-            # FIXME make longpolling process handle SIGTERM correctly
-            self.worker_kill(self.long_polling_pid, signal.SIGKILL)
-            self.long_polling_pid = None
+        self._stop_long_polling()
 
         # Snapshot the keys with ``list``: ``worker_kill`` may ``worker_pop`` an
         # already-dead worker (ESRCH), mutating ``self.workers`` mid-loop.

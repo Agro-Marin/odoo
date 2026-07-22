@@ -252,9 +252,14 @@ class ThreadedWSGIServerReloadable(
     def __init__(self, host: str, port: int, app: Any) -> None:
         # Bound concurrent HTTP-handling threads so a request burst (e.g. a page
         # fetching hundreds of asset shims in parallel) can't exhaust the OS
-        # thread limit.  Default: half the cursor budget (db_maxconn minus cron
-        # threads), since most requests borrow one cursor but a few borrow two.
-        auto_limit = max((config["db_maxconn"] - config["max_cron_threads"]) // 2, 1)
+        # thread limit.  Default: half the cursor budget — db_maxconn minus the
+        # in-process cron AND job threads (both borrow cursors while processing)
+        # — since most requests borrow one cursor but a few borrow two.
+        auto_limit = max(
+            (config["db_maxconn"] - config["max_cron_threads"] - config["job_workers"])
+            // 2,
+            1,
+        )
         # ``minimum=0``: "0" opts out of the bound (the guard below skips the
         # semaphore); a malformed or negative value clamps to that same opt-out
         # rather than reaching ``Semaphore(-N)``, which would abort startup.
