@@ -1,10 +1,9 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 import re
-
 from difflib import SequenceMatcher, unified_diff
-from bs4 import BeautifulSoup
 
+from bs4 import BeautifulSoup
 
 # ------------------------------------------------------------
 # Patch and comparison functions
@@ -21,11 +20,11 @@ PATCH_OPERATION_ADD = "+"
 PATCH_OPERATION_REMOVE = "-"
 PATCH_OPERATION_REPLACE = "R"
 
-PATCH_OPERATIONS = dict(
-    insert=PATCH_OPERATION_ADD,
-    delete=PATCH_OPERATION_REMOVE,
-    replace=PATCH_OPERATION_REPLACE,
-)
+PATCH_OPERATIONS = {
+    "insert": PATCH_OPERATION_ADD,
+    "delete": PATCH_OPERATION_REMOVE,
+    "replace": PATCH_OPERATION_REPLACE,
+}
 
 HTML_ATTRIBUTES_TO_REMOVE = ["data-last-history-steps"]
 HTML_TAG_ISOLATION_REGEX = r"^([^>]*>)(.*)$"
@@ -42,20 +41,20 @@ UNNECESSARY_REPLACE_FIXER = (
 
 def apply_patch(initial_content, patch):
     """Apply a patch (multiple operations) on a content.
-    Each operation is a string with the following format:
-    <operation_type>@<start_index>[,<end_index>][:<patch_text>*]
-    patch format example:
-        +@4:<p>ab</p><p>cd</p>
-        +@4,15:<p>ef</p><p>gh</p>
-        -@32
-        -@125,129
-        R@523:<b>sdf</b>
 
     :param string initial_content: the initial content to patch
     :param string patch: the patch to apply
 
     :return: string: the patched content
     """
+    # Each operation is a string with the format:
+    #     <operation_type>@<start_index>[,<end_index>][:<patch_text>*]
+    # e.g.:
+    #     +@4:<p>ab</p><p>cd</p>
+    #     +@4,15:<p>ef</p><p>gh</p>
+    #     -@32
+    #     -@125,129
+    #     R@523:<b>sdf</b>
     if not patch:
         return initial_content
 
@@ -140,7 +139,7 @@ def generate_comparison(new_content, old_content):
         # If the operation is a replace, we need to flag the changes that
         # will generate ghost opening tags if we don't ignore
         # them.
-        # this can append when:
+        # this can happen when:
         # * A change concerning only html parameters.
         #   <p class="x">a</p> => <p class="y">a</p>
         # * An addition in a previously empty element opening tag
@@ -214,7 +213,7 @@ def generate_comparison(new_content, old_content):
         SAME_TAG_REPLACE_FIXER, "</added><removed>", final_comparison
     )
 
-    # Remove al the <delete_me> tags
+    # Remove all the <delete_me> tags
     final_comparison = final_comparison.replace(r"<delete_me>", "")
 
     # This fix the issue of unnecessary replace tags.
@@ -247,14 +246,6 @@ def _format_line_index(start, end):
 
 def _patch_generator(new_content, old_content):
     """Generate a patch (multiple operations) between two contents.
-    Each operation is a string with the following format:
-    <operation_type>@<start_index>[,<end_index>][:<patch_text>*]
-    patch format example:
-        +@4:<p>ab</p><p>cd</p>
-        +@4,15:<p>ef</p><p>gh</p>
-        -@32
-        -@125,129
-        R@523:<b>sdf</b>
 
     :param string new_content: the new content
     :param string old_content: the old content
@@ -262,6 +253,14 @@ def _patch_generator(new_content, old_content):
     :return: string: the patch containing all the operations to reverse
                      the new content to the old content
     """
+    # Each operation is a string with the format:
+    #     <operation_type>@<start_index>[,<end_index>][:<patch_text>*]
+    # e.g.:
+    #     +@4:<p>ab</p><p>cd</p>
+    #     +@4,15:<p>ef</p><p>gh</p>
+    #     -@32
+    #     -@125,129
+    #     R@523:<b>sdf</b>
     # remove break line in contents to ensure they don't interfere with
     # operations
     new_content = new_content.replace("\n", "")
@@ -286,8 +285,7 @@ def _patch_generator(new_content, old_content):
             for tag, _, _, j1, j2 in group:
                 if tag not in {"delete", "equal"}:
                     patch_operation = PATCH_OPERATIONS[tag] + patch_operation
-                    for line in old_content_lines[j1:j2]:
-                        patch_content_line.append(line)
+                    patch_content_line.extend(old_content_lines[j1:j2])
 
         if patch_content_line:
             patch_content = LINE_SEPARATOR + LINE_SEPARATOR.join(
