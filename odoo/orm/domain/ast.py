@@ -8,6 +8,7 @@ optimization registries populated by ``optimizations.py``.
 """
 
 import collections
+import contextlib
 import datetime
 import decimal
 import enum
@@ -91,6 +92,27 @@ def _iter_subdomains(node: Domain) -> typing.Iterator[Domain]:
         yield from node.children
     elif isinstance(node, DomainNot):
         yield node.child
+
+
+@contextlib.contextmanager
+def _recursion_error_as_value_error():
+    """Convert a ``RecursionError`` raised while optimizing into a ``ValueError``.
+
+    The parse-time guards (:func:`_check_domain_nesting`,
+    :func:`_check_subdomain_nesting`) bound the n-ary and ``any`` nesting axes
+    *independently* at :data:`MAX_DOMAIN_NESTING`.  A domain nesting deeply on
+    both axes at once can still exhaust the Python stack during optimization
+    (each ``any`` sub-domain is optimized inside its parent's frame), so the
+    per-axis guards do not bound their combination.  Surface the same catchable
+    ``ValueError`` the guards raise instead of an opaque ``RecursionError``.
+    """
+    try:
+        yield
+    except RecursionError:
+        raise ValueError(
+            "Domain nesting too deep to optimize: combined n-ary and 'any' "
+            "nesting exhausts the evaluation stack"
+        ) from None
 
 
 def _check_domain_nesting(domain: Domain, max_depth: int) -> None:
@@ -334,7 +356,12 @@ class Domain:
             item = arg[0]
             if isinstance(item, (tuple, list)) and len(item) == 3:
                 # operators are matched case-insensitively (they are lowercased
-                # later in DomainCondition.checked)
+                # later in DomainCondition.checked).  Guard the type so a
+                # malformed leaf (non-string operator, e.g. a nested 3-tuple)
+                # raises a clear "invalid item" ValueError, not an opaque
+                # AttributeError from ``.lower()``.
+                if not isinstance(item[1], str):
+                    raise ValueError(f"Domain() invalid item in domain: {item!r}")
                 op = item[1].lower()
                 if internal:
                     # parse subdomain values for any/any!/not any/not any!
@@ -354,7 +381,13 @@ class Domain:
             for item in reversed(arg):
                 if isinstance(item, (tuple, list)) and len(item) == 3:
                     # operators are matched case-insensitively (lowercased later
-                    # in DomainCondition.checked)
+                    # in DomainCondition.checked).  Guard the type: a malformed
+                    # leaf whose operator is not a string (e.g. a nested 3-tuple
+                    # mistakenly placed as a condition) must raise the clear
+                    # "malformed domain" ValueError below, not an opaque
+                    # AttributeError from ``.lower()``.
+                    if not isinstance(item[1], str):
+                        raise ValueError(f"Domain() invalid item in domain: {item!r}")
                     op = item[1].lower()
                     if internal:
                         if op in SUBDOMAIN_OPERATORS and isinstance(
@@ -545,7 +578,8 @@ class Domain:
         model's field definitions (no model-specific overrides), so the result
         is reusable across transactions and suitable for the client side.
         """
-        return self._optimize(model, OptimizationLevel.BASIC)
+        with _recursion_error_as_value_error():
+            return self._optimize(model, OptimizationLevel.BASIC)
 
     def optimize_full(self, model: BaseModel) -> Domain:
         """Rewrite the domain applying basic and advanced optimizations.
@@ -554,7 +588,8 @@ class Domain:
         methods) and resolve inherited/non-stored fields, so equivalence holds
         only at this point in the transaction.
         """
-        return self._optimize(model, OptimizationLevel.FULL)
+        with _recursion_error_as_value_error():
+            return self._optimize(model, OptimizationLevel.FULL)
 
     @typing.final
     def _optimize(self, model: BaseModel, level: OptimizationLevel) -> Domain:

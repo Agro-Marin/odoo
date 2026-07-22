@@ -225,6 +225,13 @@ class Many2one(_Relational):
             comodel = record.env[self.comodel_name]
             origin = comodel.browse(value.get("id"))
             id_ = comodel.new(value, origin=origin).id
+        elif validate and value:
+            # A truthy unrecognised value (e.g. a numeric string "42" from a lax
+            # RPC client) must not silently clear the relation.  ``__set__``
+            # already rejects it via ``convert_to_write``; ``write()`` reaches
+            # here, so raise for the same consistency instead of writing None.
+            # Falsy values (False/None/"") fall through and clear, as before.
+            raise ValueError(f"Wrong value for {self}: {value!r}")
         else:
             id_ = None
 

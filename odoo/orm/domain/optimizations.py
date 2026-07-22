@@ -677,8 +677,24 @@ def _optimize_type_datetime_relative(condition, model):
         or not isinstance(condition.value, (str, OrderedSet))
     ):
         return condition
-    value, _ = _value_to_datetime(condition.value, model.env)
-    return DomainCondition(condition.field_expr, operator, value)
+    env = model.env
+
+    # Resolve each relative string ("today", "=1d", "-1w", ...) to its date or
+    # datetime OBJECT, preserving the date-vs-datetime distinction.  The BASIC
+    # datetime pass re-runs on the fresh node and applies whole-day granularity
+    # to a date and one-second granularity to a datetime.  Collapsing to a
+    # datetime here (the previous behaviour) discarded that distinction, so
+    # ``dt <= 'today'`` matched only the first second of the day instead of the
+    # whole day — unlike ``dt <= date.today()``.
+    def _resolve(v):
+        return resolve_date(v, env) if isinstance(v, str) else v
+
+    value = condition.value
+    if isinstance(value, OrderedSet):
+        resolved = OrderedSet(_resolve(v) for v in value)
+    else:
+        resolved = _resolve(value)
+    return DomainCondition(condition.field_expr, operator, resolved)
 
 
 @field_type_optimization(["properties"], level=OptimizationLevel.DYNAMIC_VALUES)

@@ -174,6 +174,12 @@ class ReadMixin(_ModelStubs):
         record_fnames = []
         for name in fnames:
             field = _fields[name]
+            # Enforce field-group ACL here, before any value is read from the
+            # cache.  The fast paths below bypass ``Field.__get__`` (which
+            # normally gates access), so without this a group-restricted field
+            # leaks whenever its value is cache-warm — including on all-NewId
+            # recordsets, where ``fetch()`` returns early and never checks.
+            field.ensure_access(self)
             if (
                 field.store
                 and not field.relational
