@@ -238,6 +238,19 @@ class Binary(http.Controller):
                     raise request.not_found() from e
         if stream is None:
             raise request.not_found()
+        if stream.type == "url":
+            # The bundle compiled to nothing (e.g. a JS bundle whose entries are
+            # all OWL templates routed to the ESM pipeline), so its attachment
+            # holds no bytes and `_to_http_stream` resolved to a redirect to the
+            # attachment's own asset URL — this very route, an infinite loop.
+            # Serve the empty body instead. Mutate the existing stream, which
+            # already carries the mimetype/name/public read while its cursor was
+            # open, rather than re-reading the (possibly rw-cursor-bound,
+            # now-closed) attachment.
+            stream.type = "data"
+            stream.data = b""
+            stream.size = 0
+            stream.url = None
         send_file_kwargs = {
             "as_attachment": False,
             "content_security_policy": None,
