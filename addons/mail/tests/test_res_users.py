@@ -1,5 +1,4 @@
 from datetime import datetime, timedelta
-from unittest import skip
 from unittest.mock import patch
 
 from freezegun import freeze_time
@@ -222,9 +221,6 @@ class TestUserTours(HttpCaseWithUserDemo):
 
 @tagged("post_install", "-at_install")
 class TestUserSettings(MailCommon):
-    @skip(
-        "Crashes in post_install, probably because other modules force creation through inverse (e.g. voip)"
-    )
     def test_create_portal_user(self):
         portal_group = self.env.ref("base.group_portal")
         user = self.env.user.create(
