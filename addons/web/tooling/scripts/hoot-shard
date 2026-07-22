@@ -1,0 +1,325 @@
+#!/bin/sh
+''':'
+# Self-locating trampoline (sh/python polyglot): re-exec this file with the
+# workspace venv interpreter so no venv path is ever hardcoded. Mirrors the
+# sibling ``hoot`` runner. The workspace root is 6 levels up
+# (<ws>/addons/odoo/addons/web/tooling/scripts). Override with
+# $ODOO_VENV_PYTHON when the workspace holds several venvs.
+# NB: no `set --` in here — it would clobber "$@" (the real CLI arguments).
+here="$(cd "$(dirname "$0")" && pwd)"
+ws="$(cd "$here/../../../../../.." && pwd)"
+py="${ODOO_VENV_PYTHON:-}"
+if [ -z "$py" ]; then
+    for cand in "$ws"/venv/*/bin/python; do
+        [ -x "$cand" ] || continue
+        if [ -n "$py" ]; then
+        echo "$(basename "$0"): several venvs under $ws/venv; set ODOO_VENV_PYTHON" >&2
+            exit 1
+        fi
+        py="$cand"
+    done
+    if [ -z "$py" ]; then
+        echo "$(basename "$0"): no venv python under $ws/venv; set ODOO_VENV_PYTHON" >&2
+        exit 1
+    fi
+fi
+exec "$py" "$0" "$@"
+'''
+"""Parallel shard wrapper around the warm-server ``hoot`` runner.
+
+HOOT runs a suite's tests *serially inside one browser page*, so a single
+``hoot`` invocation's wall-clock is just the sum of its tests. This wrapper
+partitions the requested suites into N balanced shards and runs N ``hoot``
+invocations **concurrently**, each against its own warm database (the runner
+auto-picks a free port and auto-creates/installs ``web`` per DB, and its
+lifecycle is explicitly per-DB so concurrent warm servers never collide). On a
+many-core box this turns a ~10 min full-web run into a ~2-3 min one.
+
+Balancing uses a per-suite runtime table (``hoot_shard_weights.json`` next to
+this script, seeded from observed timings) and longest-processing-time (LPT)
+bin-packing, so the slowest suites are spread across shards instead of piling
+onto one.
+
+Examples
+--------
+  hoot-shard                          # full web suite, auto shard count, desktop
+  hoot-shard -j 4                     # force 4 shards
+  hoot-shard --preset mobile          # full web suite on mobile
+  hoot-shard '@web/views/fields' '@web/webclient' '@web/core'   # only these
+  hoot-shard --plan                   # print the partition and exit (no run)
+  hoot-shard --calibrate              # time each suite solo, refresh weights
+  hoot-shard --stop                   # stop every shard's warm server
+
+Shard 0 reuses the canonical ``hoot_web`` DB (so an already-warm server is
+reused); shards 1..N-1 use ``hoot_web_s1`` .. ``hoot_web_s{N-1}`` (created +
+``web``-installed once, in parallel, on first use).
+"""
+
+# CLI tool: print() is the user-facing output channel.
+# ruff: noqa: T201
+import argparse
+import contextlib
+import json
+import os
+import re
+import subprocess
+import sys
+import time
+from concurrent.futures import ThreadPoolExecutor
+from pathlib import Path
+
+HERE = Path(__file__).resolve().parent
+HOOT = HERE / "hoot"
+WEIGHTS_PATH = HERE / "hoot_shard_weights.json"
+
+C_GREEN, C_RED, C_YEL, C_DIM, C_RST = (
+    "\033[32m", "\033[31m", "\033[33m", "\033[2m", "\033[0m"
+)
+
+
+def _color(txt: str, code: str) -> str:
+    return f"{code}{txt}{C_RST}" if sys.stdout.isatty() else txt
+
+
+# Canonical full-web suite list. KEEP IN SYNC with ALL_WEB_SUITE_PREFIXES in
+# ``addons/web/tests/test_js.py`` (whose test_suite_filters_cover_every_test_file
+# fails the build if a tests directory is added without being covered there).
+DEFAULT_WEB_SUITES = [
+    "@web/core", "@web/components", "@web/services", "@web/ui", "@web/model",
+    "@web/views/calendar", "@web/views/fields", "@web/views/form",
+    "@web/views/kanban", "@web/views/list",
+    "@web/views/graph", "@web/views/pivot", "@web/views/pivot_view",
+    "@web/views/view_components", "@web/views/view_compiler",
+    "@web/views/view_dialogs", "@web/views/widgets", "@web/views/layout",
+    "@web/views/view_button", "@web/views/view_buttons",
+    "@web/views/view_button_hook", "@web/views/view_service", "@web/views/view",
+    "@web/views/view_utils", "@web/views/module_views",
+    "@web/search", "@web/webclient", "@web/public",
+    "@web/env", "@web/reactivity", "@web/t_custom_click", "@web/helpers",
+    "@web/interactions", "@web/l10n", "@web/legacy_js", "@web/mock_server",
+    "@web/modules",
+]
+
+# Seed runtimes (seconds), rough, for balancing only. Refined by --calibrate.
+SEED_WEIGHTS = {
+    "@web/core": 45, "@web/components": 40, "@web/services": 25, "@web/ui": 15,
+    "@web/model": 15, "@web/views/calendar": 15, "@web/views/fields": 180,
+    "@web/views/form": 35, "@web/views/kanban": 22, "@web/views/list": 40,
+    "@web/views/graph": 40, "@web/views/pivot": 30, "@web/views/pivot_view": 25,
+    "@web/views/view_components": 20, "@web/views/view_compiler": 10,
+    "@web/views/view_dialogs": 15, "@web/views/widgets": 20,
+    "@web/views/layout": 8, "@web/views/view_button": 10,
+    "@web/views/view_buttons": 8, "@web/views/view_button_hook": 6,
+    "@web/views/view_service": 8, "@web/views/view": 20,
+    "@web/views/view_utils": 8, "@web/views/module_views": 6,
+    "@web/search": 40, "@web/webclient": 90, "@web/public": 20, "@web/env": 5,
+    "@web/reactivity": 5, "@web/t_custom_click": 4, "@web/helpers": 6,
+    "@web/interactions": 15, "@web/l10n": 8, "@web/legacy_js": 6,
+    "@web/mock_server": 10, "@web/modules": 8,
+}
+DEFAULT_WEIGHT = 30  # unknown suite
+
+
+def load_weights() -> dict:
+    weights = dict(SEED_WEIGHTS)
+    if WEIGHTS_PATH.exists():
+        with contextlib.suppress(ValueError):
+            weights.update(json.loads(WEIGHTS_PATH.read_text()))
+    else:  # persist the seed so it is discoverable and tunable
+        with contextlib.suppress(OSError):
+            WEIGHTS_PATH.write_text(json.dumps(SEED_WEIGHTS, indent=2, sort_keys=True))
+    return weights
+
+
+def partition(suites: list[str], n: int, weights: dict) -> list[list[str]]:
+    """LPT bin-packing: heaviest suite first, onto the lightest shard."""
+    shards: list[list[str]] = [[] for _ in range(n)]
+    loads = [0.0] * n
+    for suite in sorted(suites, key=lambda s: weights.get(s, DEFAULT_WEIGHT), reverse=True):
+        i = loads.index(min(loads))
+        shards[i].append(suite)
+        loads[i] += weights.get(suite, DEFAULT_WEIGHT)
+    return [s for s in shards if s]  # drop empties when n > len(suites)
+
+
+def db_for(index: int, prefix: str) -> str:
+    return prefix if index == 0 else f"{prefix}_s{index}"
+
+
+def hoot_cmd(extra: list[str]) -> list[str]:
+    # Invoke ``hoot`` under this same (venv) interpreter so we do not depend on
+    # its executable bit / shebang; its python body runs directly.
+    return [sys.executable, str(HOOT), *extra]
+
+
+# hoot's per-run summary lines (see hoot's _report()).
+RE_SUMMARY = re.compile(r"^(PASS|FAIL|WARN)\s+(.*?)\s+\((.+)\)\s*$")
+RE_FAILED = re.compile(r"(\d+)\s+failed")
+RE_PASSED = re.compile(r"(\d+)\s+passed")
+RE_WALL = re.compile(r"([\d.]+)s")
+RE_BULLET = re.compile(r"^\s+-\s+(@\S.*?)\s*$")
+
+
+class ShardResult:
+    def __init__(self, index: int, db: str):
+        self.index, self.db = index, db
+        self.status = "?"
+        self.passed = self.failed = 0
+        self.wall = 0.0
+        self.failed_tests: list[str] = []
+        self.rc = 0
+        self.raw = ""
+
+    def parse(self) -> None:
+        for line in self.raw.splitlines():
+            if m := RE_SUMMARY.match(line):
+                self.status = m[1]
+                detail = m[3]
+                self.failed = int(RE_FAILED.search(detail)[1]) if RE_FAILED.search(detail) else 0
+                self.passed = int(RE_PASSED.search(detail)[1]) if RE_PASSED.search(detail) else 0
+                self.wall = float(RE_WALL.search(detail)[1]) if RE_WALL.search(detail) else 0.0
+            elif b := RE_BULLET.match(line):
+                self.failed_tests.append(b[1])
+        # A nonzero rc with no parsed summary => the shard's hoot run itself
+        # broke (boot failure, timeout). Surface it as a failure, not silence.
+        if self.status == "?" and self.rc != 0:
+            self.status = "FAIL"
+            self.failed = max(self.failed, 1)
+
+
+def run_shard(index: int, suites: list[str], args) -> ShardResult:
+    db = db_for(index, args.db_prefix)
+    res = ShardResult(index, db)
+    extra = ["--db", db, "--preset", args.preset, "--timeout", str(args.timeout)]
+    if args.hoot_timeout:
+        extra += ["--hoot-timeout", str(args.hoot_timeout)]
+    if args.verbose:
+        extra.append("-v")
+    extra += suites
+    proc = subprocess.run(
+        hoot_cmd(extra), capture_output=True, text=True, check=False
+    )
+    res.raw = proc.stdout + proc.stderr
+    res.rc = proc.returncode
+    res.parse()
+    return res
+
+
+def calibrate(suites: list[str], args) -> None:
+    """Time each suite solo (sequentially, one DB) and rewrite the weights file."""
+    weights = load_weights()
+    for suite in suites:
+        r = run_shard(0, [suite], args)
+        if r.wall:
+            weights[suite] = round(r.wall, 1)
+        tag = _color("ok", C_GREEN) if r.status == "PASS" else _color(r.status, C_YEL)
+        print(f"  {tag}  {suite}  {r.wall:.1f}s ({r.passed} passed)")
+    WEIGHTS_PATH.write_text(json.dumps(weights, indent=2, sort_keys=True))
+    print(_color(f"Wrote {WEIGHTS_PATH}", C_DIM))
+
+
+def stop_all(n: int, prefix: str) -> None:
+    for i in range(n):
+        db = db_for(i, prefix)
+        subprocess.run(hoot_cmd(["--db", db, "--stop"]), check=False)
+        print(f"stopped {db}")
+
+
+def main() -> int:
+    p = argparse.ArgumentParser(
+        prog="hoot-shard",
+        description="Run @web/... HOOT suites across N concurrent warm servers.",
+    )
+    p.add_argument("suites", nargs="*", help="@web/... suites (default: full web).")
+    p.add_argument("-j", "--shards", type=int, default=0,
+                   help="Shard count (default: auto from CPU count).")
+    p.add_argument("--preset", choices=("desktop", "mobile"), default="desktop")
+    p.add_argument("--timeout", type=int, default=900,
+                   help="Per-shard wall-clock timeout, seconds (default: 900).")
+    p.add_argument("--hoot-timeout", type=int, default=0,
+                   help="HOOT in-page timeout, ms (default: hoot's own).")
+    p.add_argument("--db-prefix", default="hoot_web",
+                   help="Shard 0 uses this DB; shard i uses <prefix>_s{i}.")
+    p.add_argument("-v", "--verbose", action="store_true")
+    p.add_argument("--plan", action="store_true",
+                   help="Print the shard partition and exit (no run).")
+    p.add_argument("--calibrate", action="store_true",
+                   help="Time each suite solo and refresh the weights file.")
+    p.add_argument("--stop", action="store_true",
+                   help="Stop every shard's warm server and exit.")
+    args = p.parse_args()
+
+    suites = args.suites or DEFAULT_WEB_SUITES
+    weights = load_weights()
+
+    # Auto shard count: ~3 cores per shard (Chrome + threaded server), capped so
+    # we never make more shards than suites.
+    cores = os.cpu_count() or 4
+    auto = max(1, min(8, (cores - 2) // 3))
+    n = args.shards or auto
+    n = max(1, min(n, len(suites)))
+
+    if args.stop:
+        stop_all(n, args.db_prefix)
+        return 0
+    if args.calibrate:
+        calibrate(suites, args)
+        return 0
+
+    shards = partition(suites, n, weights)
+    n = len(shards)
+
+    def est(group: list[str]) -> float:
+        return sum(weights.get(s, DEFAULT_WEIGHT) for s in group)
+
+    print(_color(f"Shard plan ({n} shards, preset={args.preset}):", C_DIM))
+    for i, group in enumerate(shards):
+        print(f"  s{i} [{db_for(i, args.db_prefix)}]  ~{est(group):.0f}s  "
+              + " ".join(group))
+    if args.plan:
+        return 0
+    est_wall = max((est(g) for g in shards), default=0)
+    print(_color(f"Running {n} shards concurrently "
+                 f"(est ~{est_wall:.0f}s wall; first run of new shard DBs "
+                 f"adds a one-time web install)...", C_DIM))
+
+    t0 = time.time()
+    with ThreadPoolExecutor(max_workers=n) as pool:
+        results = list(pool.map(lambda ig: run_shard(ig[0], ig[1], args),
+                                enumerate(shards)))
+    wall = time.time() - t0
+
+    total_passed = total_failed = 0
+    all_failed: list[str] = []
+    cpu_equiv = 0.0
+    for r in results:
+        cpu_equiv += r.wall
+        total_passed += r.passed
+        total_failed += r.failed
+        all_failed += r.failed_tests
+        code = C_GREEN if r.status == "PASS" else (C_YEL if r.status == "WARN" else C_RED)
+        print(_color(
+            f"  s{r.index} [{r.db}]  {r.status}  "
+            f"({r.failed} failed / {r.passed} passed, {r.wall:.1f}s)", code))
+        for name in r.failed_tests:
+            print(_color(f"       - {name}", C_RED))
+        if r.status not in ("PASS", "WARN") and not r.failed_tests and r.rc:
+            # broke without a parseable summary — show a hint from the tail
+            tail = "\n".join(r.raw.strip().splitlines()[-4:])
+            print(_color(f"       (rc={r.rc}) {tail}", C_YEL))
+
+    print("=" * 60)
+    speedup = f"{cpu_equiv / wall:.1f}x" if wall else "n/a"
+    line = (f"TOTAL: {total_failed} failed / {total_passed} passed in "
+            f"{wall:.1f}s wall  ({cpu_equiv:.0f}s serial-equiv across {n} "
+            f"shards → {speedup})")
+    print(_color(line, C_GREEN if total_failed == 0 else C_RED))
+    if all_failed:
+        print(_color("FAILED:", C_RED))
+        for name in all_failed:
+            print(_color(f"  - {name}", C_RED))
+    return 1 if total_failed or any(r.status not in ("PASS", "WARN") for r in results) else 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

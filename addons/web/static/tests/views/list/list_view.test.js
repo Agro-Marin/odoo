@@ -2656,6 +2656,9 @@ test(`grouped list rendering with groupby m2o field: group_create = false`, asyn
     expect(`.o_list_footer td > button`).toHaveCount(0);
 });
 
+// desktop-only: opens the `.o_group_config` header dropdown to edit a group,
+// an affordance the mobile grouped list does not render.
+test.tags("desktop");
 test(`grouped list rendering with groupby m2o field: edit group`, async () => {
     Bar._views = {
         form: `<form><field name="name"/></form>`,
@@ -12111,6 +12114,9 @@ test(`editable list view: multi edition`, async () => {
     });
 });
 
+// desktop-only: selects rows via the `.o_list_record_selector` checkboxes to
+// trigger multi-edit; mobile lists do not render those row selectors.
+test.tags("desktop");
 test(`multi edit sends a per-record optimistic-locking baseline`, async () => {
     // Field-scoped locking on the mass-edit: each selected record carries its
     // OWN baseline (its originally-loaded value) under known_values, keyed by
@@ -12147,6 +12153,9 @@ test(`multi edit sends a per-record optimistic-locking baseline`, async () => {
     expect.verifySteps(["multi web_save"]);
 });
 
+// desktop-only: selects rows via the `.o_list_record_selector` checkboxes to
+// trigger multi-edit; mobile lists do not render those row selectors.
+test.tags("desktop");
 test(`multi edit surfaces a concurrency conflict from the server`, async () => {
     // The server rejects a mass-edit whose optimistic-locking check finds a
     // concurrently-modified record; the client must surface that as an error
@@ -12188,6 +12197,9 @@ test(`multi edit surfaces a concurrency conflict from the server`, async () => {
     ]);
 });
 
+// desktop-only: selects rows via the `.o_list_record_selector` checkboxes to
+// trigger multi-edit; mobile lists do not render those row selectors.
+test.tags("desktop");
 test(`multi edit with a relative Operation sends per-record baselines to web_save_multi`, async () => {
     // A relative Field Operation (``+=5``) resolves to a DIFFERENT absolute
     // value per record, so the save goes through web_save_multi with a distinct
@@ -12223,6 +12235,9 @@ test(`multi edit with a relative Operation sends per-record baselines to web_sav
     expect.verifySteps(["web_save_multi"]);
 });
 
+// desktop-only: selects rows via the `.o_list_record_selector` checkboxes to
+// trigger multi-edit; mobile lists do not render those row selectors.
+test.tags("desktop");
 test(`multi edit relative Operation surfaces a concurrency conflict from the server`, async () => {
     // The relative-Operation mass-edit must surface a server optimistic-lock
     // rejection as an error dialog, exactly like the absolute path.
@@ -20088,6 +20103,9 @@ test(`cell-level keyboard navigation in multiple grouped list`, async () => {
     expect(`tbody tr:nth-child(3) td:nth-child(3)`).toBeFocused();
 });
 
+// desktop-only: drives the `.o_cp_action_menus` control-panel cog menu; mobile
+// renders toolbar actions differently, so the RPC flow diverges.
+test.tags("desktop");
 test(`list with custom cog action that has a confirmation target="new" action`, async () => {
     const contextualAction = {
         id: 80,

@@ -3316,6 +3316,9 @@ test(`Colors: dynamic filters with no color source`, async () => {
     ).toHaveClass("o_cw_filter_color_4");
 });
 
+// desktop-only: uses the `.o-calendar-quick-create--input` inline quick-create,
+// absent from the mobile calendar UI.
+test.tags("desktop");
 test(`create event with filters`, async () => {
     // Time-grid slot selection is timezone-sensitive and this test doesn't
     // exercise TZ behavior: pin UTC so it passes on any dev machine, not
