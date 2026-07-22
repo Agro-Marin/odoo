@@ -81,14 +81,6 @@ def _parse_operation_indexes(metadata):
 
 def apply_patch(initial_content, patch):
     """Apply a patch (multiple operations) on a content.
-    Each operation is a string with the following format:
-    <operation_type>@<start_index>[,<end_index>][:<patch_text>*]
-    patch format example:
-        +@4:<p>ab</p><p>cd</p>
-        +@4,15:<p>ef</p><p>gh</p>
-        -@32
-        -@125,129
-        R@523:<b>sdf</b>
 
     Operations referring to indexes outside the content are skipped rather than
     raising: a corrupt revision should degrade the restored content, not break
@@ -99,6 +91,14 @@ def apply_patch(initial_content, patch):
 
     :return: string: the patched content
     """
+    # Each operation is a string with the format:
+    #     <operation_type>@<start_index>[,<end_index>][:<patch_text>*]
+    # e.g.:
+    #     +@4:<p>ab</p><p>cd</p>
+    #     +@4,15:<p>ef</p><p>gh</p>
+    #     -@32
+    #     -@125,129
+    #     R@523:<b>sdf</b>
     if not patch:
         return initial_content
 
@@ -187,7 +187,7 @@ def generate_comparison(new_content, old_content):
         # If the operation is a replace, we need to flag the changes that
         # will generate ghost opening tags if we don't ignore
         # them.
-        # this can append when:
+        # this can happen when:
         # * A change concerning only html parameters.
         #   <p class="x">a</p> => <p class="y">a</p>
         # * An addition in a previously empty element opening tag
@@ -261,7 +261,7 @@ def generate_comparison(new_content, old_content):
         SAME_TAG_REPLACE_FIXER, "</added><removed>", final_comparison
     )
 
-    # Remove al the <delete_me> tags
+    # Remove all the <delete_me> tags
     final_comparison = final_comparison.replace(r"<delete_me>", "")
 
     # This fix the issue of unnecessary replace tags.
@@ -300,14 +300,6 @@ def _format_line_index(start, end):
 
 def _patch_generator(new_content, old_content):
     """Generate a patch (multiple operations) between two contents.
-    Each operation is a string with the following format:
-    <operation_type>@<start_index>[,<end_index>][:<patch_text>*]
-    patch format example:
-        +@4:<p>ab</p><p>cd</p>
-        +@4,15:<p>ef</p><p>gh</p>
-        -@32
-        -@125,129
-        R@523:<b>sdf</b>
 
     :param string new_content: the new content
     :param string old_content: the old content
@@ -315,6 +307,14 @@ def _patch_generator(new_content, old_content):
     :return: string: the patch containing all the operations to reverse
                      the new content to the old content
     """
+    # Each operation is a string with the format:
+    #     <operation_type>@<start_index>[,<end_index>][:<patch_text>*]
+    # e.g.:
+    #     +@4:<p>ab</p><p>cd</p>
+    #     +@4,15:<p>ef</p><p>gh</p>
+    #     -@32
+    #     -@125,129
+    #     R@523:<b>sdf</b>
     # remove break line in contents to ensure they don't interfere with
     # operations
     new_content = new_content.replace("\n", "")

@@ -7,7 +7,7 @@ class Html_EditorConverterTest(models.Model):
     _name = 'html_editor.converter.test'
     _description = 'Html Editor Converter Test'
 
-    # disable translation export for those brilliant field labels and values
+    # disable translation export for these test-only field labels and values
     _translate = False
 
     char = fields.Char()

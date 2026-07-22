@@ -162,7 +162,7 @@ class TestController(HttpCase):
             else:
                 return False
 
-        # retrieve metadata of an record without customerized link_preview_name but with display_name
+        # retrieve metadata of a record without customized link_preview_name but with display_name
         response_without_preview_name = self.url_open(
             '/html_editor/link_preview_internal',
             data=json_safe.dumps({
