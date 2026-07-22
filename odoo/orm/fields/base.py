@@ -583,7 +583,14 @@ class Field[T](_FieldDescriptionMixin, _FieldConvertMixin, _FieldSqlMixin):
         # parameters 'depends' and 'depends_context' are stored in attributes
         # '_depends' and '_depends_context', respectively
         if "depends" in attrs:
-            attrs["_depends"] = tuple(attrs.pop("depends"))
+            depends = tuple(attrs.pop("depends"))
+            # Mirror the @api.depends guard: a dependency on 'id' produces a
+            # silently inert trigger, so reject it on the kwarg path too (which
+            # otherwise stored it unchecked).
+            for dep in depends:
+                if "id" in dep.split("."):
+                    raise ValueError(f"Field {self} cannot depend on field 'id'.")
+            attrs["_depends"] = depends
         if "depends_context" in attrs:
             depends_context = tuple(attrs.pop("depends_context"))
             # A company_dependent field's cache MUST stay keyed on company. The

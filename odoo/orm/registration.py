@@ -92,6 +92,17 @@ def add_to_registry(registry: Registry, model_def: type[BaseModel]) -> type[Base
         model_cls = registry[name]
         _check_model_extension(model_cls, model_def)
     else:
+        if name in registry:
+            # A second fresh definition of an already-registered model (same
+            # _name, no self-`_inherit`) — a classic accidental collision between
+            # two modules.  It silently discards the first definition's fields
+            # and metadata; surface it instead of losing work without a trace.
+            _logger.warning(
+                "Model %r defined in module %r replaces the existing definition "
+                "(same _name without _inherit). Did you mean to inherit it?",
+                name,
+                model_def._module,
+            )
         model_cls = type(
             name,
             (model_def,),
@@ -305,13 +316,17 @@ def _setup(model_cls: type[BaseModel], env: Environment):
 
     # Detect cyclic _inherits before Phase 3 recurses to stack overflow:
     # _setup_done__ is set only in Phase 4, so a cycle would re-enter forever.
-    if getattr(model_cls, "_setup_in_progress__", False):
+    # Read the marker MRO-blind (``__dict__.get``, not ``getattr``): registry
+    # classes inherit from their parents' registry classes, so ``getattr`` could
+    # see an ancestor mid-setup and raise with the wrong model name.
+    if model_cls.__dict__.get("_setup_in_progress__", False):
         raise TypeError(f"Circular _inherits chain involving model {model_cls._name!r}")
     model_cls._setup_in_progress__ = True
     try:
         _setup_phases(model_cls, env)
     finally:
-        model_cls._setup_in_progress__ = False
+        # Remove the marker rather than leaving a ``False`` on every class dict.
+        del model_cls._setup_in_progress__
 
 
 def _setup_phases(model_cls: type[BaseModel], env: Environment) -> None:
