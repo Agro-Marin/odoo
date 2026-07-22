@@ -4647,16 +4647,47 @@ class MailThread(models.AbstractModel):
                     ]
                 )
             )
+            # The payload below is serialized once per recipient, in that
+            # recipient's own environment, so every field read inside the loop
+            # misses the cache and costs a query per recipient. Two such reads
+            # dominate the fan-out; both are resolvable in one query up front
+            # because the whole recipient set is already known here.
+            starred_pids = self._notify_inbox_get_starred_pids(
+                message, [pid for pid, _uid in inbox_pids_uids]
+            )
+            author_sudo = message.sudo().author_id
+            starred_field = message._fields["starred"]
+            main_user_field = author_sudo._fields["main_user_id"]
+            # 'main_user_id' varies with the reader only through its "the
+            # partner is the current user" shortcut. Rather than compute it in
+            # *this* env -- where that shortcut may well apply, since the poster
+            # is usually the author -- let the first recipient who is not the
+            # author compute it for real, then reuse that value for the other
+            # non-author recipients, for whom the shortcut cannot apply either.
+            # A self-notified author is left to compute their own.
+            shared_main_user_id = None
             for user in users:
+                message_for_user = message.with_user(user).with_context(
+                    allowed_company_ids=[],
+                    # inbox payload: drop the per-message notification list
+                    # (see mail.message._to_store_defaults) to keep this
+                    # per-recipient fan-out from being O(recipients**2) and
+                    # from leaking other recipients' email addresses.
+                    mail_notify_inbox=True,
+                )
+                starred_field._insert_cache(
+                    message_for_user, [user.partner_id.id in starred_pids]
+                )
+                if author_sudo and author_sudo.id != user.partner_id.id:
+                    author_for_user = message_for_user.sudo().author_id
+                    if shared_main_user_id is None:
+                        shared_main_user_id = author_for_user.main_user_id.id
+                    else:
+                        main_user_field._insert_cache(
+                            author_for_user, [shared_main_user_id]
+                        )
                 store = Store(bus_channel=user).add(
-                    message.with_user(user).with_context(
-                        allowed_company_ids=[],
-                        # inbox payload: drop the per-message notification list
-                        # (see mail.message._to_store_defaults) to keep this
-                        # per-recipient fan-out from being O(recipients**2) and
-                        # from leaking other recipients' email addresses.
-                        mail_notify_inbox=True,
-                    ),
+                    message_for_user,
                     msg_vals=msg_vals,
                     add_followers=True,
                     followers=followers,
@@ -4668,6 +4699,27 @@ class MailThread(models.AbstractModel):
                         "store_data": store.get_result(),
                     },
                 )
+
+    def _notify_inbox_get_starred_pids(self, message, partner_ids):
+        """Which of ``partner_ids`` starred ``message``, in a single query.
+
+        ``mail.message.starred`` is ``compute_sudo=False`` and scoped to the
+        reader's partner, so serializing it once per inbox recipient issued one
+        query per recipient to learn a boolean that is almost always False for a
+        message posted moments ago. Resolve the whole set at once instead.
+        """
+        if not partner_ids:
+            return frozenset()
+        self.env["mail.message"].flush_model(["starred_partner_ids"])
+        self.env.cr.execute(
+            """
+            SELECT res_partner_id
+              FROM mail_message_res_partner_starred_rel
+             WHERE mail_message_id = %s AND res_partner_id = ANY(%s)
+            """,
+            (message.id, list(partner_ids)),
+        )
+        return frozenset(pid for [pid] in self.env.cr.fetchall())
 
     def _notify_thread_by_email(
         self,

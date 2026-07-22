@@ -182,7 +182,7 @@ a dedicated route for genuinely separate operations (uploads, RTC signaling, wor
    (model, id) pair. `pyToJsModels` maps both `"discuss.channel"` and `"mail.thread"` to the
    `Thread` JS class.
 
-7. **Fork hardening suites are real tests, not scaffolding.** `test_mail_hardening_v2..v8` and
+7. **Fork hardening suites are real tests, not scaffolding.** `test_mail_hardening_v2..v11` and
    `test_mail_audit_v6*` are AgroMarin-added regression suites (upstream is the baseline, not
-   the ceiling). Keep them green; `_v6`/`_v7`/`_v8` carry dedicated tags, the earlier ones run
+   the ceiling). Keep them green; `_v6` onwards carry dedicated tags, the earlier ones run
    under the `-u mail` filter. See `TEST_TAGS.md`.

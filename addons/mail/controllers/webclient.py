@@ -1,10 +1,16 @@
+import logging
 from collections import defaultdict
 
+from werkzeug.exceptions import HTTPException
+
 from odoo import http
+from odoo.exceptions import AccessDenied, AccessError, MissingError, UserError
 from odoo.http import request
 
 from odoo.addons.mail.controllers.thread import ThreadController, _to_record_id
 from odoo.addons.mail.tools.discuss import Store, add_guest_to_context
+
+_logger = logging.getLogger(__name__)
 
 
 class WebclientController(ThreadController):
@@ -45,12 +51,61 @@ class WebclientController(ThreadController):
                 else (fetch_param + [None, None])[:3]
             )
             store.data_id = data_id
-            cls._process_request_for_all(store, name, params)
-            if not request.env.user._is_public():
-                cls._process_request_for_logged_in_user(store, name, params)
-            if request.env.user._is_internal():
-                cls._process_request_for_internal_user(store, name, params)
+            cls._process_one_request(store, name, params)
         store.data_id = None
+
+    @classmethod
+    def _process_one_request(cls, store: Store, name, params):
+        """Run a single fetch param, isolated from its siblings.
+
+        These routes batch independent data requests into one round-trip, so an
+        unexpected failure in one of them must not void the others. The client
+        asks for ``["failures", "systray_get_activities", "init_messaging"]`` in
+        a single call on every boot: letting a crash in the best-effort
+        ``failures`` handler (e.g. corrupt data reaching an unguarded
+        ``env[model]``) propagate discarded the whole batch, so messaging init
+        was lost too -- and the client swallowed the rejection, showing the user
+        nothing at all.
+
+        Deliberate signals (HTTP redirects/404s, access and user errors) still
+        propagate: they are meaningful to the caller and must not be masked.
+        Anything else is a bug or corrupt data -- log it with its traceback so
+        monitoring still sees it, roll back any write it made, and let the rest
+        of the batch answer.
+
+        The savepoint reverts database work only; whatever the failed handler
+        already put in ``store`` stays. That is harmless by construction: the
+        payload is idempotent upsert data keyed by record id (the same shape the
+        bus pushes incrementally), so a half-filled contribution just sets fewer
+        fields on records the client would have received anyway.
+        """
+        try:
+            with request.env.cr.savepoint():
+                cls._process_request_for_all(store, name, params)
+                if not request.env.user._is_public():
+                    cls._process_request_for_logged_in_user(store, name, params)
+                if request.env.user._is_internal():
+                    cls._process_request_for_internal_user(store, name, params)
+        except HTTPException, AccessError, AccessDenied:
+            # deliberate signals: redirects / 404s and permission decisions.
+            raise
+        except MissingError:
+            # A record vanished under us. This subclasses UserError but is a
+            # data condition, not a message for the user, so it belongs with
+            # the isolated failures below rather than with the re-raised ones.
+            _logger.info(
+                "Discarding fetch param %r: a record it needed no longer exists.",
+                name,
+            )
+        except UserError:
+            # user-actionable, and already carries the message to show.
+            raise
+        except Exception:
+            _logger.exception(
+                "Discarding fetch param %r: it failed while the rest of the "
+                "batch is answered normally.",
+                name,
+            )
 
     @classmethod
     def _process_request_for_all(cls, store: Store, name, params):
@@ -97,12 +152,24 @@ class WebclientController(ThreadController):
             found = defaultdict(list)
             for message in notifications.mail_message_id:
                 found[message.model].append(message.res_id)
+            # 'mail.message.model' is a plain Char with no foreign key and no
+            # constraint -- write() accepts any string, and a renaming migration
+            # or direct SQL can leave a name that is no longer in the registry.
+            # Dereferencing it unguarded raised KeyError here, which is doubly
+            # unfortunate: the garbage collection just below is exactly what
+            # would have reaped those rows, so the crash kept its own cure from
+            # running and the failure list stayed broken forever. Treat an
+            # unknown model as "document gone" -- which is what it is.
             existing = {
                 model: set(request.env[model].browse(ids).exists().ids)
                 for model, ids in found.items()
+                if model in request.env
             }
             valid = notifications.filtered(
-                lambda n: n.mail_message_id.res_id in existing[n.mail_message_id.model]
+                lambda n: (
+                    n.mail_message_id.res_id
+                    in existing.get(n.mail_message_id.model, ())
+                )
             )
             lost = notifications - valid
             # Garbage-collect notifications whose document was deleted. /mail/data
