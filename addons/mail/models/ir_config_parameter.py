@@ -1,6 +1,9 @@
+import logging
 from collections import defaultdict
 
 from odoo import api, models
+
+_logger = logging.getLogger(__name__)
 
 
 class IrConfig_Parameter(models.Model):
@@ -82,6 +85,34 @@ class IrConfig_Parameter(models.Model):
     #     for gmail oauth server
 
     _inherit = "ir.config_parameter"
+
+    @api.model
+    def _get_int_param(self, key, default):
+        """Read an integer mail ICP, degrading to ``default`` if unusable.
+
+        Every numeric parameter documented above is consumed through ``int()``,
+        but the stored value is free text typed into Settings > Technical >
+        System Parameters. A stray character therefore used to raise
+        ``ValueError`` deep inside whichever flow happened to read it -- the
+        outgoing-queue cron, the incoming gateway, a list view -- turning a typo
+        in one place into an unrelated hard failure somewhere else. Degrade to
+        the documented default and warn, so the mistake is visible without
+        taking a subsystem down with it.
+
+        Callers that treat 0 as meaningful (``... or <fallback>``) keep doing so;
+        this only guarantees an ``int`` comes back.
+        """
+        raw = self.env["ir.config_parameter"].sudo().get_param(key, default)
+        try:
+            return int(raw)
+        except TypeError, ValueError:
+            _logger.warning(
+                "ir.config_parameter %r is not an integer (%r); falling back to %r.",
+                key,
+                raw,
+                default,
+            )
+            return default
 
     @api.model
     def set_param(self, key, value):

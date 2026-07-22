@@ -51,9 +51,9 @@ class MailGatewayAllowed(models.Model):
 
     @api.model
     def get_empty_list_help(self, help_message):
-        get_param = self.env["ir.config_parameter"].sudo().get_param
-        LOOP_MINUTES = int(get_param("mail.gateway.loop.minutes", 120))
-        LOOP_THRESHOLD = int(get_param("mail.gateway.loop.threshold", 20))
+        icp = self.env["ir.config_parameter"]
+        LOOP_MINUTES = icp._get_int_param("mail.gateway.loop.minutes", 120)
+        LOOP_THRESHOLD = icp._get_int_param("mail.gateway.loop.threshold", 20)
 
         return Markup(
             _("""

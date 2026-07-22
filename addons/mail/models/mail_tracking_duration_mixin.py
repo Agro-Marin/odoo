@@ -202,10 +202,8 @@ class MailTrackingDurationMixin(models.AbstractModel):
             """
 
         # Items with a date_last_stage_update inferior to that number of months will not be returned by the search function.
-        max_rotting_months = int(
-            self.env["ir.config_parameter"]
-            .sudo()
-            .get_param("crm.lead.rot.max.months", default=12)
+        max_rotting_months = self.env["ir.config_parameter"]._get_int_param(
+            "crm.lead.rot.max.months", 12
         )
 
         # We use a F-string so that the from_add_join is added with its %s parameters before the query string is processed
