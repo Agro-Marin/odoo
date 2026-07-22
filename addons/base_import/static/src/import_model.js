@@ -546,13 +546,16 @@ export class BaseImportModel {
     _groupErrorsByField(messages) {
         const groupedErrors = {};
         const errorsByMessage = groupBy(this._sortErrors(messages), (f) => f.message || "0");
-        for (const [message, errors] of Object.entries(errorsByMessage)) {
-            if (!message.record) {
-                const foundError = errors.find((e) => e.record === undefined);
-                if (foundError) {
-                    groupedErrors[0] = foundError;
-                    continue;
-                }
+        for (const [, errors] of Object.entries(errorsByMessage)) {
+            // `message` (the group key, a string) never has a `.record` — the
+            // old `if (!message.record)` guard was always true and gated
+            // nothing; the `.find()` below always ran regardless (t24068
+            // tests-finding #9). Kept unconditional to preserve behavior
+            // exactly; the vacuous check is just removed.
+            const foundError = errors.find((e) => e.record === undefined);
+            if (foundError) {
+                groupedErrors[0] = foundError;
+                continue;
             }
 
             errors[0].rows.to = errors[errors.length - 1].rows.to;

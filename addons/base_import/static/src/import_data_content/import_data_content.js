@@ -43,6 +43,10 @@ export class ImportDataContent extends Component {
             label: field.label,
             value: field.fieldPath,
             iconClass: `o_import_field_icon_${field.type}`,
+            // `value` is just the field-path string; `choice.data.value.required`
+            // in the template was always undefined, so required fields were never
+            // visually distinguished in the dropdown (t24068 F2-frontend/#2).
+            required: field.required,
         }));
     }
 
