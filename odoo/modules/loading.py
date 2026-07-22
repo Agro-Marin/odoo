@@ -13,7 +13,6 @@ import odoo.db
 import odoo.tools.sql
 from odoo import api, tools
 from odoo.api import Environment
-from odoo.orm.runtime import Registry
 from odoo.tools import OrderedSet
 from odoo.tools.convert import ConvertMode as LoadMode
 from odoo.tools.convert import IdRef, convert_file
@@ -27,6 +26,7 @@ from .module import (
     module_content_checksum,
 )
 from .module_graph import ModuleGraph
+from .registry import Registry
 
 LoadKind = typing.Literal["data", "demo"]
 

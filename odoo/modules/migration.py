@@ -165,16 +165,30 @@ class MigrationManager:
             `-- foo.py                              # not processed
     """
 
-    migrations: defaultdict[str, dict]
+    # Plain dict on purpose: keys are exactly the packages _needs_migration()
+    # accepted in _get_files(), and migrate_module() re-checks that predicate,
+    # so a KeyError here means the two drifted apart — fail loudly rather than
+    # silently running zero scripts.
+    migrations: dict[str, dict]
 
     def __init__(self, cr: Cursor, graph: module_graph.ModuleGraph) -> None:
         self.cr = cr
         self.graph = graph
-        self.migrations = defaultdict(dict)
+        self.migrations = {}
         self._get_files()
 
     def _needs_migration(self, pkg: module_graph.ModuleNode) -> bool:
-        """Whether ``pkg`` should have its migration scripts collected/run."""
+        """Whether ``pkg`` should have its migration scripts collected/run.
+
+        Divergence from upstream: upstream additionally runs scripts for
+        modules listed in ``Registry._force_upgrade_scripts``, a hook that
+        upgrade-util's ``force_upgrade_of_fresh_module`` uses during major
+        version upgrades to run upgrade scripts for modules freshly installed
+        mid-upgrade.  This fork removed that hook (nothing in the workspace
+        uses upgrade-util).  If a major upgrade is ever driven through
+        upgrade-util, reinstate the hook or scripts of freshly installed
+        modules will silently not run.
+        """
         return pkg.load_state == "to upgrade"
 
     def _get_files(self) -> None:

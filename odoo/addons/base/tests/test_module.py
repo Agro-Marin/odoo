@@ -5,16 +5,22 @@ import tempfile
 from pathlib import Path
 from unittest.mock import patch
 
+from odoo.modules.db import (
+    _AUTO_INSTALL_CANDIDATES_QUERY,
+    _AUTO_INSTALL_CLOSURE_QUERY,
+    create_categories,
+)
 from odoo.modules.module import (
     Manifest,
     MissingDependencyError,
     _load_manifest,
     adapt_version,
     check_python_external_dependency,
+    check_version,
     get_module_icon,
 )
 from odoo.release import major_version
-from odoo.tests.common import BaseCase
+from odoo.tests.common import BaseCase, TransactionCase
 from odoo.tools import mute_logger
 
 import odoo.addons
@@ -251,6 +257,54 @@ class TestExternalDependency(BaseCase):
         self.assertNotIn("{dependency", str(err))
 
 
+class TestManifestVersionResilience(BaseCase):
+    """A malformed version must quarantine the module (installable=False), not
+    crash manifest parsing: a raise would propagate through every all-manifests
+    consumer (db.initialize, update_list, graph build), so one stray
+    third-party addon on the path would prevent bootstrapping any database.
+    """
+
+    BASE = {"author": "x", "license": "MIT", "name": "X"}
+
+    def test_malformed_version_demotes_to_uninstallable(self):
+        with self.assertLogs("odoo.modules.module", "WARNING") as capture:
+            manifest = _load_manifest("m", {**self.BASE, "version": "1.0-beta"})
+        self.assertFalse(manifest["installable"])
+        self.assertIn("invalid version", capture.output[0])
+
+    def test_malformed_version_on_uninstallable_module_is_tolerated(self):
+        manifest = _load_manifest(
+            "m", {**self.BASE, "version": "1.0-beta", "installable": False}
+        )
+        self.assertFalse(manifest["installable"])
+
+    def test_string_depends_rejected(self):
+        # 'depends': 'base' (forgot the brackets) must not be iterated
+        # character by character as module names
+        with self.assertRaisesRegex(TypeError, "forget.*brackets"):
+            _load_manifest("m", {**self.BASE, "depends": "base"})
+
+
+class TestCheckVersion(BaseCase):
+    """check_version(should_raise=False) must never raise, including for
+    structurally malformed versions that adapt_version rejects.
+    """
+
+    def test_should_raise_false_never_raises(self):
+        self.assertFalse(check_version("garbage", should_raise=False))
+        self.assertFalse(check_version("1.2.3.4.5.6", should_raise=False))
+
+    def test_should_raise_true_raises_on_malformed(self):
+        with self.assertRaises(ValueError):
+            check_version("garbage")
+
+    def test_verdicts(self):
+        self.assertTrue(check_version(major_version, should_raise=False))
+        self.assertTrue(check_version(f"{major_version}.1.0", should_raise=False))
+        # 4-part version of another serie: well-formed but wrong release
+        self.assertFalse(check_version("1.2.3.4", should_raise=False))
+
+
 class TestAdaptVersion(BaseCase):
     """adapt_version canonicalisation (guards the removal of the dead
     non-digit-strip branch: behaviour must be unchanged).
@@ -307,6 +361,113 @@ class TestModuleIcon(BaseCase):
         self.assertEqual(
             get_module_icon("no_such_module_xyz"), "/base/static/description/icon.png"
         )
+
+
+class TestAutoInstallQueries(TransactionCase):
+    """Selection logic of the two queries behind db.initialize()'s recursive
+    auto-install marking, on fixture rows rolled back with the transaction.
+
+    Guards the uninstallable-dependency rules: a candidate with an
+    uninstallable dependency must not be selected, and the closure must never
+    mark an uninstallable module 'to install' (doing so overwrote its state).
+
+    The queries scan the real ir_module_module table too (which legitimately
+    contains 'to install' rows while at_install tests run), so every
+    assertion is scoped to the fixture's '_audit_ai_' names — a prefix no real
+    module can have (leading underscore fails MODULE_NAME_RE).
+    """
+
+    PREFIX = "_audit_ai_"
+
+    def _add_module(self, name, state, auto_install=False):
+        self.cr.execute(
+            "INSERT INTO ir_module_module (name, state, auto_install)"
+            " VALUES (%s, %s, %s) RETURNING id",
+            (self.PREFIX + name, state, auto_install),
+        )
+        return self.cr.fetchone()[0]
+
+    def _add_dep(self, module_id, dep_name, required):
+        self.cr.execute(
+            "INSERT INTO ir_module_module_dependency"
+            " (module_id, name, auto_install_required) VALUES (%s, %s, %s)",
+            (module_id, self.PREFIX + dep_name, required),
+        )
+
+    def _fixture_rows(self, rows):
+        return {name for (name,) in rows if name.startswith(self.PREFIX)}
+
+    def test_candidate_selection(self):
+        self._add_module("marked_dep", "to install")
+        self._add_module("unmarked_dep", "uninstalled")
+        self._add_module("uninst_dep", "uninstallable")
+
+        ok = self._add_module("cand_ok", "uninstalled", auto_install=True)
+        self._add_dep(ok, "marked_dep", required=True)
+
+        blocked_req = self._add_module(
+            "cand_blocked_required", "uninstalled", auto_install=True
+        )
+        self._add_dep(blocked_req, "unmarked_dep", required=True)
+
+        blocked_missing = self._add_module(
+            "cand_blocked_missing", "uninstalled", auto_install=True
+        )
+        self._add_dep(blocked_missing, "marked_dep", required=True)
+        self._add_dep(blocked_missing, "no_such_module", required=False)
+
+        blocked_uninst = self._add_module(
+            "cand_blocked_uninst", "uninstalled", auto_install=True
+        )
+        self._add_dep(blocked_uninst, "marked_dep", required=True)
+        self._add_dep(blocked_uninst, "uninst_dep", required=False)
+
+        self.cr.execute(_AUTO_INSTALL_CANDIDATES_QUERY)
+        selected = self._fixture_rows(self.cr.fetchall())
+        self.assertEqual(selected, {self.PREFIX + "cand_ok"})
+
+    def test_closure_selection(self):
+        self._add_module("plain_dep", "uninstalled")
+        self._add_module("uninst_dep", "uninstallable")
+        self._add_module("marked_dep", "to install")
+        m1 = self._add_module("installing", "to install")
+        self._add_dep(m1, "plain_dep", required=False)
+        self._add_dep(m1, "uninst_dep", required=False)
+        self._add_dep(m1, "marked_dep", required=False)
+
+        self._add_module("plain_dep2", "uninstalled")
+        m2 = self._add_module("candidate", "uninstalled")
+        self._add_dep(m2, "plain_dep2", required=False)
+
+        candidates = [self.PREFIX + "candidate"]
+        self.cr.execute(_AUTO_INSTALL_CLOSURE_QUERY, [candidates, candidates])
+        pulled = self._fixture_rows(self.cr.fetchall())
+        # plain deps of the to-install module and of the candidate are pulled;
+        # the already-marked dep is not re-marked; the uninstallable dep is
+        # never marked (regression: its state used to be overwritten)
+        self.assertEqual(
+            pulled, {self.PREFIX + "plain_dep", self.PREFIX + "plain_dep2"}
+        )
+
+
+class TestCreateCategoriesCache(TransactionCase):
+    """create_categories with a shared cache must resolve repeated category
+    paths without touching the database again (initialize() calls it once per
+    module for ~1500 modules with few distinct paths).
+    """
+
+    def test_warm_cache_short_circuits_queries(self):
+        cache = {}
+        cat_id = create_categories(self.cr, ["Audit Cat", "Sub"], cache)
+        self.assertIsInstance(cat_id, int)
+        queries_before = self.cr.sql_log_count
+        again = create_categories(self.cr, ["Audit Cat", "Sub"], cache)
+        self.assertEqual(again, cat_id)
+        self.assertEqual(self.cr.sql_log_count, queries_before, "expected 0 queries")
+
+    def test_without_cache_behaviour_unchanged(self):
+        cat_id = create_categories(self.cr, ["Audit Cat", "Sub"])
+        self.assertEqual(create_categories(self.cr, ["Audit Cat", "Sub"]), cat_id)
 
 
 class TestManifestMapping(BaseCase):

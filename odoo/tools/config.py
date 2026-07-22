@@ -365,7 +365,10 @@ class configmanager:
             "its content is identical to the last successful load. By default "
             "unchanged files are skipped (their records are left as-is), based "
             "on checksums stored in ir_module_module.data_file_checksums; use "
-            "this flag (or --reinit) to force a full re-assertion of the data.",
+            "this flag (or --reinit) to force a full re-assertion of the data. "
+            "Caveat of the default: -u no longer repairs records manually "
+            "deleted from the database when their data file is unchanged; use "
+            "--reinit (or this flag) to restore them.",
         )
         group.add_option(
             "--upgrade-unchanged-modules",

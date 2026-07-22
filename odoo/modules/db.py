@@ -16,6 +16,46 @@ if typing.TYPE_CHECKING:
 
 _logger = logging.getLogger(__name__)
 
+# The two queries driving the recursive auto-install marking in initialize().
+# Module-level constants so their selection logic is testable directly against
+# fixture rows (see base/tests/test_module.py::TestAutoInstallQueries).
+#
+# Candidates: auto_install modules whose auto_install_required dependencies
+# are all marked 'to install'.
+_AUTO_INSTALL_CANDIDATES_QUERY = """
+    SELECT m.name FROM ir_module_module m
+    WHERE m.auto_install
+    AND state not in ('to install', 'uninstallable')
+    AND NOT EXISTS (
+        SELECT 1 FROM ir_module_module_dependency d
+        LEFT JOIN ir_module_module mdep ON (d.name = mdep.name)
+        WHERE d.module_id = m.id
+          AND (
+              mdep.id IS NULL
+              -- an uninstallable dependency (required or not) can never be
+              -- satisfied, so the module cannot be installed at all
+              OR mdep.state = 'uninstallable'
+              OR (d.auto_install_required AND mdep.state != 'to install')
+          )
+    )"""
+
+# Closure: a module being installed ('to install', or in the candidate array
+# %s) may have *non-required* dependencies that would not be auto-installed on
+# their own.  Pull those in too, so the full dependency closure of every
+# to-be-installed module also ends up marked 'to install'.
+_AUTO_INSTALL_CLOSURE_QUERY = """
+    SELECT d.name FROM ir_module_module_dependency d
+    JOIN ir_module_module m ON (d.module_id = m.id)
+    JOIN ir_module_module mdep ON (d.name = mdep.name)
+    WHERE (m.state = 'to install' OR m.name = any(%s))
+        -- don't re-mark marked modules
+    AND NOT (mdep.state = 'to install' OR mdep.name = any(%s))
+        -- never mark an uninstallable module: it cannot be installed, and
+        -- overwriting its state would corrupt it (the dependent module is
+        -- reported and skipped by the module graph at load time instead)
+    AND mdep.state != 'uninstallable'
+    """
+
 
 def is_initialized(cr: Cursor) -> bool:
     """Check if a database has been initialized for the ORM.
@@ -47,11 +87,12 @@ def initialize(cr: Cursor) -> None:
     # Collect batched rows for COPY at end (avoids 500-2000 individual INSERTs)
     all_data_rows = []  # ir_model_data rows
     all_dep_rows = []  # ir_module_module_dependency rows
+    category_cache: dict[str, int] = {}  # shared across modules (few distinct paths)
 
     for info in odoo.modules.Manifest.all_addon_manifests():
         module_name = info.name
         categories = info["category"].split("/")
-        category_id = create_categories(cr, categories)
+        category_id = create_categories(cr, categories, category_cache)
 
         if info["installable"]:
             state = "uninstalled"
@@ -124,38 +165,9 @@ def initialize(cr: Cursor) -> None:
 
     # Install recursively all auto-installing modules
     while True:
-        # this selects all the auto_install modules whose auto_install_required
-        # deps are marked as to install
-        cr.execute("""
-        SELECT m.name FROM ir_module_module m
-        WHERE m.auto_install
-        AND state not in ('to install', 'uninstallable')
-        AND NOT EXISTS (
-            SELECT 1 FROM ir_module_module_dependency d
-            LEFT JOIN ir_module_module mdep ON (d.name = mdep.name)
-            WHERE d.module_id = m.id
-              AND (
-                  mdep.id IS NULL
-                  OR (d.auto_install_required AND mdep.state != 'to install')
-              )
-        )""")
+        cr.execute(_AUTO_INSTALL_CANDIDATES_QUERY)
         to_auto_install = [x[0] for x in cr.fetchall()]
-        # A module being installed ('to install', or just selected for
-        # auto-install above) may have *non-required* dependencies that would
-        # not be auto-installed on their own.  Pull those dependencies in too,
-        # so the full dependency closure of every to-be-installed module also
-        # ends up marked 'to install'.
-        cr.execute(
-            """
-        SELECT d.name FROM ir_module_module_dependency d
-        JOIN ir_module_module m ON (d.module_id = m.id)
-        JOIN ir_module_module mdep ON (d.name = mdep.name)
-        WHERE (m.state = 'to install' OR m.name = any(%s))
-            -- don't re-mark marked modules
-        AND NOT (mdep.state = 'to install' OR mdep.name = any(%s))
-        """,
-            [to_auto_install, to_auto_install],
-        )
+        cr.execute(_AUTO_INSTALL_CLOSURE_QUERY, [to_auto_install, to_auto_install])
         to_auto_install.extend(x[0] for x in cr.fetchall())
 
         if not to_auto_install:
@@ -166,11 +178,20 @@ def initialize(cr: Cursor) -> None:
         )
 
 
-def create_categories(cr: Cursor, categories: list[str]) -> int | None:
+def create_categories(
+    cr: Cursor,
+    categories: list[str],
+    category_cache: dict[str, int] | None = None,
+) -> int | None:
     """Create the ir_module_category entries for some categories.
 
     categories is a list of strings forming a single category with its
     parent categories, like ['Grand Parent', 'Parent', 'Child'].
+
+    ``category_cache`` (xml_id -> category id), when given, avoids re-querying
+    categories already resolved by earlier calls sharing the same dict.  Used
+    by initialize(), which resolves the same few category paths once per
+    module (~1500 modules at bootstrap).
 
     Return the database id of the (last) category.
 
@@ -182,6 +203,9 @@ def create_categories(cr: Cursor, categories: list[str]) -> int | None:
         xml_id = "module_category_" + ("_".join(x.lower() for x in built)).replace(
             "&", "and"
         ).replace(" ", "_")
+        if category_cache is not None and xml_id in category_cache:
+            p_id = category_cache[xml_id]
+            continue
         # search via xml_id (because some categories are renamed)
         cr.execute(
             "SELECT res_id FROM ir_model_data WHERE name=%s AND module=%s AND model=%s",
@@ -210,6 +234,8 @@ def create_categories(cr: Cursor, categories: list[str]) -> int | None:
         else:
             p_id = row[0]
         assert isinstance(p_id, int)
+        if category_cache is not None:
+            category_cache[xml_id] = p_id
     return p_id
 
 
@@ -297,9 +323,7 @@ def initialize_db(
     try:
         odoo.tools.config["load_language"] = lang
 
-        registry = Registry.new(
-            db_name, update_module=True, new_db_demo=demo
-        )
+        registry = Registry.new(db_name, update_module=True, new_db_demo=demo)
 
         with closing(registry.cursor()) as cr:
             env = odoo.api.Environment(cr, odoo.api.SUPERUSER_ID, {})
