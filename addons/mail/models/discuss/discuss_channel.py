@@ -322,9 +322,22 @@ class DiscussChannel(models.Model):
         # instead of one `has_access` per channel. Editing a channel's
         # configuration also requires membership (see `write`), so a non-member
         # who can merely see a public channel is not offered the edit UI.
-        editable = self._filtered_access("write")
+        #
+        # A record that is not created yet is exempt from both legs: it has no
+        # id to run record rules against, and `create` is what adds the creator
+        # as a member, so the membership leg can never hold on the creation
+        # form. Gating it there rendered every `readonly="not is_editable"`
+        # field (starting with `name`) read-only, making a channel impossible
+        # to name from the form view.
+        existing = self.filtered("id")
+        new = self - existing
+        if new:
+            can_write = self.env["discuss.channel"].has_access("write")
+            for channel in new:
+                channel.is_editable = can_write
+        editable = existing._filtered_access("write")
         is_admin = self.env.is_admin()
-        for channel in self:
+        for channel in existing:
             channel.is_editable = channel in editable and (
                 is_admin or channel.is_member
             )
