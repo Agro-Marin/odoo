@@ -611,7 +611,7 @@ class TestAuditFixesPicking(TestStockCommon):
     # storage category capacity constraint (low)
     # ------------------------------------------------------------
 
-    @mute_logger("odoo.sql_db")
+    @mute_logger("odoo.db.cursor")
     def test_storage_capacity_requires_exactly_one_target(self):
         category = self.env["stock.storage.category"].create({"name": "Audit Cat"})
         package_type = self.env["stock.package.type"].create({"name": "Audit PT"})

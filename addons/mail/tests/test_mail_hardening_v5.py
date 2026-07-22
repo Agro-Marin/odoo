@@ -147,7 +147,7 @@ class TestReactionConcurrentAdd(MailCommon):
 
         with (
             patch.object(type(Reaction), "search", blind_search),
-            mute_logger("odoo.sql_db"),
+            mute_logger("odoo.db.cursor"),
         ):
             # would raise psycopg.IntegrityError without the savepoint/catch
             message._message_reaction("👍", "add", partner, guest)

@@ -31,7 +31,7 @@ class TestPmModels(TestProjectCommon):
         Baseline.create({
             "name": "B1", "project_id": self.project_pigs.id, "is_current": True,
         })
-        with mute_logger("odoo.sql_db"), self.assertRaises(IntegrityError):
+        with mute_logger("odoo.db.cursor"), self.assertRaises(IntegrityError):
             with self.env.cr.savepoint():
                 Baseline.create({
                     "name": "B2",
@@ -82,7 +82,7 @@ class TestPmModels(TestProjectCommon):
 
     def test_sprint_single_active_db_constraint(self) -> None:
         self._make_sprint("S1", state="active")
-        with mute_logger("odoo.sql_db"), self.assertRaises(IntegrityError):
+        with mute_logger("odoo.db.cursor"), self.assertRaises(IntegrityError):
             with self.env.cr.savepoint():
                 self._make_sprint("S2", state="active")
                 self.env.flush_all()

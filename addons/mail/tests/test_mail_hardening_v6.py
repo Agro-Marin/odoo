@@ -203,7 +203,7 @@ class TestLinkPreviewRaceSafe(MailCommon):
     instead of surfacing a 500.
     """
 
-    @mute_logger("odoo.sql_db")
+    @mute_logger("odoo.db.cursor")
     def test_create_same_source_url_twice_does_not_crash(self):
         # The unique index on source_url naturally reproduces the race: a row
         # already exists, and the helper must absorb the IntegrityError from the

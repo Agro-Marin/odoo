@@ -36,7 +36,7 @@ class TestIrDefault(TransactionCase):
 
         # A direct duplicate of that scope violates the UNIQUE index.
         with (
-            mute_logger("odoo.sql_db"),
+            mute_logger("odoo.db.cursor"),
             self.assertRaisesRegex(IntegrityError, "ir_default_unique_scope"),
             self.cr.savepoint(),
         ):
