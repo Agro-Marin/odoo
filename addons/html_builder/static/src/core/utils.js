@@ -688,8 +688,6 @@ function getValueWithDefault(userInputValue, defaultValue, formatRawValue) {
  * Handles errors during builder actions.
  * Currently it only checks if the error was triggered on an outdated snippet,
  * and in that case it suppresses the error and shows a notification instead.
- * This function can potentially be extended in the future to handle additional
- * errors and recovery strategies.
  *
  * @param {Error} error - The caught error
  * @param {Element} editingElement - The element being edited

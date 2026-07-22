@@ -52,7 +52,7 @@ export class DisableSnippetsPlugin extends Plugin {
         const dropAreasBySelector = this.getDropAreas(editableAreaEls, rootEl);
 
         // A snippet can only be dropped next/inside elements that are editable
-        // and that do not explicitely block them.
+        // and that do not explicitly block them.
         const checkSanitize = (el, snippetEl) => {
             let forbidSanitize = false;
             // Check if the snippet is sanitized/contains such snippets.

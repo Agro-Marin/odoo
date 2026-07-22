@@ -50,11 +50,10 @@ export class InvisibleElementsPanel extends Component {
             ]);
             return false;
         });
-        // Insert all the invisible snippets contained in "snippetEls" as
-        // well as their descendants in the "parentEl" element. If
-        // "snippetEls" is set to "rootInvisibleSnippetEls" and "parentEl"
-        // is set to "$invisibleDOMPanelEl[0]", then fills the right
-        // invisible panel like this:
+        // Recursively build the invisible entries for "snippetEls", nesting
+        // each snippet's descendant invisible snippets under it as "children".
+        // Called with "rootInvisibleSnippetEls" (and no "parentEl"), it
+        // produces the nested structure:
         // rootInvisibleSnippet
         //     └ descendantInvisibleSnippet
         //          └ descendantOfDescendantInvisibleSnippet

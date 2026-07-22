@@ -270,7 +270,6 @@ export class ImageShapeOptionPlugin extends Plugin {
 
         /**
          * @param {HTMLCanvasElement} canvas
-         * @param {Object} data dataset containing the cropperDataFields
          */
         const postProcessCroppedCanvas = async (canvas) => {
             const img = await loadImage(canvas.toDataURL());
@@ -330,10 +329,12 @@ export class ImageShapeOptionPlugin extends Plugin {
     }
 
     /**
-     * Sets the image in the supplied SVG and replace the src with a dataURL
+     * Builds the shape's SVG element by applying its colors, animation speed
+     * and flip/rotate transformations.
      *
      * @param {string} svgText svg text file
-     * @param {HTMLImageElement} img
+     * @param {Object} params shape parameters (shapeId, shapeFlip,
+     *                        shapeRotate, shapeAnimationSpeed, shapeColors)
      * @returns {SVGElement}
      */
     async computeShape(svgText, params) {
@@ -379,12 +380,8 @@ export class ImageShapeOptionPlugin extends Plugin {
         return svg;
     }
     /**
-     * Replace animation durations in SVG and CSS with modified values.
-     *
-     * This function takes a ratio and an SVG string containing animations. It
-     * uses regular expressions to find and replace the duration values in both
-     * CSS animation rules and SVG duration attributes based on the provided
-     * ratio.
+     * Replaces animation durations in both CSS animation rules and SVG
+     * duration attributes of the given SVG string.
      *
      * @param {string} svgText The SVG string containing animations.
      * @param {number} speed The speed used to calculate the new animation
