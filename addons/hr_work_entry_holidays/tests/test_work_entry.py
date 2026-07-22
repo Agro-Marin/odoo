@@ -1,12 +1,14 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-from datetime import datetime, date
-from dateutil.relativedelta import relativedelta
+from datetime import date, datetime
+
 import pytz
+from dateutil.relativedelta import relativedelta
 
 from odoo.exceptions import ValidationError
-from odoo.tests.common import tagged
 from odoo.fields import Date
+from odoo.tests.common import tagged
+
 from odoo.addons.hr_work_entry_holidays.tests.common import TestWorkEntryHolidaysBase
 from odoo.addons.mail.tests.common import mail_new_test_user
 
@@ -15,7 +17,7 @@ from odoo.addons.mail.tests.common import mail_new_test_user
 class TestWorkeEntryHolidaysWorkEntry(TestWorkEntryHolidaysBase):
     @classmethod
     def setUpClass(cls):
-        super(TestWorkeEntryHolidaysWorkEntry, cls).setUpClass()
+        super().setUpClass()
         cls.tz = pytz.timezone(cls.richard_emp.tz)
         cls.start = datetime(2015, 11, 1, 1, 0, 0)
         cls.end = datetime(2015, 11, 30, 23, 59, 59)
@@ -202,10 +204,7 @@ class TestWorkeEntryHolidaysWorkEntry(TestWorkEntryHolidaysBase):
         self.assertEqual(sum_leave_hours, 5.0, "It should equal the number of hours richard was on leave")
 
     def test_reset_leave_work_entries(self):
-        """
-        This test ensures that when the employee's calendar_id.company_id is False,
-        resetting the leave's work entries keeps the same work entry type.
-        """
+        """When the employee's resource_calendar_id.company_id is False, resetting the leave's work entries keeps the same work entry type."""
         self.employee_external.resource_calendar_id.company_id = False
         work_entries = self.employee_external.generate_work_entries(self.start.date(), self.end.date())
         work_entries.action_validate()
@@ -227,12 +226,7 @@ class TestWorkeEntryHolidaysWorkEntry(TestWorkEntryHolidaysBase):
         self.assertIsNotNone(leave_work_entry, "Leave's work entry should have the same work entry type")
 
     def test_work_entries_overlap_half_day_leaves(self):
-        """Test that half-day leaves correctly split work entries across multiple days.
-        When a half-day leave spans two days (AM on day 1, AM on day 2), verify that:
-        - The full-day work entry on day 1 is completely replaced by a leave entry
-        - The full-day work entry on day 2 is split into a leave entry and attendance entry
-        - All durations are correctly calculated (8h full day, 4h half day)
-        """
+        """Half-day leave spanning two days: day 1 fully replaced by an 8h leave entry, day 2 split into a 4h leave entry and a 4h attendance entry."""
         self.richard_emp.version_id._generate_work_entries(datetime(2025, 11, 1), datetime(2025, 11, 30))
         work_entries = self.env["hr.work.entry"].search([
             ("employee_id", "=", self.richard_emp.id),
@@ -270,12 +264,7 @@ class TestWorkeEntryHolidaysWorkEntry(TestWorkEntryHolidaysBase):
         self.assertEqual(4.0, leave_work_entries.filtered(lambda we: we.date == date(2025, 11, 28)).duration)
 
     def test_work_entries_overlap_hours_leaves(self):
-        """Test that hour-based leaves correctly split a single day's work entry.
-        When an hours-based leave (e.g., 10:00-12:00) is taken within a workday, verify that:
-        - The original 8-hour work entry is split into two entries
-        - One attendance entry covers the non-leave hours (6h)
-        - One leave entry covers the requested leave hours (2h)
-        """
+        """Hour-based leave (10:00-12:00) within a workday splits the 8h entry into a 6h attendance entry and a 2h leave entry."""
         self.richard_emp.version_id._generate_work_entries(datetime(2025, 11, 1), datetime(2025, 11, 30))
         work_entry = self.env["hr.work.entry"].search([
             ("employee_id", "=", self.richard_emp.id),

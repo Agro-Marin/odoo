@@ -1,14 +1,15 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-from datetime import datetime, date
-from dateutil.relativedelta import relativedelta
+from datetime import date, datetime
 
+from dateutil.relativedelta import relativedelta
 from freezegun import freeze_time
 
 from odoo import SUPERUSER_ID
-from odoo.addons.hr_work_entry_holidays.tests.common import TestWorkEntryHolidaysBase
 from odoo.tests import tagged
+
+from odoo.addons.hr_work_entry_holidays.tests.common import TestWorkEntryHolidaysBase
+
 
 @tagged('test_leave')
 class TestWorkEntryLeave(TestWorkEntryHolidaysBase):
@@ -75,7 +76,7 @@ class TestWorkEntryLeave(TestWorkEntryHolidaysBase):
         })
         self.richard_emp.user_id = user
         with freeze_time(datetime(2022, 3, 21)):
-            # Tests that cancelling a leave archives the work entries.
+            # A leave stops being cancellable once its work entries are validated (locked).
             leave = self.env['hr.leave'].with_user(user).create({
                 'name': 'Sick 1 week during christmas snif',
                 'employee_id': self.richard_emp.id,
