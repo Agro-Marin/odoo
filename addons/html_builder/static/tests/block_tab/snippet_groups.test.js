@@ -272,8 +272,7 @@ test("search snippet by class", async () => {
             additionalClassOnRoot: "s_additional_class",
             keywords: [],
         },
-        // The second snippet includes a child class selector using innerHTML.
-        // Using createTestSnippets with withName toggles the data-name automatically.
+        // Second snippet carries a class on a child node (searched by class below).
         {
             name: "foo",
             groupName: "a",

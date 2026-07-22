@@ -191,7 +191,6 @@ class IrUiView extends models.Model {
  * builderEl: HTMLElement,
  * waitSidebarUpdated: () => Promise<void>
  * }>}
-}}
  */
 export async function setupHTMLBuilder(
     content = "",
@@ -462,8 +461,6 @@ export async function modifyText(editor, editableContent) {
 }
 
 // Snippet Testing Helpers
-// Use createTestSnippets() for most cases to replace repetitive getSnippetsDescription functions
-// Use getBasicSection() for simple HTML section generation
 
 /**
  * Creates a basic HTML section structure for test snippets

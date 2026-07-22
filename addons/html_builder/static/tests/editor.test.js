@@ -133,7 +133,7 @@ test("should preserve iframe in the toolbar's font size input", async () => {
     // Get the font size selector input.
     iframeEl = queryOne(".o-we-toolbar [name='font_size_selector'] iframe");
     inputEl = iframeEl.contentWindow.document?.querySelector("input");
-    // Change the font style from paragraph to header 1.
+    // Change the font style from paragraph to header 2.
     await contains(".o-we-toolbar .btn[name='font'].dropdown-toggle").click();
     await waitFor(".btn[name='font'].dropdown-toggle.show");
     await contains(".dropdown-menu [name='h2']").click();

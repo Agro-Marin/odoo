@@ -252,7 +252,7 @@ describe("default value", () => {
 
         await clear();
         expect("[data-action-id='customAction'] input").toHaveValue("");
-        expect(":iframe .test-options-target").toHaveInnerHTML("0"); //Check that default value is used during preview
+        expect(":iframe .test-options-target").toHaveInnerHTML("0"); // Check that default value is used during preview
         await click(".options-container");
         expect("[data-action-id='customAction'] input").toHaveValue("0");
         expect(":iframe .test-options-target").toHaveInnerHTML("0");
