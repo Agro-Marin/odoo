@@ -1459,11 +1459,17 @@ class MailThread(models.AbstractModel):
 
         email_from_normalized = email_normalize(email_from)
 
-        if (
-            self.env["mail.gateway.allowed"]
-            .sudo()
-            .search_count([("email_normalized", "=", email_from_normalized)])
-        ):
+        # Skip the allow-list lookup for an unparseable From (normalizes to
+        # False): the query would otherwise degenerate to `email_normalized IS
+        # NULL` and could match a malformed allow-list row (which stores NULL).
+        # This changes no outcome today -- _detect_loop_sender_domain(False)
+        # already returns None below, so a null sender is a no-op either way --
+        # but it avoids a pointless search and a misleading NULL match. The
+        # source-level fix is the constraint on mail.gateway.allowed rejecting
+        # non-normalizable rows.
+        if email_from_normalized and self.env[
+            "mail.gateway.allowed"
+        ].sudo().search_count([("email_normalized", "=", email_from_normalized)]):
             return False
 
         # Detect the email address sent to many emails

@@ -56,7 +56,14 @@ class MailBlacklist(models.Model):
 
     def write(self, vals):
         if "email" in vals:
-            vals["email"] = tools.email_normalize(vals["email"])
+            # Validate like create(): email is required (NOT NULL), so an
+            # unnormalizable value used to surface as an IntegrityError traceback
+            # here instead of the clean UserError create() raises for the very
+            # same input.
+            normalized = tools.email_normalize(vals["email"])
+            if not normalized:
+                raise UserError(_("Invalid email address “%s”", vals["email"]))
+            vals["email"] = normalized
         return super().write(vals)
 
     def _search(self, domain, *args, **kwargs):
