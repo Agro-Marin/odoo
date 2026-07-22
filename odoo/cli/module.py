@@ -20,6 +20,9 @@ class Module(DatabaseCommand):
 
     def __init__(self) -> None:
         super().__init__()
+        # On the main parser too, so `module -c cfg install …` works like
+        # `module install -c cfg …` (same both-levels pattern as `db`).
+        self.add_config_arguments(self.parser)
         subparsers = self.parser.add_subparsers(
             dest="subcommand", required=True, help="Subcommands help"
         )
@@ -56,7 +59,7 @@ class Module(DatabaseCommand):
             force_demo_parser,
         ):
             parser.formatter_class = argparse.RawDescriptionHelpFormatter
-            self.add_config_arguments(parser)
+            self.add_config_arguments(parser, on_subparser=True)
 
         install_parser.add_argument(
             "modules",

@@ -1397,6 +1397,41 @@ class TestCommand(BaseCase):
             self.assertIsNone(cmd._get_zip_path(str(fake)))
             self.assertEqual(cmd._get_zip_path(str(real)), real.resolve())
 
+    def test_subcommand_config_flags_work_in_both_positions(self):
+        """`module` and `i18n` must accept -c/-d/-D both before and after the
+        subcommand, like `db` — `i18n -c cfg export …` used to die with a
+        confusing "invalid choice: 'cfg'" argparse error."""
+        from odoo.cli.i18n import I18n
+        from odoo.cli.module import Module
+
+        for args in (
+            ["-c", "cfg", "-d", "mydb", "install", "mymod"],
+            ["install", "-c", "cfg", "-d", "mydb", "mymod"],
+        ):
+            ns = Module().parser.parse_args(args)
+            self.assertEqual((ns.config, ns.db_name), ("cfg", "mydb"), msg=str(args))
+
+        for args in (
+            ["-c", "cfg", "-d", "mydb", "export", "base"],
+            ["export", "-c", "cfg", "-d", "mydb", "base"],
+        ):
+            ns = I18n().parser.parse_args(args)
+            self.assertEqual((ns.config, ns.db_name), ("cfg", "mydb"), msg=str(args))
+
+    def test_i18n_import_force_overwrite_flag(self):
+        """--force-overwrite reaches TranslationImporter.save's force knob —
+        without it, `i18n import -w` silently keeps existing translations on
+        every noupdate record (most shipped data) with no way to override."""
+        from odoo.cli.i18n import I18n
+
+        ns = I18n().parser.parse_args(
+            ["import", "-l", "es_MX", "--force-overwrite", "f.po"]
+        )
+        self.assertTrue(ns.force_overwrite)
+        ns = I18n().parser.parse_args(["import", "-l", "es_MX", "f.po"])
+        self.assertFalse(ns.force_overwrite)
+        self.assertFalse(ns.overwrite)
+
     def test_upgrade_code_clears_progress_line(self):
         """The last progress render ends with `\\r`; clear_progress must erase
         it so it isn't left under later stdout output."""

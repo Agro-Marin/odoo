@@ -222,29 +222,43 @@ class DatabaseCommand(Command, register=False):
     commands (``deploy``, ``scaffold``, ``help``) don't need it.
     """
 
-    def add_config_arguments(self, parser: argparse.ArgumentParser) -> None:
+    def add_config_arguments(
+        self, parser: argparse.ArgumentParser, *, on_subparser: bool = False
+    ) -> None:
         """Add the standard ``-c``/``--config`` and ``-d``/``--database``
         arguments to ``parser`` (a main parser or a subparser).
+
+        For a command with subcommands, register on BOTH the main parser and
+        every subparser so the flags work in either position (``i18n -c cfg
+        export …`` and ``i18n export -c cfg …``), like ``db``.
+
+        :param on_subparser: register with ``default=SUPPRESS``. argparse
+            copies every subparser attribute back onto the parent namespace; a
+            plain ``None`` default would clobber a value passed *before* the
+            subcommand. SUPPRESS leaves it unset so the main parser's value
+            survives.
         """
+        extra = {"default": argparse.SUPPRESS} if on_subparser else {"default": None}
         parser.add_argument(
             "-c",
             "--config",
             dest="config",
             help="use a specific configuration file",
+            **extra,
         )
         parser.add_argument(
             "-d",
             "--database",
             dest="db_name",
-            default=None,
             help="database name, connection details will be taken from the config file",
+            **extra,
         )
         parser.add_argument(
             "-D",
             "--data-dir",
             dest="data_dir",
-            default=None,
             help="directory where to store Odoo data",
+            **extra,
         )
 
     def bootstrap_config(
