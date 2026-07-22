@@ -94,7 +94,13 @@ export class TourAutomatic {
                         }
                         tourState.setCurrentIndex(step.index + 1);
                         if (this.allowUnload) {
-                            return "StopTheMacro!";
+                            // The step declared `expectUnloadPage`: stop the
+                            // macro here and let the navigation happen. Must be
+                            // `Macro.STOP` -- any other truthy value still
+                            // halts, but only through the deprecated
+                            // backward-compat branch, which logs a warning on
+                            // every `expectUnloadPage` step of every tour.
+                            return Macro.STOP;
                         }
                     },
                 },

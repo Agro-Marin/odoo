@@ -521,6 +521,17 @@ class _ShimCase:
     off its test case, and calls ``fetch_proxy(url)`` for requests that leave
     the local host. Requests to ``http://127.0.0.1[:port]`` are continued
     verbatim by ChromeBrowser itself, so they hit the real warm server.
+
+    ``fetch_proxy``/``make_fetch_proxy_response`` are *grafted from HttpCase*
+    rather than reimplemented. A local blanket-404 version silently diverged
+    from the canonical one, which answers ``https://fonts.googleapis.com/css``
+    with an empty 200 stylesheet: a bundle whose CSS starts with Google-Fonts
+    ``@import`` rules (``website.website_builder_assets`` has six) then had
+    those imports 404, Chrome propagated the failure to the owner ``<link>``,
+    and every ``loadBundle()`` of it rejected -- which failed the whole
+    ``@website/builder`` tree here while it passed under ``odoo-bin``. Both
+    methods only touch their arguments and the module logger, so binding them
+    is safe and keeps the runner faithful to the real loop by construction.
     """
 
     def __init__(
@@ -530,8 +541,17 @@ class _ShimCase:
         self.browser_size = browser_size
         self.touch_enabled = touch_enabled
 
+    @property
+    def _http_case(self):
+        from odoo.tests.common import HttpCase
+
+        return HttpCase
+
     def fetch_proxy(self, url: str) -> dict:
-        return {"body": "", "responseCode": 404, "responseHeaders": []}
+        return self._http_case.fetch_proxy(self, url)
+
+    def make_fetch_proxy_response(self, content, code: int = 200) -> dict:
+        return self._http_case.make_fetch_proxy_response(self, content, code)
 
 
 def _bootstrap_odoo() -> None:
