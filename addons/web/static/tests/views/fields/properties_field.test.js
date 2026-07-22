@@ -335,6 +335,9 @@ test("properties: no access to parent", async () => {
  * If the current user can write on the parent, he should
  * be able to change the properties definition.
  */
+// desktop-only: opens the `.o_datetime_picker` dropdown of a property; mobile
+// uses a BottomSheet picker.
+test.tags("desktop");
 test("properties: access to parent", async () => {
     onRpc("has_access", () => true);
 
@@ -877,6 +880,9 @@ test("properties: move properties", async () => {
     );
 });
 
+// desktop-only: uses the `.o_field_property_dropdown_add` tag dropdown, whose
+// menu is not rendered inline on mobile.
+test.tags("desktop");
 test("properties: tags", async () => {
     onRpc("has_access", () => true);
 
@@ -1982,6 +1988,9 @@ test("properties: default value", async () => {
     await checkProperty(existingProperty);
 });
 
+// desktop-only: asserts the `.o_datetime_input` value of a date property; the
+// mobile picker input differs.
+test.tags("desktop");
 test("properties: default value date", async () => {
     mockDate("2022-01-03T08:00:00");
     onRpc("has_access", () => true);
@@ -3231,6 +3240,9 @@ test("properties: monetary with currency_id", async () => {
     );
 });
 
+// desktop-only: drives the `.o_field_property_definition_currency_field select`
+// in the property-definition editor popover, laid out differently on mobile.
+test.tags("desktop");
 test("properties: monetary with multiple currency field", async () => {
     Partner._fields.another_currency_id = fields.Many2one({
         relation: "res.currency",

@@ -323,6 +323,9 @@ describe("DateTimeInput (datetime)", () => {
         expect.verifySteps(["1997-02-08 12:30:01", "1997-02-08 15:45:01"]);
     });
 
+    // desktop-only: drives the datetime picker dropdown; mobile renders it as a
+    // BottomSheet with different DOM/interaction.
+    test.tags("desktop");
     test("pick a date and time with locale", async () => {
         await changeLang("fr_FR");
 

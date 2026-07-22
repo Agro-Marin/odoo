@@ -202,6 +202,9 @@ test("ImageField on a many2one", async () => {
     );
 });
 
+// desktop-only: changes the m2o value through the inline autocomplete/kanban
+// selector; mobile selects m2o values via a dialog with different DOM.
+test.tags("desktop");
 test("many2one image url is busted with a fresh timestamp when its value changes", async () => {
     // A many2one image URL targets the RELATED record (partner/<value.id>), so
     // the parent record's write_date is not a valid cache key for it: when the

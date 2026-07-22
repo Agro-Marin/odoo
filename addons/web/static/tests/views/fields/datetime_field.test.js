@@ -123,6 +123,9 @@ test("DatetimeField in form view", async () => {
     });
 });
 
+// desktop-only: picks day/hour/minute in the datetime picker dropdown; the
+// mobile BottomSheet picker fires a different interaction sequence.
+test.tags("desktop");
 test("DatetimeField only triggers fieldChange when a day is picked and when an hour/minute is selected", async () => {
     mockTimeZone(+2);
 
@@ -240,6 +243,9 @@ test("DatetimeField with datetime formatted without second", async () => {
     });
 });
 
+// desktop-only: relies on the inline `.o_field_datetime input` of an editable
+// list cell, which mobile does not render (mobile edits via a dialog/sheet).
+test.tags("desktop");
 test("DatetimeField in editable list view", async () => {
     mockTimeZone(+2);
     onRpc("has_group", () => true);
@@ -483,6 +489,9 @@ test("DateTimeField with label opens datepicker on click", async () => {
     });
 });
 
+// desktop-only: drives the `[name=datetime] input` picker; mobile uses a
+// BottomSheet with different DOM.
+test.tags("desktop");
 test("datetime field: use picker with arabic numbering system", async () => {
     defineParams({ lang: "ar_001" }); // Select Arab language
 

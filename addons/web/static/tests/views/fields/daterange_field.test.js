@@ -1316,6 +1316,9 @@ test("daterange field in kanban with show_time option", async () => {
     ]);
 });
 
+// desktop-only: edits the daterange picker's `input[data-field=datetime]` time
+// inputs, which the mobile BottomSheet picker does not expose.
+test.tags("desktop");
 test("updating time keeps selected dates", async () => {
     Partner._records[0].datetime_end = "2017-03-13 00:02:00";
 
