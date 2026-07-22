@@ -9,11 +9,13 @@ export const closestPath = function* (node) {
 };
 
 /**
- * Find a node.
- * @param {findCallback} findCallback - This callback check if this function
- *      should return `node`.
- * @param {findCallback} stopCallback - This callback check if this function
- *      should stop when it receive `node`.
+ * Iterate over `domPath` and return the first node for which `findCallback`
+ * returns true, or null if `stopCallback` returns true first or the path ends.
+ *
+ * @param {Iterable<Node>} domPath
+ * @param {Function} [findCallback] returns true for the node to return
+ * @param {Function} [stopCallback] returns true to stop the search
+ * @returns {Node|null}
  */
 export function findNode(
     domPath,
@@ -69,11 +71,6 @@ export function findFurthest(node, limitAncestor, predicate) {
  * predicate. Any returned element will be contained within the editable, or is
  * disconnected from any Document.
  *
- * Rationale: this helper is used to manipulate editor nodes, and should never
- * match any node outside of that scope. Disconnected nodes are assumed to be
- * from the editor, since they are likely removed nodes evaluated in the context
- * of the MutationObserver handler @see ProtectedNodePlugin
- *
  * @param {Node} node
  * @param {string | Function} [predicate='*']
  * @returns {HTMLElement|null}
@@ -88,6 +85,10 @@ export function closestElement(node, predicate = "*") {
     } else {
         element = element?.closest(predicate);
     }
+    // This helper is used to manipulate editor nodes, and should never match any
+    // node outside of that scope. Disconnected nodes are assumed to be from the
+    // editor, since they are likely removed nodes evaluated in the context of the
+    // MutationObserver handler @see ProtectedNodePlugin
     if ((editable && editable.contains(element)) || !node.isConnected) {
         return element || null;
     }
@@ -114,7 +115,7 @@ export function ancestors(node, editable) {
  * Get a static array of children, to avoid manipulating the live HTMLCollection
  * for better performances.
  *
- * @param {Element}} elem
+ * @param {Element} elem
  * @returns {Array<Element>} children
  */
 export function children(elem) {
@@ -131,7 +132,7 @@ export function children(elem) {
  * Get a static array of childNodes, to avoid manipulating the live NodeList for
  * better performances.
  *
- * @param {Node}} node
+ * @param {Node} node
  * @returns {Array<Node>} childNodes
  */
 export function childNodes(node) {

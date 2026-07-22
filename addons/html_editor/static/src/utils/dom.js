@@ -50,7 +50,9 @@ export function makeContentsInline(node) {
  * is used otherwise.
  *
  * @param {HTMLElement} element - block element
- * @param {Cursors} [cursors]
+ * @param {Object} [options]
+ * @param {string} [options.baseContainerNodeName="P"]
+ * @param {Cursors} [options.cursors]
  */
 export function wrapInlinesInBlocks(
     element,
@@ -263,17 +265,16 @@ export function cleanEmptyAncestors(node, cursors, exclude = () => false) {
  * Remove all occurrences of a character from a text node and optionally update
  * cursors for later selection restore.
  *
- * In web_editor the text nodes used to be replaced by new ones with the updated
- * text rather than just changing the text content of the node because it
- * creates different mutations and it used to break the tour system. In
- * html_editor the text content is changed instead because other plugins rely on
- * the reference to the text node.
- *
  * @param {Node} node text node
  * @param {String} char character to remove (string of length 1)
  * @param {Cursors} [cursors]
  */
 export function cleanTextNode(node, char, cursors) {
+    // In web_editor the text nodes used to be replaced by new ones with the
+    // updated text rather than just changing the text content of the node
+    // because it creates different mutations and it used to break the tour
+    // system. In html_editor the text content is changed instead because other
+    // plugins rely on the reference to the text node.
     const removedIndexes = [];
     node.textContent = node.textContent.replaceAll(char, (_, offset) => {
         removedIndexes.push(offset);
@@ -294,16 +295,15 @@ export function cleanTextNode(node, char, cursors) {
 }
 
 /**
- * Remove all empty text nodes within the given root element
- * and update cursors for later selection restore.
- *
- * This prevents the editor from keeping unnecessary empty text
- * nodes that may create extra nodes during split operations.
+ * Remove all empty text nodes among the direct children of the given root
+ * element and update cursors for later selection restore.
  *
  * @param {HTMLElement} root
  * @param {Cursors} [cursors]
  */
 export function removeEmptyTextNodes(root, cursors) {
+    // Prevents the editor from keeping unnecessary empty text nodes that may
+    // create extra nodes during split operations.
     for (const node of childNodes(root).filter((n) => isEmptyTextNode(n))) {
         cursors?.update(callbacksForCursorUpdate.remove(node));
         node.remove();
