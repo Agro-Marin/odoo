@@ -3,6 +3,7 @@ import { registry } from "@web/core/registry";
 import { omit } from "@web/core/utils/collections/objects";
 import { patch } from "@web/core/utils/patch";
 import { PublicRoot } from "@web/legacy/js/public/public_root";
+import * as bootstrap from "@web/libs/bootstrap";
 import { Colibri } from "@web/public/colibri";
 import { Interaction } from "@web/public/interaction";
 
@@ -18,6 +19,25 @@ import { Interaction } from "@web/public/interaction";
 // resolved, so the conflicting later rule is dropped. See the matching
 // comment in auto_hide_menu.js.
 const EDIT_HOOKS_KEY = "__odooWebsiteEditHooks";
+
+// Runtime channel publishing this document's Bootstrap components to the
+// builder, which runs in the *parent* window.
+//
+// Bootstrap components act on the ambient `document` of the realm their class
+// was defined in -- `Modal._showElement` even relocates its element with
+// `document.body.append(...)`. A builder plugin that drives an iframe element
+// with the backend realm's class therefore rips the popup out of the editable
+// and into the backend body. The class has to be this realm's.
+//
+// It used to be reachable as `iframeWindow.Modal`, because Bootstrap was a set
+// of globals. It is now an ES module bundle that exposes nothing on `window`,
+// and this document has no `odoo.loader.modules` registry to look it up in
+// either, so those reads silently became `undefined` and their callers threw
+// "Cannot read properties of undefined". Publish the namespace explicitly, on
+// the same window-property channel and for the same cross-bundle reason as
+// EDIT_HOOKS_KEY above.
+const EDIT_BOOTSTRAP_KEY = "__odooWebsiteEditBootstrap";
+window[EDIT_BOOTSTRAP_KEY] = bootstrap;
 
 export function buildEditableInteractions(builders) {
     const result = [];
@@ -35,8 +55,12 @@ export function buildEditableInteractions(builders) {
         }
         let I = makeEditable.Interaction;
         // Collect mixins to up to Interaction class in reverse order.
+        // Compare by identity, not by `I.name`: a class that does not descend
+        // from `Interaction` (or a minified build) never matches the name, and
+        // the walk then runs off the end of the prototype chain and throws on
+        // `null.name`. The `I &&` guard stops at the chain's end instead.
         const mixins = [];
-        while (I.name !== "Interaction") {
+        while (I && I !== Interaction) {
             const mixin = mixinPerInteraction.get(I);
             if (mixin) {
                 mixins.push(mixin);
@@ -155,6 +179,24 @@ export const websiteEditService = {
                             historyCallbacks.ignoreDOMMutations(() => fn(...args));
                     },
                     addListener(target, event, fn, options) {
+                        // `Colibri.refreshNodes` re-registers, for newly matched
+                        // nodes, the very handler a previous `addListener` call
+                        // returned — Colibri marks it `isHandler` so its own
+                        // guard passes it through unchanged, which is what keeps
+                        // the listener's identity stable. Everything below
+                        // starts with `fn.bind(...)`, and `bind()` returns a new
+                        // function *without* custom properties: the flag was
+                        // lost, the handler was wrapped a second time, and the
+                        // resulting listener no longer matched the one
+                        // `refreshNodes` later hands to `removeEventListener`.
+                        // Those listeners could then never be detached — not on
+                        // refresh, and not on destroy either, since
+                        // `refreshNodes` drops their removers from `cleanups`
+                        // without calling them. Pass an already-built handler
+                        // straight through.
+                        if (fn.isHandler) {
+                            return super.addListener(target, event, fn, options);
+                        }
                         const boundFn = fn.bind(this.interaction);
                         if (event.startsWith("slide.bs.carousel")) {
                             // Never allow cancelling this event in edit mode.
@@ -224,10 +266,20 @@ export const websiteEditService = {
                                 style[property] = this.el.style[property];
                             }
                         }
-                        if (Object.keys(dataset).length || style.length) {
+                        // `style` is a plain object built by assignment, so
+                        // `style.length` was always `undefined` and this guard
+                        // silently reduced to the dataset half: an element
+                        // configured purely through inline animation styles
+                        // would fall through to the always-restart sentinel.
+                        if (Object.keys(dataset).length || Object.keys(style).length) {
                             return JSON.stringify({ dataset, style });
                         }
-                        return NaN; // So that it is different from itself
+                        // Nothing to track: NaN is never equal to itself, so
+                        // `shouldStop` always sees a change. Subclasses that
+                        // extend a snapshot MUST forward this value untouched
+                        // (see `isTrackedSnapshot`) — coercing it to an object
+                        // turns "always restart" into "never restart".
+                        return NaN;
                     },
                     shouldStop() {
                         if (!this.el.isConnected) {
@@ -389,6 +441,22 @@ PublicRoot.include({
         websiteEdit.update(targetEl, mode);
     },
 });
+
+/**
+ * Whether a `getConfigurationSnapshot()` result carries real tracked
+ * configuration, as opposed to the "nothing to track" sentinel.
+ *
+ * The sentinel is deliberately never equal to itself, which makes
+ * `shouldStop()` always report a change. A subclass extending a snapshot must
+ * check this before parsing: `JSON.parse(snapshot || "{}")` folds the sentinel
+ * into a stable object and silently turns always-restart into never-restart.
+ *
+ * @param {string | number} snapshot
+ * @returns {boolean}
+ */
+export function isTrackedSnapshot(snapshot) {
+    return typeof snapshot === "string";
+}
 
 export function withHistory(dynamicContent) {
     const result = {};
