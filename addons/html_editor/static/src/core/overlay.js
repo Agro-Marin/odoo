@@ -202,7 +202,7 @@ export class EditorOverlay extends Component {
         const canFlip = this.props.positionOptions?.flip ?? true;
         if (overflowsTop) {
             if (overflowsBottom) {
-                // Overlay is bigger than the cointainer. Hiding it would make
+                // Overlay is bigger than the container. Hiding it would make
                 // it always invisible.
                 return true;
             }
@@ -226,7 +226,7 @@ export class EditorOverlay extends Component {
 /**
  * The scroll container is an ancestor of {@link el} that is:
  * - scrollable and
- * - not also ancestor of a fixed element encosing `el` in the same
+ * - not also ancestor of a fixed element enclosing `el` in the same
  * document (as this makes `el` fixed and not affected by scrolls of
  * that ancestor)
  *

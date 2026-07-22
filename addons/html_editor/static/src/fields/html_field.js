@@ -34,10 +34,11 @@ import { TranslationButton } from "@web/fields/translation_button";
 const HTML_FIELD_METADATA_ATTRIBUTES = ["data-last-history-steps"];
 
 /**
- * Check whether the current value contains nodes that would break
+ * Check whether the given value contains nodes that would break
  * on insertion inside an existing body.
  *
- * @returns {boolean} true if 'this.props.value' contains a node
+ * @param {string} value
+ * @returns {boolean} true if 'value' contains a node
  * that can only exist once per document.
  */
 function computeContainsComplexHTML(value) {
