@@ -27,7 +27,7 @@ class TestWebCwvMetric(TransactionCase):
     def _assert_rejected(self, vals):
         with (
             self.assertRaises(CheckViolation),
-            mute_logger("odoo.sql_db", "odoo.db"),
+            mute_logger("odoo.db"),
             self.cr.savepoint(),
         ):
             self._create(vals)

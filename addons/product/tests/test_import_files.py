@@ -143,7 +143,7 @@ class TestImportFiles(TransactionCase):
             self.env.ref("__import__.product_tshirt_SW_red_l").lst_price, 2002
         )
 
-    @mute_logger("odoo.sql_db")
+    @mute_logger("odoo.db.cursor")
     def test_import_write_product_xls_error(self):
         results = self.import_product_xls("product.product")  # create products
         self.assertFalse(

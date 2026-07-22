@@ -22,7 +22,7 @@ class TestSmoke(BaseOrderTestCase):
         self.assertTrue(order.name)
         self.assertNotEqual(order.name, "New")
 
-    @mute_logger("odoo.sql_db", "odoo.db.cursor")
+    @mute_logger("odoo.db.cursor")
     def test_line_requires_order(self):
         with self.assertRaises(psycopg.IntegrityError):
             self.env["base.order.test.line"].create(
