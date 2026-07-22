@@ -117,7 +117,7 @@ test("basic many2many: toggle dropdown without changing search term or selection
     expect(executeCount).toBe(1);
     await contains(".btn.o-dropdown").click();
 
-    // Toogle dropdown, no new search should be done
+    // Toggle dropdown, no new search should be done
     await contains(".btn.o-dropdown").click();
     await delay(300); // debounce
     await animationFrame();
@@ -159,7 +159,7 @@ test("basic many2many: search with uncreated records", async () => {
             ]
         }
         setSelection() {
-            //Not used but necessary for the component
+            // Not used but necessary for the component
         }
     }
     addBuilderOption(TestComponent);
