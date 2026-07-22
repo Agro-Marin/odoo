@@ -418,3 +418,47 @@ class TestConfigParameterIntegersV11(MailCommon):
             ),
             "a misconfigured gateway ICP must not break loop detection",
         )
+
+
+@tagged("-at_install", "post_install", "mail_hardening_v11")
+class TestRtcSessionIdCoercionV11(MailCommon):
+    """``check_rtc_session_ids`` reaches ``_rtc_sync_sessions`` straight from
+    ``/discuss/channel/ping`` and ``/mail/rtc/channel/join_call``, both
+    ``auth="public"``. A bare ``int()`` there surfaced ValueError/TypeError as a
+    server error to any channel member -- including a guest member of a public
+    channel."""
+
+    def test_malformed_session_ids_are_skipped(self):
+        channel = self.env["discuss.channel"]._create_channel(
+            name="v11-rtc", group_id=False
+        )
+        member = channel._find_or_create_member_for_self()
+        self.assertTrue(member)
+        # must not raise on any of these
+        for check_ids in ([], ["abc"], [None], [{}], ["7", 8], [1.0]):
+            with self.subTest(check_rtc_session_ids=check_ids):
+                current, outdated = member._rtc_sync_sessions(
+                    check_rtc_session_ids=check_ids
+                )
+                self.assertIsNotNone(current)
+                self.assertIsNotNone(outdated)
+
+    def test_numeric_strings_still_resolve(self):
+        """Skipping garbage must not also drop usable numeric strings."""
+        channel = self.env["discuss.channel"]._create_channel(
+            name="v11-rtc-2", group_id=False
+        )
+        member = channel._find_or_create_member_for_self()
+        session = self.env["discuss.channel.rtc.session"].create(
+            {"channel_member_id": member.id}
+        )
+        self.env.flush_all()
+        # a live session passed as a string is a *current* session, not outdated
+        __, outdated = member._rtc_sync_sessions(
+            check_rtc_session_ids=[str(session.id), "abc"]
+        )
+        self.assertNotIn(
+            session.id,
+            outdated.ids,
+            "a numeric string must still resolve to its session",
+        )
