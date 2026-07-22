@@ -1,6 +1,6 @@
+from odoo import Command
 from odoo.tests import tagged
 
-from odoo import Command
 from odoo.addons.l10n_mx.tests.common import TestMxCommon
 
 
