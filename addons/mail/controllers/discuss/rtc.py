@@ -6,7 +6,11 @@ from odoo import http
 from odoo.http import request
 from odoo.tools import file_open
 
-from odoo.addons.mail.controllers.thread import _to_record_id, _to_record_ids
+from odoo.addons.mail.controllers.thread import (
+    _to_record_id,
+    _to_record_ids,
+    _to_record_ids_strict,
+)
 from odoo.addons.mail.tools.discuss import Store, add_guest_to_context
 
 # Generous bounds for peer-to-peer WebRTC signaling relayed through the public
@@ -184,8 +188,16 @@ class RtcController(http.Controller):
         # is the correct gate — a participant managing a call is a member.
         if not channel.self_member_id:
             raise NotFound
+        # Reject a malformed list rather than dropping its bad entries: an empty
+        # member_ids means "cancel *every* invitation on this channel", so
+        # silently trimming ["abc"] to [] would escalate a typo into cancelling
+        # everyone's ringing invitation. The raw value reached a domain and
+        # surfaced psycopg InvalidTextRepresentation (which also poisons the
+        # transaction), so it has to be coerced one way or the other.
         # sudo: discuss.channel.rtc.session - can cancel invitations in accessible channel
-        channel.sudo()._rtc_cancel_invitations(member_ids=member_ids)
+        channel.sudo()._rtc_cancel_invitations(
+            member_ids=_to_record_ids_strict(member_ids) if member_ids else None
+        )
 
     @http.route(
         "/mail/rtc/audio_worklet_processor_v2",
