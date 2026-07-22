@@ -126,6 +126,7 @@ export class TablePlugin extends Plugin {
         clean_for_save_handlers: ({ root }) => this.deselectTable(root),
         before_line_break_handlers: this.resetTableSelection.bind(this),
         before_split_block_handlers: this.resetTableSelection.bind(this),
+        before_insert_processors: this.normalizeTableStructure.bind(this),
 
         /** Overrides */
         tab_overrides: withSequence(20, this.handleTab.bind(this)),
@@ -1505,6 +1506,50 @@ export class TablePlugin extends Plugin {
             }
         }
         return modifiedTargetedNodes;
+    }
+
+    /**
+     * Normalize tables in *container* before they are inserted into the
+     * editable: fold any ``<thead>`` into ``<tbody>`` (tagging its cells with
+     * ``o_table_header`` so the styling survives) and guarantee a ``<tbody>``
+     * exists. The editor's table model assumes a single tbody, so pasted or
+     * programmatically inserted markup that carries a thead would otherwise
+     * produce a table the row/column operations cannot manipulate.
+     *
+     * Ported from upstream along with its ``before_insert_processors``
+     * registration; the by-hand port in 3655b4ba25d dropped both, leaving the
+     * consumer with no table normalization at all.
+     *
+     * @param {HTMLElement|DocumentFragment} container
+     * @returns {HTMLElement|DocumentFragment} the same container
+     */
+    normalizeTableStructure(container) {
+        container.querySelectorAll("table").forEach((table) => {
+            let tbody = table.tBodies[0];
+            const thead = table.tHead;
+
+            if (thead) {
+                for (const th of thead.querySelectorAll("th")) {
+                    th.classList.add("o_table_header");
+                }
+                if (tbody) {
+                    // If a <tbody> already exists, move all rows from
+                    // <thead> into the start of <tbody>.
+                    tbody.prepend(...thead.rows);
+                    thead.remove();
+                } else {
+                    // Otherwise, replace the <thead> with <tbody>
+                    tbody = this.dependencies.dom.setTagName(thead, "TBODY");
+                }
+            }
+
+            if (!tbody) {
+                tbody = table.ownerDocument.createElement("tbody");
+                tbody.innerHTML = `<tr><td><div class="o-paragraph"><br></div></td></tr>`;
+                table.append(tbody);
+            }
+        });
+        return container;
     }
 
     resetTableSelection() {
