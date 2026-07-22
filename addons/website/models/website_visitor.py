@@ -281,26 +281,53 @@ class WebsiteVisitor(models.Model):
             "context": compose_ctx,
         }
 
-    def _upsert_visitor(self, access_token, force_track_values=None):
+    def _upsert_visitor(
+        self,
+        access_token,
+        force_track_values=None,
+        *,
+        lang_id=None,
+        country_code=None,
+        website_id=None,
+        timezone=None,
+    ):
         """Based on the given `access_token`, either create or return the
         related visitor if exists, through a single raw SQL UPSERT Query.
 
         It will also create a tracking record if requested, in the same query.
 
+        The visitor attributes default to the current ``request`` (the
+        production frontend path). Pass them explicitly to exercise this
+        hot-path core from a plain ``TransactionCase`` with no request bound.
+
         :param access_token: token to be used to upsert the visitor
         :param force_track_values: an optional dict to create a track at the
             same time.
+        :param lang_id: ``res.lang`` id to stamp on a freshly-created visitor;
+            defaults to ``request.lang.id``
+        :param country_code: GEOIP country code (may be unknown to Odoo, in
+            which case ``country_id`` resolves to NULL); defaults to the
+            request GEOIP country code
+        :param website_id: ``website`` id the visitor is first seen on;
+            defaults to ``request.website.id``
+        :param timezone: client timezone (back-filled on conflict); defaults to
+            :meth:`_get_visitor_timezone`
         :return: a tuple containing the visitor id and a boolean that is True
             when the row was inserted and False when an existing row was updated.
         """
         create_values = {
             "access_token": str(access_token),
-            "lang_id": request.lang.id,
+            "lang_id": request.lang.id if lang_id is None else lang_id,
             # Note that it's possible for the GEOIP database to return a country
             # code which is unknown in Odoo
-            "country_code": request.geoip.get("country_code"),
-            "website_id": request.website.id,
-            "timezone": self._get_visitor_timezone() or None,
+            "country_code": (
+                request.geoip.get("country_code")
+                if country_code is None
+                else country_code
+            ),
+            "website_id": request.website.id if website_id is None else website_id,
+            "timezone": (self._get_visitor_timezone() if timezone is None else timezone)
+            or None,
             "write_uid": self.env.uid,
             "create_uid": self.env.uid,
             # If the access_token is not a 32 length hexa string, it means that the
