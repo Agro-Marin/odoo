@@ -121,8 +121,9 @@ export class BuilderDateTimePicker extends Component {
                 return parsedDateTime.toUnixInteger().toString();
             }
         } catch (e) {
-            // A ConversionError means displayValue is an invalid date: fall
-            // back to default value.
+            // A ConversionError means displayValue is an invalid date: keep
+            // the current value, unless previewing or empty, in which case
+            // fall back to the default value.
             if (!(e instanceof ConversionError)) {
                 throw e;
             }
