@@ -3,8 +3,12 @@
 from datetime import datetime, timedelta
 
 from odoo import Command
-from odoo.tests import users, tagged
-from odoo.addons.hr_calendar.tests.common import TestHrCalendarCommon, TestHrContractCalendarCommon
+from odoo.tests import tagged, users
+
+from odoo.addons.hr_calendar.tests.common import (
+    TestHrCalendarCommon,
+    TestHrContractCalendarCommon,
+)
 from odoo.addons.mail.tests.common import mail_new_test_user
 
 
