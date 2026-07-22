@@ -651,12 +651,20 @@ class DiscussChannelMember(models.Model):
         """
         self.ensure_one()
         self.channel_id.rtc_session_ids._delete_inactive_rtc_sessions()
-        check_rtc_sessions = self.env["discuss.channel.rtc.session"].browse(
-            [
-                int(check_rtc_session_id)
-                for check_rtc_session_id in (check_rtc_session_ids or [])
-            ]
-        )
+        # These ids come straight from the client -- '/discuss/channel/ping' and
+        # '/mail/rtc/channel/join_call' are auth="public" and pass the raw
+        # parameter through -- so a bare int() surfaced ValueError/TypeError as a
+        # server error. Skipping unparseable entries is the right answer rather
+        # than rejecting the whole call: the parameter asks "are these sessions
+        # still alive?", and something that is not an id was never a live
+        # session. Order carries no meaning here, unlike attachment ids.
+        checked_ids = []
+        for check_rtc_session_id in check_rtc_session_ids or []:
+            try:
+                checked_ids.append(int(check_rtc_session_id))
+            except TypeError, ValueError:
+                continue
+        check_rtc_sessions = self.env["discuss.channel.rtc.session"].browse(checked_ids)
         return (
             self.channel_id.rtc_session_ids,
             check_rtc_sessions - self.channel_id.rtc_session_ids,
