@@ -85,23 +85,11 @@ import { OptionsContainer } from "@html_builder/sidebar/option_container";
  * @typedef {((arg: { el: HTMLElement, reasons: [] }) => void)[]} clone_disabled_reason_providers
  *
  * Appends new reasons to the `reasons` array given as a parameter.
- *
- * Example:
- *
- *     ({ el, reasons }) => {
- *         reasons.push(`I hate ${el.dataset.name}`);
- *     }
  */
 /**
  * @typedef {((arg: { el: HTMLElement, reasons: [] }) => void)[]} remove_disabled_reason_providers
  *
  * Appends new reasons to the `reasons` array given as a parameter.
- *
- * Example:
- *
- *     ({ el, reasons }) => {
- *         reasons.push(`I hate ${el.dataset.name}`);
- *     }
  */
 
 export class BuilderOptionsPlugin extends Plugin {
@@ -609,7 +597,6 @@ function getClosestElements(element, selector) {
  * @param {HTMLElement} el
  * @param {Boolean} editableOnly when set to false, the element does not need to
  *     be in an editable area and the checks are therefore lighter.
- *     (= previous data-no-check/noCheck)
  * @param {String} exclude
  * @returns {Boolean}
  */

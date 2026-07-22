@@ -132,9 +132,6 @@ export function filterExtends(arr, PotentialSuperClass) {
  * Checks if a `potentialSubClass` directly or indirectly extends a
  * `potentialSuperClass`.
  *
- * The implementation leverages the fact that classes are functions and their
- * prototype chain reflects the inheritance.
- *
  * @param {Function} PotentialSubClass The class that might be a subclass.
  * @param {Function} PotentialSuperClass The class that might be a superclass.
  * @returns {boolean} True if `potentialSubClass` extends `potentialSuperClass`,
@@ -144,6 +141,7 @@ export function doesExtendsClass(PotentialSubClass, PotentialSuperClass) {
     if (PotentialSubClass === PotentialSuperClass) {
         return false;
     }
+    // Classes are functions, so their prototype chain reflects the inheritance.
     return PotentialSubClass.prototype instanceof PotentialSuperClass;
 }
 
@@ -181,7 +179,7 @@ export function removePlugins(plugins, pluginsToRemove) {
 }
 
 /**
- * Check if the given value is an integer smaller than 15 digits.
+ * Check if the given value is an integer with at most 15 digits.
  * @param {String} value
  * @returns {Boolean}
  */
