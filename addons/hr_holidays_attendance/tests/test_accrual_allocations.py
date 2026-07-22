@@ -1,8 +1,9 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 import datetime
-from freezegun import freeze_time
+
 from dateutil.relativedelta import relativedelta
+from freezegun import freeze_time
 
 from odoo.tests import Form, tagged
 
@@ -14,7 +15,7 @@ class TestAccrualAllocationsAttendance(TestHrHolidaysCommon):
 
     @classmethod
     def setUpClass(cls):
-        super(TestAccrualAllocationsAttendance, cls).setUpClass()
+        super().setUpClass()
         cls.leave_type = cls.env['hr.leave.type'].create({
             'name': 'Paid Time Off',
             'time_type': 'leave',

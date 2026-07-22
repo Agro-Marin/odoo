@@ -59,7 +59,7 @@ class HrLeaveAttendanceReport(models.Model):
         for rec in self:
             leaves = leaves_by_employees.get(rec.employee_id, self.env['hr.leave'])
             rec_date_leaves = leaves.filtered(
-                lambda lv: self._timestamped(lv.date_from) <= rec.date <= self._timestamped(lv.date_to),
+                lambda lv, rec=rec: self._timestamped(lv.date_from) <= rec.date <= self._timestamped(lv.date_to),
             )
             rec.leave_ids = rec_date_leaves.ids
             leave_type_ids = rec_date_leaves.mapped('holiday_status_id')
@@ -67,7 +67,7 @@ class HrLeaveAttendanceReport(models.Model):
 
             attendances = attendances_by_employees.get(rec.employee_id, self.env['hr.attendance'])
             rec.attendance_ids = attendances.filtered(
-                lambda att: self._timestamped(att.check_in) == rec.date,
+                lambda att, rec=rec: self._timestamped(att.check_in) == rec.date,
             ).ids
 
     def _timestamped(self, date):
