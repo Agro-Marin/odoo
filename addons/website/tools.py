@@ -2,7 +2,7 @@
 import re
 from urllib.parse import urlsplit
 
-from lxml import etree
+from lxml import etree, html
 
 from odoo.tools.misc import hmac
 
@@ -58,11 +58,49 @@ def similarity_score(s1, s2):
     dist = distance(s1, s2)
     if dist == -1:
         return -1
+    if not s1 or not s2:
+        # Every ratio below divides by len(s1) / len(set(s1)) / len(s1)+len(s2).
+        # An empty operand has nothing in common with anything anyway, so report
+        # "not similar" with the same sentinel as an over-the-limit distance
+        # instead of raising ZeroDivisionError on the caller.
+        return -1
     set1 = set(s1)
     score = len(set1.intersection(s2)) / len(set1)
     score -= dist / len(s1)
     score -= len(set1.symmetric_difference(s2)) / (len(s1) + len(s2))
     return score
+
+
+# Technical nodes whose *content* is markup/asset payload rather than prose, and
+# so must not leak into extracted text.
+_TEXT_EXCLUDED_XPATHS = (
+    "//script",
+    "//style",
+    "//svg",
+    '//*[@class="css_non_editable_mode_hidden"]',
+)
+
+
+def _drop_keeping_tail(element):
+    """Remove ``element`` from its tree while preserving its tail text.
+
+    ``lxml``'s ``remove()`` also discards the element's *tail* — the text that
+    follows it in the parent's flow and belongs to the parent, not to the node
+    being dropped. Removing an inline ``<svg>`` icon (which Odoo snippets ship
+    everywhere) would therefore silently take the rest of the sentence with it.
+    Re-attach the tail to the previous sibling, or to the parent's own text when
+    the element is first, before unlinking.
+    """
+    parent = element.getparent()
+    if parent is None:
+        return
+    if element.tail:
+        previous = element.getprevious()
+        if previous is not None:
+            previous.tail = (previous.tail or "") + element.tail
+        else:
+            parent.text = (parent.text or "") + element.tail
+    parent.remove(element)
 
 
 def text_from_html(html_fragment, collapse_whitespace=False):
@@ -73,20 +111,19 @@ def text_from_html(html_fragment, collapse_whitespace=False):
 
     :return: text extracted from the html
     """
-    # lxml requires one single root element
-    tree = etree.fromstring("<p>%s</p>" % html_fragment, etree.XMLParser(recover=True))
+    # Parse as HTML, not as XML: an XML parser has no HTML entity table, so in
+    # recover mode it *deletes* every `&eacute;`/`&nbsp;`/`&mdash;` instead of
+    # resolving it — dropping accents and gluing words together in teasers, SEO
+    # descriptions and search indexing. `html.fromstring` resolves them and is
+    # lenient about unclosed/multi-root fragments. The wrapper element keeps a
+    # single root for fragments that have several.
+    tree = html.fromstring("<div>%s</div>" % (html_fragment or ""))
 
     # Remove scripts or other technical elements that should not be converted
     # into text.
-    xpath_filters = [
-        "//script",
-        "//style",
-        "//svg",
-        '//*[@class="css_non_editable_mode_hidden"]',
-    ]
-    for xpath_filter in xpath_filters:
+    for xpath_filter in _TEXT_EXCLUDED_XPATHS:
         for element in tree.xpath(xpath_filter):
-            element.getparent().remove(element)
+            _drop_keeping_tail(element)
 
     content = " ".join(tree.itertext())
     if collapse_whitespace:

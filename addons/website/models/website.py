@@ -2492,20 +2492,6 @@ class Website(models.Model):
                             old_blockquote_asset.active = True
         self.env["ir.asset"].flush_model()
 
-    def _search_text_from_html(self, html_fragment):
-        """
-        Returns the plain non-tag text from an html
-
-        :param html_fragment: document from which text must be extracted
-
-        :return text extracted from the html
-        """
-        # lxml requires one single root element
-        tree = etree.fromstring(
-            "<p>%s</p>" % html_fragment, etree.XMLParser(recover=True)
-        )
-        return " ".join(tree.itertext())
-
     def _search_get_details(self, search_type, order, options):
         """
         Returns indications on how to perform the searches
