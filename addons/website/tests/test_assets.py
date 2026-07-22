@@ -364,20 +364,20 @@ class TestWebAssets(odoo.tests.HttpCase):
             "Only the website asset is expected to be present",
         )
 
-        # generate base assets
-        with self.assertLogs() as logs:
-            self.assertEqual(
-                self.url_open(base_url, allow_redirects=False).status_code, 200
-            )
+        # Generate the base asset. The cross-params "copy the compiled bytes
+        # from a same-version website attachment" fallback was deliberately
+        # removed: equal version does not imply equal content across websites,
+        # so it served one website's CSS/JS under another URL (see
+        # TestCustomAssetIsolation). The base bundle is therefore generated
+        # fresh, and -- crucially, per this test's intent -- generating it must
+        # NOT erase the pre-existing website attachment.
         self.assertEqual(
-            f"Found a similar attachment for /web/assets/{unique}/web.assets_frontend.min.js, copying from /web/assets/{website_id}/{unique}/web.assets_frontend.min.js",
-            logs.records[0].message,
-            "The attachment was expected to be linked to an existing one",
+            self.url_open(base_url, allow_redirects=False).status_code, 200
         )
-        self.assertEqual(
+        self.assertCountEqual(
             self.env["ir.attachment"]
             .search([("url", "=like", "%web.assets_frontend.min.js")])
             .mapped("url"),
             [base_url_versioned, website_url_versioned],
-            "base asset is expected to be present",
+            "the base asset must be generated alongside the surviving website one",
         )
