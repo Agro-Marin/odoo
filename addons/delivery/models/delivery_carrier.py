@@ -281,7 +281,7 @@ class DeliveryCarrier(models.Model):
 
     def copy_data(self, default=None):
         vals_list = super().copy_data(default=default)
-        return [dict(vals, name=self.env._("%s (copy)", carrier.name)) for carrier, vals in zip(self, vals_list)]
+        return [dict(vals, name=self.env._("%s (copy)", carrier.name)) for carrier, vals in zip(self, vals_list, strict=True)]
 
     def _get_delivery_type(self):
         """Return the delivery type.
@@ -441,6 +441,7 @@ class DeliveryCarrier(models.Model):
             return company_currency, pricelist_currency
         elif conversion == 'pricelist_to_company':
             return pricelist_currency, company_currency
+        return None
 
     def _compute_currency(self, order, price, conversion):
         from_currency, to_currency = self._get_conversion_currencies(order, conversion)

@@ -40,6 +40,7 @@ class ChooseDeliveryCarrier(models.TransientModel):
         else:
             self.display_price = 0
             self.delivery_price = 0
+        return None
 
     @api.onchange('order_id')
     def _onchange_order_id(self):
@@ -53,6 +54,7 @@ class ChooseDeliveryCarrier(models.TransientModel):
                     'type': 'notification',
                 }
                 return {'warning': warning}
+        return None
 
     @api.depends('carrier_id')
     def _compute_invoicing_message(self):
