@@ -93,13 +93,12 @@ class LoyaltyCard(models.Model):
     def _get_mail_author(self):
         self.ensure_one()
         return (
-            self.env.user._is_internal() and self.env.user or self.company_id or self.env.company
+            (self.env.user._is_internal() and self.env.user) or self.company_id or self.env.company
         ).partner_id
 
     def _get_signature(self):
         """To be overriden"""
         self.ensure_one()
-        return None
 
     def _has_source_order(self):
         return False
@@ -111,14 +110,14 @@ class LoyaltyCard(models.Model):
         self.ensure_one()
         default_template = self._get_default_template()
         compose_form = self.env.ref('mail.email_compose_message_wizard_form', False)
-        ctx = dict(
-            default_model='loyalty.card',
-            default_res_ids=self.ids,
-            default_template_id=default_template and default_template.id,
-            default_composition_mode='comment',
-            default_email_layout_xmlid='mail.mail_notification_light',
-            force_email=True,
-        )
+        ctx = {
+            'default_model': 'loyalty.card',
+            'default_res_ids': self.ids,
+            'default_template_id': default_template and default_template.id,
+            'default_composition_mode': 'comment',
+            'default_email_layout_xmlid': 'mail.mail_notification_light',
+            'force_email': True,
+        }
         return {
             'name': _("Compose Email"),
             'type': 'ir.actions.act_window',
@@ -137,7 +136,7 @@ class LoyaltyCard(models.Model):
         if self.env.context.get('loyalty_no_mail', False) or self.env.context.get('action_no_send_mail', False):
             return
         # Ideally one per program, but multiple is supported
-        create_comm_per_program = dict()
+        create_comm_per_program = {}
         for program in self.program_id:
             create_comm_per_program[program] = program.communication_plan_ids.filtered(lambda c: c.trigger == 'create')
         for coupon in self:
@@ -165,7 +164,7 @@ class LoyaltyCard(models.Model):
         """
         if self.env.context.get('loyalty_no_mail', False):
             return
-        milestones_per_program = dict()
+        milestones_per_program = {}
         for program in self.program_id:
             milestones_per_program[program] = program.communication_plan_ids\
                 .filtered(lambda c: c.trigger == 'points_reach')\

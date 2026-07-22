@@ -459,7 +459,7 @@ class LoyaltyProgram(models.Model):
         '''
         Returns a dict containing the products that match per rule of the program
         '''
-        rule_products = dict()
+        rule_products = {}
         for rule in self.rule_ids:
             domain = rule._get_valid_product_domain()
             if domain:
@@ -480,7 +480,7 @@ class LoyaltyProgram(models.Model):
             'program_item_name': self._program_items_name()[self.program_type],
             'default_program_id': self.id,
             # For the wizard
-            'default_mode': self.program_type == 'ewallet' and 'selected' or 'anonymous',
+            'default_mode': (self.program_type == 'ewallet' and 'selected') or 'anonymous',
         }
         return action
 
