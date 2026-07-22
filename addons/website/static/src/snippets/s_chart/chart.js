@@ -1,6 +1,6 @@
 /** @odoo-module native */
 import { getCSSVariableValue } from "@html_editor/utils/formatting";
-import { Chart as ChartJS, loadChartJS } from "@web/core/lib/chartjs";
+import { Chart as ChartJS, loadChartJS, Tooltip } from "@web/core/lib/chartjs";
 import { registry } from "@web/core/registry";
 import { Interaction } from "@web/public/interaction";
 export class Chart extends Interaction {
@@ -100,7 +100,10 @@ export class Chart extends Interaction {
         }
 
         const canvasEl = this.el.querySelector("canvas");
-        ChartJS.Tooltip.positioners.custom = (_, eventPosition) => eventPosition;
+        // `ChartJS.Tooltip` was a Chart.js v3 static; v4 exports the plugin
+        // separately (see `@web/core/lib/chartjs`), so reading it off the
+        // constructor yielded undefined and threw here.
+        Tooltip.positioners.custom = (_, eventPosition) => eventPosition;
         this.chart = new ChartJS(canvasEl, chartData);
         this.registerCleanup(() => {
             this.chart.destroy();

@@ -3,6 +3,8 @@ import { Plugin } from "@html_editor/plugin";
 import { registry } from "@web/core/registry";
 import { patch } from "@web/core/utils/patch";
 
+import { getBootstrapComponent } from "./bootstrap_realm.js";
+
 /**
  * @typedef { Object } PopupVisibilityShared
  * @property { PopupVisibilityPlugin['onTargetHide'] } onTargetHide
@@ -34,8 +36,12 @@ export class PopupVisibilityPlugin extends Plugin {
             }
         });
         const history = this.dependencies.history;
-        this.unpatchModal = this.window.Modal // null in tests without loadAssetsFrontendJS
-            ? patch(this.window.Modal.prototype, {
+        const Modal = this.getModal();
+        // Patching the edited realm's own class keeps the patch scoped to the
+        // document being edited. Guarded because the frontend bundle is absent
+        // in editor tests mounted without it.
+        this.unpatchModal = Modal
+            ? patch(Modal.prototype, {
                   _hideModal() {
                       return history.ignoreDOMMutations(() => super._hideModal());
                   },
@@ -49,33 +55,60 @@ export class PopupVisibilityPlugin extends Plugin {
             : () => {};
     }
 
+    /**
+     * @returns {Function|undefined} the edited document's Bootstrap Modal class
+     */
+    getModal() {
+        return getBootstrapComponent(this.window, "Modal");
+    }
+
     destroy() {
         super.destroy();
         this.unpatchModal();
+    }
+
+    /**
+     * The `.modal` a `.s_popup` wraps, or null for a malformed snippet.
+     *
+     * @param {HTMLElement} targetEl
+     * @returns {HTMLElement|null}
+     */
+    getModalEl(targetEl) {
+        return targetEl.matches(".s_popup") ? targetEl.querySelector(".modal") : null;
     }
 
     onTargetShow(targetEl) {
         // Check if the popup is within the editable, because it is cloned on
         // save (see save plugin) and Bootstrap moves it if it is not within the
         // document (see Bootstrap Modal's _showElement).
-        if (targetEl.matches(".s_popup") && this.editable.contains(targetEl)) {
-            this.window.Modal.getOrCreateInstance(
-                targetEl.querySelector(".modal"),
-            ).show();
+        if (!this.editable.contains(targetEl)) {
+            return;
+        }
+        const modalEl = this.getModalEl(targetEl);
+        const Modal = this.getModal();
+        if (modalEl && Modal) {
+            Modal.getOrCreateInstance(modalEl).show();
         }
     }
 
     onTargetHide(targetEl, isCleaning) {
         // Do not use Bootstrap to close the popup, as we are cleaning a
         // clone of it. Instead, hide it manually (see `cleanForSave`).
-        if (targetEl.matches(".s_popup") && !isCleaning) {
-            this.window.Modal.getOrCreateInstance(
-                targetEl.querySelector(".modal"),
-            ).hide();
+        if (isCleaning) {
+            return;
+        }
+        const modalEl = this.getModalEl(targetEl);
+        const Modal = this.getModal();
+        if (modalEl && Modal) {
+            Modal.getOrCreateInstance(modalEl).hide();
         }
     }
 
     cleanForSave({ root: rootEl }) {
+        const Modal = this.getModal();
+        if (!Modal) {
+            return;
+        }
         // Hide the popups manually, as we cannot rely on the `onTargetHide`
         // flow since the cleaned popup is a clone and is not in the DOM.
         for (const modalEl of rootEl.querySelectorAll(".s_popup .modal.show")) {
@@ -83,8 +116,9 @@ export class PopupVisibilityPlugin extends Plugin {
             // Do not call .hide() directly, because it is queued whereas
             // .dispose() is not.
             modalEl.classList.remove("show");
-            this.window.Modal.getOrCreateInstance(modalEl)._hideModal();
-            this.window.Modal.getInstance(modalEl).dispose();
+            const modal = Modal.getOrCreateInstance(modalEl);
+            modal._hideModal();
+            modal.dispose();
         }
     }
 

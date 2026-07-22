@@ -26,6 +26,24 @@ let _chart = null;
  */
 export const Chart = makeLazyFacade(() => _chart, { constructable: true });
 
+/** @type {any} the loaded Tooltip plugin, null until {@link loadChartJS} resolves */
+let _tooltip = null;
+
+/**
+ * The Tooltip plugin, as a facade matching {@link Chart}.
+ *
+ * Chart.js v3 hung this off the constructor as `Chart.Tooltip`; v4 removed
+ * that static and exports `Tooltip` as a separate named export, so call sites
+ * carried over from v3 read `undefined` and threw on the first property
+ * access (e.g. `Chart.Tooltip.positioners`). Importing `chart.js` directly to
+ * get it would defeat the lazy loading this module exists for, so expose it
+ * here instead. Callers must `await loadChartJS()` first, exactly as for
+ * {@link Chart}.
+ *
+ * @type {any}
+ */
+export const Tooltip = makeLazyFacade(() => _tooltip);
+
 /** @type {Promise<any> | null} de-dupes concurrent loads into one fetch. */
 let loadPromise = null;
 
@@ -45,6 +63,7 @@ export async function loadChartJS() {
                 import("chartjs-adapter-luxon"),
             ]);
             _chart = chartModule.Chart;
+            _tooltip = chartModule.Tooltip;
             return Chart;
         })().catch((error) => {
             // Never cache a rejection: a transient fetch failure would
