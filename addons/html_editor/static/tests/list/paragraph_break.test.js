@@ -1,21 +1,14 @@
 import { before, describe, test } from "@odoo/hoot";
 
 import { testEditor } from "../_helpers/editor.js";
+import { loadTestFont } from "../_helpers/font.js";
 import { unformat } from "../_helpers/format.js";
 import { insertText, splitBlock } from "../_helpers/user_actions.js";
 
 const base64Img =
     "data:image/png;base64, iVBORw0KGgoAAAANSUhEUgAAAAUA\n        AAAFCAYAAACNbyblAAAAHElEQVQI12P4//8/w38GIAXDIBKE0DHxgljNBAAO\n            9TXL0Y4OHwAAAABJRU5ErkJggg==";
 
-before(async () => {
-    const font = new FontFace(
-        "Roboto",
-        "url(/web/static/fonts/google/Roboto/Roboto-Regular.ttf)",
-    );
-    await font.load();
-    document.fonts.add(font);
-    await document.fonts.ready;
-});
+before(loadTestFont);
 
 describe("Selection collapsed", () => {
     describe("Ordered", () => {

@@ -4,6 +4,7 @@ import { before, test } from "@odoo/hoot";
 import { patchWithCleanup } from "@web/../tests/web_test_helpers";
 
 import { testEditor } from "../_helpers/editor.js";
+import { loadTestFont, pinFont, pinRootFontSize } from "../_helpers/font.js";
 import { unformat } from "../_helpers/format.js";
 import {
     setFontSize,
@@ -13,15 +14,7 @@ import {
 } from "../_helpers/user_actions.js";
 import { execCommand } from "../_helpers/userCommands.js";
 
-before(async () => {
-    const font = new FontFace(
-        "Roboto",
-        "url(/web/static/fonts/google/Roboto/Roboto-Regular.ttf)",
-    );
-    await font.load();
-    document.fonts.add(font);
-    await document.fonts.ready;
-});
+before(loadTestFont);
 
 /**
  * Pin the ``::marker`` width that {@link ListPlugin#adjustListPadding} reads.
@@ -53,7 +46,7 @@ test("should apply font-size to completely selected list item (1)", async () => 
     // (`:root` is pinned to 14px below, so the default is 2 * 14).
     pinMarkerWidth(60);
     await testEditor({
-        styleContent: ":root { font: 14px Roboto }",
+        styleContent: pinRootFontSize("14px"),
         contentBefore: "<ol><li>[abc]</li><li>def</li></ol>",
         stepFunction: setFontSize("56px"),
         contentAfter: `<ol style="padding-inline-start: 60px;"><li style="font-size: 56px;">[abc]</li><li>def</li></ol>`,
@@ -66,7 +59,7 @@ test("should apply font-size to completely selected list item (2)", async () => 
     // is adjusted too, not the specific width.
     pinMarkerWidth(69);
     await testEditor({
-        styleContent: ":root { font: 14px Roboto }",
+        styleContent: pinRootFontSize("14px"),
         contentBefore: unformat(`
             <ol>
                 <li><p>[abc</p>
@@ -101,9 +94,11 @@ test("should apply font-size to completely selected multiple list items", async 
 });
 
 test("should apply font size to a fully selected list item with trailing empty line (1)", async () => {
-    // 19px marker on a UL -> round(19) * 2 = 38px, above the 32px default.
+    // 19px marker on a UL -> round(19) * 2 = 38px, above the 28px default
+    // (`:root` is pinned to 14px below, so the default is 2 * 14).
     pinMarkerWidth(19);
     await testEditor({
+        styleContent: pinRootFontSize("14px"),
         contentBefore: "<ul><li>[abc</li><li>]<br></li></ul>",
         stepFunction: setFontSize("56px"),
         contentAfter:
@@ -114,6 +109,7 @@ test("should apply font size to a fully selected list item with trailing empty l
 test("should apply font size to a fully selected list item with trailing empty line (2)", async () => {
     pinMarkerWidth(19);
     await testEditor({
+        styleContent: pinRootFontSize("14px"),
         contentBefore: "<ul><li>[abc</li><li><br>]<br></li></ul>",
         stepFunction: setFontSize("56px"),
         contentAfter:
@@ -124,6 +120,7 @@ test("should apply font size to a fully selected list item with trailing empty l
 test("should apply font size to a fully selected list item with trailing empty line (3)", async () => {
     pinMarkerWidth(19);
     await testEditor({
+        styleContent: pinRootFontSize("14px"),
         contentBefore: "<ul><li>[abc</li><li>abcd<br>]<br></li></ul>",
         stepFunction: setFontSize("56px"),
         contentAfter:
@@ -134,6 +131,7 @@ test("should apply font size to a fully selected list item with trailing empty l
 test("should not apply font size to list item when selection excludes trailing empty line", async () => {
     pinMarkerWidth(19);
     await testEditor({
+        styleContent: pinRootFontSize("14px"),
         contentBefore: "<ul><li>[abc</li><li>abcd]<br><br></li></ul>",
         stepFunction: setFontSize("56px"),
         contentAfter:
@@ -147,6 +145,7 @@ test("list padding doubles the marker width for UL but not for OL", async () => 
     // previously only observable through environment-dependent pixel values.
     pinMarkerWidth(25);
     await testEditor({
+        styleContent: pinRootFontSize("16px"),
         contentBefore: "<ul><li>[abc]</li></ul>",
         stepFunction: setFontSize("56px"),
         contentAfter:
@@ -154,6 +153,7 @@ test("list padding doubles the marker width for UL but not for OL", async () => 
     });
     pinMarkerWidth(25);
     await testEditor({
+        styleContent: pinRootFontSize("16px"),
         contentBefore: "<ol><li>[abc]</li></ol>",
         stepFunction: setFontSize("56px"),
         // 25 * 1 = 25px, which does NOT exceed the 32px default -> no padding.
@@ -165,6 +165,7 @@ test("list padding is left untouched when the marker fits the default padding", 
     // round(15) * 2 = 30px <= 32px default (2 * 16px root) -> no inline style.
     pinMarkerWidth(15);
     await testEditor({
+        styleContent: pinRootFontSize("16px"),
         contentBefore: "<ul><li>[abc]</li></ul>",
         stepFunction: setFontSize("56px"),
         contentAfter: '<ul><li style="font-size: 56px;">[abc]</li></ul>',
@@ -175,6 +176,7 @@ test("list padding rounds the measured marker width", async () => {
     // Sub-pixel rasterizer output must not leak into the style attribute.
     pinMarkerWidth(19.4);
     await testEditor({
+        styleContent: pinRootFontSize("16px"),
         contentBefore: "<ul><li>[abc]</li></ul>",
         stepFunction: setFontSize("56px"),
         contentAfter:
@@ -326,7 +328,7 @@ test("should carry font-size of list item to paragraph (4)", async () => {
 test.tags("font-dependent");
 test("should keep list item font-size on toggling list twice", async () => {
     await testEditor({
-        styleContent: "ol { font: 14px Roboto }",
+        styleContent: pinFont("14px"),
         contentBefore:
             '<ol><li style="font-size: 18px;">[abc</li><li style="font-size: 32px;">def]</li></ol>',
         stepFunction: (editor) => {
@@ -355,7 +357,7 @@ test("should change font-size of a list item", async () => {
 test.tags("font-dependent");
 test("should change font-size of a list item (2)", async () => {
     await testEditor({
-        styleContent: "ol { font: 14px Roboto }",
+        styleContent: pinFont("14px"),
         contentBefore:
             '<ol><li style="font-size: 18px;">[abc</li><li style="font-size: 18px;">ghi]</li></ol>',
         stepFunction: setFontSize("32px"),
@@ -396,7 +398,7 @@ test("should pad list based on font-size", async () => {
 test.tags("font-dependent");
 test("should pad list based on font-size (2)", async () => {
     await testEditor({
-        styleContent: "ol { font: 14px Roboto }",
+        styleContent: pinFont("14px"),
         contentBefore: `<span style="font-size: 56px">[a]</span>`,
         stepFunction: toggleOrderedList,
         contentAfter: `<ol style="padding-inline-start: 60px;"><li style="font-size: 56px;">[]a</li></ol>`,
@@ -406,7 +408,7 @@ test("should pad list based on font-size (2)", async () => {
 test.tags("font-dependent");
 test("should apply color to a list containing sublist if list contents are fully selected", async () => {
     await testEditor({
-        styleContent: "ol { font: 14px Roboto }",
+        styleContent: pinFont("14px"),
         contentBefore: "<ol><li><p>[abc]</p><ol><li>def</li></ol></li></ol>",
         stepFunction: setFontSize("56px"),
         contentAfter: `<ol style="padding-inline-start: 60px;"><li style="font-size: 56px;"><p>[abc]</p><ol class="o_default_font_size"><li>def</li></ol></li></ol>`,
@@ -415,7 +417,7 @@ test("should apply color to a list containing sublist if list contents are fully
 
 test("should remove font-size from list item", async () => {
     await testEditor({
-        styleContent: "ol { font: 14px Roboto }",
+        styleContent: pinFont("14px"),
         contentBefore: `<ol><li style="font-size: 56px;">[a]</li></ol>`,
         stepFunction: (editor) => execCommand(editor, "removeFormat"),
         contentAfter: `<ol><li>[a]</li></ol>`,
@@ -424,7 +426,7 @@ test("should remove font-size from list item", async () => {
 
 test("should remove font-size class from list item", async () => {
     await testEditor({
-        styleContent: "ol { font: 14px Roboto }",
+        styleContent: pinFont("14px"),
         contentBefore: `<ol><li class="h2-fs">[a]</li></ol>`,
         stepFunction: (editor) => execCommand(editor, "removeFormat"),
         contentAfter: `<ol><li>[a]</li></ol>`,
@@ -433,7 +435,7 @@ test("should remove font-size class from list item", async () => {
 
 test("should remove font-size from list item containing sublist", async () => {
     await testEditor({
-        styleContent: "ol { font: 14px Roboto }",
+        styleContent: pinFont("14px"),
         contentBefore: `<ol><li>a</li><li style="font-size: 56px;"><p>[b]</p><ol class="o_default_font_size"><li>c</li></ol></li></ol>`,
         stepFunction: (editor) => execCommand(editor, "removeFormat"),
         contentAfter: `<ol><li>a</li><li><p>[b]</p><ol><li>c</li></ol></li></ol>`,
@@ -442,7 +444,7 @@ test("should remove font-size from list item containing sublist", async () => {
 
 test("should remove font-size class from list item containing sublist", async () => {
     await testEditor({
-        styleContent: "ol { font: 14px Roboto }",
+        styleContent: pinFont("14px"),
         contentBefore: `<ol><li>a</li><li class="h2-fs"><p>[b]</p><ol class="o_default_font_size"><li>c</li></ol></li></ol>`,
         stepFunction: (editor) => execCommand(editor, "removeFormat"),
         contentAfter: `<ol><li>a</li><li><p>[b]</p><ol><li>c</li></ol></li></ol>`,
@@ -451,7 +453,7 @@ test("should remove font-size class from list item containing sublist", async ()
 
 test("should remove font-size and its classes from partially selected list item (1)", async () => {
     await testEditor({
-        styleContent: "ol { font: 14px Roboto }",
+        styleContent: pinFont("14px"),
         contentBefore: `<ol><li>a</li><li style="font-size: 56px;">b[c]d</li><li>e</li></ol>`,
         stepFunction: (editor) => execCommand(editor, "removeFormat"),
         contentAfter: `<ol style="padding-inline-start: 60px;"><li>a</li><li style="font-size: 56px;">b<span class="o_default_font_size">[c]</span>d</li><li>e</li></ol>`,
@@ -460,7 +462,7 @@ test("should remove font-size and its classes from partially selected list item 
 
 test("should remove font-size and its classes from partially selected list item (2)", async () => {
     await testEditor({
-        styleContent: "ol { font: 14px Roboto }",
+        styleContent: pinFont("14px"),
         contentBefore: `<ol><li>a</li><li class="h2-fs">b[c]d</li><li>e</li></ol>`,
         stepFunction: (editor) => execCommand(editor, "removeFormat"),
         contentAfter: `<ol><li>a</li><li class="h2-fs">b<span class="o_default_font_size">[c]</span>d</li><li>e</li></ol>`,
@@ -469,7 +471,7 @@ test("should remove font-size and its classes from partially selected list item 
 
 test("should remove font-size and its classes from partially selected list item (3)", async () => {
     await testEditor({
-        styleContent: "ol { font: 14px Roboto }",
+        styleContent: pinFont("14px"),
         contentBefore: `<ol><li style="font-size: 56px;">a[bc</li><li style="font-size: 56px;">def</li><li style="font-size: 56px;">gh]i</li></ol>`,
         stepFunction: (editor) => execCommand(editor, "removeFormat"),
         contentAfter: `<ol style="padding-inline-start: 60px;"><li style="font-size: 56px;">a<span class="o_default_font_size">[bc</span></li><li>def</li><li style="font-size: 56px;"><span class="o_default_font_size">gh]</span>i</li></ol>`,
@@ -478,7 +480,7 @@ test("should remove font-size and its classes from partially selected list item 
 
 test("should remove font-size and its classes from partially selected list item (4)", async () => {
     await testEditor({
-        styleContent: "ol { font: 14px Roboto }",
+        styleContent: pinFont("14px"),
         contentBefore: `<ol><li class="h2-fs">a[bc</li><li class="h2-fs">def</li><li class="h2-fs">gh]i</li></ol>`,
         stepFunction: (editor) => execCommand(editor, "removeFormat"),
         contentAfter: `<ol><li class="h2-fs">a<span class="o_default_font_size">[bc</span></li><li>def</li><li class="h2-fs"><span class="o_default_font_size">gh]</span>i</li></ol>`,

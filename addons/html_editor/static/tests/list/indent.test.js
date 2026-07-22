@@ -1,19 +1,12 @@
 import { before, describe, expect, test } from "@odoo/hoot";
 
 import { setupEditor, testEditor } from "../_helpers/editor.js";
+import { loadTestFont } from "../_helpers/font.js";
 import { unformat } from "../_helpers/format.js";
 import { getContent } from "../_helpers/selection.js";
 import { keydownTab, splitBlock, tripleClick, undo } from "../_helpers/user_actions.js";
 
-before(async () => {
-    const font = new FontFace(
-        "Roboto",
-        "url(/web/static/fonts/google/Roboto/Roboto-Regular.ttf)",
-    );
-    await font.load();
-    document.fonts.add(font);
-    await document.fonts.ready;
-});
+before(loadTestFont);
 
 describe("Checklist", () => {
     test("should indent a checklist (1)", async () => {
