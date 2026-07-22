@@ -548,3 +548,56 @@ class TestStaleModelNameGuardsV11(MailCommon):
             .get_result()
         )
         self.assertIn("mail.message", result)
+
+
+@tagged("-at_install", "post_install", "mail_hardening_v11")
+class TestDomainBoundIdCoercionV11(HttpCase, MailCommon):
+    """Ids that land straight in a domain surface ``psycopg
+    InvalidTextRepresentation`` -- worse than a ValueError, since the failed
+    statement also poisons the transaction."""
+
+    def setUp(self):
+        super().setUp()
+        # Membership must belong to the user the request authenticates as
+        # (admin), not to self.env.user (root) -- otherwise
+        # cancel_call_invitation 404s on its membership gate and never reaches
+        # the coercion under test.
+        admin = self.env.ref("base.user_admin")
+        self.channel = (
+            self.env["discuss.channel"]
+            .with_user(admin)
+            ._create_channel(name="v11-domain", group_id=False)
+        )
+        self.channel.with_user(admin)._find_or_create_member_for_self()
+        self.env.flush_all()
+
+    def test_sub_channel_create_rejects_bad_from_message_id(self):
+        self.authenticate("admin", "admin")
+        with self.assertRaises(JsonRpcException) as capture:
+            self.make_jsonrpc_request(
+                "/discuss/channel/sub_channel/create",
+                {"parent_channel_id": self.channel.id, "from_message_id": "abc"},
+            )
+        self.assertEqual(capture.exception.code, 404)
+        # the valid path still works
+        self.assertTrue(
+            self.make_jsonrpc_request(
+                "/discuss/channel/sub_channel/create",
+                {"parent_channel_id": self.channel.id},
+            )
+        )
+
+    def test_cancel_invitation_rejects_rather_than_trims_member_ids(self):
+        """Dropping bad entries would turn ["abc"] into [] -- which means
+        "cancel *every* invitation on this channel". It must 404 instead."""
+        self.authenticate("admin", "admin")
+        with self.assertRaises(JsonRpcException) as capture:
+            self.make_jsonrpc_request(
+                "/mail/rtc/channel/cancel_call_invitation",
+                {"channel_id": self.channel.id, "member_ids": ["abc"]},
+            )
+        self.assertEqual(
+            capture.exception.code,
+            404,
+            "a malformed member_ids must not silently become 'cancel all'",
+        )
