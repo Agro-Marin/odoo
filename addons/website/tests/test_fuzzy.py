@@ -11,7 +11,7 @@ from odoo.tests.common import TransactionCase
 
 from odoo.addons.http_routing.tests.common import MockRequest
 from odoo.addons.website.controllers.main import Website
-from odoo.addons.website.tools import distance
+from odoo.addons.website.tools import distance, similarity_score, text_from_html
 
 _logger = logging.getLogger(__name__)
 
@@ -122,6 +122,70 @@ class TestFuzzy(TransactionCase):
         self.assertEqual(distance("", "warranty", 10), 8)
         self.assertEqual(distance("warranty", "", 10), 8)
         self.assertEqual(distance("", "", 10), 0)
+
+    def test_03_similarity_score_empty_operand(self):
+        """An empty operand must report "not similar", not divide by zero."""
+        self.assertEqual(similarity_score("", "warranty"), -1)
+        self.assertEqual(similarity_score("warranty", ""), -1)
+        self.assertEqual(similarity_score("", ""), -1)
+        self.assertEqual(similarity_score("gravity", "gravity"), 1.0)
+
+
+@odoo.tests.tagged("-at_install", "post_install")
+class TestTextFromHtml(TransactionCase):
+    def test_keeps_text_following_a_stripped_element(self):
+        """Stripping a node must not take the text that follows it.
+
+        ``lxml``'s ``remove()`` also drops the element's tail, so an inline
+        ``<svg>`` icon (which snippets ship everywhere) used to swallow the rest
+        of the sentence — making that text unfindable by the site search.
+        """
+        self.assertEqual(
+            text_from_html("<svg><path/></svg>text after svg", True),
+            "text after svg",
+        )
+        self.assertEqual(
+            text_from_html("intro <script>var x = 1;</script> outro", True),
+            "intro outro",
+        )
+        self.assertEqual(
+            text_from_html("before <style>.x{}</style> after", True),
+            "before after",
+        )
+        self.assertEqual(
+            text_from_html(
+                '<div class="css_non_editable_mode_hidden">hidden</div>visible',
+                True,
+            ),
+            "visible",
+        )
+
+    def test_resolves_html_entities(self):
+        """Entities must be decoded, not deleted.
+
+        An XML parser has no HTML entity table and silently drops every
+        ``&eacute;``/``&nbsp;``/``&mdash;`` in recover mode, stripping accents
+        and gluing adjacent words together.
+        """
+        self.assertEqual(text_from_html("Caf&eacute; Gourmand", True), "Café Gourmand")
+        self.assertEqual(text_from_html("word1&nbsp;word2", True), "word1 word2")
+        self.assertEqual(text_from_html("&euro;100 &mdash; sale", True), "€100 — sale")
+        self.assertEqual(
+            text_from_html("Bien s&ucirc;r&nbsp;! &Agrave; demain", True),
+            "Bien sûr ! À demain",
+        )
+
+    def test_preserved_behaviour(self):
+        """Cases the previous implementation already got right must not move."""
+        self.assertEqual(text_from_html("Tom &amp; Jerry", True), "Tom & Jerry")
+        self.assertEqual(text_from_html("5 &lt; 6 &gt; 4", True), "5 < 6 > 4")
+        self.assertEqual(
+            text_from_html("<p>unclosed <b>bold</p>", True), "unclosed bold"
+        )
+        self.assertEqual(text_from_html("<!-- a comment -->real", True), "real")
+        self.assertEqual(text_from_html("plain text"), "plain text")
+        self.assertEqual(text_from_html("", True), "")
+        self.assertEqual(text_from_html(None, True), "")
 
 
 @odoo.tests.tagged("-at_install", "post_install")
