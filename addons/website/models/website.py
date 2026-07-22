@@ -11,7 +11,7 @@ import re
 import threading
 import types
 from collections import defaultdict
-from urllib.parse import urlencode, urlparse
+from urllib.parse import urlencode, urlparse, urlunparse
 
 import requests
 import werkzeug.routing
@@ -295,10 +295,16 @@ class Website(models.Model):
         """Compute the punycode (ASCII-safe) version of the domain."""
         for website in self:
             website_domain = website.domain or ""
-            hostname = urlparse(website_domain).hostname or ""
-            website.domain_punycode = website_domain.replace(
-                hostname, to_punycode(hostname)
-            )
+            parsed = urlparse(website_domain)
+            hostname = parsed.hostname or ""
+            if hostname:
+                # Convert only the host within the netloc; a blanket
+                # str.replace() also rewrote the hostname where it happens to
+                # recur in the path or query string.
+                netloc = parsed.netloc.replace(hostname, to_punycode(hostname), 1)
+                website.domain_punycode = urlunparse(parsed._replace(netloc=netloc))
+            else:
+                website.domain_punycode = website_domain
 
     @api.depends("social_default_image")
     def _compute_has_social_default_image(self):
