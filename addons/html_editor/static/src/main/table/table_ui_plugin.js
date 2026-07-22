@@ -15,7 +15,7 @@ import { TablePicker } from "./table_picker.js";
  */
 export class TableUIPlugin extends Plugin {
     static id = "tableUi";
-    static dependencies = ["history", "overlay", "table"];
+    static dependencies = ["history", "overlay", "selection", "table"];
     /** @type {import("plugins").EditorResources} */
     resources = {
         user_commands: [
@@ -156,6 +156,11 @@ export class TableUIPlugin extends Plugin {
             (...args) => {
                 fn(...args);
                 this.dependencies.history.addStep();
+                // Every one of these runs from the table-menu dropdown, which
+                // leaves focus on its toggle button — so the user would keep
+                // typing outside the editor. Hand focus back, like the toolbar
+                // does after a command (Toolbar.onButtonClick).
+                this.dependencies.selection.focusEditable();
             };
         const tableMethods = {
             moveColumn: withAddStep(this.dependencies.table.moveColumn),
