@@ -311,7 +311,7 @@ export class SplitPlugin extends Plugin {
                 limitAncestor,
             );
         }
-        // Split up ancestors up to font
+        // Split ancestors up to limitAncestor.
         while (after && after.parentElement !== limitAncestor) {
             afterSplit = this.splitElement(
                 after.parentElement,
