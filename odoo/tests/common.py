@@ -2688,9 +2688,13 @@ class HttpCase(TransactionCase):
     @classmethod
     def http_port(cls) -> int | None:
         """Return the HTTP server port, or None if the server is not running."""
-        if odoo.service.lifecycle.server is None:
-            return None
-        return odoo.service.lifecycle.server.httpd.server_port
+        # A server object can exist without a listening ``httpd`` (--no-http,
+        # ``odoo shell``, a server still starting up). Callers rely on the
+        # documented ``None`` -- e.g. http_routing's ``MockRequest`` does
+        # ``if HttpCase.http_port():`` -- so answer None there too instead of
+        # raising AttributeError on the missing attribute.
+        httpd = getattr(odoo.service.lifecycle.server, "httpd", None)
+        return httpd.server_port if httpd is not None else None
 
     def setUp(self) -> None:
         super().setUp()

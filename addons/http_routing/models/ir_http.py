@@ -1,7 +1,9 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
+import contextlib
 import logging
 import re
+import threading
 import traceback
 import typing
 import urllib.parse
@@ -35,6 +37,14 @@ _SLUG_ID = (
 _SLUG_END = r"(?=$|\/|#|\?)"  # lookahead: end of the path segment
 _UNSLUG_RE = re.compile(rf"(?:({_SLUG_NAME})-)?({_SLUG_ID}){_SLUG_END}")
 _UNSLUG_ROUTE_PATTERN = rf"(?:(?:{_SLUG_NAME})-)?(?:{_SLUG_ID}){_SLUG_END}"
+
+# The methods this module is allowed to answer with a 3xx. RFC 9110 lets a
+# client turn a 301/302 on an unsafe method into a GET -- and a 303 *mandates*
+# it -- so redirecting anything but GET/HEAD silently drops the request body
+# and the intended method. OPTIONS is excluded on top of ``SAFE_HTTP_METHODS``:
+# a CORS preflight is never followed through a redirect, so redirecting it
+# fails the preflight instead of answering it.
+_REDIRECTABLE_METHODS = ("GET", "HEAD")
 
 
 def _lang_base(lang_code: str) -> str:
@@ -93,14 +103,30 @@ class IrHttp(models.AbstractModel):
 
     @classmethod
     def _unslug_url(cls, value: str) -> str:
-        """From "/blog/my-super-blog-1" to "/blog/1" """
+        """From "/blog/my-super-blog-1" to "/blog/1".
+
+        Only the last *path* segment is reduced; a query string and/or a
+        fragment are carried over untouched.
+
+        >>> _unslug_url("/blog/my-super-blog-1?page=2")
+        '/blog/1?page=2'
+        """
+        # Cut the query/fragment off first. ``_unslug`` accepts "?" and "#" as
+        # segment terminators, so the raw last ``split("/")`` chunk of
+        # "/blog/my-blog-1?page=2" unslugs fine -- but replacing that whole
+        # chunk with the bare id would take "?page=2" down with it.
+        cut = min(
+            (i for i in (value.find("?"), value.find("#")) if i != -1),
+            default=len(value),
+        )
+        path, suffix = value[:cut], value[cut:]
         # str.split() always yields at least one element, so parts[-1] is safe.
-        parts = value.split("/")
+        parts = path.split("/")
         slug_id = cls._unslug(parts[-1])[1]
-        if slug_id is not None:
-            parts[-1] = str(slug_id)
-            return "/".join(parts)
-        return value
+        if slug_id is None:
+            return value
+        parts[-1] = str(slug_id)
+        return "/".join(parts) + suffix
 
     @classmethod
     def _get_converters(cls) -> dict[str, type]:
@@ -115,6 +141,31 @@ class IrHttp(models.AbstractModel):
     # ------------------------------------------------------------
     # Language tools
     # ------------------------------------------------------------
+
+    @classmethod
+    def _lang_url_prefix(cls, path: str, url_code: str) -> str:
+        """Prefix a root-relative ``path`` with a language's ``url_code``.
+
+        The single place that knows the rule, because getting it subtly wrong
+        costs a redirect hop or a malformed URL:
+
+        * a bare "/" must yield "/<lang>", not "/<lang>/" -- the latter is what
+          case /8 of the ladder exists to 301 away, so emitting it just makes
+          the browser take an extra round trip;
+        * ``path`` must be root-relative, otherwise the f-string glues the code
+          straight onto it with no separator ("/fr" + "x" -> "/frx").
+
+        >>> _lang_url_prefix("/shop", "fr")
+        '/fr/shop'
+        >>> _lang_url_prefix("/", "fr")
+        '/fr'
+        """
+        if not path.startswith("/"):
+            # Callers are expected to pass a path; be loud in tests rather than
+            # silently emit "/frx", but still degrade to something well-formed.
+            _logger.warning("Lang-prefixing a non root-relative path %r", path)
+            path = "/" + path
+        return f"/{url_code}{path if path != '/' else ''}"
 
     @classmethod
     def _url_localized(
@@ -143,7 +194,25 @@ class IrHttp(models.AbstractModel):
         ...     canonical_domain="https://example.com",
         ... )
         'https://example.com/fr/shop/mon-telephone-14'
+
+        A URL that is not a root-relative path is returned untouched: it has no
+        path segment this method could route, prefix or relocate.
+
+        >>> _url_localized("https://odoo.com/shop", lang_code="fr_FR")
+        'https://odoo.com/shop'
         """
+        # Guard non-local URLs, mirroring :meth:`_url_lang`. Without this an
+        # absolute URL, a protocol-relative one ("//cdn/x.png") or a non-http
+        # scheme ("mailto:", "#anchor") falls through to the match, fails, and
+        # gets percent-quoted *as a path* and lang-prefixed -- e.g.
+        # "https://odoo.com/shop" came out as "/frhttps%3A//odoo.com/shop"
+        # (note the missing separator: the prefix is glued on with an f-string,
+        # so a ``path`` not starting with "/" also loses its "/").
+        # ``not url`` (None or "") keeps its meaning: derive the path from the
+        # current request, further down.
+        if url and (not url.startswith("/") or url.startswith("//")):
+            return url
+
         if not lang_code:
             lang = request.lang
         else:
@@ -165,7 +234,21 @@ class IrHttp(models.AbstractModel):
 
         try:
             # Re-match the controller where the request path routes.
-            rule, args = request.env["ir.http"]._match(url)
+            #
+            # Deliberately NOT ``ir.http._match``: that is the dispatch entry
+            # point and it *mutates the live request* -- it stamps
+            # ``is_frontend``/``lang``, and case /9 of the lang ladder calls
+            # ``request.reroute()``, rewriting the URL of the request currently
+            # being served. A URL-generation helper must observe the routing
+            # table, never steer it. Today the ladder is skipped because
+            # ``is_frontend`` is already set by the time templates render, so
+            # this only *looks* safe; matching the map directly makes it so.
+            rule, args = (
+                request.env["ir.http"]
+                .routing_map()
+                .bind_to_environ(request.httprequest.environ)
+                .match(path_info=url, return_rule=True)
+            )
             for key, val in list(args.items()):
                 if isinstance(val, models.BaseModel):
                     if isinstance(val.env.uid, RequestUID):
@@ -174,7 +257,7 @@ class IrHttp(models.AbstractModel):
                         args[key] = val = val.with_context(lang=lang.code)
                     if prefetch_langs:
                         args[key] = val = val.with_context(prefetch_langs=True)
-            router = http.root.get_db_router(request.db).bind("")
+            router = http.root.get_db_router(request.db, env=request.env).bind("")
             path = router.build(rule.endpoint, args)
         except (
             HTTPException,
@@ -203,7 +286,7 @@ class IrHttp(models.AbstractModel):
             # a space must be "%20" (which is also what ``build`` emits).
             path = urllib.parse.quote(url, safe="/%")
         if force_default_lang or lang != request.env["ir.http"]._get_default_lang():
-            path = f"/{lang.url_code}{path if path != '/' else ''}"
+            path = cls._lang_url_prefix(path, lang.url_code)
 
         if canonical_domain:
             # canonical URLs should not have qs
@@ -234,11 +317,26 @@ class IrHttp(models.AbstractModel):
         if url and not url.netloc and not url.scheme and (url.path or force_lang):
             location = urllib.parse.urljoin(request.httprequest.path, location)
             lang_url_codes = [info.url_code for info in Lang._get_frontend().values()]
-            lang_code = lang_code or request.env.context["lang"]
-            lang_url_code = Lang._get_data(code=lang_code).url_code
+            # The context lang is not guaranteed: an env built without one (or
+            # with ``lang=None``/``False``, e.g. ``with_context(lang=None)``)
+            # used to raise KeyError here, or splice the non-string straight
+            # into the path further down ("sequence item 1: expected str
+            # instance, NoneType found"). Fall back to the request's language,
+            # then to the frontend default -- both always resolve.
+            if not lang_code:
+                lang_code = request.env.context.get("lang") or getattr(
+                    getattr(request, "lang", None), "code", None
+                )
             lang_url_code = (
-                lang_url_code if lang_url_code in lang_url_codes else lang_code
+                Lang._get_data(code=lang_code).url_code if lang_code else None
             )
+            # An unrecognized ``lang_code`` is passed through verbatim on
+            # purpose: ``'[lang]'`` is a placeholder url_return substitutes
+            # later. It must still be a string to be joined into a path.
+            if lang_url_code not in lang_url_codes:
+                lang_url_code = lang_code if isinstance(lang_code, str) else None
+            if lang_url_code is None:
+                lang_url_code = request.env["ir.http"]._get_default_lang().url_code
             if (len(lang_url_codes) > 1 or force_lang) and cls._is_multilang_url(
                 location, lang_url_codes
             ):
@@ -322,12 +420,43 @@ class IrHttp(models.AbstractModel):
             )
             return False
 
-    @classmethod
-    def _get_default_lang(cls) -> LangData:
-        lang_code = request.env["ir.default"].sudo()._get("res.partner", "lang")
-        if lang_code:
-            return request.env["res.lang"]._get_data(code=lang_code)
-        return next(iter(request.env["res.lang"]._get_active_by("code").values()))
+    @api.model
+    @tools.ormcache()
+    def _get_default_lang_code(self) -> str | None:
+        """The configured frontend default language code, or ``None``.
+
+        ``ir.default._get`` is *not* memoized -- it runs a ``search`` on
+        ``ir_default`` -- and :meth:`_get_default_lang` sits on the URL-building
+        hot path (once per ``url_for()``/``url_localized()``, i.e. once per
+        generated link on a multilingual page). Cache it here instead.
+
+        The ``default`` cache container is the right one: ``ir.default``'s
+        write/create/unlink call ``registry.clear_cache()`` (which drops it),
+        and ``res.lang``'s call ``clear_cache("stable")`` (which drops it too,
+        per ``_CACHES_BY_KEY``). Both dependencies therefore invalidate it.
+        """
+        return self.env["ir.default"].sudo()._get("res.partner", "lang")
+
+    @api.model
+    def _get_default_lang(self) -> LangData:
+        """Return the frontend default language.
+
+        Always returns a language that is actually active. ``_get_data``
+        answers an unknown or inactive code -- a stale ``ir.default`` row, which
+        nothing validates -- with a dummy LangData whose every field is
+        ``False``. That dummy is never equal to a real language, so it silently
+        *inverts the site's canonical URLs*: case /2 stops recognizing the
+        default language and 303-bounces "/foo" to "/en/foo", and case /6 stops
+        stripping the prefix, so "/en/foo" becomes canonical instead of "/foo".
+        Fall back to the first active language rather than pivot the whole
+        ladder on a language that does not exist.
+        """
+        Lang = self.env["res.lang"]
+        lang_code = self.env["ir.http"]._get_default_lang_code()
+        lang = Lang._get_data(code=lang_code) if lang_code else None
+        if not lang:  # LangData.__bool__ is bool(self.id): a dummy is falsy
+            lang = next(iter(Lang._get_active_by("code").values()))
+        return lang
 
     @api.model
     def get_frontend_session_info(self) -> dict:
@@ -416,7 +545,8 @@ class IrHttp(models.AbstractModel):
 
         4/ Use the url as-is when the lang is missing from the URL, that
            another lang than the default one has been requested but that
-           it is forbidden to redirect (e.g. POST)
+           it is forbidden to redirect (i.e. any method outside
+           ``_REDIRECTABLE_METHODS``, e.g. POST)
 
         5/ Redirect the browser when the lang is missing from the URL
            but another lang than the default one has been requested. The
@@ -434,7 +564,10 @@ class IrHttp(models.AbstractModel):
 
         9/ Rewrite the URL when the lang is present in the URL, that it
            matches and that this lang is not the default one. The URL is
-           rewritten to remove the lang.
+           rewritten to remove the lang. This also catches the aliases
+           cases /6 and /7 would have redirected when redirecting is
+           forbidden: the request is then served in the URL's language
+           rather than 404ing on the un-stripped prefix.
 
         Note: The "requested lang" is (in order) either (1) the lang in
               the URL or (2) the lang in the ``frontend_lang`` request
@@ -465,8 +598,9 @@ class IrHttp(models.AbstractModel):
             url_lang_str = ""
             path_no_lang = path
 
-        allow_redirect = request.httprequest.method != "POST" and getattr(
-            request, "is_frontend_multilang", True
+        allow_redirect = (
+            request.httprequest.method in _REDIRECTABLE_METHODS
+            and getattr(request, "is_frontend_multilang", True)
         )
 
         # Some URLs in website are concatenated, first url ends with /,
@@ -544,9 +678,7 @@ class IrHttp(models.AbstractModel):
         :return: a ``(default_lang, nearest_url_lang)`` tuple. ``nearest_url_lang``
                  is falsy when the URL carried no (recognizable) lang.
         """
-        real_env = request.env
-        try:
-            request.registry["ir.http"]._auth_method_public()  # it calls update_env
+        with cls._borrowed_public_env() as real_env:
             nearest_url_lang = request.env["ir.http"].get_nearest_lang(
                 request.env["res.lang"]._get_data(url_code=url_lang_str).code
                 or url_lang_str
@@ -557,15 +689,44 @@ class IrHttp(models.AbstractModel):
             context_lang = request.env["ir.http"].get_nearest_lang(
                 real_env.context.get("lang")
             )
-            default_lang = cls._get_default_lang()
+            default_lang = request.env["ir.http"]._get_default_lang()
             request.lang = request.env["res.lang"]._get_data(
                 code=(
                     nearest_url_lang or cookie_lang or context_lang or default_lang.code
                 )
             )
+        return default_lang, nearest_url_lang
+
+    @classmethod
+    @contextlib.contextmanager
+    def _borrowed_public_env(cls) -> typing.Iterator[api.Environment]:
+        """Temporarily grant the public user, yielding the *real* environment.
+
+        Resolving the frontend language reads ``res.lang``/``ir.default`` before
+        the request is authenticated, so it needs a user. ``_auth_method_public``
+        provides one through :meth:`request.update_env`, which mutates three
+        pieces of state, not one::
+
+            self.env = ...
+            self.env.transaction.default_env = self.env
+            threading.current_thread().uid = self.env.uid
+
+        Restoring only ``request.env`` therefore leaves the borrow half applied:
+        the transaction keeps flushing dirty records as the *public* user
+        (``Transaction.flush`` picks its user from ``default_env``) and every log
+        line until ``_authenticate`` runs is stamped with the public uid instead
+        of the real one. Put all three back.
+        """
+        real_env = request.env
+        real_default_env = real_env.transaction.default_env
+        real_uid = getattr(threading.current_thread(), "uid", None)
+        try:
+            request.registry["ir.http"]._auth_method_public()  # calls update_env
+            yield real_env
         finally:
             request.env = real_env
-        return default_lang, nearest_url_lang
+            real_env.transaction.default_env = real_default_env
+            threading.current_thread().uid = real_uid
 
     @classmethod
     def _redirect_lang(cls, target: str, code: int = 303) -> typing.NoReturn:
@@ -604,7 +765,12 @@ class IrHttp(models.AbstractModel):
 
         Either aborts the request with a 3xx redirect, or returns the path to
         (re)match: the original ``path``, or ``path_no_lang`` when a valid
-        non-default lang was stripped from the URL (case /9).
+        lang was stripped from the URL (case /9).
+
+        The trailing ``else`` is a defensive net only: with ``url_lang_str``
+        truthy, case /9 now closes both the redirectable branch (it is the only
+        value cases /6 and /7 leave over) and the non-redirectable one (it
+        strips any recognized lang).
         """
         request_url_code = request.lang.url_code
 
@@ -640,7 +806,7 @@ class IrHttp(models.AbstractModel):
             _logger.debug(
                 "%r (lang: %r) missing lang in url, redirect", path, request_url_code
             )
-            cls._redirect_lang(f"/{request_url_code}{path if path != '/' else ''}")
+            cls._redirect_lang(cls._lang_url_prefix(path, request_url_code))
 
         # See /6, default lang in url, /en/home -> /home. Here ``request.lang``
         # resolved from ``url_lang_str`` *is* the default lang, so the cookie
@@ -659,8 +825,7 @@ class IrHttp(models.AbstractModel):
                 "%r (lang: %r) lang alias in url, redirect", path, request_url_code
             )
             cls._redirect_lang(
-                f"/{request_url_code}{path_no_lang if path_no_lang != '/' else ''}",
-                code=301,
+                cls._lang_url_prefix(path_no_lang, request_url_code), code=301
             )
 
         # See /8, homepage with trailing slash. /fr_BE/ -> /fr_BE. The cookie
@@ -675,8 +840,14 @@ class IrHttp(models.AbstractModel):
             )
             cls._redirect_lang(path[:-1], code=301)
 
-        # See /9, valid lang in url
-        elif url_lang_str == request_url_code:
+        # See /9, valid lang in url. ``url_lang_str`` is only kept when it
+        # resolved to a real frontend lang (see ``nearest_url_lang`` in
+        # :meth:`_match`), so stripping it is always safe -- including for the
+        # aliases cases /6 and /7 would have redirected, when redirecting is
+        # forbidden. Serving those is the whole point: they used to fall to the
+        # ``else`` below and 404, so e.g. ``POST /fr_FR/foo`` died while
+        # ``GET /fr_FR/foo`` 301'd to ``/fr/foo``.
+        elif url_lang_str == request_url_code or not allow_redirect:
             # Rewrite the URL to remove the lang
             _logger.debug(
                 "%r (lang: %r) valid lang in url, rewrite url and continue",
@@ -718,14 +889,27 @@ class IrHttp(models.AbstractModel):
             # browser from '/foo/1' to '/foo/egg-1', or '/fr/foo/1' to
             # '/fr/foo/oeuf-1'. While it is nice (for humans) to have a
             # pretty URL, the real reason of this redirection is SEO.
-            if request.httprequest.method in ("GET", "HEAD"):
+            if request.httprequest.method in _REDIRECTABLE_METHODS:
                 _, path = rule.build(args)
-                assert path is not None
+                if path is None:
+                    # ``Rule.build`` answers None when a converter's ``to_url``
+                    # rejects the value (werkzeug swallows its ValidationError).
+                    # This was an ``assert``, which ``python -O`` strips -- the
+                    # next line would then raise ``TypeError: unquote_plus(None)``
+                    # and 500 a page that is otherwise perfectly servable. The
+                    # SEO redirect is a nicety; skip it and serve the request.
+                    _logger.warning(
+                        "Cannot rebuild a canonical URL for rule %r, "
+                        "serving %r without the slug redirect",
+                        rule.rule,
+                        request.httprequest.path,
+                    )
+                    return
                 generated_path = urllib.parse.unquote_plus(path)
                 current_path = urllib.parse.unquote_plus(request.httprequest.path)
                 if generated_path != current_path:
-                    if request.lang != cls._get_default_lang():
-                        path = f"/{request.lang.url_code}{path}"
+                    if request.lang != request.env["ir.http"]._get_default_lang():
+                        path = cls._lang_url_prefix(path, request.lang.url_code)
                     redirect = request.redirect_query(
                         path, request.httprequest.args, code=301
                     )
@@ -810,6 +994,14 @@ class IrHttp(models.AbstractModel):
         if not request.env.uid:
             cls._auth_method_public()
         cls._handle_debug()
+        if not getattr(request, "lang", None):
+            # ``_match`` flags ``is_frontend`` on the matched rule *before*
+            # ``_resolve_frontend_lang`` runs, so anything raising in between
+            # reaches here with no ``request.lang`` -- and
+            # ``_frontend_pre_dispatch`` would then die on AttributeError,
+            # masking the real exception with a confusing one and losing the
+            # error page entirely.
+            request.lang = request.env["ir.http"]._get_default_lang()
         cls._frontend_pre_dispatch()
         request.params = request.get_http_params()
 
@@ -892,7 +1084,14 @@ class IrHttp(models.AbstractModel):
         check, and memoizing that value would pin the cycle's nodes to
         whichever path happened to be resolved first.
         """
-        router = http.root.get_db_router(request.db).bind("")
+        # Resolve the routing map from ``self.env``, not the ambient request:
+        # this is an ``@api.model`` method whose cache already lives on the
+        # registry, so both the database and the map are the env's by
+        # construction. Reading them off the request coupled a pure routing
+        # lookup to there being a request at all.
+        router = http.root.get_db_router(self.env.registry.db_name, env=self.env).bind(
+            ""
+        )
         try:
             try:
                 func, _args = router.match(path, method="POST")
@@ -918,6 +1117,15 @@ class IrHttp(models.AbstractModel):
                 return path, False
             _, func = self._url_rewrite(new_path, _visited | {path})
             return new_path or path, func
-        except werkzeug.exceptions.NotFound:
+        except HTTPException:
+            # Any routing exception other than a redirect means "this path does
+            # not resolve to an endpoint we can name", and the answer is the
+            # same: report it unrouted. Catching only NotFound left
+            # MethodNotAllowed escaping whenever a rule exists at ``path`` but
+            # accepts neither POST nor GET (e.g. ``methods=['PUT']``) -- and
+            # unlike ``_is_multilang_url``, the callers in ``website`` and
+            # ``website_sale`` do not guard this call, so it 500'd the render.
+            # ``RequestRedirect`` is also an ``HTTPException``: it is handled
+            # by the clause above, which runs first.
             return path, False
         return path, func

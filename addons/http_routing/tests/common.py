@@ -5,9 +5,37 @@ from werkzeug.exceptions import NotFound
 from werkzeug.test import EnvironBuilder
 
 import odoo.http
+from odoo.fields import Command
 from odoo.libs.web.urls import urljoin as url_join
 from odoo.tests import HOST, HttpCase
 from odoo.tools import DotDict, config, frozendict
+
+
+def setup_frontend_langs(env, langs, default):
+    """Make ``langs`` the frontend languages and ``default`` the default one,
+    whatever is installed on top of http_routing.
+
+    http_routing derives both from ``res.lang`` + ``ir.default``, but ``website``
+    overrides ``_get_frontend`` and ``_get_default_lang`` to read
+    ``website.language_ids`` / ``website.default_lang_id`` instead. A fixture
+    that only writes ``ir.default`` therefore silently configures nothing once
+    ``website`` is installed, and every assertion about lang prefixes fails --
+    which is exactly why this suite passed under ``-i http_routing`` but failed
+    wholesale on a website database. Configure whichever source is in play.
+
+    :param langs: a ``res.lang`` recordset, the frontend languages
+    :param default: a ``res.lang`` record, the default frontend language
+    """
+    env["ir.default"].set("res.partner", "lang", default.code)
+    if "website" in env:
+        env["website"].search([]).write(
+            {
+                "language_ids": [Command.set(langs.ids)],
+                "default_lang_id": default.id,
+            }
+        )
+    env.flush_all()
+    env.registry.clear_cache()
 
 
 @contextlib.contextmanager
@@ -26,6 +54,7 @@ def MockRequest(
     environ_base=None,
     url_root=None,
     mock_router=True,
+    is_frontend=True,
 ):
     """Mock of the ``http.request``.
 
@@ -80,8 +109,29 @@ def MockRequest(
     )
     if url_root is not None:
         request.httprequest.url = url_join(url_root, path)
-    if website:
-        request.website_routing = website.id
+    # ``website_routing`` must ALWAYS be a real value, never left to ``Mock``'s
+    # attribute autovivification. ``website._generate_routing_rules`` reads it
+    # unguarded and drops it straight into a ``website.rewrite`` search domain,
+    # so an auto-created ``Mock`` reaches psycopg and every helper that builds a
+    # routing map blows up with "cannot adapt type 'Mock'" -- but only once
+    # ``website`` is installed, which is why running this suite on a website
+    # database used to fail wholesale while ``-i http_routing`` passed.
+    # ``False`` is the "no specific website" value the rewrite domain expects.
+    request.website_routing = website.id if website else False
+    # ``is_frontend``/``is_frontend_multilang`` are stamped on the request by
+    # ``ir.http._match``. Production code branches on their *absence*
+    # (``if hasattr(request, "is_frontend")`` short-circuits the whole lang
+    # ladder; ``ir.qweb`` warns when it is missing) -- but a bare ``Mock``
+    # autovivifies every attribute, so ``hasattr`` was unconditionally True and
+    # those branches were unreachable from any test. Pass ``is_frontend=None``
+    # to simulate a request that has not been routed yet and actually exercise
+    # them; the default keeps the historical "already routed" behaviour.
+    if is_frontend is None:
+        del request.is_frontend
+        del request.is_frontend_multilang
+    else:
+        request.is_frontend = is_frontend
+        request.is_frontend_multilang = is_frontend and multilang
     if country_code or city_name:
         request.geoip._city_record = odoo.http.geoip2.models.City(
             ["en"],

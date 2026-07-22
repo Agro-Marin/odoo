@@ -3,7 +3,6 @@
 import re
 from contextlib import contextmanager
 
-from odoo import http
 from odoo.tests.common import TransactionCase, tagged
 
 from odoo.addons.base.tests.common import TransactionCaseWithUserDemo
@@ -446,24 +445,39 @@ class TestQwebProcessAtt(TransactionCase):
             self._test_att("/my-page", {"href": "/fr/my-page"})
 
     def test_process_att_url_crap(self):
-        with MockRequest(self.env, website=self.website):
-            match = http.root.get_db_router.return_value.bind.return_value.match
-            # Only the path routes: both the `#fragment` and the `?query` are
-            # stripped before the routing table is consulted. That is a
-            # correctness requirement, not cosmetics -- `ir.http.url_rewrite`
-            # is ormcache'd on the path alone (cache="routing.rewrites"), so a
-            # query string reaching the router would let one URL's result be
-            # served for every other query string on the same path.
-            match.reset_mock()
-            self._test_att("/x#y?z", {"href": "/x#y?z"})
-            match.assert_called_once_with("/x", method="POST")
+        """Only the *path* reaches the rewrite lookup, and the query/fragment
+        are reattached in RFC 3986 order.
 
-            # A *different* path: re-using "/x" would be answered by the
-            # `url_rewrite` cache populated above without consulting the
-            # router, making the assertion vacuous.
-            match.reset_mock()
-            self._test_att("/y?a#b", {"href": "/y?a#b"})
-            match.assert_called_once_with("/y", method="POST")
+        Per RFC 3986 a URL is ``path[?query][#fragment]``: the fragment starts
+        at the FIRST "#", so in "/x#y?z" the "?z" belongs to the fragment and
+        the path to resolve is "/x", not "/x#y".
+
+        This used to assert on werkzeug's ``match()`` two layers down, which
+        made it depend on ``url_rewrite``'s ormcache *and* on a rewrite
+        existing -- ``website._url_for`` short-circuits on ``_rewrite_len()``
+        when none does, so ``match`` was simply "not called" and the assertion
+        could never hold. Force the precondition and spy on ``url_rewrite``,
+        the contract ``_url_for`` actually depends on.
+        """
+        looked_up = []
+        IrHttp = self.registry["ir.http"]
+        self.patch(IrHttp, "_rewrite_len", lambda self_, website_id: 1)
+        self.patch(
+            IrHttp,
+            "url_rewrite",
+            lambda self_, path: (looked_up.append(path), (path, False))[1],
+        )
+        with MockRequest(self.env, website=self.website):
+            self._test_att("/x#y?z", {"href": "/x#y?z"})
+            self._test_att("/x?y#z", {"href": "/x?y#z"})
+            self._test_att("/x?y", {"href": "/x?y"})
+            self._test_att("/x#y", {"href": "/x#y"})
+        # Assert on the *values*, not the call count: how many times
+        # _post_processing_att consults _url_for per attribute is an
+        # implementation detail; that nothing but the bare path is ever looked
+        # up is the contract.
+        self.assertTrue(looked_up, "the rewrite lookup must actually run")
+        self.assertEqual(set(looked_up), {"/x"})
 
 
 @tagged("-at_install", "post_install")

@@ -4,6 +4,8 @@ from urllib.parse import urlparse
 
 from odoo.tests import HttpCase, TransactionCase, tagged
 
+from .common import setup_frontend_langs
+
 
 @tagged("-at_install", "post_install")
 class TestNearestLang(TransactionCase):
@@ -107,10 +109,11 @@ class TestLangLadder(HttpCase):
         # (there is no ``website`` record to hang languages off here).
         self.lang_fr = self.env["res.lang"]._activate_lang("fr_FR")
         self.lang_fr.url_code = "fr"
-        # Pin the frontend default so the ladder's default-lang pivot is
-        # deterministic regardless of which langs happen to be active.
-        self.env["ir.default"].set("res.partner", "lang", "en_US")
-        self.en_code = self.env.ref("base.lang_en").url_code
+        lang_en = self.env.ref("base.lang_en")
+        # Pin the frontend languages and default so the ladder's default-lang
+        # pivot is deterministic, on whichever stack is installed.
+        setup_frontend_langs(self.env, lang_en + self.lang_fr, lang_en)
+        self.en_code = lang_en.url_code
 
     def _loc(self, response):
         return urlparse(response.headers.get("Location", "")).path
@@ -231,3 +234,113 @@ class TestLangLadder(HttpCase):
         r = self.url_open("/website///translations", allow_redirects=False)
         self.assertEqual(r.status_code, 301)
         self.assertEqual(self._loc(r), self.EP)
+
+    # -- unsafe methods ------------------------------------------------------
+    #
+    # ``EP`` is a csrf-protected ``type='http'`` route, so a non-GET hit that
+    # *reaches dispatch* answers 400 (csrf) while one the ladder mishandles
+    # answers 404 or a 3xx. That makes the status a clean three-way probe:
+    #   400 -> routed and served   3xx -> redirected   404 -> lost
+    #
+    # A browser User-Agent is required throughout: ``is_a_bot()`` substring-
+    # matches "curl"/"bot"/... and the default test opener's UA would take
+    # case /3 instead of the branch under test.
+    BROWSER_UA = {"User-Agent": "Mozilla/5.0 (X11; Linux x86_64) Chrome/120"}
+
+    def _open(self, url, method):
+        return self.url_open(
+            url, method=method, allow_redirects=False, headers=self.BROWSER_UA
+        )
+
+    def test_unsafe_methods_are_never_redirected(self):
+        # RFC 9110: a client may replay a 301/302 on an unsafe method as GET,
+        # and a 303 *must* be replayed as GET -- so a redirect here silently
+        # drops the body and the method. The guard used to exclude POST only,
+        # so PUT/PATCH/DELETE got a 303 to the lang-prefixed URL (case /5) and
+        # the write never happened.
+        for method in ("POST", "PUT", "PATCH", "DELETE"):
+            with self.subTest(method=method):
+                r = self._open(self.EP, method)  # case /5 without the cookie
+                self.assertEqual(r.status_code, 400, "must reach dispatch, not 3xx")
+
+    def test_unsafe_methods_not_redirected_with_lang_cookie(self):
+        # Same, driven through case /5 proper: a non-default lang is requested
+        # by cookie while the URL carries none.
+        for method in ("POST", "PUT", "PATCH", "DELETE"):
+            with self.subTest(method=method):
+                r = self.url_open(
+                    self.EP,
+                    method=method,
+                    allow_redirects=False,
+                    headers=self.BROWSER_UA,
+                    cookies={"frontend_lang": "fr_FR"},
+                )
+                self.assertEqual(r.status_code, 400)
+
+    def test_cors_preflight_is_not_redirected(self):
+        # A browser never follows a redirect on a CORS preflight, so a 3xx
+        # here fails the preflight rather than answering it. OPTIONS is safe
+        # per SAFE_HTTP_METHODS yet must not be redirected either.
+        r = self.url_open(
+            self.EP,
+            method="OPTIONS",
+            allow_redirects=False,
+            headers=self.BROWSER_UA,
+            cookies={"frontend_lang": "fr_FR"},
+        )
+        self.assertNotIn(r.status_code, (301, 302, 303, 307, 308))
+
+    def test_unsafe_method_on_lang_alias_is_served(self):
+        # A recognized-but-non-canonical lang prefix (fr_FR for url_code "fr",
+        # en_US for "en") hit no ladder branch when redirecting was forbidden:
+        # the path kept its prefix, fell to the "couldn't correctly route"
+        # warning and 404'd -- while the same URL 301'd for GET. Strip the
+        # prefix and serve instead.
+        for method in ("POST", "PUT", "PATCH", "DELETE"):
+            for prefix in ("/fr_FR", "/en_US"):
+                with self.subTest(method=method, prefix=prefix):
+                    r = self._open(prefix + self.EP, method)
+                    self.assertEqual(r.status_code, 400, "must reach dispatch, not 404")
+
+    def test_unsafe_method_on_canonical_lang_is_served(self):
+        # Regression guard for the pre-existing case /9 behaviour.
+        for method in ("POST", "PUT", "DELETE"):
+            for prefix in ("/fr", "/en"):
+                with self.subTest(method=method, prefix=prefix):
+                    r = self._open(prefix + self.EP, method)
+                    self.assertEqual(r.status_code, 400)
+
+    def test_unsafe_method_slash_run_is_not_merged(self):
+        # The slash-merge is a redirect too, so it is off for unsafe methods --
+        # as it already was for POST. A clean 404 beats a 301 the client
+        # replays as a GET, silently dropping the body.
+        for method in ("POST", "PUT", "DELETE"):
+            with self.subTest(method=method):
+                r = self._open("/website//translations", method)
+                self.assertEqual(r.status_code, 404)
+
+    def test_stale_default_lang_keeps_canonical_urls(self):
+        # An ``ir.default`` naming an inactive language makes _get_default_lang
+        # answer a dummy LangData that equals no real language. The ladder then
+        # inverts the site's canonical URLs: case /2 stops recognizing the
+        # default and bounces "/EP" to "/en/EP", and case /6 stops stripping the
+        # prefix, so the prefixed form becomes canonical. Verified end to end
+        # because it is a routing symptom, not a helper return value.
+        self.env["ir.default"].set("res.partner", "lang", "xx_XX")
+        self.env.flush_all()
+        self.env.registry.clear_cache()
+
+        served = self._open(self.EP, "GET")
+        self.assertEqual(served.status_code, 200, "default lang must stay prefix-free")
+
+        stripped = self._open("/" + self.en_code + self.EP, "GET")
+        self.assertEqual(stripped.status_code, 303)
+        self.assertEqual(self._loc(stripped), self.EP)
+
+    def test_safe_methods_still_redirect(self):
+        # The narrower guard must not stop GET/HEAD canonicalization.
+        for method in ("GET", "HEAD"):
+            with self.subTest(method=method):
+                r = self._open("/fr_FR" + self.EP, method)
+                self.assertEqual(r.status_code, 301)
+                self.assertEqual(self._loc(r), "/fr" + self.EP)

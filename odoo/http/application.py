@@ -203,10 +203,19 @@ class Application:
         _logger.debug("HTTP sessions stored in: %s", path)
         return FilesystemSessionStore(path, session_class=Session, renew_missing=True)
 
-    def get_db_router(self, db: str | None) -> werkzeug.routing.Map:
+    def get_db_router(self, db: str | None, env: Any = None) -> werkzeug.routing.Map:
+        """Return the routing map serving ``db``, or the db-less one.
+
+        A db-backed routing map can only be built from an ``Environment`` (it is
+        an ORM-cached model method needing a cursor), so ``db`` alone cannot
+        produce one -- it only selects *which* map. Callers that already hold an
+        env should pass it: relying on the implicit ``request.env`` makes an
+        otherwise pure routing lookup unusable outside an HTTP request, and
+        silently ignores the caller's env (user, company, website context).
+        """
         if not db:
             return self.nodb_routing_map
-        return request.env["ir.http"].routing_map()
+        return (env if env is not None else request.env)["ir.http"].routing_map()
 
     @_locked_cached_property
     def geoip_city_db(self):

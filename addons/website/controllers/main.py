@@ -501,8 +501,10 @@ class Website(Home):
             return request.redirect("/")
         if request.env.lang != request.website.default_lang_id.code:
             return request.redirect(
-                "/%s%s"
-                % (request.website.default_lang_id.url_code, request.httprequest.path)
+                request.env["ir.http"]._lang_url_prefix(
+                    request.httprequest.path,
+                    request.website.default_lang_id.url_code,
+                )
             )
         action_url = f"/odoo/action-website.website_configurator?menu_id={request.env.ref('website.menu_website_configuration').id}"
         if step > 1:

@@ -96,10 +96,16 @@ class IrHttp(models.AbstractModel):
         :param lang_code: Must be the lang `code`. It could also be something
                           else, such as `'[lang]'` (used for url_return).
         """
-        path, sep, qs = (url_from or "").partition("?")
-
-        if not qs:
-            path, sep, qs = (url_from or "").partition("#")
+        # RFC 3986 orders the components as path[?query][#fragment]: the
+        # fragment starts at the FIRST "#", and a "?" appearing after it belongs
+        # to the fragment, not to the query. Partitioning on "?" first therefore
+        # left "#frag" glued to the path of a URL like "/x#y?z", so the rewrite
+        # lookup ran against "/x#y", missed every rule, and the URL came back
+        # un-rewritten. Split the fragment off first, then the query, and
+        # reattach both in order.
+        head, hash_, fragment = (url_from or "").partition("#")
+        path, qmark, query = head.partition("?")
+        suffix = qmark + query + hash_ + fragment
 
         if (
             path
@@ -112,8 +118,8 @@ class IrHttp(models.AbstractModel):
                 and not path.startswith("/web/")
             )
         ):
-            url_from, _ = request.env["ir.http"].url_rewrite(path)
-            url_from = url_from if not qs else f"{url_from}{sep}{qs}"
+            rewritten, _ = request.env["ir.http"].url_rewrite(path)
+            url_from = rewritten + suffix
 
         return super()._url_for(url_from, lang_code)
 
@@ -137,7 +143,14 @@ class IrHttp(models.AbstractModel):
         if not request:
             yield from super()._generate_routing_rules(modules, converters)
             return
-        website_id = request.website_routing
+        # Derive the website from :meth:`_routing_map_key`, the SAME source
+        # ``routing_map`` memoizes on. Reading ``request.website_routing``
+        # independently let the cache key and the data it keys disagree: a
+        # request that never dispatched has no ``website_routing``, so
+        # ``_routing_map_key`` answered None (unscoped map) while this method
+        # raised AttributeError -- or, under a ``Mock`` request, silently fed a
+        # Mock into the ``website.rewrite`` domain and blew up in psycopg.
+        website_id = self._routing_map_key() or False
         logger.debug("_generate_routing_rules for website: %s", website_id)
         rewrites = self._get_rewrites(website_id)
         self._rewrite_len.__cache__.add_value(
@@ -280,7 +293,10 @@ class IrHttp(models.AbstractModel):
     @classmethod
     def _get_editor_context(cls):
         ctx = super()._get_editor_context()
-        if request.is_frontend_multilang and request.lang == cls._get_default_lang():
+        if (
+            request.is_frontend_multilang
+            and request.lang == request.env["ir.http"]._get_default_lang()
+        ):
             ctx["edit_translations"] = False
         return ctx
 
@@ -348,14 +364,17 @@ class IrHttp(models.AbstractModel):
             lang_code
         )
 
-    @classmethod
-    def _get_default_lang(cls):
+    @api.model
+    def _get_default_lang(self):
         # `getattr(request, "is_frontend", True)` is truthy when request is None
         # (cron/test/RPC); guard on `request` first so we don't dereference
-        # `request.env` and crash instead of delegating to super().
+        # `request.env` and crash instead of delegating to super(). That guard
+        # only became real once super() stopped reaching for `request.env`
+        # itself -- before, the no-request branch it protects raised
+        # "object is not bound" one frame deeper.
         if request and getattr(request, "is_frontend", True):
-            website = request.env["website"].sudo().get_current_website()
-            return request.env["res.lang"]._get_data(
+            website = self.env["website"].sudo().get_current_website()
+            return self.env["res.lang"]._get_data(
                 id=website._get_cached("default_lang_id")
             )
         return super()._get_default_lang()
@@ -392,8 +411,10 @@ class IrHttp(models.AbstractModel):
         if not page_info and req_page != "/" and req_page.endswith("/"):
             # mimick `_postprocess_args()` redirect
             path = request.httprequest.path[:-1]
-            if request.lang != cls._get_default_lang():
-                path = "/" + request.lang.url_code + path
+            if request.lang != request.env["ir.http"]._get_default_lang():
+                path = request.env["ir.http"]._lang_url_prefix(
+                    path, request.lang.url_code
+                )
             if request.httprequest.query_string:
                 path += "?" + request.httprequest.query_string.decode("utf-8")
             return request.redirect(path, code=301)
