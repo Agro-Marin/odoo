@@ -1094,6 +1094,9 @@ test(`doesn't autosave when a x2many is in openned (visibility change) 2`, async
     expect.verifySteps(["web_save"]);
 });
 
+// desktop-only: types into the `.o-autocomplete--input` of an inline m2o;
+// mobile selects m2o values via a dialog, so that input is absent.
+test.tags("desktop");
 test(`doesn't autosave while a form dialog is still loading (visibility change)`, async () => {
     // The dialog form registers on the form_dialog_stack in setup(), BEFORE
     // its willStart (loadViews / loadSubViews / initial onchange). A tab-hide

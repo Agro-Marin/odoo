@@ -14910,6 +14910,9 @@ test("click on New while kanban is loading (with quick create)", async () => {
     expect.verifySteps(["create record"]);
 });
 
+// desktop-only: drives the `.o_cp_action_menus` control-panel cog menu; mobile
+// renders toolbar actions differently, so the RPC flow diverges.
+test.tags("desktop");
 test(`kanban with custom cog action that has a confirmation target="new" action`, async () => {
     const contextualAction = {
         id: 80,

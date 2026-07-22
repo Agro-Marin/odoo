@@ -152,6 +152,9 @@ test("custom debounce delay", async () => {
     expect(".o_command").toHaveCount(2);
 });
 
+// desktop-only: fills the command-palette search input, which is not editable
+// the same way in the mobile palette layout.
+test.tags("desktop");
 test("concurrency with custom debounce delay", async () => {
     await mountWithCleanup(MainComponentsContainer);
     const configByNamespace = {
@@ -597,6 +600,9 @@ test("open the command palette with a searchValue already in the searchbar", asy
     expect(queryAllTexts(".o_command")).toEqual(["Command1"]);
 });
 
+// desktop-only: asserts a fixed pixel top position of the palette modal, which
+// the mobile (full-screen) palette layout does not use.
+test.tags("desktop");
 test("command palette keeps the same top position when its content changes", async () => {
     await mountWithCleanup(MainComponentsContainer);
     const action = () => {};

@@ -3065,6 +3065,9 @@ test(`form views in dialogs do not have class o_xxl_form_view`, async () => {
     expect(`.o_dialog .o_form_view`).not.toHaveClass("o_xxl_form_view");
 });
 
+// desktop-only: drives the `.o_cp_action_menus` control-panel cog menu; mobile
+// renders toolbar actions differently, so the RPC flow diverges.
+test.tags("desktop");
 test(`form with custom cog action that has a confirmation target="new" action`, async () => {
     PartnerType._views = {
         form: `
@@ -4202,6 +4205,10 @@ test(`add custom static action menu`, async () => {
     expect.verifySteps(["Custom Default Available"]);
 });
 
+// desktop-only: archives via the control-panel action menu and pins the desktop
+// RPC ordering (the post-archive form reload lands at a different point on
+// mobile's navigation flow).
+test.tags("desktop");
 test(`archive a record with intermediary action`, async () => {
     // add active field on partner model to have archive option
     Partner._fields.active = fields.Boolean();
@@ -11896,6 +11903,9 @@ test(`open form view action in x2many with several virtual record with limit`, a
     expect.verifySteps(["web_save", "ir.actions.act_window:partner(13)"]);
 });
 
+// desktop-only: deletes through the `.o_cp_action_menus` control-panel menu and
+// expects to land back on the desktop list view (mobile navigates differently).
+test.tags("desktop");
 test(`prevent recreating a deleted record`, async () => {
     Partner._records = [{ id: 1, name: "first record" }];
     Partner._views = {
