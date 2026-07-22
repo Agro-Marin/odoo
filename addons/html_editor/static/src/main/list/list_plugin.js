@@ -433,7 +433,6 @@ export class ListPlugin extends Plugin {
      * @param {HTMLUListElement|HTMLOListElement|HTMLLIElement} node - HTML element
      * representing a list or list item.
      * @param {string} newMode - Target list mode
-     * @param {Object} options
      * @returns {HTMLUListElement|HTMLOListElement|HTMLLIElement} node - Modified
      * list element after conversion.
      */
@@ -452,7 +451,7 @@ export class ListPlugin extends Plugin {
     }
 
     /**
-     * @param {HTMLElement} element
+     * @param {HTMLElement} listContainerEl
      * @returns {"UL"|"OL"|"CL"|undefined}
      */
     getListMode(listContainerEl) {
@@ -470,7 +469,6 @@ export class ListPlugin extends Plugin {
      *
      * @param {HTMLOListElement|HTMLUListElement} list - The list element to switch the mode of.
      * @param {"UL"|"OL"|"CL"} newMode - The new mode to switch to.
-     * @param {Object} options
      * @returns {HTMLOListElement|HTMLUListElement} The modified list element.
      */
     switchListMode(list, newMode) {
@@ -615,7 +613,6 @@ export class ListPlugin extends Plugin {
     // Indentation
     // --------------------------------------------------------------------------
 
-    // @temp comment: former oTab
     /**
      * @param {HTMLLIElement} li
      */
@@ -1123,8 +1120,9 @@ export class ListPlugin extends Plugin {
     }
 
     /**
-     * @param {MouseEvent} ev
      * @param {HTMLLIElement} li - LI element inside a checklist.
+     * @param {number} pointerOffsetX
+     * @param {number} pointerOffsetY
      */
     isPointerInsideCheckbox(li, pointerOffsetX, pointerOffsetY) {
         const beforeStyle = this.window.getComputedStyle(li, ":before");
@@ -1288,21 +1286,20 @@ export class ListPlugin extends Plugin {
     /**
      * Width of a list item's ``::marker`` box, in CSS pixels.
      *
-     * Isolated as a method because it is the ONE input to
-     * {@link adjustListPadding} that the browser's font rasterizer decides:
-     * the same markup yields 19px on Chromium 149 and 20px on Chrome 150, and
-     * a different value again under a different default font. Production
-     * wants exactly that — the padding must follow whatever the marker really
-     * measures — but a unit test asserting a hard-coded pixel result cannot,
-     * which is why the surrounding arithmetic is verified against a stubbed
-     * measurement (``patch(ListPlugin.prototype, { measureMarkerWidth })``,
-     * see ``list_font_size.test.js``). Patching the prototype is the
-     * supported seam; the module namespace is frozen and cannot be patched.
-     *
      * @param {HTMLElement} li
      * @returns {number} marker width in px, or 0 when it cannot be measured
      */
     measureMarkerWidth(li) {
+        // Isolated as a method because it is the ONE input to adjustListPadding
+        // that the browser's font rasterizer decides: the same markup yields
+        // 19px on Chromium 149 and 20px on Chrome 150, and a different value
+        // again under a different default font. Production wants exactly that
+        // (the padding must follow whatever the marker really measures), but a
+        // unit test asserting a hard-coded pixel result cannot, which is why the
+        // surrounding arithmetic is verified against a stubbed measurement
+        // (patch(ListPlugin.prototype, { measureMarkerWidth }), see
+        // list_font_size.test.js). Patching the prototype is the supported seam;
+        // the module namespace is frozen and cannot be patched.
         const markerWidth = parseFloat(
             this.window.getComputedStyle(li, "::marker").width,
         );
@@ -1314,7 +1311,7 @@ export class ListPlugin extends Plugin {
      * its `::marker` is always visible and doesn't overflow, especially
      * when the marker width exceeds the default padding.
      *
-     * @param {HTMLElement} list - The `<ul>` element used to determine the parent list and marker width.
+     * @param {HTMLElement} list - The `<ul>` or `<ol>` element whose padding is adjusted.
      */
     adjustListPadding(list) {
         if (!isListElement(list) || ![...list.children].some(getFontSizeOrClass)) {

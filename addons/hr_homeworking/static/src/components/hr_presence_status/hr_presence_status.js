@@ -61,7 +61,7 @@ const patchHrPresenceStatusPill = () => ({
     },
 });
 
-// for the both components: first applies the common patch and then applies patch for label
+// Status components get the full patch (color/icon/location/label); the pill variants only override the color.
 patch(HrPresenceStatus.prototype, patchHrPresenceStatus());
 patch(HrPresenceStatusPrivate.prototype, patchHrPresenceStatus());
 

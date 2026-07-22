@@ -1227,10 +1227,9 @@ class AccountTax(models.Model):
                             as input and 'round_globally' computation. Otherwise, it's not guaranteed.
         :param filter_tax_function: Optional function to filter out some taxes from the computation.
         :return: A dict containing:
-            'evaluation_context':       The evaluation_context parameter.
             'taxes_data':               A list of dictionaries, one per tax containing:
                 'tax':                      The tax record.
-                'base':                     The base amount of this tax.
+                'base_amount':              The base amount of this tax.
                 'tax_amount':               The tax amount of this tax.
             'total_excluded':           The total without tax.
             'total_included':           The total with tax.

@@ -129,7 +129,7 @@ function getUnselectedEdgeTextNodes(selection) {
 }
 
 /**
- * Scrolls the view to a specific node's position in the document
+ * Scrolls the view to reveal the current selection.
  * @param {Selection} selection - The current document selection
  * @returns {void}
  */
@@ -544,7 +544,7 @@ export class SelectionPlugin extends Plugin {
         });
     }
     /**
-     @return { EditorSelection }
+     * @return { EditorSelection }
      */
     getEditableSelection() {
         return this.getSelectionData().editableSelection;
@@ -579,7 +579,7 @@ export class SelectionPlugin extends Plugin {
         // On Chrome, a specific sequence of actions could leave activeSelection
         // having a connected anchorNode but with offset too high, pointing to
         // an element that no longer exists. This is why the following condition
-        // is necessary (see commit message).
+        // is necessary.
         const isSelectionConnected =
             this.activeSelection.anchorNode.isConnected &&
             nodeSize(this.activeSelection.anchorNode) >=
@@ -618,7 +618,7 @@ export class SelectionPlugin extends Plugin {
 
         Object.defineProperty(selectionData, "deepEditableSelection", {
             get: function () {
-                // Transform the selection to return the depest possible node.
+                // Transform the selection to return the deepest possible node.
                 [anchorNode, anchorOffset] = getDeepestPosition(
                     anchorNode,
                     anchorOffset,
@@ -831,7 +831,7 @@ export class SelectionPlugin extends Plugin {
     /**
      * Stores the current selection and returns an object with methods to:
      * - update the cursors (anchor and focus) node and offset after DOM
-     * manipulations that migh affect them. Such methods are chainable.
+     * manipulations that might affect them. Such methods are chainable.
      * - restore the updated selection.
      * @returns {Cursors}
      */
@@ -1009,7 +1009,7 @@ export class SelectionPlugin extends Plugin {
     }
 
     /**
-     * Returns a Set of targeted blocks within the given range.
+     * Returns a Set of the blocks targeted by the current selection.
      *
      * @returns {Set<HTMLElement>}
      */

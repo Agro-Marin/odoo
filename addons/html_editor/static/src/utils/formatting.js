@@ -233,13 +233,12 @@ export function getCSSVariableValue(key, htmlStyle) {
 }
 
 /**
- * Key-value mapping to list converters from an unit A to an unit B.
+ * Key-value mapping of converters from a unit A to a unit B.
  * - The key is a string in the format '$1-$2' where $1 is the CSS symbol of
  *   unit A and $2 is the CSS symbol of unit B.
- * - The value is a function that converts the received value (expressed in
- *   unit A) to another value expressed in unit B. Two other parameters is
- *   received: the css property on which the unit applies and the jQuery element
- *   on which that css property may change.
+ * - The value is a function that receives the computed html style and returns
+ *   the multiplier to apply to a value expressed in unit A to obtain its value
+ *   in unit B.
  */
 const CSS_UNITS_CONVERSION = {
     "s-ms": () => 1000,

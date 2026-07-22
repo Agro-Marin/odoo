@@ -1,9 +1,9 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
-from dateutil.relativedelta import relativedelta
 import datetime
 
-from odoo import fields
+from dateutil.relativedelta import relativedelta
 
+from odoo import fields
 from odoo.exceptions import ValidationError
 from odoo.tests import Form
 from odoo.tests.common import TransactionCase
@@ -12,10 +12,10 @@ from odoo.tests.common import TransactionCase
 class TestEmployeeSkills(TransactionCase):
 
     @classmethod
-    def _create_skill_types(self, vals_list):
-        skill_types = self.env['hr.skill.type']
+    def _create_skill_types(cls, vals_list):
+        skill_types = cls.env['hr.skill.type']
         for vals in vals_list:
-            with Form(self.env['hr.skill.type']) as skill_type_form:
+            with Form(cls.env['hr.skill.type']) as skill_type_form:
                 skill_type_form.name = vals['name']
                 skill_type_form.is_certification = vals.get('certificate', False)
                 for skill_val in vals['skills']:
@@ -301,7 +301,7 @@ class TestEmployeeSkills(TransactionCase):
         )
 
         previous_employee_skills = self.employee.employee_skill_ids
-        # Add French B2
+        # Add French C1
         with employee_form.current_employee_skill_ids.new() as employee_skill_form:
             employee_skill_form.skill_type_id = self.language
             employee_skill_form.skill_id = self.language.skill_ids[2]
@@ -391,11 +391,11 @@ class TestEmployeeSkills(TransactionCase):
     def test_multiple_exact_same_skills_are_deduplicated_before_creation(self):
         """
         Assert that when you add multiple entries of the same skill:level,
-        only one applicant skill will be created.
+        only one employee skill will be created.
         """
         employee_form = Form(self.employee)
         previous_employee_skills = self.employee.employee_skill_ids
-        for i in range(3):
+        for _i in range(3):
             with employee_form.current_employee_skill_ids.new() as employee_skill_form:
                 employee_skill_form.skill_type_id = self.certification
                 employee_skill_form.skill_id = self.certification.skill_ids[0]
@@ -411,7 +411,7 @@ class TestEmployeeSkills(TransactionCase):
     def test_multiple_same_skill_different_level_are_deduplicated_before_creation(self):
         """
         Assert that when you add multiple entries of the same skill but different level,
-        only one applicant skill will be created.
+        only one employee skill will be created.
         """
         skill_levels = self.language.skill_level_ids
         employee_form = Form(self.employee)
@@ -480,21 +480,17 @@ class TestEmployeeSkills(TransactionCase):
         )
 
     def test_rpc_call_editing_range_date_regular_skill(self):
-        """
-            This test is to ensure if a client call directly the create without our form view or with a custom
-            then he can modify the date range of a regular skill
+        """Ensure a direct create/write (bypassing the form view) can edit a regular skill's date range."""
 
-            French level for Employee Test
-            start:
-                    2025-01-15        2025-03-20                             2025-05-20
-            -------------|-----------------|--------------------------------------|------------------
-                        A1                 A2                                     B1
-            stop:
-                    2025-01-15                          2025-04-20           2025-05-20
-            -------------|----------------------------------|---------------------|------------------
-                        A1                                  A2                    B1
-        """
-
+        # French levels for the test employee, before and after shifting the A1/A2 boundary:
+        # start:
+        #         2025-01-15        2025-03-20                             2025-05-20
+        # -------------|-----------------|--------------------------------------|------------------
+        #             A1                 A2                                     B1
+        # stop:
+        #         2025-01-15                          2025-04-20           2025-05-20
+        # -------------|----------------------------------|---------------------|------------------
+        #             A1                                  A2                    B1
         french_a1, french_a2, _ = self.env['hr.employee.skill'].create([
             {
                 'skill_type_id': self.language.id,

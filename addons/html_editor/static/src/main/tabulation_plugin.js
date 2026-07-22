@@ -121,7 +121,7 @@ export class TabulationPlugin extends Plugin {
     }
 
     /**
-     * @param {HTMLElement} blocks
+     * @param {Set<HTMLElement>} blocks
      */
     indentBlocks(blocks) {
         const selectionToRestore = this.dependencies.selection.getEditableSelection();
@@ -140,7 +140,7 @@ export class TabulationPlugin extends Plugin {
     }
 
     /**
-     * @param {HTMLElement} blocks
+     * @param {Set<HTMLElement>} blocks
      */
     outdentBlocks(blocks) {
         for (const block of blocks) {

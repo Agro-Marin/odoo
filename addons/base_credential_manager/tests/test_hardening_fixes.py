@@ -10,6 +10,11 @@ Covers:
 * group_credential_admin implying base.group_system (suite pattern)
 * batched delete audit rows on multi-record unlink
 * _verify_custom method-name gate (sudo arbitrary-method hardening)
+* action_migrate_encryption_keys covering every mixin consumer, NULL-version
+  eligibility, per-model breakdown, and failed-row ORM-cache rollback
+* sudo reads that must not AccessError (allow_key_fallback decrypt paths and
+  _onchange_category_id category defaults)
+* lock_timeout reset after a strict consume_token()
 """
 
 import os

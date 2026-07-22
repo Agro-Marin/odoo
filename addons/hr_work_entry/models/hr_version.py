@@ -2,16 +2,16 @@
 
 import itertools
 from collections import defaultdict
-from datetime import datetime, date, time, timedelta
-import pytz
+from datetime import date, datetime, time, timedelta
 
+import pytz
 from dateutil.relativedelta import relativedelta
 
-from odoo import api, fields, models, _, SUPERUSER_ID
+from odoo import SUPERUSER_ID, _, api, fields, models
 from odoo.exceptions import UserError
 from odoo.fields import Command, Domain
-from odoo.tools import ormcache, float_is_zero
 from odoo.libs.intervals import Intervals
+from odoo.tools import float_is_zero, ormcache
 
 
 class HrVersion(models.Model):
@@ -69,9 +69,9 @@ class HrVersion(models.Model):
         return []
 
     def _get_interval_leave_work_entry_type(self, interval, leaves, bypassing_codes):
-        # returns the work entry time related to the leave that
+        # returns the work entry type related to the leave that
         # includes the whole interval.
-        # Overriden in hr_work_entry_holiday to select the
+        # Overriden in hr_work_entry_holidays to select the
         # global time off first (eg: Public Holiday > Home Working)
         self.ensure_one()
         for leave in leaves:
@@ -104,7 +104,7 @@ class HrVersion(models.Model):
             if version.work_entry_source != 'calendar':
                 continue
             employees_by_calendar[version.resource_calendar_id] |= version.employee_id
-        result = dict()
+        result = {}
         for calendar, employees in employees_by_calendar.items():
             if not calendar:
                 for employee in employees:
@@ -202,7 +202,7 @@ class HrVersion(models.Model):
                     # Global time off is not for this calendar, can happen with multiple calendars in self
                     if resource and leave.calendar_id and leave.calendar_id != calendar and not leave.resource_id:
                         continue
-                    tz = tz if tz else pytz.timezone((resource or version).tz)
+                    tz = tz or pytz.timezone((resource or version).tz)
                     if (tz, start_dt) in tz_dates:
                         start = tz_dates[tz, start_dt]
                     else:
@@ -312,7 +312,7 @@ class HrVersion(models.Model):
             for interval in real_leaves:
                 # Could happen when a leave is configured on the interface on a day for which the
                 # employee is not supposed to work, i.e. no attendance_ids on the calendar.
-                # In that case, do try to generate an empty work entry, as this would raise a
+                # In that case, do not try to generate an empty work entry, as this would raise a
                 # sql constraint error
                 if interval[0] == interval[1]:  # if start == stop
                     continue
@@ -341,9 +341,10 @@ class HrVersion(models.Model):
         return attendances - leaves - worked_leaves
 
     def _get_work_entries_values(self, date_start, date_stop):
-        """
-        Generate a work_entries list between date_start and date_stop for one version.
-        :return: list of dictionnary.
+        """Generate a list of work entry values between date_start and date_stop.
+
+        :return: list of work entry value dictionaries
+        :rtype: list
         """
         if isinstance(date_start, datetime):
             version_vals = self._get_version_work_entries_values(date_start, date_stop)
@@ -372,14 +373,12 @@ class HrVersion(models.Model):
                 dates_stop = mapped_version_dates[version.id][1]
                 if dates_stop:
                     date_stop_max = max(dates_stop)
-                    if date_stop_max > version.date_generated_to:
-                        version.date_generated_to = date_stop_max
+                    version.date_generated_to = max(version.date_generated_to, date_stop_max)
 
                 dates_start = mapped_version_dates[version.id][0]
                 if dates_start:
                     date_start_min = min(dates_start)
-                    if date_start_min < version.date_generated_from:
-                        version.date_generated_from = date_start_min
+                    version.date_generated_from = min(version.date_generated_from, date_start_min)
 
         return version_vals
 
@@ -421,7 +420,7 @@ class HrVersion(models.Model):
         # based on the target timezone
         assert isinstance(date_start, datetime)
         assert isinstance(date_stop, datetime)
-        self = self.with_context(tracking_disable=True)  # noqa: PLW0642
+        self = self.with_context(tracking_disable=True)
         vals_list = []
         self.write({'last_generation_date': fields.Date.today()})
 
@@ -434,7 +433,7 @@ class HrVersion(models.Model):
             'date_generated_to': date_start,
         })
         domain_to_nullify = Domain(False)
-        work_entry_null_vals = {field: False for field in self.env["hr.work.entry.regeneration.wizard"]._work_entry_fields_to_nullify()}
+        work_entry_null_vals = dict.fromkeys(self.env["hr.work.entry.regeneration.wizard"]._work_entry_fields_to_nullify(), False)
 
         for tz, versions in self.grouped("tz").items():
             tz = pytz.timezone(tz) if tz else pytz.utc
@@ -563,7 +562,7 @@ class HrVersion(models.Model):
                 vals['date'] = date_start.astimezone(tz).date()
                 if 'duration' in vals:
                     continue
-                elif (date_start, date_stop) in cached_periods:
+                if (date_start, date_stop) in cached_periods:
                     vals['duration'] = cached_periods[date_start, date_stop]
                 else:
                     dt = date_stop - date_start
@@ -619,7 +618,8 @@ class HrVersion(models.Model):
         return list(merged_vals.values())
 
     def _remove_work_entries(self):
-        ''' Remove all work_entries that are outside contract period (function used after writing new start or/and end date) '''
+        """Remove all work entries that fall outside the contract period."""
+        # Called after writing a new start and/or end date on the version.
         all_we_to_unlink = self.env['hr.work.entry']
         for version in self:
             date_start = fields.Datetime.to_datetime(version.date_start)

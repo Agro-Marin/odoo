@@ -114,18 +114,7 @@ class TestCredentialCredential(TransactionCase):
             self.assertIn("Encryption key not configured", str(cm.exception))
 
     def test_basic_auth_json_storage_missing_password_rejected(self):
-        """JSON-storage validator checks specific keys, not just blob existence.
-
-        Previously _validate_required_fields_for_category used a blob-
-        existence shortcut: if credential_value_encrypted was non-empty,
-        the field list was cleared regardless of what keys were actually
-        present in the decrypted JSON. The fix parses the payload and
-        verifies each required field individually.
-
-        basic_auth requires username+password. Setting only username via
-        the JSON-storage path must now fail instead of sneaking through
-        because the blob exists.
-        """
+        """JSON-storage validator checks specific keys, not just blob existence."""
         category_basic_auth = self.env.ref(
             "base_credential_manager.credential_category_basic_auth"
         )
@@ -247,15 +236,7 @@ class TestCredentialCredential(TransactionCase):
         self.assertEqual(result["failed"], 0)
 
     def test_form_open_emits_one_audit_log_entry(self):
-        """Reading plaintext-derived fields produces exactly one audit row.
-
-        Regression: the JSON-accessor compute path used to bypass audit
-        logging entirely, so a system admin opening a credential form read
-        up to seven plaintext secrets with zero credential.access.log
-        entries. Audit logging is now centralized in _compute_cached_plaintext,
-        which is memoized per (record, transaction) by Odoo's compute cache
-        and thus fires exactly once per form open per credential.
-        """
+        """Reading plaintext-derived fields produces exactly one audit row."""
         credential = self.env["credential.credential"].create(
             {
                 "name": "S2 audit log test",
@@ -341,14 +322,7 @@ class TestCredentialCredential(TransactionCase):
         )
 
     def test_single_decrypt_per_form_open(self):
-        """credential_value, credential_data, storage_method share one decrypt.
-
-        Regression: the three compute methods used to each call _decrypt_value
-        against the same ciphertext, so opening a credential form caused
-        three Fernet.decrypt operations. They now all depend on a private
-        cached_plaintext field that decrypts once and is memoized by Odoo's
-        compute cache for the transaction.
-        """
+        """credential_value, credential_data, storage_method share one decrypt."""
         credential = self.env["credential.credential"].create(
             {
                 "name": "M1 decrypt counter",
@@ -384,13 +358,7 @@ class TestCredentialCredential(TransactionCase):
         )
 
     def test_validation_errors_preserve_cause(self):
-        """Raised ValidationErrors must chain the underlying exception.
-
-        Regression: the mixin used to `raise ValidationError(...)` without
-        `from e` in six places, losing the original traceback and making
-        production diagnosis harder. Each ValidationError raised from an
-        except-block must now carry .__cause__.
-        """
+        """Raised ValidationErrors must chain the underlying exception via `from e`."""
         # Invalid Fernet key format: env var is set, but value is garbage.
         # Hits _get_encryption_key's except block at the bottom of the file.
         with patch.dict(
@@ -405,13 +373,7 @@ class TestCredentialCredential(TransactionCase):
             )
 
     def test_missing_key_warning_rate_limit(self):
-        """Missing-key warning in _decrypt_value re-fires after cooldown.
-
-        Regression: a class-level boolean latch used to silence the warning
-        forever after the first occurrence, hiding recovery/re-break cycles
-        from operators. The latch is now a (last_at, cooldown) pair stored
-        at module level (shared across every mixin consumer).
-        """
+        """Missing-key warning in _decrypt_value re-fires after the cooldown window."""
         credential_model = self.env["credential.credential"]
 
         # Reset the module-level latch so this test is order-independent.
@@ -713,12 +675,7 @@ class TestCredentialSecurityValidations(TransactionCase):
         self.assertIn("nesting depth", str(cm.exception))
 
     def test_notes_secret_detection_password(self):
-        """Password patterns in notes emit a warning but do NOT block save.
-
-        _check_notes_for_secrets was downgraded from a hard ValidationError
-        to a logged warning so legitimate operational notes like
-        "rotate the old password: expired" don't lock the user out.
-        """
+        """Password patterns in notes emit a warning but do NOT block save."""
         with self.assertLogs(
             "odoo.addons.base_credential_manager.models.credential_credential",
             level="WARNING",
@@ -985,15 +942,7 @@ class TestCredentialCertificates(TransactionCase):
         return base64.b64encode(pkcs12_bytes)
 
     def test_certificate_metadata_preserved_on_wrong_password(self):
-        """Wrong password must not wipe previously loaded cert metadata.
-
-        Regression: _compute_certificate_data used to blank certificate_subject,
-        certificate_serial, and the validity dates whenever _parse_certificate
-        returned an error. Changing the password to something wrong thus made
-        the UI look like "no cert loaded" even though the ciphertext was intact.
-        The compute now preserves last-known-good metadata and only surfaces
-        certificate_loading_error.
-        """
+        """Wrong password must not wipe previously loaded cert metadata."""
         pkcs12_bytes = self._build_self_signed_pkcs12("correct-horse")
 
         credential = self.env["credential.credential"].create(
@@ -1037,13 +986,7 @@ class TestCredentialCertificates(TransactionCase):
         self.assertFalse(credential.certificate_date_end)
 
     def test_sign_emits_use_audit_entry(self):
-        """Signing audits a 'use' access via the private-key choke point.
-
-        Certificate/private-key decryption and _sign() previously had no audit
-        trail. Enforcement now lives at the decrypt layer: _sign rate-limits
-        and logs a single 'use' entry (reading private_key_pem with the
-        internal-access flag so the compute does not double-log).
-        """
+        """Signing audits exactly one 'use' access via the private-key choke point."""
         pkcs12_bytes = self._build_self_signed_pkcs12("s3cr3t-pass")
         credential = self.env["credential.credential"].create(
             {
@@ -1131,12 +1074,7 @@ class TestCredentialStatsProtection(TransactionCase):
         self.assertIn("Cannot modify protected statistics", str(cm.exception))
 
     def test_cannot_seed_usage_count_at_create(self):
-        """Protected stats fields must also be rejected at creation time.
-
-        Regression: write() guarded _PROTECTED_STATS_FIELDS but create() did
-        not, so a caller could bypass the write guard by seeding the protected
-        value in the initial vals dict. create() now mirrors the write guard.
-        """
+        """Protected stats fields must also be rejected at creation time."""
         with self.assertRaises(ValidationError) as cm:
             self.env["credential.credential"].create(
                 {
@@ -1328,23 +1266,7 @@ class TestEncryptionKeyRotation(TransactionCase):
 
 
 class TestSimpleToJsonStorageTransition(TransactionCase):
-    """Regression tests for the simple->JSON storage transition path.
-
-    Hypothesis under test: when a credential is first saved with
-    `credential_value` (simple storage) and a JSON-accessor field
-    (e.g. `bearer_token`) is written to the same record afterwards,
-    the inverse chain silently promotes the record to JSON storage
-    AND leaves `credential_value` reading back as the raw JSON dump
-    instead of the original simple string.
-
-    A correct implementation should either:
-      (a) preserve the original simple string on subsequent reads of
-          `credential_value`, OR
-      (b) refuse the transition with a clear ValidationError.
-
-    Anything in between -- silent mutation of the decrypted value --
-    is the bug.
-    """
+    """Regression tests for the simple->JSON storage transition path."""
 
     @classmethod
     def setUpClass(cls):
@@ -1420,8 +1342,7 @@ class TestSimpleToJsonStorageTransition(TransactionCase):
         credential_value should return post-transition, it should
         at minimum NOT be a JSON string containing the simple value
         under a 'value' key. That specific shape is the fingerprint
-        of the get_credential_dict fallback at line 1988 leaking
-        into storage.
+        of the get_credential_dict fallback leaking into storage.
         """
         cred = self.env["credential.credential"].create(
             {

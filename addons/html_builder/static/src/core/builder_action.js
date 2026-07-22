@@ -9,13 +9,9 @@
  * }} ActionParams
  * In the XML template, the `actionParam` prop can take 2 kinds of values: an
  * Object or something else (string, array, function...).
- * If `actionParams` takes something that is not a object, it is passed as
+ * If `actionParam` takes something that is not a object, it is passed as
  * `mainParam`.
- * If `actionParams` takes an object, each key is forwarded to the parameter.
- * e.g.:
- *     <BuilderButton action="'customAction'" actionParam="{ customKey: 0 }"/>
- * is passed as
- *     `params: { customKey: 0 }`
+ * If `actionParam` takes an object, each key is forwarded to the parameter.
  *
  * @typedef { Object } NextBuilderAction
  * @property { ActionValue } actionValue
@@ -25,10 +21,6 @@
  * among a list of items (i.e. BuilderSelect and BuilderButtonGroup).
  * @typedef { Object } SelectableContext
  * @property { Object[] } items
- */
-
-/**
- * @typedef { import("../../../../html_editor/static/src/editor").EditorContext } EditorContext
  */
 
 export class BuilderAction {
@@ -96,12 +88,6 @@ export class BuilderAction {
      * `BuilderButtonGroup` or `BuilderSelect`) to determine which button/select
      * item should be active when several items could qualify. The item with the
      * highest priority is ultimately validated as active.
-     *
-     * e.g.: `classAction`'s priority is determined by the number of classes
-     * that apply. If button A sets no class (priority = 0), button B sets
-     * ".some-class" (priority = 1) and button C sets
-     * ".some-class.some-other-class" (priority = 2), the active button is the
-     * one that has the most classes applied to the editingElement.
      *
      * @param { Object } context
      * @param { ActionParams } context.params

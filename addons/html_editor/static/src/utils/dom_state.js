@@ -145,8 +145,8 @@ const rightLeafOnlyNotBlockPath = createDOMPathGenerator(DIRECTIONS.RIGHT, {
 
 /**
  * Retrieves the "state" from a given position looking at the given direction.
- * The "state" is the type of content. The functions also returns the first
- * meaninful node looking in the opposite direction = the first node we trust
+ * The "state" is the type of content. The function also returns the first
+ * meaningful node looking in the opposite direction = the first node we trust
  * will not disappear if a command is played in the given direction.
  *
  * Note: only work for in-between nodes positions. If the position is inside a
@@ -182,7 +182,7 @@ export function getState(el, offset, direction, leftCType) {
     const boundaryNode = inverseDOMPath.next().value;
 
     // We only traverse through deep inline nodes. If we cannot find a
-    // meanfingful state between them, that means we hit a block.
+    // meaningful state between them, that means we hit a block.
     let cType = undefined;
 
     // Traverse the DOM in the given direction to check what type of content
@@ -302,7 +302,7 @@ const priorityRestoreStateRules = [
         { spaceVisibility: false },
     ],
     [
-        // Remove spaces once the preceeding BR is removed
+        // Remove spaces once the preceding BR is removed
         { direction: DIRECTIONS.LEFT, cType1: CTGROUPS.BR },
         { spaceVisibility: false },
     ],
@@ -332,7 +332,7 @@ const priorityRestoreStateRules = [
         { brVisibility: false },
     ],
     [
-        // Remove a BR once the BR that preceeds it is now replaced by
+        // Remove a BR once the BR that precedes it is now replaced by
         // content (or if it was a BR at the start of a block which now is
         // a trailing BR).
         {
@@ -404,8 +404,8 @@ const allRestoreStateRules = (function () {
     return map;
 })();
 /**
- * Restores the given state starting before the given while looking in the given
- * direction.
+ * Restores the given state starting before the given node while looking in the
+ * given direction.
  *
  * @param {Object} prevStateData @see getState
  * @param {boolean} debug=false - if true, adds nicely formatted
@@ -539,7 +539,7 @@ export function enforceWhitespace(el, offset, direction, rule) {
                 // those spaces, or it is in an invisible text node. In that
                 // last case, we either remove the spaces if there are spaces in
                 // a visible text node going further in the direction or we
-                // change the visiblity or those spaces.
+                // change the visibility of those spaces.
                 if (!isWhitespace(node)) {
                     foundVisibleSpaceTextNode = node;
                     break;

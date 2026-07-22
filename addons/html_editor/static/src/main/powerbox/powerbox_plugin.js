@@ -62,34 +62,6 @@ import { Powerbox } from "./powerbox.js";
  * A powerbox item must derive from a user command (see UserCommand) specified
  * by commandId. Properties defined in a powerbox item override those from a
  * user command. Other properties are inferred from the UserCommand.
- *
- * Example:
- *
- *     resources = {
- *          user_commands: [
- *              // see {UserCommand}
- *              {
- *                  id: myCommand,
- *                  run: myCommandFunction,
- *                  title: _t("My Command"),
- *                  description: _t("My command's description"),
- *                  icon: "fa-bug",
- *              },
- *          ],
- *          powerbox_categories: [
- *              // see {PowerboxCategory}
- *              { id: "myCategory", name: _t("My Category") }
- *          ],
- *          powerbox_items: [
- *              // see {PowerboxItem}
- *              {
- *                  categoryId: "myCategory",
- *                  commandId: "myCommand",
- *                  title: _t("My Powerbox Command"), // overrides the user command's `title`
- *                  // `description` and `icon` are inferred from the user command
- *              }
- *          ],
- *     };
  */
 
 export class PowerboxPlugin extends Plugin {

@@ -3,20 +3,14 @@ from odoo.exceptions import UserError
 
 
 class AutomationRuntime(models.Model):
-    """Per-execution instance for automation workflow runs.
+    """Per-execution instance for an automation workflow run.
 
-    Each time an automation's ``on_hand`` trigger fires (and the automation
-    has multi-step DAG structure), one ``automation.runtime`` record is
-    created to track isolated execution state across all steps.
-
-    Unlike ``ir.actions.server.action_state`` (which is global and broken
-    under concurrent runs), every field on this model and its child
-    ``automation.runtime.line`` records is strictly per-execution. Two
-    concurrent runs of the same automation never share state.
-
-    ``automation_id`` accepts any ``base.automation`` rule regardless of
-    its target model. The ``res_model``/``res_id`` fields record which
-    specific business record is being automated.
+    One record is created per multi-step (``on_hand`` DAG) execution and
+    tracks isolated state across all steps: every field here and on the
+    child ``automation.runtime.line`` records is per-execution, so two
+    concurrent runs never share state. ``automation_id`` is the
+    ``base.automation`` rule being run; ``res_model``/``res_id`` identify
+    the specific record being automated.
     """
 
     _name = "automation.runtime"
@@ -179,7 +173,7 @@ class AutomationRuntime(models.Model):
                 runtime.progress = 0
                 continue
             done = len(runtime.line_ids.filtered(lambda l: l.state == "done"))
-            runtime.progress = int(round((done / total) * 100))
+            runtime.progress = int(round((done / total) * 100))  # noqa: RUF046
 
     @api.depends("line_ids.state")
     def _compute_progress_display(self):
@@ -212,11 +206,9 @@ class AutomationRuntime(models.Model):
         )
 
     def action_run_all(self):
-        """Execute all workflow steps, advancing through the DAG until complete.
+        """Execute ready workflow steps until the runtime completes or no step is ready.
 
-        Processes all ready branches at each iteration, enabling parallel
-        branch execution. Returns when the runtime reaches 'done' or 'cancel'
-        or blocks (error / unsatisfied dependency).
+        :return: the runtime ``state`` after execution stops
         """
         self.ensure_one()
 
@@ -300,7 +292,7 @@ class AutomationRuntime(models.Model):
     def _create_action_lines(self):
         """Create runtime.line records that mirror the automation's DAG definition.
 
-        Faithfully replicates the ``predecessor_ids`` topology from
+        Replicates the ``predecessor_ids`` topology from
         ``ir.actions.server`` into isolated ``automation.runtime.line``
         records for this execution. Root actions (no predecessors) start
         as 'ready'; all others start as 'waiting'.

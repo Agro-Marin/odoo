@@ -2,7 +2,7 @@
 
 from ast import literal_eval
 
-from odoo import fields, models, Command, api
+from odoo import Command, api, fields, models
 
 
 class HrApplicant(models.Model):
@@ -59,7 +59,7 @@ class HrApplicant(models.Model):
             job_skill_map = {js.skill_id: js.level_progress for js in job_skills}
 
             matching_applicant_skills = applicant.current_applicant_skill_ids.filtered(
-                lambda a: a.skill_id in job_skill_map,
+                lambda a, job_skill_map=job_skill_map: a.skill_id in job_skill_map,
             )
             applicant_degree = applicant.type_id.score * 100 if job_degree > 1 else 0
             applicant_total = (
@@ -92,17 +92,14 @@ class HrApplicant(models.Model):
         return vals
 
     def _map_applicant_skill_ids_to_talent_skill_ids(self, vals):
-        """
-        The applicant_skills_ids contains a list of ORM tuples i.e (command, record ID, {values})
-        The challenge lies in the uniqueness of the record ID in this tuple. Each skill (e.g., 'arabic')
-        has a distinct ID per applicant, i.e arabic in applicant 1 will have a different id from arabic in
-        applicant 2. This means the content of applicant_skills_ids is unique for each record and attempting
-        to pass it directly (e.g., applicant.pool_applicant_id.write(vals)) won't yield results so we must
-        update each tuple to have the correct command and record ID for the talent pool applicant
+        """Remap the applicant_skill_ids commands onto the talent pool applicant's own skill records.
 
         :param vals: list of CREATE, WRITE or UNLINK commands with skill_ids relevant to the applicant
         :return: list of CREATE, WRITE or UNLINK commands with skill_ids relevant to the pool_applicant
         """
+        # applicant_skill_ids holds ORM tuples (command, record ID, {values}). Each skill (e.g. 'arabic')
+        # has a distinct hr.applicant.skill id per applicant, so the commands cannot be written straight onto
+        # pool_applicant_id; each tuple is rewritten to carry the matching record ID on the talent applicant.
         applicant_skills = {a.id: a.skill_id.id for a in self.applicant_skill_ids}
         applicant_skills_type = {a.id: a.skill_type_id.id for a in self.applicant_skill_ids}
         talent_skills = {a.skill_id.id: a.id for a in self.pool_applicant_id.applicant_skill_ids}

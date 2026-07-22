@@ -70,7 +70,7 @@ export function removeMobileOrders(columnEls, mobileBreakpoint) {
  * Checks whether some columns were resized or were added offsets manually.
  *
  * @private
- * @param {HTMLElement} columnEls
+ * @param {HTMLCollection} columnEls
  * @param {boolean} isMobile
  * @param {String} mobileBreakpoint - bootstrap breakpoint (sm - md - lg)
  * @returns {boolean}

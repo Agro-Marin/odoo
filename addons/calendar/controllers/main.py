@@ -1,6 +1,6 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-import odoo.http as http
+import odoo.http as http  # noqa: I001, PLR0402
 
 from odoo.http import request
 from odoo.tools.misc import get_lang
@@ -63,7 +63,7 @@ class CalendarController(http.Controller):
         timezone = attendee.partner_id.tz
         lang = attendee.partner_id.lang or get_lang(request.env).code
         event = request.env['calendar.event'].with_context(tz=timezone, lang=lang).sudo().browse(int(id))
-        company = event.user_id and event.user_id.company_id or event.create_uid.company_id
+        company = event.user_id and event.user_id.company_id or event.create_uid.company_id  # noqa: RUF021
 
         # If user is internal and logged, redirect to form view of event
         # otherwise, display the simplifyed web page with event informations
@@ -92,7 +92,8 @@ class CalendarController(http.Controller):
         attendee = request.env['calendar.attendee'].sudo().search([('partner_id', '=', request.env.user.partner_id.id), ('event_id', '=', event.id)])
         return request.redirect('/calendar/meeting/view?token=%s&id=%s' % (attendee.access_token, event.id))
 
-    # Function used, in RPC to check every 5 minutes, if notification to do for an event or not
+    # RPC polled by the web client to fetch the event reminders currently due; the
+    # client reschedules its next call for when the last returned notification fires.
     @http.route('/calendar/notify', type='jsonrpc', auth="user")
     def notify(self):
         return request.env['calendar.alarm_manager'].get_next_notif()

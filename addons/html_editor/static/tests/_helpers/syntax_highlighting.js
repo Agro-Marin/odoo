@@ -64,7 +64,7 @@ export const patchPrism = () => {
 
 /**
  * Test that the document selection is targeting the given `<textarea>` element,
- * that the focus is in it, that is value is the given value, and that its range
+ * that the focus is in it, that its value is the given value, and that its range
  * is the given range.
  *
  * @param {Editor} editor
@@ -115,13 +115,13 @@ const TOOLBAR = (language) =>
     );
 
 /**
- * Clean the given content to facilitate testing and parse the expected result
- * given as a `HighlightedContent` object (or an array thereof), then compare
- * the two values. If a `textareaRange` key is passed in some of the expected
- * content, test the range and focus in its `<textarea>` element.
+ * Normalize the given editor `content` to facilitate testing, then compare it
+ * to the `expected` string (typically produced by `highlightedPre`). If
+ * `expected` embeds textarea range markers, parse them and test the range and
+ * focus in the corresponding `<textarea>` element first.
  *
  * @param {string} content
- * @param {HighlightedContent | HighlightedContent[]} expected
+ * @param {string} expected
  * @param {string} phase
  * @param {Editor} editor
  */

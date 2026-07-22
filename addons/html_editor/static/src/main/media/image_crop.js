@@ -20,6 +20,7 @@ import { useService } from "@web/core/utils/hooks";
 
 import { IMAGE_SHAPES } from "./image_plugin.js";
 
+// key: ratio identifier, label: displayed to user, value: used by cropper lib
 export const cropperAspectRatios = {
     "0/0": { label: _t("Flexible"), value: 0 },
     "16/9": { label: "16:9", value: 16 / 9 },
@@ -125,7 +126,6 @@ export class ImageCrop extends Component {
         if (this.isCropperActive) {
             return;
         }
-        // key: ratio identifier, label: displayed to user, value: used by cropper lib
         const src = this.media.getAttribute("src");
         const data = { ...this.media.dataset };
         this.initialSrc = src;
@@ -232,7 +232,6 @@ export class ImageCrop extends Component {
      * attachments will be created).
      *
      * @private
-     * @param {boolean} [cropped=true]
      */
     async save() {
         const cropperData = this.getCropperData(this.cropper);

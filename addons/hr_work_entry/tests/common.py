@@ -1,6 +1,7 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 from dateutil.relativedelta import relativedelta
+
 from odoo.fields import Date
 from odoo.tests.common import TransactionCase
 
@@ -18,7 +19,7 @@ class TestWorkEntryBase(TransactionCase):
             'name': 'Research & Development - Test',
         })
 
-        # I create a new employee "Richard"
+        # Test employee "Richard"
         cls.richard_emp = cls.env['hr.employee'].create({
             'name': 'Richard',
             'sex': 'male',

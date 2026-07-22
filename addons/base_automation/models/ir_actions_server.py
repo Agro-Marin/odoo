@@ -55,11 +55,7 @@ class IrActionsServer(models.Model):
 
     @api.constrains("predecessor_ids")
     def _check_no_dag_cycle(self):
-        """Prevent cycles in the DAG topology using BFS on the predecessor graph.
-
-        A cycle would exist if the current action is reachable from any of its
-        own predecessors by following the predecessor chain.
-        """
+        """Reject a dependency when the action is reachable from its own predecessors (would form a cycle)."""
         for action in self:
             reachable: set[int] = set()
             to_visit: list[int] = list(action.predecessor_ids.ids)

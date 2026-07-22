@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 from odoo import api, fields, models
@@ -21,7 +20,7 @@ class CalendarEvent(models.Model):
 
         defaults = super(CalendarEvent, self_ctx).default_get(fields)
 
-        # sync res_model / res_id to opportunity id (aka creating meeting from lead chatter)
+        # sync res_model / res_id to applicant id (aka creating meeting from applicant chatter)
         if 'applicant_id' not in defaults:
             res_model = defaults.get('res_model', False) or self_ctx.env.context.get('default_res_model')
             res_model_id = defaults.get('res_model_id', False) or self_ctx.env.context.get('default_res_model_id')

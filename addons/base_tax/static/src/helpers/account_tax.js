@@ -8,7 +8,7 @@ export const accountTaxHelpers = {
     // -------------------------------------------------------------------------
 
     /**
-     * Helper to stringify a grouping key that could contains some records.
+     * Helper to stringify a grouping key that could contain some records.
      *
      * [!] Only added javascript-side.
      */
@@ -285,7 +285,7 @@ export const accountTaxHelpers = {
             rounding_method = "round_per_line",
             // When product is null, we need the product default values to make the "formula" taxes
             // working. In that case, we need to deal with the product default values before calling this
-            // method because we have no way to deal with it automatically in this method since it depends of
+            // method because we have no way to deal with it automatically in this method since it depends on
             // the type of involved fields and we don't have access to this information js-side.
             product = null,
             product_uom_id = null,
@@ -330,8 +330,6 @@ export const accountTaxHelpers = {
             }
         }
 
-        // Flatten the taxes, order them and filter them if necessary.
-
         function prepare_tax_extra_data(tax, kwargs = {}) {
             let price_include;
             if (tax.has_negative_factor) {
@@ -352,6 +350,7 @@ export const accountTaxHelpers = {
             };
         }
 
+        // Flatten the taxes, order them and filter them if necessary.
         const batching_results = this.batch_for_taxes_computation(taxes, {
             special_mode: special_mode,
             filter_tax_function: filter_tax_function,
@@ -437,7 +436,7 @@ export const accountTaxHelpers = {
             }
             tax_data.base = base;
 
-            // Subsequence taxes.
+            // Subsequent taxes.
             tax_data.taxes = [];
             if (tax.include_base_amount) {
                 tax_data.taxes.push(...subsequent_taxes);
@@ -791,9 +790,7 @@ export const accountTaxHelpers = {
             // amounts (total / rate), so they round with the company currency's
             // precision — mirroring `company.currency_id.round(...)` in
             // account_tax.py, and matching the per-tax amounts rounded with
-            // `company_currency_pd` just below. `currency_pd` (document currency)
-            // diverged from Python whenever the document currency was coarser
-            // than the company currency (e.g. a JPY invoice under a USD company).
+            // `company_currency_pd` just below.
             tax_details.raw_total_excluded = roundPrecision(
                 tax_details.raw_total_excluded,
                 company_currency_pd,
@@ -1061,10 +1058,7 @@ export const accountTaxHelpers = {
                 for (const [base_line, taxes_data] of values.base_line_x_taxes_data) {
                     // Mirror account_tax.py: a tax counts as "present" when it is
                     // non-zero in EITHER the document or the company currency
-                    // (OR, not AND). With AND, a tax that rounds to zero in the
-                    // company currency but not the document currency was dropped,
-                    // flipping the group to "included" and shifting the rounded
-                    // base by one minor unit versus the server.
+                    // (OR, not AND).
                     const not_zero_taxes_data = taxes_data.filter(
                         (tax_data) =>
                             !floatIsZero(

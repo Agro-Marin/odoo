@@ -27,10 +27,10 @@ class HrVersion(models.Model):
         return result
 
     def _get_interval_leave_work_entry_type(self, interval, leaves, bypassing_codes):
-        # returns the work entry time related to the leave that
+        # Returns the work entry type related to the leave that
         # includes the whole interval.
-        # Overriden in hr_work_entry_holiday to select the
-        # global time off first (eg: Public Holiday > Home Working)
+        # Overridden in hr_work_entry_holidays to select the
+        # global time off first (e.g. Public Holiday > Home Working)
         self.ensure_one()
         if 'work_entry_type_id' in interval[2]:
             work_entry_types = interval[2].work_entry_type_id
@@ -44,7 +44,7 @@ class HrVersion(models.Model):
         including_holiday_rcleaves = [l for l in including_rcleaves if l.holiday_id]
         rc_leave = False
 
-        # Example: In CP200: Long term sick > Public Holidays (which is global)
+        # In CP200, Long term sick > Public Holidays (which is global)
         if bypassing_codes:
             bypassing_rc_leave = [l for l in including_holiday_rcleaves if l.holiday_id.holiday_status_id.work_entry_type_id.code in bypassing_codes]
         else:

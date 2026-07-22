@@ -247,12 +247,12 @@ class CredentialCredential(models.Model):
         groups="base.group_system",
         help="Encrypted storage for credential value (API key, token, secret, etc.)",
     )
-    # Private decryption memo. Not exposed to users. The three credential-
-    # payload compute fields (credential_value, credential_data,
-    # storage_method) all derive from this one rather than each calling
-    # _decrypt_value independently. Odoo's compute-cache memoizes this once
-    # per transaction, so opening a form triggers one Fernet.decrypt instead
-    # of three.
+    # Private decryption memo. Not exposed to users. The credential-payload
+    # compute fields (credential_value, credential_data, and the JSON
+    # accessors that derive from credential_data) all read this one rather
+    # than each calling _decrypt_value independently. Odoo's compute-cache
+    # memoizes this once per transaction, so opening a form triggers a single
+    # Fernet.decrypt instead of one per dependent field.
     cached_plaintext = fields.Char(
         compute="_compute_cached_plaintext",
         store=False,
@@ -907,8 +907,7 @@ class CredentialCredential(models.Model):
 
     # Every user-writable field whose inverse produces Fernet ciphertext.
     # Shared by create() and write() to decide when encryption_key_version
-    # must be stamped — keep this the single source of truth (it used to be
-    # two hand-maintained copies that could drift).
+    # must be stamped — the single source of truth for that decision.
     _ENCRYPTED_PAYLOAD_FIELDS = (
         "credential_value",
         "credential_data",
@@ -1314,12 +1313,12 @@ class CredentialCredential(models.Model):
         """Decrypt credential_value_encrypted once per transaction.
 
         This is the SINGLE audit point for plaintext access. All downstream
-        plaintext-derived computes (credential_value, credential_data,
-        storage_method, and every JSON accessor like api_key/password/etc.)
-        depend on this field, and Odoo's compute cache memoizes the result
-        per (record, transaction). So a form open that reads seven JSON
-        accessor fields triggers exactly one Fernet.decrypt AND exactly one
-        credential.access.log entry per credential — not seven, not zero.
+        plaintext-derived computes (credential_value, credential_data, and
+        every JSON accessor like api_key/password/etc.) depend on this field,
+        and Odoo's compute cache memoizes the result per (record, transaction).
+        So a form open that reads seven JSON accessor fields triggers exactly
+        one Fernet.decrypt AND exactly one credential.access.log entry per
+        credential — not seven, not zero.
 
         List views do not read plaintext-derived fields, so opening a
         500-row credential list triggers zero decryptions and zero audit
@@ -1482,11 +1481,9 @@ class CredentialCredential(models.Model):
     def _compute_credential_accessors(self) -> None:
         """Populate every JSON accessor field with a single parse per record.
 
-        Previously each accessor had its own compute calling json.loads on
-        credential_data independently — seven accessors on a form open meant
-        seven parses of the same string per record. Sharing one compute
-        method lets Odoo invoke us once per record per transaction and then
-        serve every accessor from the field cache.
+        One shared compute so Odoo parses credential_data once per record per
+        transaction and serves every accessor from the field cache, rather
+        than each accessor re-parsing the same string.
         """
         for record in self:
             data = record.credential_data
@@ -1555,9 +1552,8 @@ class CredentialCredential(models.Model):
         Target mode must be 'simple' or 'json'. If the record is still in
         the default 'none' state, this transitions it to target_mode. If
         it is already in target_mode, this is a no-op. Any attempt to
-        cross from simple->json or json->simple raises ValidationError,
-        which is the whole point of option D: mixing storage modes on a
-        single record is forbidden.
+        cross from simple->json or json->simple raises ValidationError:
+        mixing storage modes on a single record is forbidden.
         """
         self.ensure_one()
         current = self.storage_method or "none"
@@ -1830,11 +1826,11 @@ class CredentialCredential(models.Model):
 
         Walks EVERY model that inherits credential.encryption.mixin and
         declares ``_ENCRYPTED_FIELD_PAIRS`` (discovered via
-        ``_get_encryption_migration_models``), not just credential.credential.
-        Previously the action was credential-only, which stranded other
-        consumers' ciphertext (e.g. api.endpoint.outbound's OAuth client
-        secret) on the old key: rotate + retire the old env var and those
-        columns became permanently undecryptable.
+        ``_get_encryption_migration_models``), not just credential.credential —
+        a credential-only migration would strand other consumers' ciphertext
+        (e.g. api.endpoint.outbound's OAuth client secret) on the old key,
+        making those columns permanently undecryptable once the old env var is
+        retired.
 
         Each record re-encrypts under its own SAVEPOINT so one bad row
         doesn't abort the batch. Runs under sudo() so admins with restricted

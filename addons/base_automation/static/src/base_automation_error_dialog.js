@@ -21,9 +21,7 @@ export class BaseAutomationErrorDialog extends RPCErrorDialog {
     //--------------------------------------------------------------------------
 
     /**
-     * This method is called when the user clicks on the 'Disable Automation Rule' button
-     * displayed when a crash occurs in the evaluation of an automation rule.
-     * Then, we write `active` to `False` on the automation rule to disable it.
+     * Disable the automation rule (set `active` to false).
      *
      * @private
      * @param {MouseEvent} ev
@@ -33,9 +31,7 @@ export class BaseAutomationErrorDialog extends RPCErrorDialog {
         this.props.close();
     }
     /**
-     * This method is called when the user clicks on the 'Edit action' button
-     * displayed when a crash occurs in the evaluation of an automation rule.
-     * Then, we redirect the user to the automation rule form.
+     * Open the automation rule form for editing.
      *
      * @private
      * @param {MouseEvent} ev

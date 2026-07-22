@@ -155,7 +155,7 @@ export function getImageSizeFromCache(src) {
 /**
  * Activates the cropper on a given image.
  *
- * @param {jQuery} $image the image on which to activate the cropper
+ * @param {HTMLImageElement} image the image on which to activate the cropper
  * @param {Number} aspectRatio the aspectRatio of the crop box
  * @param {DOMStringMap} dataset dataset containing the cropperDataFields
  */
@@ -196,7 +196,8 @@ export async function activateCropper(image, aspectRatio, dataset, { onReady } =
 }
 
 /**
- * Marks an <img> with its attachment data (originalId, originalSrc, mimetype)
+ * Returns the attachment data (originalId, originalSrc,
+ * mimetypeBeforeConversion) linked to an <img>.
  *
  * @param {HTMLElement} el
  * @param {string} [attachmentSrc=''] specifies the URL of the corresponding

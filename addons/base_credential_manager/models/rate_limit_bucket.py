@@ -122,8 +122,8 @@ class RateLimitBucket(models.Model):
             )
 
         # Read rate limit configuration. Use explicit None-checks instead of
-        # `or` so an intentional zero ("block everything") is preserved —
-        # the previous `or 100` silently flipped a zero cap to 100.
+        # `or` so an intentional zero ("block everything") is preserved rather
+        # than flipped to the 100 default.
         max_requests = getattr(endpoint, "rate_limit_requests", None)
         if max_requests is None:
             max_requests = 100

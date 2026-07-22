@@ -4,11 +4,11 @@
     <!--
         Specific survey access rules for recruitment
         - The recruitment manager can CRUD survey / questions / question answers for survey_type == 'recruitment'
-        - The recruitment manager can see all the answers of surveys being 'recruitment
+        - The recruitment manager can see all the answers of surveys of type 'recruitment'
         - The recruitment officer can see answers from survey type 'recruitment' unrestricted or in restricted users
         - The recruitment interviewers can send surveys to applicants and read their answers when they are set as
         interviewer for these applicants or the job they apply to.
-        - All groups can send surveys of type 'recruiment' via the survey_invite wizard
+        - All groups can send surveys of type 'recruitment' via the survey_invite wizard
     -->
         <!--special rights for recruitment manager on recruitment surveys-->
         <record id="survey_user_input_rule_recruitment_manager" model="ir.rule">

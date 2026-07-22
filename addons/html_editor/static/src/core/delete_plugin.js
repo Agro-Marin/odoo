@@ -941,7 +941,7 @@ export class DeletePlugin extends Plugin {
     // --------------------------------------------------------------------------
 
     /**
-     * @param {RangeLike}
+     * @param {RangeLike} range
      * @param {((range: Range) => Range)[]} callbacks
      * @returns {RangeLike}
      */

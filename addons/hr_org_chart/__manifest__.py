@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 {
@@ -26,13 +25,9 @@ This module extend the employee form with a organizational chart.
         ],
         'web.assets_backend': [
             'hr_org_chart/static/src/fields/*',
-            # Hierarchy view (registry entry "hr_employee_hierarchy" and
-            # its renderer/card components). Prior to commit fdad91a872c
-            # these lived in ``web.assets_backend_lazy``; the ESM migration
-            # dropped the lazy bundle but forgot to merge the files into
-            # ``web.assets_backend``, leaving the views unregistered and
-            # every navigation to the Employees hierarchy view crashing
-            # with KeyNotFoundError.
+            # Hierarchy view (registry entry "hr_employee_hierarchy" and its
+            # renderer/card components) must load eagerly here, not in a lazy
+            # bundle, so the view is registered before it is first opened.
             'hr_org_chart/static/src/views/**/*',
         ],
         'web.assets_tests': [

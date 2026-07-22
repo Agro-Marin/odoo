@@ -112,11 +112,9 @@ export const uploadService = {
                         continue;
                     }
                     try {
-                        // rpc() is fetch-based since the native-ESM migration
-                        // and rejects unknown settings (the legacy { xhr }
-                        // progress handle now throws "Invalid RPC setting(s)").
-                        // Granular upload progress is therefore not available;
-                        // the toast falls back to the indeterminate spinner.
+                        // rpc() is fetch-based and exposes no upload progress,
+                        // so granular progress is unavailable and the toast
+                        // shows the indeterminate spinner instead.
                         const attachment = await rpc(
                             "/html_editor/attachment/add_data",
                             {

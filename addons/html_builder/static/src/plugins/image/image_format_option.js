@@ -64,7 +64,7 @@ export function computeMaxDisplayWidth(img, MAX_SUGGESTED_WIDTH = 1920) {
         return Math.round(Math.min(displayWidth * 3, MAX_SUGGESTED_WIDTH));
         // If the image is in a container(-small), it might get bigger on
         // smaller screens. So we suggest the width of the current image unless
-        // it is smaller than the size of the container on the md breapoint
+        // it is smaller than the size of the container on the md breakpoint
         // (which is where our bootstrap columns fallback to full container
         // width since we only use col-lg-* in Odoo).
     } else if (img.closest(".container, .o_container_small")) {

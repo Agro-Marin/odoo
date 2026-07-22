@@ -67,7 +67,7 @@ rotation.
         "security/ir_rule.xml",  # Record rules third
         # Data
         "data/credential_category_data.xml",  # Default categories
-        "data/ir_cron.xml",  # Automated health checks
+        "data/ir_cron.xml",  # Automated health checks and cleanup
         # Views (credential first - category references its action)
         "views/credential_credential_views.xml",
         "views/credential_category_views.xml",

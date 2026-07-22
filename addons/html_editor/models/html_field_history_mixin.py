@@ -3,7 +3,12 @@
 from odoo import api, fields, models
 from odoo.exceptions import ValidationError
 
-from .diff_utils import apply_patch, generate_comparison, generate_patch, generate_unified_diff
+from .diff_utils import (
+    apply_patch,
+    generate_comparison,
+    generate_patch,
+    generate_unified_diff,
+)
 
 
 class HtmlFieldHistoryMixin(models.AbstractModel):
@@ -19,7 +24,7 @@ class HtmlFieldHistoryMixin(models.AbstractModel):
 
     @api.model
     def _get_versioned_fields(self):
-        """This method should be overriden
+        """This method should be overridden
 
         :return: List[string]: A list of name of the fields to be versioned
         """
@@ -133,9 +138,8 @@ class HtmlFieldHistoryMixin(models.AbstractModel):
         return content
 
     def html_field_history_get_comparison_at_revision(self, field_name, revision_id):
-        """For the requested field,
-        Get a comparison between the current content of the field and the
-        content restored at the requested revision_id.
+        """Get a comparison between the current content of ``field_name`` and
+        the content restored at the requested revision_id.
 
         :param str field_name: the name of the field
         :param int revision_id: id of the last revision to compare
@@ -150,9 +154,8 @@ class HtmlFieldHistoryMixin(models.AbstractModel):
         return generate_comparison(restored_content, self[field_name] or "")
 
     def html_field_history_get_unified_diff_at_revision(self, field_name, revision_id):
-        """For the requested field,
-        Get a unified diff between the current content of the field and the
-        content restored at the requested revision_id.
+        """Get a unified diff between the current content of ``field_name`` and
+        the content restored at the requested revision_id.
 
         :param str field_name: the name of the field
         :param int revision_id: id of the last revision to compare

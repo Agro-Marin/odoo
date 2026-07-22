@@ -14,7 +14,7 @@ class EventRegistration(models.Model):
         return False
 
     # sale_status can be computed in pos_event and event_sale. We need to make it
-    # available in both modules, so its now in event module.
+    # available in both modules, so it lives here in the event_product base module.
     def _compute_registration_status(self):
         if not self._has_order():
             for reg in self:

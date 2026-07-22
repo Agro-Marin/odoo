@@ -1,9 +1,9 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 from datetime import date, datetime
 
+from odoo.tests.common import tagged, users, warmup
+
 from odoo.addons.hr_work_entry_holidays.tests.common import TestWorkEntryHolidaysBase
-from odoo.tests.common import users, warmup, tagged
 
 
 @tagged('work_entry_holidays_perf')
@@ -11,7 +11,7 @@ class TestWorkEntryHolidaysPerformance(TestWorkEntryHolidaysBase):
 
     @classmethod
     def setUpClass(cls):
-        super(TestWorkEntryHolidaysPerformance, cls).setUpClass()
+        super().setUpClass()
         cls.jack = cls.env['hr.employee'].create({'name': 'Jack'})
         cls.employees = cls.richard_emp | cls.jack
 
@@ -58,7 +58,7 @@ class TestWorkEntryHolidaysPerformancesBigData(TestWorkEntryHolidaysBase):
 
     @classmethod
     def setUpClass(cls):
-        super(TestWorkEntryHolidaysPerformancesBigData, cls).setUpClass()
+        super().setUpClass()
         cls.company = cls.env['res.company'].create({'name': 'A company'})
 
         cls.paid_time_off = cls.env['hr.leave.type'].create({
@@ -93,8 +93,7 @@ class TestWorkEntryHolidaysPerformancesBigData(TestWorkEntryHolidaysBase):
         cls.leaves.action_approve()
 
     def test_work_entries_generation_perf(self):
-        # Test Case 7: Try to generate work entries for
-        # a hundred employees over a month
+        # generate work entries for a hundred employees over two months
         with self.assertQueryCount(__system__=883, admin=2807):  # com: 402 / 2807
             work_entries = self.contracts.generate_work_entries(date(2020, 7, 1), date(2020, 8, 31))
 

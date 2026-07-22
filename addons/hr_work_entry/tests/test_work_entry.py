@@ -1,10 +1,12 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 from datetime import date, datetime
-from dateutil.relativedelta import relativedelta
+
 import pytz
+from dateutil.relativedelta import relativedelta
 
 from odoo.tests.common import tagged
+
 from odoo.addons.hr_work_entry.tests.common import TestWorkEntryBase
 
 
@@ -59,7 +61,7 @@ class TestWorkEntry(TestWorkEntryBase):
         self.assertTrue(work_entry1.action_validate(), "It should validate work_entries")
 
     def test_outside_calendar(self):
-        """ Test leave work entries outside schedule are conflicting """
+        """ Test leave work entries fully outside the schedule are dropped (not generated), while a non-leave entry outside the schedule survives without conflicting. """
         work_entries = self.create_work_entries([
             # Outside but not a leave
             (datetime(2018, 10, 13, 3, 0), datetime(2018, 10, 13, 4, 0)),
@@ -175,7 +177,7 @@ class TestWorkEntry(TestWorkEntryBase):
         self.assertEqual(work_entry_types, [entry_type_1, entry_type_2])
 
     def test_work_entry_duration(self):
-        """ Test the duration of a work entry is rounded to the nearest minute and correctly calculated """
+        """ Test the duration of a work entry is rounded to the nearest second and correctly calculated """
         vals_list = [{
             'name': 'Test Work Entry',
             'employee_id': self.richard_emp.id,
@@ -360,11 +362,7 @@ class TestWorkEntry(TestWorkEntryBase):
         self.assertTrue(all(entry.version_id.name == 'FullyFlex Contract' for entry in half2_entries))
 
     def test_work_entry_version_changed_after_generation(self):
-        """
-        When you generate work entries for a version, and you add a new version to the employee starting during the period of already generated work entries,
-        The previous version work entries date generation to should be updated to the new version date and new work entries should be generated.
-        Previous ones should be deleted
-        """
+        """ Test adding a version starting mid-period regenerates work entries: the earlier version's generation window is truncated to the new version's start date and its stale entries replaced. """
         calendar_40h = self.env['resource.calendar'].create({
             'name': '40h Calendar',
             'tz': 'Europe/Brussels',
@@ -433,11 +431,7 @@ class TestWorkEntry(TestWorkEntryBase):
         self.assertEqual(sum(work_entries.mapped("duration")), 178, "7 * 8h + 6 * 7h + 10 * 8h")
 
     def test_work_entry_version_changed_after_generation2(self):
-        """
-        When you generate work entries for a version, and you add a new version to the employee starting during the period of already generated work entries,
-        The previous version work entries date generation to should be updated to the new version date and new work entries should be generated.
-        Previous ones should be deleted
-        """
+        """ Test adding a version starting mid-period regenerates work entries: the earlier version's generation window is truncated to the new version's start date and its stale entries replaced. """
         calendar_40h = self.env['resource.calendar'].create({
             'name': '40h Calendar',
             'tz': 'Europe/Brussels',

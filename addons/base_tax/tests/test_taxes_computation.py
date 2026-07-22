@@ -1,19 +1,10 @@
 """Standalone regression tests for the ``base_tax`` computation engine.
 
-The ``account`` module exercises this engine extensively, but only ever with the
-full accounting stack installed.  ``base_tax`` ships independently and promises
-"tax computation without the full accounting stack".  The code paths that make
-that promise work are the runtime seams that fall back when accounting fields are
-absent, e.g.::
-
-    "tax_calculation_rounding_method" in company._fields  # -> round_per_line
-    "account_price_include" in company._fields  # -> company_price_include = False
-    "account_fiscal_country_id" in company._fields  # -> country from company_id.country_id
-
-Those seams are only ever taken when ``account`` is NOT installed, so nothing
-tests them today.  This suite pins the engine's behaviour standalone.  It also
-runs (harmlessly) when ``account`` is installed; the few assertions that are
-specific to the standalone fallbacks skip themselves in that case.
+The engine has runtime seams that fall back when accounting fields are absent on
+``res.company`` (``tax_calculation_rounding_method``, ``account_price_include``,
+``account_fiscal_country_id``); those fallbacks are only taken when ``account``
+is NOT installed. This suite pins the standalone behaviour and skips the
+fallback-specific assertions when ``account`` is installed.
 """
 
 from odoo.tests import TransactionCase, tagged
@@ -170,7 +161,7 @@ class TestBaseTaxComputation(TransactionCase):
         self.assertAlmostEqual(totals["total_amount"], 43.06, places=2)
 
     def test_pipeline_round_globally_distributes_delta(self):
-        """Round-globally spreads the rounding delta across lines (docstring case)."""
+        """Round-globally spreads the rounding delta across lines."""
         tax = self._tax(21.0, price_include_override="tax_included")
         base_lines = [self._base_line(tax, 21.53) for _ in range(2)]
         Tax = self.env["account.tax"]
@@ -195,15 +186,13 @@ class TestBaseTaxComputation(TransactionCase):
     # extra_tax_data round-trip
     # ------------------------------------------------------------------
     def test_import_extra_tax_data_keeps_manual_total_without_taxes(self):
-        """A forced total-excluded on an untaxed line must survive export/import.
-
-        '_export_base_line_extra_tax_data' stores 'manual_total_excluded' (and the
-        'currency_id' sentinel) even when there are no per-tax manual amounts, e.g.
-        an untaxed global-discount/down-payment delta line.  The importer must
-        honour it; gating the import on 'manual_tax_amounts' would silently drop it
-        (and diverge from account_tax.js, which gates on 'currency_id').
-        """
+        """A forced total-excluded on an untaxed line must survive export/import."""
         Tax = self.env["account.tax"]
+        # The export stores 'manual_total_excluded' (and the 'currency_id' sentinel)
+        # even with no per-tax manual amounts, e.g. an untaxed
+        # global-discount/down-payment delta line. The import must honour it; gating
+        # on 'manual_tax_amounts' would silently drop it and diverge from
+        # account_tax.js, which gates on 'currency_id'.
         base_line = self._base_line(Tax, price_unit=100.0, manual_total_excluded=-50.0)
         extra_tax_data = Tax._export_base_line_extra_tax_data(base_line)
         self.assertNotIn("manual_tax_amounts", extra_tax_data)

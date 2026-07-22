@@ -101,12 +101,10 @@ class CredentialCategory(models.Model):
 
     @api.depends("credential_ids")
     def _compute_credential_count(self):
-        """Compute the number of credentials in this category.
-
-        Uses a single grouped aggregate instead of ``len(credential_ids)`` so
-        we don't prefetch and materialize every related credential record just
-        to count them — cheaper and it respects record rules on the count.
-        """
+        """Compute the number of credentials in this category."""
+        # Grouped aggregate instead of len(credential_ids): avoids prefetching
+        # and materializing every related credential just to count them, and
+        # respects record rules on the count.
         counts = dict(
             self.env["credential.credential"]._read_group(
                 [("category_id", "in", self.ids)],

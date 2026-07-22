@@ -744,8 +744,8 @@ export class BaseImportModel {
                 continue;
             }
 
-            // Fields of type "char", "text" or "many2many" can be specified multiple
-            // times and they will be concatenated, fields of other types must be unique.
+            // Fields of type "char", "text", "html" or "many2many" can be specified
+            // multiple times and will be concatenated; fields of other types must be unique.
             if (["char", "text", "html", "many2many"].includes(column.fieldInfo.type)) {
                 if (column.fieldInfo.type === "many2many") {
                     column.comments.push({
