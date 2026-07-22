@@ -141,6 +141,14 @@ registry
                     '.o_field_html[name="body"] .o_channel_redirect:contains(general)',
             },
             {
+                // The mention popover is the UI *active element* while open, and
+                // `useCustomDropzone` only shows a dropzone whose target is
+                // inside the active element. Dropping before the popover has
+                // closed therefore silently does nothing -- wait for it.
+                content: "Wait for the mention popover to close",
+                trigger: "body:not(:has(.o-mail-MentionPlugin-overlay))",
+            },
+            {
                 content: "Drop a file on the full composer",
                 trigger: ".o_mail_composer_form_view",
                 async run() {

@@ -219,10 +219,15 @@ test("failed notification batches retry with backoff then give up", async () => 
     const p2p = new PeerToPeer({ notificationRoute: route });
     p2p.connect(1, 1);
     const notifyProm = p2p._busNotify("disconnect", { targets: [2] });
-    // let the batch delay and every backoff delay (each bounded by
-    // MAXIMUM_RECONNECT_DELAY) elapse; advance in chunks so that the timers
-    // scheduled between retries by the async loop are picked up.
-    for (let i = 0; i < 12; i++) {
+    // Let the batch delay and every backoff delay (each bounded by
+    // MAXIMUM_RECONNECT_DELAY) elapse. Advance in chunks, because a timer the
+    // async retry loop schedules *during* an advance is only picked up by the
+    // next one -- so the number of chunks needed is the number of sequential
+    // timers, not the total virtual time. Stop as soon as the retries are
+    // exhausted instead of running a fixed count: the backoff is derived from
+    // INITIAL_RECONNECT_DELAY, which is randomised at module load, so any fixed
+    // budget sitting near the boundary fails on some page loads and not others.
+    for (let i = 0; i < 40 && rpcCount < 1 + MAX_NOTIFICATION_RETRIES; i++) {
         await advanceTime(10_000);
     }
     // initial attempt + capped retries, no infinite ~100ms-cadence recursion

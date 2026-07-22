@@ -29,6 +29,7 @@ silently reintroduce it. Coverage:
 """
 
 import json
+import unittest
 from datetime import timedelta
 from unittest.mock import patch
 
@@ -39,6 +40,24 @@ from odoo.tests import HttpCase, tagged
 from odoo.addons.mail.tests.common import MailCommon
 
 
+def _require_test_mail(env):
+    """Skip when the fake models these gateway/blacklist tests route mail into
+    are absent.
+
+    ``mail.test.lead`` ships with the ``test_mail`` module, which is installed on
+    any full CI database but not by a bare ``-i mail``. Without it the alias
+    tests died on an opaque "null value in column alias_model_id violates
+    not-null constraint" (``_get_id`` returns a falsy id for an unknown model)
+    and the blacklist test on a bare ``KeyError: 'mail.test.lead'``, neither of
+    which names the missing dependency.
+    """
+    if not env["ir.model"]._get_id("mail.test.lead"):
+        raise unittest.SkipTest(
+            "these tests route real mail into `mail.test.lead`, which is "
+            "provided by the `test_mail` module - install it to run them"
+        )
+
+
 @tagged("-at_install", "post_install", "mail_hardening_v9")
 class TestMailGatewayHardeningV9(MailCommon):
     """Gateway: bounce rendering, loop tagging, cross-domain alias routing."""
@@ -46,6 +65,7 @@ class TestMailGatewayHardeningV9(MailCommon):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
+        _require_test_mail(cls.env)
         cls.lead_model_id = cls.env["ir.model"]._get_id("mail.test.lead")
 
     def _incoming(
@@ -218,6 +238,11 @@ class TestMailGatewayHardeningV9(MailCommon):
 @tagged("-at_install", "post_install", "mail_hardening_v9")
 class TestBlacklistHardeningV9(MailCommon):
     """Blacklist must cover every address a record holds, not just the first."""
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        _require_test_mail(cls.env)
 
     def test_blacklist_matches_secondary_address(self):
         lead_multi = self.env["mail.test.lead"].create(

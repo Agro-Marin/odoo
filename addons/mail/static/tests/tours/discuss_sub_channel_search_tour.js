@@ -153,6 +153,16 @@ registry.category("web_tour.tours").add("create_thread_for_attachment_without_bo
             run: "click",
         },
         {
+            // Wait for the channel to actually be displayed before dropping.
+            // The dropzone is registered per Composer instance on the (shared)
+            // Discuss content root, so dropping before the composer has been
+            // re-keyed to the new thread hands the file to the *outgoing*
+            // channel's composer -- the file uploads fine, just onto the
+            // previously open conversation.
+            content: "Wait for the general channel to be displayed",
+            trigger: ".o-mail-DiscussContent-threadName[title='general']",
+        },
+        {
             content: "Drop a file",
             trigger: ".o-mail-DiscussContent-main",
             async run() {

@@ -59,14 +59,69 @@ registry
                 trigger: ".o_mail_composer_message strong:contains(Hello)",
             },
             {
-                content: "Focus the text in full composer",
-                trigger: ".o_mail_composer_message .odoo-editor-editable",
-                run: "click",
+                // Place a COLLAPSED caret first, and only select the word in a
+                // later step (below). Both actions go through a real DOM Range
+                // because a tour `click`/`dblclick` dispatches *synthetic* mouse
+                // events, which browsers do not honour for caret placement or
+                // word selection -- the document selection would stay in the
+                // chatter composer and the toolbar steps would then silently
+                // format the WRONG editor.
+                //
+                // Splitting caret-then-select is not cosmetic. Moving the
+                // selection here closes the chatter composer's toolbar overlay,
+                // and selecting a word opens this composer's one. Doing both at
+                // once makes the overlay list go [chatterToolbar, dialog] ->
+                // [dialog, fullToolbar] in a SINGLE render, and OWL's keyed-list
+                // diff answers that shape by re-inserting the surviving dialog
+                // node (its "node moved left" branch) instead of just dropping
+                // the head. Re-inserting the dialog's subtree blurs whatever is
+                // focused inside it, so the selection we just made is wiped and
+                // the toolbar anchors to an empty range. Closing the old overlay
+                // first makes the second patch a pure append, which OWL handles
+                // without touching the dialog.
+                content: "Place the caret in the full composer",
+                trigger:
+                    ".o_mail_composer_message .odoo-editor-editable strong:contains(Hello)",
+                async run(actions) {
+                    await actions.click();
+                    const doc = this.anchor.ownerDocument;
+                    const selection = doc.getSelection();
+                    const caret = doc.createRange();
+                    caret.setStart(this.anchor.firstChild, 0);
+                    caret.collapse(true);
+                    selection.removeAllRanges();
+                    selection.addRange(caret);
+                    // `pointerup` is what makes the toolbar plugin re-evaluate.
+                    this.anchor.closest(".odoo-editor-editable").dispatchEvent(
+                        new MouseEvent("pointerup", {
+                            bubbles: true,
+                            cancelable: true,
+                        }),
+                    );
+                },
             },
             {
-                content: "Select the text in full composer",
-                trigger: ".o_mail_composer_message .odoo-editor-editable",
-                run: "dblclick",
+                content: "Wait for the chatter composer's toolbar to close",
+                trigger: "body:not(:has(.o-we-toolbar))",
+            },
+            {
+                content: "Select the text in the full composer",
+                trigger:
+                    ".o_mail_composer_message .odoo-editor-editable strong:contains(Hello)",
+                run() {
+                    const doc = this.anchor.ownerDocument;
+                    const selection = doc.getSelection();
+                    const range = doc.createRange();
+                    range.selectNodeContents(this.anchor);
+                    selection.removeAllRanges();
+                    selection.addRange(range);
+                    this.anchor.closest(".odoo-editor-editable").dispatchEvent(
+                        new MouseEvent("pointerup", {
+                            bubbles: true,
+                            cancelable: true,
+                        }),
+                    );
+                },
             },
             {
                 trigger: ".o-we-toolbar",

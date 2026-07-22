@@ -101,7 +101,14 @@ registry.category("web_tour.tours").add("mail_template_dynamic_placeholder_tour"
             trigger: 'div[name="subject"] input[type="text"]',
             run() {
                 const subjectValue = this.anchor.value;
-                const correctValue = "yes_model_id {{object.company_name|||defValue}}";
+                // ` ||| ` (spaced) is the canonical default-value separator:
+                // it is what `useDynamicPlaceholder` inserts and what
+                // `mail.render.mixin._build_expression` writes server-side.
+                // `tools.rendering_tools.INLINE_TEMPLATE_REGEX` accepts either
+                // spacing, which is why the unspaced expectation this assertion
+                // used to carry went unnoticed until the tour was run.
+                const correctValue =
+                    "yes_model_id {{object.company_name ||| defValue}}";
                 if (subjectValue !== correctValue) {
                     console.error(
                         `Email template should have "${correctValue}" in subject input (actual: ${subjectValue})`,
