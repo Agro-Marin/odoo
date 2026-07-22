@@ -183,6 +183,24 @@ class WebJsonController(http.Controller):
                         fields=", ".join(invalid),
                     )
                 )
+            # A bare field name is expanded to ``field:<aggregator>`` below.
+            # Non-aggregatable fields (``aggregator is None`` -- e.g. char/text)
+            # would expand to the invalid token ``"name:None"``, which the ORM
+            # rejects with a raw ``ValueError`` -> 500. Surface a 400 instead,
+            # mirroring the ``invalid``/limit/offset/domain client-error paths.
+            not_aggregatable = [
+                f
+                for f in fields
+                if ":" not in f and model._fields[f].aggregator is None
+            ]
+            if not_aggregatable:
+                raise BadRequest(
+                    env._(
+                        "Fields not aggregatable for %(model)s: %(fields)s",
+                        model=model._name,
+                        fields=", ".join(not_aggregatable),
+                    )
+                )
             aggregates = [
                 (
                     f"{fname}:{model._fields[fname].aggregator}"

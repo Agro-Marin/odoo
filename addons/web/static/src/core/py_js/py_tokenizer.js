@@ -324,14 +324,24 @@ export function tokenize(str) {
                 // comparators, formatAST) then only ever see `!=`.
                 token = "!=";
             }
-            // transform 'not in' and 'is not' in a single token
-            if (token === "in" && tokens.length > 0 && tokens.at(-1)?.value === "not") {
+            // transform 'not in' and 'is not' in a single token. Require the
+            // previous token to be the *operator* not/is (TokenType.Symbol), not
+            // merely to carry that value: a string literal `'not'`/`'is'` is a
+            // String token with the same value, and fusing it would pop the
+            // operand and leave a leading `not in`/`is not` that parsePrefix
+            // can't handle — so `'not' in tags` crashed instead of evaluating.
+            const prev = tokens.at(-1);
+            if (
+                token === "in" &&
+                prev?.type === TokenType.Symbol &&
+                prev.value === "not"
+            ) {
                 token = "not in";
                 tokens.pop();
             } else if (
                 token === "not" &&
-                tokens.length > 0 &&
-                tokens.at(-1)?.value === "is"
+                prev?.type === TokenType.Symbol &&
+                prev.value === "is"
             ) {
                 token = "is not";
                 tokens.pop();

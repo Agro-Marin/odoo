@@ -55,7 +55,7 @@ def _int_or_zero(value) -> int:
     """
     try:
         return int(value)
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         return 0
 
 
@@ -73,9 +73,7 @@ def _token_authorized_public(record, field, access_token) -> bool:
     if not access_token:
         return False
     return bool(
-        verify_limited_field_access_token(
-            record, field, access_token, scope="binary"
-        )
+        verify_limited_field_access_token(record, field, access_token, scope="binary")
     )
 
 
@@ -392,7 +390,11 @@ class Binary(http.Controller):
             if _token_authorized_public(record, field, access_token):
                 stream.public = True
         except UserError as exc:
-            if download:
+            # ``download`` is a raw query-string bool: ``?download=false`` is the
+            # truthy string "false", so a bare truthiness test would 404 a broken
+            # image the caller explicitly asked to render inline. Coerce, as the
+            # send_file path below already does.
+            if str2bool(download, False):
                 raise request.not_found() from exc
             # Use the ratio of the requested field_name instead of "raw"
             if (int(width), int(height)) == (0, 0):

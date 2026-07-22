@@ -106,7 +106,12 @@ export const errorService = {
             }
         }
 
-        browser.addEventListener("error", async (ev) => {
+        // Named handlers (not inline) so ``destroy()`` below can detach them:
+        // an env that starts this service and is later torn down (notably every
+        // env spun up across a test suite) would otherwise leak both window
+        // listeners, each pinning the dead env — the same fix the sibling
+        // name/slow_rpc services already carry.
+        const onError = async (ev) => {
             const { colno, error, filename, lineno, message } = ev;
             // Never surface this ResizeObserver error to the user: it just means the
             // browser deferred notifications a frame to prevent an infinite loop —
@@ -179,9 +184,10 @@ export const errorService = {
             }
             uncaughtError.cause = error;
             handleError(uncaughtError);
-        });
+        };
+        browser.addEventListener("error", onError);
 
-        browser.addEventListener("unhandledrejection", async (ev) => {
+        const onUnhandledRejection = async (ev) => {
             let error = ev.reason;
 
             if (error && error.type === "error" && "eventPhase" in error) {
@@ -226,7 +232,15 @@ export const errorService = {
             }
             uncaughtError.cause = error;
             handleError(uncaughtError);
-        });
+        };
+        browser.addEventListener("unhandledrejection", onUnhandledRejection);
+
+        return {
+            destroy() {
+                browser.removeEventListener("error", onError);
+                browser.removeEventListener("unhandledrejection", onUnhandledRejection);
+            },
+        };
     },
 };
 

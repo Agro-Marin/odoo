@@ -179,17 +179,23 @@ export function isSafeUrlScheme(href) {
     if (typeof href !== "string") {
         return false;
     }
-    // The WHATWG URL/HTML parser removes ASCII tab and newlines (U+0009,
-    // U+000A, U+000D) from anywhere in a URL before resolving it. Test the
-    // same normalized string the browser will act on, otherwise a value like
-    // "java\tscript:alert(1)" hides its scheme from the regex below (the tab
-    // is not in the scheme char class, so no scheme is detected and the value
-    // is wrongly treated as safe) yet still executes on navigation.
-    const cleaned = href.replace(/[\t\n\r]/g, "");
-    if (/^\s*\/\//.test(cleaned)) {
+    // Normalize `href` to the SAME string the WHATWG URL/HTML parser will
+    // resolve: it removes ASCII tab/newline (U+0009/A/D) from ANYWHERE, and
+    // strips leading C0 controls (U+0000-U+001F) and space. Skipping this
+    // lets a scheme hide from the checks below yet still execute on
+    // navigation -- via an interior tab ("java<TAB>script:") or a leading
+    // control before "javascript:" / "//evil". Strip leading controls by
+    // code point, not a control-char regex (which trips `no-control-regex`).
+    let cleaned = href.replace(/[\t\n\r]/g, "");
+    let start = 0;
+    while (start < cleaned.length && cleaned.charCodeAt(start) <= 0x20) {
+        start++;
+    }
+    cleaned = cleaned.slice(start);
+    if (/^\/\//.test(cleaned)) {
         return false;
     }
-    const scheme = /^\s*([a-z][a-z0-9+.-]*):/i.exec(cleaned);
+    const scheme = /^([a-z][a-z0-9+.-]*):/i.exec(cleaned);
     if (scheme) {
         return SAFE_URL_SCHEMES.includes(scheme[1].toLowerCase());
     }

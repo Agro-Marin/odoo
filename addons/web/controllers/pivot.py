@@ -21,6 +21,31 @@ from odoo.libs.json import loads as json_loads
 # 30-measure pivot is ~300k cells). ~1M cells ≈ 230 MB peak — generous but finite.
 MAX_EXPORT_CELLS = 1_000_000
 
+# Excel's hard limit is 32767 characters per cell. Clamp every client-supplied
+# string there BEFORE it reaches a ``write`` (or is multiplied into an indent):
+# ``MAX_EXPORT_CELLS`` counts cells, not per-cell length, so a single crafted
+# multi-hundred-MB ``title``/``value`` would otherwise be built into one Python
+# string and OOM the worker while writing well under the cell cap.
+MAX_CELL_CHARS = 32_767
+
+
+def _cell(value):
+    """Truncate an over-long client string; pass non-strings (numbers) through."""
+    return value[:MAX_CELL_CHARS] if isinstance(value, str) else value
+
+
+def _clamp_int(value, hi):
+    """Coerce a client-supplied count/size to ``0..hi``.
+
+    Raw JSON can carry a non-numeric value (e.g. ``"measure_count": "x"``); a
+    bare ``min(value, hi)`` would then raise ``TypeError`` (Py3 forbids str/int
+    comparison) → 500. Coerce defensively so bad input degrades to ``0`` instead.
+    """
+    try:
+        return max(0, min(int(value), hi))
+    except (TypeError, ValueError):
+        return 0
+
 
 class TableExporter(http.Controller):
     @http.route("/web/pivot/export_xlsx", type="http", auth="user", readonly=True)
@@ -63,7 +88,7 @@ class TableExporter(http.Controller):
             header_plain = workbook.add_format({"pattern": 1, "bg_color": "#AAAAAA"})
             bold = workbook.add_format({"bold": True})
 
-            measure_count = max(0, min(jdata["measure_count"], 100000))
+            measure_count = _clamp_int(jdata["measure_count"], 100000)
 
             # Step 1: writing col group headers
             col_group_headers = jdata["col_group_headers"]
@@ -82,16 +107,17 @@ class TableExporter(http.Controller):
                         if cell["height"] > 1:
                             carry.append({"x": x, "height": cell["height"] - 1})
                         x = x + measure_count
-                    width = max(0, min(header["width"], 100000))
+                    width = _clamp_int(header["width"], 100000)
+                    height = _clamp_int(header["height"], 100000)
                     for j in range(width):
                         worksheet.write(
                             y,
                             x + j,
-                            header["title"] if j == 0 else "",
+                            _cell(header["title"]) if j == 0 else "",
                             header_plain,
                         )
-                    if header["height"] > 1:
-                        carry.append({"x": x, "height": header["height"] - 1})
+                    if height > 1:
+                        carry.append({"x": x, "height": height - 1})
                     x = x + width
                 while carry and carry[0]["x"] == x:
                     cell = carry.popleft()
@@ -109,7 +135,7 @@ class TableExporter(http.Controller):
                 worksheet.write(y, 0, "", header_plain)
                 for measure in measure_headers:
                     style = header_bold if measure["is_bold"] else header_plain
-                    worksheet.write(y, x, measure["title"], style)
+                    worksheet.write(y, x, _cell(measure["title"]), style)
                     x = x + 1
                 x, y = 1, y + 1
             worksheet.freeze_panes(y, 1)
@@ -122,19 +148,19 @@ class TableExporter(http.Controller):
                 # cells, not per-cell string length, so an unclamped indent (e.g.
                 # 4e8) builds a multi-GB string in a single write() and OOM-kills
                 # the worker. Pivot nesting never exceeds a handful of levels.
-                indent = max(0, min(int(row.get("indent", 0)), 50))
+                indent = _clamp_int(row.get("indent", 0), 50)
                 worksheet.write(
                     y,
                     x,
-                    f"{indent * '     '}{row['title']}",
+                    f"{indent * '     '}{_cell(row['title'])}",
                     header_plain,
                 )
                 for cell in row["values"]:
                     x = x + 1
                     if cell.get("is_bold", False):
-                        worksheet.write(y, x, cell["value"], bold)
+                        worksheet.write(y, x, _cell(cell["value"]), bold)
                     else:
-                        worksheet.write(y, x, cell["value"])
+                        worksheet.write(y, x, _cell(cell["value"]))
                 x, y = 0, y + 1
 
             worksheet.autofit()

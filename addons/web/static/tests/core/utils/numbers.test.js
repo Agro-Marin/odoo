@@ -7,6 +7,7 @@ import {
     clamp,
     floatIsZero,
     formatFloat,
+    humanNumber,
     range,
     roundDecimals,
     roundPrecision,
@@ -228,6 +229,24 @@ test("roundDecimals", () => {
     expect(roundDecimals(-357.4555, 3)).toBe(-357.456);
     expect(roundDecimals(457.4554, 3)).toBe(457.455);
     expect(roundDecimals(-457.4554, 3)).toBe(-457.455);
+});
+
+test("humanNumber rounds negatives away from zero (symmetric with positives)", () => {
+    allowTranslations();
+    patchWithCleanup(localization, {
+        decimalPoint: ".",
+        grouping: [3, 0],
+        thousandsSep: ",",
+    });
+    // Must match roundDecimals (HALF-UP, away from zero), not Math.round (ties
+    // toward +Inf), so negatives are symmetric with positives and consistent
+    // with the rest of the numeric stack.
+    expect(humanNumber(1.5, { decimals: 0 })).toBe("2");
+    expect(humanNumber(-1.5, { decimals: 0 })).toBe("-2");
+    expect(humanNumber(0.5, { decimals: 0 })).toBe("1");
+    expect(humanNumber(-0.5, { decimals: 0 })).toBe("-1");
+    expect(humanNumber(2.5, { decimals: 0 })).toBe("3");
+    expect(humanNumber(-2.5, { decimals: 0 })).toBe("-3");
 });
 
 test("floatIsZero", () => {
