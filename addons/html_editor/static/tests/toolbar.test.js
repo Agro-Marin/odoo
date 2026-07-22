@@ -1482,7 +1482,7 @@ test("toolbar buttons should have title attribute with translated text", async (
             ? item.description().toString()
             : item.description.toString();
 
-    // item.label could be a LazyTranslatedString so we ensure it is a string with toString()
+    // item.description could be a LazyTranslatedString so we ensure it is a string with toString()
     const descriptions = plugins.get("toolbar").getButtons().map(itemDescriptionString);
     editor.destroy();
 
@@ -1501,7 +1501,7 @@ test("toolbar buttons should have title attribute with translated text", async (
         .get("toolbar")
         .getButtons()
         .forEach((item) => {
-            // item.label could be a LazyTranslatedString so we ensure it is a string with toString()
+            // item.description could be a LazyTranslatedString so we ensure it is a string with toString()
             expect(itemDescriptionString(item)).toBe("Translated");
         });
 

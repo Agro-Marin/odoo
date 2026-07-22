@@ -28,7 +28,7 @@ import { execCommand } from "./userCommands.js";
  */
 export async function insertText(editor, text) {
     const insertChar = (char) => {
-        // Create and dispatch events to mock text insertion. Unfortunatly, the
+        // Create and dispatch events to mock text insertion. Unfortunately, the
         // events will be flagged `isTrusted: false` by the browser, requiring
         // the editor to detect them since they would not trigger the default
         // browser behavior otherwise.
@@ -390,7 +390,7 @@ export function setColor(color, mode) {
     };
 }
 
-// Mock an paste event and send it to the editor.
+// Mock a paste event and send it to the editor.
 
 /**
  * @param {Editor} editor
