@@ -1,7 +1,6 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-from odoo import models, _
+from odoo import _, models
 from odoo.exceptions import UserError
 
 
@@ -14,7 +13,7 @@ class CalendarEvent(models.Model):
             declined_partners = event.attendee_ids.filtered_domain([('state', '=', 'declined')]).partner_id
             for alarm in alarms:
                 partners = event._mail_get_partners()[event.id].filtered(
-                    lambda partner: partner.phone_sanitized and partner not in declined_partners
+                    lambda partner: partner.phone_sanitized and partner not in declined_partners  # noqa: B023 - filtered() is invoked eagerly within this same loop iteration, not deferred
                 )
                 if event.user_id and not alarm.notify_responsible:
                     partners -= event.user_id.partner_id
