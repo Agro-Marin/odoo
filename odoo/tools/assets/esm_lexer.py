@@ -114,6 +114,14 @@ class _LexerWorker:
         if proc is not None:
             with contextlib.suppress(OSError):
                 proc.kill()
+            # Reap it: an unwaited-for killed child lingers as a zombie, which
+            # still shows up in `psutil.Process().children()` — so the test
+            # suite's leftover-child audit kept reporting it as a leak even
+            # once it was dead. SIGKILL is not catchable, so this cannot block
+            # for long; the timeout only guards a pathological uninterruptible
+            # state.
+            with contextlib.suppress(subprocess.TimeoutExpired, OSError):
+                proc.wait(timeout=5)
 
     def _write_all(self, proc: subprocess.Popen, data: bytes, deadline: float) -> None:
         """Write all of ``data`` to the worker's stdin before ``deadline``.
@@ -238,6 +246,20 @@ class _LexerWorker:
 
 
 _worker = _LexerWorker()
+
+
+def close_lexer_worker() -> None:
+    """Shut down the persistent node worker if one is running.
+
+    The worker is deliberately long-lived (spawning node per module would cost
+    more than the lexing), but it is a child of the Odoo process, so anything
+    that audits leftover children sees it. ``BaseCase`` does exactly that at
+    class teardown and logged "A child process was found, terminating it:
+    node-MainThread" once per browser-test class; call this first, like
+    ``close_sass_compiler``, so the worker is stopped by its owner rather than
+    reported as a leak.
+    """
+    _worker._kill()
 
 
 def lex_module(src: str) -> dict[str, Any] | None:
