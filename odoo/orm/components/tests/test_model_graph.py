@@ -679,6 +679,28 @@ class TestDiscardFields(unittest.TestCase):
         g.discard_fields([f])
         self.assertFalse(g.has_triggers(f))
 
+    def test_discard_from_triggers_as_target(self) -> None:
+        # A discarded field must also be scrubbed where it is a trigger *target*
+        # of another dep, else get_trigger_tree would schedule a deleted field.
+        g = ModelGraph()
+        dep = _field("price")
+        gone = _field("total")
+        kept = _field("subtotal")
+        g.add_trigger(dep, (), [gone, kept])
+        g.discard_fields([gone])
+        tree = g.get_trigger_tree([dep])
+        self.assertIn(kept, tree.root)
+        self.assertNotIn(gone, tree.root)
+
+    def test_discard_target_removes_emptied_dep(self) -> None:
+        # If a dep's only targets are all discarded, the dep drops out entirely.
+        g = ModelGraph()
+        dep = _field("price")
+        gone = _field("total")
+        g.add_trigger(dep, (), [gone])
+        g.discard_fields([gone])
+        self.assertFalse(g.has_triggers(dep))
+
     def test_discard_from_depends(self) -> None:
         g = ModelGraph()
         f = _field("total")
