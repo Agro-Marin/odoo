@@ -60,7 +60,12 @@ export class Plugin {
      * @param {Element} target
      * @param {string} eventName
      * @param {function(Event):void} fn
-     * @param {boolean} [capture=false] `useCapture` flag of `addEventListener`
+     * @param {boolean | AddEventListenerOptions} [capture=false] `useCapture`
+     *   flag of `addEventListener`, or a full options object. Several call
+     *   sites pass `{ capture: true }`; that already worked because
+     *   `addEventListener` accepts either form, but the annotation claimed
+     *   boolean only. The same value is handed to `removeEventListener`, which
+     *   is what makes the cleanup match.
      * @param {boolean} [isGlobal=false] if true, don't check target validity
      */
     addDomListener(target, eventName, fn, capture = false, isGlobal = false) {

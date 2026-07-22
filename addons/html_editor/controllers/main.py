@@ -331,8 +331,28 @@ class HTML_Editor(http.Controller):
             # This approach is beneficial when the URL doesn't conclude with an
             # image extension. By verifying the MIME type, the code ensures that
             # only supported image types are incorporated into the data.
-            response = requests.head(url, timeout=10)
-            if response.status_code == 200:
+            #
+            # `url` is fully attacker-controlled and this route is `auth='user'`
+            # (so a PORTAL user reaches it), which made the HEAD an SSRF probe
+            # into the server's own network -- cloud metadata, localhost admin
+            # ports, private ranges. `_url_is_safe` resolves the host and only
+            # accepts globally-routable addresses, the same guard mail's link
+            # preview already applies to untrusted URLs.
+            #
+            # The request outcome is deliberately NOT distinguishable by the
+            # caller: every failure mode (bad scheme, blocked host, refused
+            # connection, timeout, non-200) leaves `mimetype` unset and raises
+            # nothing. Previously a raw `requests` exception escaped to the RPC
+            # client, so "connection refused" and "connected" were different
+            # responses -- a working internal port scanner even for users who
+            # then failed the access check below.
+            if not link_preview._url_is_safe(url):
+                raise UserError(_("The provided URL cannot be fetched."))
+            try:
+                response = requests.head(url, timeout=10)
+            except requests.RequestException:
+                response = None
+            if response is not None and response.status_code == 200:
                 mime_type = response.headers.get('content-type')
                 if mime_type in SUPPORTED_IMAGE_MIMETYPES:
                     attachment_data['mimetype'] = mime_type
@@ -549,12 +569,18 @@ class HTML_Editor(http.Controller):
 
         slug = request.env['ir.http']._slug
         for media_id, url in response.json().items():
+            # The endpoint is admin-configurable and its response is therefore
+            # only semi-trusted: validate the download URLs it hands back the
+            # same way as any other externally-supplied URL, and skip ids we
+            # never asked about instead of raising KeyError on `media[media_id]`.
+            if media_id not in media or not link_preview._url_is_safe(url):
+                continue
             req = requests.get(url, timeout=15)
             name = '_'.join([media[media_id]['query'], url.split('/')[-1]])
             IrAttachment = request.env['ir.attachment']
             attachment_data = {
                 'name': name,
-                'mimetype': req.headers['content-type'],
+                'mimetype': req.headers.get('content-type'),
                 'public': True,
                 'raw': req.content,
                 'res_model': 'ir.ui.view',
@@ -581,10 +607,15 @@ class HTML_Editor(http.Controller):
         if module == 'illustration':
             unslug = request.env['ir.http']._unslug
             attachment = request.env['ir.attachment'].sudo().browse(unslug(filename)[1])
+            # ``attachment.url`` is False for every attachment uploaded through
+            # the editor itself (``/html_editor/attachment/add_data`` stores raw
+            # bytes and no url), so ``.startswith`` raised AttributeError and
+            # turned this PUBLIC route into an unauthenticated 500 for any such
+            # id -- while also making the url-lookup fallback below unreachable.
             if (not attachment.exists()
                     or attachment.type != 'binary'
                     or not attachment.public
-                    or not attachment.url.startswith(request.httprequest.path)):
+                    or not (attachment.url or '').startswith(request.httprequest.path)):
                 # Fallback to URL lookup to allow using shapes that were
                 # imported from data files.
                 attachment = request.env['ir.attachment'].sudo().search([
@@ -707,9 +738,14 @@ class HTML_Editor(http.Controller):
 
         document.check_access('read')
         document.check_access('write')
-        if field := document._fields.get(field_name):
-            document._check_field_access(field, 'read')
-            document._check_field_access(field, 'write')
+        # An unknown `field_name` used to skip the field-level checks entirely
+        # and still broadcast on a channel derived from it, letting a caller
+        # pick an arbitrary channel name on a record it can write.
+        field = document._fields.get(field_name)
+        if not field:
+            raise werkzeug.exceptions.BadRequest
+        document._check_field_access(field, 'read')
+        document._check_field_access(field, 'write')
 
         channel = (request.db, 'editor_collaboration', model_name, field_name, int(res_id))
         bus_data.update({'model_name': model_name, 'field_name': field_name, 'res_id': res_id})
