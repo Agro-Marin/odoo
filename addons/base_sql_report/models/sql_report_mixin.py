@@ -175,6 +175,10 @@ class SqlReportMixin(models.AbstractModel):
         ignored on JOIN entries.
         """
         is_sql_obj = isinstance(table_name, SQL)
+        if not is_sql_obj:
+            self._check_percent_escaping(table_name, "from-table")
+        if alias:
+            self._check_percent_escaping(alias, "from-alias")
         if join_type is None:
             table_sql = table_name if is_sql_obj else SQL(table_name)
             if alias:
