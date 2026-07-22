@@ -11,7 +11,7 @@ export const uploadLocalFileService = {
          * Open the system file selector and return the selected files.
          *
          * @param {Object} [options]
-         * @param {boolean} [options.multiple=true]
+         * @param {boolean} [options.multiple]
          * @param {string} [options.accept]
          * @returns {Promise<FileList>}
          */
@@ -116,7 +116,7 @@ export const uploadLocalFileService = {
         }
 
         /**
-         * @param {Object} attachments
+         * @param {Object} attachment
          * @param {Object} [options]
          * @returns {string}
          */

@@ -470,12 +470,7 @@ export class ToggleBlockPlugin extends Plugin {
     }
 
     /**
-     * This method handles the behavior when the user presses the Enter key.
-     * In the editor, when the user presses the Enter key, this splits the focused text block into 2
-     * separate ones. When the text block is split then it calls to all handlers so that they can trigger
-     * a specific behavior with the split block.
-     *
-     * This handler handles multiple cases:
+     * Handle Enter (block split) when the cursor is in a toggle title:
      *      1. The toggle title is currently empty (remove toggle)
      *      2. Cursor is at the start of the toggle title (create new toggle before)
      *      3. Cursor elsewhere in the toggle title (create new toggle after)

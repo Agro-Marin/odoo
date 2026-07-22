@@ -486,7 +486,6 @@ export class ImageSelector extends FileSelector {
      *
      * @param {HTMLElement} imgEl
      * @param {Object} media
-     * @returns
      */
     async onLibraryImageLoaded(imgEl, media) {
         const mediaUrl = imgEl.src;
