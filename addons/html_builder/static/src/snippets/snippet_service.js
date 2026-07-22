@@ -116,9 +116,10 @@ export class SnippetModel extends SignalStore {
      * it.
      *
      * @param {Object} snippet the snippet object
-     * @param {Object} - `onSelect` called when a snippet is selected. Must return
-     *     an HTMLElement.
-     *                 - `onClose` called when the dialog is closed.
+     * @param {Object} handlers
+     * @param {Function} handlers.onSelect called when a snippet is selected;
+     *     must return an HTMLElement
+     * @param {Function} handlers.onClose called when the dialog is closed
      * @param {Object} editor
      */
     openSnippetDialog(snippet, { onSelect, onClose }, editor) {
@@ -338,7 +339,7 @@ export class SnippetModel extends SignalStore {
      * Returns the snippet thumbnail URL.
      *
      * @param {String} snippetKey the `data-snippet` attribute of the snippet.
-     * @returns
+     * @returns {String}
      */
     getSnippetThumbnailURL(snippetKey) {
         const originalSnippet = this.getOriginalSnippet(snippetKey);
@@ -359,12 +360,12 @@ export class SnippetModel extends SignalStore {
      * to have access to it directly.
      *
      * @param {HTMLElement} snippetEl the snippet we want to save
-     * @param {Array<Function>} cleanForSaveHandlers all the hanlders of the
+     * @param {Array<Function>} cleanForSaveHandlers all the handlers of the
      *     `clean_for_save_handlers` resources
      * @param {Function} wrapWithSaveSnippetHandlers a function that processes the snippet
      * before and/or after the cloning. E.g. stopping the interactions before
      * cloning and restarting them after cloning.
-     * @returns
+     * @returns {Promise}
      */
     saveSnippet(
         snippetEl,
