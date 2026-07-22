@@ -1398,10 +1398,15 @@ class DiscussChannel(models.Model):
         )
 
     def _message_receive_bounce(self, email, partner):
-        # Override bounce management to unsubscribe bouncing addresses
-        for p in partner:
-            if p.message_bounce >= self.MAX_BOUNCE_LIMIT:
-                self._action_unfollow(p)
+        # Override bounce management to unsubscribe bouncing addresses, but only
+        # for channel types where leaving is meaningful. Auto-unfollowing a
+        # bouncing correspondent from a 'chat' would strip a 2-person DM down to
+        # a single broken member (which the create guard then forbids re-adding),
+        # so DMs are kept intact and merely keep failing delivery.
+        if self.channel_type in self._types_allowing_unfollow():
+            for p in partner:
+                if p.message_bounce >= self.MAX_BOUNCE_LIMIT:
+                    self._action_unfollow(p)
         return super()._message_receive_bounce(email, partner)
 
     def _get_allowed_message_params(self):

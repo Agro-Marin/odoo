@@ -681,12 +681,14 @@ class TestMailMessageAccess(MessageAccessCommon):
             (self.record_admin.message_ids[0], {
                 'author_id': self.user_employee.partner_id.id,
             }, False, 'Author > no access on record'),
-            # notified
+            # notified: being a recipient / having a notification grants read
+            # visibility only, NOT the right to alter another author's message on
+            # a document one cannot access (see mail.message._check_access).
             (self.record_admin.message_ids[0], {
                 'notification_ids': [(0, 0, {
                     'res_partner_id': self.user_employee.partner_id.id,
                 })],
-            }, False, 'Notified > no access on record'),
+            }, True, 'Notified is read-only, not write'),
         ]:
             original_vals = {
                 'author_id': msg.author_id.id,

@@ -2293,9 +2293,8 @@ class MailThread(models.AbstractModel):
         data = {}
         if isinstance(custom_values, dict):
             data = custom_values.copy()
-        model_fields = self.fields_get()
         name_field = self._rec_name or "name"
-        if name_field in model_fields and not data.get(name_field):
+        if name_field in self._fields and not data.get(name_field):
             data[name_field] = msg_dict.get("subject", "")
 
         primary_email = self._mail_get_primary_email_field()
@@ -5238,7 +5237,12 @@ class MailThread(models.AbstractModel):
             base_mail_values.update(additional_values)
 
         # prepare headers (as sudo as accessing mail.alias.domain, restricted)
-        headers = base_mail_values.get("headers") or {}
+        # copy: base_mail_values["headers"] may be the caller-supplied
+        # mail_headers dict (forwarded through additional_values). Mutating it in
+        # place below (X-Msg-To-Add / Return-Path) would leak this record's
+        # recipients onto a sibling record if the caller reuses one dict across a
+        # loop of records.
+        headers = dict(base_mail_values.get("headers") or {})
         # prepare external emails to modify Msg[To] and enable Reply-All by
         # including external people (aka share partners to notify + emails
         # notified by incoming email (incoming_email_cc and incoming_email_to)
@@ -5868,24 +5872,47 @@ class MailThread(models.AbstractModel):
     def _notify_get_recipients_for_extra_notifications(
         self, message, recipients_data, msg_vals=False
     ):
-        """Never send to author and to people outside Odoo (email) except comments"""
+        """Never send to author and to people outside Odoo (email) except comments.
+
+        A partner who was already a direct To/Cc recipient of the incoming email
+        is excluded from these extra (web push) notifications: their own mail
+        client has already alerted them, so a push would be a duplicate real-time
+        alert. ``_notify_get_recipients`` deliberately keeps such an inbox
+        follower's inbox needaction (the incoming email is not an inbox
+        needaction); only the redundant push is dropped here, keeping both
+        behaviours consistent.
+        """
+        msg_vals = msg_vals or {}
+        msg_sudo = message.sudo()
+        # emails already reached as To/Cc of the incoming gateway email (empty
+        # for non-gateway messages, so this is a no-op there).
+        emailed_normalized = set(
+            email_normalize_all(
+                f"{msg_vals.get('incoming_email_to', msg_sudo.incoming_email_to) or ''}, "
+                f"{msg_vals.get('incoming_email_cc', msg_sudo.incoming_email_cc) or ''}"
+            )
+        )
         notif_pids = []
         notif_pids_notinbox = []
         for recipient in (r for r in recipients_data if r["active"] and r["id"]):
+            if (
+                emailed_normalized
+                and recipient["email_normalized"] in emailed_normalized
+            ):
+                continue
             notif_pids.append(recipient["id"])
             if recipient["notif"] != "inbox":
                 notif_pids_notinbox.append(recipient["id"])
         if not notif_pids:
-            return []
+            return set()
 
-        msg_vals = msg_vals or {}
-        msg_type = msg_vals.get("message_type") or message.sudo().message_type
-        author_ids = [msg_vals.get("author_id") or message.sudo().author_id.id]
+        msg_type = msg_vals.get("message_type") or msg_sudo.message_type
+        author_ids = [msg_vals.get("author_id") or msg_sudo.author_id.id]
         if msg_type in {"comment", "whatsapp_message"}:
             return set(notif_pids) - set(author_ids)
         elif msg_type in ("notification", "user_notification", "email"):
             return set(notif_pids) - set(author_ids) - set(notif_pids_notinbox)
-        return []
+        return set()
 
     def _notify_get_action_link(self, link_type, **kwargs):
         """Prepare link to an action: view document, follow document, ..."""
