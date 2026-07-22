@@ -1,3 +1,4 @@
+from odoo import Command
 from odoo.tests import HttpCase, tagged
 
 from odoo.addons.hr.tests.common import TestHrCommon
@@ -52,6 +53,6 @@ class TestEmployeeUi(TestHrCommon, HttpCase):
             'name': 'Restricted User (Test)',
             'login': 'restricted_user',
             'password': 'restricted_user',
-            'group_ids': [(6, 0, self.res_users_hr_manager.group_ids.ids)],
+            'group_ids': [Command.set(self.res_users_hr_manager.group_ids.ids)],
         })
         self.start_tour("/odoo/employees", 'employee_view_access_multicompany', login="restricted_user")
