@@ -2,7 +2,7 @@
 
 import uuid
 
-from odoo import fields, models, api
+from odoo import api, fields, models
 from odoo.fields import Domain
 from odoo.libs.web.urls import urljoin as url_join
 
@@ -57,17 +57,17 @@ class ResCompany(models.Model):
             it for every record.
         """
         if column_name != 'attendance_kiosk_key':
-            super(ResCompany, self)._init_column(column_name)
+            super()._init_column(column_name)
         else:
             self.env.cr.execute("SELECT id FROM %s WHERE attendance_kiosk_key IS NULL" % self._table)
             attendance_ids = self.env.cr.dictfetchall()
             values_args = [(attendance_id['id'], self._default_company_token()) for attendance_id in attendance_ids]
-            query = """
-                UPDATE {table}
+            query = f"""
+                UPDATE {self._table}
                 SET attendance_kiosk_key = vals.token
                 FROM (VALUES %s) AS vals(id, token)
-                WHERE {table}.id = vals.id
-            """.format(table=self._table)
+                WHERE {self._table}.id = vals.id
+            """
             self.env.cr.execute_values(query, values_args)
 
     def write(self, vals):

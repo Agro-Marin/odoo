@@ -2,15 +2,16 @@
 
 from collections import defaultdict
 from datetime import datetime, timedelta
+
 from dateutil.relativedelta import relativedelta
-from dateutil.rrule import rrule, DAILY
+from dateutil.rrule import DAILY, rrule
 from pytz import timezone, utc
 
-from odoo import api, models, fields
+from odoo import api, fields, models
 from odoo.exceptions import ValidationError
-from odoo.tools.date_utils import sum_intervals, float_to_time
+from odoo.libs.intervals import Intervals, _boundaries, invert_intervals
 from odoo.libs.numbers.float_utils import float_compare
-from odoo.libs.intervals import _boundaries, Intervals, invert_intervals
+from odoo.tools.date_utils import float_to_time, sum_intervals
 
 
 def _naive_utc(dt):
@@ -279,9 +280,7 @@ class HrAttendanceOvertimeRule(models.Model):
             utc.localize(date_end)
         )
         delta = sum((i[1] - i[0]).total_seconds() for i in expected_work_time)
-        expected_hours = delta / 3600.0
-
-        return expected_hours
+        return delta / 3600.0
 
     def _get_daterange_overtime_intervals_for_quantity_rule(self, start, stop, attendance_intervals, schedule):  # TODO: TO REMOVE IN MASTER
         overtime_intervals, _ = self._get_daterange_overtime_undertime_intervals_for_quantity_rule(start, stop, attendance_intervals, schedule)
@@ -318,17 +317,17 @@ class HrAttendanceOvertimeRule(models.Model):
         remanining_overtime_amount = overtime_amount
         # Attendances are sorted by check_in asc
         for attendance in attendances.sorted('check_in'):
-            for start, stop, _cal in intervals_attendance_by_attendance[attendance]:
-                interval_duration = (stop - start).total_seconds() / 3600
+            for interval_start, interval_stop, _cal in intervals_attendance_by_attendance[attendance]:
+                interval_duration = (interval_stop - interval_start).total_seconds() / 3600
                 if remaining_duration >= interval_duration:
                     remaining_duration -= interval_duration
                     continue
                 interval_overtime_duration = interval_duration
                 if remaining_duration != 0:
                     interval_overtime_duration = interval_duration - remaining_duration
-                new_start = stop - timedelta(hours=interval_overtime_duration)
+                new_start = interval_stop - timedelta(hours=interval_overtime_duration)
                 remaining_duration = 0
-                overtime_intervals[attendance].append((new_start, stop, self))
+                overtime_intervals[attendance].append((new_start, interval_stop, self))
                 remanining_overtime_amount = remanining_overtime_amount - interval_overtime_duration
                 if remanining_overtime_amount <= 0:
                     return overtime_intervals, {}
@@ -382,14 +381,14 @@ class HrAttendanceOvertimeRule(models.Model):
                 stop = datetime.combine(stop_day, datetime.max.time())
                 for day in rrule(freq=DAILY, dtstart=start, until=stop):
                     dates.add(day.date())
-            for date in dates:
-                days_intervals.append(
-                    (
-                        datetime.combine(date, datetime.min.time()),
-                        datetime.combine(date, datetime.max.time()),
-                        self.env['resource.calendar']
-                    )
+            days_intervals.extend(
+                (
+                    datetime.combine(date, datetime.min.time()),
+                    datetime.combine(date, datetime.max.time()),
+                    self.env['resource.calendar']
                 )
+                for date in dates
+            )
             return Intervals(days_intervals, keep_distinct=True)
 
         def _invert_intervals(intervals, first_start, last_stop):
@@ -446,7 +445,7 @@ class HrAttendanceOvertimeRule(models.Model):
                     stop_datetime.replace(tzinfo=None)
                 )
                 intervals_by_timing_type['schedule'][calendar.id].update(
-                    {employee: calendar_intervals for employee in employees}
+                    dict.fromkeys(employees, calendar_intervals)
                 )
         return intervals_by_timing_type
 
@@ -502,9 +501,9 @@ class HrAttendanceOvertimeRule(models.Model):
                 _fill_overtime(employees, rules, intervals_by_timing_type['leave'], attendances_intervals_by_employee)
 
             elif timing_type == 'schedule':
-                for calendar, rules in rules.grouped('resource_calendar_id').items():
+                for calendar, calendar_rules in rules.grouped('resource_calendar_id').items():
                     outside_calendar_intervals = intervals_by_timing_type['schedule'][calendar.id]
-                    _fill_overtime(employees, rules, outside_calendar_intervals, attendances_intervals_by_employee)
+                    _fill_overtime(employees, calendar_rules, outside_calendar_intervals, attendances_intervals_by_employee)
             else:
                 for rule in rules:
                     timing_intervals_by_employee = _build_day_rule_intervals(employees, rule, intervals_by_timing_type[timing_type])

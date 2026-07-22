@@ -1,6 +1,6 @@
 import time
 
-from odoo.tests.common import tagged, TransactionCase
+from odoo.tests.common import TransactionCase, tagged
 
 
 @tagged('attendance_searchbar_user_domain')

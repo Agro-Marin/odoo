@@ -1,24 +1,24 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-import pytz
-
 from calendar import monthrange
 from collections import defaultdict
-from datetime import datetime, timedelta, time
-from dateutil.rrule import rrule, DAILY
-from dateutil.relativedelta import relativedelta, MO, SU
+from datetime import datetime, time, timedelta
 from itertools import chain
-from operator import itemgetter
-from pytz import timezone, utc
 from random import randint
 
-from odoo import models, fields, api, exceptions, _
+import pytz
+from dateutil.relativedelta import MO, SU, relativedelta
+from dateutil.rrule import DAILY, rrule
+from pytz import timezone, utc
+
+from odoo import _, api, exceptions, fields, models
 from odoo.exceptions import AccessError
 from odoo.fields import Domain
 from odoo.http import request
-from odoo.tools import convert, format_duration, format_time, format_datetime
-from odoo.tools.date_utils import sum_intervals
 from odoo.libs.intervals import Intervals
+from odoo.tools import convert, format_datetime, format_duration, format_time
+from odoo.tools.date_utils import sum_intervals
+
 
 def get_google_maps_url(latitude, longitude):
     return "https://maps.google.com?q=%s,%s" % (latitude, longitude)
@@ -33,6 +33,7 @@ class HrAttendance(models.Model):
     def _default_employee(self):
         if self.env.user.has_group('hr_attendance.group_hr_attendance_user'):
             return self.env.user.employee_id
+        return None
 
     employee_id = fields.Many2one('hr.employee', string="Employee", default=_default_employee, required=True,
         ondelete='cascade', index=True, group_expand='_read_group_employee_id')
@@ -379,7 +380,7 @@ class HrAttendance(models.Model):
 
     def _load_demo_data(self):
         if self.has_demo_data():
-            return
+            return None
         env_sudo = self.sudo().with_context({}).env
         env_sudo['hr.employee']._load_scenario()
         # Load employees, schedules, departments and partners
@@ -409,7 +410,7 @@ class HrAttendance(models.Model):
         attendance_values = []
         for i in range(1, date_range):
             check_in_date = now.replace(hour=6, minute=0, second=randint(0, 59)) + timedelta(days=-i, minutes=randint(-2, 3))
-            if check_in_date.weekday() not in range(0, 5):
+            if check_in_date.weekday() not in range(5):
                 continue
             check_out_date = now.replace(hour=10, minute=0, second=randint(0, 59)) + timedelta(days=-i, minutes=randint(-2, -1))
             check_in_date_after_lunch = now.replace(hour=11, minute=0, second=randint(0, 59)) + timedelta(days=-i, minutes=randint(-2, -1))
@@ -580,7 +581,7 @@ class HrAttendance(models.Model):
 
         for company in all_companies:
             max_tol = company.auto_check_out_tolerance
-            to_verify_company = to_verify.filtered(lambda a: a.employee_id.company_id.id == company.id)
+            to_verify_company = to_verify.filtered(lambda a, company=company: a.employee_id.company_id.id == company.id)
 
             for att in to_verify_company:
 
@@ -592,7 +593,7 @@ class HrAttendance(models.Model):
 
                 expected_worked_hours = sum(
                     att.employee_id.resource_calendar_id.attendance_ids.filtered(
-                        lambda a: a.dayofweek == str(check_in_datetime.weekday())
+                        lambda a, check_in_datetime=check_in_datetime: a.dayofweek == str(check_in_datetime.weekday())
                             and (not a.two_weeks_calendar or a.week_type == str(a.get_week_type(check_in_datetime.date())))
                     ).mapped("duration_hours")
                 )

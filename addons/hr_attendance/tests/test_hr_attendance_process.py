@@ -1,12 +1,12 @@
-# -*- coding: utf-8 -*-
 
-import pytz
 from datetime import datetime
 from unittest.mock import patch
 
+import pytz
+
 from odoo import fields
 from odoo.tests import Form, new_test_user
-from odoo.tests.common import tagged, TransactionCase, freeze_time
+from odoo.tests.common import TransactionCase, tagged
 
 
 @tagged('attendance_process')
@@ -15,7 +15,7 @@ class TestHrAttendance(TransactionCase):
 
     @classmethod
     def setUpClass(cls):
-        super(TestHrAttendance, cls).setUpClass()
+        super().setUpClass()
         cls.user = new_test_user(cls.env, login='fru', groups='base.group_user')
         cls.user_no_pin = new_test_user(cls.env, login='gru', groups='base.group_user')
         cls.test_employee = cls.env['hr.employee'].create({
