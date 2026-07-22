@@ -152,12 +152,10 @@ class HrApplicant(models.Model):
 
     @api.depends("email_normalized", "partner_phone_sanitized", "linkedin_profile", "pool_applicant_id.talent_pool_ids")
     def _compute_talent_pool_count(self):
-        """
-        This method will find the amount of talent pools the current application is associated with.
-        An application can either be associated directly with a talent pool through talent_pool_ids
-        and/or pool_applicant_id.talent_pool_ids or indirectly by having the same email, phone
-        number or linkedin as a directly linked application.
-        """
+        """Count the talent pools the current application is associated with."""
+        # An application is associated directly through talent_pool_ids and/or
+        # pool_applicant_id.talent_pool_ids, or indirectly by sharing the same
+        # email, phone number or linkedin as a directly linked application.
         pool_applicants = self.filtered("is_applicant_in_pool")
         (self - pool_applicants).talent_pool_count = 0
 
@@ -253,18 +251,10 @@ class HrApplicant(models.Model):
 
     @api.depends("email_normalized", "partner_phone_sanitized", "linkedin_profile")
     def _compute_application_count(self):
-        """
-        This method will calculate the number of applications that are either
-        directly or indirectly linked to the current application(s)
-        - An application is considered directly linked if it shares the same
-          pool_applicant_id
-        - An application is considered indirectly_linked if it has the same
-          value as the current application(s) in any of the following field:
-          email, phone number or linkedin
-
-        Note: If self has pool_applicant_id, email, phone number or linkedin set
-        this method will include self in the returned count
-        """
+        """Count the applications directly or indirectly linked to each record."""
+        # Directly linked = shares the same pool_applicant_id. Indirectly linked
+        # = shares email, phone number or linkedin. Self is included in the count
+        # when it has any of pool_applicant_id, email, phone number or linkedin set.
         domain = self._get_similar_applicants_domain(ignore_talent=True)
         matching_applicants = self.env["hr.applicant"].with_context(active_test=False).search(domain)
 
@@ -303,18 +293,16 @@ class HrApplicant(models.Model):
             applicant.is_pool_applicant = applicant.talent_pool_ids
 
     def _get_similar_applicants_domain(self, ignore_talent=False, only_talent=False):
-        """
-        This method returns a domain for the applicants whitch match with the
-        current applicant according to email_from, partner_phone or linkedin_profile.
-        Thus, search on the domain will return the current applicant as well
-        if any of the following fields are filled.
+        """Build a domain matching applicants similar to the current record(s).
 
-        Args:
-            ignore_talent: if you want the domain to only include applicants not belonging to a talent pool
-            only_talent: if you want the domain to only include applicants belonging to a talent pool
+        Matches on id, email_normalized, partner_phone_sanitized, linkedin_profile
+        or pool_applicant_id, so the current applicant is included when any of
+        those fields is filled.
 
-        Returns:
-            Domain()
+        :param bool ignore_talent: restrict to applicants not belonging to a talent pool
+        :param bool only_talent: restrict to applicants belonging to a talent pool
+        :return: a domain selecting the similar applicants
+        :rtype: Domain
         """
         domain = Domain.OR([
             Domain("id", "in", self.ids),
@@ -333,23 +321,12 @@ class HrApplicant(models.Model):
         "talent_pool_ids", "pool_applicant_id", "email_normalized", "partner_phone_sanitized", "linkedin_profile"
     )
     def _compute_is_applicant_in_pool(self):
-        """
-        Computes if an application is linked to a talent pool or not.
-        An application can either be directly or indirectly linked to a talent pool.
-        Direct link:
-            - 1. Application has talent_pool_ids set, meaning this application
-                is a talent pool application, or talent for short.
-            - 2. Application has pool_applicant_id set, meaning this application
-            is a copy or directly linked to a talent (scenario 1)
-
-        Indirect link:
-            - 3. Application shares a phone number, email, or linkedin with a
-                direclty linked application.
-
-        Note: While possible, linking an application to a pool through linking
-        it to an indirect link is currently excluded from the implementation
-        for technical reasons.
-        """
+        """Compute whether an application is linked to a talent pool."""
+        # Direct link: talent_pool_ids set (the application is itself a talent)
+        # or pool_applicant_id set (a copy of / directly linked to a talent).
+        # Indirect link: shares a phone number, email or linkedin with a directly
+        # linked application. Linking to a pool through another indirect link is
+        # currently excluded for technical reasons.
         direct = self.filtered(lambda a: a.talent_pool_ids or a.pool_applicant_id)
         direct.is_applicant_in_pool = True
         indirect = self - direct
@@ -390,16 +367,14 @@ class HrApplicant(models.Model):
             )
 
     def _search_is_applicant_in_pool(self, operator, value):
-        """
-        This function is needed to hide duplicates when adding applicants/talents to a talent pool.
-        All applications that have either talent_pool_ids or pool_applicant_id set are considered
-        directly in a pool. Furthermore, any application with the same phone number, email or linkedin
-        as the first applications, that are directly in the pool, are also considered to belong to
-        the same talent pool.
+        """Search applications directly or indirectly linked to a talent pool.
 
-        Returns:
-            returns a domain with ids of applications that are either directly or indirectly linked to a pool
+        :return: a domain on ids of applications linked to a pool
+        :rtype: list
         """
+        # Used to hide duplicates when adding applicants/talents to a talent pool.
+        # Directly in a pool = talent_pool_ids or pool_applicant_id set; indirectly
+        # = same phone number, email or linkedin as a directly-linked application.
         if operator != 'in':
             return NotImplemented
 
@@ -733,8 +708,10 @@ class HrApplicant(models.Model):
         return super().get_view(view_id, view_type, **options)
 
     def action_create_meeting(self):
-        """ This opens Meeting's calendar view to schedule meeting on current applicant
-            @return: Dictionary value for created Meeting view
+        """Open the calendar view to schedule a meeting on the current applicant.
+
+        :return: an act_window action opening the calendar event view
+        :rtype: dict
         """
         self.ensure_one()
         if not self.partner_id:
