@@ -150,5 +150,6 @@ def make_mock_google_route(on_call=None):
                 },
                 "status": "OK",
             }
+        return None
 
     return _call_google_route
