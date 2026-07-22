@@ -400,10 +400,17 @@ class _ReadGroupSQLMixin(_ModelStubs):
                 # in/not in: the right operand must be a tuple so SQL() expands
                 # it to ``(%s, %s, ...)``; a list/set would bind as one array
                 # param, giving invalid ``IN (ARRAY[...])``. Normalize here.
-                if operator in ("in", "not in") and isinstance(
-                    right, (list, set, frozenset)
-                ):
-                    right = tuple(right)
+                if operator in ("in", "not in"):
+                    if isinstance(right, (list, set, frozenset)):
+                        right = tuple(right)
+                    if isinstance(right, tuple) and not right:
+                        # Empty collection: ``x IN (NULL)`` is never TRUE, so an
+                        # empty ``in`` matches nothing and an empty ``not in``
+                        # matches everything. Emit the constant directly —
+                        # ``NOT IN (NULL)`` evaluates to NULL and would wrongly
+                        # drop every group.
+                        stack.append(SQL("TRUE") if operator == "not in" else SQL("FALSE"))
+                        continue
                 stack.append(SQL("%s%s%s", sql_left, SQL_OPERATORS[operator], right))
             else:
                 raise ValueError(

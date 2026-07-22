@@ -1049,8 +1049,9 @@ class Html(BaseString):
                         original_value_normalized.splitlines(),
                     )
 
-                    with_colors = isinstance(
-                        logging.getLogger().handlers[0].formatter,
+                    root_handlers = logging.getLogger().handlers
+                    with_colors = bool(root_handlers) and isinstance(
+                        root_handlers[0].formatter,
                         ColoredFormatter,
                     )
                     diff_str = f"The field ({record._description}, {self.string}) will not be editable:\n"

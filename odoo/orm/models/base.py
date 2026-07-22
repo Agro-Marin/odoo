@@ -501,6 +501,15 @@ class BaseModel(
         field = self._fields.get(field_name)
         if not field:
             raise ValueError(f"Invalid field {field_name!r} on model {self._name!r}")
+        if field.type != "properties":
+            # Guard before dereferencing definition_record/_field below: a
+            # non-properties field would raise an opaque AttributeError (a Fault
+            # 500 over RPC, since this is a public @api.model method) instead of
+            # a clear validation error.
+            raise ValueError(
+                f"Field {field_name!r} on model {self._name!r} is not a "
+                f"properties field"
+            )
         from ..fields.properties import check_property_field_value_name
 
         check_property_field_value_name(property_name)

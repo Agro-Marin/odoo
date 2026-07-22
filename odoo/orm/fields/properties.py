@@ -137,19 +137,6 @@ class Properties(Field):
                 self.compute = self._compute
 
     @override
-    def setup(self, model: BaseModel) -> None:
-        if (
-            not self._setup_done
-            and self.definition_record
-            and self.definition_record_field
-        ):
-            definition_record_field = model.env[
-                model._fields[self.definition_record].comodel_name
-            ]._fields[self.definition_record_field]
-            definition_record_field.properties_fields += (self,)
-        return super().setup(model)
-
-    @override
     def setup_related(self, model: BaseModel) -> None:
         super().setup_related(model)
         if self.inherited_field and not self.definition:
@@ -1050,7 +1037,6 @@ class PropertiesDefinition(Field):
     copy = True  # containers may act like templates, keep definitions to ease usage
     readonly = False
     prefetch = True
-    properties_fields = ()  # List of Properties fields using that definition
 
     REQUIRED_KEYS = ("name", "type")
     ALLOWED_KEYS = (
