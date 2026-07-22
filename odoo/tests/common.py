@@ -464,6 +464,23 @@ class BaseCase(case.TestCase):
                 pass
 
         cls.addClassCleanup(close_sass)
+
+        def close_esm_lexer():
+            """Shut down the node ESM-lexer worker before child-process check.
+
+            Same rationale as `close_sass`: the worker is an intentional
+            long-lived child of the asset pipeline, so leaving it to the leak
+            check turned every browser-test class into a spurious "A child
+            process was found, terminating it: node-MainThread" warning.
+            """
+            try:
+                from odoo.tools.assets.esm_lexer import close_lexer_worker
+
+                close_lexer_worker()
+            except ImportError:
+                pass
+
+        cls.addClassCleanup(close_esm_lexer)
         super().setUpClass()
         if "standard" in cls.test_tags or "click_all" in cls.test_tags:
             # patch.object stores the value via setattr; an already-bound
