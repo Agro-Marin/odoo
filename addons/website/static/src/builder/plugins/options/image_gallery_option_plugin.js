@@ -89,10 +89,24 @@ class ImageGalleryOption extends Plugin {
     };
 
     setup() {
+        // A single bound handler + explicit set so the slid.bs.carousel listener
+        // is idempotent (never double-bound) and every element it was attached
+        // to is unbound on destroy — the editor tears down but the edited page
+        // DOM (the carousels) lives on, so a leaked listener retains `this`.
+        this.onCarouselSlidBound = this.onCarouselSlid.bind(this);
+        this.carouselsWithSlidListener = new Set();
         const slideshowCarousels = this.document.querySelectorAll(
             ".s_image_gallery .carousel",
         );
         this.addCarouselListener(slideshowCarousels);
+    }
+
+    destroy() {
+        super.destroy();
+        for (const el of this.carouselsWithSlidListener) {
+            el.removeEventListener("slid.bs.carousel", this.onCarouselSlidBound);
+        }
+        this.carouselsWithSlidListener.clear();
     }
 
     addUniqueIds(carousels) {
@@ -110,7 +124,25 @@ class ImageGalleryOption extends Plugin {
 
     addCarouselListener(slideshowCarousels) {
         for (const carousel of slideshowCarousels) {
-            this.addDomListener(carousel, "slid.bs.carousel", this.onCarouselSlid);
+            this.bindCarouselSlid(carousel);
+        }
+    }
+
+    bindCarouselSlid(el) {
+        // addDomListener registers a *new* auto-cleanup on every call and never
+        // dedupes, so repeated relayouts/drops leaked listeners + detached
+        // nodes; and the old removeEventListener(this.onCarouselSlid) never
+        // matched addDomListener's wrapped handler (a silent no-op).
+        if (this.carouselsWithSlidListener.has(el)) {
+            return;
+        }
+        this.carouselsWithSlidListener.add(el);
+        el.addEventListener("slid.bs.carousel", this.onCarouselSlidBound);
+    }
+
+    unbindCarouselSlid(el) {
+        if (this.carouselsWithSlidListener.delete(el)) {
+            el.removeEventListener("slid.bs.carousel", this.onCarouselSlidBound);
         }
     }
 
@@ -323,7 +355,7 @@ class ImageGalleryOption extends Plugin {
             copyAttributes: true,
         });
         if (carouselEl) {
-            carouselEl.removeEventListener("slid.bs.carousel", this.onCarouselSlid);
+            this.unbindCarouselSlid(carouselEl);
         }
         container.replaceChildren(slideshowEl);
         slideshowEl.querySelectorAll("img").forEach((img, index) => {
@@ -350,7 +382,7 @@ class ImageGalleryOption extends Plugin {
                 .querySelector(".carousel .carousel-inner")
                 ?.classList.add("d-none");
         }
-        this.addDomListener(slideshowEl, "slid.bs.carousel", this.onCarouselSlid);
+        this.bindCarouselSlid(slideshowEl);
     }
 
     onCarouselSlid(ev) {

@@ -1165,11 +1165,16 @@ class Website(models.Model):
                     },
                 )
                 name_replace_parser = re.compile(r"XXXX", re.MULTILINE)
-                website_name = re.escape(website.name)
                 for key in generated_content:
                     if response.get(key):
+                        # A function replacement inserts ``website.name``
+                        # verbatim. Passing the name as a replacement *string*
+                        # (even re.escape'd) is wrong: re.sub interprets
+                        # backslash sequences there, so a name like "Acme Corp"
+                        # leaks "Acme\ Corp" (re.escape escapes spaces) and a
+                        # name with a group-like escape raises re.error.
                         generated_content[key] = name_replace_parser.sub(
-                            website_name, response[key], 0
+                            lambda _m: website.name, response[key]
                         )
             except AccessError:
                 # If IAP is broken continue normally (without generating text)
@@ -1548,7 +1553,9 @@ class Website(models.Model):
                     "name": name,
                     "url": page_url,
                     "parent_id": website.menu_id.id,
-                    "page_id": page.id,
+                    # ``page`` is only bound when ispage=True; a menu can be
+                    # created for a non-page URL, so guard the reference.
+                    "page_id": page.id if ispage else False,
                     "website_id": website.id,
                 }
                 if menu_values:
@@ -1817,11 +1824,15 @@ class Website(models.Model):
 
         # TODO: in master, store the computed field domain_punycode to avoid
         #       the need to search on domain_name and domain_name_idna.
+        # ``domain_name`` is the attacker-controlled Host header. Escape the
+        # LIKE metacharacters so a Host of "%"/"_" cannot turn this into a
+        # match-everything scan (and pollute the ormcache with junk keys); the
+        # exact _filter_domain below still does the authoritative check.
         found_websites = self.search(
             [
                 "|",
-                ("domain", "ilike", _remove_port(domain_name)),
-                ("domain", "ilike", _remove_port(domain_name_idna)),
+                ("domain", "ilike", escape_psql(_remove_port(domain_name))),
+                ("domain", "ilike", escape_psql(_remove_port(domain_name_idna))),
             ]
         )
         # Filter for the exact domain (to filter out potential subdomains) due

@@ -442,7 +442,10 @@ export class EditSocialMediaLinkAction extends BuilderAction {
     static dependencies = ["socialMediaOptionPlugin"];
     apply({ editingElement, params: { mainParam }, value }) {
         if (!value) {
+            // The element is gone; everything below mutates it, so stop here
+            // rather than doing work on a detached node.
             editingElement.remove();
+            return;
         }
         const info =
             this.dependencies.socialMediaOptionPlugin.getAssociatedSocialMedia(value);

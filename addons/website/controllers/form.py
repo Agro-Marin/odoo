@@ -191,9 +191,12 @@ class WebsiteForm(http.Controller):
         ]
 
     def tags(self, field_label, field_input):
-        # Unescape ',' and '\'
+        # Split on unescaped commas, then unescape the two escapables: an
+        # escaped comma ``\,`` -> ``,`` and an escaped backslash ``\\`` -> ``\``.
+        # (The previous ``\/`` -> ``\`` rule was a typo: it never restored an
+        # escaped backslash and corrupted values containing ``\/``.)
         return [
-            tag.replace("\\,", ",").replace("\\/", "\\")
+            tag.replace("\\,", ",").replace("\\\\", "\\")
             for tag in re.split(r"(?<!\\),", field_input)
         ]
 

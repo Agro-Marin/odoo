@@ -6,9 +6,12 @@ one is anchored to the specific defect it guards, so a future refactor that
 reintroduces the defect fails loudly rather than silently.
 """
 
+import psycopg
+
 from odoo.http import request
 from odoo.tests import tagged
 from odoo.tests.common import TransactionCase
+from odoo.tools import mute_logger
 
 from odoo.addons.http_routing.tests.common import MockRequest
 from odoo.addons.website.controllers.form import WebsiteForm
@@ -359,3 +362,66 @@ class TestCustomAssetIsolation(TransactionCase):
                 attachment.raw,
                 f"website {website.id} must be served its OWN customisation",
             )
+
+
+@tagged("post_install", "-at_install")
+class TestControllerPageSlugPerWebsite(TransactionCase):
+    """A model-page slug is unique *per website*, not globally.
+
+    The ``/model/<slug>`` resolver disambiguates by ``website_domain()`` and
+    ``_order`` puts the website-specific row first, so two websites (and a
+    generic + a per-website override) may legitimately serve the same slug. A
+    global ``UNIQUE(name_slugified)`` forbade exactly that.
+    """
+
+    def _make_page(self, website, view_key):
+        view = self.env["ir.ui.view"].create(
+            {
+                "name": view_key,
+                "type": "qweb",
+                "key": f"website.{view_key}",
+                "arch": '<t t-name="x"><div>x</div></t>',
+                "website_id": website.id,
+            }
+        )
+        return self.env["website.controller.page"].create(
+            {
+                "name": "AuditProducts",
+                "view_id": view.id,
+                "model_id": self.env["ir.model"]._get_id("res.partner"),
+            }
+        )
+
+    def test_same_slug_allowed_on_two_websites(self):
+        website_1 = self.env["website"].browse(1)
+        website_2 = self.env["website"].create({"name": "Audit Slug W2"})
+        self._make_page(website_1, "audit_slug_a")
+        self._make_page(website_2, "audit_slug_b")
+        # Must NOT raise: same slug, different websites.
+        self.env.flush_all()
+
+    def test_same_slug_rejected_on_same_website(self):
+        website_1 = self.env["website"].browse(1)
+        self._make_page(website_1, "audit_slug_c")
+        self.env.flush_all()
+        with self.assertRaises(psycopg.errors.UniqueViolation), mute_logger("odoo.db"):
+            self._make_page(website_1, "audit_slug_d")
+            self.env.flush_all()
+
+
+@tagged("post_install", "-at_install")
+class TestWebsiteFormTagsUnescape(TransactionCase):
+    """The form ``tags`` filter unescapes ``\\,`` -> ``,`` and ``\\\\`` -> ``\\``.
+
+    The previous ``\\/`` -> ``\\`` rule was a typo: it never restored an escaped
+    backslash and corrupted any value containing ``\\/``.
+    """
+
+    def test_tags_unescape(self):
+        tags = WebsiteForm().tags
+        # Plain split on unescaped commas.
+        self.assertEqual(tags("t", "a,b,c"), ["a", "b", "c"])
+        # An escaped comma stays inside its tag.
+        self.assertEqual(tags("t", r"a\,b,c"), ["a,b", "c"])
+        # An escaped backslash collapses to a single one (was corrupted before).
+        self.assertEqual(tags("t", r"a\\b"), [r"a\b"])
