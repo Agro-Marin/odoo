@@ -24,6 +24,12 @@ cannot silently reintroduce it. Coverage:
    in that recipient's own environment, so ``starred`` and the author's
    ``main_user_id`` each cost one query per recipient: O(N) where the e-mail and
    channel paths are O(1). Both are now resolved in one batch up front.
+ - numeric mail ICPs were read with a bare ``int(get_param(...))`` in eight
+   places. The stored value is free text typed in Settings, so one stray
+   character raised ``ValueError`` inside whichever flow happened to read it --
+   losing an incoming e-mail in the gateway, breaking the outgoing-queue cron,
+   or a list view. They now share ``ir.config_parameter._get_int_param``, which
+   degrades to the documented default and warns.
 """
 
 from contextlib import contextmanager
@@ -358,4 +364,57 @@ class TestInboxFanoutBatchingV11(MailCommon):
             10,
             f"inbox fan-out must be ~constant in recipients (2 -> {few} queries, "
             f"20 -> {many}); it was ~2 queries per recipient before batching",
+        )
+
+
+@tagged("-at_install", "post_install", "mail_hardening_v11")
+class TestConfigParameterIntegersV11(MailCommon):
+    """A typo in one numeric ICP must not take an unrelated subsystem down."""
+
+    def test_helper_degrades_and_warns(self):
+        icp = self.env["ir.config_parameter"]
+        icp.sudo().set_param("mail.batch_size", "not-a-number")
+        with self.assertLogs(
+            "odoo.addons.mail.models.ir_config_parameter", level="WARNING"
+        ) as capture:
+            self.assertEqual(icp._get_int_param("mail.batch_size", 50), 50)
+        self.assertIn("not an integer", "\n".join(capture.output))
+
+    def test_helper_preserves_meaningful_zero(self):
+        """0 means "always queue" for the force-send limit; keep it distinct
+        from "unset", which must give the documented default."""
+        icp = self.env["ir.config_parameter"]
+        icp.sudo().set_param("mail.mail.force.send.limit", "0")
+        self.assertEqual(icp._get_int_param("mail.mail.force.send.limit", 100), 0)
+        icp.sudo().set_param("mail.mail.force.send.limit", False)
+        self.assertEqual(icp._get_int_param("mail.mail.force.send.limit", 100), 100)
+
+    def test_helper_accepts_int_and_str(self):
+        icp = self.env["ir.config_parameter"]
+        icp.sudo().set_param("mail.gateway.loop.threshold", "7")
+        self.assertEqual(icp._get_int_param("mail.gateway.loop.threshold", 20), 7)
+        self.assertEqual(icp._get_int_param("mail.no.such.param.at.all", 42), 42)
+
+    @mute_logger(
+        "odoo.addons.mail.models.ir_config_parameter",
+        "odoo.addons.mail.models.mail_thread",
+    )
+    def test_broken_gateway_icp_does_not_break_loop_detection(self):
+        """A non-integer loop ICP used to raise straight out of
+        ``_detect_loop_sender`` -- i.e. out of ``message_process``, while
+        fetchmail acks the message anyway, losing the incoming mail for good."""
+        icp = self.env["ir.config_parameter"].sudo()
+        icp.set_param("mail.gateway.loop.minutes", "twenty")
+        icp.set_param("mail.gateway.loop.threshold", "lots")
+        message_dict = {
+            "email_from": "sender@example.com",
+            "to": "catchall@test.mycompany.com",
+            "message_id": "<v11-icp@example.com>",
+        }
+        # must not raise, and a single mail is nowhere near any threshold
+        self.assertFalse(
+            self.env["mail.thread"]._detect_loop_sender(
+                None, message_dict, [("res.partner", 0, {}, self.env.uid, None)]
+            ),
+            "a misconfigured gateway ICP must not break loop detection",
         )

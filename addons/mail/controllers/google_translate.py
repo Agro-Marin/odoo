@@ -20,10 +20,8 @@ class GoogleTranslateController(Controller):
         creations count. Bounds a caller from iterating distinct message ids to
         burn Google Translate quota/billing.
         """
-        cap = int(
-            request.env["ir.config_parameter"]
-            .sudo()
-            .get_param(TRANSLATION_DAILY_LIMIT_PARAM, TRANSLATION_DAILY_LIMIT_DEFAULT)
+        cap = request.env["ir.config_parameter"]._get_int_param(
+            TRANSLATION_DAILY_LIMIT_PARAM, TRANSLATION_DAILY_LIMIT_DEFAULT
         )
         if cap <= 0:
             return False

@@ -306,10 +306,8 @@ class MailMail(models.Model):
             # silently never sent.
             domain = [("id", "in", list(email_ids)), *domain]
         batch_size = (
-            int(
-                self.env["ir.config_parameter"]
-                .sudo()
-                .get_param("mail.mail.queue.batch.size", batch_size)
+            self.env["ir.config_parameter"]._get_int_param(
+                "mail.mail.queue.batch.size", batch_size
             )
             or batch_size
         )
@@ -855,10 +853,8 @@ class MailMail(models.Model):
             )
 
         batch_size = (
-            int(
-                self.env["ir.config_parameter"]
-                .sudo()
-                .get_param("mail.session.batch.size")
+            self.env["ir.config_parameter"]._get_int_param(
+                "mail.session.batch.size", 1000
             )
             or 1000
         )
