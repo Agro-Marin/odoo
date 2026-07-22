@@ -1087,8 +1087,11 @@ class HrEmployee(models.Model):
                 date_effective = date_end if use_latest_version else date_start
                 if use_latest_version:
                     if date_effective:
+                        # B023: lambda references loop variable `date_effective`
+                        # but is invoked eagerly on this line (result consumed
+                        # within this same iteration) - no late-binding risk.
                         correct_versions = contract_versions.filtered(
-                            lambda v: v.date_version <= date_effective
+                            lambda v: v.date_version <= date_effective  # noqa: B023
                         )
                         contracts_by_employee[employee_id] |= (
                             correct_versions[-1]
@@ -1254,11 +1257,17 @@ class HrEmployee(models.Model):
         # We loop over all the employee tz and the resource calendar_id to detect working hours in batch.
         all_employee_tz = set(self.mapped("tz"))
         for tz in all_employee_tz:
-            employee_ids = self.filtered(lambda e: e.tz == tz)
+            # B023: lambda references loop variable `tz` but is invoked
+            # eagerly on this line (result consumed within this same
+            # iteration) - no late-binding risk.
+            employee_ids = self.filtered(lambda e: e.tz == tz)  # noqa: B023
             resource_calendar_ids = employee_ids.sudo().mapped("resource_calendar_id")
             for calendar_id in resource_calendar_ids:
+                # B023: lambda references loop variable `calendar_id` but is
+                # invoked eagerly on this line (result consumed within this
+                # same iteration) - no late-binding risk.
                 res_employee_ids = employee_ids.sudo().filtered(
-                    lambda e: e.resource_calendar_id.id == calendar_id.id
+                    lambda e: e.resource_calendar_id.id == calendar_id.id  # noqa: B023
                 )
                 start_dt = fields.Datetime.now()
                 stop_dt = start_dt + timedelta(hours=1)
@@ -1934,10 +1943,10 @@ We can redirect you to the public employee list."""
             )
         index_per_employee = {}
         employees = self.env["hr.employee"]
-        for company, vals_list in vals_per_company.items():
-            idxs, vals_list = zip(*vals_list, strict=False)
+        for company, company_vals_list in vals_per_company.items():
+            idxs, company_vals_list = zip(*company_vals_list, strict=False)
             new_employees = super(HrEmployee, self.with_company(company)).create(
-                vals_list
+                company_vals_list
             )
             index_per_employee.update(dict(zip(new_employees, idxs, strict=False)))
             employees |= new_employees
