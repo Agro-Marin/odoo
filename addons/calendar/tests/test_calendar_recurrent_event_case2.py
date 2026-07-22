@@ -6,7 +6,7 @@ from odoo.tests import common
 class TestRecurrentEvent(common.TransactionCase):
 
     def setUp(self):
-        super(TestRecurrentEvent, self).setUp()
+        super().setUp()
 
         self.CalendarEvent = self.env['calendar.event']
 

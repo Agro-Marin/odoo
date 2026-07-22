@@ -1,7 +1,6 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-import odoo.http as http
-
+from odoo import http
 from odoo.http import request
 from odoo.tools.misc import get_lang
 
@@ -63,7 +62,7 @@ class CalendarController(http.Controller):
         timezone = attendee.partner_id.tz
         lang = attendee.partner_id.lang or get_lang(request.env).code
         event = request.env['calendar.event'].with_context(tz=timezone, lang=lang).sudo().browse(int(id))
-        company = event.user_id and event.user_id.company_id or event.create_uid.company_id
+        company = (event.user_id and event.user_id.company_id) or event.create_uid.company_id
 
         # If user is internal and logged, redirect to form view of event
         # otherwise, display the simplifyed web page with event informations

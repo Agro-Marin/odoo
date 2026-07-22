@@ -1,20 +1,21 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 import base64
-import freezegun
-
 from datetime import datetime, timedelta
 
-from odoo import fields, Command
+import freezegun
+
+from odoo import Command, fields
 from odoo.exceptions import AccessError
 from odoo.tests import Form, new_test_user
+
 from odoo.addons.base.tests.common import SavepointCaseWithUserDemo
 
 
 class TestCalendar(SavepointCaseWithUserDemo):
 
     def setUp(self):
-        super(TestCalendar, self).setUp()
+        super().setUp()
 
         self.CalendarEvent = self.env['calendar.event']
         # In Order to test calendar, I will first create One Simple Event with real data
@@ -94,7 +95,7 @@ class TestCalendar(SavepointCaseWithUserDemo):
             'name': "wheee",
             'start': '2018-10-27 14:30:00',
             'allday': False,
-            'rrule': u'FREQ=DAILY;INTERVAL=1;COUNT=4',
+            'rrule': 'FREQ=DAILY;INTERVAL=1;COUNT=4',
             'recurrency': True,
             'stop': '2018-10-27 16:30:00',
             'event_tz': 'Europe/Brussels',
@@ -143,7 +144,8 @@ class TestCalendar(SavepointCaseWithUserDemo):
                     ])
                 self.assertEqual(len(mail), 1)
 
-        def _test_emails_has_attachment(self, partners, attachments_names=["fileText_attachment.txt"]):
+        def _test_emails_has_attachment(self, partners, attachments_names=None):
+            attachments_names = attachments_names or ["fileText_attachment.txt"]
             # check that every email has specified extra attachments
             for partner in partners:
                 mail = self.env['mail.message'].sudo().search([
@@ -164,14 +166,14 @@ class TestCalendar(SavepointCaseWithUserDemo):
         self.env.ref('calendar.calendar_template_meeting_invitation').attachment_ids = attachments
 
         partners = [
-            self.env['res.partner'].create({'name': 'testuser0', 'email': u'bob@example.com'}),
-            self.env['res.partner'].create({'name': 'testuser1', 'email': u'alice@example.com'}),
+            self.env['res.partner'].create({'name': 'testuser0', 'email': 'bob@example.com'}),
+            self.env['res.partner'].create({'name': 'testuser1', 'email': 'alice@example.com'}),
         ]
         partner_ids = [(6, False, [p.id for p in partners]),]
         m = self.CalendarEvent.create({
             'name': "mailTest1",
             'allday': False,
-            'rrule': u'FREQ=DAILY;INTERVAL=1;COUNT=5',
+            'rrule': 'FREQ=DAILY;INTERVAL=1;COUNT=5',
             'recurrency': True,
             'partner_ids': partner_ids,
             'start': "2023-10-29 08:00:00",
@@ -184,9 +186,9 @@ class TestCalendar(SavepointCaseWithUserDemo):
 
         # adding more partners to the event
         partners.extend([
-            self.env['res.partner'].create({'name': 'testuser2', 'email': u'marc@example.com'}),
-            self.env['res.partner'].create({'name': 'testuser3', 'email': u'carl@example.com'}),
-            self.env['res.partner'].create({'name': 'testuser4', 'email': u'alain@example.com'}),
+            self.env['res.partner'].create({'name': 'testuser2', 'email': 'marc@example.com'}),
+            self.env['res.partner'].create({'name': 'testuser3', 'email': 'carl@example.com'}),
+            self.env['res.partner'].create({'name': 'testuser4', 'email': 'alain@example.com'}),
             ])
         partner_ids = [(6, False, [p.id for p in partners]),]
         m.write({
@@ -299,8 +301,8 @@ class TestCalendar(SavepointCaseWithUserDemo):
         self.event_tech_presentation._create_videocall_channel()
         self.assertNotEqual(self.event_tech_presentation.videocall_channel_id.id, False)
 
-        partner1 = self.env['res.partner'].create({'name': 'Bob', 'email': u'bob@gm.co'})
-        partner2 = self.env['res.partner'].create({'name': 'Jack', 'email': u'jack@gm.co'})
+        partner1 = self.env['res.partner'].create({'name': 'Bob', 'email': 'bob@gm.co'})
+        partner2 = self.env['res.partner'].create({'name': 'Jack', 'email': 'jack@gm.co'})
         new_partners = [partner1.id, partner2.id]
         # invite partners to meeting
         self.event_tech_presentation.write({

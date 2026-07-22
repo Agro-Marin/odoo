@@ -174,7 +174,7 @@ class CalendarAlarm_Manager(models.AbstractModel):
 
         events_by_alarm = {}
         for alarm_id, event_id in self.env.cr.fetchall():
-            events_by_alarm.setdefault(alarm_id, list()).append(event_id)
+            events_by_alarm.setdefault(alarm_id, []).append(event_id)
         return events_by_alarm
 
     @api.model
@@ -187,13 +187,13 @@ class CalendarAlarm_Manager(models.AbstractModel):
         # force_send limit should apply to the total nb of attendees, not per alarm
         force_send_limit = int(self.env['ir.config_parameter'].sudo().get_param('mail.mail_force_send_limit', 100))
 
-        event_ids = list(set(event_id for event_ids in events_by_alarm.values() for event_id in event_ids))
+        event_ids = list({event_id for event_ids in events_by_alarm.values() for event_id in event_ids})
         events = self.env['calendar.event'].browse(event_ids)
         now = fields.Datetime.now()
         attendees = events.filtered(lambda e: e.stop > now).attendee_ids.filtered(lambda a: a.state != 'declined')
         alarms = self.env['calendar.alarm'].browse(events_by_alarm.keys())
         for alarm in alarms:
-            alarm_attendees = attendees.filtered(lambda attendee: attendee.event_id.id in events_by_alarm[alarm.id])
+            alarm_attendees = attendees.filtered(lambda attendee: attendee.event_id.id in events_by_alarm[alarm.id])  # noqa: B023 - filtered() is invoked eagerly within this same loop iteration, not deferred
             alarm_attendees.with_context(calendar_template_ignore_recurrence=True)._notify_attendees(
                 alarm.mail_template_id,
                 force_send=len(attendees) <= force_send_limit,
@@ -218,8 +218,7 @@ class CalendarAlarm_Manager(models.AbstractModel):
             in_date_format = fields.Datetime.from_string(meeting.start)
             last_found = self.do_check_alarm_for_one_date(in_date_format, meeting, max_delta, time_limit, 'notification', after=partner.calendar_last_notif_ack)
             if last_found:
-                for alert in last_found:
-                    all_notif.append(self.do_notif_reminder(alert))
+                all_notif.extend(self.do_notif_reminder(alert) for alert in last_found)
         return all_notif
 
     def do_notif_reminder(self, alert):
@@ -242,6 +241,7 @@ class CalendarAlarm_Manager(models.AbstractModel):
                 'timer': delta,
                 'notify_at': fields.Datetime.to_string(alert['notify_at']),
             }
+        return None
 
     def _notify_next_alarm(self, partner_ids):
         """ Sends through the bus the next alarm of given partners """

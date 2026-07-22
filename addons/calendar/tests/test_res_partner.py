@@ -1,7 +1,6 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-from odoo.tests.common import TransactionCase
-from odoo.tests.common import new_test_user
+from odoo.tests.common import TransactionCase, new_test_user
 
 
 class TestResPartner(TransactionCase):
