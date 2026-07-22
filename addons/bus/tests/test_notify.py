@@ -89,7 +89,9 @@ class NotifyTests(TransactionCase):
             ):
                 cr.execute("listen imbus")
                 cr.commit()
-                conn = cr._cnx
+                # Public escape hatch for LISTEN/NOTIFY (same as cron workers);
+                # cr._cnx is cursor-private.
+                conn = cr.connection
                 sel.register(conn, selectors.EVENT_READ)
                 selector_ready_event.set()
                 # Short select timeout so the thread notices stop_event
