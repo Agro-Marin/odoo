@@ -356,6 +356,9 @@ class ThreadedServer(CommonServer):
         stop_time = time.monotonic()
 
         if self.httpd:
+            # ``shutdown()`` stops the accept loop; werkzeug's ``serve_forever``
+            # then closes the listen socket itself (its ``finally`` calls
+            # ``server_close``), so no explicit close is needed here.
             self.httpd.shutdown()
 
         super().stop()
@@ -561,21 +564,38 @@ class EventServer(CommonServer):
         except SystemExit:
             raise
         except KeyboardInterrupt:
-            # SIGINT/SIGTERM via ``_quit_signal_handler`` — a graceful stop, not a
-            # crash.  Without this arm it would fall through to
-            # ``except BaseException`` and every normal stop would log CRITICAL +
-            # ``exit(1)`` (restart flapping, false alerts).
-            self.logger.info("Evented/WebSocket service stopped")
+            # A SIGINT/SIGTERM (``_quit_signal_handler``) that lands in the
+            # window BEFORE the loop is entered: werkzeug's ``serve_forever``
+            # swallows any KeyboardInterrupt raised inside it (and closes the
+            # listen socket in its ``finally``), returning normally instead —
+            # so both graceful paths fall through to the log below.  Without
+            # this arm, the pre-loop window would fall to ``except
+            # BaseException``: CRITICAL + ``exit(1)`` on a routine stop
+            # (restart flapping, false alerts).
+            pass
         except BaseException as exc:
             self.logger.critical("Uncaught error in main loop", exc_info=True)
             raise SystemExit(1) from exc
+        # Reached on every graceful stop, whichever path absorbed the
+        # KeyboardInterrupt (werkzeug mid-serve, or the arm above pre-serve).
+        self.logger.info("Evented/WebSocket service stopped")
 
     def stop(self) -> None:
         # ``self.httpd`` is ``None`` until ``start()`` builds it; guard so a
         # ``stop()`` after an early ``start()`` failure doesn't mask the real
-        # error.  After ``serve_forever`` returns, ``shutdown()`` is a no-op.
+        # error.
         if self.httpd:
-            self.httpd.shutdown()
+            # ``server_close()``, NOT ``shutdown()``: ``serve_forever`` runs on
+            # THIS thread, so when ``run``'s ``finally`` gets here the loop
+            # either already exited (werkzeug's ``serve_forever`` closed the
+            # listen socket in its own ``finally``; closing again is a no-op)
+            # or never started (a signal in the window between ``make_server``
+            # and ``serve_forever``).  ``shutdown()`` in that second case waits
+            # forever on an event only ``serve_forever`` sets — a shutdown hang
+            # (stdlib docs: "must be called while serve_forever() is running in
+            # another thread, or it will deadlock").  ``server_close()``
+            # releases the socket in both cases.
+            self.httpd.server_close()
         super().stop()
 
     def run(self, preload: list[str] | None = None, stop: bool = False) -> int | None:

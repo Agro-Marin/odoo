@@ -23,6 +23,7 @@ from collections import deque
 from io import BytesIO
 from unittest.mock import MagicMock, patch
 
+import psutil
 import psycopg
 import pytest
 import werkzeug.serving
@@ -1366,6 +1367,80 @@ class TestPreforkInitTimeout:
         assert s.timeout == 120
         assert s.cron_timeout == 120  # -1 inherits limit_time_real
 
+    def test_any_negative_cron_limit_inherits_limit_time_real(self, srv):
+        """A negative value other than -1 must NOT become a literal timeout.
+
+        ``cron_timeout = -5`` would make ``process_timeout`` SIGKILL every cron
+        worker on its first beat — and a master-watchdog kill pops the worker
+        before the reap, bypassing the fast-death throttle (undamped fork loop).
+        """
+        s = self._make(srv, limit_time_real_cron=-5)
+        assert s.cron_timeout == 120  # inherits, like the documented -1
+
+    def test_negative_cron_limit_with_no_real_limit_disables_watchdog(self, srv):
+        s = self._make(srv, limit_time_real=0, limit_time_real_cron=-5)
+        assert s.cron_timeout is None
+
+    def test_positive_cron_limit_kept(self, srv):
+        s = self._make(srv, limit_time_real_cron=30)
+        assert s.cron_timeout == 30
+
+
+# ---------------------------------------------------------------------------
+# PreforkServer._stop_long_polling()
+# ---------------------------------------------------------------------------
+
+
+class TestStopLongPolling:
+    """``_stop_long_polling()``: SIGTERM first, bounded wait, SIGKILL fallback."""
+
+    def test_no_pid_is_noop(self, prefork_server):
+        with patch.object(_prefork.os, "kill") as kill:
+            prefork_server._stop_long_polling()
+        kill.assert_not_called()
+
+    def test_graceful_sigterm_no_escalation(self, prefork_server):
+        prefork_server.long_polling_pid = 4321
+        proc = MagicMock()
+        with patch.object(_prefork.psutil, "Process", return_value=proc), \
+             patch.object(_prefork.os, "kill") as kill:
+            prefork_server._stop_long_polling()
+        kill.assert_called_once_with(4321, signal.SIGTERM)
+        proc.wait.assert_called_once()
+        assert prefork_server.long_polling_pid is None
+
+    def test_escalates_to_sigkill_on_timeout(self, prefork_server):
+        prefork_server.long_polling_pid = 4321
+        proc = MagicMock()
+        # First wait (post-SIGTERM) times out; second (post-SIGKILL) reaps.
+        proc.wait.side_effect = [psutil.TimeoutExpired(5), None]
+        with patch.object(_prefork.psutil, "Process", return_value=proc), \
+             patch.object(_prefork.os, "kill") as kill:
+            prefork_server._stop_long_polling()
+        assert [c.args for c in kill.call_args_list] == [
+            (4321, signal.SIGTERM),
+            (4321, signal.SIGKILL),
+        ]
+        assert prefork_server.long_polling_pid is None
+
+    def test_already_dead_child(self, prefork_server):
+        prefork_server.long_polling_pid = 4321
+        with patch.object(
+            _prefork.psutil, "Process", side_effect=psutil.NoSuchProcess(4321)
+        ), patch.object(_prefork.os, "kill") as kill:
+            prefork_server._stop_long_polling()
+        kill.assert_not_called()
+        assert prefork_server.long_polling_pid is None
+
+    def test_esrch_on_sigterm_still_waits_for_reap(self, prefork_server):
+        """A racing exit between Process() and kill() must not raise."""
+        prefork_server.long_polling_pid = 4321
+        proc = MagicMock()
+        with patch.object(_prefork.psutil, "Process", return_value=proc), \
+             patch.object(_prefork.os, "kill", side_effect=ProcessLookupError):
+            prefork_server._stop_long_polling()
+        proc.wait.assert_called_once()
+
 
 # ---------------------------------------------------------------------------
 # PreforkServer.process_timeout()
@@ -1622,6 +1697,32 @@ def threaded_server(srv):
     # ``__init__``.
     s._sem_released_requests = weakref.WeakSet()
     return s
+
+
+class TestThreadedWSGIServerAutoLimit:
+    """``__init__``: the default thread bound reserves cron AND job cursors."""
+
+    def test_auto_limit_subtracts_cron_and_job_threads(self, srv, monkeypatch):
+        monkeypatch.delenv("ODOO_MAX_HTTP_THREADS", raising=False)
+        from odoo.service import wsgi as wsgi_mod
+        cfg = {"db_maxconn": 20, "max_cron_threads": 2, "job_workers": 4}
+        with patch.object(wsgi_mod, "config", cfg), \
+             patch.object(
+                 werkzeug.serving.ThreadedWSGIServer, "__init__", return_value=None
+             ):
+            s = srv.ThreadedWSGIServerReloadable("127.0.0.1", 0, MagicMock())
+        assert s.max_http_threads == (20 - 2 - 4) // 2
+
+    def test_auto_limit_floors_at_one(self, srv, monkeypatch):
+        monkeypatch.delenv("ODOO_MAX_HTTP_THREADS", raising=False)
+        from odoo.service import wsgi as wsgi_mod
+        cfg = {"db_maxconn": 5, "max_cron_threads": 2, "job_workers": 4}
+        with patch.object(wsgi_mod, "config", cfg), \
+             patch.object(
+                 werkzeug.serving.ThreadedWSGIServer, "__init__", return_value=None
+             ):
+            s = srv.ThreadedWSGIServerReloadable("127.0.0.1", 0, MagicMock())
+        assert s.max_http_threads == 1
 
 
 class TestThreadedWSGIServerSemaphore:
@@ -2631,7 +2732,46 @@ class TestEventServerGracefulStop:
             with pytest.raises(RuntimeError, match="boom"):
                 event_server.run()
         sentinel.assert_called_once()
-        event_server.httpd.shutdown.assert_called_once()
+        # ``server_close`` (never ``shutdown``): serve_forever runs on the SAME
+        # thread as stop(), so shutdown() would deadlock when the loop never
+        # started — see ``test_stop_completes_if_serve_forever_never_started``.
+        event_server.httpd.server_close.assert_called_once()
+        event_server.httpd.shutdown.assert_not_called()
+
+    def test_stop_completes_if_serve_forever_never_started(self, srv, event_server):
+        """Regression: ``stop()`` used ``shutdown()``, which waits forever on an
+        event only ``serve_forever`` sets.  A signal in the window between
+        ``make_server`` and ``serve_forever`` reached ``run``'s ``finally`` with
+        the loop never started — and shutdown hung until kill -9.
+        """
+        event_server.httpd = werkzeug.serving.make_server(
+            "127.0.0.1", 0, lambda e, s: [], threaded=True
+        )
+        try:
+            done = threading.Event()
+            threading.Thread(
+                target=lambda: (event_server.stop(), done.set()), daemon=True
+            ).start()
+            assert done.wait(5), (
+                "stop() hung on a never-started serve loop (shutdown deadlock)"
+            )
+        finally:
+            event_server.httpd.server_close()  # idempotent; belt and suspenders
+
+    def test_stop_after_completed_serve_loop_double_close_ok(self, srv, event_server):
+        """After a normal run werkzeug's ``serve_forever`` already closed the
+        socket in its ``finally``; ``stop()``'s ``server_close`` must be a
+        harmless no-op, not an error.
+        """
+        event_server.httpd = werkzeug.serving.make_server(
+            "127.0.0.1", 0, lambda e, s: [], threaded=True
+        )
+        t = threading.Thread(target=event_server.httpd.serve_forever, daemon=True)
+        t.start()
+        event_server.httpd.shutdown()  # valid here: loop runs on ANOTHER thread
+        t.join(5)
+        assert not t.is_alive()
+        event_server.stop()  # second close after werkzeug's — must not raise
 
 
 # ---------------------------------------------------------------------------
