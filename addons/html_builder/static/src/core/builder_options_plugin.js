@@ -571,7 +571,17 @@ export class BuilderOptionsPlugin extends Plugin {
         if (cachedDeps) {
             return cachedDeps;
         }
-        const deps = OptionComponent.dependencies || [];
+        // Copy — never push into `OptionComponent.dependencies` itself. That is
+        // a *static* array on the component class: it is shared by every editor
+        // ever built in the page, and a subclass that declares no `dependencies`
+        // of its own resolves to the very same array object as its base class.
+        // Appending the child dependencies in place therefore (a) grew the array
+        // once per editor instantiation and (b) taught the *base* class the
+        // dependencies of a subclass — after which the base option could no
+        // longer be built and silently vanished from the sidebar. Subclassing a
+        // real option is exactly what the builder tests do, which is why an
+        // option test poisoned every later test using that option.
+        const deps = [...(OptionComponent.dependencies || [])];
         this.builderOptionsDependencies.set(OptionComponent, deps);
         const childDeps = Object.values(OptionComponent.components || {}).flatMap(
             this.getBuilderDependencies.bind(this)

@@ -10,6 +10,10 @@ export class FormOptionAddFieldButton extends BaseOptionComponent {
     };
 
     setup() {
+        // See GalleryElementOption: `BaseOptionComponent.setup` is what wires
+        // the editor context and the builder components this template renders,
+        // so an override must chain to it.
+        super.setup();
         this.callOperation = useOperation();
     }
 
