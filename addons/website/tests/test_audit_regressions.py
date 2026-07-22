@@ -7,14 +7,16 @@ reintroduces the defect fails loudly rather than silently.
 """
 
 import psycopg
+import werkzeug
 
 from odoo.http import request
 from odoo.tests import tagged
-from odoo.tests.common import TransactionCase
+from odoo.tests.common import TransactionCase, new_test_user
 from odoo.tools import mute_logger
 
 from odoo.addons.http_routing.tests.common import MockRequest
 from odoo.addons.website.controllers.form import WebsiteForm
+from odoo.addons.website.controllers.main import Website
 
 
 @tagged("post_install", "-at_install")
@@ -425,3 +427,46 @@ class TestWebsiteFormTagsUnescape(TransactionCase):
         self.assertEqual(tags("t", r"a\,b,c"), ["a,b", "c"])
         # An escaped backslash collapses to a single one (was corrupted before).
         self.assertEqual(tags("t", r"a\\b"), [r"a\b"])
+
+
+# NB: the cross-domain website_force redirect fix (request.redirect(...,
+# local=False)) is verified end-to-end against a live server rather than here:
+# MockRequest wires request.redirect straight to ir.http._redirect, which does
+# not accept the `local` kwarg the real Request.redirect consumes, so the mock
+# cannot model this path faithfully.
+
+
+@tagged("post_install", "-at_install")
+class TestResetTemplateAuthz(TransactionCase):
+    """``/website/reset_template`` must require the restricted-editor group.
+
+    It resets stored view arch (and, via website_id=None, the shared generic
+    arch affecting every website), so it needs the same gate its sibling
+    builder routes carry rather than relying solely on the ir.ui.view ACL.
+    """
+
+    def test_portal_user_forbidden(self):
+        portal = new_test_user(
+            self.env, login="audit_portal", groups="base.group_portal"
+        )
+        view = self.env["ir.ui.view"].search([("type", "=", "qweb")], limit=1)
+        controller = Website()
+        with MockRequest(self.env(user=portal)):
+            with self.assertRaises(werkzeug.exceptions.Forbidden):
+                controller.reset_template(view_id=view.id)
+
+
+@tagged("post_install", "-at_install")
+class TestPlausibleShareUrlParsing(TransactionCase):
+    """A pasted Plausible *share* URL is split into (auth key, site)."""
+
+    def test_share_url_is_split_into_key_and_site(self):
+        config = self.env["res.config.settings"].create(
+            {"website_id": self.env["website"].browse(1).id}
+        )
+        config.plausible_shared_key = (
+            "https://plausible.io/share/example.com?auth=SECRET123&period=30d"
+        )
+        config._onchange_shared_key()
+        self.assertEqual(config.plausible_shared_key, "SECRET123")
+        self.assertEqual(config.plausible_site, "example.com")
