@@ -69,9 +69,9 @@ class HrVersion(models.Model):
         return []
 
     def _get_interval_leave_work_entry_type(self, interval, leaves, bypassing_codes):
-        # returns the work entry time related to the leave that
+        # returns the work entry type related to the leave that
         # includes the whole interval.
-        # Overriden in hr_work_entry_holiday to select the
+        # Overriden in hr_work_entry_holidays to select the
         # global time off first (eg: Public Holiday > Home Working)
         self.ensure_one()
         for leave in leaves:
@@ -312,7 +312,7 @@ class HrVersion(models.Model):
             for interval in real_leaves:
                 # Could happen when a leave is configured on the interface on a day for which the
                 # employee is not supposed to work, i.e. no attendance_ids on the calendar.
-                # In that case, do try to generate an empty work entry, as this would raise a
+                # In that case, do not try to generate an empty work entry, as this would raise a
                 # sql constraint error
                 if interval[0] == interval[1]:  # if start == stop
                     continue
@@ -341,9 +341,10 @@ class HrVersion(models.Model):
         return attendances - leaves - worked_leaves
 
     def _get_work_entries_values(self, date_start, date_stop):
-        """
-        Generate a work_entries list between date_start and date_stop for one version.
-        :return: list of dictionnary.
+        """Generate a list of work entry values between date_start and date_stop.
+
+        :return: list of work entry value dictionaries
+        :rtype: list
         """
         if isinstance(date_start, datetime):
             version_vals = self._get_version_work_entries_values(date_start, date_stop)
@@ -617,7 +618,8 @@ class HrVersion(models.Model):
         return list(merged_vals.values())
 
     def _remove_work_entries(self):
-        ''' Remove all work_entries that are outside contract period (function used after writing new start or/and end date) '''
+        """Remove all work entries that fall outside the contract period."""
+        # Called after writing a new start and/or end date on the version.
         all_we_to_unlink = self.env['hr.work.entry']
         for version in self:
             date_start = fields.Datetime.to_datetime(version.date_start)
