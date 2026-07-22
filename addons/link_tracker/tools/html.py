@@ -1,7 +1,7 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 import re
-from typing import Iterable
+from collections.abc import Iterable
 
 import lxml
 

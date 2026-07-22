@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 import re
 
@@ -210,7 +209,7 @@ And a last, more complex: <a href="{self.base_url}/r/(\w+)">There!</a>
         created_short_url_match = re.search(TEXT_URL_REGEX, old_content)
         self.assertIsNotNone(created_short_url_match)
         created_short_url = created_short_url_match[0]
-        self.assertRegex(created_short_url, "{base_url}/r/[\\w]+".format(base_url=self.base_url))
+        self.assertRegex(created_short_url, f"{self.base_url}/r/[\\w]+")
 
         new_content = self.env["mail.render.mixin"]._shorten_links(
             f'Reusing this old <a href="{created_short_url}">link</a> with a new <a href="https://odoo.com">one</a>', {}
