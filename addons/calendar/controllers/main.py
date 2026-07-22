@@ -91,7 +91,8 @@ class CalendarController(http.Controller):
         attendee = request.env['calendar.attendee'].sudo().search([('partner_id', '=', request.env.user.partner_id.id), ('event_id', '=', event.id)])
         return request.redirect('/calendar/meeting/view?token=%s&id=%s' % (attendee.access_token, event.id))
 
-    # Function used, in RPC to check every 5 minutes, if notification to do for an event or not
+    # RPC polled by the web client to fetch the event reminders currently due; the
+    # client reschedules its next call for when the last returned notification fires.
     @http.route('/calendar/notify', type='jsonrpc', auth="user")
     def notify(self):
         return request.env['calendar.alarm_manager'].get_next_notif()
