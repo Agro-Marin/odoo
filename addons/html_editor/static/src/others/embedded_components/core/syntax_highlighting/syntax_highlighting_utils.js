@@ -43,7 +43,7 @@ export const newlinesToLineBreaks = (
 /**
  * Return the given `<pre>` element's inner text, cleaned of any zero-width
  * characters or trailing invisible newline characters (a trailing `<br>` in
- * the element's HTML is invisible but results in an visible `\n` in its
+ * the element's HTML is invisible but results in a visible `\n` in its
  * `innerText` property, which would be visible if kept).
  *
  * @param {HTMLPreElement} pre

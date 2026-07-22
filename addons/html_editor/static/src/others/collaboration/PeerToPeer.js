@@ -109,11 +109,10 @@ const baseNotificationMethods = {
             return;
         }
 
-        // If there is a racing conditing with the signaling offer (two
-        // being sent at the same time). We need one peer that abort by
-        // rollbacking to a stable signaling state where the other is
-        // continuing the process. The peer that is polite is the one that
-        // will rollback.
+        // If there is a racing condition with the signaling offer (two
+        // being sent at the same time), one peer must abort by rolling back
+        // to a stable signaling state while the other continues the process.
+        // The polite peer is the one that will roll back.
         // Must be a plain codepoint comparison: both peers have to derive
         // opposite answers from the same pair of ids. `localeCompare` is
         // locale-sensitive and its magnitude is unspecified, so two peers in
@@ -132,7 +131,7 @@ const baseNotificationMethods = {
         const isOfferRacing =
             description.type === "offer" &&
             (peerInfos.makingOffer || pc.signalingState !== "stable");
-        // If there is a racing conditing with the signaling offer and the
+        // If there is a racing condition with the signaling offer and the
         // peer is impolite, we must not process this offer and wait for
         // the answer for the signaling process to continue.
         if (isOfferRacing && !isPolite) {
@@ -657,12 +656,13 @@ export class PeerToPeer {
         );
     }
     /**
-     * Attempts a connection recovery by updating the tracks, which will start
-     * a new transaction: negotiationneeded -> offer -> answer -> ...
+     * Attempts a connection recovery by recreating the RTCPeerConnection,
+     * which starts a new negotiation: negotiationneeded -> offer -> answer -> ...
      *
      * @private
+     * @param {string} peerId
      * @param {Object} [param1]
-     * @param {number} [param1.delay] in ms
+     * @param {number} [param1.delay=0] in ms
      * @param {string} [param1.reason]
      */
     _recoverConnection(peerId, { delay = 0, reason = "" } = {}) {
