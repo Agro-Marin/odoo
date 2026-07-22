@@ -1,7 +1,6 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-from odoo import models
+from odoo import Command, models
 
 
 class ResUsers(models.Model):
@@ -15,7 +14,7 @@ class ResUsers(models.Model):
 
         interviewers = self - recruitment_group.all_user_ids
         interviewers.sudo().write({
-            'group_ids': [(4, interviewer_group.id)]
+            'group_ids': [Command.link(interviewer_group.id)]
         })
 
     def _remove_recruitment_interviewers(self):
@@ -33,5 +32,5 @@ class ResUsers(models.Model):
         # Remove users that are no longer interviewers on at least a job or an application
         users_to_remove = set(self.ids) - (user_ids | set(recruitment_group.all_user_ids.ids))
         self.env['res.users'].browse(users_to_remove).sudo().write({
-            'group_ids': [(3, interviewer_group.id)]
+            'group_ids': [Command.unlink(interviewer_group.id)]
         })

@@ -1,7 +1,7 @@
 from datetime import datetime
 from itertools import product
 
-from odoo import api, fields, models, _
+from odoo import Command, _, api, fields, models
 from odoo.exceptions import UserError
 from odoo.fields import Domain
 
@@ -140,7 +140,7 @@ class ApplicantGetRefuseReason(models.TransientModel):
     def _get_related_original_applicants(self):
         duplication_fields = ['id', 'email_normalized', 'partner_phone_sanitized', 'linkedin_profile']
         original_applicant_by_field_value = {field: {} for field in duplication_fields}
-        related_original_applicants = dict()
+        related_original_applicants = {}
         for original_applicant, field in product(self.applicant_ids, duplication_fields):
             value = original_applicant[field]
             if value:
@@ -172,6 +172,6 @@ class ApplicantGetRefuseReason(models.TransientModel):
             'author_id': self.env.user.partner_id.id,
             'incoming_email_to': applicant.email_from or applicant.partner_id.email,
             'scheduled_date': self.scheduled_date,
-            'attachment_ids': [(4, att.id) for att in self.attachment_ids],
+            'attachment_ids': [Command.link(att.id) for att in self.attachment_ids],
             'body_is_html': True,
         }

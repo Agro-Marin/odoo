@@ -3,8 +3,7 @@
 import ast
 from collections import defaultdict
 
-from dateutil.relativedelta import relativedelta
-from odoo import api, fields, models, SUPERUSER_ID, _
+from odoo import SUPERUSER_ID, Command, _, api, fields, models
 from odoo.tools import SQL
 from odoo.tools.convert import convert_file
 
@@ -28,7 +27,7 @@ class HrJob(models.Model):
                 ('id', 'in', self.sudo().env.companies.partner_id.ids)]
 
     def _get_default_favorite_user_ids(self):
-        return [(6, 0, [self.env.uid])]
+        return [Command.set([self.env.uid])]
 
     expected_employees = fields.Integer(groups="hr_recruitment.group_hr_recruitment_interviewer,hr.group_hr_user")
     no_of_employee = fields.Integer(groups="hr_recruitment.group_hr_recruitment_interviewer,hr.group_hr_user")
@@ -138,7 +137,7 @@ class HrJob(models.Model):
         for result_raw in results_raw:
             interviewers_by_job[result_raw['job_id'][0]] |= set(result_raw['interviewer_ids'])
         for job in self:
-            job.extended_interviewer_ids = [(6, 0, list(interviewers_by_job[job.id]))]
+            job.extended_interviewer_ids = [Command.set(list(interviewers_by_job[job.id]))]
 
     def _compute_is_favorite(self):
         for job in self:
@@ -151,12 +150,12 @@ class HrJob(models.Model):
                 unfavorited_jobs |= job
             else:
                 favorited_jobs |= job
-        favorited_jobs.write({'favorite_user_ids': [(4, self.env.uid)]})
-        unfavorited_jobs.write({'favorite_user_ids': [(3, self.env.uid)]})
+        favorited_jobs.write({'favorite_user_ids': [Command.link(self.env.uid)]})
+        unfavorited_jobs.write({'favorite_user_ids': [Command.unlink(self.env.uid)]})
 
     def _compute_document_ids(self):
         applicants = self.mapped('application_ids').filtered(lambda self: not self.employee_id)
-        app_to_job = dict((applicant.id, applicant.job_id.id) for applicant in applicants)
+        app_to_job = {applicant.id: applicant.job_id.id for applicant in applicants}
         attachments = self.env['ir.attachment'].search([
             '|',
             '&', ('res_model', '=', 'hr.job'), ('res_id', 'in', self.ids),
@@ -317,7 +316,7 @@ class HrJob(models.Model):
                 ]
                 job.message_unsubscribe(to_unsubscribe)
                 application_ids = job.application_ids.filtered(
-                    lambda x:
+                    lambda x, job=job:
                         x.user_id == old_recruiters[job] and
                         x.application_status == 'ongoing'
                 )
