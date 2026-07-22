@@ -8,6 +8,7 @@ import { Deferred } from "@web/core/utils/concurrency";
 
 import { Plugin } from "../plugin.js";
 import { childNodes, descendants, getCommonAncestor } from "../utils/dom_traversal.js";
+import { generateId } from "../utils/ids.js";
 import { trackOccurrences, trackOccurrencesPair } from "../utils/tracking.js";
 
 /**
@@ -329,9 +330,12 @@ export class HistoryPlugin extends Plugin {
                 this.applyMutations(step.mutations);
             }
             this.steps = steps;
-            // todo: to test
-            this.dispatchTo("history_reset_from_steps_handlers");
         });
+        // Dispatched once, and outside `withObserverOff`, so that handlers run
+        // with a live MutationObserver. Handlers do mutate the DOM (e.g.
+        // `embedded_component_plugin` mounts OWL components); doing that while
+        // disconnected leaves those nodes absent from the nodeMap, i.e.
+        // permanently unobserved. @see isObservedNode
         this.dispatchTo("history_reset_from_steps_handlers");
     }
     makeSnapshotStep() {
@@ -428,8 +432,15 @@ export class HistoryPlugin extends Plugin {
     withObserverOff(callback) {
         this.handleObserverRecords();
         this.observer.disconnect();
-        callback();
-        this.enableObserver();
+        try {
+            return callback();
+        } finally {
+            // Re-observing must happen even if the callback throws: leaving the
+            // observer disconnected silently stops recording every subsequent
+            // edit, which breaks undo/redo and content_updated for the rest of
+            // the session. @see ignoreDOMMutations, which has the same contract.
+            this.enableObserver();
+        }
     }
 
     handleObserverRecords(dispatch = true) {
@@ -1089,8 +1100,7 @@ export class HistoryPlugin extends Plugin {
         return id;
     }
     generateId() {
-        // No need for secure random number.
-        return Math.floor(Math.random() * Math.pow(2, 52)).toString();
+        return generateId();
     }
 
     /**

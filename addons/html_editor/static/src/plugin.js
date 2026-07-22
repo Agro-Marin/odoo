@@ -89,10 +89,46 @@ export class Plugin {
         this.addDomListener(this.document, eventName, fn, capture, true);
     }
 
+    /**
+     * Register listeners that live only for the duration of an interaction
+     * (typically a pointer drag) and return a disposer that removes them.
+     *
+     * Unlike {@link addDomListener}, the registration is undone once the
+     * interaction ends, so repeated drags do not accumulate cleanups. Unlike a
+     * raw `addEventListener`, the listeners are still removed if the editor is
+     * destroyed while the interaction is in progress — otherwise they outlive
+     * the editor and keep calling into a destroyed plugin.
+     *
+     * @param {EventTarget} target
+     * @param {Record<string, function(Event):void>} handlers
+     * @returns {() => void} disposer, idempotent
+     */
+    addTransientDomListeners(target, handlers) {
+        const entries = Object.entries(handlers);
+        for (const [eventName, fn] of entries) {
+            target.addEventListener(eventName, fn);
+        }
+        const dispose = () => {
+            const index = this._cleanups.indexOf(dispose);
+            if (index === -1) {
+                return; // already disposed
+            }
+            this._cleanups.splice(index, 1);
+            for (const [eventName, fn] of entries) {
+                target.removeEventListener(eventName, fn);
+            }
+        };
+        this._cleanups.push(dispose);
+        return dispose;
+    }
+
     destroy() {
-        for (const cleanup of this._cleanups) {
+        // Iterate a snapshot: a cleanup may deregister itself (and therefore
+        // splice `_cleanups`), which would make a live iteration skip entries.
+        for (const cleanup of [...this._cleanups]) {
             cleanup();
         }
+        this._cleanups = [];
         this.isDestroyed = true;
     }
 }
