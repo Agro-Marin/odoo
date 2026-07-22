@@ -1,6 +1,5 @@
-# -*- coding: utf-8 -*-
 
-from odoo import api, fields, models, _
+from odoo import _, api, fields, models
 
 
 class ApplicantSendMail(models.TransientModel):
@@ -60,3 +59,4 @@ class ApplicantSendMail(models.TransientModel):
                 subject=subjects[applicant.id],
                 attachment_ids=attachment_ids
             )
+        return None

@@ -4,7 +4,7 @@ import base64
 
 from odoo import Command
 from odoo.fields import Domain
-from odoo.tests import tagged, TransactionCase, Form
+from odoo.tests import Form, TransactionCase, tagged
 
 
 @tagged('recruitment')

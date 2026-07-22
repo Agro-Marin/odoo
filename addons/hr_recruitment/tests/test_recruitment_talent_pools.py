@@ -1,8 +1,8 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-from odoo.fields import Domain
-from odoo.tests import Form, tagged, TransactionCase
 from odoo.exceptions import ValidationError
+from odoo.fields import Domain
+from odoo.tests import Form, TransactionCase, tagged
 
 
 @tagged("recruitment")
