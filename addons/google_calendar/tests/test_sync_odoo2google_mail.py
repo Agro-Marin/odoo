@@ -1,15 +1,16 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 from datetime import datetime
-from freezegun import freeze_time
 from unittest.mock import patch
 
-from odoo.addons.google_calendar.models.res_users import ResUsers
-from odoo.addons.google_calendar.tests.test_sync_common import TestSyncGoogle
-from odoo.addons.mail.tests.common import MailCommon
+from freezegun import freeze_time
+
 from odoo.tests import tagged
 
 from .test_token_access import TestTokenAccess
+from odoo.addons.google_calendar.models.res_users import ResUsers
+from odoo.addons.google_calendar.tests.test_sync_common import TestSyncGoogle
+from odoo.addons.mail.tests.common import MailCommon
 
 
 @tagged('odoo2google')

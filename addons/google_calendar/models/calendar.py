@@ -1,11 +1,12 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
+from uuid import uuid4
+
 import pytz
 from dateutil.parser import parse
 from dateutil.relativedelta import relativedelta
-from uuid import uuid4
 
-from odoo import api, fields, models, tools, _
+from odoo import _, api, fields, models, tools
 from odoo.exceptions import ValidationError
 from odoo.fields import Domain
 
@@ -67,8 +68,7 @@ class CalendarEvent(models.Model):
     def _check_values_to_sync(self, values):
         """ Return True if values being updated intersects with Google synced values and False otherwise. """
         synced_fields = self._get_google_synced_fields()
-        values_to_sync = any(key in synced_fields for key in values)
-        return values_to_sync
+        return any(key in synced_fields for key in values)
 
     @api.model
     def _get_update_future_events_values(self):
@@ -147,11 +147,11 @@ class CalendarEvent(models.Model):
         # default reminder or not
         reminder_command = google_event.reminders.get('overrides')
         if not reminder_command:
-            reminder_command = google_event.reminders.get('useDefault') and default_reminders or ()
+            reminder_command = (google_event.reminders.get('useDefault') and default_reminders) or ()
         alarm_commands = self._odoo_reminders_commands(reminder_command)
         attendee_commands, partner_commands = self._odoo_attendee_commands(google_event)
         related_event = self.search([('google_id', '=', google_event.id)], limit=1)
-        name = google_event.summary or related_event and related_event.name or _("(No title)")
+        name = google_event.summary or (related_event and related_event.name) or _("(No title)")
         values = {
             'name': name,
             'description': google_event.description and tools.html_sanitize(google_event.description),
@@ -214,7 +214,7 @@ class CalendarEvent(models.Model):
             existing_attendees = event.attendee_ids
         attendees_by_emails = {tools.email_normalize(a.email): a for a in existing_attendees}
         partners = self._get_sync_partner(emails)
-        for attendee in zip(emails, partners, google_attendees):
+        for attendee in zip(emails, partners, google_attendees, strict=False):
             email = attendee[0]
             if email in attendees_by_emails:
                 # Update existing attendees
@@ -389,5 +389,4 @@ class CalendarEvent(models.Model):
 
     def _is_google_insertion_blocked(self, sender_user):
         self.ensure_one()
-        has_different_owner = self.user_id and self.user_id != sender_user
-        return has_different_owner
+        return self.user_id and self.user_id != sender_user

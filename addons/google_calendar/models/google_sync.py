@@ -3,20 +3,21 @@
 import logging
 from contextlib import contextmanager
 from functools import wraps
-from requests import HTTPError
+
 import pytz
 from dateutil.parser import parse
 from markupsafe import Markup
+from requests import HTTPError
 
-from odoo import api, fields, models, _
+from odoo import _, api, fields, models
+from odoo.db import BaseCursor
 from odoo.fields import Domain
 from odoo.modules.registry import Registry
 from odoo.tools import email_normalize
-from odoo.db import BaseCursor
 
-from odoo.addons.google_calendar.utils.google_event import GoogleEvent
-from odoo.addons.google_calendar.utils.google_calendar import GoogleCalendarService
 from odoo.addons.google_account.models.google_service import TIMEOUT
+from odoo.addons.google_calendar.utils.google_calendar import GoogleCalendarService
+from odoo.addons.google_calendar.utils.google_event import GoogleEvent
 
 _logger = logging.getLogger(__name__)
 
@@ -43,9 +44,9 @@ def after_commit(func):
                 env = api.Environment(cr, uid, context)
                 try:
                     func(self.with_env(env), *args, **kwargs)
-                except Exception as e:
-                    _logger.warning("Could not sync record now: %s" % self)
-                    _logger.exception(e)
+                except Exception:
+                    _logger.warning("Could not sync record now: %s", self)
+                    _logger.exception("Sync error")
 
     return wrapped
 
@@ -221,7 +222,7 @@ class GoogleCalendarSync(models.AbstractModel):
                 return
 
             if self._name == 'calendar.event':
-                start = self.start and self.start.strftime('%Y-%m-%d at %H:%M') or _("undefined time")
+                start = (self.start and self.start.strftime('%Y-%m-%d at %H:%M')) or _("undefined time")
                 event_ids = self.id
                 name = self.name
                 error_log = "Error while syncing event: "
@@ -229,12 +230,12 @@ class GoogleCalendarSync(models.AbstractModel):
             else:
                 # calendar recurrence is triggering the error
                 event = self.base_event_id or self._get_first_event(include_outliers=True)
-                start = event.start and event.start.strftime('%Y-%m-%d at %H:%M') or _("undefined time")
+                start = (event.start and event.start.strftime('%Y-%m-%d at %H:%M')) or _("undefined time")
                 event_ids = _("%(id)s and %(length)s following", id=event.id, length=len(self.calendar_event_ids.ids))
                 name = event.name
                 # prevent to sync other events
                 self.calendar_event_ids.need_sync = False
-                error_log = "Error while syncing recurrence [{id} - {name} - {rrule}]: ".format(id=self.id, name=self.name, rrule=self.rrule)
+                error_log = f"Error while syncing recurrence [{self.id} - {self.name} - {self.rrule}]: "
 
             # We don't have right access on the event or the request paramaters were bad.
             # https://developers.google.com/calendar/v3/errors#403_forbidden_for_non-organizer
@@ -243,9 +244,10 @@ class GoogleCalendarSync(models.AbstractModel):
             else:
                 reason = _("Google gave the following explanation: %s", response['error'].get('message'))
 
-            error_log += "The event (%(id)s - %(name)s at %(start)s) could not be synced. It will not be synced while " \
-                         "it is not updated. Reason: %(reason)s" % {'id': event_ids, 'start': start, 'name': name,
-                                                                    'reason': reason}
+            error_log += (
+                "The event (%(id)s - %(name)s at %(start)s) could not be synced. It will not be synced while "
+                "it is not updated. Reason: %(reason)s"
+            ) % {'id': event_ids, 'start': start, 'name': name, 'reason': reason}
             _logger.warning(error_log)
 
             body = _("The following event could not be synced with Google Calendar.") + Markup("<br/>") + \
@@ -286,11 +288,10 @@ class GoogleCalendarSync(models.AbstractModel):
 
     def _get_post_sync_values(self, request_values, google_values):
         """ Return the values to be written in the event right after its insertion in Google side. """
-        writeable_values = {
+        return {
             'google_id': request_values['id'],
             'need_sync': False,
         }
-        return writeable_values
 
     def _need_video_call(self):
         """ Implement this method to return True if the event needs a video call
@@ -359,33 +360,33 @@ class GoogleCalendarSync(models.AbstractModel):
         to the Google event given as parameter
         :return: dict of Odoo formatted values
         """
-        raise NotImplementedError()
+        raise NotImplementedError
 
     def _google_values(self):
         """Implements this method to return a dict with values formatted
         according to the Google Calendar API
         :return: dict of Google formatted values
         """
-        raise NotImplementedError()
+        raise NotImplementedError
 
     def _get_sync_domain(self):
         """Return a domain used to search records to synchronize.
         e.g. return a domain to synchronize records owned by the current user.
         """
-        raise NotImplementedError()
+        raise NotImplementedError
 
     def _get_google_synced_fields(self):
         """Return a set of field names. Changing one of these fields
         marks the record to be re-synchronized.
         """
-        raise NotImplementedError()
+        raise NotImplementedError
 
     @api.model
     def _restart_google_sync(self):
         """ Turns on the google synchronization for all the events of
         a given user.
         """
-        raise NotImplementedError()
+        raise NotImplementedError
 
     def _get_event_user(self):
         """ Return the correct user to send the request to Google.
@@ -393,7 +394,7 @@ class GoogleCalendarSync(models.AbstractModel):
         cause some issues, and It might not be possible to use this user for sending the request, so this method gets
         the appropriate user accordingly.
         """
-        raise NotImplementedError()
+        raise NotImplementedError
 
     def _is_google_insertion_blocked(self, sender_user):
         """
@@ -402,4 +403,4 @@ class GoogleCalendarSync(models.AbstractModel):
         as it avoids that events have permanently the wrong organizer in Google
         by not synchronizing records through owner and not through the attendees.
         """
-        raise NotImplementedError()
+        raise NotImplementedError
