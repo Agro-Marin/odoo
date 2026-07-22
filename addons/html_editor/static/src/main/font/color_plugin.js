@@ -224,8 +224,23 @@ export class ColorPlugin extends Plugin {
         };
 
         const hexColor = rgbaToHex(color).toLowerCase();
+        const systemNodesSelector = this.getResource("system_node_selectors").join(
+            ", ",
+        );
         const selectedNodes = targetedNodes
             .filter((node) => {
+                // Skip editor-owned scaffolding and any node a plugin declares
+                // unformattable (inline code, code blocks). Without these two
+                // guards a colour applied to a mixed selection also wraps the
+                // <code> element it merely overlaps.
+                if (systemNodesSelector && closestElement(node, systemNodesSelector)) {
+                    return false;
+                }
+                if (!(
+                    this.checkPredicates("is_formattable_node_predicates", node) ?? true
+                )) {
+                    return false;
+                }
                 if (mode === "backgroundColor" && color) {
                     return !closestElement(node, "table.o_selected_table");
                 }

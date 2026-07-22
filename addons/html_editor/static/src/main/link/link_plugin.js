@@ -381,7 +381,11 @@ export class LinkPlugin extends Plugin {
                         this.dependencies.selection.getSelectionData();
                     return (
                         selectionData.documentSelectionIsInEditable &&
-                        isHtmlContentSupported(selectionData.editableSelection)
+                        isHtmlContentSupported(selectionData.editableSelection) &&
+                        // Same gate as the toolbar/powerbox link entries: a
+                        // selection that cannot hold a link (inline code, code
+                        // block) must not offer one through the command palette.
+                        this.isLinkAllowedOnSelection()
                     );
                 },
             },
@@ -470,8 +474,19 @@ export class LinkPlugin extends Plugin {
     }
 
     isLinkAllowedOnSelection() {
-        if (this.getResource("link_compatible_selection_predicates").some((p) => p())) {
-            return true;
+        // Contributors to this resource use both directions: the caption plugin
+        // returns `true` to force-allow a link on a figure, while inline code
+        // and code blocks return `false` to veto one. ``checkPredicates``
+        // applies the framework convention (a `false` vetoes, `undefined`
+        // abstains, all-abstain => undefined). The previous
+        // ``.some((p) => p())`` only ever saw the allow-overrides and silently
+        // dropped every veto, so ctrl+k still offered "Create link" inside
+        // inline code / a code block.
+        const fromPredicates = this.checkPredicates(
+            "link_compatible_selection_predicates",
+        );
+        if (fromPredicates !== undefined) {
+            return fromPredicates;
         }
         const targetedNodes = this.dependencies.selection.getTargetedNodes();
         const targetedBlocks = targetedNodes.filter(isBlock);

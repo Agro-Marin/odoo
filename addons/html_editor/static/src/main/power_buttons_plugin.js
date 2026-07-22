@@ -112,6 +112,11 @@ export class PowerButtonsPlugin extends Plugin {
             }
             btn.className = className;
             btn.title = description;
+            // A <button> takes focus on mousedown, which blurs the editable and
+            // drops the selection the command is about to act on. Suppress the
+            // default focus transfer so the click runs with the editor still
+            // focused — same pairing the powerbox commands use (powerbox.xml).
+            this.addDomListener(btn, "mousedown", (ev) => ev.preventDefault());
             this.addDomListener(btn, "click", () => this.applyCommand(run));
             return btn;
         };
