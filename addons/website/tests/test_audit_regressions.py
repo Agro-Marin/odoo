@@ -52,6 +52,19 @@ class TestWebsiteHostHeader(TransactionCase):
         # must not raise; falls back to the domain unchanged
         self.assertTrue(website.domain_punycode)
 
+    def test_domain_punycode_only_rewrites_the_host(self):
+        """Only the netloc is punycoded, not a hostname echoed in the path.
+
+        A blanket ``str.replace`` rewrote every occurrence of the hostname,
+        including one that happened to recur in the path/query.
+        """
+        website = self.env["website"].create(
+            {"name": "Echo", "domain": "http://ex.com/go?to=ex.com"}
+        )
+        # ex.com is ASCII already, so punycode is a no-op: the path copy must be
+        # left intact and the value must round-trip unchanged.
+        self.assertEqual(website.domain_punycode, "http://ex.com/go?to=ex.com")
+
 
 @tagged("post_install", "-at_install")
 class TestTemplateCacheInvalidation(TransactionCase):
