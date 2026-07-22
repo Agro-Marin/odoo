@@ -1,9 +1,9 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 from collections import defaultdict
+
 from dateutil.relativedelta import relativedelta
 
 from odoo import api, fields, models
-
 from odoo.exceptions import ValidationError
 from odoo.fields import Domain
 
@@ -15,7 +15,7 @@ class HrIndividualSkillMixin(models.AbstractModel):
     _rec_name = "skill_id"
 
     def _linked_field_name(self):
-        raise NotImplementedError()
+        raise NotImplementedError
 
     def _get_passive_fields(self):
         """
@@ -53,7 +53,7 @@ class HrIndividualSkillMixin(models.AbstractModel):
                                     required=True, ondelete='cascade')
     level_progress = fields.Integer(related='skill_level_id.level_progress')
     color = fields.Integer(related="skill_type_id.color")
-    valid_from = fields.Date(string="Validity Start", default=fields.Date.today())
+    valid_from = fields.Date(string="Validity Start", default=fields.Date.today)
     valid_to = fields.Date(string="Validity Stop")
     levels_count = fields.Integer(related="skill_type_id.levels_count")
     certification_skill_type_count = fields.Integer(compute="_compute_certification_skill_type_count",
@@ -286,8 +286,7 @@ class HrIndividualSkillMixin(models.AbstractModel):
             } for skill in to_archive])
             new_overlapped_skill_ids = []
             for new_skills in overlapping_dict.values():
-                for new_skill in new_skills:
-                    new_overlapped_skill_ids.append(new_skill['id'])
+                new_overlapped_skill_ids.extend(new_skill['id'] for new_skill in new_skills)
             changed_to_remove = to_archive.filtered(lambda ind_skill: ind_skill.id in new_overlapped_skill_ids)
             to_archive -= changed_to_remove
             to_remove += changed_to_remove
@@ -405,10 +404,9 @@ class HrIndividualSkillMixin(models.AbstractModel):
                 # Remove duplicate certification
                 if certification_set.get(key):
                     continue
-            else:
-                # Archive existing regular skill if the person already have one with the same skill
-                if existing_skill := existing_skills_grouped.get((individual_skill_id, skill_id)):
-                    skills_to_archive += existing_skill
+            # Archive existing regular skill if the person already have one with the same skill
+            elif existing_skill := existing_skills_grouped.get((individual_skill_id, skill_id)):
+                skills_to_archive += existing_skill
 
             vals_to_return.append(vals)
 
@@ -445,7 +443,7 @@ class HrIndividualSkillMixin(models.AbstractModel):
             field_type = self._fields[field].type
             if field_type == "many2one":
                 return skill[field].id
-            if field_type == "many2many" or field_type == "one2many":
+            if field_type in {"many2many", "one2many"}:
                 return skill[field].ids
             return skill[field]
 
@@ -502,7 +500,7 @@ class HrIndividualSkillMixin(models.AbstractModel):
         :return: List of CREATE, WRITE, and UNLINK commands
         """
         if not commands:
-            return
+            return None
         updated_ids = set()
         updated_commands = []
         created_values = []

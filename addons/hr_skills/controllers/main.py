@@ -1,18 +1,16 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 import re
 
 from odoo import _
-
-from odoo.http import request, route, Controller, content_disposition
+from odoo.http import Controller, content_disposition, request, route
 
 
 class HrEmployeeCV(Controller):
 
     @route(["/print/cv"], type='http', auth='user')
     def print_employee_cv(self, employee_ids='', color_primary='#666666', color_secondary='#666666', **post):
-        if not request.env.user._is_internal() or not employee_ids or re.search("[^0-9|,]", employee_ids):
+        if not request.env.user._is_internal() or not employee_ids or re.search(r"[^0-9|,]", employee_ids):
             return request.not_found()
 
         ids = [int(s) for s in employee_ids.split(',')]
@@ -25,7 +23,7 @@ class HrEmployeeCV(Controller):
 
         report = request.env.ref('hr_skills.action_report_employee_cv', False)
 
-        pdf_content, dummy = request.env['ir.actions.report'].sudo()._render_qweb_pdf(
+        pdf_content, _content_type = request.env['ir.actions.report'].sudo()._render_qweb_pdf(
             report, employees.ids, data={
             'color_primary': color_primary,
             'color_secondary': color_secondary,
