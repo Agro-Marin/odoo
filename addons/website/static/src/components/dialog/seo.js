@@ -43,6 +43,27 @@ const LINK_CHECK_BASE_OPTIONS = {
     referrerPolicy: "no-referrer",
     credentials: "omit",
 };
+
+/**
+ * Replace the LAST occurrence of `search` in `url`. The SEO slug lives in the
+ * final path segment, so a plain String.replace() (first match) mangles the URL
+ * when the slug also appears in the host or a parent segment.
+ *
+ * @param {string} url
+ * @param {string} search
+ * @param {string} replacement
+ * @returns {string}
+ */
+function replaceLastSlugOccurrence(url, search, replacement) {
+    if (!search) {
+        return url;
+    }
+    const idx = url.lastIndexOf(search);
+    if (idx === -1) {
+        return url;
+    }
+    return url.slice(0, idx) + replacement + url.slice(idx + search.length);
+}
 const LINK_CHECK_MANUAL_OPTIONS = { ...LINK_CHECK_BASE_OPTIONS, redirect: "manual" };
 const LINK_CHECK_NO_CORS_OPTIONS = { ...LINK_CHECK_BASE_OPTIONS, mode: "no-cors" };
 
@@ -629,16 +650,7 @@ class TitleDescription extends Component {
 
     get url() {
         const newName = this.seoContext.seoName || this.props.seoNameDefault;
-        // Replace the LAST occurrence of the current slug: the SEO name lives in
-        // the final path segment (e.g. /blog/<slug>-<id>). A plain
-        // String.replace() rewrites the *first* match, mangling the URL when the
-        // slug also appears in the host or a parent segment.
-        const url = this.props.url;
-        const idx = url.lastIndexOf(this.seoNameUrl);
-        if (idx === -1) {
-            return url;
-        }
-        return url.slice(0, idx) + newName + url.slice(idx + this.seoNameUrl.length);
+        return replaceLastSlugOccurrence(this.props.url, this.seoNameUrl, newName);
     }
 
     get titleOrDescriptionNotSet() {
@@ -1139,7 +1151,8 @@ export class OptimizeSEODialog extends Component {
         await Promise.all(rpcCalls);
 
         this.website.goToWebsite({
-            path: this.url.replace(
+            path: replaceLastSlugOccurrence(
+                this.url,
                 this.previousSeoName || this.seoNameDefault,
                 seoContext.seoName,
             ),

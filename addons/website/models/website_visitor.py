@@ -328,6 +328,11 @@ class WebsiteVisitor(models.Model):
                 (SELECT id FROM res_country WHERE code = %(country_code)s))
             ON CONFLICT (access_token) DO UPDATE SET
                 last_connection_datetime = now() at time zone 'UTC',
+                -- Back-fill the timezone once it becomes available: the tracked
+                -- page path always force-creates and so never reaches the
+                -- non-force back-fill branch, leaving a visitor first seen
+                -- without a tz cookie stuck at NULL for life otherwise.
+                timezone = COALESCE(website_visitor.timezone, EXCLUDED.timezone),
                 visit_count = CASE WHEN website_visitor.last_connection_datetime < NOW() AT TIME ZONE 'UTC' - INTERVAL '8 hours'
                                     THEN website_visitor.visit_count + 1
                                     ELSE website_visitor.visit_count

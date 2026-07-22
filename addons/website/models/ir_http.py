@@ -269,11 +269,13 @@ class IrHttp(models.AbstractModel):
                     if not record.can_access_from_current_website():
                         raise werkzeug.exceptions.NotFound
                 except AccessError:
-                    # record.website_id might not be readable as
-                    # unpublished `event.event` due to ir.rule, return
-                    # 403 instead of using `sudo()` for perfs as this is
-                    # low level.
-                    raise werkzeug.exceptions.Forbidden from None
+                    # record.website_id might not be readable (e.g. an
+                    # unpublished `event.event` under an ir.rule). Return 404,
+                    # matching the not-accessible branch above, so a restricted
+                    # record is indistinguishable from a missing one — a 403
+                    # here would disclose its existence. Still no `sudo()`, so
+                    # the low-level perf argument is preserved.
+                    raise werkzeug.exceptions.NotFound from None
 
     @classmethod
     def _get_editor_context(cls):
@@ -364,7 +366,12 @@ class IrHttp(models.AbstractModel):
         installed = request.registry._init_modules.union(
             odoo.tools.config["server_wide_modules"]
         )
-        return mods + [mod for mod in installed if "website" in mod]
+        # Match the website frontend modules by name/prefix, not by an
+        # unanchored "website" substring which also drags in unrelated modules
+        # that merely contain the word, inflating the public translation bundle.
+        return mods + [
+            mod for mod in installed if mod == "website" or mod.startswith("website_")
+        ]
 
     @classmethod
     def _serve_page(cls):

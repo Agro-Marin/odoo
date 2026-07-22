@@ -12,9 +12,13 @@ class WebsiteControllerPage(models.Model):
     ]
     _description = "Model Page"
     _order = "website_id, id DESC"
+    # Scoped per website: the /model/<slug> resolver already disambiguates by
+    # website_domain() and _order puts the website-specific row first, so two
+    # websites (and a generic + a per-website override) may legitimately share a
+    # slug. A global UNIQUE(name_slugified) forbade exactly that.
     _unique_name_slugified = models.Constraint(
-        "UNIQUE(name_slugified)",
-        "url should be unique",
+        "UNIQUE(name_slugified, website_id)",
+        "url should be unique per website",
     )
 
     view_id = fields.Many2one(
