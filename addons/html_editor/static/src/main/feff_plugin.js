@@ -15,6 +15,7 @@ import { withSequence } from "../utils/resource.js";
  * @typedef { Object } FeffShared
  * @property { FeffPlugin['addFeff'] } addFeff
  * @property { FeffPlugin['removeFeffs'] } removeFeffs
+ * @property { FeffPlugin['surroundWithFeffs'] } surroundWithFeffs
  */
 
 /**
@@ -185,7 +186,7 @@ export class FeffPlugin extends Plugin {
     }
 
     /**
-     * Retuns a patched version of cursors in which `restore` does nothing
+     * Returns a patched version of cursors in which `restore` does nothing
      * unless `update` has been called at least once.
      */
     getCursors() {

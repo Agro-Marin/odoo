@@ -588,8 +588,8 @@ export class CollaborationOdooPlugin extends Plugin {
     resetCollabRequests() {
         this.lastCollaborationResetId++;
         // By aborting the current requests from ptp, we ensure that the ongoing
-        // `Wysiwyg.requestPeer` will return REQUEST_ERROR. Most requests that
-        // calls `Wysiwyg.requestPeer` might want to check if the response is
+        // `this.requestPeer` will return REQUEST_ERROR. Most requests that
+        // calls `this.requestPeer` might want to check if the response is
         // REQUEST_ERROR.
         this.ptp && this.ptp.abortCurrentRequests();
     }
@@ -840,7 +840,7 @@ export class CollaborationOdooPlugin extends Plugin {
     }
 
     /**
-     * Generates the path to a node as an array of indices, relative to a given ancestor.
+     * Generates the path to a node as an array of child indices, from the node up through its ancestors.
      *
      * @param {Node} node - The node to trace the path for.
      * @returns {number[]} The path as an array of child indices.
@@ -854,7 +854,7 @@ export class CollaborationOdooPlugin extends Plugin {
      * Finds a node in the DOM based on a path of child indices.
      *
      * @param {number[]} indexPath - The path as an array of child indices.
-     * @returns {Node|undefined} The node at the specified path, or null if not found.
+     * @returns {Node|undefined} The node at the specified path, or undefined if not found.
      */
     _getNodeFromIndexPath(indexPath) {
         return indexPath.reduceRight(

@@ -126,7 +126,7 @@ export class CollaborationPlugin extends Plugin {
     /**
      * Apply external steps coming from the collaboration.
      *
-     * @param {Object} newSteps External steps to be applied
+     * @param {HistoryStep[]} newSteps External steps to be applied
      */
     onExternalHistorySteps(newSteps) {
         let stepIndex = 0;
@@ -241,9 +241,9 @@ export class CollaborationPlugin extends Plugin {
 
     getSnapshotSteps() {
         const historySteps = this.dependencies.history.getHistorySteps();
-        // If the current snapshot has no time, it means that there is the no
-        // other snapshot that have been made (either it is the one created upon
-        // initialization or reseted by history's resetFromSteps).
+        // If the current snapshot has no time, it means that no other snapshot
+        // has been made (either it is the one created upon initialization or
+        // reset by history's resetFromSteps).
         if (!this.snapshots[0].time) {
             return { steps: historySteps, historyIds: this.getBranchIds() };
         }
@@ -252,7 +252,7 @@ export class CollaborationPlugin extends Plugin {
         if (this.snapshots[0].time + HISTORY_SNAPSHOT_BUFFER_TIME < Date.now()) {
             snapshot = this.snapshots[0];
         } else {
-            // this.snapshots[1] has being created at least 1 minute ago
+            // this.snapshots[1] was created at least 1 minute ago
             // (HISTORY_SNAPSHOT_INTERVAL) or it is the first step.
             snapshot = this.snapshots[1];
         }

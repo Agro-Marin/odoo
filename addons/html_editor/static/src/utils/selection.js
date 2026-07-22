@@ -31,7 +31,8 @@ import {
  * @param {number} anchorOffset
  * @param {Node} focusNode
  * @param {number} focusOffset
- * @returns {boolean} the direction of the current range if the selection not is collapsed | false
+ * @returns {number|boolean} the direction (a DIRECTIONS value) of the current
+ *     range, or false if the selection is collapsed
  */
 export function getCursorDirection(anchorNode, anchorOffset, focusNode, focusOffset) {
     if (anchorNode === focusNode) {
