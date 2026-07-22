@@ -1,5 +1,7 @@
+import { ListPlugin } from "@html_editor/main/list/list_plugin";
 import { nodeSize } from "@html_editor/utils/position";
 import { before, test } from "@odoo/hoot";
+import { patchWithCleanup } from "@web/../tests/web_test_helpers";
 
 import { testEditor } from "../_helpers/editor.js";
 import { unformat } from "../_helpers/format.js";
@@ -21,8 +23,35 @@ before(async () => {
     await document.fonts.ready;
 });
 
-test.tags("font-dependent");
+/**
+ * Pin the ``::marker`` width that {@link ListPlugin#adjustListPadding} reads.
+ *
+ * That width is produced by the browser's font rasterizer, so it is NOT stable
+ * across environments: the very same markup measures 19px on Chromium 149 and
+ * 20px on Chrome 150, and different again under another default font. Tests
+ * that hard-coded the resulting ``padding-inline-start`` therefore encoded one
+ * machine's rasterizer, and broke on any other — which is exactly what
+ * happened here.
+ *
+ * Stubbing the single measured input makes the padding arithmetic
+ * (``round(width) * (UL ? 2 : 1)``, applied only when it exceeds
+ * ``2 * root font-size``) deterministic and genuinely assertable, while
+ * production keeps measuring the real marker.
+ *
+ * @param {number} width marker width in px to report for every list item
+ */
+function pinMarkerWidth(width) {
+    patchWithCleanup(ListPlugin.prototype, {
+        measureMarkerWidth() {
+            return width;
+        },
+    });
+}
+
 test("should apply font-size to completely selected list item (1)", async () => {
+    // 60px marker on an OL -> round(60) * 1 = 60px, above the 28px default
+    // (`:root` is pinned to 14px below, so the default is 2 * 14).
+    pinMarkerWidth(60);
     await testEditor({
         styleContent: ":root { font: 14px Roboto }",
         contentBefore: "<ol><li>[abc]</li><li>def</li></ol>",
@@ -31,8 +60,11 @@ test("should apply font-size to completely selected list item (1)", async () => 
     });
 });
 
-test.tags("font-dependent");
 test("should apply font-size to completely selected list item (2)", async () => {
+    // Both the outer and the nested OL measure the same pinned marker, so both
+    // receive the same padding — the point of the test is that the nested list
+    // is adjusted too, not the specific width.
+    pinMarkerWidth(69);
     await testEditor({
         styleContent: ":root { font: 14px Roboto }",
         contentBefore: unformat(`
@@ -49,7 +81,7 @@ test("should apply font-size to completely selected list item (2)", async () => 
         contentAfter: unformat(`
             <ol style="padding-inline-start: 69px;">
                 <li style="font-size: 64px;"><p>[abc</p>
-                    <ol class="o_default_font_size" style="padding-inline-start: 68px;">
+                    <ol class="o_default_font_size" style="padding-inline-start: 69px;">
                         <li style="font-size: 64px;">def</li>
                     </ol>
                 </li>
@@ -69,6 +101,8 @@ test("should apply font-size to completely selected multiple list items", async 
 });
 
 test("should apply font size to a fully selected list item with trailing empty line (1)", async () => {
+    // 19px marker on a UL -> round(19) * 2 = 38px, above the 32px default.
+    pinMarkerWidth(19);
     await testEditor({
         contentBefore: "<ul><li>[abc</li><li>]<br></li></ul>",
         stepFunction: setFontSize("56px"),
@@ -78,6 +112,7 @@ test("should apply font size to a fully selected list item with trailing empty l
 });
 
 test("should apply font size to a fully selected list item with trailing empty line (2)", async () => {
+    pinMarkerWidth(19);
     await testEditor({
         contentBefore: "<ul><li>[abc</li><li><br>]<br></li></ul>",
         stepFunction: setFontSize("56px"),
@@ -87,6 +122,7 @@ test("should apply font size to a fully selected list item with trailing empty l
 });
 
 test("should apply font size to a fully selected list item with trailing empty line (3)", async () => {
+    pinMarkerWidth(19);
     await testEditor({
         contentBefore: "<ul><li>[abc</li><li>abcd<br>]<br></li></ul>",
         stepFunction: setFontSize("56px"),
@@ -96,11 +132,53 @@ test("should apply font size to a fully selected list item with trailing empty l
 });
 
 test("should not apply font size to list item when selection excludes trailing empty line", async () => {
+    pinMarkerWidth(19);
     await testEditor({
         contentBefore: "<ul><li>[abc</li><li>abcd]<br><br></li></ul>",
         stepFunction: setFontSize("56px"),
         contentAfter:
             '<ul style="padding-inline-start: 38px;"><li style="font-size: 56px;">[abc</li><li><span style="font-size: 56px;">abcd]</span><br><br></li></ul>',
+    });
+});
+
+test("list padding doubles the marker width for UL but not for OL", async () => {
+    // Same pinned marker, same font size: a UL doubles it, an OL does not.
+    // This is the one asymmetry in adjustListPadding's arithmetic, and it was
+    // previously only observable through environment-dependent pixel values.
+    pinMarkerWidth(25);
+    await testEditor({
+        contentBefore: "<ul><li>[abc]</li></ul>",
+        stepFunction: setFontSize("56px"),
+        contentAfter:
+            '<ul style="padding-inline-start: 50px;"><li style="font-size: 56px;">[abc]</li></ul>',
+    });
+    pinMarkerWidth(25);
+    await testEditor({
+        contentBefore: "<ol><li>[abc]</li></ol>",
+        stepFunction: setFontSize("56px"),
+        // 25 * 1 = 25px, which does NOT exceed the 32px default -> no padding.
+        contentAfter: '<ol><li style="font-size: 56px;">[abc]</li></ol>',
+    });
+});
+
+test("list padding is left untouched when the marker fits the default padding", async () => {
+    // round(15) * 2 = 30px <= 32px default (2 * 16px root) -> no inline style.
+    pinMarkerWidth(15);
+    await testEditor({
+        contentBefore: "<ul><li>[abc]</li></ul>",
+        stepFunction: setFontSize("56px"),
+        contentAfter: '<ul><li style="font-size: 56px;">[abc]</li></ul>',
+    });
+});
+
+test("list padding rounds the measured marker width", async () => {
+    // Sub-pixel rasterizer output must not leak into the style attribute.
+    pinMarkerWidth(19.4);
+    await testEditor({
+        contentBefore: "<ul><li>[abc]</li></ul>",
+        stepFunction: setFontSize("56px"),
+        contentAfter:
+            '<ul style="padding-inline-start: 38px;"><li style="font-size: 56px;">[abc]</li></ul>',
     });
 });
 
