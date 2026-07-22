@@ -146,6 +146,50 @@ class TestExpAuthenticateExceptionAbsorption:
                 common_mod.exp_authenticate("any_db", "u", "p", None)
 
 
+class TestExpAuthenticateNotAnOdooDatabase:
+    """``exp_authenticate`` returns ``False`` for a reachable non-Odoo database.
+
+    This pins the OTHER half of the no-leak invariant: not the paths where
+    ``Registry`` *raises* (covered above), but the path where it *succeeds*
+    against a database that exists and connects yet was never initialized by
+    Odoo (``postgres``, ``template1``, a bare ``createdb``).  Its registry
+    loads the model classes from Python but never loads modules, so
+    ``registry.models`` does not contain ``res.users``.
+
+    Without the ``"res.users" not in registry.models`` guard in
+    ``exp_authenticate``, ``env["res.users"]`` raises a telltale
+    ``KeyError('res.users')`` that an unauthenticated caller could use to tell
+    "exists but not an Odoo DB" apart from "does not exist" (``False``) —
+    defeating the same enumeration mitigation as the exception-absorption tests.
+    All the sibling tests mock ``Registry`` to *raise*, so none of them exercise
+    this branch; a refactor deleting the membership check would keep them green.
+    """
+
+    def test_missing_res_users_model_returns_false(self, common_mod):
+        """A registry whose ``.models`` lacks ``res.users`` collapses to ``False``.
+
+        The fake registry raises if a cursor is ever opened, proving the
+        membership check short-circuits *before* any credential work — i.e. the
+        ``KeyError`` leak is prevented at the guard, not accidentally masked
+        further down the call chain.
+        """
+
+        class _NotOdooRegistry:
+            # Mirrors the real registry on a bare DB: model classes are present
+            # as a mapping, but modules were never loaded, so res.users is absent.
+            models = {"ir.model": object()}
+
+            def cursor(self, *args, **kwargs):  # pragma: no cover - must not run
+                raise AssertionError(
+                    "cursor() must not be opened once res.users is known absent"
+                )
+
+        with patch.object(
+            common_mod, "Registry", return_value=_NotOdooRegistry()
+        ):
+            assert common_mod.exp_authenticate("bare_db", "admin", "admin", None) is False
+
+
 # ---------------------------------------------------------------------------
 # Module docstring — must be reachable
 # ---------------------------------------------------------------------------

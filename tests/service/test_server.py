@@ -2909,3 +2909,62 @@ class TestHttpSlotReleaseOnWebsocketUpgrade:
         handler.request = _FakeConnection()
         with patch.object(http.server.BaseHTTPRequestHandler, "send_response"):
             handler.send_response(101)  # must not raise
+
+
+# ---------------------------------------------------------------------------
+# _cron.order_notified_first — cron/job scheduling order + de-duplication
+# ---------------------------------------------------------------------------
+
+
+class TestOrderNotifiedFirst:
+    """``order_notified_first`` orders served databases with notified ones first
+    and each database exactly once.
+
+    The cron/job drivers feed its result straight into a per-database process
+    loop, so a duplicate would run a database twice in one pass.  Today's callers
+    pass de-duplicated ``OrderedSet``s, but the function must be correct by
+    construction for any iterable — these tests pin that contract.
+    """
+
+    @pytest.fixture()
+    def order(self):
+        from odoo.service._cron import order_notified_first
+
+        return order_notified_first
+
+    def test_notified_come_first_in_notified_order(self, order):
+        assert order(["c", "a"], ["a", "b", "c"]) == ["c", "a", "b"]
+
+    def test_stray_notified_for_unknown_db_is_dropped(self, order):
+        assert order(["x"], ["a", "b"]) == ["a", "b"]
+
+    def test_empty_notified_preserves_all_dbs_order(self, order):
+        assert order([], ["a", "b", "c"]) == ["a", "b", "c"]
+
+    def test_duplicate_notified_yields_db_once(self, order):
+        # Regression: the prior implementation emitted ``notified`` verbatim, so
+        # a db listed twice was processed twice in one cron pass.
+        assert order(["a", "a"], ["a", "b"]) == ["a", "b"]
+        assert order(["c", "c", "a"], ["a", "b", "c"]) == ["c", "a", "b"]
+
+    def test_duplicate_in_all_dbs_yields_db_once(self, order):
+        assert order([], ["a", "a", "b"]) == ["a", "b"]
+
+    @pytest.mark.parametrize("seed", range(20))
+    def test_output_is_a_dedup_permutation_of_served_dbs(self, order, seed):
+        import random
+
+        rng = random.Random(seed)
+        all_dbs = [f"db{i}" for i in range(rng.randint(0, 8))]
+        notified = [
+            rng.choice(all_dbs) if all_dbs and rng.random() < 0.7
+            else f"stray{rng.randint(0, 3)}"
+            for _ in range(rng.randint(0, 6))
+        ]
+        result = order(notified, all_dbs)
+        # exactly the served set, each once, no strays
+        assert sorted(result) == sorted(set(all_dbs))
+        assert len(result) == len(set(result))
+        # every notified-and-served db precedes every non-notified served db
+        notified_served = [d for d in dict.fromkeys(notified) if d in set(all_dbs)]
+        assert result[: len(notified_served)] == notified_served

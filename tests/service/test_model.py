@@ -330,6 +330,35 @@ class TestForceLazyValues:
         mod._force_lazy_values([1, 2.0, True, None, "s", b"b", lz1, {"x": 3, "y": lz2}])
         assert f1() and f2()
 
+    def test_cyclic_result_does_not_crash_with_recursionerror(self, mod) -> None:
+        """A self-referential result must not blow the stack in the walk.
+
+        ``_force_lazy_in`` recurses per container level, so a cycle (or a
+        structure nested past the recursion limit) hits ``RecursionError``.  It
+        is a pathological, already-unmarshallable result, but the RPC hot path
+        must degrade gracefully — return it for the marshaller to reject — not
+        raise a confusing ``RecursionError`` from deep in this traversal.
+        """
+        cyclic_list: list = [1]
+        cyclic_list.append(cyclic_list)
+        # Must not raise; the same object comes back for the marshaller to handle.
+        assert mod._force_lazy_values(cyclic_list) is cyclic_list
+
+        cyclic_dict: dict = {}
+        cyclic_dict["self"] = cyclic_dict
+        assert mod._force_lazy_values(cyclic_dict) is cyclic_dict
+
+    def test_result_nested_past_recursion_limit_does_not_crash(self, mod) -> None:
+        """An acyclic result nested deeper than the recursion limit degrades
+        gracefully instead of raising ``RecursionError`` out of dispatch."""
+        import sys
+
+        deep: object = "leaf"
+        for _ in range(sys.getrecursionlimit() + 500):
+            deep = [deep]
+        # No exception; the marshaller decides what to do with it.
+        mod._force_lazy_values(deep)
+
 
 # ---------------------------------------------------------------------------
 # TestRetrying
@@ -750,6 +779,48 @@ class TestRetrying:
             mock_http.request = None
             with pytest.raises(_FakeIntegrityError):  # raw, not ValidationError
                 mod.retrying(lambda: "ok", mock_env)
+
+
+# ---------------------------------------------------------------------------
+# TestRetryVocabularyMatchesPostgres — the retry SQLSTATE / exception lists
+# must describe the SAME real PG errors (mock-reality bridge)
+# ---------------------------------------------------------------------------
+
+
+class TestRetryVocabularyMatchesPostgres:
+    """The retry SQLSTATE set and exception-class tuple must stay in sync with
+    each other AND with psycopg's own SQLSTATE→class mapping.
+
+    ``retrying()`` recognises a retryable failure via
+    ``isinstance(exc, PG_CONCURRENCY_EXCEPTIONS_TO_RETRY)`` and then logs it with
+    ``errors.lookup(exc.sqlstate).__name__``.  If the two lists drift — or drift
+    from psycopg — a real serialization failure would either silently not retry
+    or crash the logging path.  The rest of ``TestRetrying`` uses hand-built mock
+    exceptions; these tests pin the vocabulary to psycopg's real mapping so a
+    genuine cluster error (verified live: 40001/40P01/55P03) is always handled,
+    without needing a database.
+    """
+
+    def test_every_retry_sqlstate_maps_to_an_exception_in_the_tuple(self, tx) -> None:
+        for sqlstate in tx.PG_CONCURRENCY_ERRORS_TO_RETRY:
+            cls = psycopg.errors.lookup(sqlstate)
+            assert issubclass(cls, tx.PG_CONCURRENCY_EXCEPTIONS_TO_RETRY), (
+                f"sqlstate {sqlstate!r} maps to {cls.__name__}, which is absent "
+                f"from PG_CONCURRENCY_EXCEPTIONS_TO_RETRY — retrying() would not "
+                f"retry a real error carrying this sqlstate"
+            )
+
+    def test_canonical_concurrency_errors_are_recognised(self, tx) -> None:
+        """The three errors a real cluster raises under contention must each be
+        an instance of the retry tuple and carry a retryable sqlstate."""
+        for name, sqlstate in [
+            ("SerializationFailure", "40001"),
+            ("DeadlockDetected", "40P01"),
+            ("LockNotAvailable", "55P03"),
+        ]:
+            cls = getattr(psycopg.errors, name)
+            assert issubclass(cls, tx.PG_CONCURRENCY_EXCEPTIONS_TO_RETRY), name
+            assert sqlstate in tx.PG_CONCURRENCY_ERRORS_TO_RETRY, name
 
 
 # ---------------------------------------------------------------------------
