@@ -1,14 +1,14 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-from datetime import datetime
-import logging
-
+import contextlib
 import json
-import requests
+import logging
+from datetime import datetime
 from urllib.parse import urlencode, urlsplit
 
-from odoo import api, fields, models, _
+import requests
+
+from odoo import _, api, fields, models
 
 _logger = logging.getLogger(__name__)
 
@@ -84,12 +84,12 @@ class GoogleService(models.AbstractModel):
             'redirect_uri': redirect_uri
         }
         try:
-            dummy, response, dummy = self._do_request(GOOGLE_TOKEN_ENDPOINT, params=data, headers=headers, method='POST', preuri='')
+            _status, response, _ask_time = self._do_request(GOOGLE_TOKEN_ENDPOINT, params=data, headers=headers, method='POST', preuri='')
             return response.get('access_token'), response.get('refresh_token'), response.get('expires_in')
         except requests.HTTPError as e:
             _logger.error(e)
             error_msg = _("Something went wrong during your token generation. Maybe your Authorization Code is invalid or already expired")
-            raise self.env['res.config.settings'].get_config_warning(error_msg)
+            raise self.env['res.config.settings'].get_config_warning(error_msg) from e
 
     def _refresh_google_token(self, service, rtoken):
         ICP = self.env['ir.config_parameter'].sudo()
@@ -101,7 +101,7 @@ class GoogleService(models.AbstractModel):
             'client_secret': _get_client_secret(ICP, service),
             'grant_type': 'refresh_token',
         }
-        dummy, response, dummy = self._do_request(GOOGLE_TOKEN_ENDPOINT, params=data, headers=headers, method='POST', preuri='')
+        _status, response, _ask_time = self._do_request(GOOGLE_TOKEN_ENDPOINT, params=data, headers=headers, method='POST', preuri='')
         return response.get('access_token'), response.get('expires_in')
 
     @api.model
@@ -139,7 +139,7 @@ class GoogleService(models.AbstractModel):
             elif method.upper() in ('POST', 'PATCH', 'PUT'):
                 res = requests.request(method.lower(), preuri + uri, data=params, headers=headers, timeout=timeout)
             else:
-                raise Exception(_('Method not supported [%s] not in [GET, POST, PUT, PATCH or DELETE]!', method))
+                raise ValueError(_('Method not supported [%s] not in [GET, POST, PUT, PATCH or DELETE]!', method))
             res.raise_for_status()
             status = res.status_code
 
@@ -148,15 +148,13 @@ class GoogleService(models.AbstractModel):
             else:
                 response = res.json()
 
-            try:
+            with contextlib.suppress(ValueError):
                 ask_time = datetime.strptime(res.headers.get('date', ''), "%a, %d %b %Y %H:%M:%S %Z")
-            except ValueError:
-                pass
         except requests.HTTPError as error:
             if error.response.status_code in (204, 404):
                 status = error.response.status_code
                 response = ""
             else:
                 _logger.exception("Bad google request : %s!", error.response.content)
-                raise error
+                raise
         return (status, response, ask_time)
