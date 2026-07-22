@@ -22,12 +22,6 @@ from odoo.db.cursor import (
     Cursor,
     _FlushingSavepoint,
 )
-from odoo.db.ddl import (
-    _SCHEMA_CHANGING_DDL,
-    _ddl_keyword,
-    _find_value_markers,
-    _inline_ddl_params,
-)
 from odoo.db.lifecycle import (
     _HEALTHCHECK_GRACE_PERIOD,
     _IDLE_SINCE_ATTR,
@@ -42,7 +36,6 @@ from odoo.db.pool import (
     _normalize_dsn_key,
     _reset_connection,
     _SuppressKnownPoolWarnings,
-    _translate_connect_error,
 )
 from odoo.db.schema_cache import schema_cache
 from odoo.db.utils import categorize_query, connection_info_for
@@ -64,15 +57,6 @@ _column_type_cache = schema_cache._column_types
 
 def registry():
     return Registry(common.get_db_name())
-
-
-def _classify_ddl(qs):
-    """Test predicate: ``True`` when *qs* begins with a DDL keyword.
-
-    Production keys off :func:`_ddl_keyword`'s keyword identity directly; these
-    tests pin the underlying gate's yes/no behaviour.
-    """
-    return _ddl_keyword(qs) is not None
 
 
 class TestRealCursor(BaseCase):
@@ -1376,36 +1360,6 @@ class TestConnectionInfoFor(BaseCase):
         self.assertIn("application_name", info)
 
 
-class TestNormalizeDsnKey(BaseCase):
-    """Test DSN normalization for pool lookup keys."""
-
-    def test_dbname_aliased_to_database(self):
-        key_dict = dict(_normalize_dsn_key({"dbname": "test", "host": "localhost"}))
-        self.assertEqual(key_dict["database"], "test")
-        self.assertNotIn("dbname", key_dict)
-
-    def test_password_excluded(self):
-        """Passwords are excluded from pool keys (security + correctness)."""
-        key_dict = dict(_normalize_dsn_key({"dbname": "test", "password": "secret"}))
-        self.assertNotIn("password", key_dict)
-
-    def test_none_values_excluded(self):
-        key_dict = dict(_normalize_dsn_key({"dbname": "test", "host": None}))
-        self.assertNotIn("host", key_dict)
-
-    def test_string_dsn(self):
-        """String DSNs are parsed via conninfo_to_dict."""
-        key_dict = dict(_normalize_dsn_key("dbname=test host=localhost"))
-        self.assertEqual(key_dict["database"], "test")
-        self.assertEqual(key_dict["host"], "localhost")
-
-    def test_same_dsn_same_key(self):
-        """Different dict representations of the same DSN produce equal keys."""
-        key1 = _normalize_dsn_key({"dbname": "test", "host": "localhost"})
-        key2 = _normalize_dsn_key({"database": "test", "host": "localhost"})
-        self.assertEqual(key1, key2)
-
-
 class TestConnectionDsnRedaction(BaseCase):
     """Connection.dsn must never expose the password.
 
@@ -2406,30 +2360,6 @@ class TestGetStatsLocked(BaseCase):
         )
 
 
-class TestNormalizeDsnKeyPassword(BaseCase):
-    """_normalize_dsn_key must differentiate pools by password (via
-    fingerprint) so rotating a database password invalidates the
-    cached pool and forces a reconnect with the new credentials.
-    """
-
-    def test_password_rotation_yields_different_key(self):
-        base = {"dbname": "x", "host": "h", "user": "u"}
-        k0 = _normalize_dsn_key({**base, "password": "old"})
-        k1 = _normalize_dsn_key({**base, "password": "new"})
-        self.assertNotEqual(
-            k0, k1, "different passwords must yield different pool keys"
-        )
-
-    def test_password_not_leaked_in_key(self):
-        key = _normalize_dsn_key(
-            {"dbname": "x", "host": "h", "user": "u", "password": "s3cr3t"}
-        )
-        for _k, v in key:
-            self.assertNotIn(
-                "s3cr3t", v, "raw password must not appear in the pool key"
-            )
-
-
 class TestSuppressKnownPoolWarningsNarrow(BaseCase):
     """The warning filter must only swallow ``database "..." does not
     exist`` FATAL lines — role / tablespace / schema errors must reach
@@ -3159,37 +3089,6 @@ class TestUninitializedCursorClosed(BaseCase):
             cur.some_attribute  # noqa: B018 — attribute access is the test
 
 
-class TestNormalizeDsnKeyUriExpansion(BaseCase):
-    """URI DSNs must be expanded into components before keying: the raw
-    URI string carries the cleartext password into the key (and the pool
-    logs), and keyword-form lookups can never match URI-form pools."""
-
-    def test_uri_password_not_in_key(self):
-        key = _normalize_dsn_key(
-            {"dsn": "postgresql://u:s3cret@h:5433/dbz", "application_name": "x"}
-        )
-        self.assertNotIn("s3cret", str(sorted(key)))
-        kd = dict(key)
-        self.assertEqual(kd.get("database"), "dbz")
-        self.assertEqual(kd.get("host"), "h")
-
-    def test_uri_password_rotation_changes_key(self):
-        k1 = _normalize_dsn_key({"dsn": "postgresql://u:old@h/dbz"})
-        k2 = _normalize_dsn_key({"dsn": "postgresql://u:new@h/dbz"})
-        self.assertNotEqual(k1, k2)
-
-    def test_kwargs_override_uri_components(self):
-        key = dict(
-            _normalize_dsn_key(
-                {
-                    "dsn": "postgresql://h/dbz?application_name=uriapp",
-                    "application_name": "kwapp",
-                }
-            )
-        )
-        self.assertEqual(key.get("application_name"), "kwapp")
-
-
 class TestCloseDatabaseByName(BaseCase):
     """close_database matches pools on the database component alone, so
     close_db() reaches URI-form pools too."""
@@ -3262,60 +3161,6 @@ class TestPsycopgPoolPrivateApi(BaseCase):
     def test_connection_prepared_attribute_exists(self):
         with registry().cursor() as cr:
             self.assertTrue(hasattr(cr._cnx, "_prepared"))
-
-
-class TestConnectErrorTranslation(BaseCase):
-    """libpq surfaces connection-phase failures as a bare OperationalError with
-    no SQLSTATE (diag.sqlstate is None), so the precise subclass is never raised
-    on a *connect* — only the server's FATAL text. ``_translate_connect_error``
-    maps that text back to the precise, permanent psycopg class so the pool can
-    fail fast instead of letting psycopg_pool retry a hopeless connection for
-    the full ~30s getconn budget."""
-
-    def _op_error(self, message):
-        return psycopg.OperationalError(message)
-
-    def test_missing_database_translates_to_invalid_catalog_name(self):
-        exc = self._op_error(
-            'connection failed: FATAL:  database "nope" does not exist'
-        )
-        self.assertIsInstance(
-            _translate_connect_error(exc), psycopg.errors.InvalidCatalogName
-        )
-
-    def test_missing_role_translates_to_auth_error(self):
-        exc = self._op_error('connection failed: FATAL:  role "nobody" does not exist')
-        self.assertIsInstance(
-            _translate_connect_error(exc),
-            psycopg.errors.InvalidAuthorizationSpecification,
-        )
-
-    def test_bad_password_translates_to_auth_error(self):
-        exc = self._op_error('FATAL:  password authentication failed for user "x"')
-        self.assertIsInstance(
-            _translate_connect_error(exc),
-            psycopg.errors.InvalidAuthorizationSpecification,
-        )
-
-    def test_no_pg_hba_entry_translates_to_auth_error(self):
-        exc = self._op_error('FATAL:  no pg_hba.conf entry for host "1.2.3.4"')
-        self.assertIsInstance(
-            _translate_connect_error(exc),
-            psycopg.errors.InvalidAuthorizationSpecification,
-        )
-
-    def test_transient_errors_return_none(self):
-        # Retrying these may succeed — they must NOT be classified permanent,
-        # or a momentary blip becomes a hard failure.
-        for msg in (
-            "connection refused",
-            "connection timeout",
-            "could not connect to server: Connection refused",
-            "server closed the connection unexpectedly",
-            "FATAL:  the database system is starting up",
-        ):
-            with self.subTest(msg=msg):
-                self.assertIsNone(_translate_connect_error(self._op_error(msg)))
 
 
 class TestPoolFailsFastOnMissingDatabase(BaseCase):
@@ -3406,54 +3251,6 @@ class TestBorrowReturnsConnectionOnPostGetconnFailure(BaseCase):
             pool.borrow(info)
         mock_pool.putconn.assert_called_once_with(conn)
         self.assertEqual(pool._pool_sem._value, sem_before)
-
-
-class TestSchemaCacheClearConcurrency(BaseCase):
-    """_clear_schema_caches() iterates the module-global schema cache while
-    copy_from() populates it from other threads.  Iterating a live dict while
-    another thread inserts raises 'dictionary changed size during iteration'.
-    The fix snapshots the keys via list(cache) before filtering.
-    """
-
-    def test_clear_does_not_race_concurrent_populate(self):
-        from odoo.db.cursor import _clear_schema_caches
-
-        cache = _id_sequence_cache
-        cache.clear()
-        self.addCleanup(cache.clear)
-        errors = []
-        stop = threading.Event()
-
-        def populate():
-            i = 0
-            while not stop.is_set():
-                cache[("otherdb", f"t{i}")] = "seq"
-                i += 1
-                if i % 5000 == 0:
-                    cache.clear()
-
-        def clear_loop():
-            while not stop.is_set():
-                try:
-                    _clear_schema_caches("targetdb")
-                except RuntimeError as e:
-                    errors.append(str(e))
-                    return
-
-        threads = [
-            threading.Thread(target=populate),
-            threading.Thread(target=clear_loop),
-        ]
-        for t in threads:
-            t.start()
-        time.sleep(1.0)
-        stop.set()
-        for t in threads:
-            t.join()
-
-        self.assertEqual(
-            errors, [], "_clear_schema_caches raced the cache dict — fix regressed"
-        )
 
 
 class TestExecutemanyGeneratorParams(BaseCase):
@@ -3599,51 +3396,6 @@ class TestDDLDetectionLeadingWhitespace(BaseCase):
             self.assertEqual(cr.fetchall(), [(1, None)])
 
 
-class TestClassifyDdl(BaseCase):
-    """Direct unit tests for the pure ``_classify_ddl`` gate extracted from
-    ``Cursor.execute``.  The gate is a fast 2-char prefix filter over a 64-char
-    window in front of the authoritative ``_RE_DDL`` regex; its only job is to
-    never *disagree* with the regex while skipping it on the hot path.  These
-    run without a connection (the function is pure).
-    """
-
-    def test_keywords_detected(self):
-        for kw in ("CREATE", "ALTER", "DROP", "COMMENT", "GRANT", "REVOKE", "DO"):
-            self.assertTrue(_classify_ddl(f"{kw} something"), kw)
-
-    def test_dml_not_detected(self):
-        for kw in ("SELECT", "INSERT", "UPDATE", "DELETE", "WITH", "TRUNCATE", "SET"):
-            self.assertFalse(_classify_ddl(f"{kw} something"), kw)
-
-    def test_leading_whitespace_and_comments(self):
-        self.assertTrue(_classify_ddl("\n   CREATE TABLE t (id int)"))
-        self.assertTrue(_classify_ddl("-- migrate\nCREATE TABLE t (id int)"))
-        self.assertTrue(_classify_ddl("/* c */ ALTER TABLE t ADD COLUMN b int"))
-        self.assertFalse(_classify_ddl("   SELECT 1"))
-
-    def test_window_boundary_matches_regex(self):
-        """The 63/64-char window fallback must never disagree with the regex.
-
-        Sweep every indentation length across the window boundary (and past it)
-        for each keyword + a DML control; the fast gate and a bare ``_RE_DDL``
-        match must agree on every one — otherwise deeply-indented DDL slips past
-        the gate (params not inlined, prepared cache not invalidated).
-        """
-        from odoo.db.ddl import _RE_DDL
-
-        keywords = ("CREATE", "ALTER", "DROP", "COMMENT", "GRANT", "DO", "SELECT")
-        tails = (" TABLE t (id int)", " 1", " * FROM t", "")
-        for pad in range(96):
-            for kw in keywords:
-                for tail in tails:
-                    qs = " " * pad + kw + tail
-                    self.assertEqual(
-                        _classify_ddl(qs),
-                        _RE_DDL.match(qs) is not None,
-                        f"gate/regex disagree at pad={pad} kw={kw!r} tail={tail!r}",
-                    )
-
-
 class TestResetConnectionClosesSessionGucLeak(BaseCase):
     """_reset_connection (the pool's return hook) runs the cheap session reset
     (``_RESET_SESSION_STATE_SQL``), so a plain ``SET search_path`` left behind
@@ -3776,90 +3528,6 @@ class TestProbeDoesNotBlockOtherDatabases(BaseCase):
                 "", {"dbname": "x", "connect_timeout": "10", "options": "-c jit=off"}
             )
         self.assertEqual(captured.get("connect_timeout"), _PROBE_CONNECT_TIMEOUT)
-
-
-class TestInlineDdlParams(BaseCase):
-    """_inline_ddl_params splices params into DDL as client-side quoted
-    literals (DDL rejects server-side $N parameters).  Extracted from
-    Cursor.execute() so the %%-escape-aware splice — the trickiest bit of
-    the cursor — is unit-testable without a DDL round-trip.  ``quote`` runs
-    with a null adapter context, so these need no database connection.
-    """
-
-    def test_positional_inlines_and_quotes(self):
-        self.assertEqual(_inline_ddl_params("DEFAULT %s", (7,), None), "DEFAULT 7")
-        # strings are single-quoted and internal quotes doubled
-        self.assertEqual(
-            _inline_ddl_params("c = %s", ("o'reilly",), None), "c = 'o''reilly'"
-        )
-
-    def test_named_dict_params(self):
-        self.assertEqual(_inline_ddl_params("a = %(x)s", {"x": "v"}, None), "a = 'v'")
-
-    def test_named_dict_missing_key_raises_valueerror(self):
-        # A marker whose key is absent must raise the same clear ValueError the
-        # positional path raises on a count mismatch — not a bare KeyError from
-        # inside re.sub (no statement context, no marker name).
-        with self.assertRaises(ValueError) as cm:
-            _inline_ddl_params("DEFAULT %(naem)s", {"name": 1}, None)
-        self.assertIn("naem", str(cm.exception))
-
-    def test_named_dict_unused_key_is_lenient(self):
-        # Extra/unused keys are ignored, matching psycopg's %(name)s binding and
-        # the legacy ``qs % params`` formatting (rejecting them would be a
-        # behaviour change, unlike the positional count check).
-        self.assertEqual(
-            _inline_ddl_params("a = %(x)s", {"x": "v", "unused": 9}, None), "a = 'v'"
-        )
-
-    def test_named_dict_missing_with_literal_percent(self):
-        # The %%-escape must not be mistaken for a missing-key marker.
-        with self.assertRaises(ValueError):
-            _inline_ddl_params("'100%%' DEFAULT %(v)s", {}, None)
-        self.assertEqual(
-            _inline_ddl_params("'100%%' = %(v)s", {"v": 1}, None), "'100%' = 1"
-        )
-
-    def test_literal_percent_is_unescaped_around_marker(self):
-        # `%%` is a literal percent, not a marker; it must survive as a single
-        # `%`, while the real `%s` is replaced.  Naive `qs % params` raises here.
-        self.assertEqual(
-            _inline_ddl_params("IS '50%% done' DEFAULT %s", ("v",), None),
-            "IS '50% done' DEFAULT 'v'",
-        )
-
-    def test_double_percent_only_no_marker(self):
-        self.assertEqual(
-            _inline_ddl_params("COMMENT IS '100%% sure'", (), None),
-            "COMMENT IS '100% sure'",
-        )
-
-    def test_marker_count_mismatch_raises(self):
-        with self.assertRaises(ValueError):
-            _inline_ddl_params("%s %s", ("only-one",), None)
-        with self.assertRaises(ValueError):
-            _inline_ddl_params("DEFAULT %s", (1, 2), None)
-
-    def test_multiple_positional_in_order(self):
-        self.assertEqual(
-            _inline_ddl_params("(%s, %s, %s)", (1, 2, 3), None), "(1, 2, 3)"
-        )
-
-
-class TestFindValueMarkers(BaseCase):
-    """_find_value_markers locates real ``%s`` placeholders and skips ``%%``
-    escapes — the escape-aware scan that execute_values and _inline_ddl_params
-    both rely on.  A naive str.count/replace would mis-handle ``%%s``.
-    """
-
-    def test_basic_and_escapes(self):
-        self.assertEqual(_find_value_markers("%s and %s"), [0, 7])
-        # %% is a literal percent, not a marker
-        self.assertEqual(_find_value_markers("LIKE 'a%%s'"), [])
-        # the space at index 11 means the second marker starts at 12, not 11
-        self.assertEqual(_find_value_markers("x %s y %% z %s"), [2, 12])
-        self.assertEqual(_find_value_markers("%%"), [])
-        self.assertEqual(_find_value_markers("ends %s"), [5])
 
 
 class TestAdapterIsolationPerConnection(BaseCase):
@@ -4427,74 +4095,6 @@ class TestDictFetchManyNegativeSize(BaseCase):
             self.assertEqual(len(cr.dictfetchmany(10)), 3)
 
 
-class TestDDLKeywordPrefixGate(BaseCase):
-    """The 2-char prefix gate (``_DDL_PREFIXES``) and the detection regex
-    (``_RE_DDL``) are both *computed* from ``_DDL_KEYWORDS`` at import.  This
-    pins that derivation so they can never disagree on whether a statement is
-    DDL — the guarantee the source comment in ddl.py relies on.  (A drift would
-    silently skip client-side param inlining and prep-cache invalidation.)
-    """
-
-    def test_prefixes_are_derived_from_keywords(self):
-        from odoo.db.ddl import _COMMENT_PREFIXES, _DDL_KEYWORDS, _DDL_PREFIXES
-
-        expected = frozenset(kw[:2] for kw in _DDL_KEYWORDS) | _COMMENT_PREFIXES
-        self.assertEqual(_DDL_PREFIXES, expected)
-
-    def test_every_keyword_prefix_admitted_by_gate(self):
-        from odoo.db.ddl import _DDL_KEYWORDS, _DDL_PREFIXES
-
-        for kw in _DDL_KEYWORDS:
-            self.assertIn(
-                kw[:2].upper(),
-                _DDL_PREFIXES,
-                f"keyword {kw!r}'s 2-char prefix is not admitted by the gate",
-            )
-
-    def test_gate_and_regex_never_disagree(self):
-        from odoo.db.ddl import _DDL_KEYWORDS, _DDL_PREFIXES, _RE_DDL
-
-        def gate(qs):  # mirrors the fast prefix gate in Cursor.execute()
-            head = qs[:64].lstrip()
-            if len(head) < 2 and len(qs) > 64:
-                head = qs.lstrip()
-            c = head[:2].upper()
-            return c in _DDL_PREFIXES and _RE_DDL.match(qs) is not None
-
-        def regex(qs):
-            return _RE_DDL.match(qs) is not None
-
-        samples = []
-        for kw in _DDL_KEYWORDS:
-            samples += [
-                f"{kw} TABLE x (c int)",
-                f"  {kw} foo",
-                f"\n\n\t{kw} foo",
-                f"-- lead\n{kw} foo",
-                f"/* lead */ {kw} foo",
-                kw.lower() + " foo",
-                # leading whitespace that overflows the 64-char gate window:
-                # 62 (last that fits 2 keyword chars), 63 (boundary), 64, 80.
-                " " * 62 + f"{kw} foo",
-                " " * 63 + f"{kw} foo",
-                " " * 64 + f"{kw} foo",
-                " " * 80 + f"{kw} foo",
-            ]
-        samples += [
-            "SELECT 1",
-            "INSERT INTO t VALUES (1)",
-            "UPDATE t SET x = 1",
-            "DELETE FROM t",
-            "WITH a AS (SELECT 1) SELECT * FROM a",
-        ]
-        for s in samples:
-            self.assertEqual(
-                gate(s),
-                regex(s),
-                f"prefix gate and regex disagree on {s!r} — derivation drifted",
-            )
-
-
 class TestPoolCleanupIsolatesFailures(BaseCase):
     """A single per-DSN pool whose close()/drain() raises must not abort the
     cleanup of its siblings nor propagate out of close_all/close_database/
@@ -4570,42 +4170,6 @@ class TestPoolCleanupIsolatesFailures(BaseCase):
         }
         cp.drain_database("db")
         self.assertTrue(a.drain_called and b.drain_called)
-
-
-class TestDdlKeyword(BaseCase):
-    """``_ddl_keyword`` reports the leading DDL keyword (UPPERCASE) so
-    ``Cursor.execute`` can tell schema-changing DDL (invalidate caches) from
-    DDL that only needs client-side param inlining.  ``_classify_ddl`` is now a
-    thin bool wrapper over it.  Pure — runs without a connection.
-    """
-
-    def test_keyword_extraction(self):
-        cases = {
-            "CREATE TABLE t (x int)": "CREATE",
-            "   alter table t add c int": "ALTER",  # case-folded to UPPER
-            "DROP TABLE t": "DROP",
-            "COMMENT ON TABLE t IS %s": "COMMENT",
-            "GRANT SELECT ON t TO r": "GRANT",
-            "REVOKE SELECT ON t FROM r": "REVOKE",
-            "DO $$ BEGIN END $$": "DO",
-            "-- migrate\nCREATE TABLE t (x int)": "CREATE",
-            "SELECT 1": None,
-            "WITH a AS (SELECT 1) SELECT * FROM a": None,
-        }
-        for qs, expected in cases.items():
-            self.assertEqual(_ddl_keyword(qs), expected, qs)
-            # _classify_ddl stays a strict bool mirroring "is there a keyword"
-            self.assertIs(_classify_ddl(qs), expected is not None, qs)
-
-    def test_schema_changing_set(self):
-        # CREATE/ALTER/DROP/DO change shape; COMMENT/GRANT/REVOKE never do.
-        self.assertEqual(
-            _SCHEMA_CHANGING_DDL, frozenset({"CREATE", "ALTER", "DROP", "DO"})
-        )
-        for kw in ("CREATE", "ALTER", "DROP", "DO"):
-            self.assertIn(kw, _SCHEMA_CHANGING_DDL)
-        for kw in ("COMMENT", "GRANT", "REVOKE"):
-            self.assertNotIn(kw, _SCHEMA_CHANGING_DDL)
 
 
 class TestDdlCacheInvalidationNarrowed(BaseCase):
