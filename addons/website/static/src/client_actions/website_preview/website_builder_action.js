@@ -32,6 +32,7 @@ import { useBus, useChildRef, useService } from "@web/core/utils/hooks";
 import { effect } from "@web/core/utils/reactive";
 import { renderToElement } from "@web/core/utils/render";
 import { redirect } from "@web/core/utils/urls";
+import { session } from "@web/session";
 import { standardActionServiceProps } from "@web/webclient/actions/action_service";
 import { AddPageDialog } from "@website/components/dialog/add_page_dialog";
 import { ResourceEditor } from "@website/components/resource_editor/resource_editor";
@@ -220,7 +221,18 @@ export class WebsiteBuilderClientAction extends Component {
     }
 
     get testMode() {
-        return false;
+        // Read the server-provided flag (`config["test_enable"]`, see
+        // web/models/ir_http.py) rather than relying solely on the
+        // `website_builder_action_test_mode.js` patch. That patch ships in
+        // `web.assets_tests`, which esbuild bundles self-contained: it inlines
+        // its own copy of this module, so the patch lands on a duplicate class,
+        // and the copy's `registry.add("website_preview", ...)` is dropped by
+        // the registry's first-wins rule. The fallback iframe was therefore
+        // rendered during every tour, and `:iframe` selectors matched two
+        // frames. `session.test_mode` crosses bundle boundaries because it is
+        // data, not a class identity — the same signal html_editor, pos and
+        // im_livechat already use.
+        return !!session.test_mode;
     }
 
     get websiteBuilderProps() {
