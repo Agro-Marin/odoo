@@ -1,6 +1,7 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 import contextlib
+import math
 import re
 import uuid
 from base64 import b64decode, b64encode
@@ -86,6 +87,13 @@ class HTML_Editor(http.Controller):
                 return file.read()
         except FileNotFoundError:
             raise werkzeug.exceptions.NotFound from None
+        except ValueError:
+            # ``file_open`` raises ValueError (not FileNotFoundError) when the
+            # path escapes the addons paths or does not carry an allowed
+            # extension -- e.g. ``/html_editor/shape/mod/..%2f..%2frelease.py``.
+            # The lookup is correctly refused either way; without this branch it
+            # escaped as a 500 on a public route instead of a 404.
+            raise werkzeug.exceptions.NotFound from None
 
     # Hardcoded fallback palette used when a snippet requests an
     # ``o-color-N`` reference that the active frontend bundle does not
@@ -149,6 +157,11 @@ class HTML_Editor(http.Controller):
             self._SVG_DEFAULT_PALETTE[palette_number]: color
             for color, palette_number in user_colors
         }
+        if not color_mapping:
+            # Nothing to recolor. Falling through would build the pattern
+            # '(?i)', which matches the empty string at every position and so
+            # invokes ``subber`` once per character for a guaranteed no-op.
+            return svg, svg_options
         # create a case-insensitive regex to match all the colors to replace, eg: '(?i)(#3AADAA)|(#7C6576)'
         regex = '(?i)' + '|'.join(f'({color})' for color in color_mapping)
 
@@ -222,19 +235,26 @@ class HTML_Editor(http.Controller):
         )
         # Create or modify the css variable --animation_ratio for future
         # purpose.
-        if re.match(CSS_ANIMATION_RATIO_REGEX, svg):
+        # ``re.search``, not ``re.match``: the declaration sits inside a <style>
+        # block, never at offset 0, so the anchored form never matched and this
+        # branch was dead -- every request took the "inject" path below.
+        if re.search(CSS_ANIMATION_RATIO_REGEX, svg):
             svg = re.sub(
                 CSS_ANIMATION_RATIO_REGEX,
                 callback_css_animation_ratio,
                 svg
             )
         else:
-            regex = r"<svg .*>"
+            # ``DOTALL`` so an <svg ...> opening tag broken over several lines
+            # still matches (without it those shapes silently got no ratio at
+            # all), non-greedy + ``count=1`` so only the outermost <svg> is
+            # annotated (shapes with nested <svg> got one <style> block each).
+            regex = r"<svg .*?>"
             declaration = f"--animation_ratio: {ratio}"
             subst = ("\\g<0>\n\t<style>\n\t\t:root { \n\t\t\t" +
                      declaration +
                      ";\n\t\t}\n\t</style>")
-            svg = re.sub(regex, subst, svg, flags=re.MULTILINE)
+            svg = re.sub(regex, subst, svg, count=1, flags=re.DOTALL)
         return svg
 
     @http.route('/html_editor/attachment/remove', type='jsonrpc', auth='user', website=True)
@@ -590,7 +610,16 @@ class HTML_Editor(http.Controller):
         elif flip_value == 'xy':
             svg = svg.replace('<svg ', '<svg style="transform: scale(-1)" ', 1)
 
-        shape_animation_speed = float(options.get('shapeAnimationSpeed', 0.0))
+        # ``options`` are raw query parameters on a public route: a
+        # non-numeric value used to raise ValueError and return a 500.
+        try:
+            shape_animation_speed = float(options.get('shapeAnimationSpeed', 0.0))
+        except (TypeError, ValueError):
+            raise werkzeug.exceptions.BadRequest(
+                "Invalid shapeAnimationSpeed"
+            ) from None
+        if not math.isfinite(shape_animation_speed):
+            raise werkzeug.exceptions.BadRequest("Invalid shapeAnimationSpeed")
         if shape_animation_speed:
             svg = self.replace_animation_duration(
                 shape_animation_speed=shape_animation_speed,
