@@ -8,10 +8,8 @@ import { STATIC_ACTIONS_GROUP_NUMBER } from "@web/search/action_menus/action_men
 const cogMenuRegistry = registry.category("cogMenu");
 
 /**
- * 'Search Matching Applicants' menu
+ * 'Search Matching Applicants' cog menu: opens the applicants whose skills match a job.
  *
- * This component is used to search matching skills among the all applicants
- * It's only available in the kanban and list view of the applicants.
  * @extends Component
  */
 export class SearchJobApplicant extends Component {
