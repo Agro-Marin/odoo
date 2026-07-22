@@ -56,6 +56,21 @@ def test_is_cors_preflight_returns_real_bool():
     assert is_cors_preflight(_fake_request("OPTIONS"), no_cors) is False
 
 
+def test_db_filter_without_request_uses_empty_host():
+    """Regression: with ``dbfilter`` configured and no active request (shell,
+    cron), ``db_filter(dbs)`` raised RuntimeError on the unbound request proxy
+    instead of filtering against the empty host."""
+    from odoo.http.helpers import db_filter
+    from odoo.tools import config
+
+    saved = config["dbfilter"]
+    config["dbfilter"] = "^%d$"  # %d -> "" without a Host -> matches nothing
+    try:
+        assert db_filter(["somedb"]) == []
+    finally:
+        config["dbfilter"] = saved
+
+
 def test_restore_thread_attr_deletes_when_absent():
     sentinel = object()
     t = threading.current_thread()

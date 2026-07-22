@@ -192,7 +192,14 @@ class HttpDispatcher(Dispatcher):
             for name in list_params:
                 if name in args:
                     continue
-                values = httprequest.args.getlist(name) + httprequest.form.getlist(name)
+                # ``files`` included: a ``<input type="file" multiple>`` posts
+                # several FileStorage entries under one key, and the flat merge
+                # keeps only the first — same loss as repeated query params.
+                values = (
+                    httprequest.args.getlist(name)
+                    + httprequest.form.getlist(name)
+                    + httprequest.files.getlist(name)
+                )
                 if len(values) > 1:
                     self.request.params[name] = values
 

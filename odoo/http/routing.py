@@ -166,7 +166,10 @@ def route(route: str | Iterable[str] | None = None, **routing: Any) -> Callable:
                 f"@route(type={route_type!r}) is not one of {list(_dispatchers)}"
             )
         if route:
-            routing["routes"] = [route] if isinstance(route, str) else route
+            # Materialize to a list: the routing maps (nodb + one per database)
+            # each iterate ``routes``, so a one-shot iterable (generator) would
+            # register the routes on the first build and vanish from the rest.
+            routing["routes"] = [route] if isinstance(route, str) else list(route)
         wrong = routing.pop("method", None)
         if wrong is not None:
             _logger.warning(

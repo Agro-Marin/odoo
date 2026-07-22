@@ -118,6 +118,30 @@ def test_str_param_stringifies_json_scalars():
     assert coerce_params({"note": 2.5}, _spec(ep)) == {"note": "2.5"}
 
 
+def test_string_annotations_are_resolved():
+    """Regression: under ``from __future__ import annotations`` every annotation
+    is a string, and ``typed=True`` silently coerced nothing."""
+
+    # The quotes ARE the point here (simulating future-annotations strings).
+    def ep(self, n: "int", opt: "int | None" = None): ...  # noqa: UP037
+
+    specs = _spec(ep)
+    assert specs["n"] == ParamSpec(int, None, False, True)
+    assert specs["opt"] == ParamSpec(int, None, True, False)
+    assert coerce_params({"n": "5"}, specs) == {"n": 5}
+
+
+def test_unresolvable_string_annotation_passes_through():
+    # Evaluation is per parameter: the unresolvable ``ghost`` (e.g. a
+    # TYPE_CHECKING-only name) degrades to pass-through without disabling
+    # coercion for the resolvable ``n`` next to it.
+    def ep(self, n: "int", ghost: "NotARealName" = None): ...  # noqa: F821, UP037
+
+    specs = _spec(ep)
+    assert set(specs) == {"n"}
+    assert specs["n"] == ParamSpec(int, None, False, True)
+
+
 def test_required_missing_raises_optional_missing_skips():
     def ep(self, n: int, opt: int | None = None): ...
 

@@ -13,7 +13,10 @@ norm) passes through unchanged, so turning on ``typed=True`` never alters how an
 existing handler sees its other arguments. Supported annotations are the request
 primitives ``int``/``float``/``bool``/``str``, their ``X | None`` form (PEP 604),
 and ``list`` / ``list[<primitive>]``; any other annotation is left untouched (the
-value passes through as received).
+value passes through as received). String annotations (a handler module using
+``from __future__ import annotations``) are evaluated against the handler's
+globals; an unresolvable one degrades to pass-through like any unsupported
+annotation.
 
 Pure module — only stdlib + werkzeug — so the coercion rules are unit-testable
 without an HTTP stack, a registry, or a database.
@@ -100,7 +103,27 @@ def build_param_specs(endpoint: typing.Callable) -> dict[str, ParamSpec]:
             continue
         if param.annotation is inspect.Parameter.empty:
             continue  # unannotated -> pass through unchanged
-        target, item, allow_none = _resolve(param.annotation)
+        annotation = param.annotation
+        if isinstance(annotation, str):
+            # ``from __future__ import annotations`` leaves every annotation a
+            # string; without evaluation, ``typed=True`` silently coerced
+            # nothing in such modules. Evaluate per parameter against the
+            # handler's globals (deliberately NOT the all-or-nothing
+            # ``get_type_hints``, where one unresolvable name — say a
+            # TYPE_CHECKING-only return type — would disable coercion for
+            # every other parameter). An annotation that cannot be evaluated
+            # passes through like any unsupported one.
+            # The string is developer-authored source (what ``inspect.signature
+            # (eval_str=True)`` would eval), not request data — S307 doesn't
+            # apply; the silent pass-through on failure IS the documented
+            # degradation, hence no log (S112).
+            try:
+                annotation = eval(  # noqa: S307
+                    annotation, getattr(endpoint, "__globals__", None)
+                )
+            except Exception:  # noqa: S112
+                continue
+        target, item, allow_none = _resolve(annotation)
         if target is None:
             continue  # unsupported annotation -> pass through unchanged
         specs[param.name] = ParamSpec(
