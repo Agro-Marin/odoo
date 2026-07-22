@@ -85,7 +85,7 @@ export class SetupEditorPlugin extends Plugin {
      * the editable if none is specified), including this element.
      *
      * @param {HTMLElement|undefined} rootEl
-     * @returns {Array<HTMLElement}
+     * @returns {Array<HTMLElement>}
      */
     getEditableAreas(rootEl) {
         const editableEl = rootEl || this.editable;
