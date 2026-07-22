@@ -3,7 +3,7 @@ import json
 import logging
 import re
 from collections import abc
-from typing import Iterator, Mapping
+from collections.abc import Iterator, Mapping
 
 from odoo.tools import email_normalize
 from odoo.tools.misc import ReadonlyDict
@@ -35,7 +35,7 @@ class GoogleEvent(abc.Set):
                 raise ValueError("Only %s or iterable of dict are supported" % self.__class__.__name__)
         self._events = ReadonlyDict(_events)
 
-    def __iter__(self) ->  Iterator['GoogleEvent']:
+    def __iter__(self) ->  Iterator[GoogleEvent]:
         return iter(GoogleEvent([vals]) for vals in self._events.values())
 
     def __contains__(self, google_event):
@@ -50,10 +50,10 @@ class GoogleEvent(abc.Set):
     def __getattr__(self, name):
         # ensure_one
         try:
-            event, = self._events.keys()
-        except ValueError:
-            raise ValueError("Expected singleton: %s" % self)
-        event_id = list(self._events.keys())[0]
+            _event, = self._events.keys()
+        except ValueError as e:
+            raise ValueError("Expected singleton: %s" % self) from e
+        event_id = next(iter(self._events.keys()))
         value = self._events[event_id].get(name)
         json.dumps(value)
         return value
@@ -69,6 +69,7 @@ class GoogleEvent(abc.Set):
     def rrule(self):
         if self.recurrence and any('RRULE' in item for item in self.recurrence):
             return next(item for item in self.recurrence if 'RRULE' in item)
+        return None
 
     def odoo_id(self, env):
         self.odoo_ids(env)  # load ids
@@ -78,10 +79,11 @@ class GoogleEvent(abc.Set):
         """Returns the Odoo id stored in the Google Event metadata.
         This id might not actually exists in the database.
         """
-        properties = self.extendedProperties and (self.extendedProperties.get('shared', {}) or self.extendedProperties.get('private', {})) or {}
+        properties = (self.extendedProperties and (self.extendedProperties.get('shared', {}) or self.extendedProperties.get('private', {}))) or {}
         o_id = properties.get('%s_odoo_id' % dbname)
         if o_id:
             return int(o_id)
+        return None
 
     def odoo_ids(self, env):
         ids = tuple(e._odoo_id for e in self if e._odoo_id)
@@ -136,7 +138,7 @@ class GoogleEvent(abc.Set):
             real_owner_id = int(real_owner_id)
         except (ValueError, TypeError):
             real_owner_id = False
-        real_owner = real_owner_id and env['res.users'].browse(real_owner_id) or env['res.users']
+        real_owner = (real_owner_id and env['res.users'].browse(real_owner_id)) or env['res.users']
         if real_owner_id and real_owner.exists():
             return real_owner
         elif self.organizer and self.organizer.get('self'):
@@ -148,7 +150,7 @@ class GoogleEvent(abc.Set):
         else:
             return env['res.users']
 
-    def filter(self, func) -> 'GoogleEvent':
+    def filter(self, func) -> GoogleEvent:
         return GoogleEvent(e for e in self if func(e))
 
     def clear_type_ambiguity(self, env):
@@ -211,7 +213,7 @@ class GoogleEvent(abc.Set):
     def cancelled(self):
         return self.filter(lambda e: e.status == 'cancelled')
 
-    def exists(self, env) -> 'GoogleEvent':
+    def exists(self, env) -> GoogleEvent:
         recurrences = self.filter(GoogleEvent.is_recurrence)
         events = self - recurrences
         recurrences.odoo_ids(env)

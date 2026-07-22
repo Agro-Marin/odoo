@@ -1,7 +1,7 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-import re
 import logging
+import re
 
 from odoo import api, models
 from odoo.fields import Command, Domain
@@ -97,11 +97,14 @@ class CalendarRecurrence(models.Model):
         emails = [a.get('email') for a in google_attendees]
         partners = self._get_sync_partner(emails)
         existing_attendees = self.calendar_event_ids.attendee_ids
-        for attendee in zip(emails, partners, google_attendees):
+        for attendee in zip(emails, partners, google_attendees, strict=False):
             email = attendee[0]
             if email in existing_attendees.mapped('email'):
                 # Update existing attendees
-                existing_attendees.filtered(lambda att: att.email == email).write({'state': attendee[2].get('responseStatus')})
+                # B023: lambda referencing loop variable `email` is invoked
+                # eagerly on this same line (chained `.filtered(...).write(...)`
+                # call within this iteration) - no late-binding risk.
+                existing_attendees.filtered(lambda att: att.email == email).write({'state': attendee[2].get('responseStatus')})  # noqa: B023
             else:
                 # Create new attendees
                 if attendee[2].get('self'):
@@ -118,7 +121,10 @@ class CalendarRecurrence(models.Model):
         for odoo_attendee_email in set(existing_attendees.mapped('email')):
             # Sometimes, several partners have the same email. Remove old attendees except organizer, otherwise the events will disappear.
             if email_normalize(odoo_attendee_email) not in emails:
-                attendees = existing_attendees.exists().filtered(lambda att: att.email == email_normalize(odoo_attendee_email) and att.partner_id not in organizers_partner_ids)
+                # B023: lambda referencing loop variable `odoo_attendee_email`
+                # is invoked eagerly on the next line (`attendees` is consumed
+                # within this same iteration) - no late-binding risk.
+                attendees = existing_attendees.exists().filtered(lambda att: att.email == email_normalize(odoo_attendee_email) and att.partner_id not in organizers_partner_ids)  # noqa: B023
                 self.calendar_event_ids.write({'need_sync': False, 'partner_ids': [Command.unlink(att.partner_id.id) for att in attendees]})
 
         old_event_values = self.base_event_id and self.base_event_id.read(base_event_time_fields)[0]
@@ -165,7 +171,7 @@ class CalendarRecurrence(models.Model):
 
     def _create_from_google(self, gevents, vals_list):
         attendee_values = {}
-        for gevent, vals in zip(gevents, vals_list):
+        for gevent, vals in zip(gevents, vals_list, strict=False):
             base_values = dict(
                 self.env['calendar.event']._odoo_values(gevent),  # FIXME default reminders
                 need_sync=False,
@@ -219,7 +225,7 @@ class CalendarRecurrence(models.Model):
 
         # DTSTART is not allowed by Google Calendar API.
         # Event start and end times are specified in the start and end fields.
-        rrule = re.sub('DTSTART:[0-9]{8}T[0-9]{1,8}\\n', '', self.rrule)
+        rrule = re.sub(r'DTSTART:[0-9]{8}T[0-9]{1,8}\n', '', self.rrule)
         # UNTIL must be in UTC (appending Z)
         # We want to only add a 'Z' to non UTC UNTIL values and avoid adding a second.
         # 'RRULE:FREQ=DAILY;UNTIL=20210224T235959;INTERVAL=3 --> match UNTIL=20210224T235959
