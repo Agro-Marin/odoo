@@ -74,7 +74,7 @@ const BACKGROUND_IMAGE_ATTRIBUTES = new Set([
  *
  * @param {string} value
  * @param {string} unitTo
- * @param {string} [cssProp] - the css property on which the unit applies
+ * @param {CSSStyleDeclaration} htmlStyle
  * @returns {number}
  */
 export function convertValueToUnit(value, unitTo, htmlStyle) {

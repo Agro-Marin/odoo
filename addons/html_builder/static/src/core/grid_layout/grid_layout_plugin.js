@@ -668,7 +668,7 @@ export class GridLayoutPlugin extends Plugin {
     /**
      * Called while moving the dragged element over a dropzone.
      *
-     * @param {Object} - droppedEl: the dropped element
+     * @param {Object} - draggedEl: the dragged element
      *                 - dragState: the current drag state.
      *                 - x, y: the horizontal/vertical position of the helper
      */
