@@ -1,13 +1,19 @@
-import { describe, expect, test } from "@odoo/hoot";
+import { beforeEach, describe, expect, test } from "@odoo/hoot";
 import {
     setupInteractionWhiteList,
     startInteractions,
 } from "@web/../tests/public/helpers";
-import { onRpc } from "@web/../tests/web_test_helpers";
+import { defineWebModels, onRpc } from "@web/../tests/web_test_helpers";
 
 import { switchToEditMode } from "../../helpers.js";
 
 setupInteractionWhiteList("website.form");
+
+// `data-pre-fill="true"` below: `website.form`'s `willStart` reads `res.users`,
+// which the public-interaction harness does not seed by default. Registered via
+// `beforeEach` so the models stay scoped to this file's suite (a module-scope
+// call seeds them for every other `@website/interactions` suite as well).
+beforeEach(defineWebModels);
 
 describe.current.tags("interaction_dev");
 

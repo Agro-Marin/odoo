@@ -20,6 +20,16 @@ test("image_shape_hover_effect changes image on enter & leave", async () => {
             setTimeout(() => super.onload());
         },
     });
+    // Registered before the markup is injected: the <img> below starts
+    // fetching as soon as it lands in the fixture, so mocking the route
+    // afterwards leaves that first request unmocked. It then fires an `error`
+    // event that HOOT reports as an unverified error, which is why this test
+    // failed inside a full run and passed on its own.
+    onRpc(
+        "/web/image/384-8a55a748/s_banner_3.svg",
+        () =>
+            `<svg viewBox="0 0 300 100" width="500px"><g id="hoverEffects"><animate values="a=1;b=2"><rect width="100%" fill="red" height="100%" /></animate></g></svg>`,
+    );
     const { core } = await startInteractions(`
         <div id="wrapwrap">
             <img class="img img-fluid mx-auto o_we_image_cropped o_animate_on_hover rounded-circle rounded"
@@ -39,13 +49,16 @@ test("image_shape_hover_effect changes image on enter & leave", async () => {
             <div class="not_image">Not the image</div>
         </div>
     `);
-    onRpc(
-        "/web/image/384-8a55a748/s_banner_3.svg",
-        () =>
-            `<svg viewBox="0 0 300 100" width="500px"><g id="hoverEffects"><animate values="a=1;b=2"><rect width="100%" fill="red" height="100%" /></animate></g></svg>`,
-    );
     expect(core.interactions).toHaveLength(1);
-    await onceAllImagesLoaded(queryOne("#wrapwrap"));
+    // Wait for the <img> to *settle*, not to succeed. Its `src` is a real
+    // route on the test server, which answers 200 with a body Chrome cannot
+    // decode, so the element always ends up in `error`. `onceAllImagesLoaded`
+    // rejects with that event -- but only when it is called while the request
+    // is still in flight; once the request has settled `imgEl.complete` is
+    // true and it returns immediately. That timing is what decided whether
+    // this test passed, hence green alone and red inside a full run. The
+    // assertions below are about the hover swap, so either outcome is fine.
+    await onceAllImagesLoaded(queryOne("#wrapwrap")).catch(() => {});
     const imgEl = queryOne("img");
     const baseSrc = imgEl.getAttribute("src");
     expect(imgEl).toHaveAttribute("src", "/web/image/384-8a55a748/s_banner_3.svg");

@@ -320,17 +320,18 @@ export async function setupWebsiteBuilder(
     await resolveIframeLoaded(iframe);
     await animationFrame();
     if (openEditor) {
-        await openBuilderSidebar(editAssetsLoaded);
+        await openBuilderSidebar(editAssetsLoaded, comp.__owl__.app);
     }
     return {
         getEditor: () => editor,
         getEditableContent: () => editableContent,
-        openBuilderSidebar: async () => await openBuilderSidebar(editAssetsLoaded),
+        openBuilderSidebar: async () =>
+            await openBuilderSidebar(editAssetsLoaded, comp.__owl__.app),
         waitSidebarUpdated,
     };
 }
 
-async function openBuilderSidebar(editAssetsLoaded) {
+async function openBuilderSidebar(editAssetsLoaded, app) {
     // The next line allow us to await asynchronous fetches and cache them before it is used
     await Promise.all([
         getWebsiteSnippets(),
@@ -350,6 +351,16 @@ async function openBuilderSidebar(editAssetsLoaded) {
     // component that removes the systray items.
     await advanceTime(200);
     await animationFrame();
+    // Finish on an actual readiness signal rather than on the fixed delay
+    // above. The builder's option plugins register asynchronously, and a test
+    // that selects an element before that has landed gets an options container
+    // rendered with *no options in it* -- the failure then looks like "the
+    // option does not exist" and, being a race, showed up as a suite that is
+    // green on its own and red inside a full run.
+    await waitFor(".o_builder_sidebar_open");
+    if (app) {
+        await waitUntilIdle([app]);
+    }
 }
 
 export function addPlugin(...Plugin) {
