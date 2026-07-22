@@ -1,11 +1,11 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 import logging
+
 import requests
 
-from odoo import api, models, _
-from odoo.http import request
+from odoo import _, api, models
 from odoo.exceptions import UserError, ValidationError
+from odoo.http import request
 from odoo.tools.misc import str2bool
 
 logger = logging.getLogger(__name__)
@@ -51,14 +51,13 @@ class IrHttp(models.AbstractModel):
             return
         if recaptcha_result == 'wrong_secret':
             raise ValidationError(_("The reCaptcha private key is invalid."))
-        elif recaptcha_result == 'wrong_token':
+        if recaptcha_result == 'wrong_token':
             raise ValidationError(_("The reCaptcha token is invalid."))
-        elif recaptcha_result == 'timeout':
+        if recaptcha_result == 'timeout':
             raise UserError(_("Your request has timed out, please retry."))
-        elif recaptcha_result == 'bad_request':
+        if recaptcha_result == 'bad_request':
             raise UserError(_("The request is invalid or malformed."))
-        else:
-            raise UserError(_("Suspicious activity detected by google reCAPTCHA."))
+        raise UserError(_("Suspicious activity detected by google reCAPTCHA."))
 
     @api.model
     def _verify_recaptcha_token(self, ip_addr, token, action=False):
