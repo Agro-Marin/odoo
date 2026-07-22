@@ -1,9 +1,9 @@
 import base64
+from datetime import UTC, datetime, timedelta
 
 from cryptography import x509
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import ec, ed25519, rsa
-from datetime import datetime, timedelta, timezone
 
 from odoo.exceptions import UserError
 from odoo.tests import TransactionCase, tagged
@@ -44,9 +44,9 @@ class TestKeysCertificates(TransactionCase):
         ).serial_number(
             x509.random_serial_number()
         ).not_valid_before(
-            datetime.now(timezone.utc) - timedelta(days=10)
+            datetime.now(UTC) - timedelta(days=10)
         ).not_valid_after(
-            datetime.now(timezone.utc) + timedelta(days=10)
+            datetime.now(UTC) + timedelta(days=10)
         ).add_extension(
             x509.SubjectAlternativeName([x509.DNSName("localhost")]),
             critical=False,
@@ -137,9 +137,9 @@ class TestKeysCertificates(TransactionCase):
         ).serial_number(
             x509.random_serial_number()
         ).not_valid_before(
-            datetime.now(timezone.utc) - timedelta(days=10)
+            datetime.now(UTC) - timedelta(days=10)
         ).not_valid_after(
-            datetime.now(timezone.utc) - timedelta(days=1)
+            datetime.now(UTC) - timedelta(days=1)
         ).add_extension(
             x509.SubjectAlternativeName([x509.DNSName("localhost")]),
             critical=False,

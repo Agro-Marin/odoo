@@ -5,8 +5,9 @@ from cryptography.hazmat.primitives import constant_time, serialization
 from cryptography.hazmat.primitives.serialization import Encoding, pkcs12
 
 from odoo import _, api, fields, models
-from .key import STR_TO_HASH, _get_formatted_value
 from odoo.exceptions import UserError
+
+from .key import STR_TO_HASH, _get_formatted_value
 
 
 class CertificateCertificate(models.Model):
@@ -337,8 +338,8 @@ class CertificateCertificate(models.Model):
         try:
             cert = x509.load_pem_x509_certificate(base64.b64decode(self.with_context(bin_size=False).pem_certificate))
             public_key = cert.public_key()
-        except ValueError:
-            raise UserError(_("The public key from the certificate could not be loaded."))
+        except ValueError as e:
+            raise UserError(_("The public key from the certificate could not be loaded.")) from e
 
         encoding = serialization.Encoding.DER if encoding == 'der' else serialization.Encoding.PEM
         return _get_formatted_value(
