@@ -370,7 +370,7 @@ export class ConfigureApiKeyAction extends BuilderAction {
         this.canTimeout = false;
     }
     apply() {
-        this.dependencies.googleMapsOption.configureGMapsAPI("", true);
+        this.dependencies.googleMapsOption.configureGMapsAPI("");
     }
 }
 

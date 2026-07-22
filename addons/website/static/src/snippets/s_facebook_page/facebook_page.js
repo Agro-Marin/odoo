@@ -35,6 +35,10 @@ export class FacebookPage extends Interaction {
         this.resizeObserver.observe(this.el.parentElement);
         this.registerCleanup(() => {
             this.resizeObserver.disconnect();
+            // Remove whatever iframe currently lives here. Registering this once
+            // (rather than per renderIframe call) avoids piling up one cleanup
+            // closure — each retaining a detached iframe — per resize bucket.
+            this.el.replaceChildren();
         });
     }
 
@@ -60,9 +64,6 @@ export class FacebookPage extends Interaction {
             iframeEl.width = params.width;
 
             this.el.replaceChildren(iframeEl);
-            this.registerCleanup(() => {
-                iframeEl.remove();
-            });
 
             const src = "https://www.facebook.com/plugins/page.php?" + searchParams;
             this.services.website_cookies.manageIframeSrc(iframeEl, src);
