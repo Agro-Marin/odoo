@@ -1286,6 +1286,30 @@ export class ListPlugin extends Plugin {
     }
 
     /**
+     * Width of a list item's ``::marker`` box, in CSS pixels.
+     *
+     * Isolated as a method because it is the ONE input to
+     * {@link adjustListPadding} that the browser's font rasterizer decides:
+     * the same markup yields 19px on Chromium 149 and 20px on Chrome 150, and
+     * a different value again under a different default font. Production
+     * wants exactly that — the padding must follow whatever the marker really
+     * measures — but a unit test asserting a hard-coded pixel result cannot,
+     * which is why the surrounding arithmetic is verified against a stubbed
+     * measurement (``patch(ListPlugin.prototype, { measureMarkerWidth })``,
+     * see ``list_font_size.test.js``). Patching the prototype is the
+     * supported seam; the module namespace is frozen and cannot be patched.
+     *
+     * @param {HTMLElement} li
+     * @returns {number} marker width in px, or 0 when it cannot be measured
+     */
+    measureMarkerWidth(li) {
+        const markerWidth = parseFloat(
+            this.window.getComputedStyle(li, "::marker").width,
+        );
+        return isNaN(markerWidth) ? 0 : markerWidth;
+    }
+
+    /**
      * Adjusts the left padding of a list (`ul` or `ol`) to ensure that
      * its `::marker` is always visible and doesn't overflow, especially
      * when the marker width exceeds the default padding.
@@ -1306,12 +1330,7 @@ export class ListPlugin extends Plugin {
         void list.offsetWidth;
 
         const largestMarker = list.children[Symbol.iterator]()
-            .map((li) => {
-                const markerWidth = parseFloat(
-                    this.window.getComputedStyle(li, "::marker").width,
-                );
-                return isNaN(markerWidth) ? 0 : markerWidth;
-            })
+            .map((li) => this.measureMarkerWidth(li))
             .reduce((accumulator, currentValue) => Math.max(accumulator, currentValue));
         // For `UL` with large font size the marker width is so big that more padding is needed.
         const largestMarkerPadding =
