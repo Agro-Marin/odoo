@@ -1,5 +1,7 @@
 /** @odoo-module native */
 /* eslint-disable no-console -- opt-in P2P collaboration debug logging (gated on the collaborationDebug URL flag) */
+import { compareIds } from "@html_editor/utils/ids";
+
 const urlParams = new URLSearchParams(window.location.search);
 const collaborationDebug = urlParams.get("collaborationDebug");
 const COLLABORATION_LOCALSTORAGE_KEY = "odoo_editor_collaboration_debug";
@@ -112,9 +114,13 @@ const baseNotificationMethods = {
         // rollbacking to a stable signaling state where the other is
         // continuing the process. The peer that is polite is the one that
         // will rollback.
+        // Must be a plain codepoint comparison: both peers have to derive
+        // opposite answers from the same pair of ids. `localeCompare` is
+        // locale-sensitive and its magnitude is unspecified, so two peers in
+        // different locales could both compute `false` here, both abort the
+        // offer, and deadlock the signaling handshake.
         const isPolite =
-            ("" + notification.fromPeerId).localeCompare("" + this._currentPeerId) ===
-            1;
+            compareIds("" + notification.fromPeerId, "" + this._currentPeerId) > 0;
         if (debugShowLog) {
             console.log(
                 `%cisPolite: %c${isPolite}`,

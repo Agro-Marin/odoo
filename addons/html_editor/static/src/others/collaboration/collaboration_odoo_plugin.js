@@ -1,6 +1,7 @@
 /** @odoo-module native */
 import { Plugin } from "@html_editor/plugin";
 import { ancestors } from "@html_editor/utils/dom_traversal";
+import { compareIds, generateId } from "@html_editor/utils/ids";
 import { childNodeIndex } from "@html_editor/utils/position";
 import { rpc } from "@web/core/network/rpc";
 import { Mutex } from "@web/core/utils/concurrency";
@@ -656,7 +657,7 @@ export class CollaborationOdooPlugin extends Plugin {
         // the initial oid for all nodes in the tree. It is not the same as
         // document that had a step id at some point. If a step comes from a
         // different history, we should not apply it.
-        this.historyShareId = Math.floor(Math.random() * Math.pow(2, 52)).toString();
+        this.historyShareId = generateId();
 
         const lastStepId =
             content && content.match(/data-last-history-steps="([\d,]+)"/)?.[1];
@@ -869,7 +870,7 @@ export class CollaborationOdooPlugin extends Plugin {
  */
 function isPeerFirst(peerA, peerB) {
     if (peerA.startTime === peerB.startTime) {
-        return peerA.id.localeCompare(peerB.id) === -1;
+        return compareIds(peerA.id, peerB.id) < 0;
     }
     if (peerA.startTime === undefined || peerB.startTime === undefined) {
         return Boolean(peerA.startTime);

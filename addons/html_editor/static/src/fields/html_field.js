@@ -17,6 +17,7 @@ import {
     NO_EMBEDDED_COMPONENTS_FALLBACK_PLUGINS,
 } from "@html_editor/plugin_sets";
 import { normalizeHTML } from "@html_editor/utils/html";
+import { generateId } from "@html_editor/utils/ids";
 import { withSequence } from "@html_editor/utils/resource";
 import { fixInvalidHTML, instanceofMarkup } from "@html_editor/utils/sanitize";
 import { Wysiwyg } from "@html_editor/wysiwyg";
@@ -95,6 +96,11 @@ export class HtmlField extends Component {
         this.ormService = useService("orm");
 
         this.isDirty = false;
+        // Monotonic counter bumped by every `onChange`. `_commitChanges` reads
+        // it before awaiting the (async) content capture so it can tell whether
+        // the user kept editing while the capture was in flight -- in which
+        // case the captured content is stale and the field must stay dirty.
+        this.changeSeq = 0;
         this.state = useState({
             key: 0,
             showCodeView: false,
@@ -172,9 +178,16 @@ export class HtmlField extends Component {
         stripVersion(element);
     }
 
-    async updateValue(value) {
+    /**
+     * @param {string} value
+     * @param {Object} [options]
+     * @param {boolean} [options.isStale=false] when true, `value` was captured
+     *        before a concurrent edit landed, so the field stays dirty and the
+     *        newer content is committed by the next commit.
+     */
+    async updateValue(value, { isStale = false } = {}) {
         this.lastValue = normalizeHTML(value, this.clearElementToCompare.bind(this));
-        this.isDirty = false;
+        this.isDirty = isStale;
         await this.props.record.update({ [this.props.name]: value }).catch(() => {
             this.isDirty = true;
         });
@@ -228,10 +241,17 @@ export class HtmlField extends Component {
             return;
         }
         if (this.isDirty) {
+            // `getEditorContent` awaits pending image uploads; the user can keep
+            // typing during that round-trip. Capture the change counter first so
+            // a concurrent edit does not get marked clean (and silently dropped)
+            // by the `updateValue` below, which only carries the stale snapshot.
+            const seqAtCapture = this.changeSeq;
             const el = await this.getEditorContent();
             const content = el.innerHTML;
             this.clearElementToCompare(el);
-            await this.updateValue(content);
+            await this.updateValue(content, {
+                isStale: this.changeSeq !== seqAtCapture,
+            });
         }
     }
 
@@ -249,6 +269,7 @@ export class HtmlField extends Component {
 
     onChange() {
         this.isDirty = true;
+        this.changeSeq++;
         this.props.record.model.bus.trigger("FIELD_IS_DIRTY", true);
     }
 
@@ -360,8 +381,7 @@ export class HtmlField extends Component {
     }
 
     generateId() {
-        // No need for secure random number.
-        return Math.floor(Math.random() * Math.pow(2, 52)).toString();
+        return generateId();
     }
 }
 
