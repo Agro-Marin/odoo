@@ -8,11 +8,41 @@ being fixed, so a refactor cannot silently reintroduce it. Coverage:
    2-person ``chat`` unlinked the correspondent and left a broken 1-member DM
    that the create guard then forbids repairing. Bounce-unfollow is now scoped
    to the channel types that actually allow leaving.
+ - ``mail.message._is_thread_message`` eagerly dereferenced ``self.model`` as a
+   ``.get`` default, so a non-superuser *batch* create of thread messages
+   raised ``Expected singleton`` in the create-access check.
+ - ``_notify_thread_by_email`` did ``int(get_param(...))`` on ``mail.batch_size``
+   / ``mail.mail.force.send.limit`` with no guard, so a non-integer ICP value
+   raised ``ValueError`` and broke every email notification.
 """
 
 from odoo.tests import tagged
 
 from odoo.addons.mail.tests.common import MailCommon, mail_new_test_user
+
+
+@tagged("-at_install", "post_install", "mail_hardening_v10")
+class TestNotifyConfigRobustnessV10(MailCommon):
+    def test_non_integer_batch_size_does_not_break_notifications(self):
+        """A misconfigured (non-integer) ``mail.batch_size`` /
+        ``mail.mail.force.send.limit`` must not raise ``ValueError`` and break
+        every email notification; it degrades to the default with a warning.
+        """
+        icp = self.env["ir.config_parameter"].sudo()
+        icp.set_param("mail.batch_size", "not-a-number")
+        icp.set_param("mail.mail.force.send.limit", "also-bad")
+        partner = self.env["res.partner"].create(
+            {"name": "Cfg Robust", "email": "cfg-robust@example.com"}
+        )
+        record = self.env["discuss.channel"]._create_channel(
+            name="v10-cfg", group_id=False
+        )
+        # message_notify fans out through _notify_thread_by_email, which reads
+        # both ICPs; before the fix this raised ValueError.
+        message = record.message_notify(
+            partner_ids=partner.ids, body="cfg robustness"
+        )
+        self.assertTrue(message)
 
 
 @tagged("-at_install", "post_install", "mail_hardening_v10")
