@@ -1,10 +1,10 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-from odoo.addons.mail.tests.common import mail_new_test_user
 from odoo.exceptions import AccessError
-from odoo.tests import common, Form, tagged
+from odoo.tests import Form, common, tagged
 from odoo.tools import mute_logger
+
+from odoo.addons.mail.tests.common import mail_new_test_user
 
 
 @tagged('security')
@@ -12,7 +12,7 @@ class TestRecruitmentSurvey(common.TransactionCase):
 
     @classmethod
     def setUpClass(cls):
-        super(TestRecruitmentSurvey, cls).setUpClass()
+        super().setUpClass()
 
         # Create users to test ACL
         cls.hr_recruitment_manager = mail_new_test_user(
