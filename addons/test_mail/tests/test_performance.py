@@ -1239,7 +1239,12 @@ class TestMailAPIPerformance(BaseMailPerformance):
         rec1 = rec.with_context(active_test=False)      # to see inactive records
         self.assertEqual(rec1.message_partner_ids, self.user_portal.partner_id | self.env.user.partner_id)
 
-        with self.assertQueryCount(admin=62, employee=63):
+        # 71 (was 62/63): the write's tracking message now correctly notifies the
+        # container followers it just auto-subscribed (the assertions below), which
+        # creates their notifications + bus fan-out. Previously a flushing savepoint
+        # in _insert_followers ran _track_finalize before those followers existed,
+        # so only the assignee was notified (fewer queries, wrong result).
+        with self.assertQueryCount(admin=71, employee=71):
             rec.write({
                 'name': 'Test2',
                 'container_id': container_id,

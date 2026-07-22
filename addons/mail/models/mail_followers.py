@@ -529,9 +529,19 @@ GROUP BY fol.id%s%s""" % (
                 for res_id, values_list in new.items()
                 for values in values_list
             ]
+            # savepoint(flush=False) + flush_recordset: isolate the unique-index
+            # IntegrityError without running a full cr.flush() on enter. A
+            # flushing savepoint (the default) flushes pending work and *runs
+            # precommit callbacks* before create() executes -- so a tracked
+            # write's _track_finalize would post its tracking message and compute
+            # recipients here, before these followers exist, silently never
+            # notifying the partners the very write just auto-subscribed.
+            # flush_recordset() then persists the INSERT so the unique-index
+            # conflict still surfaces inside the savepoint, without running
+            # precommit.
             try:
-                with self.env.cr.savepoint():
-                    sudo_self.create(new_vals)
+                with self.env.cr.savepoint(flush=False):
+                    sudo_self.create(new_vals).flush_recordset()
             except IntegrityError:
                 # Two transactions posting on the same record and auto-subscribing
                 # the same partner (author-subscribe, double-submitted assignment)
@@ -539,12 +549,13 @@ GROUP BY fol.id%s%s""" % (
                 # batch create would surface a 500. The follower we wanted exists
                 # either way, so retry row by row and treat "already there" as
                 # success -- mirroring the reaction add/remove race handling.
+                self.env["mail.followers"].invalidate_model()
                 for vals in new_vals:
                     try:
-                        with self.env.cr.savepoint():
-                            sudo_self.create(vals)
+                        with self.env.cr.savepoint(flush=False):
+                            sudo_self.create(vals).flush_recordset()
                     except IntegrityError:
-                        pass
+                        self.env["mail.followers"].invalidate_model()
         for fol_id, values in upd.items():
             sudo_self.browse(fol_id).write(values)
 
