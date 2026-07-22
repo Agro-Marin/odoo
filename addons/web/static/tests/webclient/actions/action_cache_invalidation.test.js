@@ -58,6 +58,11 @@ function fireActWindowWrite() {
     });
 }
 
+// Desktop-only: asserts on (and clicks) the `.breadcrumb-item` control-panel
+// DOM, which the mobile navbar does not render (mobile collapses breadcrumbs
+// into a back button). The cache-flush/stack-preservation logic under test is
+// desktop breadcrumb-stack behaviour.
+test.tags("desktop");
 test("act_window write refreshes breadcrumbs in place (no stack rebuild)", async () => {
     onRpc("/web/action/load_breadcrumbs", () => {
         expect.step("/web/action/load_breadcrumbs");
@@ -204,6 +209,9 @@ test("action service exposes the cache-invalidation disposer", async () => {
     expect(cleared.includes("/web/action/load")).toBe(false);
 });
 
+// Desktop-only: asserts on the `.breadcrumb-item` breadcrumb texts, absent from
+// the mobile navbar (see the companion test above).
+test.tags("desktop");
 test("failed breadcrumb refresh keeps the current names", async () => {
     onRpc("/web/action/load_breadcrumbs", () => {
         expect.step("/web/action/load_breadcrumbs");

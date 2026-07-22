@@ -278,6 +278,11 @@ test("getCurrentAction (virtual controller)", async () => {
     ]);
 });
 
+// Desktop-only: builds a multi-level breadcrumb controller stack from a nested
+// URL and restores through the desktop breadcrumb model (the displayed list
+// view + virtual breadcrumb parent). Mobile uses a different, single-view
+// navigation model where this stack/DOM setup does not hold.
+test.tags("desktop");
 test("restore to a deleted virtual action keeps the current controller and surfaces the error", async () => {
     // Build a stack with a *virtual* breadcrumb controller (action 1, kanban)
     // and a mounted current controller (action 3, list) by loading the URL,
@@ -317,6 +322,9 @@ test("restore to a deleted virtual action keeps the current controller and surfa
     expect(".o_list_view").toHaveCount(1);
 });
 
+// Desktop-only: companion to the test above — same nested-URL breadcrumb stack
+// and desktop navigation model (see its comment).
+test.tags("desktop");
 test("restore to a virtual action whose view errors pre-mount keeps the displayed controller", async () => {
     // Companion to the test above, but for a pre-mount RENDER error (the action
     // LOADS fine — no MissingActionError — but its view throws before mounting,
@@ -373,7 +381,10 @@ test("properly handle case when action id does not exist", async () => {
     expect.errors(1);
     await mountWithCleanup(WebClient);
     getService("action").doAction(4448);
-    await animationFrame();
+    // The dialog only mounts once the RPC failure has been handled, so waiting
+    // for it deterministically settles the error channel too (a single frame
+    // races the propagation and leaks the error into a later test).
+    await waitFor(".o_error_dialog");
     expect.verifyErrors(["RPC_ERROR"]);
     expect(`.modal .o_error_dialog`).toHaveCount(1);
     expect(".o_error_dialog .modal-body").toHaveText("The action 4448 does not exist");
@@ -383,7 +394,9 @@ test("properly handle case when action path does not exist", async () => {
     expect.errors(1);
     await mountWithCleanup(WebClient);
     getService("action").doAction("plop");
-    await animationFrame();
+    // See "action id does not exist": wait for the dialog so the error channel
+    // is settled deterministically rather than after a single racing frame.
+    await waitFor(".o_error_dialog");
     expect.verifyErrors(["RPC_ERROR"]);
     expect(`.modal .o_error_dialog`).toHaveCount(1);
     expect(".o_error_dialog .modal-body").toHaveText(
@@ -395,7 +408,9 @@ test("properly handle case when action xmlId does not exist", async () => {
     expect.errors(1);
     await mountWithCleanup(WebClient);
     getService("action").doAction("not.found.action");
-    await animationFrame();
+    // See "action id does not exist": wait for the dialog so the error channel
+    // is settled deterministically rather than after a single racing frame.
+    await waitFor(".o_error_dialog");
     expect.verifyErrors(["RPC_ERROR"]);
     expect(`.modal .o_error_dialog`).toHaveCount(1);
     expect(".o_error_dialog .modal-body").toHaveText(
