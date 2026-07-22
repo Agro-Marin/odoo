@@ -4,7 +4,8 @@ import itertools
 import random
 
 from markupsafe import Markup
-from odoo import models, _
+
+from odoo import _, models
 
 
 class MailBot(models.AbstractModel):
@@ -22,7 +23,7 @@ class MailBot(models.AbstractModel):
         """
         channel.ensure_one()
         odoobot_id = self.env['ir.model.data']._xmlid_to_res_id("base.partner_root")
-        if values.get("author_id") == odoobot_id or values.get("message_type") != "comment" and not command:
+        if values.get("author_id") == odoobot_id or (values.get("message_type") != "comment" and not command):
             return
         body = values.get("body", "").replace("\xa0", " ").strip().lower().strip(".!")
         if answer := self._get_answer(channel, body, values, command):
@@ -59,7 +60,6 @@ class MailBot(models.AbstractModel):
         if channel.channel_type == "chat" and odoobot in channel.channel_member_ids.partner_id:
             # main flow
             source = _("Thanks")
-            description = _("This is a temporary canned response to see how canned responses work.")
             if odoobot_state == 'onboarding_emoji' and self._body_contains_emoji(body):
                 self.env.user.odoobot_state = "onboarding_command"
                 self.env.user.odoobot_failed = False
@@ -322,9 +322,7 @@ class MailBot(models.AbstractModel):
              0x1f5f3, 0x1f5fa, 0x1f600, 0x1f611, 0x1f615, 0x1f616, 0x1f617, 0x1f618, 0x1f619, 0x1f61a, 0x1f61b, 0x1f61f, 0x1f62c,
              0x1f62d, 0x1f634, 0x1f6d0, 0x1f6e9, 0x1f6f0, 0x1f6f3, 0x1f6f9, 0x1f91f, 0x1f930, 0x1f94c, 0x1f97a, 0x1f9c0]
         )
-        if any(chr(emoji) in body for emoji in emoji_list):
-            return True
-        return False
+        return any(chr(emoji) in body for emoji in emoji_list)
 
     def _is_help_requested(self, body):
         """Returns whether a message linking to the documentation and videos
