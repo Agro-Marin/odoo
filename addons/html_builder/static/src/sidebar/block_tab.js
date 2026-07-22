@@ -513,8 +513,7 @@ export class BlockTab extends Component {
     }
 
     /**
-     * Update the dropped snippet to build & adapt dynamic content right
-     * after adding it to the DOM.
+     * Updates the dropped snippet right after adding it to the DOM.
      *
      * @param {HTMLElement} snippetEl
      */

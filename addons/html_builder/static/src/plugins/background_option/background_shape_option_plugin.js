@@ -84,8 +84,9 @@ export class BackgroundShapeOptionPlugin extends Plugin {
         }
     }
     /**
-     * Handles everything related to saving state before preview and restoring
-     * it after a preview or locking in the changes when not in preview.
+     * Applies the computed shape data to the editing element: refreshes the
+     * shape container and its background image, flip, animation and mobile
+     * visibility.
      *
      * @param {HTMLElement} editingElement - The element being edited
      * @param {Function} computeShapeData - Function to compute the new shape

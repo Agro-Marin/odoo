@@ -73,7 +73,7 @@ function scrollFixedOffset(doc = document) {
  *      string set to '#top' or an HTML element with the "top" id) or the
  *      footer (el is then a string set to '#bottom' or an HTML element
  *      with the "bottom" id) for which exceptions have been made.
- * @param {number} [options] - options for the scroll behavior
+ * @param {Object} [options={}] - options for the scroll behavior
  * @param {number} [options.extraOffset=0]
  *      extra offset to add on top of the automatic one (the automatic one
  *      being computed based on fixed header sizes)

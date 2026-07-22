@@ -74,7 +74,7 @@ export class ClonePlugin extends Plugin {
      * @param {Object}
      *   - `position`: specifies where to position the clone (first parameter of
      *     the `insertAdjacentElement` function)
-     *   - `scrollToClone`: true if the we should scroll to the clone (if not in
+     *   - `scrollToClone`: true if we should scroll to the clone (if not in
      *     the viewport), false otherwise
      *   - `activateClone`: true if the option containers of the clone should be
      *     the active ones, false otherwise
