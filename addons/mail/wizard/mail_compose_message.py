@@ -774,10 +774,8 @@ class MailComposeMessage(models.TransientModel):
             elif composer.composition_mode == "comment" or composer.res_domain:
                 composer.force_send = False
             else:
-                force_send_limit = int(
-                    self.env["ir.config_parameter"]
-                    .sudo()
-                    .get_param("mail.mail.force.send.limit", 100)
+                force_send_limit = self.env["ir.config_parameter"]._get_int_param(
+                    "mail.mail.force.send.limit", 100
                 )
                 res_ids = composer._evaluate_res_ids()
                 composer.force_send = len(res_ids) <= force_send_limit

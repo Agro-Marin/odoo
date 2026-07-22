@@ -82,16 +82,12 @@ class MailRenderMixin(models.AbstractModel):
         malformed or zero value (which would otherwise crash or stall the
         mass-send loops). Shared by the template and composer send paths.
         """
-        try:
-            batch_size = int(
-                self.env["ir.config_parameter"].sudo().get_param("mail.batch_size") or 0
-            )
-        except ValueError:
-            _logger.warning(
-                "Malformed ICP 'mail.batch_size', falling back to default %s",
-                default,
-            )
-            batch_size = 0
+        # The non-integer case (and its warning) is handled by the shared
+        # helper; what is specific here is that 0 and negatives are *also*
+        # unusable for the mass-send loops, so they collapse to the default too.
+        batch_size = self.env["ir.config_parameter"]._get_int_param(
+            "mail.batch_size", 0
+        )
         if batch_size < 0:
             # A negative ICP is as malformed as a non-integer one: it is truthy,
             # so ``batch_size or default`` would let it through and crash the

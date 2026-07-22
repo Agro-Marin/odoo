@@ -121,10 +121,8 @@ class MailLinkPreview(models.Model):
 
     @api.model
     def _is_link_preview_enabled(self):
-        link_preview_throttle = int(
-            self.env["ir.config_parameter"]
-            .sudo()
-            .get_param("mail.link_preview_throttle", 99)
+        link_preview_throttle = self.env["ir.config_parameter"]._get_int_param(
+            "mail.link_preview_throttle", 99
         )
         return link_preview_throttle > 0
 
@@ -151,10 +149,8 @@ class MailLinkPreview(models.Model):
                 ("source_url_netloc", "=", domain),
             ]
         )
-        link_preview_throttle = int(
-            self.env["ir.config_parameter"]
-            .sudo()
-            .get_param("mail.link_preview_throttle", 99)
+        link_preview_throttle = self.env["ir.config_parameter"]._get_int_param(
+            "mail.link_preview_throttle", 99
         )
         return call_counter > link_preview_throttle
 
