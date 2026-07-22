@@ -862,7 +862,6 @@ describe("Selection collapsed", () => {
                         deleteBackward(editor);
                         deleteBackward(editor);
                     },
-                    // This should be identical to 4-4
                     contentAfter: "<p>ab[]</p><p>cd</p>",
                 });
             });
@@ -876,6 +875,7 @@ describe("Selection collapsed", () => {
                         deleteBackward(editor);
                         deleteBackward(editor);
                     },
+                    // This should be identical to 4-4
                     contentAfter: "<p>ab[]</p><p>cd</p>",
                 });
             });
