@@ -2335,12 +2335,24 @@ class Website(models.Model):
         # Here, we manually prefetch the needed fields only to avoid prefetching
         # any translatable field, such as contact_us_button_url by website_sale,
         # as translating to an invalid language would result in an error.
-        self.fetch(["user_id", "company_id", "default_lang_id", "homepage_url"])
+        #
+        # Every field listed here must be non-translatable (see above) and must
+        # be covered by the ``clear_cache()`` in :meth:`write`, which flushes
+        # the "default" cache group this ormcache belongs to.
+        self.fetch(
+            ["user_id", "company_id", "default_lang_id", "homepage_url", "cookies_bar"]
+        )
         return {
             "user_id": self.user_id.id,
             "company_id": self.company_id.id,
             "default_lang_id": self.default_lang_id.id,
             "homepage_url": self.homepage_url,
+            # Read on every frontend request by ``ir.http._is_allowed_cookie``,
+            # itself part of the ``website.page`` response cache key: a plain
+            # field read there costs one full ``website`` SELECT per hot page
+            # render (the record is not otherwise in the ORM cache at that
+            # point), so it belongs in this prefetched set.
+            "cookies_bar": self.cookies_bar,
         }
 
     def _get_cached(self, field):

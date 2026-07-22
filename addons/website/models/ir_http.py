@@ -541,7 +541,16 @@ class IrHttp(models.AbstractModel):
     def _is_allowed_cookie(cls, cookie_type):
         result = super()._is_allowed_cookie(cookie_type)
         if result and cookie_type == "optional":
-            if not request.env["website"].get_current_website().cookies_bar:
+            website = request.env["website"].get_current_website()
+            # ``_get_cached`` rather than a plain ``website.cookies_bar`` read:
+            # this runs on every frontend request (it is part of the
+            # ``website.page`` response cache key), and a plain read prefetches
+            # the whole ``website`` record -- one extra SELECT on every hot page
+            # render. Guard on ``website`` first: ``_get_cached`` calls
+            # ``ensure_one()``, while the previous attribute read simply
+            # evaluated falsy on the empty recordset ``get_current_website()``
+            # returns when the database holds no website at all.
+            if not website or not website._get_cached("cookies_bar"):
                 # Cookies bar is disabled on this website
                 return True
             accepted_cookie_types = json_scriptsafe.loads(

@@ -416,13 +416,19 @@ class TestWebsitePerformance(TestWebsitePerformanceCommon):
             "website_page": 1,
             # 1. `_serve_page` search page matching URL..
             # 2. ..then reads it (`is_visible`)
-            "website": 1,
-            # Check if website.cookies_bar is active
             "ir_ui_view": 1,
             # Check if `view.track` to track visitor or not
+            #
+            # No `website` select: this page renders no layout, so the only
+            # read of the website record used to be the `cookies_bar` check in
+            # `ir.http._is_allowed_cookie`. That now goes through
+            # `website._get_cached`, whose values are already in the ormcache by
+            # this point in the dispatch. The layouted pages above still show
+            # `"website": 1` -- theirs comes from the menu/layout render, which
+            # is a different read.
         }
-        self._check_url_hot_query(self.page.url, 5, select_tables_perf, nocache=True)
-        self.assertEqual(self._get_url_hot_query(self.page.url, nocache=True), 5)
+        self._check_url_hot_query(self.page.url, 4, select_tables_perf, nocache=True)
+        self.assertEqual(self._get_url_hot_query(self.page.url, nocache=True), 4)
 
     def test_40_perf_sql_queries_page_multi_level_menu(self):
         # menu structure should not impact SQL requests
@@ -465,12 +471,26 @@ class TestWebsitePerformancePost(UtilPerf):
     @mute_logger("odoo.http")
     def test_50_perf_sql_web_assets(self):
         # assets route /web/assets/..
-        assets_url = (
-            self.env["ir.qweb"]
-            ._get_asset_bundle("web.assets_frontend_lazy", css=False, js=True)
-            .get_links()[0]
+        #
+        # The bundle is asked for its CSS link, not its JS one: every JS file
+        # of `web.assets_frontend_lazy` is now a native ESM module, so the
+        # bundle has no legacy `javascripts` left and `get_links()` emits no
+        # `.min.js` at all (ESM modules are served individually under
+        # /web/assets/esm/.. behind an import map). The stylesheet still goes
+        # through the very stack this test measures -- the `/web/assets/..`
+        # route and the ir.binary attachment lookup -- so it is what keeps the
+        # assertion honest. Do not "restore" `css=False, js=True`: it yields an
+        # empty list and an IndexError.
+        bundle = self.env["ir.qweb"]._get_asset_bundle(
+            "web.assets_frontend_lazy", css=True, js=False
         )
-        self.assertIn("web.assets_frontend_lazy.min.js", assets_url)
+        self.assertFalse(
+            bundle.javascripts,
+            "web.assets_frontend_lazy is expected to be fully native ESM; if"
+            " legacy JS came back, measure the .min.js link here instead",
+        )
+        assets_url = bundle.get_links()[0]
+        self.assertIn("web.assets_frontend_lazy.min.css", assets_url)
         select_tables_perf = {
             "orm_signaling_registry": 1,
             "ir_attachment": 2,

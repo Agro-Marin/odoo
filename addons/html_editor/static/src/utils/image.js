@@ -17,6 +17,22 @@ const headResponseCache = new Cache(
     JSON.stringify,
 );
 
+// Separate cache for the CORS verdict, deliberately holding a *resolved*
+// boolean rather than reusing `headResponseCache` directly. For that cache a
+// rejection means "the request failed, retry next time" and the entry is
+// evicted (see `Cache.read`) — but here a rejected HEAD *is* the answer
+// ("yes, CORS-protected"), so every caller re-issued the same failing request:
+// selecting one protected image fired the HEAD once per consumer of
+// `isImageCorsProtected`. This one never rejects, so the verdict sticks.
+const corsProtectedCache = new Cache(
+    async (src) =>
+        headResponseCache
+            .read(src)
+            .then(() => false)
+            .catch(() => true),
+    JSON.stringify,
+);
+
 /**
  * Extracts url and gradient parts from the background-image CSS property.
  *
@@ -116,10 +132,7 @@ export async function isImageCorsProtected(img) {
         //    same database behind.
         // 2. A "attachment-url" which is just a redirect to the real image
         //    which could be hosted on another website.
-        isCorsProtected = await headResponseCache
-            .read(src)
-            .then(() => false)
-            .catch(() => true);
+        isCorsProtected = await corsProtectedCache.read(src);
     }
     return isCorsProtected;
 }
