@@ -2,7 +2,7 @@
 
 from markupsafe import Markup
 
-from odoo import models, fields, _
+from odoo import _, fields, models
 
 
 class ResUsers(models.Model):
