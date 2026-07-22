@@ -136,9 +136,8 @@ export class ColorPlugin extends Plugin {
         // skips nodes whose textContent is whitespace — so an icon can never be
         // cleared that way. Meanwhile the loop below *detects* the icon's
         // colour through that very ZWS, a node ``applyColor`` filters out for
-        // being non-editable. Detector and mutator therefore disagreed forever:
-        // the loop span 40 times and threw "Infinite Loop in removeAllColor()"
-        // in the user's face, aborting the whole removeFormat.
+        // being non-editable. Left unhandled, that mismatch would keep the loop
+        // below from ever converging.
         //
         // Clear icons directly and up-front, which both removes the colour
         // (what the user asked for) and takes the divergent node out of play.
@@ -398,12 +397,8 @@ export class ColorPlugin extends Plugin {
                     // "Unsplittable" must gate SPLITTING, not colouring. This
                     // branch splits the font only for a PARTIAL selection; when
                     // the element is fully selected it is coloured in place and
-                    // nothing is split, so refusing it conflated the two.
-                    //
-                    // That conflation surfaced once links became unsplittable
-                    // (so Enter inside one inserts a <br> instead of producing
-                    // two links): a fully-selected `<a class="text-muted">`
-                    // could no longer have its colour class removed.
+                    // nothing is split, so refusing it here would wrongly
+                    // conflate the two.
                     (isFullySelectedIgnoringScaffolding ||
                         !this.dependencies.split.isUnsplittable(font))
                 ) {
@@ -455,7 +450,7 @@ export class ColorPlugin extends Plugin {
                                     ? TEXT_CLASSES_REGEX
                                     : BG_CLASSES_REGEX;
                             // When updating a gradient, remove color applied to
-                            // its descendants.This ensures the gradient remains
+                            // its descendants. This ensures the gradient remains
                             // visible without being overwritten by a descendant's color.
                             for (const node of descendants(font)) {
                                 if (
@@ -541,7 +536,7 @@ export class ColorPlugin extends Plugin {
 
         let fonts = getFonts(selectedNodes);
         // Dirty fix as the previous call could have unconnected elements
-        // because of the `splitAroundUntil`. Another call should provide he
+        // because of the `splitAroundUntil`. Another call should provide the
         // correct list of fonts.
         if (!fonts.every((font) => font.isConnected)) {
             fonts = getFonts(selectedNodes);
@@ -651,7 +646,7 @@ export class ColorPlugin extends Plugin {
         this.fixColorCombination(element, color);
     }
     /**
-     * There is a limitation with css. The defining a background image and a
+     * There is a limitation with css. Defining a background image and a
      * background gradient is done only by setting one style (background-image).
      * If there is a class (in this case o_cc[1-5]) that defines a gradient, it
      * will be overridden by the background-image property.
@@ -691,8 +686,8 @@ export class ColorPlugin extends Plugin {
 
     /**
      * @param {Element} element
-     * @param {string} cssProp
-     * @param {string} cssValue
+     * @param {string} mode
+     * @param {string} color
      */
     applyColorStyle(element, mode, color) {
         if (this.delegateTo("apply_color_style_overrides", element, mode, color)) {

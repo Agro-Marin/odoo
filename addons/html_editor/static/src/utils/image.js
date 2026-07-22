@@ -36,7 +36,7 @@ const corsProtectedCache = new Cache(
 /**
  * Extracts url and gradient parts from the background-image CSS property.
  *
- * @param {string} CSS 'background-image' property value
+ * @param {string} css 'background-image' property value
  * @returns {Object} contains the separated 'url' and 'gradient' parts
  */
 export function backgroundImageCssToParts(css = "") {
@@ -56,7 +56,7 @@ export function backgroundImageCssToParts(css = "") {
 /**
  * Combines url and gradient parts into a background-image CSS property value
  *
- * @param {Object} contains the separated 'url' and 'gradient' parts
+ * @param {Object} parts the separated 'url' and 'gradient' parts
  * @returns {string} CSS 'background-image' property value
  */
 export function backgroundImagePartsToCss(parts) {
@@ -172,8 +172,8 @@ export function getImageSrc(el) {
 /**
  * Parse an element's background-image's url.
  *
- * @param {string} string a css value in the form 'url("...")'
- * @returns {string|false} the src of the image or false if not parsable
+ * @param {string} url a css value in the form 'url("...")'
+ * @returns {string} the src of the image or an empty string if not parsable
  */
 export function getBgImageURLFromURL(url) {
     const match = url.match(/^url\((['"])(.*?)\1\)$/);

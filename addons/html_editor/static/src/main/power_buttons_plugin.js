@@ -17,7 +17,7 @@ import { debounce } from "@web/core/utils/timing";
  * @property {string} [description] Can be inferred from the user command
  * @property {string} [icon] Can be inferred from the user command
  * @property {string} [text] Mandatory if `icon` is not provided
- * @property {string} [isAvailable] Can be inferred from the user command
+ * @property {(selection: EditorSelection) => boolean} [isAvailable] Can be inferred from the user command
  */
 
 /**
@@ -28,27 +28,6 @@ import { debounce } from "@web/core/utils/timing";
  * @typedef {{ commandId: string }[]} power_buttons
  *
  * A power button is added by referencing an existing user command.
- *
- * Example:
- *
- *     resources = {
- *          user_commands: [
- *              {
- *                  id: myCommand,
- *                  run: myCommandFunction,
- *                  description: _t("Apply my command"),
- *                  icon: "fa-bug",
- *              },
- *          ],
- *          power_buttons: [
- *              {
- *                  commandId: "myCommand",
- *                  commandParams: { myParam: "myValue" },
- *                  description: _t("Do powerfull stuff"), // overrides the user command's `description`
- *                  // `icon` is derived from the user command
- *              }
- *          ],
- *     };
  */
 
 export class PowerButtonsPlugin extends Plugin {
@@ -213,8 +192,8 @@ export class PowerButtonsPlugin extends Plugin {
     }
 
     /**
-     *
      * @param {HTMLElement} block
+     * @param {DOMRect} blockRect
      * @param {string} direction
      */
     setPowerButtonsPosition(block, blockRect, direction) {
