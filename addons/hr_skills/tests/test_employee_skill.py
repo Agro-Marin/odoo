@@ -1,9 +1,10 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
-from dateutil.relativedelta import relativedelta
 import datetime
 
-from odoo import fields
+from dateutil.relativedelta import relativedelta
+from freezegun import freeze_time
 
+from odoo import fields
 from odoo.exceptions import ValidationError
 from odoo.tests import Form
 from odoo.tests.common import TransactionCase
@@ -12,10 +13,10 @@ from odoo.tests.common import TransactionCase
 class TestEmployeeSkills(TransactionCase):
 
     @classmethod
-    def _create_skill_types(self, vals_list):
-        skill_types = self.env['hr.skill.type']
+    def _create_skill_types(cls, vals_list):
+        skill_types = cls.env['hr.skill.type']
         for vals in vals_list:
-            with Form(self.env['hr.skill.type']) as skill_type_form:
+            with Form(cls.env['hr.skill.type']) as skill_type_form:
                 skill_type_form.name = vals['name']
                 skill_type_form.is_certification = vals.get('certificate', False)
                 for skill_val in vals['skills']:
@@ -395,7 +396,7 @@ class TestEmployeeSkills(TransactionCase):
         """
         employee_form = Form(self.employee)
         previous_employee_skills = self.employee.employee_skill_ids
-        for i in range(3):
+        for _ in range(3):
             with employee_form.current_employee_skill_ids.new() as employee_skill_form:
                 employee_skill_form.skill_type_id = self.certification
                 employee_skill_form.skill_id = self.certification.skill_ids[0]
@@ -554,3 +555,29 @@ class TestEmployeeSkills(TransactionCase):
         employee_form.current_employee_skill_ids.remove(index=index)
         employee_form.save()
         self.assertEqual(len(self.employee.employee_skill_ids), 6, "the certification is removed because an other expired certification has the same validity range")
+
+
+class TestSkillFieldDefaults(TransactionCase):
+    """Regression: hr.individual.skill.mixin.valid_from default must be a callable
+    (evaluated per-record at create time), not fields.Date.today() captured once at
+    class-body/module-load time."""
+
+    def test_valid_from_default_evaluated_per_record(self):
+        skill_type = self.env['hr.skill.type'].create({'name': 'Default Test Type'})
+        level = self.env['hr.skill.level'].create({
+            'name': 'L1', 'skill_type_id': skill_type.id, 'level_progress': 50,
+        })
+        skill = self.env['hr.skill'].create({'name': 'S1', 'skill_type_id': skill_type.id})
+        employee = self.env['hr.employee'].create({'name': 'Default Test Employee'})
+        with freeze_time("2099-01-01"):
+            emp_skill = self.env['hr.employee.skill'].create({
+                'employee_id': employee.id,
+                'skill_id': skill.id,
+                'skill_type_id': skill_type.id,
+                'skill_level_id': level.id,
+            })
+        self.assertEqual(
+            emp_skill.valid_from, datetime.date(2099, 1, 1),
+            "valid_from default must be evaluated per-record at create time, "
+            "not captured once at module load",
+        )
