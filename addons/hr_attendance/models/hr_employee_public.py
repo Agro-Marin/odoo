@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 from odoo import fields, models
@@ -29,3 +28,4 @@ class HrEmployeePublic(models.Model):
         self.ensure_one()
         if self.is_user:
             return self.employee_id.action_open_last_month_attendances()
+        return None

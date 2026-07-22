@@ -1,10 +1,12 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
+from collections import defaultdict
+
 import pytz
 from dateutil.relativedelta import relativedelta
-from collections import defaultdict
+
+from odoo import _, api, exceptions, fields, models
 from odoo.libs.intervals import Intervals
-from odoo import models, fields, api, exceptions, _
 
 
 class HrEmployee(models.Model):
@@ -54,10 +56,11 @@ class HrEmployee(models.Model):
     @api.model_create_multi
     def create(self, vals_list):
         officer_group = self.env.ref('hr_attendance.group_hr_attendance_officer', raise_if_not_found=False)
-        group_updates = []
-        for vals in vals_list:
-            if officer_group and vals.get('attendance_manager_id'):
-                group_updates.append((4, vals['attendance_manager_id']))
+        group_updates = [
+            (4, vals['attendance_manager_id'])
+            for vals in vals_list
+            if officer_group and vals.get('attendance_manager_id')
+        ]
         if group_updates:
             officer_group.sudo().write({'user_ids': group_updates})
         return super().create(vals_list)
@@ -105,7 +108,7 @@ class HrEmployee(models.Model):
             end_naive = end_tz.astimezone(pytz.utc).replace(tzinfo=None)
 
             current_month_attendances = employee.attendance_ids.filtered(
-                lambda att: att.check_in >= start_naive and att.check_out and att.check_out <= end_naive
+                lambda att, start_naive=start_naive, end_naive=end_naive: att.check_in >= start_naive and att.check_out and att.check_out <= end_naive
             )
             hours = 0
             overtime_hours = 0
@@ -161,7 +164,7 @@ class HrEmployee(models.Model):
     def _compute_attendance_state(self):
         for employee in self:
             att = employee.last_attendance_id.sudo()
-            employee.attendance_state = att and not att.check_out and 'checked_in' or 'checked_out'
+            employee.attendance_state = (att and not att.check_out and 'checked_in') or 'checked_out'
 
     def _attendance_action_change(self, geo_information=None):
         """ Check In/Check Out action

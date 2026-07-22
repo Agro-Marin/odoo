@@ -27,7 +27,7 @@ class ResConfigSettings(models.TransientModel):
 
     @api.model
     def get_values(self):
-        res = super(ResConfigSettings, self).get_values()
+        res = super().get_values()
         company = self.env.company
         res.update({
             'overtime_company_threshold': company.overtime_company_threshold,
