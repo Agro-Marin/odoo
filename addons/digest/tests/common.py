@@ -1,13 +1,13 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 import itertools
 import random
-
 from datetime import datetime
+
 from dateutil.relativedelta import relativedelta
 
 from odoo import fields
+
 from odoo.addons.mail.tests import common as mail_test
 
 
