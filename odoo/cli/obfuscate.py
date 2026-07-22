@@ -385,7 +385,10 @@ class Obfuscate(DatabaseCommand):
             return first_line
         try:
             pwd = getpass.getpass("Cypher password: ")
-        except EOFError, KeyboardInterrupt:
+        except KeyboardInterrupt:
+            # A deliberate ^C is a cancel, not a missing-password usage error.
+            sys.exit("\nCancelled by user.")
+        except EOFError:
             pwd = ""
         if not pwd:
             self.parser.error(

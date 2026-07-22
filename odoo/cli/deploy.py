@@ -45,7 +45,15 @@ EXCLUDED_SUFFIXES = frozenset(
         ".swo",
         ".orig",
         ".bak",
+    }
+)
+# Matched against the file NAME, not the suffix: for a dotfile like
+# `.DS_Store`, Path.suffix is '' (the leading dot marks a hidden file, not an
+# extension), so a suffix check never fires.
+EXCLUDED_FILE_NAMES = frozenset(
+    {
         ".DS_Store",
+        "Thumbs.db",
     }
 )
 
@@ -69,7 +77,7 @@ def _should_skip(filepath: Path, module_dir: Path) -> bool:
     rel_parts = filepath.relative_to(module_dir).parts
     if any(p in EXCLUDED_DIR_NAMES for p in rel_parts[:-1]):
         return True
-    return filepath.suffix in EXCLUDED_SUFFIXES
+    return filepath.suffix in EXCLUDED_SUFFIXES or filepath.name in EXCLUDED_FILE_NAMES
 
 
 class Deploy(Command):
@@ -251,6 +259,11 @@ class Deploy(Command):
                         "Pass --verify-ssl to verify the server certificate.",
                         file=sys.stderr,
                     )
+                    # One clear warning is enough; without this, urllib3
+                    # repeats an InsecureRequestWarning for every request.
+                    import urllib3
+
+                    urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
             result = self.deploy_module(
                 args.path,

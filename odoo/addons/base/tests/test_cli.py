@@ -713,7 +713,11 @@ class TestCommand(BaseCase):
 
     def test_deploy_excluded_paths(self):
         """The deploy zip must skip VCS, IDE, and build noise."""
-        from odoo.cli.deploy import EXCLUDED_DIR_NAMES, EXCLUDED_SUFFIXES
+        from odoo.cli.deploy import (
+            EXCLUDED_DIR_NAMES,
+            EXCLUDED_FILE_NAMES,
+            EXCLUDED_SUFFIXES,
+        )
 
         for name in (
             ".git",
@@ -726,8 +730,11 @@ class TestCommand(BaseCase):
             "build",
         ):
             self.assertIn(name, EXCLUDED_DIR_NAMES)
-        for ext in (".pyc", ".pyo", ".swp", ".bak", ".DS_Store"):
+        for ext in (".pyc", ".pyo", ".swp", ".bak"):
             self.assertIn(ext, EXCLUDED_SUFFIXES)
+        # By NAME, not suffix: Path('.DS_Store').suffix == '' (dotfile), so a
+        # suffix-based exclusion never fired and the junk file shipped.
+        self.assertIn(".DS_Store", EXCLUDED_FILE_NAMES)
 
     def test_start_db_filter_escapes_regex(self):
         """start.py must escape regex meta-characters in db_name when
@@ -1097,3 +1104,281 @@ class TestCommand(BaseCase):
             "--workers=4",
             build_config_args(None, None, extra_args=["--workers=4"]),
         )
+
+    def test_db_refuses_system_databases(self):
+        """Destructive `db` subcommands must refuse the PG system databases
+        and the configured creation template. PostgreSQL itself refuses to
+        drop template0/1 (with a raw traceback), but happily drops `postgres`
+        — the maintenance DB every client tool connects to by default."""
+        from odoo.cli import db as dbmod
+
+        cmd = dbmod.Db()
+        protected = ["postgres", "template0", "template1", config["db_template"]]
+        # exp_db_exist=True + force=True: without the guard, every subcommand
+        # would sail through its free/exists checks and reach a (mocked)
+        # destructive call — so each assertion below discriminates the guard,
+        # and no code path touches the real cluster.
+        with (
+            mock.patch.object(dbmod, "exp_db_exist", return_value=True),
+            mock.patch.object(dbmod, "_drop_database") as drop_mock,
+            mock.patch.object(dbmod, "exp_create_database") as create_mock,
+            mock.patch.object(dbmod, "_rename_database") as rename_mock,
+            mock.patch.object(dbmod, "_duplicate_database") as duplicate_mock,
+        ):
+            for name in protected:
+                with self.assertRaises(SystemExit, msg=f"drop {name} not refused"):
+                    cmd.drop(mock.Mock(database=name))
+                with self.assertRaises(SystemExit, msg=f"init {name} not refused"):
+                    cmd.init(mock.Mock(database=name, force=True))
+                with self.assertRaises(SystemExit, msg=f"rename from {name}"):
+                    cmd.rename(mock.Mock(source=name, target="tgt", force=True))
+                with self.assertRaises(SystemExit, msg=f"duplicate onto {name}"):
+                    cmd.duplicate(mock.Mock(source="src", target=name, force=True))
+        drop_mock.assert_not_called()
+        create_mock.assert_not_called()
+        rename_mock.assert_not_called()
+        duplicate_mock.assert_not_called()
+
+    def test_start_refuses_system_database_names(self):
+        """`start` derives the database name from a directory name; a project
+        checked out as e.g. `postgres/` must not create over (or serve from)
+        a PG system database."""
+        from odoo.cli import start as startmod
+
+        with tempfile.TemporaryDirectory() as tmp:
+            proj = Path(tmp) / "postgres"
+            proj.mkdir()
+            with (
+                mock.patch.object(startmod, "_create_empty_database") as create_mock,
+                self.assertRaises(SystemExit) as ctx,
+            ):
+                startmod.Start().run(["-p", str(proj)])
+        create_mock.assert_not_called()
+        self.assertIn("system database", str(ctx.exception.code))
+
+    def test_db_list_prints_databases(self):
+        """`db list` prints each visible database on its own line."""
+        import contextlib
+        import io
+
+        from odoo.cli import db as dbmod
+
+        out = io.StringIO()
+        with (
+            mock.patch.object(dbmod, "list_dbs", return_value=["alpha", "beta"]) as m,
+            contextlib.redirect_stdout(out),
+        ):
+            dbmod.Db().list(mock.Mock())
+        m.assert_called_once_with(force=True)
+        self.assertEqual(out.getvalue(), "alpha\nbeta\n")
+
+    def test_db_connection_flags_have_help(self):
+        """Every connection flag must carry help text (rendered in `db --help`
+        and each subcommand's help), and the help map must not drift from the
+        declared flags. Assert on the parser actions, not the formatted output
+        — argparse wraps help at terminal width, so string matching against
+        print_help() would be flaky in narrow terminals."""
+        import argparse
+
+        from odoo.cli import db as dbmod
+
+        declared = {flags[-1] for flags in dbmod.Db._CONNECTION_FLAGS}
+        self.assertEqual(set(dbmod.Db._CONNECTION_HELP), declared)
+        parser = argparse.ArgumentParser(prog="db")
+        dbmod.Db._add_connection_flags(parser)
+        # option_strings keeps declaration order; the long form is last,
+        # matching the _CONNECTION_FLAGS convention.
+        registered = {
+            a.option_strings[-1]: a.help
+            for a in parser._actions
+            if a.option_strings and a.dest != "help"
+        }
+        for long_flag in declared:
+            self.assertEqual(
+                registered.get(long_flag),
+                dbmod.Db._CONNECTION_HELP[long_flag],
+                msg=f"{long_flag} registered without its help text",
+            )
+
+    def test_deploy_zip_skips_junk_file_names(self):
+        """`.DS_Store` has no Path.suffix (dotfile), so the old suffix-based
+        exclusion shipped it in every deploy zip; it must be excluded by
+        file name."""
+        import zipfile as zipfile_mod
+
+        from odoo.cli.deploy import Deploy
+
+        with tempfile.TemporaryDirectory() as tmp:
+            mod = Path(tmp) / "mymod"
+            mod.mkdir()
+            (mod / "__manifest__.py").write_text("{'name': 'mymod'}\n")
+            (mod / ".DS_Store").write_bytes(b"\x00junk")
+            (mod / "Thumbs.db").write_bytes(b"\x00junk")
+            zpath = Deploy().zip_module(mod)
+            try:
+                with zipfile_mod.ZipFile(zpath) as z:
+                    names = {n.split("/", 1)[1] for n in z.namelist()}
+            finally:
+                Path(zpath).unlink()
+        self.assertNotIn(".DS_Store", names)
+        self.assertNotIn("Thumbs.db", names)
+        self.assertIn("__manifest__.py", names)
+
+    def test_populate_rejects_nonpositive_factors(self):
+        """A factor of 0 or less would silently populate nothing while the
+        command still reports success."""
+        from odoo.cli.populate import _parse_model_factors
+
+        for factors in ("0", "-1", "3,0"):
+            errors = []
+            _parse_model_factors(factors, "a,b", errors.append)
+            self.assertTrue(
+                errors and ">= 1" in errors[0],
+                msg=f"factors {factors!r} not rejected: {errors}",
+            )
+
+    def test_help_falls_back_to_description(self):
+        """An (addon) command without a docstring must still show its
+        `description` in the `help` table instead of a blank cell."""
+        import contextlib
+        import io
+
+        from odoo.cli import help as helpmod
+
+        class NoDocstring:
+            __doc__ = None
+            description = "From description\nsecond line ignored"
+
+        out = io.StringIO()
+        with (
+            mock.patch.object(helpmod, "load_internal_commands"),
+            mock.patch.object(helpmod, "load_addons_commands"),
+            mock.patch.dict(helpmod.commands, {"nodoc": NoDocstring}, clear=True),
+            contextlib.redirect_stdout(out),
+        ):
+            helpmod.Help().run([])
+        self.assertIn("From description", out.getvalue())
+        self.assertNotIn("second line", out.getvalue())
+
+    def test_shell_repl_availability_probe(self):
+        """REPL availability is probed with find_spec, so an installed-but-
+        broken REPL surfaces a warning instead of silently vanishing from the
+        fallback chain."""
+        import importlib.util
+
+        from odoo.cli.shell import Shell
+
+        # The stdlib console is always available.
+        self.assertTrue(Shell._repl_available("python"))
+        # Every non-stdlib supported shell must have a probe mapping.
+        self.assertEqual(
+            set(Shell._REPL_MODULES),
+            set(Shell.supported_shells) - {"python"},
+        )
+        with mock.patch.object(importlib.util, "find_spec", return_value=None):
+            self.assertFalse(Shell._repl_available("ipython"))
+
+    def test_cloc_counts_path(self):
+        """`cloc -p <dir>` runs config-free and reports counted lines; the
+        database-mode connection flags must be visible in --help (they used
+        to work only via silent unknown-arg forwarding)."""
+        with tempfile.TemporaryDirectory() as tmp:
+            (Path(tmp) / "thing.py").write_text("x = 1\ny = 2\n")
+            proc = self.run_command("cloc", "-v", "-p", tmp)
+        self.assertIn(Path(tmp).name, proc.stdout)
+        self.assertIn("thing.py", proc.stdout)
+        help_proc = self.run_command("cloc", "--help")
+        self.assertIn("--config", help_proc.stdout)
+        self.assertIn("--data-dir", help_proc.stdout)
+
+    def test_get_single_database_refuses_system_databases(self):
+        """The single-database funnel (shell, cloc, every DatabaseCommand)
+        must refuse PG system databases and the configured creation template:
+        opening a registry on one would bootstrap Odoo tables inside it."""
+        from odoo.cli.command import get_single_database
+
+        for name in ("postgres", "template0", "template1", config["db_template"]):
+            errors = []
+            self.assertIsNone(get_single_database([name], error_handler=errors.append))
+            self.assertTrue(
+                errors and "system or template" in errors[0],
+                msg=f"{name!r} not refused: {errors}",
+            )
+        errors = []
+        self.assertEqual(
+            get_single_database(["mydb"], error_handler=errors.append), "mydb"
+        )
+        self.assertFalse(errors)
+
+    def test_server_refuses_system_database(self):
+        """`odoo-bin -d postgres` must refuse to serve: registry preload
+        bootstraps Odoo tables into any uninitialized database it is pointed
+        at, corrupting the maintenance DB."""
+        proc = self.run_command(
+            "server",
+            "-d",
+            "postgres",
+            "--no-http",
+            "--stop-after-init",
+            check=False,
+        )
+        self.assertNotEqual(proc.returncode, 0)
+        self.assertIn("system or template database", proc.stderr)
+
+    def test_db_dump_removes_partial_file_on_failure(self):
+        """A dump that fails mid-write must not leave a truncated file that
+        is indistinguishable from a valid dump by name."""
+        from odoo.cli import db as dbmod
+
+        with tempfile.TemporaryDirectory() as tmp:
+            dump_path = Path(tmp) / "out.zip"
+            ns = mock.Mock(
+                database="mydb",
+                dump_path=str(dump_path),
+                dump_format="zip",
+                filestore=True,
+            )
+            with (
+                mock.patch.object(dbmod, "exp_db_exist", return_value=True),
+                mock.patch.object(
+                    dbmod, "dump_db", side_effect=RuntimeError("disk full")
+                ),
+                self.assertRaises(RuntimeError),
+            ):
+                dbmod.Db().dump(ns)
+            self.assertFalse(dump_path.exists(), msg="partial dump file left behind")
+
+    def test_module_zip_path_requires_real_zip(self):
+        """A file merely *named* .zip must not be treated as an importable
+        data module — the 'not a readable .zip' warning has to be true."""
+        import zipfile as zipfile_mod
+
+        from odoo.cli.module import Module
+
+        cmd = Module()
+        with tempfile.TemporaryDirectory() as tmp:
+            fake = Path(tmp) / "fake.zip"
+            fake.write_text("not a zip at all")
+            real = Path(tmp) / "real.zip"
+            with zipfile_mod.ZipFile(real, "w") as z:
+                z.writestr("mod/__manifest__.py", "{}")
+            self.assertIsNone(cmd._get_zip_path(str(fake)))
+            self.assertEqual(cmd._get_zip_path(str(real)), real.resolve())
+
+    def test_upgrade_code_clears_progress_line(self):
+        """The last progress render ends with `\\r`; clear_progress must erase
+        it so it isn't left under later stdout output."""
+        import contextlib
+        import io
+
+        fm = upgrade_code.FileManager([], "**/*")
+        fm._show_progress = True
+        stderr = io.StringIO()
+        with contextlib.redirect_stderr(stderr):
+            fm.clear_progress()
+        self.assertEqual(stderr.getvalue(), "\033[K")
+        fm._show_progress = False
+        stderr = io.StringIO()
+        with contextlib.redirect_stderr(stderr):
+            fm.clear_progress()
+        self.assertEqual(stderr.getvalue(), "", msg="must be silent off-tty")

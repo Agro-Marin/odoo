@@ -1,6 +1,7 @@
 import argparse
 import logging
 import textwrap
+import zipfile
 from pathlib import Path
 from typing import Any
 
@@ -99,7 +100,14 @@ class Module(DatabaseCommand):
 
     def _get_zip_path(self, path: str) -> Path | None:
         fullpath = Path(path).resolve()
-        if fullpath.is_file() and fullpath.suffix.lower() == ".zip":
+        # is_zipfile, not just the extension: the "not a readable .zip"
+        # warning must be true, and _import_zipfile's traceback on a
+        # mislabeled file is a worse failure mode than a clean warning.
+        if (
+            fullpath.is_file()
+            and fullpath.suffix.lower() == ".zip"
+            and zipfile.is_zipfile(fullpath)
+        ):
             return fullpath
         return None
 

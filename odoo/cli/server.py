@@ -96,6 +96,15 @@ def main(args: list[str]) -> None:
     check_postgres_user()
     report_configuration()
 
+    # Serving from a system database or the creation template would
+    # initialize Odoo tables inside it (load_modules bootstraps any
+    # uninitialized database it is pointed at), corrupting cluster
+    # infrastructure the moment the registry is preloaded.
+    protected_dbs = db.SYSTEM_DBS | {config["db_template"]}
+    for db_name in config["db_name"]:
+        if db_name in protected_dbs:
+            sys.exit(f"Refusing to serve from system or template database {db_name}.")
+
     for db_name in config["db_name"]:
         try:
             db._create_empty_database(db_name)

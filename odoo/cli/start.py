@@ -5,7 +5,7 @@ from pathlib import Path
 
 import odoo.cli
 from odoo.modules.module import MANIFEST_NAMES, Manifest
-from odoo.service.db import DatabaseExists, _create_empty_database
+from odoo.service.db import SYSTEM_DBS, DatabaseExists, _create_empty_database
 from odoo.tools import config
 
 from . import Command
@@ -75,7 +75,13 @@ class Start(Command):
             args.db_name = db_name or project_path.name
             cmdargs.extend(("-d", args.db_name))
 
-        # TODO: forbid some database names ? eg template1, ...
+        # The name is often derived from a directory name; refuse the PG
+        # system databases before creating over (or serving from) one.
+        if args.db_name in SYSTEM_DBS:
+            sys.exit(
+                f"Refusing to use system database `{args.db_name}`; "
+                "pass -d to choose another database name."
+            )
         try:
             _create_empty_database(args.db_name)
             config["init"]["base"] = True
