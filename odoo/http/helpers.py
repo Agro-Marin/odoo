@@ -145,7 +145,15 @@ def db_filter(dbs: Iterable[str], host: str | None = None) -> list[str]:
     :returns: The original list filtered.
     :rtype: list[str]
     """
-    dbs = list(dbs)
+    # Safety floor, independent of dbfilter/db_name semantics: the PG system
+    # databases and the creation template are never servable. This is the
+    # single validation funnel for every request-supplied name (session
+    # cookie, X-Odoo-Database header, ?db= via ensure_db), so stripping here
+    # means such a request degrades to "no database" instead of opening
+    # connections against cluster infrastructure. list_dbs() already excludes
+    # them from enumeration; this covers names the client supplies directly.
+    protected_dbs = odoo.service.db.SYSTEM_DBS | {config["db_template"]}
+    dbs = [db for db in dbs if db not in protected_dbs]
     if config["dbfilter"]:
         if host is None:
             host = request.httprequest.environ.get("HTTP_HOST", "")
