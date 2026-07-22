@@ -124,10 +124,8 @@ class IrMail_Server(models.Model):
         0 fallbacks to 30 to avoid blocking servers.
         """
         return (
-            int(
-                self.env["ir.config_parameter"]
-                .sudo()
-                .get_param("mail.server.personal.limit.minutes")
+            self.env["ir.config_parameter"]._get_int_param(
+                "mail.server.personal.limit.minutes", 30
             )
             or 30
         )

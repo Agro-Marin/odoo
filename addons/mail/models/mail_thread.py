@@ -1473,10 +1473,10 @@ class MailThread(models.AbstractModel):
             return False
 
         # Detect the email address sent to many emails
-        get_param = self.env["ir.config_parameter"].sudo().get_param
+        icp = self.env["ir.config_parameter"]
         # Period in minutes in which we will look for <mail.mail>
-        LOOP_MINUTES = int(get_param("mail.gateway.loop.minutes", 120))
-        LOOP_THRESHOLD = int(get_param("mail.gateway.loop.threshold", 20))
+        LOOP_MINUTES = icp._get_int_param("mail.gateway.loop.minutes", 120)
+        LOOP_THRESHOLD = icp._get_int_param("mail.gateway.loop.threshold", 20)
 
         create_date_limit = self.env.cr.now() - datetime.timedelta(minutes=LOOP_MINUTES)
         author_id = message_dict.get("author_id")
@@ -4796,20 +4796,10 @@ class MailThread(models.AbstractModel):
         emails = self.env["mail.mail"].sudo()
 
         # loop on groups (customer, portal, user,  ... + model specific like group_sale_salesman)
-        raw_batch_size = (
-            self.env["ir.config_parameter"].sudo().get_param("mail.batch_size")
+        # be sure to not have 0, as otherwise no iteration is done
+        gen_batch_size = (
+            self.env["ir.config_parameter"]._get_int_param("mail.batch_size", 50) or 50
         )
-        try:
-            # be sure to not have 0, as otherwise no iteration is done
-            gen_batch_size = int(raw_batch_size) or 50
-        except TypeError, ValueError:
-            # a misconfigured (non-integer) ICP must not break every notification
-            _logger.warning(
-                "ir.config_parameter 'mail.batch_size' is not an integer (%r); "
-                "falling back to 50.",
-                raw_batch_size,
-            )
-            gen_batch_size = 50
         notif_create_values = []
         for (
             _lang,
@@ -4896,21 +4886,10 @@ class MailThread(models.AbstractModel):
         #      to prevent sending email during a simple update of the database
         #      using the command-line.
         if force_send := self.env.context.get("mail_notify_force_send", force_send):
-            raw_force_limit = (
-                self.env["ir.config_parameter"]
-                .sudo()
-                .get_param("mail.mail.force.send.limit", 100)
+            # 0 is meaningful here (always queue), so no 'or' fallback
+            force_send_limit = self.env["ir.config_parameter"]._get_int_param(
+                "mail.mail.force.send.limit", 100
             )
-            try:
-                force_send_limit = int(raw_force_limit)
-            except TypeError, ValueError:
-                # a misconfigured (non-integer) ICP must not break every notification
-                _logger.warning(
-                    "ir.config_parameter 'mail.mail.force.send.limit' is not an "
-                    "integer (%r); falling back to 100.",
-                    raw_force_limit,
-                )
-                force_send_limit = 100
             force_send = len(emails) < force_send_limit
         if force_send:
             # unless asked specifically, send emails after the transaction to

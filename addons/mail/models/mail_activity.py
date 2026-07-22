@@ -1140,20 +1140,12 @@ class MailActivity(models.Model):
         - If the config_parameter is set to a negative number, it's an invalid value, we skip the gc routine
         - If the config_parameter is set to a positive number, we delete only overdue activities which deadline is older than X years
         """
-        raw_threshold = (
-            self.env["ir.config_parameter"]
-            .sudo()
-            .get_param("mail.activity.gc.delete_overdue_years", 0)
+        # A non-integer degrades to the 0 default, which is itself "opted out",
+        # so an unusable value still skips the routine -- the helper warns about
+        # the bad value on its way there.
+        year_threshold = self.env["ir.config_parameter"]._get_int_param(
+            "mail.activity.gc.delete_overdue_years", 0
         )
-        try:
-            year_threshold = int(raw_threshold)
-        except TypeError, ValueError:
-            _logger.warning(
-                "The ir.config_parameter 'mail.activity.gc.delete_overdue_years' "
-                "has a non-integer value %r; skipping gc routine.",
-                raw_threshold,
-            )
-            return
         if year_threshold == 0:
             # Absent / 0 is the default: the deployment opted out of this GC.
             # This cron runs daily on every database, so keep it quiet (debug).
