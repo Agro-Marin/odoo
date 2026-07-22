@@ -6772,9 +6772,15 @@ class MailThread(models.AbstractModel):
                 self.env["mail.followers"].sudo().with_context(default_partner_id=False)
             )
             if new_vals_list:
+                # savepoint(flush=False) + flush_recordset: isolate the
+                # unique-index IntegrityError without running precommit on enter.
+                # A flushing savepoint (the default) would run _track_finalize
+                # before these followers exist, so a creation tracking message
+                # would never notify the followers the create just auto-subscribed
+                # (see _insert_followers for the full rationale).
                 try:
-                    with self.env.cr.savepoint():
-                        sudo_followers.create(new_vals_list)
+                    with self.env.cr.savepoint(flush=False):
+                        sudo_followers.create(new_vals_list).flush_recordset()
                 except IntegrityError:
                     # A concurrent transaction auto-subscribing the same partner
                     # to the same record (e.g. two posts / a double-submitted
@@ -6783,12 +6789,13 @@ class MailThread(models.AbstractModel):
                     # want exists either way, so retry row by row and treat
                     # "already there" as success -- mirroring the write path's
                     # _insert_followers and the reaction add/remove race handling.
+                    self.env["mail.followers"].invalidate_model()
                     for vals in new_vals_list:
                         try:
-                            with self.env.cr.savepoint():
-                                sudo_followers.create(vals)
+                            with self.env.cr.savepoint(flush=False):
+                                sudo_followers.create(vals).flush_recordset()
                         except IntegrityError:
-                            pass
+                            self.env["mail.followers"].invalidate_model()
             for fol_id, values in updates.items():
                 sudo_followers.browse(fol_id).write(values)
 

@@ -14,6 +14,11 @@ being fixed, so a refactor cannot silently reintroduce it. Coverage:
  - ``_notify_thread_by_email`` did ``int(get_param(...))`` on ``mail.batch_size``
    / ``mail.mail.force.send.limit`` with no guard, so a non-integer ICP value
    raised ``ValueError`` and broke every email notification.
+ - ``_insert_followers`` created auto-subscribed followers inside a *flushing*
+   savepoint, whose enter-flush ran the precommit ``_track_finalize`` before the
+   followers existed, so a tracked write's tracking message never notified the
+   followers that same write just auto-subscribed (covered by
+   ``test_mail.test_performance:test_tracking_subscription_write``).
 """
 
 from odoo.tests import tagged
