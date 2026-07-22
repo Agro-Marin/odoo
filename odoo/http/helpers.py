@@ -157,7 +157,10 @@ def db_filter(dbs: Iterable[str], host: str | None = None) -> list[str]:
     dbs = [db for db in dbs if db not in protected_dbs]
     if config["dbfilter"]:
         if host is None:
-            host = request.httprequest.environ.get("HTTP_HOST", "")
+            # ``request`` is an unbound LocalProxy outside a request (shell,
+            # cron): attribute access raises RuntimeError, so probe truthiness
+            # and degrade to the empty host rather than crash the caller.
+            host = request.httprequest.environ.get("HTTP_HOST", "") if request else ""
         # Normalise before the cache lookup so equivalent Host spellings
         # (``www.``/``:port``) share one compiled-regex entry.
         host = _normalize_dbfilter_host(host)

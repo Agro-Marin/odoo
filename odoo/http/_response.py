@@ -17,7 +17,7 @@ import werkzeug.datastructures
 import werkzeug.utils
 from werkzeug.exceptions import NotFound
 
-from odoo.libs.json import dumps as _fast_dumps
+from odoo.libs.json import dumps_bytes as _fast_dumps_bytes
 from odoo.tools.json import orjson_default
 
 from .wrappers import HTTPRequest, Response
@@ -73,11 +73,12 @@ class _RequestResponseMixin:
         :param collections.abc.Mapping cookies: cookies to set on the client
         :rtype: :class:`~odoo.http.Response`
         """
-        data = _fast_dumps(data, default=orjson_default)
+        # ``dumps_bytes``: orjson's native output is bytes, and werkzeug stores a
+        # bytes body as-is — the previous ``dumps`` (str) decoded the buffer only
+        # for werkzeug to re-encode it, two full passes per JSON response on the
+        # RPC hot path. Content-Length is computed by werkzeug on serialize.
+        data = _fast_dumps_bytes(data, default=orjson_default)
 
-        # Don't pre-set Content-Length: ``data`` is a ``str``, so ``len(data)`` is
-        # a char count, but werkzeug computes the byte length on serialize and
-        # overrides it anyway.
         headers = werkzeug.datastructures.Headers(headers)
         if "Content-Type" not in headers:
             headers["Content-Type"] = "application/json; charset=utf-8"

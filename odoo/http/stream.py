@@ -154,7 +154,10 @@ class Stream:
         return cls(
             type="data",
             data=data,
-            etag=request.env["ir.attachment"]._content_checksum(data),
+            # ``record.env`` (not the global ``request.env``): the checksum does
+            # not depend on the environment, and the record's env is always
+            # live — so building a Stream from a cron/shell (no request) works.
+            etag=record.env["ir.attachment"]._content_checksum(data),
             last_modified=record.write_date if record._log_access else None,
             size=len(data),
             public=record.env.user._is_public(),  # good enough
