@@ -122,7 +122,7 @@ class GoogleService(models.AbstractModel):
             urlsplit(url).hostname for url in (GOOGLE_TOKEN_ENDPOINT, GOOGLE_API_BASE_URL)
         ]
 
-        # Remove client_secret key from logs
+        # Mask the client_secret value in logs, keeping only a 4-char prefix
         if isinstance(params, str):
             _log_params = json.loads(params) or {}
         else:
