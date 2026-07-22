@@ -60,6 +60,73 @@ class TestImage(HttpCase):
         resp = self.url_open("/web/image/fake/0/image_128?download=true")
         self.assertEqual(resp.status_code, 404)
 
+    def test_01c_malformed_id_is_not_a_server_error(self):
+        """A non-integer ``?id=`` must degrade like a missing record, never 500.
+
+        ``/web/image`` and ``/web/content`` are ``auth="public"`` and used to
+        pass the raw query value through ``id and int(id)``. Neither route's
+        exception handling covers ``ValueError`` (``except UserError`` /
+        ``replace_exceptions(UserError, ...)``), so ``?id=abc`` produced an
+        unauthenticated HTTP 500 with a full traceback — a free log-flooding
+        primitive on a route any visitor can reach.
+
+        The expected outcome is whatever a well-formed but non-existent id
+        already yields: a placeholder image for ``/web/image``, a 404 for
+        ``/web/content``.
+        """
+        for bad_id in ("abc", "1e9", " ", "1.5", "0x10", "-", "%00"):
+            with self.subTest(id=bad_id):
+                resp = self.url_open(f"/web/image?id={bad_id}")
+                self.assertEqual(
+                    resp.status_code,
+                    200,
+                    f"/web/image?id={bad_id} should serve the placeholder",
+                )
+                self.assertTrue(resp.headers["Content-Type"].startswith("image/"))
+
+                resp = self.url_open(f"/web/content?id={bad_id}")
+                self.assertEqual(
+                    resp.status_code,
+                    404,
+                    f"/web/content?id={bad_id} should 404",
+                )
+
+        # Controls: the same routes with a well-formed, non-existent id behave
+        # identically, so the coercion did not change the contract.
+        self.assertEqual(self.url_open("/web/image?id=999999999").status_code, 200)
+        self.assertEqual(self.url_open("/web/content?id=999999999").status_code, 404)
+
+    def test_01d_asset_nocache_is_coerced(self):
+        """``?nocache=`` on /web/assets is a query-string value, not a bool.
+
+        A bare truthiness test made ``?nocache=false`` and ``?nocache=0`` TRUE,
+        dropping ``max-age`` from asset-bundle responses while leaving
+        ``immutable`` set — emitting the self-contradictory pair
+        ``Cache-Control: no-cache, immutable``. The sibling ``/web/content`` and
+        ``/web/image`` routes already coerce with ``str2bool``.
+        """
+        url = "/web/assets/any/web.assets_web.min.css"
+        cached = self.url_open(url).headers.get("Cache-Control", "")
+        self.assertIn("max-age", cached)
+        self.assertIn("immutable", cached)
+
+        for falsy in ("false", "0", "False"):
+            with self.subTest(nocache=falsy):
+                headers = self.url_open(f"{url}?nocache={falsy}").headers
+                self.assertEqual(
+                    headers.get("Cache-Control", ""),
+                    cached,
+                    "a falsy nocache must not disable caching",
+                )
+
+        # A truthy opt-out drops max-age AND immutable together, so the header
+        # stays coherent (``immutable`` without a lifetime is meaningless).
+        opted_out = self.url_open(f"{url}?nocache=true").headers.get(
+            "Cache-Control", ""
+        )
+        self.assertNotIn("max-age=", opted_out)
+        self.assertNotIn("immutable", opted_out)
+
     def test_02_content_image_Etag_304(self):
         """Check that a matching If-None-Match returns 304 Not Modified."""
 
