@@ -11,8 +11,8 @@ from psycopg import OperationalError
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError, ValidationError
 from odoo.fields import Domain
-from odoo.tools import float_compare
 from odoo.libs.intervals import Intervals
+from odoo.tools import float_compare
 
 
 class HrWorkEntry(models.Model):
@@ -243,7 +243,7 @@ class HrWorkEntry(models.Model):
         company_by_employee_id = {}
         for vals in vals_list:
             if (
-                not 'amount_rate' in vals
+                'amount_rate' not in vals
                 and (work_entry_type_id := vals.get('work_entry_type_id'))
             ):
                 work_entry_type = self.env['hr.work.entry.type'].browse(work_entry_type_id)
@@ -271,7 +271,7 @@ class HrWorkEntry(models.Model):
             vals['state'] = 'draft' if vals['active'] else 'cancelled'
 
         employee_ids = self.employee_id.ids
-        if 'employee_id' in vals and vals['employee_id']:
+        if vals.get('employee_id'):
             employee_ids += [vals['employee_id']]
         with self._error_checking(skip=skip_check, employee_ids=employee_ids):
             return super().write(vals)
