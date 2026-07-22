@@ -517,7 +517,10 @@ export class PaletteSelectionScreen extends Component {
      * @param {Array<number>} ids the attachment ids to remove
      */
     async _removeAttachments(ids) {
-        rpc("/html_editor/attachment/remove", { ids: ids });
+        // Return the promise: callers `await` this to sequence the removal
+        // before the next logo/palette write, and to surface RPC errors instead
+        // of dropping them as an unhandled rejection.
+        return rpc("/html_editor/attachment/remove", { ids: ids });
     }
 }
 

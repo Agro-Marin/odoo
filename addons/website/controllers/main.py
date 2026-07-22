@@ -181,7 +181,10 @@ class Website(Home):
                     website.domain,
                     f"/website/force/{website.id}?{query_params}",
                 )
-                return request.redirect(url_to)
+                # ``local`` defaults to True, which strips scheme+netloc and
+                # would collapse this cross-domain hop back onto the current
+                # host — the whole point here is to land on ``website.domain``.
+                return request.redirect(url_to, local=False)
         website._force()
         return request.redirect(path)
 
@@ -789,9 +792,12 @@ class Website(Home):
             results_data += search_result["results_data"]
             mappings.append(search_result["mapping"])
         if search_type == "all":
-            # Only supported order for 'all' is on name
+            # Only supported order for 'all' is on name. ``order`` is an optional
+            # client parameter and defaults to None, so guard the membership test
+            # rather than doing ``in None`` (a public unhandled TypeError).
             results_data.sort(
-                key=lambda r: r.get("name", ""), reverse="name desc" in order
+                key=lambda r: r.get("name", ""),
+                reverse=bool(order) and "name desc" in order,
             )
         results_data = results_data[:limit]
         result = []
@@ -1153,6 +1159,12 @@ class Website(Home):
         - Hard reset: it will read the original `arch` from the XML file if the
         view comes from an XML file (arch_fs).
         """
+        # Resets stored view arch (and, with website_id=None below, the shared
+        # generic arch affecting every website); gate on the editor group like
+        # the other builder-facing routes rather than relying solely on the
+        # ir.ui.view ACL.
+        if not request.env.user.has_group("website.group_website_restricted_editor"):
+            raise werkzeug.exceptions.Forbidden
         view = request.env["ir.ui.view"].browse(int(view_id))
         # Deactivate COW to not fix a generic view by creating a specific
         view.with_context(website_id=None).reset_arch(mode)
