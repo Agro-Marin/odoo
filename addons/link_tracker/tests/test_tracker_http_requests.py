@@ -1,6 +1,7 @@
-from odoo.addons.link_tracker.tests.common import MockLinkTracker
 from odoo.tests import common, tagged
 from odoo.tools import mute_logger
+
+from odoo.addons.link_tracker.tests.common import MockLinkTracker
 
 
 @tagged('post_install', '-at_install')

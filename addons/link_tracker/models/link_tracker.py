@@ -3,14 +3,14 @@
 import logging
 import random
 import string
-
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
-from odoo import tools, models, fields, api, _
-from odoo.addons.mail.tools import link_preview
+from odoo import _, api, fields, models, tools
 from odoo.exceptions import UserError
 from odoo.fields import Domain
 from odoo.tools.mail import validate_url
+
+from odoo.addons.mail.tools import link_preview
 
 LINK_TRACKER_UNIQUE_FIELDS = ('url', 'campaign_id', 'medium_id', 'source_id', 'label')
 
@@ -76,8 +76,8 @@ class LinkTracker(models.Model):
         for tracker in self:
             try:
                 tracker.short_url = tools.urls.urljoin(tracker.short_url_host or '', tracker.code or '')
-            except ValueError:
-                raise UserError(self.env._("Please enter valid short URL code."))
+            except ValueError as err:
+                raise UserError(self.env._("Please enter valid short URL code.")) from err
 
     def _compute_short_url_host(self):
         for tracker in self:
@@ -192,7 +192,7 @@ class LinkTracker(models.Model):
                 if fname not in vals:
                     vals[fname] = False
 
-        links = super(LinkTracker, self).create(vals_list)
+        links = super().create(vals_list)
 
         link_tracker_codes = self.env['link.tracker.code']._get_random_code_strings(len(vals_list))
 
@@ -200,7 +200,7 @@ class LinkTracker(models.Model):
             {
                 'code': code,
                 'link_id': link.id,
-            } for link, code in zip(links, link_tracker_codes)
+            } for link, code in zip(links, link_tracker_codes, strict=True)
         ])
 
         return links
@@ -341,7 +341,7 @@ class LinkTrackerClick(models.Model):
     country_id = fields.Many2one('res.country', 'Country')
 
     def _prepare_click_values_from_route(self, **route_values):
-        click_values = dict((fname, route_values[fname]) for fname in self._fields if fname in route_values)
+        click_values = {fname: route_values[fname] for fname in self._fields if fname in route_values}
         if not click_values.get('country_id') and route_values.get('country_code'):
             click_values['country_id'] = self.env['res.country'].search([('code', '=', route_values['country_code'])], limit=1).id
         return click_values

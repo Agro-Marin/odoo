@@ -1,10 +1,9 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-from urllib.parse import urlsplit, parse_qsl
+from unittest.mock import patch
+from urllib.parse import parse_qsl, urlsplit
 
 from lxml import etree
-from unittest.mock import patch
 
 from odoo.tests import common
 
@@ -12,7 +11,7 @@ from odoo.tests import common
 class MockLinkTracker(common.BaseCase):
 
     def setUp(self):
-        super(MockLinkTracker, self).setUp()
+        super().setUp()
 
         def _get_title_from_url(url):
             return "Test_TITLE"

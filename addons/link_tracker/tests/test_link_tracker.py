@@ -1,16 +1,16 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-from odoo.addons.link_tracker.tests.common import MockLinkTracker
 from odoo.exceptions import UserError
 from odoo.tests import common, tagged
+
+from odoo.addons.link_tracker.tests.common import MockLinkTracker
 
 
 @tagged('link_tracker')
 class TestLinkTracker(common.TransactionCase, MockLinkTracker):
 
     def setUp(self):
-        super(TestLinkTracker, self).setUp()
+        super().setUp()
         self._web_base_url = 'https://test.odoo.com'
         self.env['ir.config_parameter'].sudo().set_param('web.base.url', self._web_base_url)
 
