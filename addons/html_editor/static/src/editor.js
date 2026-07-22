@@ -184,25 +184,13 @@ export class Editor {
                 throw new Error(`Missing plugin id (class ${P.name})`);
             }
             if (this.pluginsMap.has(P.id)) {
-                // Plugin already registered for this id — idempotently
-                // dedupe. Two cases produce this state:
-                //
-                //   1. Same class reference twice in the ``Plugins`` list
-                //      (e.g., a file's ``EMBEDDED_COMPONENT_PLUGINS.push(P)``
-                //      runs AND ``P`` is also in an explicit
-                //      ``config.Plugins`` entry). Identity check ``===``
-                //      catches this.
-                //
-                //   2. Different class objects with the same id and same
-                //      class name. This is the cross-bundle case in the
-                //      fork: test bundles each re-evaluate a plugin
-                //      source file, producing distinct ``Class`` objects
-                //      (different identity) but with identical
-                //      ``static id`` and class ``name``. Whichever bundle
-                //      pushes first wins.
-                //
-                // A REAL duplicate (different ids — same string but truly
-                // different class names) is still surfaced.
+                // Idempotently dedupe a plugin already registered for this id.
+                // Either the same class reference appears twice in the list
+                // (caught by identity `===`), or two distinct class objects
+                // share the same id and class name (e.g. separate test bundles
+                // each re-evaluating the same plugin source); the first one
+                // wins. A genuine collision (same id string, different class
+                // names) still throws below.
                 const existing = this.pluginsMap.get(P.id);
                 if (existing === P || existing.name === P.name) {
                     continue;
@@ -320,18 +308,8 @@ export class Editor {
 
     /**
      * Execute the functions registered under resourceId with the given
-     * arguments.
-     *
-     * This function is meant to enhance code readability by clearly expressing
-     * its intent.
-     *
-     * This function can be thought as an event dispatcher, calling the handlers
-     * with `args` as the payload.
-     *
-     * Example:
-     * ```js
-     * this.dispatchTo("my_event_handlers", arg1, arg2);
-     * ```
+     * arguments, like an event dispatcher calling the handlers with `args` as
+     * the payload.
      *
      * @template {GlobalResourcesId} R
      * @param {R} resourceId
@@ -342,22 +320,11 @@ export class Editor {
     }
     /**
      * Execute a series of functions until one of them returns a truthy value.
-     *
-     * This function is meant to enhance code readability by clearly expressing
-     * its intent.
-     *
      * A command "delegates" its execution to one of the overriding functions,
      * which return a truthy value to signal it has been handled.
      *
-     * It is the the caller's responsability to stop the execution when this
+     * It is the caller's responsibility to stop the execution when this
      * function returns true.
-     *
-     * Example:
-     * ```js
-     * if (this.delegateTo("my_command_overrides", arg1, arg2)) {
-     *   return;
-     * }
-     * ```
      *
      * @template {GlobalResourcesId} R
      * @param {R} resourceId
@@ -374,16 +341,9 @@ export class Editor {
      * true if any predicate returns `true` and none returns `false` (ignoring
      * those that return `undefined`).
      *
-     * Important note: since this function treats booleans and nullish results
-     * differently, make sure that:
-     * 1. Predicates only return a boolean when it's meaningful.
-     * 2. Any call to `checkPredicates` involves the declaration of a default
-     *    value in case it returns `undefined`.
-     *
-     * Example:
-     * ```js
-     * const isTrue = this.checkPredicates("my_predicates", arg1, arg2) ?? true;
-     * ```
+     * Since this treats booleans and nullish results differently, predicates
+     * should only return a boolean when it's meaningful, and callers should
+     * declare a default value in case it returns `undefined`.
      *
      * @param {string} resourceId
      * @param  {...any} args The arguments to pass to the predicates.

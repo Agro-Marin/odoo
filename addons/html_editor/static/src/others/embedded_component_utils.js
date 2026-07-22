@@ -262,8 +262,8 @@ export class StateChangeManager {
     /**
      * @param {StateChangeManagerConfig} config
      * @param {HostElement} config.host
-     * @param {Function} config.commitChanges notify the host that we can commit
-     *                                        changes
+     * @param {Function} config.commitStateChanges notify the host that we can
+     *                                             commit changes
      */
     constructor(config) {
         this.config = config;

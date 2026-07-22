@@ -578,7 +578,8 @@ export class ClipboardPlugin extends Plugin {
             // Remove all illegal attributes and classes from the node, then
             // clean its children.
             for (const attribute of [...node.attributes]) {
-                // Keep allowed styles on nodes with allowed tags.
+                // For styled tags, remove the style attribute; SPAN and FONT
+                // (which only carry style) are then unwrapped.
                 // todo: should the whitelist be a resource?
                 if (
                     CLIPBOARD_WHITELISTS.styledTags.includes(node.nodeName) &&

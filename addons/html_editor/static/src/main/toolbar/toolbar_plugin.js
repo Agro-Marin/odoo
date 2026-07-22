@@ -36,7 +36,7 @@ import { composeToolbarButton, Toolbar } from "./toolbar.js";
  *
  * @typedef {Object} ToolbarCommandItem
  * Regular button: derives from a user command specified by commandId.
- * The properties maked with * can be omitted if they are present in the user command.
+ * The properties marked with * can be omitted if they are present in the user command.
  * The ones marked with ?* are both optional and derivable from the user command.
  * @property {string} id
  * @property {string} groupId Id of a toolbar group
@@ -118,42 +118,6 @@ export const DISABLED_NAMESPACE = "disabled";
  * A ToolbarCommandItem must derive from a user command (see UserCommand)
  * specified by commandId. Properties defined in a toolbar item override those
  * from a user command.
- *
- * Example:
- *
- *     resources = {
- *         // see UserCommand
- *         user_commands: [
- *             {
- *                 id: myCommand,
- *                 run: myCommandFunction,
- *                 description: _t("My Command"),
- *                 icon: "fa-bug",
- *             },
- *         ],
- *         // see ToolbarGroup
- *         toolbar_groups: [
- *             { id: "myGroup" },
- *         ],
- *         toolbar_items: [
- *             // See ToolbarCommandItem
- *             {
- *                 id: "myButton",
- *                 groupId: "myGroup",
- *                 commandId: "myCommand",
- *                 description: _t("My Toolbar Command Button"), // overrides the user command's `description`
- *                 // `icon` is inferred from the user command
- *             },
- *             // See ToolbarComponentItem
- *             {
- *                 id: "myComponentButton",
- *                 groupId: "myGroup",
- *                 description: _t("My Toolbar Component Button"),
- *                 Component: MyComponent,
- *                 props: { myProp: "myValue" },
- *             },
- *         ],
- *     };
  */
 
 export class ToolbarPlugin extends Plugin {
@@ -331,7 +295,7 @@ export class ToolbarPlugin extends Plugin {
     }
 
     /**
-     * @returns ToolbarButton[]
+     * @returns {ToolbarButton[]}
      */
     getButtonsForNamespace(namespace) {
         if (this.buttonsByNamespace[namespace]) {
