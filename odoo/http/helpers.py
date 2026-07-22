@@ -1,3 +1,4 @@
+import contextlib
 import functools
 import logging
 import re
@@ -189,6 +190,15 @@ def _get_rpc_dispatcher(service_name: str) -> Callable:
             raise KeyError(service_name)
 
 
+def _restore_thread_attr(thread: Any, attr: str, prev: Any, sentinel: Any) -> None:
+    """Restore ``thread.attr`` to ``prev``, or delete it if it was absent before."""
+    if prev is sentinel:
+        with contextlib.suppress(AttributeError):
+            delattr(thread, attr)
+    else:
+        setattr(thread, attr, prev)
+
+
 def dispatch_rpc(service_name: str, method: str, params: Mapping[str, Any]) -> Any:
     """
     Perform a RPC call.
@@ -200,8 +210,13 @@ def dispatch_rpc(service_name: str, method: str, params: Mapping[str, Any]) -> A
     :rtype: Any
     """
     thread = threading.current_thread()
-    prev_uid = getattr(thread, "uid", None)
-    prev_dbname = getattr(thread, "dbname", None)
+    # Track absence, not just the value: when an attribute was unset before this
+    # call, restoring it to ``None`` would leave ``hasattr`` true, so a consumer
+    # reading ``getattr(thread, "dbname", <sentinel>)`` would see ``None`` instead
+    # of its default. Delete on the way out to restore the exact prior state.
+    sentinel = object()
+    prev_uid = getattr(thread, "uid", sentinel)
+    prev_dbname = getattr(thread, "dbname", sentinel)
     with borrow_request():
         thread.uid = None
         thread.dbname = None
@@ -211,8 +226,8 @@ def dispatch_rpc(service_name: str, method: str, params: Mapping[str, Any]) -> A
         finally:
             # Restore caller thread-local state so downstream code in the
             # same request does not observe ``None`` for uid/dbname.
-            thread.uid = prev_uid
-            thread.dbname = prev_dbname
+            _restore_thread_attr(thread, "uid", prev_uid, sentinel)
+            _restore_thread_attr(thread, "dbname", prev_dbname, sentinel)
 
 
 def get_session_max_inactivity(env: Any) -> int:
@@ -248,9 +263,13 @@ def get_session_max_inactivity(env: Any) -> int:
 
 
 def is_cors_preflight(request: Any, endpoint: Any) -> bool:
-    """Check if the request is a CORS preflight request."""
-    return request.httprequest.method == "OPTIONS" and endpoint.routing.get(
-        "cors", False
+    """Check if the request is a CORS preflight request.
+
+    ``cors`` holds the allow-origin *string*, so ``bool(...)`` keeps the declared
+    ``-> bool`` contract instead of leaking that value to callers.
+    """
+    return request.httprequest.method == "OPTIONS" and bool(
+        endpoint.routing.get("cors", False)
     )
 
 

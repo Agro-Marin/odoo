@@ -441,6 +441,15 @@ class Response(Proxy):
                 response = arg
             elif isinstance(arg, werkzeug.wrappers.Response):
                 response = _Response.load(arg)
+        if response is not None and kwargs:
+            # Wrapping an existing response: constructor kwargs (``status=``,
+            # ``headers=`` …) would be silently dropped, since the wrapped object
+            # keeps its own. Fail loudly so the caller sets them on the response
+            # itself instead of shipping a response with the wrong status.
+            raise TypeError(
+                f"Response(existing_response) ignores keyword arguments "
+                f"{sorted(kwargs)}; set them on the response object instead."
+            )
         if response is None:
             if isinstance(kwargs.get("headers"), Headers):
                 kwargs["headers"] = kwargs["headers"]._wrapped__

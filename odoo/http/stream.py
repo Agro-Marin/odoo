@@ -1,6 +1,7 @@
 import base64
 import contextlib
 import mimetypes
+from datetime import datetime
 from io import BytesIO
 from pathlib import Path
 from stat import S_ISDIR, S_ISREG
@@ -40,7 +41,10 @@ class Stream:
     download_name: str | None = None
     conditional: bool = True
     etag: bool | str = True
-    last_modified: float | None = None
+    # ``float`` for path/data streams; a ``datetime`` when built from a binary
+    # field's ``write_date`` (:meth:`from_binary_field`). ``send_file`` accepts
+    # both, so the union is the honest annotation.
+    last_modified: float | datetime | None = None
     max_age: int | None = None
     immutable: bool = False
     size: int | None = None
@@ -174,6 +178,13 @@ class Stream:
             return self.data
 
         if self.type == "path":
+            if self.path is None:
+                # Mirror the ``data`` branch and ``get_response``: a missing
+                # backing attribute is a ``ValueError``, not the ``TypeError``
+                # that ``Path(None)`` would raise, so callers see the documented
+                # contract.
+                msg = "There is nothing to stream, missing 'path' attribute."
+                raise ValueError(msg)
             with Path(self.path).open("rb") as file:
                 return file.read()
 
