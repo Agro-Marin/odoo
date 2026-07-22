@@ -289,7 +289,11 @@ class ChannelController(http.Controller):
         )
         if not channel:
             raise NotFound
-        sub_channel = channel._create_sub_channel(from_message_id, name)
+        # from_message_id lands in a domain inside _create_sub_channel; a raw
+        # non-numeric value surfaced psycopg InvalidTextRepresentation.
+        sub_channel = channel._create_sub_channel(
+            _to_record_id(from_message_id) if from_message_id else None, name
+        )
         return {
             "store_data": Store().add(sub_channel).get_result(),
             "sub_channel": sub_channel.id,
