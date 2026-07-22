@@ -31,6 +31,7 @@ class CalendarPopoverDeleteWizard(models.TransientModel):
                 'all': 'all_events'
             }
             self.calendar_event_id.action_mass_deletion(switch.get(self.delete, ''))
+        return None
 
     @api.depends('calendar_event_id')
     def _compute_recipient_ids(self):

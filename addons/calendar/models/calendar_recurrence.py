@@ -1,18 +1,17 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-from datetime import datetime, time
-import pytz
 import re
+from datetime import datetime, time
 
+import pytz
 from dateutil import rrule
 from dateutil.relativedelta import relativedelta
 
-from odoo import api, fields, models, _
+from odoo import _, api, fields, models
 from odoo.exceptions import UserError
 from odoo.tools.misc import clean_context
 
 from odoo.addons.base.models.res_partner import _tz_get
-
 
 MAX_RECURRENT_EVENT = 720
 
@@ -191,6 +190,7 @@ class CalendarRecurrence(models.Model):
             return self._get_monthly_recurrence_name()
         if self.rrule_type == 'yearly':
             return self._get_yearly_recurrence_name()
+        return None
 
     @api.depends('rrule')
     def _compute_name(self):
@@ -229,7 +229,7 @@ class CalendarRecurrence(models.Model):
 
         synced_events = self.calendar_event_ids.filtered(lambda e: e._range() in ranges)
 
-        existing_ranges = set(event._range() for event in synced_events)
+        existing_ranges = {event._range() for event in synced_events}
         ranges_to_create = (event_range for event_range in ranges if event_range not in existing_ranges)
         return synced_events, ranges_to_create
 
@@ -255,7 +255,7 @@ class CalendarRecurrence(models.Model):
             event = recurrence.base_event_id or recurrence._get_first_event(include_outliers=False)
             duration = event.stop - event.start
             if specific_values_creation:
-                ranges = set([(x[1], x[2]) for x in specific_values_creation if x[0] == recurrence.id])
+                ranges = {(x[1], x[2]) for x in specific_values_creation if x[0] == recurrence.id}
             else:
                 ranges = recurrence._range_calculation(event, duration)
 
@@ -276,7 +276,7 @@ class CalendarRecurrence(models.Model):
         detached_events = self._detach_events(events)
         context = {
             **clean_context(self.env.context),
-            **{'no_mail_to_attendees': True, 'mail_create_nolog': True},
+            'no_mail_to_attendees': True, 'mail_create_nolog': True,
         }
         self.env['calendar.event'].with_context(context).create(event_vals)
         return detached_events
@@ -295,7 +295,7 @@ class CalendarRecurrence(models.Model):
 
         self.env.cr.execute("""
             SELECT DISTINCT ON (recurrence_id) id event_id, recurrence_id
-                    FROM calendar_event 
+                    FROM calendar_event
                    WHERE start > %s
                      AND id = ANY(%s)
                 ORDER BY recurrence_id,start ASC;
@@ -323,7 +323,7 @@ class CalendarRecurrence(models.Model):
             recurrence_values = {}
         event.ensure_one()
         if not self:
-            return
+            return None
         [values] = self.copy_data()
         detached_events = self._stop_at(event)
 
@@ -424,13 +424,13 @@ class CalendarRecurrence(models.Model):
 
         # Repeat monthly by nweekday ((weekday, weeknumber), )
         if rule._bynweekday:
-            data['weekday'] = day_list[list(rule._bynweekday)[0][0]].upper()
-            data['byday'] = str(list(rule._bynweekday)[0][1])
+            data['weekday'] = day_list[next(iter(rule._bynweekday))[0]].upper()
+            data['byday'] = str(next(iter(rule._bynweekday))[1])
             data['month_by'] = 'day'
             data['rrule_type'] = 'monthly'
 
         if rule._bymonthday and data['rrule_type'] == 'monthly':
-            data['day'] = list(rule._bymonthday)[0]
+            data['day'] = next(iter(rule._bymonthday))
             data['month_by'] = 'date'
 
         if data.get('until'):
@@ -480,7 +480,7 @@ class CalendarRecurrence(models.Model):
             if recurrence.calendar_event_ids:
                 start = min(recurrence.calendar_event_ids.mapped('start'))
                 starts = set(recurrence._get_occurrences(start))
-                synced_events |= recurrence.calendar_event_ids.filtered(lambda e: e.start in starts)
+                synced_events |= recurrence.calendar_event_ids.filtered(lambda e: e.start in starts)  # noqa: B023 - filtered() is invoked eagerly within this same loop iteration, not deferred
         return self.calendar_event_ids - synced_events
 
     def _range_calculation(self, event, duration):
@@ -493,7 +493,7 @@ class CalendarRecurrence(models.Model):
         self.ensure_one()
         original_count = self.end_type == 'count' and self.count
         ranges = set(self._get_ranges(event.start, duration))
-        future_events = set((x, y) for x, y in ranges if x.date() >= event.start.date() and y.date() >= event.start.date())
+        future_events = {(x, y) for x, y in ranges if x.date() >= event.start.date() and y.date() >= event.start.date()}
         if original_count and len(future_events) < original_count:
             # Rise count number because some past values will be dismissed.
             self.count = (2*original_count) - len(future_events)
@@ -501,8 +501,7 @@ class CalendarRecurrence(models.Model):
             # We set back the occurrence number to its original value
             self.count = original_count
         # Remove ranges of events occurring in the past
-        ranges = set((x, y) for x, y in ranges if x.date() >= event.start.date() and y.date() >= event.start.date())
-        return ranges
+        return {(x, y) for x, y in ranges if x.date() >= event.start.date() and y.date() >= event.start.date()}
 
 
     def _get_ranges(self, start, event_duration):
@@ -579,10 +578,10 @@ class CalendarRecurrence(models.Model):
     def _get_rrule(self, dtstart=None):
         self.ensure_one()
         freq = self.rrule_type
-        rrule_params = dict(
-            dtstart=dtstart,
-            interval=self.interval,
-        )
+        rrule_params = {
+            'dtstart': dtstart,
+            'interval': self.interval,
+        }
         if freq == 'monthly' and self.month_by == 'date':  # e.g. every 15th of the month
             rrule_params['bymonthday'] = self.day
         elif freq == 'monthly' and self.month_by == 'day':  # e.g. every 2nd Monday in the month

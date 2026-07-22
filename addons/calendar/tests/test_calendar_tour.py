@@ -3,8 +3,9 @@
 from datetime import date, datetime
 
 from odoo import Command
-from odoo.addons.base.tests.common import HttpCaseWithUserDemo
 from odoo.tests import tagged
+
+from odoo.addons.base.tests.common import HttpCaseWithUserDemo
 
 
 @tagged('post_install', '-at_install')

@@ -1,13 +1,15 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
+from datetime import date, datetime
 from unittest.mock import patch
-from datetime import datetime, date
+
 from dateutil.relativedelta import relativedelta
 from freezegun import freeze_time
 
 from odoo import fields
 from odoo.tests import Form, tagged
 from odoo.tests.common import new_test_user
+
 from odoo.addons.base.tests.test_ir_cron import CronMixinCase
 from odoo.addons.mail.tests.common import MailCase
 
@@ -673,7 +675,7 @@ class TestEventNotifications(CalendarMailCommon):
         next_month = now + relativedelta(days=30)
         weekday_flags = ['mon', 'tue', 'wed', 'thu', 'fri']
         weekday_flag = weekday_flags[start.weekday()]
-        weekday_dict = {flag: False for flag in weekday_flags}
+        weekday_dict = dict.fromkeys(weekday_flags, False)
         weekday_dict[weekday_flag] = True
 
         partner = self.user.partner_id
@@ -731,5 +733,8 @@ class TestEventNotifications(CalendarMailCommon):
         expected_alarms = sorted([stop + relativedelta(days=offset) - relativedelta(minutes=15) for offset in range(1, recurrence_count)])
         actual_alarms = sorted([data.get('last_alarm') for data in result.values()])
 
-        for expected, actual in zip(expected_alarms, actual_alarms):
+        # strict=False: expected_alarms/actual_alarms genuinely differ in length here (pre-existing
+        # test looseness, see t24068 shard) - strict=True breaks this test, consistent with the
+        # account module's TAX-3 precedent of not blanket-applying strict=True.
+        for expected, actual in zip(expected_alarms, actual_alarms, strict=False):
             self.assertEqual(actual, expected)

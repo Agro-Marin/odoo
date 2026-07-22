@@ -1,19 +1,20 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-import pytz
-from datetime import datetime, date
-from dateutil.relativedelta import relativedelta
-from odoo.exceptions import UserError
+from datetime import date, datetime
 
-from odoo.tests import Form, TransactionCase
+import pytz
+from dateutil.relativedelta import relativedelta
 from freezegun import freeze_time
+
+from odoo.exceptions import UserError
+from odoo.tests import Form, TransactionCase
 
 
 class TestRecurrentEvents(TransactionCase):
 
     @classmethod
     def setUpClass(cls):
-        super(TestRecurrentEvents, cls).setUpClass()
+        super().setUpClass()
         lang = cls.env['res.lang']._lang_get(cls.env.user.lang)
         lang.week_start = '1'  # Monday
 
@@ -21,7 +22,7 @@ class TestRecurrentEvents(TransactionCase):
         events = events.sorted('start')
         self.assertEqual(len(events), len(dates), "Wrong number of events in the recurrence")
         self.assertTrue(all(events.mapped('active')), "All events should be active")
-        for event, (start, stop) in zip(events, dates):
+        for event, (start, stop) in zip(events, dates, strict=True):
             self.assertEqual(event.start, start)
             self.assertEqual(event.stop, stop)
 
@@ -385,7 +386,7 @@ class TestCreateRecurrentEvents(TestRecurrentEvents):
         event = self.env['calendar.event'].create({
             'name': "Test Event",
             'allday': False,
-            'rrule': u'FREQ=DAILY;INTERVAL=1;COUNT=10',
+            'rrule': 'FREQ=DAILY;INTERVAL=1;COUNT=10',
             'recurrency': True,
             'start': datetime(2023, 7, 28, 1, 0),
             'stop': datetime(2023, 7, 29, 18, 0),
@@ -395,7 +396,7 @@ class TestCreateRecurrentEvents(TestRecurrentEvents):
 
         # Update the recurrence without without specifying 'recurrence_update'
         with self.assertRaises(UserError):
-            event.write({'rrule': u'FREQ=DAILY;INTERVAL=2;COUNT=5'})
+            event.write({'rrule': 'FREQ=DAILY;INTERVAL=2;COUNT=5'})
         # Update the recurrence of the earlier event
         events[5].write({
             'recurrence_update': 'future_events',
@@ -1065,7 +1066,7 @@ class TestUpdateMonthlyByDate(TestRecurrentEvents):
             'name': "Recurrence",
             'start': datetime(2023, 10, 18, 8, 0),
             'stop': datetime(2023, 10, 18, 10, 0),
-            'rrule': u'FREQ=WEEKLY;COUNT=5;BYDAY=WE',
+            'rrule': 'FREQ=WEEKLY;COUNT=5;BYDAY=WE',
             'recurrency': True,
             'partner_ids': [(4, organizer.partner_id.id), (4, attendee_partner.id)],
         })

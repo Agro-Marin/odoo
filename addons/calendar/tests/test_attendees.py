@@ -1,12 +1,13 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 from datetime import datetime
-from dateutil.relativedelta import relativedelta
 
-from odoo.tests.common import TransactionCase, new_test_user
-from odoo.tests import Form
-from odoo import fields, Command
+from dateutil.relativedelta import relativedelta
 from freezegun import freeze_time
+
+from odoo import Command, fields
+from odoo.tests import Form
+from odoo.tests.common import TransactionCase, new_test_user
 
 
 class TestEventNotifications(TransactionCase):

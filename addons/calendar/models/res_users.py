@@ -2,10 +2,10 @@
 
 import datetime
 
-from odoo import api, fields, models, modules, _
-from odoo.exceptions import AccessError
+from pytz import UTC, timezone
 
-from pytz import timezone, UTC
+from odoo import _, api, fields, models, modules
+from odoo.exceptions import AccessError
 
 
 class ResUsers(models.Model):
@@ -60,8 +60,7 @@ class ResUsers(models.Model):
             if not vals_dict.get('calendar_default_privacy'):
                 vals_dict.update(calendar_default_privacy=default_privacy)
 
-        res = super().create(vals_list)
-        return res
+        return super().create(vals_list)
 
     def write(self, vals):
         """ Forbid the calendar default privacy update from different users for keeping private events secured. """

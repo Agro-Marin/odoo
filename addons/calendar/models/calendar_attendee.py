@@ -1,14 +1,14 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
-import uuid
 import base64
 import logging
+import uuid
+from itertools import batched
 
-from collections import defaultdict
-from odoo import api, fields, models, _
-from odoo.addons.base.models.res_partner import _tz_get
+from odoo import _, api, fields, models
 from odoo.exceptions import UserError
 from odoo.tools.misc import clean_context
-from itertools import batched
+
+from odoo.addons.base.models.res_partner import _tz_get
 
 _logger = logging.getLogger(__name__)
 
@@ -156,7 +156,7 @@ class CalendarAttendee(models.Model):
 
             # Map attendees to their respective attachments
             template_attachment_count = len(mail_template.attachment_ids)
-            attendee_id_attachment_id_map = dict(zip(self.ids, (list(b) for b in batched(attendee_attachment_ids, template_attachment_count))))
+            attendee_id_attachment_id_map = dict(zip(self.ids, (list(b) for b in batched(attendee_attachment_ids, template_attachment_count, strict=True)), strict=True))
 
         mail_messages = self.env['mail.message']
         for attendee in notified_attendees:
@@ -206,6 +206,7 @@ class CalendarAttendee(models.Model):
         # batch sending at the end
         if force_send and len(notified_attendees) < force_send_limit:
             mail_messages.sudo().mail_ids.send_after_commit()
+        return None
 
     def _should_notify_attendee(self, notify_author=False):
         """ Utility method that determines if the attendee should be notified.
