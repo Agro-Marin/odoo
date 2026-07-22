@@ -114,7 +114,7 @@ class TestMultiCompany(TestHrCommon):
 
         # UserB should not be able to read other employees in that company
         with self.assertRaises(AccessError):
-            self.employee_other_a.with_user(self.user_b).with_company(
+            self.employee_other_a.with_user(self.user_b).with_company(  # noqa: B018
                 self.company_b
             ).name
 
@@ -122,7 +122,7 @@ class TestMultiCompany(TestHrCommon):
         self.employee_b.parent_id = False
 
         with self.assertRaises(AccessError):
-            self.employee_a.with_user(self.user_b).name
+            self.employee_a.with_user(self.user_b).name  # noqa: B018
 
     def test_compute_presence_state(self):
         self.user_a.company_ids = self.company_a
