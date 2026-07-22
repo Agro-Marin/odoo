@@ -1,7 +1,8 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 from odoo import _
-from odoo.http import route, request
+from odoo.http import request, route
+
 from odoo.addons.mail.controllers.attachment import AttachmentController
 from odoo.addons.mail.tools.discuss import add_guest_to_context
 
