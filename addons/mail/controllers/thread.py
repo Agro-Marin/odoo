@@ -76,16 +76,19 @@ class ThreadController(http.Controller):
         )
         if not message_su:
             return message_su
+        # 'mail.message.model' is a free-form Char: fall back to the generic
+        # mixin when it names a model that is no longer in the registry, like
+        # mail.message._get_with_access does for the very same lookup.
+        message_model = message_su.model
+        if message_model not in request.env:
+            message_model = "mail.thread"
         return request.env["mail.message"]._get_with_access(
             message_su.id,
             mode=mode,
             **{
                 key: value
                 for key, value in kwargs.items()
-                if key
-                in request.env[
-                    message_su.model or "mail.thread"
-                ]._get_allowed_access_params()
+                if key in request.env[message_model]._get_allowed_access_params()
             },
         )
 
