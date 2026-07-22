@@ -1,5 +1,6 @@
 /** @odoo-module native */
 import { Plugin } from "@html_editor/plugin";
+import { compareIds } from "@html_editor/utils/ids";
 
 // 60 seconds
 export const HISTORY_SNAPSHOT_INTERVAL = 1000 * 60;
@@ -204,7 +205,7 @@ export class CollaborationPlugin extends Plugin {
         index++;
         while (index < steps.length) {
             if (steps[index].previousStepId === newStep.previousStepId) {
-                if (steps[index].id.localeCompare(newStep.id) === 1) {
+                if (compareIds(steps[index].id, newStep.id) > 0) {
                     break;
                 } else {
                     concurentSteps = [steps[index].id];
