@@ -194,9 +194,15 @@ async function parsePreview(opts, overrides = {}) {
 // since executing a real import would be difficult, this method simply returns
 // some error messages to help testing the UI
 function executeFailingImport(field, isMultiline, field_path = "") {
-    let moreInfo = [];
+    // Lowercase key: matches the production field read at
+    // import_data_column_error.js's `moreInfo` getter (`error.moreinfo`). This
+    // mock used the camelCase `moreInfo` instead, so every existing test
+    // exercised a `this.moreInfo` getter that always saw `undefined` — the
+    // entire "See possible values" affordance had zero real coverage
+    // (t24068 tests-finding #1).
+    let moreinfo = [];
     if (Partner._fields[field].type === "selection") {
-        moreInfo = Partner._fields[field].selection;
+        moreinfo = Partner._fields[field].selection;
     }
     return {
         ids: false,
@@ -207,7 +213,7 @@ function executeFailingImport(field, isMultiline, field_path = "") {
                       field_name: Partner._fields[field].string,
                       field_path,
                       message: "Invalid value",
-                      moreInfo,
+                      moreinfo,
                       record: 0,
                       rows: { from: 0, to: 0 },
                       value: "Invalid value",
@@ -218,7 +224,7 @@ function executeFailingImport(field, isMultiline, field_path = "") {
                       field_name: Partner._fields[field].string,
                       field_path,
                       message: "Duplicate value",
-                      moreInfo,
+                      moreinfo,
                       record: 0,
                       rows: { from: 1, to: 1 },
                       priority: "error",
@@ -228,7 +234,7 @@ function executeFailingImport(field, isMultiline, field_path = "") {
                       field_name: Partner._fields[field].string,
                       field_path,
                       message: "Wrong values",
-                      moreInfo,
+                      moreinfo,
                       record: 0,
                       rows: { from: 2, to: 3 },
                       priority: "warning",
@@ -238,7 +244,7 @@ function executeFailingImport(field, isMultiline, field_path = "") {
                       field_name: Partner._fields[field].string,
                       field_path,
                       message: "Bad value here",
-                      moreInfo,
+                      moreinfo,
                       record: 0,
                       rows: { from: 4, to: 4 },
                       value: "Bad value",
@@ -249,7 +255,7 @@ function executeFailingImport(field, isMultiline, field_path = "") {
                       field_name: Partner._fields[field].string,
                       field_path,
                       message: "Duplicate value",
-                      moreInfo,
+                      moreinfo,
                       record: 0,
                       rows: { from: 5, to: 5 },
                       priority: "error",
@@ -261,7 +267,7 @@ function executeFailingImport(field, isMultiline, field_path = "") {
                       field_name: Partner._fields[field].string,
                       field_path,
                       message: "Incorrect value",
-                      moreInfo,
+                      moreinfo,
                       record: 0,
                       rows: { from: 0, to: 0 },
                   },
@@ -841,6 +847,16 @@ describe("Import view", () => {
         );
         expect(".o_import_report p").toHaveText("Incorrect value", {
             message: "the message is displayed in the view",
+        });
+        // t24068 tests-finding #1: exercise the "See possible values" affordance
+        // for real (it used to have zero coverage — the mock's camelCase
+        // `moreInfo` key never matched production's `error.moreinfo` read).
+        expect(".o_import_moreinfo .o_import_see_all").toHaveCount(1, {
+            message: "a selection field's error offers to see its possible values",
+        });
+        await contains(".o_import_moreinfo").click();
+        expect(".o_import_report_more li").toHaveCount(2, {
+            message: "clicking it expands the field's selection choices",
         });
         expect(".o_import_field_selection").toHaveCount(1, {
             message: "an action can be set when the column cannot match a field",

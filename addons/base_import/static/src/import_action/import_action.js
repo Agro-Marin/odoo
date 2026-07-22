@@ -27,6 +27,11 @@ export class ImportAction extends Component {
     static props = { ...standardActionServiceProps };
     static path = "import";
     static displayName = _t("Import a File");
+    // Single source of truth for both the FileInput button (import_action.xml)
+    // and the dropzone validation below: they used to disagree (button allowed
+    // .xls/.xlsm/.ods too, dropzone only .csv/.xlsx and rejected the rest with
+    // two different, both-incomplete error messages) (t24068 F6-frontend).
+    static ACCEPTED_FILE_EXTENSIONS = [".csv", ".xls", ".xlsx", ".xlsm", ".ods"];
 
     setup() {
         this.actionService = useService("action");
@@ -47,6 +52,7 @@ export class ImportAction extends Component {
             },
             isPaused: false,
             isTested: false,
+            isImporting: false,
             previewError: "",
         });
 
@@ -54,28 +60,22 @@ export class ImportAction extends Component {
         useDropzone(useRef("root"), async (event) => {
             const { files } = event.dataTransfer;
             if (files.length === 0) {
-                this.notification.add(
-                    _t("Please upload an Excel (.xls or .xlsx) or .csv file to import."),
-                    {
-                        type: "danger",
-                    }
-                );
+                this.notification.add(this.invalidFileMessage, { type: "danger" });
             } else if (files.length > 1) {
                 this.notification.add(_t("Please upload a single file."), {
                     type: "danger",
                 });
             } else {
                 const file = files[0];
-                const isValidFile =
-                    file.name.endsWith(".csv") ||
-                    file.name.endsWith(".xlsx");
+                // Same accepted-extension list as the FileInput button
+                // (import_action.xml) — used to only accept .csv/.xlsx here,
+                // silently rejecting valid .xls/.xlsm/.ods drops that the
+                // button accepted fine (t24068 F6-frontend).
+                const isValidFile = ImportAction.ACCEPTED_FILE_EXTENSIONS.some((ext) =>
+                    file.name.toLowerCase().endsWith(ext)
+                );
                 if (!isValidFile) {
-                    this.notification.add(
-                        _t("Please upload an Excel (.xlsx) or .csv file to import."),
-                        {
-                            type: "danger",
-                        }
-                    );
+                    this.notification.add(this.invalidFileMessage, { type: "danger" });
                 } else {
                     await this.uploadFiles(this.uploadFilesRoute, {
                         csrf_token: odoo.csrf_token,
@@ -149,6 +149,16 @@ export class ImportAction extends Component {
 
     get uploadFilesRoute() {
         return "/base_import/set_file";
+    }
+
+    get acceptedFileExtensions() {
+        return ImportAction.ACCEPTED_FILE_EXTENSIONS.join(", ");
+    }
+
+    get invalidFileMessage() {
+        return _t("Please upload a valid file to import (%(extensions)s).", {
+            extensions: this.acceptedFileExtensions,
+        });
     }
 
     //--------------------------------------------------------------------------
@@ -228,6 +238,16 @@ export class ImportAction extends Component {
     }
 
     async handleImport(isTest = true) {
+        // `model.block()` paints the overlay asynchronously (next frame), so it
+        // alone doesn't stop a double-click firing two concurrent
+        // execute_import calls within the same frame (duplicate-import risk,
+        // t24068 F4-frontend). This flag is set synchronously, before any
+        // `await`.
+        if (this.state.isImporting) {
+            return;
+        }
+        this.state.isImporting = true;
+
         const message = isTest ? _t("Testing") : _t("Importing");
 
         let blockComponent;
@@ -254,6 +274,7 @@ export class ImportAction extends Component {
             res = data.res;
         } finally {
             this.model.unblock();
+            this.state.isImporting = false;
         }
 
         if (!isTest && res.nextrow) {
