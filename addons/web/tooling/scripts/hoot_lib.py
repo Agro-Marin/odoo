@@ -17,6 +17,7 @@ test case (``_logger``, ``browser_size``, ``touch_enabled``) plus a
 from __future__ import annotations
 
 import contextlib
+import fcntl
 import getpass
 import json
 import logging
@@ -68,7 +69,11 @@ def _find_conf() -> Path:
 CONF = _find_conf()
 
 # Our dedicated slice of the world. Port 8069 + db ``wjsaudit`` are OFF-LIMITS.
-PORT_RANGE = range(8085, 8090)
+# One port is consumed per *warm server*, i.e. per DB, and warm servers outlive
+# the run that booted them: ``hoot-shard`` alone auto-scales to 8 shards (8 DBs)
+# and several parallel sessions each keep their own warm servers alive, so a
+# 5-port slice ran out and turned into "No usable port" mid-run.
+PORT_RANGE = range(8085, 8100)
 DEFAULT_DB = "hoot_web"
 HOST = "127.0.0.1"
 
@@ -160,6 +165,39 @@ def port_is_free(port: int) -> bool:
             return True
         except OSError:
             return False
+
+
+# Port reservations held for the duration of this process. ``port_is_free`` is
+# a check, not a claim: between the probe and the moment the freshly spawned
+# odoo binds, any concurrent ``hoot`` (``hoot-shard`` runs N of them at once)
+# probes the same port and wins the race, so every loser dies with "Address
+# already in use" -> "Server exited early". An advisory lock file per port
+# closes that window across processes; it is released when the booting process
+# exits, by which time the warm server itself owns the port and ``port_is_free``
+# reports it busy.
+_PORT_LOCKS: dict[int, object] = {}
+
+
+def _reserve_port(port: int) -> bool:
+    """Claim ``port`` for this process, cross-process. False if someone else
+    is already booting on it."""
+    if port in _PORT_LOCKS:
+        return True
+    LOG_DIR.mkdir(exist_ok=True)
+    handle = (LOG_DIR / f".port_{port}.lock").open("w")
+    try:
+        fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except OSError:
+        handle.close()
+        return False
+    _PORT_LOCKS[port] = handle  # keep it open: closing would release the lock
+    return True
+
+
+def _release_port(port: int) -> None:
+    handle = _PORT_LOCKS.pop(port, None)
+    if handle is not None:
+        handle.close()
 
 
 def _http_alive(port: int) -> bool:
@@ -327,14 +365,32 @@ def ensure_db(
 def boot_server(
     db: str, modules: tuple[str, ...] = ALWAYS_MODULES, verbose: bool = False
 ) -> dict:
-    """Boot ONE persistent threaded dev server on a free 8085-8089 port."""
+    """Boot ONE persistent threaded dev server on a free port of PORT_RANGE."""
     ensure_db(db, modules, verbose=verbose)
-    port = next((p for p in PORT_RANGE if port_is_free(p)), None)
-    if port is None:
-        raise RuntimeError(f"No free port in {PORT_RANGE.start}-{PORT_RANGE.stop - 1}")
+    errors = []
+    for port in PORT_RANGE:
+        if not port_is_free(port) or not _reserve_port(port):
+            continue
+        try:
+            return _boot_server_on(db, port)
+        except RuntimeError as exc:
+            # Lost the port anyway (another process bound it between our probe
+            # and odoo's bind, e.g. a non-hoot server): try the next one rather
+            # than failing the whole run.
+            _release_port(port)
+            errors.append(f"{port}: {exc}")
+    raise RuntimeError(
+        f"No usable port in {PORT_RANGE.start}-{PORT_RANGE.stop - 1}"
+        + ("; ".join(("", *errors)) if errors else "")
+    )
 
+
+def _boot_server_on(db: str, port: int) -> dict:
     LOG_DIR.mkdir(exist_ok=True)
-    log_path = LOG_DIR / f"server_{port}.log"
+    # Named after the DB, not the port: concurrent boots that pick the same
+    # port would otherwise open the same file "wb" and truncate each other's
+    # log — including the winner's — leaving no diagnosis for the losers.
+    log_path = LOG_DIR / f"server_{db}.log"
     cmd = [
         str(VENV_PY),
         str(ODOO_BIN),
