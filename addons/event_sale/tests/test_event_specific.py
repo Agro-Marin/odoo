@@ -1,12 +1,12 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 import datetime
 
 from dateutil.relativedelta import relativedelta
 
-from odoo.addons.event_sale.tests.common import TestEventSaleCommon
 from odoo.tests import Form
+
+from odoo.addons.event_sale.tests.common import TestEventSaleCommon
 
 
 class TestEventSpecific(TestEventSaleCommon):

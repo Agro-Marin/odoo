@@ -1,11 +1,11 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-from odoo.addons.event_sale.tests.common import TestEventSaleCommon
-from odoo.addons.mail.tests.common import mail_new_test_user
 from odoo.exceptions import ValidationError
 from odoo.tests import tagged
 from odoo.tests.common import users
+
+from odoo.addons.event_sale.tests.common import TestEventSaleCommon
+from odoo.addons.mail.tests.common import mail_new_test_user
 
 
 @tagged('event_flow')
@@ -13,7 +13,7 @@ class TestEventSale(TestEventSaleCommon):
 
     @classmethod
     def setUpClass(cls):
-        super(TestEventSale, cls).setUpClass()
+        super().setUpClass()
 
         product = cls.env['product.product'].create({
             'name': 'Event',
@@ -196,15 +196,15 @@ class TestEventSale(TestEventSaleCommon):
         self.assertEqual(len(ticket2_new_reg), 1)
         self.assertEqual(
             set(ticket1_new_reg.mapped('name')),
-            set(['ManualEntry1', 'ManualEntry2'])
+            {'ManualEntry1', 'ManualEntry2'}
         )
         self.assertEqual(
             set(ticket1_new_reg.mapped('email')),
-            set(['manual.email.1@test.example.com', 'manual.email.2@test.example.com'])
+            {'manual.email.1@test.example.com', 'manual.email.2@test.example.com'}
         )
         self.assertEqual(
             set(ticket1_new_reg.mapped('phone')),
-            set(['+32456111111', self.event_customer._phone_format(fname='phone')])
+            {'+32456111111', self.event_customer._phone_format(fname='phone')}
         )
         for field in ['name', 'email']:
             self.assertEqual(ticket2_new_reg[field], self.event_customer[field])
@@ -523,7 +523,7 @@ class TestEventSale(TestEventSaleCommon):
             'partner_id': self.env.user.partner_id.id,
             'pricelist_id': pricelist.id,
         })
-        sol = self.env['sale.order.line'].create({
+        self.env['sale.order.line'].create({
             'product_id': event_product.product_variant_id.id,
             'order_id': so.id,
             'event_id': event.id,
