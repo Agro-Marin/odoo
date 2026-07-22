@@ -426,10 +426,21 @@ class TestTestCursor(common.TransactionCase):
 
         Connections are pooled per-database; compare backend PIDs rather than
         Python object identity (each getconn wraps a fresh ``psycopg.Connection``).
+
+        Uses a PRIVATE pool rather than the process-wide one: "the connection I
+        just released comes back to me" only holds while nothing else borrows
+        from that pool, and after an HttpCase suite the live server, cron and
+        bus threads are still checking connections in and out of the global
+        pool — one of them takes the freed slot and this asserts a different
+        backend pid. Isolating the pool tests the recycling contract itself
+        instead of the ambient concurrency of whatever ran before.
         """
         cursors = []
+        pool = ConnectionPool(maxconn=4)
+        self.addCleanup(pool.close_all)
+        db, info = connection_info_for(self.cr.dbname)
         try:
-            connection = db_connect(self.cr.dbname)
+            connection = Connection(pool, db, info)
 
             # Two live cursors must not share a connection.
             cursors.extend((connection.cursor(), connection.cursor()))
