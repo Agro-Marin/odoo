@@ -1,10 +1,12 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 from datetime import date, datetime
-from dateutil.relativedelta import relativedelta
+
 import pytz
+from dateutil.relativedelta import relativedelta
 
 from odoo.tests.common import tagged
+
 from odoo.addons.hr_work_entry.tests.common import TestWorkEntryBase
 
 
