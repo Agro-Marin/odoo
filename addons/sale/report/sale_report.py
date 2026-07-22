@@ -209,6 +209,10 @@ class SaleReport(models.Model):
             "id": "MIN(l.id)",
             "order_reference": "CONCAT('sale.order', ',', o.id)",
             "company_id": "o.company_id",
+            # A numeric-literal SQL expression, not a column reference like its
+            # siblings here — safe only because `.id` is always a small trusted
+            # integer (never attacker-controlled text); do not follow this
+            # pattern for anything that isn't a plain int/float (t24068, base_sql_report audit).
             "currency_id": str(self.env.company.currency_id.id),
             "partner_id": "o.partner_id",
             "commercial_partner_id": "partner.commercial_partner_id",
