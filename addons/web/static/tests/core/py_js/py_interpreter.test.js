@@ -1011,11 +1011,33 @@ describe("Python semantics fixes", () => {
         expect(() => evaluateExpr("'%s %s' % 5")).toThrow(/not enough arguments/);
     });
 
-    test("'%' formatting of a list diverges from Python (documented)", () => {
-        // py_js cannot distinguish lists from tuples at runtime, so a list
-        // right operand is spread like an argument tuple; Python renders the
-        // list itself ("[1, 2]").
-        expect(evaluateExpr("'%s' % [1, 2]")).toBe("1");
+    test("'%' formatting distinguishes a tuple operand from a list operand", () => {
+        // CPython spreads a TUPLE right operand as the argument list, but
+        // treats a LIST as a single value. py_js evaluates both to plain
+        // arrays, so the tuple case carries a non-enumerable marker (PY_TUPLE)
+        // that only '%' formatting observes.
+        expect(evaluateExpr("'%s' % [1, 2]")).toBe("[1, 2]");
+        expect(evaluateExpr("'%s and %s' % (1, 2)")).toBe("1 and 2");
+        // A list is one value, so a two-slot format has too few arguments.
+        expect(() => evaluateExpr("'%s %s' % [1, 2]")).toThrow(/not enough arguments/);
+        // Nested: the inner list stays a value inside the spread tuple.
+        expect(evaluateExpr("'%s|%s' % ([1, 2], 3)")).toBe("[1, 2]|3");
+        // The marker must not leak into the value's observable shape.
+        expect(evaluateExpr("(1, 2)")).toEqual([1, 2]);
+        expect(evaluateExpr("(1, 2) + [3]")).toEqual([1, 2, 3]);
+    });
+
+    test("'%' formatting raises when arguments are left over (Python TypeError)", () => {
+        expect(() => evaluateExpr("'%s' % (1, 2)")).toThrow(
+            /not all arguments converted/,
+        );
+        expect(() => evaluateExpr("'abc' % 5")).toThrow(/not all arguments converted/);
+        // A mapping operand is exempt: it is addressed by key, not position.
+        expect(evaluateExpr("'abc' % {'a': 1}")).toBe("abc");
+        expect(evaluateExpr("'%(a)s' % {'a': 1}")).toBe("1");
+        // Exactly-consumed operands still format.
+        expect(evaluateExpr("'%s' % (1,)")).toBe("1");
+        expect(evaluateExpr("'100%%' % ()")).toBe("100%");
     });
 
     test("mismatched '+' raises (Python TypeError)", () => {

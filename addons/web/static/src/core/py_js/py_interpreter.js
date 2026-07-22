@@ -610,24 +610,77 @@ function formatGeneral(num, precision) {
 }
 
 /**
+ * Marks an array as having come from a Python **tuple** literal.
+ *
+ * py_js evaluates both tuples and lists to plain JS arrays — deliberately, so
+ * that every downstream consumer (``Domain``, the ORM payload builders, the
+ * ~115 pinned test expectations) keeps seeing arrays. But ``%`` formatting is
+ * the one operator whose semantics genuinely differ between the two: Python
+ * spreads a **tuple** right-operand as the argument list and treats a **list**
+ * as a single value (``'%s' % [1, 2]`` → ``"[1, 2]"``).
+ *
+ * A non-enumerable Symbol marker records the distinction without changing the
+ * value's type: ``Array.isArray`` still holds, ``JSON.stringify`` /
+ * ``for...of`` / spread / deep-equality are all untouched, and nothing but
+ * {@link isPyTuple} can observe it.
+ */
+const PY_TUPLE = Symbol("py.tuple");
+
+/**
+ * @param {any[]} array
+ * @returns {any[]} the same array, marked as a tuple
+ */
+function markPyTuple(array) {
+    Object.defineProperty(array, PY_TUPLE, {
+        value: true,
+        enumerable: false,
+        configurable: true,
+    });
+    return array;
+}
+
+/**
+ * Whether *value* came from a Python tuple literal (see {@link PY_TUPLE}).
+ *
+ * @param {any} value
+ * @returns {boolean}
+ */
+export function isPyTuple(value) {
+    return Array.isArray(value) && /** @type {any} */ (value)[PY_TUPLE] === true;
+}
+
+/**
  * printf-style ``%`` formatting for strings (``'%s' % val`` /
  * ``'%s=%d' % (a, b)``). Supports the conversions that show up in real Odoo
  * expressions: s, r, d/i, f, e/g, x/X, o and the ``%%`` literal, with optional
  * flags / width / precision.
  *
- * Known limitation: py_js evaluates Python tuples AND lists to JS arrays, so
- * ``'%s' % [1, 2]`` is indistinguishable from ``'%s' % (1, 2)`` at runtime and
- * is spread as an argument tuple (→ "1", or "not enough arguments"), where
- * Python renders the list itself (→ "[1, 2]").
+ * Only a **tuple** right operand is spread as the argument list, matching
+ * CPython: a list (or any array reaching here from the evaluation context,
+ * which is JSON and therefore has no tuples) is a single value, so
+ * ``'%s' % [1, 2]`` renders ``"[1, 2]"`` exactly as Python does.
  *
  * @param {string} fmt
- * @param {any} value single value or a tuple (array) of values
+ * @param {any} value single value, or a tuple of values to spread
  * @returns {string}
  */
 function pyStringFormat(fmt, value) {
-    const values = Array.isArray(value) ? value.slice() : [value];
+    const values = isPyTuple(value) ? value.slice() : [value];
+    // A mapping right operand is exempt from the "all arguments consumed"
+    // rule below: CPython lets ``'abc' % {'a': 1}`` through untouched, since a
+    // mapping is addressed by key, not position.
+    //
+    // "Mapping" means a dict literal specifically — a plain (or null-proto,
+    // see the Dictionary case in ``evaluate``) object. A Set or a typed Py*
+    // value (PyDate, PyTimeDelta, …) is a single positional argument, and
+    // CPython does raise for ``'abc' % datetime.date(...)``.
+    const proto =
+        value !== null && typeof value === "object" && !Array.isArray(value)
+            ? Object.getPrototypeOf(value)
+            : undefined;
+    const isMapping = proto === Object.prototype || proto === null;
     let i = 0;
-    return fmt.replace(
+    const formatted = fmt.replace(
         // The conversion char is captured broadly (any ASCII letter, plus the
         // ``%`` literal) so unsupported conversions (``%c``, ``%a``, …) still
         // MATCH — and thus consume their argument and reach the ``default``
@@ -771,6 +824,16 @@ function pyStringFormat(fmt, value) {
             return str;
         },
     );
+    if (!isMapping && i < values.length) {
+        // CPython raises when the operand supplies more values than the format
+        // string consumes (``'%s' % (1, 2)``, ``'abc' % 5``). Without this the
+        // extra arguments were silently dropped — the mirror image of the
+        // "not enough arguments" error already raised above.
+        throw new EvaluationError(
+            "not all arguments converted during string formatting",
+        );
+    }
+    return formatted;
 }
 
 /**
@@ -1204,8 +1267,12 @@ export function evaluate(ast, context = {}) {
                     }
                 }
                 case ASTType.List:
-                case ASTType.Tuple:
                     return ast.value.map(_evaluate);
+                case ASTType.Tuple:
+                    // Same runtime representation as a list (a plain array),
+                    // plus a non-enumerable marker so ``%`` formatting can
+                    // apply Python's tuple-vs-list rule. See ``PY_TUPLE``.
+                    return markPyTuple(ast.value.map(_evaluate));
                 case ASTType.Dictionary: {
                     /** @type {Record<string, any>} */
                     const dict = {};
