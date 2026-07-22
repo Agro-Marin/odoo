@@ -27,8 +27,7 @@ class HrOrgChartPopover extends Component {
      * Redirect to the employee form view.
      *
      * @private
-     * @param {MouseEvent} event
-     * @returns {Promise} action loaded
+     * @param {number} employeeId
      */
     async _onEmployeeRedirect(employeeId) {
         const action = await this.orm.call('hr.employee', 'get_formview_action', [employeeId]);
@@ -105,8 +104,7 @@ export class HrOrgChart extends Component {
      * Redirect to the employee form view.
      *
      * @private
-     * @param {MouseEvent} event
-     * @returns {Promise} action loaded
+     * @param {number} employeeId
      */
     async _onEmployeeRedirect(employeeId) {
         const action = await this.orm.call('hr.employee', 'get_formview_action', [employeeId]);

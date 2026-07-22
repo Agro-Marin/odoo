@@ -5,12 +5,9 @@ import { rpc } from "@web/core/network/rpc";
 import { useService } from "@web/core/utils/hooks";
 
 /**
- * Redirect to the sub employee kanban view.
+ * Build a click handler that redirects to the subordinate employees kanban view.
  *
- * @private
- * @param {MouseEvent} event
- * @returns {Promise} action loaded
- *
+ * @returns {Function} async click handler
  */
 export function onEmployeeSubRedirect() {
     const actionService = useService('action');
@@ -22,7 +19,7 @@ export function onEmployeeSubRedirect() {
             return {};
         }
         const type = event.currentTarget.dataset.type || 'direct';
-        // Get subordonates of an employee through a rpc call.
+        // Get subordinates of an employee through a rpc call.
         const subordinateIds = await rpc('/hr/get_subordinates', {
             employee_id: employeeId,
             subordinates_type: type,
