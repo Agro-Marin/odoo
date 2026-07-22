@@ -1,13 +1,13 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-from datetime import date, datetime, timezone
-from dateutil.relativedelta import relativedelta
+from datetime import UTC, date, datetime
 
+from dateutil.relativedelta import relativedelta
 from freezegun import freeze_time
 
-from odoo import fields
-from odoo.addons.base.tests.common import TransactionCaseWithUserDemo
 from odoo.tests.common import tagged, users, warmup
+
+from odoo.addons.base.tests.common import TransactionCaseWithUserDemo
 from odoo.addons.hr_holidays.tests.common import TestHrHolidaysCommon
 from odoo.addons.mail.tools.discuss import Store
 
@@ -87,7 +87,7 @@ class TestOutOfOfficePerformance(TestHrHolidaysCommon, TransactionCaseWithUserDe
 
     @classmethod
     def setUpClass(cls):
-        super(TestOutOfOfficePerformance, cls).setUpClass()
+        super().setUpClass()
         cls.leave_type = cls.env['hr.leave.type'].create({
             'name': 'Legal Leaves',
             'time_type': 'leave',
@@ -129,7 +129,7 @@ class TestOutOfOfficePerformance(TestHrHolidaysCommon, TransactionCaseWithUserDe
     def test_search_absent_employee(self):
         present_employees = self.env['hr.employee'].search([('is_absent', '!=', True)])
         absent_employees = self.env['hr.employee'].search([('is_absent', '=', True)])
-        today_date = datetime.now(timezone.utc).date()
+        today_date = datetime.now(UTC).date()
         holidays = self.env['hr.leave'].sudo().search([
             ('employee_id', '!=', False),
             ('state', '=', 'validate'),

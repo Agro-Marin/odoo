@@ -2,16 +2,18 @@
 
 # Copyright (c) 2005-2006 Axelor SARL. (http://www.axelor.com)
 from calendar import monthrange
-from datetime import datetime, date, time
+from datetime import date, datetime, time
+
 from dateutil.relativedelta import relativedelta
 
-from odoo import api, fields, models, _
-from odoo.tools import format_date
-from odoo.addons.hr_holidays.models.hr_leave import get_employee_from_context
+from odoo import _, api, fields, models
 from odoo.exceptions import UserError, ValidationError
 from odoo.fields import Domain
 from odoo.libs.numbers.float_utils import float_round
+from odoo.tools import format_date
 from odoo.tools.date_utils import get_timedelta
+
+from odoo.addons.hr_holidays.models.hr_leave import get_employee_from_context
 
 
 class HrLeaveAllocation(models.Model):
@@ -534,7 +536,7 @@ class HrLeaveAllocation(models.Model):
                         allocation.number_of_days = max(0, allocation.number_of_days - expiring_days)
                         allocation.expiring_carryover_days = 0
 
-                is_accrual_date = allocation.nextcall == period_end or allocation.nextcall == current_level_last_date
+                is_accrual_date = allocation.nextcall in (period_end, current_level_last_date)
                 if not allocation.already_accrued and is_accrual_date and allocation.accrual_plan_id.accrued_gain_time == 'start':
                     allocation._add_days_to_allocation(current_level, current_level_maximum_leave, leaves_taken, period_start, period_end)
 
@@ -657,7 +659,7 @@ class HrLeaveAllocation(models.Model):
 
         fake_allocation = self.env['hr.leave.allocation'].with_context(default_date_from=accrual_date).new(origin=self)
         fake_allocation.sudo().with_context(default_date_from=accrual_date)._process_accrual_plans(accrual_date, log=False)
-        if self.holiday_status_id.request_unit in ['hour']:
+        if self.holiday_status_id.request_unit == 'hour':
             res = float_round(fake_allocation.number_of_hours_display - self.number_of_hours_display, precision_digits=2)
         else:
             res = round((fake_allocation.number_of_days - self.number_of_days), 2)
@@ -923,7 +925,7 @@ class HrLeaveAllocation(models.Model):
                         allocation.check_access('write')
                     except UserError as e:
                         if raise_if_not_possible:
-                            raise UserError(e)
+                            raise UserError(e) from e
                         return False
                     else:
                         continue
@@ -1005,15 +1007,14 @@ class HrLeaveAllocation(models.Model):
                         )
                         to_second_do |= allocation
                     user_ids = allocation.sudo()._get_responsible_for_approval().ids
-                    for user_id in user_ids:
-                        activity_vals.append({
+                    activity_vals.extend({
                             'activity_type_id': activity_type.id,
                             'automated': True,
                             'note': note,
                             'user_id': user_id,
                             'res_id': allocation.id,
                             'res_model_id': model_id,
-                        })
+                        } for user_id in user_ids)
             elif allocation.state == 'validate':
                 to_do |= allocation
 
@@ -1042,7 +1043,7 @@ class HrLeaveAllocation(models.Model):
 
     def message_subscribe(self, partner_ids=None, subtype_ids=None):
         # due to record rule can not allow to add follower and mention on validated leave so subscribe through sudo
-        if any(state in ['validate'] for state in self.mapped('state')):
+        if any(state == 'validate' for state in self.mapped('state')):
             self.check_access('read')
             return super(HrLeaveAllocation, self.sudo()).message_subscribe(partner_ids=partner_ids, subtype_ids=subtype_ids)
         return super().message_subscribe(partner_ids=partner_ids, subtype_ids=subtype_ids)

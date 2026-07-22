@@ -1,10 +1,12 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 from calendar import monthrange
 
-from odoo import api, fields, models, _
+from odoo import _, api, fields, models
 from odoo.exceptions import ValidationError
 
-from odoo.addons.hr_holidays.models.hr_leave_accrual_plan_level import _get_selection_days
+from odoo.addons.hr_holidays.models.hr_leave_accrual_plan_level import (
+    _get_selection_days,
+)
 
 
 class HrLeaveAccrualPlan(models.Model):
@@ -154,7 +156,7 @@ class HrLeaveAccrualPlan(models.Model):
 
     def copy_data(self, default=None):
         vals_list = super().copy_data(default=default)
-        return [dict(vals, name=self.env._("%s (copy)", plan.name)) for plan, vals in zip(self, vals_list)]
+        return [dict(vals, name=self.env._("%s (copy)", plan.name)) for plan, vals in zip(self, vals_list, strict=False)]
 
     @api.ondelete(at_uninstall=False)
     def _prevent_used_plan_unlink(self):

@@ -9,7 +9,7 @@ from odoo.addons.hr_holidays.tests.common import TestHrHolidaysCommon
 class TestAutomaticLeaveDates(TestHrHolidaysCommon):
     @classmethod
     def setUpClass(cls):
-        super(TestAutomaticLeaveDates, cls).setUpClass()
+        super().setUpClass()
         cls.leave_type = cls.env['hr.leave.type'].create({
             'name': 'Automatic Test',
             'time_type': 'leave',

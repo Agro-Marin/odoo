@@ -51,6 +51,7 @@ class HrEmployeePublic(models.Model):
         self.ensure_one()
         if self.is_user:
             return self.employee_id.action_time_off_dashboard()
+        return None
 
     def action_open_time_off_calendar(self):
         """Open the time off calendar filtered on this employee."""

@@ -1,5 +1,6 @@
 from odoo.tests import HttpCase, tagged, users
 
+
 @tagged('post_install', '-at_install')
 class TestTimeOffCardTour(HttpCase):
 

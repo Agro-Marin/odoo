@@ -3,6 +3,7 @@
 from datetime import date, datetime
 
 from odoo import tests
+
 from odoo.addons.hr_holidays.tests.common import TestHrHolidaysCommon
 
 
@@ -11,7 +12,7 @@ class TestHrHolidaysAccessRightsCommon(TestHrHolidaysCommon):
 
     @classmethod
     def setUpClass(cls):
-        super(TestHrHolidaysAccessRightsCommon, cls).setUpClass()
+        super().setUpClass()
         cls.company_2 = cls.env['res.company'].create({'name': 'Test company 2'})
 
     def test_unrelated_public_leave(self):

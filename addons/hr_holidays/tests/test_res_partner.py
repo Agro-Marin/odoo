@@ -3,7 +3,8 @@
 from freezegun import freeze_time
 
 from odoo import Command, fields
-from odoo.tests.common import new_test_user, tagged, TransactionCase, users
+from odoo.tests.common import TransactionCase, new_test_user, tagged, users
+
 from odoo.addons.mail.tools.discuss import Store
 
 
