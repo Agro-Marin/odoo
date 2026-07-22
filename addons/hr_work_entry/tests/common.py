@@ -19,7 +19,7 @@ class TestWorkEntryBase(TransactionCase):
             'name': 'Research & Development - Test',
         })
 
-        # I create a new employee "Richard"
+        # Test employee "Richard"
         cls.richard_emp = cls.env['hr.employee'].create({
             'name': 'Richard',
             'sex': 'male',
