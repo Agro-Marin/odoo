@@ -18,7 +18,7 @@ import {
 import { isCSSColor, isColorGradient } from "@web/core/utils/format/colors";
 import { getAllUsedColors } from "@html_builder/utils/utils_css";
 
-// TODO replace by useInputBuilderComponent after extract unit by AGAU
+// TODO replace by useInputBuilderComponent after extracting unit handling
 export function useColorPickerBuilderComponent() {
     const comp = useComponent();
     const { getAllActions, callOperation } = getAllActionsAndOperations(comp);
