@@ -4,6 +4,7 @@ export const fonts = {
      * Retrieves all the CSS rules which match the given parser (Regex).
      *
      * @param {Regex} filter
+     * @param {Regex} [cssFilter] Only keep rules whose cssText matches this
      * @returns {Object[]} Array of CSS rules descriptions (objects). A rule is
      *          defined by 3 values: 'selector', 'css' and 'names'. 'selector'
      *          is a string which contains the whole selector, 'css' is a string

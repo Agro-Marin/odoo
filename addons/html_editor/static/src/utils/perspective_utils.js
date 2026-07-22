@@ -116,7 +116,7 @@ export function getProjective(width, height, [[x0, y0], [x1, y1], [x2, y2], [x3,
  *
  * @param {number[][]} projective - A projective transformation matrix
  * @param {number[][]} triangle - The vertices of a triangle
- * @returns - An affine transformation matrix
+ * @returns An affine transformation matrix
  */
 export function getAffineApproximation(projective, [[x0, y0], [x1, y1], [x2, y2]]) {
     const a = transform(projective, [x0, y0]);
