@@ -214,7 +214,7 @@ class LoyaltyReward(models.Model):
                 lambda product: product.type != 'combo'
             )
             reward.multi_product = reward.reward_type == 'product' and len(products) > 1
-            reward.reward_product_ids = reward.reward_type == 'product' and products or self.env['product.product']
+            reward.reward_product_ids = (reward.reward_type == 'product' and products) or self.env['product.product']
 
     def _search_reward_product_ids(self, operator, value):
         if operator != 'in':
@@ -294,7 +294,7 @@ class LoyaltyReward(models.Model):
         # Make sure we create the product that will be used for our discounts
         rewards = self.filtered(lambda r: not r.discount_line_product_id)
         products = self.env['product.product'].create(rewards._get_discount_product_values())
-        for reward, product in zip(rewards, products):
+        for reward, product in zip(rewards, products, strict=True):
             reward.discount_line_product_id = product
 
     @api.model_create_multi
