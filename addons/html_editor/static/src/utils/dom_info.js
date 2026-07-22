@@ -106,8 +106,8 @@ export function isStrikeThrough(node) {
 /**
  * Return true if the given node font-size is equal to `props.size`.
  *
+ * @param {Node} node A node to compare the font-size against.
  * @param {Object} props
- * @param {Node} props.node A node to compare the font-size against.
  * @param {String} props.size The font-size value of the node that will be
  *     checked against.
  * @returns {boolean}
@@ -120,8 +120,8 @@ export function isFontSize(node, props) {
 /**
  * Return true if the given node classlist contains `props.className`.
  *
+ * @param {Node} node A node whose classlist is checked.
  * @param {Object} props
- * @param {Node} node A node to compare the font-size against.
  * @param {String} props.className The name of the class.
  * @returns {boolean}
  */
@@ -200,7 +200,7 @@ export function isVisibleTextNode(testedNode) {
         return false; // a ZW(NB)SP is always invisible, regardless of context.
     }
     // The following assumes node is made entirely of whitespace and is not
-    // preceded of followed by a block.
+    // preceded or followed by a block.
     // Find out contiguous preceding and following text nodes
     let preceding;
     let following;
@@ -258,8 +258,8 @@ export function isVisibleTextNode(testedNode) {
 }
 
 /**
- * Returns whether the given node is a element that could be considered to be
- * removed by itself = self closing tags.
+ * Return whether the given node is a self-closing element, i.e. one that can be
+ * considered removable by itself.
  *
  * @param {Node} node
  * @returns {boolean}
@@ -770,7 +770,7 @@ export function getDeepestPosition(node, offset) {
  *   getDeepestEditablePosition(div, 1)
  *   → [div, 1]
  *
- * @param {node} node   - Node in which the position is being resolved.
+ * @param {Node} node   - Node in which the position is being resolved.
  * @param {number} offset - Offset within node.
  * @returns {[Node, number]} A corrected editable node and offset.
  */
