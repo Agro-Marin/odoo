@@ -35,7 +35,9 @@ class HtmlFieldHistoryMixin(models.AbstractModel):
                     history_metadata[field_name] = []
                     for revision in rec.html_field_history[field_name]:
                         metadata = revision.copy()
-                        metadata.pop("patch")
+                        # tolerate a revision without a patch rather than
+                        # raising KeyError out of a compute
+                        metadata.pop("patch", None)
                         history_metadata[field_name].append(metadata)
             rec.html_field_history_metadata = history_metadata
 
@@ -63,18 +65,29 @@ class HtmlFieldHistoryMixin(models.AbstractModel):
         if not vals_contain_versioned_fields:
             return write_result
 
+        # The sanitize contract is a property of the MODEL, not of a record, so
+        # it is checked once instead of once per record (it used to re-resolve
+        # `self.env[rec._name]._fields` on every iteration and raise the same
+        # error for whichever record came first).
+        fields_data = self._fields
+        if any(f in vals and not fields_data[f].sanitize for f in versioned_fields):
+            raise ValidationError(  # pylint: disable=missing-gettext
+                "Ensure all versioned fields ( %s ) in model %s are declared as sanitize=True"
+                % (str(versioned_fields), self._name)
+            )
+
         # allow multi record write
         for rec in self:
             new_revisions = False
-            fields_data = self.env[rec._name]._fields
 
-            if any(f in vals and not fields_data[f].sanitize for f in versioned_fields):
-                raise ValidationError(  # pylint: disable=missing-gettext
-                    "Ensure all versioned fields ( %s ) in model %s are declared as sanitize=True"
-                    % (str(versioned_fields), rec._name)
-                )
-
-            history_revs = rec.html_field_history or {}
+            # Copy before mutating: `rec.html_field_history` may hand back the
+            # very dict held in the ORM cache, and mutating it in place would
+            # make the cache reflect revisions that were never written should
+            # the write below be skipped or rolled back.
+            history_revs = {
+                name: list(revisions)
+                for name, revisions in (rec.html_field_history or {}).items()
+            }
 
             for field in versioned_fields:
                 new_content = rec[field] or ""
@@ -129,6 +142,27 @@ class HtmlFieldHistoryMixin(models.AbstractModel):
                 model=self._name,
             ))
 
+    def _check_revision_id(self, revision_id):
+        """Validate a client-supplied revision id.
+
+        Counterpart to :meth:`_check_versioned_field`: these methods are
+        reachable over RPC, so ``revision_id`` is attacker-controlled too.
+        Revision ids are compared with ``>=`` against stored integers, so a
+        string/None/dict raised a bare ``TypeError`` (HTTP 500 + traceback)
+        instead of a clean business error.
+
+        ``bool`` is rejected explicitly: it is a subclass of ``int`` and
+        ``True >= 1`` would silently mean "revision 1".
+
+        :param int revision_id: id of the revision
+        :raise UserError: if the revision id is not a usable integer
+        """
+        if isinstance(revision_id, bool) or not isinstance(revision_id, int):
+            raise UserError(_(
+                'Invalid revision id %(revision)r: expected an integer.',
+                revision=revision_id,
+            ))
+
     def html_field_history_get_content_at_revision(self, field_name, revision_id):
         """Get the requested field content restored at the revision_id.
 
@@ -139,6 +173,7 @@ class HtmlFieldHistoryMixin(models.AbstractModel):
         """
         self.ensure_one()
         self._check_versioned_field(field_name)
+        self._check_revision_id(revision_id)
         revisions = [
             i
             for i in (self.html_field_history or {}).get(field_name) or []
@@ -163,6 +198,7 @@ class HtmlFieldHistoryMixin(models.AbstractModel):
         """
         self.ensure_one()
         self._check_versioned_field(field_name)
+        self._check_revision_id(revision_id)
         restored_content = self.html_field_history_get_content_at_revision(
             field_name, revision_id
         )
@@ -181,6 +217,7 @@ class HtmlFieldHistoryMixin(models.AbstractModel):
         """
         self.ensure_one()
         self._check_versioned_field(field_name)
+        self._check_revision_id(revision_id)
         restored_content = self.html_field_history_get_content_at_revision(
             field_name, revision_id
         )

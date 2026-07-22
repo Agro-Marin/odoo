@@ -157,13 +157,16 @@ export class HistoryDialog extends Component {
             if (!this.env.debug || revisionId === -1) {
                 return "";
             }
-            let unifiedDiffString = await this.orm.call(
+            // The server emits a well-formed unified diff (lineterm=""), so no
+            // client-side line-break cleanup is needed. The previous
+            // `.replace(/^\s*[\r\n]/gm, "")` compensated for doubled header
+            // terminators but also stripped blank *context* lines, which are a
+            // single space in unified-diff format.
+            const unifiedDiffString = await this.orm.call(
                 this.props.recordModel,
                 "html_field_history_get_unified_diff_at_revision",
                 [this.props.recordId, this.props.versionedFieldName, revisionId],
             );
-            // Remove unnecessary linebreaks
-            unifiedDiffString = unifiedDiffString.replace(/^\s*[\r\n]/gm, "");
             const colorScheme =
                 cookie.get("color_scheme") === "dark" ? "dark" : "light";
             // eslint-disable-next-line no-undef

@@ -85,7 +85,15 @@ export class HintPlugin extends Plugin {
     }
 
     /**
-     * @param {HTMLElement} [root]
+     * Recompute every hint in the editable.
+     *
+     * Deliberately takes no `root`: it is registered on `content_updated_handlers`
+     * and `normalize_handlers`, which both pass the mutations' common ancestor,
+     * but hints must also be cleared from the block the selection just LEFT,
+     * which is frequently outside that ancestor. Scoping the work to the root
+     * would leave stale hints behind. (It previously carried a `@param root`
+     * annotation over a zero-argument signature, implying a scoping that was
+     * never implemented.)
      */
     updateHints() {
         const selectionData = this.dependencies.selection.getSelectionData();
