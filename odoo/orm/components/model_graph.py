@@ -291,11 +291,29 @@ class ModelGraph:
         Called when fields are removed from the registry (e.g. custom field
         deletion).  Also clears trigger caches.
         """
-        for f in fields:
+        discarded = set(fields)
+        for f in discarded:
             self._depends.pop(f, None)
             self._depends_context.pop(f, None)
             self._computed.pop(f, None)
             self._triggers.pop(f, None)
+
+        # Also scrub discarded fields where they appear as trigger *targets* of
+        # other deps (``_triggers`` is ``{dep: {path: [targets]}}``): popping a
+        # field only as a key leaves it reachable via ``get_trigger_tree(dep)``,
+        # which would then schedule a deleted field. Drop emptied paths and deps.
+        for dep in list(self._triggers):
+            buckets = self._triggers[dep]
+            for path, targets in list(buckets.items()):
+                kept = [t for t in targets if t not in discarded]
+                if len(kept) == len(targets):
+                    continue
+                if kept:
+                    buckets[path] = kept
+                else:
+                    del buckets[path]
+            if not buckets:
+                del self._triggers[dep]
 
         # Discard from inverses (keys and values)
         self._inverses.discard_keys_and_values(fields)
