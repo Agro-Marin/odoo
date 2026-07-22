@@ -72,6 +72,40 @@ class TestFormCreate(TransactionCase):
         lang_form.code = "a lang code"
         lang_form.save()
 
+    def test_modifier_merge_semantics(self):
+        """Duplicate field occurrences AND their modifiers; ancestor
+        invisible ORs with the field's own; literal True/False operands are
+        simplified away."""
+        view = self.env["ir.ui.view"].create(
+            {
+                "name": "partner modifier merge",
+                "model": "res.partner",
+                "type": "form",
+                "arch": """
+                    <form>
+                        <field name="name" readonly="1"/>
+                        <field name="name" readonly="0"/>
+                        <field name="phone"/>
+                        <field name="ref"/>
+                        <group invisible="phone == 'x'">
+                            <field name="email" invisible="ref == 'y'"/>
+                        </group>
+                    </form>
+                """,
+            }
+        )
+        partner_form = Form(self.env["res.partner"], view=view)
+        # readonly="1" AND readonly="0" simplifies to plain False
+        self.assertEqual(partner_form._view["modifiers"]["name"]["readonly"], "False")
+        partner_form.name = "a partner"  # writable: not all occurrences readonly
+
+        self.assertFalse(partner_form._get_modifier("email", "invisible"))
+        partner_form.phone = "x"  # ancestor <group invisible="phone == 'x'">
+        self.assertTrue(partner_form._get_modifier("email", "invisible"))
+        partner_form.phone = "y"
+        partner_form.ref = "y"  # the field's own invisible modifier
+        self.assertTrue(partner_form._get_modifier("email", "invisible"))
+
     def test_create_o2m_mode_form(self):
         """A one2many with mode="form" used to crash Form with a bare
         StopIteration when picking the edition subview."""

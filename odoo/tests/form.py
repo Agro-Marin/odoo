@@ -26,6 +26,21 @@ _logger = logging.getLogger(__name__)
 MODIFIER_ALIASES = {"1": "True", "0": "False"}
 
 
+def _combine_bool_exprs(op: str, expr1: Any, expr2: Any) -> str:
+    """Combine two boolean modifier expressions with ``"or"``/``"and"``,
+    simplifying away literal ``"True"``/``"False"`` operands instead of
+    building noise like ``"(False) and (False)"``."""
+    expr1, expr2 = str(expr1), str(expr2)
+    absorbing, neutral = ("True", "False") if op == "or" else ("False", "True")
+    if absorbing in (expr1, expr2):
+        return absorbing
+    if expr1 == neutral:
+        return expr2
+    if expr2 == neutral:
+        return expr1
+    return f"({expr1}) {op} ({expr2})"
+
+
 class Form:
     """Server-side form view implementation (partial)
 
@@ -218,41 +233,23 @@ class Form:
                 expr = node.get(attr) or str(default)
                 field_modifiers[attr] = MODIFIER_ALIASES.get(expr, expr)
 
-            # Combine the field modifiers with its ancestor modifiers with an
-            # OR: A field is invisible if its own invisible modifier is True OR
-            # if one of its ancestor invisible modifier is True
+            # A field is invisible if its own invisible modifier is True OR
+            # one of its ancestors' invisible modifier is True
             for ancestor in node.xpath(
                 f"ancestor::*[@invisible][count(ancestor::field) = {flevel}]"
             ):
-                modifier = "invisible"
-                expr = ancestor.get(modifier)
-                if expr == "True" or field_modifiers[modifier] == "True":
-                    field_modifiers[modifier] = "True"
-                if expr == "False":
-                    field_modifiers[modifier] = field_modifiers[modifier]
-                elif field_modifiers[modifier] == "False":
-                    field_modifiers[modifier] = expr
-                else:
-                    field_modifiers[modifier] = (
-                        f"({expr}) or ({field_modifiers[modifier]})"
-                    )
+                field_modifiers["invisible"] = _combine_bool_exprs(
+                    "or", ancestor.get("invisible"), field_modifiers["invisible"]
+                )
 
             # merge field_modifiers into modifiers[field_name]
             if field_name in modifiers:
-                # The field is several times in the view, combine the modifier
-                # expression with an AND: a field is X if all occurences of the
-                # field in the view are X.
+                # The field appears several times in the view: a field is X
+                # only if all its occurrences in the view are X.
                 for modifier, expr in modifiers[field_name].items():
-                    if expr == "False" or field_modifiers[modifier] == "False":
-                        field_modifiers[modifier] = "False"
-                    if expr == "True":
-                        field_modifiers[modifier] = field_modifiers[modifier]
-                    elif field_modifiers[modifier] == "True":
-                        field_modifiers[modifier] = expr
-                    else:
-                        field_modifiers[modifier] = (
-                            f"({expr}) and ({field_modifiers[modifier]})"
-                        )
+                    field_modifiers[modifier] = _combine_bool_exprs(
+                        "and", expr, field_modifiers[modifier]
+                    )
 
             modifiers[field_name] = field_modifiers
 
