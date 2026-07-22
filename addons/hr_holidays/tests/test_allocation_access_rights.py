@@ -1,9 +1,10 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-from odoo.addons.hr_holidays.tests.common import TestHrHolidaysCommon
-from odoo.exceptions import AccessError, UserError
 import time
+
+from odoo.exceptions import AccessError, UserError
+
+from odoo.addons.hr_holidays.tests.common import TestHrHolidaysCommon
 
 
 class TestAllocationRights(TestHrHolidaysCommon):
@@ -37,13 +38,10 @@ class TestAllocationRights(TestHrHolidaysCommon):
             'employee_requests': True,
         })
 
-    def request_allocation(self, user, values={}):
-        values = dict(values, **{
-            'name': 'Allocation',
-            'number_of_days': 1,
-            'date_from': time.strftime('%Y-01-01'),
-            'date_to': time.strftime('%Y-12-31'),
-        })
+    def request_allocation(self, user, values=None):
+        if values is None:
+            values = {}
+        values = dict(values, name='Allocation', number_of_days=1, date_from=time.strftime('%Y-01-01'), date_to=time.strftime('%Y-12-31'))
         return self.env['hr.leave.allocation'].with_user(user).create(values)
 
 

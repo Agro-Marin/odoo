@@ -1,15 +1,16 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-from ast import literal_eval
-from datetime import date, datetime, time, timedelta, timezone
 from collections import defaultdict
-from dateutil.relativedelta import relativedelta
+from datetime import UTC, date, datetime, time, timedelta
+
 import pytz
+from dateutil.relativedelta import relativedelta
 
 from odoo import _, api, fields, models
 from odoo.exceptions import ValidationError
-from odoo.addons.resource.models.utils import HOURS_PER_DAY
 from odoo.libs.numbers.float_utils import float_round
+
+from odoo.addons.resource.models.utils import HOURS_PER_DAY
 
 
 class HrEmployee(models.Model):
@@ -55,7 +56,10 @@ class HrEmployee(models.Model):
             ('state', '=', 'validate'),
         ])
         for holiday in holidays:
-            employee = self.filtered(lambda e: e.id == holiday.employee_id.id)
+            # B023: lambda references loop variable `holiday` but is invoked
+            # eagerly on this line (result consumed on the next line, within
+            # this same iteration) - no late-binding risk.
+            employee = self.filtered(lambda e: e.id == holiday.employee_id.id)  # noqa: B023
             employee.current_leave_id = holiday.holiday_status_id.id
 
     def _compute_presence_state(self):
@@ -114,7 +118,7 @@ class HrEmployee(models.Model):
 
     def _get_first_working_interval(self, dt):
         # find the first working interval after a given date
-        dt = dt.replace(tzinfo=timezone.utc)
+        dt = dt.replace(tzinfo=UTC)
         lookahead_days = [7, 30, 90, 180, 365, 730]
         work_intervals = None
         for lookahead_day in lookahead_days:
@@ -132,6 +136,7 @@ class HrEmployee(models.Model):
             if work_intervals.get(self.resource_id.id) and work_intervals[self.resource_id.id]._items:
                 # return start time of the earliest interval
                 return work_intervals[self.resource_id.id]._items[0][0]
+        return None
 
     def _compute_leave_status(self):
         # Used SUPERUSER_ID to forcefully get status of other user's leave, to bypass record rule
@@ -161,7 +166,7 @@ class HrEmployee(models.Model):
         for employee in self:
             previous_manager = employee._origin.parent_id.user_id
             manager = employee.parent_id.user_id
-            if manager and employee.leave_manager_id == previous_manager or not employee.leave_manager_id:
+            if (manager and employee.leave_manager_id == previous_manager) or not employee.leave_manager_id:
                 employee.leave_manager_id = manager
             elif not employee.leave_manager_id:
                 employee.leave_manager_id = False
@@ -210,7 +215,7 @@ class HrEmployee(models.Model):
         # Prevent the resource calendar of leaves to be updated by a write to
         # employee. When this module is enabled the resource calendar of
         # leaves are determined by those of the contracts.
-        self = self.with_context(no_leave_resource_calendar_update=True)  # noqa: PLW0642
+        self = self.with_context(no_leave_resource_calendar_update=True)
         if 'parent_id' in values:
             manager = self.env['hr.employee'].browse(values['parent_id']).user_id
             if manager:
@@ -244,10 +249,10 @@ class HrEmployee(models.Model):
                 non_hourly_leaves = leaves.filtered(lambda l: not l.request_unit_hours)
                 non_hourly_leaves.with_context(leave_skip_date_check=True, leave_skip_state_check=True)._compute_date_from_to()
                 non_hourly_leaves.filtered(lambda l: l.state == 'validate')._validate_leave_request()
-            except ValidationError:
+            except ValidationError as e:
                 raise ValidationError(_("Changing this working schedule results in the affected employee(s) not having enough "
                                         "leaves allocated to accomodate for their leaves already taken in the future. Please "
-                                        "review this employee's leaves and adjust their allocation accordingly."))
+                                        "review this employee's leaves and adjust their allocation accordingly.")) from e
 
         if 'parent_id' in values or 'department_id' in values:
             today_date = fields.Datetime.now()
@@ -310,7 +315,7 @@ class HrEmployee(models.Model):
         self = self._get_contextual_employee()
         employee_tz = pytz.timezone(self._get_tz() if self else self.env.user.tz or 'utc')
         public_holidays = self._get_public_holidays(date_start, date_end).sorted('date_from')
-        return list(map(lambda bh: {
+        return [{
             'id': -bh.id,
             'colorIndex': 0,
             'end': datetime.combine(bh.date_to.astimezone(employee_tz), datetime.max.time()).isoformat(),
@@ -319,7 +324,7 @@ class HrEmployee(models.Model):
             'start': datetime.combine(bh.date_from.astimezone(employee_tz), datetime.min.time()).isoformat(),
             'startType': "datetime",
             'title': bh.name,
-        }, public_holidays))
+        } for bh in public_holidays]
 
     @api.model
     def get_time_off_dashboard_data(self, target_date=None):
@@ -492,7 +497,7 @@ class HrEmployee(models.Model):
             if allocation.allocation_type == 'accrual':
                 future_leaves = allocation._get_future_leaves_on(target_date)
             max_leaves = allocation.number_of_hours_display\
-                if allocation.holiday_status_id.request_unit in ['hour']\
+                if allocation.holiday_status_id.request_unit == 'hour'\
                 else allocation.number_of_days_display
             max_leaves += future_leaves
             allocation_data.update({
@@ -527,10 +532,13 @@ class HrEmployee(models.Model):
                     leave_duration = leave[leave_duration_field]
                     skip_excess = False
 
+                    # B023: lambda references loop variable `leave` but is
+                    # invoked eagerly within this same `if` condition (same
+                    # iteration) - no late-binding risk.
                     if leave.date_from.date() > target_date and sorted_leave_allocations.filtered(lambda a:
                         a.allocation_type == 'accrual' and
                         (not a.date_to or a.date_to >= target_date) and
-                        a.date_from <= leave.date_to.date()
+                        a.date_from <= leave.date_to.date()  # noqa: B023
                     ):
                         to_recheck_leaves_per_leave_type[employee][leave_type]['to_recheck_leaves'] |= leave
                         skip_excess = True

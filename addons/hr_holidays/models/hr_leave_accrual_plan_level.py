@@ -1,9 +1,10 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 from calendar import monthrange
+
 from dateutil.relativedelta import relativedelta
 
 from odoo import _, api, fields, models
-from odoo.exceptions import ValidationError, UserError
+from odoo.exceptions import UserError, ValidationError
 
 
 def _get_selection_days(self):
@@ -366,6 +367,7 @@ class HrLeaveAccrualLevel(models.Model):
             return allocation_start + relativedelta(months=self.start_count)
         if self.start_type == 'year':
             return allocation_start + relativedelta(years=self.start_count)
+        return None
 
     def action_save_new(self):
         return self.accrual_plan_id.action_create_accrual_plan_level()

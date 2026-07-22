@@ -1,5 +1,6 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 from datetime import date
+
 from freezegun import freeze_time
 
 from odoo.tests import tagged
@@ -11,7 +12,7 @@ from odoo.addons.hr_holidays.tests.common import TestHrHolidaysCommon
 class TestAccrualAllocations(TestHrHolidaysCommon):
     @classmethod
     def setUpClass(cls):
-        super(TestAccrualAllocations, cls).setUpClass()
+        super().setUpClass()
         cls.leave_type = cls.env['hr.leave.type'].create({
             'name': 'Accrual Time Off',
             'time_type': 'leave',

@@ -1,24 +1,23 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 import unittest
-
 from datetime import date
+
 from dateutil.relativedelta import relativedelta
 from freezegun import freeze_time
 
 from odoo import tests
+from odoo.exceptions import AccessError, UserError
+from odoo.tools import date_utils, mute_logger
+
 from odoo.addons.hr_holidays.tests.common import TestHrHolidaysCommon
-from odoo.exceptions import AccessError, UserError, ValidationError
-from odoo.tools import date_utils
-from odoo.tools import mute_logger
 
 
 @tests.tagged('access_rights', 'post_install', '-at_install')
 class TestHrHolidaysAccessRightsCommon(TestHrHolidaysCommon):
     @classmethod
     def setUpClass(cls):
-        super(TestHrHolidaysAccessRightsCommon, cls).setUpClass()
+        super().setUpClass()
         cls.leave_type = cls.env['hr.leave.type'].create({
             'name': 'Unlimited',
             'leave_validation_type': 'hr',
@@ -75,10 +74,7 @@ class TestHrHolidaysAccessRightsCommon(TestHrHolidaysCommon):
         cls.env['hr.leave.mandatory.day'].search([]).unlink()
 
     def request_leave(self, user_id, request_date_from, number_of_days, values=None):
-        values = dict(values or {}, **{
-            'request_date_from': request_date_from,
-            'request_date_to': request_date_from + relativedelta(days=number_of_days - 1),
-        })
+        values = dict(values or {}, request_date_from=request_date_from, request_date_to=request_date_from + relativedelta(days=number_of_days - 1))
         return self.env['hr.leave'].with_user(user_id).create(values)
 
 @tests.tagged('access_rights', 'access_rights_create')
@@ -166,7 +162,7 @@ class TestAccessRightsRead(TestHrHolidaysAccessRightsCommon):
             'request_date_to': date.today() + relativedelta(days=1),
         })
         with self.assertRaises(AccessError):
-            res = other_leave.with_user(self.user_employee_id).read(['number_of_days', 'state', 'name'])
+            other_leave.with_user(self.user_employee_id).read(['number_of_days', 'state', 'name'])
 
     @mute_logger('odoo.models.unlink', 'odoo.addons.mail.models.mail_mail')
     def test_leave_read_by_user_other_browse(self):
@@ -181,7 +177,7 @@ class TestAccessRightsRead(TestHrHolidaysAccessRightsCommon):
         })
         with self.assertRaises(AccessError):
             other_leave.invalidate_model(['name'])
-            name = other_leave.with_user(self.user_employee_id).name
+            other_leave.with_user(self.user_employee_id).name  # noqa: B018 - deliberate access to trigger AccessError
 
     @mute_logger('odoo.models.unlink', 'odoo.addons.mail.models.mail_mail')
     def test_leave_read_by_user_own(self):
@@ -462,7 +458,7 @@ class TestMultiCompany(TestHrHolidaysCommon):
 
     @classmethod
     def setUpClass(cls):
-        super(TestMultiCompany, cls).setUpClass()
+        super().setUpClass()
         cls.new_company = cls.env['res.company'].create({
             'name': 'Crocodile Dundee Company',
         })
@@ -490,7 +486,7 @@ class TestMultiCompany(TestHrHolidaysCommon):
         employee_leave = self.employee_leave.with_user(self.user_employee)
         employee_leave.invalidate_model(['name'])
         with self.assertRaises(AccessError):
-            employee_leave.name
+            employee_leave.name  # noqa: B018 - deliberate access to trigger AccessError
 
         with self.assertRaises(UserError):
             employee_leave.action_approve()
@@ -500,7 +496,7 @@ class TestMultiCompany(TestHrHolidaysCommon):
         employee_leave_hruser = self.employee_leave.with_user(self.user_hruser)
         employee_leave_hruser.invalidate_model(['name'])
         with self.assertRaises(AccessError):
-            employee_leave_hruser.name
+            employee_leave_hruser.name  # noqa: B018 - deliberate access to trigger AccessError
 
         with self.assertRaises(UserError):
             employee_leave_hruser.action_approve()
@@ -510,7 +506,7 @@ class TestMultiCompany(TestHrHolidaysCommon):
         employee_leave_hrmanager = self.employee_leave.with_user(self.user_hrmanager)
         employee_leave_hrmanager.invalidate_model(['name'])
         with self.assertRaises(AccessError):
-            employee_leave_hrmanager.name
+            employee_leave_hrmanager.name  # noqa: B018 - deliberate access to trigger AccessError
 
         with self.assertRaises(UserError):
             employee_leave_hrmanager.action_approve()
@@ -521,7 +517,7 @@ class TestMultiCompany(TestHrHolidaysCommon):
         self.leave_type.write({'company_id': False})
         employee_leave = self.employee_leave.with_user(self.user_employee)
 
-        employee_leave.name
+        employee_leave.name  # noqa: B018 - deliberate access to verify read succeeds (no exception)
         with self.assertRaises(UserError):
             employee_leave.action_approve()
         self.assertEqual(employee_leave.state, 'confirm')
@@ -533,7 +529,7 @@ class TestMultiCompany(TestHrHolidaysCommon):
         self.leave_type.write({'company_id': False})
         employee_leave_hruser = self.employee_leave.with_user(self.user_hruser)
 
-        employee_leave_hruser.name
+        employee_leave_hruser.name  # noqa: B018 - deliberate access to verify read succeeds (no exception)
         employee_leave_hruser.action_approve()
         self.assertEqual(employee_leave_hruser.state, 'validate')
 
@@ -544,6 +540,6 @@ class TestMultiCompany(TestHrHolidaysCommon):
         self.leave_type.write({'company_id': False})
         employee_leave_hrmanager = self.employee_leave.with_user(self.user_hrmanager)
 
-        employee_leave_hrmanager.name
+        employee_leave_hrmanager.name  # noqa: B018 - deliberate access to verify read succeeds (no exception)
         employee_leave_hrmanager.action_approve()
         self.assertEqual(employee_leave_hrmanager.state, 'validate')

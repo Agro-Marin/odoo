@@ -1,13 +1,12 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-import babel.dates
 import calendar
-
 from datetime import timedelta
+
+import babel.dates
 from dateutil.relativedelta import relativedelta
-from odoo import api, fields, models, _
-from odoo.exceptions import UserError
+
+from odoo import _, api, fields, models
 from odoo.tools.misc import format_date, get_lang
 
 COLORS_MAP = {
@@ -50,7 +49,7 @@ class ReportHr_HolidaysReport_Holidayssummary(models.AbstractModel):
     def _get_day(self, start_date):
         res = []
         start_date = fields.Date.from_string(start_date)
-        for _x in range(0, 60):
+        for _x in range(60):
             color = '#ababab' if self._date_is_day_off(start_date) else ''
             res.append({'day_str': babel.dates.get_day_names('abbreviated', locale=get_lang(self.env).code)[start_date.weekday()], 'day': start_date.day, 'color': color})
             start_date = start_date + relativedelta(days=1)
@@ -63,8 +62,7 @@ class ReportHr_HolidaysReport_Holidayssummary(models.AbstractModel):
         end_date = start_date + relativedelta(days=59)
         while start_date <= end_date:
             last_date = start_date + relativedelta(day=1, months=+1, days=-1)
-            if last_date > end_date:
-                last_date = end_date
+            last_date = min(last_date, end_date)
             month_days = (last_date - start_date).days + 1
             res.append({'month_name': babel.dates.get_month_names(locale=get_lang(self.env).code)[start_date.month], 'days': month_days})
             start_date += relativedelta(day=1, months=+1)
@@ -75,7 +73,7 @@ class ReportHr_HolidaysReport_Holidayssummary(models.AbstractModel):
         count = 0
         start_date = fields.Date.from_string(start_date)
         end_date = start_date + relativedelta(days=59)
-        for index in range(0, 60):
+        for index in range(60):
             current = start_date + timedelta(index)
             res.append({'day': current.day, 'color': ''})
             if self._date_is_day_off(current) :
@@ -110,15 +108,17 @@ class ReportHr_HolidaysReport_Holidayssummary(models.AbstractModel):
         if 'depts' in data:
             employees = self._get_employees(data)
             departments = self.env['hr.department'].browse(data['depts'])
-            for department in departments:
-                res.append({
+            # B023: lambda references loop variable `department` but is
+            # invoked eagerly (each dict is fully built per `department`
+            # within the same generator iteration) - no late-binding risk.
+            res.extend({
                     'dept': department.name,
                     'data': [
                         self._get_leaves_summary(data['date_from'], emp.id, data['holiday_type'])
-                        for emp in employees.filtered(lambda emp: emp.department_id.id == department.id)
+                        for emp in employees.filtered(lambda emp: emp.department_id.id == department.id)  # noqa: B023
                     ],
                     'color': self._get_day(data['date_from']),
-                })
+                } for department in departments)
         elif 'emp' in data:
             res.append({'data': [
                 self._get_leaves_summary(data['date_from'], emp.id, data['holiday_type'])
@@ -140,17 +140,14 @@ class ReportHr_HolidaysReport_Holidayssummary(models.AbstractModel):
         ])
 
     def _get_holidays_status(self, data):
-        res = []
         employees = self.env['hr.employee']
         if {'depts', 'emp'} & data.keys():
             employees = self._get_employees(data)
 
         holidays = self._get_leaves(fields.Date.from_string(data['date_from']), employees, data['holiday_type'])
 
-        for leave_type in holidays.holiday_status_id:
-            res.append({'color': COLORS_MAP[leave_type.color], 'name': leave_type.name})
+        return [{'color': COLORS_MAP[leave_type.color], 'name': leave_type.name} for leave_type in holidays.holiday_status_id]
 
-        return res
 
     @api.model
     def _get_report_values(self, docids, data=None):

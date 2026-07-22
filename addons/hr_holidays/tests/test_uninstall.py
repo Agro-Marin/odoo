@@ -1,9 +1,10 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 from datetime import date
+
+from odoo.tests import TransactionCase, tagged
+
 from odoo.addons.base.models.ir_model_common import MODULE_UNINSTALL_FLAG
-from odoo.tests import tagged, TransactionCase
 
 
 @tagged('-at_install', 'post_install')

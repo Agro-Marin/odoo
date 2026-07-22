@@ -1,25 +1,24 @@
 import logging
-import pytz
-
 from collections import defaultdict
-
-from datetime import datetime, timedelta, time
-from dateutil.relativedelta import relativedelta
+from datetime import datetime, time, timedelta
 from math import ceil
+
+import pytz
+from dateutil.relativedelta import relativedelta
 from markupsafe import Markup
 
-from odoo.addons.base.models.ir_model_common import MODULE_UNINSTALL_FLAG
-from odoo.addons.resource.models.utils import HOURS_PER_DAY
-
 from odoo import api, fields, models
-from odoo.addons.base.models.res_partner import _tz_get
 from odoo.exceptions import AccessError, UserError, ValidationError
-from odoo.tools.date_utils import float_to_time
 from odoo.fields import Command, Date, Domain
-from odoo.libs.numbers.float_utils import float_round, float_compare
 from odoo.libs.intervals import Intervals
+from odoo.libs.numbers.float_utils import float_compare, float_round
+from odoo.tools.date_utils import float_to_time
 from odoo.tools.misc import clean_context, format_date
 from odoo.tools.translate import _
+
+from odoo.addons.base.models.ir_model_common import MODULE_UNINSTALL_FLAG
+from odoo.addons.base.models.res_partner import _tz_get
+from odoo.addons.resource.models.utils import HOURS_PER_DAY
 
 _logger = logging.getLogger(__name__)
 
@@ -326,7 +325,7 @@ class HrLeave(models.Model):
         is_officer = self.env.user.has_group('hr_holidays.group_hr_holidays_user')
 
         for leave in self:
-            if is_officer or leave.user_id == self.env.user or leave.employee_id.leave_manager_id == self.env.user:
+            if is_officer or self.env.user in (leave.user_id, leave.employee_id.leave_manager_id):
                 leave.name = leave.sudo().private_name
             else:
                 leave.name = '*****'
@@ -335,7 +334,7 @@ class HrLeave(models.Model):
         is_officer = self.env.user.has_group('hr_holidays.group_hr_holidays_user')
 
         for leave in self:
-            if is_officer or leave.user_id == self.env.user or leave.employee_id.leave_manager_id == self.env.user:
+            if is_officer or self.env.user in (leave.user_id, leave.employee_id.leave_manager_id):
                 leave.sudo().private_name = leave.name
 
     def _search_description(self, operator, value):
@@ -375,9 +374,12 @@ class HrLeave(models.Model):
             # used to get the contracts for which these leaves apply and
             # contract start- and end-dates are just dates (and not datetimes)
             # these dates are comparable.
+            # B023: lambda references loop variable `leave` but is invoked
+            # eagerly on this statement (result consumed within this same
+            # iteration) - no late-binding risk.
             contracts = contracts_by_employee.get(leave.employee_id, self.env['hr.version']).filtered(
-                lambda c: c.date_start <= leave.request_date_to and
-                          (not c.date_end or c.date_end >= leave.request_date_from))
+                lambda c: c.date_start <= leave.request_date_to and  # noqa: B023
+                          (not c.date_end or c.date_end >= leave.request_date_from))  # noqa: B023
             if contracts:
                 # If there are more than one contract they should all have the
                 # same calendar, otherwise a constraint is violated.
@@ -601,7 +603,7 @@ Versions:
                         leave_intervals = Intervals([(leave.date_from, leave.date_to, leave)])
                         real_leave_intervals = leave_intervals - public_holidays_intervals
                         hours = 0
-                        for start, stop, meta in real_leave_intervals:
+                        for start, stop, _meta in real_leave_intervals:
                             hours += (stop - start).total_seconds() / 3600
                     else:
                         hours = (leave.date_to - leave.date_from).total_seconds() / 3600
@@ -613,7 +615,7 @@ Versions:
                     # list of tuples (day, hours)
                     work_time_per_day_list = work_time_per_day_mapped[leave.date_from, leave.date_to, leave.holiday_status_id.include_public_holidays_in_duration, calendar][leave.employee_id.id]
                     days = len(work_time_per_day_list)
-                    hours = sum(map(lambda t: t[1], work_time_per_day_list))
+                    hours = sum(t[1] for t in work_time_per_day_list)
                 else:
                     work_days_data = work_days_data_mapped[leave.date_from, leave.date_to, leave.holiday_status_id.include_public_holidays_in_duration, calendar][leave.employee_id.id]
                     hours, days = work_days_data['hours'], work_days_data['days']
@@ -813,7 +815,7 @@ Versions:
                     display_date += _(' to %(date_to_utc)s',
                         date_to_utc=format_date(self.env, date_to_utc) or ""
                     )
-                if not target or self.env.context.get('hide_employee_name') and 'employee_id' in self.env.context.get('group_by', []):
+                if not target or (self.env.context.get('hide_employee_name') and 'employee_id' in self.env.context.get('group_by', [])):
                     leave.display_name = _("%(leave_type)s: %(duration)s (%(start)s)",
                         leave_type=time_off_type_display,
                         duration=leave.duration_display,
@@ -1019,12 +1021,12 @@ Versions:
             meeting_values_for_user_id = meeting_holidays._prepare_holidays_meeting_values()
             Meeting = self.env['calendar.event']
             for user_id, meeting_values in meeting_values_for_user_id.items():
-                meetings += Meeting.with_user(user_id or self.env.uid).sudo().with_context(clean_context({**self.env.context, **dict(
-                                allowed_company_ids=[],
-                                no_mail_to_attendees=True,
-                                calendar_no_videocall=True,
-                                active_model=self._name
-                            )})).create(meeting_values)
+                meetings += Meeting.with_user(user_id or self.env.uid).sudo().with_context(clean_context({**self.env.context,
+                                'allowed_company_ids': [],
+                                'no_mail_to_attendees': True,
+                                'calendar_no_videocall': True,
+                                'active_model': self._name
+                            })).create(meeting_values)
         Holiday = self.env['hr.leave']
         for meeting in meetings:
             Holiday.browse(meeting.res_id).meeting_id = meeting
@@ -1050,7 +1052,7 @@ Versions:
                 "%(employee)s on Time Off : %(duration)s",
                 employee=holiday.employee_id.name or holiday.category_id.name,
                 duration=holiday.duration_display)
-            allday_value = not holiday.request_unit_half or holiday.request_date_from_period == 'am' and holiday.request_date_to_period == 'pm'
+            allday_value = not holiday.request_unit_half or (holiday.request_date_from_period == 'am' and holiday.request_date_to_period == 'pm')
             if holiday.leave_type_request_unit == 'hour':
                 allday_value = float_compare(holiday.number_of_days, 1.0, 1) >= 0
 
@@ -1104,9 +1106,9 @@ Versions:
         leave_to_approve = self.env['hr.leave']
         leave_to_validate = self.env['hr.leave']
         for leave in self:
-            if check_state and leave.can_validate or not check_state and leave.validation_type != "both":
+            if (check_state and leave.can_validate) or (not check_state and leave.validation_type != "both"):
                 leave_to_validate += leave
-            elif check_state and leave.can_approve or not check_state and leave.validation_type == 'both':
+            elif (check_state and leave.can_approve) or (not check_state and leave.validation_type == 'both'):
                 leave_to_approve += leave
             else:
                 raise UserError(self.env._('You cannot approve this leave.'))
@@ -1374,7 +1376,7 @@ Versions:
         if self.env.is_superuser():
             return True
 
-        is_officer = self.env.user.has_group('hr_holidays.group_hr_holidays_user')
+        self.env.user.has_group('hr_holidays.group_hr_holidays_user')
 
         for holiday in self:
             is_time_off_manager = holiday.employee_id.leave_manager_id == self.env.user
@@ -1416,7 +1418,7 @@ is approved, validated or refused.')
                     holiday.check_access('write')
                 except UserError as e:
                     if raise_if_not_possible:
-                        raise UserError(e)
+                        raise UserError(e) from e
                     return False
                 else:
                     continue
@@ -1500,8 +1502,7 @@ is approved, validated or refused.')
                             (holiday.date_from -
                              relativedelta(**{activity_type.delay_unit or 'days': activity_type.delay_count or 0})).date()
                             if holiday.date_from else today)
-                        if date_deadline < today:
-                            date_deadline = today
+                        date_deadline = max(date_deadline, today)
                         activity_vals.append({
                             'activity_type_id': activity_type.id,
                             'automated': True,

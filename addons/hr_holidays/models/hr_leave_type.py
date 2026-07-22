@@ -4,18 +4,18 @@
 
 import logging
 import operator as py_operator
-import pytz
-
 from collections import defaultdict
 from datetime import date, datetime, time
+
+import pytz
 from dateutil.relativedelta import relativedelta
 
 from odoo import api, fields, models
 from odoo.exceptions import UserError, ValidationError
 from odoo.fields import Domain
-from odoo.tools import format_date, frozendict
-from odoo.tools.translate import _
 from odoo.libs.numbers.float_utils import float_round
+from odoo.tools import format_date
+from odoo.tools.translate import _
 
 _logger = logging.getLogger(__name__)
 
@@ -228,9 +228,13 @@ class HrLeaveType(models.Model):
             if leave_type.requires_allocation:
                 allocations = allocation_by_leave_type.get(leave_type, self.env['hr.leave.allocation'])
                 allowed_excess = leave_type.max_allowed_negative if leave_type.allows_negative else 0
+                # B023: lambda references loop variable `allowed_excess` but
+                # is invoked eagerly on this statement (result consumed on
+                # the next line, within this same iteration) - no
+                # late-binding risk.
                 allocations = allocations.filtered(lambda alloc:
                     alloc.allocation_type == 'accrual'
-                    or (alloc.max_leaves > 0 and alloc.virtual_remaining_leaves > -allowed_excess)
+                    or (alloc.max_leaves > 0 and alloc.virtual_remaining_leaves > -allowed_excess)  # noqa: B023
                 )
                 leave_type.has_valid_allocation = bool(allocations)
             else:
@@ -418,7 +422,7 @@ class HrLeaveType(models.Model):
 
     def copy_data(self, default=None):
         vals_list = super().copy_data(default=default)
-        return [dict(vals, name=self.env._("%s (copy)", leave_type.name)) for leave_type, vals in zip(self, vals_list)]
+        return [dict(vals, name=self.env._("%s (copy)", leave_type.name)) for leave_type, vals in zip(self, vals_list, strict=False)]
 
     def action_see_days_allocated(self):
         self.ensure_one()
@@ -487,8 +491,7 @@ class HrLeaveType(models.Model):
         employee = self.env['hr.employee']._get_contextual_employee()
         if employee:
             allocation_data = leave_types.get_allocation_data(employee, target_date)[employee]
-            result = [data for data in allocation_data if data[1].get('max_leaves', False)]
-            return result
+            return [data for data in allocation_data if data[1].get('max_leaves', False)]
         return []
 
     def get_allocation_data(self, employees, target_date=None):
@@ -595,7 +598,7 @@ class HrLeaveType(models.Model):
                         # closest_allocation_duration corresponds to the time remaining before the allocation expires
                         calendar_attendance = calendar._work_intervals_batch(start_datetime, end_datetime, resources=employee.resource_id)
                         closest_allocation_dict = calendar._get_attendance_intervals_days_data(calendar_attendance[employee.resource_id.id])
-                    if leave_type.request_unit in ['hour']:
+                    if leave_type.request_unit == 'hour':
                         closest_allocation_duration = closest_allocation_dict['hours']
                     else:
                         closest_allocation_duration = closest_allocation_dict['days']
@@ -625,7 +628,7 @@ class HrLeaveType(models.Model):
     def _get_closest_expiring_leaves_date_and_count(self, allocations, remaining_leaves, target_date):
         # Get the expiration date and carryover date of all allocations and compute the closest expiration date
         expiration_dates_per_allocation = defaultdict(lambda: {'expiration_date': fields.Date(), 'carryover_date': fields.Date(), 'carried_over_days_expiration_date': fields.Date()})
-        expiration_dates = list()
+        expiration_dates = []
         carried_over_days_expiration_data = self._get_carried_over_days_expiration_data(allocations, target_date)
         for allocation in allocations:
             expiration_date = allocation.date_to

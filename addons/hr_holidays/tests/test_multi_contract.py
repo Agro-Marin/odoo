@@ -1,8 +1,10 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-from datetime import datetime, date
+from datetime import date, datetime
+
 from odoo.exceptions import ValidationError
 from odoo.tests import Form, freeze_time, tagged
+
 from odoo.addons.hr_holidays.tests.common import TestHolidayContract
 
 

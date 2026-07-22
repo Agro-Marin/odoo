@@ -1,9 +1,10 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 from datetime import date, datetime
-from odoo.addons.hr_calendar.tests.common import TestHrCalendarCommon
 
 from odoo.tests import tagged
+
+from odoo.addons.hr_calendar.tests.common import TestHrCalendarCommon
 
 
 @tagged('work_hours')
