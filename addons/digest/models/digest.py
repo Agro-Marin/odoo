@@ -1,19 +1,20 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 import logging
-import pytz
-
-from datetime import UTC, datetime, date
-from dateutil.relativedelta import relativedelta
-from markupsafe import Markup
+from datetime import UTC, date, datetime
 from urllib.parse import urlencode
 
-from odoo import api, fields, models, tools, _
-from odoo.addons.base.models.ir_mail_server import MailDeliveryException
+import pytz
+from dateutil.relativedelta import relativedelta
+from markupsafe import Markup
+
+from odoo import _, api, fields, models, tools
 from odoo.exceptions import AccessError
 from odoo.fields import Domain
 from odoo.libs.numbers.float_utils import float_round
 from odoo.libs.web.urls import urljoin as url_join
+
+from odoo.addons.base.models.ir_mail_server import MailDeliveryException
 
 _logger = logging.getLogger(__name__)
 
@@ -228,7 +229,7 @@ class DigestDigest(models.Model):
         for digest in digests:
             try:
                 digest.action_send()
-            except MailDeliveryException as e:
+            except MailDeliveryException:
                 _logger.warning('MailDeliveryException while sending digest %d. Digest is now scheduled for next cron update.', digest.id)
 
     def _get_unsubscribe_token(self, user_id):
@@ -263,13 +264,13 @@ class DigestDigest(models.Model):
         digest_fields = self._get_kpi_fields()
         invalid_fields = []
         kpis = [
-            dict(kpi_name=field_name,
-                 kpi_fullname=self.env['ir.model.fields']._get(self._name, field_name).field_description,
-                 kpi_action=False,
-                 kpi_col1=dict(),
-                 kpi_col2=dict(),
-                 kpi_col3=dict(),
-                 )
+            {'kpi_name': field_name,
+                 'kpi_fullname': self.env['ir.model.fields']._get(self._name, field_name).field_description,
+                 'kpi_action': False,
+                 'kpi_col1': {},
+                 'kpi_col2': {},
+                 'kpi_col3': {},
+                 }
             for field_name in digest_fields
         ]
         kpis_actions = self._compute_kpis_actions(company, user)
@@ -439,7 +440,7 @@ class DigestDigest(models.Model):
 
     def _get_margin_value(self, value, previous_value=0.0):
         margin = 0.0
-        if (value != previous_value) and (value != 0.0 and previous_value != 0.0):
+        if (value != previous_value) and (value != 0.0 and previous_value != 0.0):  # noqa: RUF069 - zero-check guard before division, not a precision-sensitive equality comparison
             margin = float_round((float(value-previous_value) / previous_value or 1) * 100, precision_digits=2)
         return margin
 
@@ -474,5 +475,5 @@ class DigestDigest(models.Model):
 
     def _format_currency_amount(self, amount, currency_id):
         pre = currency_id.position == 'before'
-        symbol = u'{symbol}'.format(symbol=currency_id.symbol or '')
-        return u'{pre}{0}{post}'.format(amount, pre=symbol if pre else '', post=symbol if not pre else '')
+        symbol = '{symbol}'.format(symbol=currency_id.symbol or '')
+        return '{pre}{0}{post}'.format(amount, pre=symbol if pre else '', post=symbol if not pre else '')

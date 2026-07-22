@@ -1,10 +1,9 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 from werkzeug.exceptions import Forbidden, NotFound
 
 from odoo import _
-from odoo.http import Controller, request, Response, route
+from odoo.http import Controller, Response, request, route
 from odoo.tools import consteq
 
 
@@ -39,7 +38,7 @@ class DigestController(Controller):
           NOTE: DEPRECATED PARAMETER
         """
         if one_click and int(one_click) and request.httprequest.method != "POST":
-            raise Forbidden()
+            raise Forbidden
 
         digest_sudo = request.env['digest.digest'].sudo().browse(digest_id).exists()
 
@@ -47,13 +46,13 @@ class DigestController(Controller):
         if digest_sudo and token and user_id:
             correct_token = digest_sudo._get_unsubscribe_token(int(user_id))
             if not consteq(correct_token, token):
-                raise NotFound()
+                raise NotFound
             digest_sudo._action_unsubscribe_users(request.env['res.users'].sudo().browse(int(user_id)))
         # old route was given without any token or user_id but only for auth users
         elif digest_sudo and not token and not user_id and not request.env.user.share:
             digest_sudo.action_unsubscribe()
         else:
-            raise NotFound()
+            raise NotFound
 
         return request.render('digest.portal_digest_unsubscribed', {
             'digest': digest_sudo,
@@ -62,7 +61,7 @@ class DigestController(Controller):
     @route('/digest/<int:digest_id>/set_periodicity', type='http', website=True, auth='user')
     def digest_set_periodicity(self, digest_id, periodicity='weekly'):
         if not request.env.user.has_group('base.group_erp_manager'):
-            raise Forbidden()
+            raise Forbidden
         if periodicity not in ('daily', 'weekly', 'monthly', 'quarterly'):
             raise ValueError(_('Invalid periodicity set on digest'))
 
