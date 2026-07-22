@@ -35,6 +35,9 @@ class CalendarAttendee(models.Model):
         other_events = all_events.filtered(lambda e: e.user_id and e.user_id.id != self.env.user.id)
         for user in other_events.mapped('user_id'):
             service = GoogleCalendarService(self.env['google.service'].with_user(user))
-            other_events.filtered(lambda ev: ev.user_id.id == user.id).with_user(user)._sync_odoo2google(service)
+            # B023: lambda referencing loop variable `user` is invoked eagerly
+            # on this same line (chained `.filtered(...).with_user(...)` call
+            # within this iteration) - no late-binding risk.
+            other_events.filtered(lambda ev: ev.user_id.id == user.id).with_user(user)._sync_odoo2google(service)  # noqa: B023
         google_service = GoogleCalendarService(self.env['google.service'])
         (all_events - other_events)._sync_odoo2google(google_service)
