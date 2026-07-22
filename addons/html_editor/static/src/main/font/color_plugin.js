@@ -30,6 +30,7 @@ import {
     backgroundImagePartsToCss,
 } from "@html_editor/utils/image";
 import { callbacksForCursorUpdate } from "@html_editor/utils/selection";
+import { _t } from "@web/core/l10n/translation";
 import {
     isColorGradient,
     normalizeCSSColor,
@@ -128,32 +129,98 @@ export class ColorPlugin extends Plugin {
 
     removeAllColor() {
         const colorModes = ["color", "backgroundColor"];
+
+        // Icons (``<i class="fa …">``) carry their colour on the element
+        // itself and contain nothing but a ZWS. ``applyColor`` clears colour by
+        // wrapping content in a ``<font>``, and its element branch explicitly
+        // skips nodes whose textContent is whitespace — so an icon can never be
+        // cleared that way. Meanwhile the loop below *detects* the icon's
+        // colour through that very ZWS, a node ``applyColor`` filters out for
+        // being non-editable. Detector and mutator therefore disagreed forever:
+        // the loop span 40 times and threw "Infinite Loop in removeAllColor()"
+        // in the user's face, aborting the whole removeFormat.
+        //
+        // Clear icons directly and up-front, which both removes the colour
+        // (what the user asked for) and takes the divergent node out of play.
+        for (const icon of this.getTargetedIcons()) {
+            for (const mode of colorModes) {
+                this.colorElement(icon, "", mode);
+            }
+        }
+
         let someColorWasRemoved = true;
         while (someColorWasRemoved) {
             someColorWasRemoved = false;
             for (const mode of colorModes) {
                 let max = 40;
-                const hasAnySelectedNodeColor = (mode) => {
-                    const nodes = this.dependencies.selection
-                        .getTargetedNodes()
-                        .filter(
-                            (n) =>
-                                isTextNode(n) ||
-                                (mode === "backgroundColor" &&
-                                    n.classList.contains("o_selected_td")),
-                        );
-                    return hasAnyNodesColor(nodes, mode);
-                };
-                while (hasAnySelectedNodeColor(mode) && max > 0) {
+                while (this.hasAnySelectedNodeColor(mode) && max > 0) {
                     this.applyColor("", mode);
                     someColorWasRemoved = true;
                     max--;
                 }
                 if (max === 0) {
-                    throw new Error("Infinite Loop in removeAllColor().");
+                    // Now unreachable by construction (the detector only counts
+                    // nodes applyColor will act on), but keep the guard: a
+                    // future divergence must degrade to partially-removed
+                    // formatting, never to a thrown error that aborts the
+                    // user's removeFormat entirely.
+                    this.services?.notification?.add?.(
+                        _t("Some colors could not be removed."),
+                        { type: "warning" },
+                    );
+                    return;
                 }
             }
         }
+    }
+
+    /**
+     * Editable icons in the current selection. Kept separate from the text-node
+     * scan because an icon's colour lives on the element, not on its contents.
+     *
+     * @returns {HTMLElement[]}
+     */
+    getTargetedIcons() {
+        const icons = [];
+        for (const node of this.dependencies.selection.getTargetedNodes()) {
+            const icon =
+                node.nodeType === Node.ELEMENT_NODE && node.matches?.(ICON_SELECTOR)
+                    ? node
+                    : closestElement(node, ICON_SELECTOR);
+            if (
+                icon &&
+                !icons.includes(icon) &&
+                this.dependencies.selection.isNodeEditable(icon)
+            ) {
+                icons.push(icon);
+            }
+        }
+        return icons;
+    }
+
+    /**
+     * Whether any node in the selection still carries a colour in *mode*.
+     *
+     * Restricted to the nodes ``applyColor`` will actually process — same
+     * editability filter — so that {@link removeAllColor}'s fixed-point loop
+     * converges by construction. Counting a node the mutator skips (a ZWS
+     * inside a ``contenteditable="false"`` icon, say) makes the loop
+     * non-terminating.
+     *
+     * @param {"color"|"backgroundColor"} mode
+     * @returns {boolean}
+     */
+    hasAnySelectedNodeColor(mode) {
+        const nodes = this.dependencies.selection
+            .getTargetedNodes()
+            .filter(
+                (n) =>
+                    this.dependencies.selection.isNodeEditable(n) &&
+                    (isTextNode(n) ||
+                        (mode === "backgroundColor" &&
+                            n.classList?.contains("o_selected_td"))),
+            );
+        return hasAnyNodesColor(nodes, mode);
     }
 
     /**
@@ -294,6 +361,23 @@ export class ColorPlugin extends Plugin {
                 const isFullySelected =
                     children &&
                     children.every((child) => selectedNodes.includes(child));
+                // Same as ``isFullySelected``, but ignoring the editor's own
+                // zero-width scaffolding. Links are wrapped in FEFF isolation
+                // characters that the DOM range does not cover, so a link whose
+                // entire visible content is selected still fails the strict
+                // check above. Used only for the unsplittable guard below,
+                // where the question is "would a split be needed?" — and it
+                // would not be, since the leftover children carry no content.
+                const isFullySelectedIgnoringScaffolding =
+                    children &&
+                    children.every(
+                        (child) =>
+                            selectedNodes.includes(child) ||
+                            (child.nodeType === Node.TEXT_NODE &&
+                                !child.textContent
+                                    .replace(/[\u200B\uFEFF]/g, "")
+                                    .trim()),
+                    );
                 const isTextGradient =
                     hasInlineGradient && font.classList.contains("text-gradient");
                 const shouldReplaceExistingGradient =
@@ -311,7 +395,17 @@ export class ColorPlugin extends Plugin {
                         color === "" ||
                         !hasInlineGradient ||
                         shouldReplaceExistingGradient) &&
-                    !this.dependencies.split.isUnsplittable(font)
+                    // "Unsplittable" must gate SPLITTING, not colouring. This
+                    // branch splits the font only for a PARTIAL selection; when
+                    // the element is fully selected it is coloured in place and
+                    // nothing is split, so refusing it conflated the two.
+                    //
+                    // That conflation surfaced once links became unsplittable
+                    // (so Enter inside one inserts a <br> instead of producing
+                    // two links): a fully-selected `<a class="text-muted">`
+                    // could no longer have its colour class removed.
+                    (isFullySelectedIgnoringScaffolding ||
+                        !this.dependencies.split.isUnsplittable(font))
                 ) {
                     // Partially selected <font>: split it.
                     const selectedChildren = children.filter(
