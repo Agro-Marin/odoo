@@ -1,12 +1,14 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 import logging
 import os
+
 import pytz
 
-from odoo import _, api, fields, models, SUPERUSER_ID
+from odoo import SUPERUSER_ID, _, api, fields, models
+from odoo.exceptions import ValidationError
 from odoo.fields import Domain
 from odoo.tools import email_normalize, format_date, formataddr
-from odoo.exceptions import ValidationError
+
 _logger = logging.getLogger(__name__)
 
 
@@ -114,7 +116,7 @@ class EventRegistration(models.Model):
         if not any(field in utm_fields for field in fields):
             return ret_vals
         utm_mixin_defaults = self.env['utm.mixin'].default_get(utm_mixin_fields)
-        for (mixin_field, field) in zip(utm_mixin_fields, utm_fields):
+        for (mixin_field, field) in zip(utm_mixin_fields, utm_fields, strict=True):
             if field in fields and utm_mixin_defaults.get(mixin_field):
                 ret_vals[field] = utm_mixin_defaults[mixin_field]
         return ret_vals
@@ -216,7 +218,7 @@ class EventRegistration(models.Model):
             contact_id = partner.address_get().get('contact', False)
             if contact_id:
                 contact = self.env['res.partner'].browse(contact_id)
-                return dict((fname, contact[fname]) for fname in fnames if contact[fname])
+                return {fname: contact[fname] for fname in fnames if contact[fname]}
         return {}
 
     @api.onchange('event_id')
@@ -262,8 +264,8 @@ class EventRegistration(models.Model):
     @api.model_create_multi
     def create(self, vals_list):
         # format numbers: prefetch side records, then try to format according to country
-        all_partner_ids = set(values['partner_id'] for values in vals_list if values.get('partner_id'))
-        all_event_ids = set(values['event_id'] for values in vals_list if values.get('event_id'))
+        all_partner_ids = {values['partner_id'] for values in vals_list if values.get('partner_id')}
+        all_event_ids = {values['event_id'] for values in vals_list if values.get('event_id')}
         for values in vals_list:
             if not values.get('phone'):
                 continue
@@ -325,12 +327,12 @@ class EventRegistration(models.Model):
         self.ensure_one()
         template = self.env.ref('event.event_registration_mail_template_badge', raise_if_not_found=False)
         compose_form = self.env.ref('mail.email_compose_message_wizard_form')
-        ctx = dict(
-            default_model='event.registration',
-            default_res_ids=self.ids,
-            default_template_id=template.id if template else False,
-            default_composition_mode='comment',
-        )
+        ctx = {
+            'default_model': 'event.registration',
+            'default_res_ids': self.ids,
+            'default_template_id': template.id if template else False,
+            'default_composition_mode': 'comment',
+        }
         return {
             'name': _('Compose Email'),
             'type': 'ir.actions.act_window',
@@ -433,7 +435,7 @@ class EventRegistration(models.Model):
                 self.search([
                     ('partner_id', '=', False), email_domain, ('state', 'not in', ['cancel']),
                 ]).write({'partner_id': new_partner[0].id})
-        return super(EventRegistration, self)._message_post_after_hook(message, msg_vals)
+        return super()._message_post_after_hook(message, msg_vals)
 
     # ------------------------------------------------------------
     # TOOLS

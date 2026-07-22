@@ -1,18 +1,19 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 import contextlib
 from datetime import datetime
-from dateutil.relativedelta import relativedelta
 from unittest.mock import patch
 
+from dateutil.relativedelta import relativedelta
+
 from odoo import exceptions
-from odoo.addons.base.tests.test_ir_cron import CronMixinCase
-from odoo.addons.event.tests.common import EventCase
-from odoo.addons.event.models.event_mail import EventMail
-from odoo.addons.mail.tests.common import MailCase
 from odoo.tests import tagged, users, warmup
 from odoo.tools import formataddr, mute_logger
+
+from odoo.addons.base.tests.test_ir_cron import CronMixinCase
+from odoo.addons.event.models.event_mail import EventMail
+from odoo.addons.event.tests.common import EventCase
+from odoo.addons.mail.tests.common import MailCase
 
 
 class EventMailCommon(EventCase, MailCase, CronMixinCase):
@@ -543,7 +544,6 @@ class TestMailSchedule(EventMailCommon):
     @users('user_eventmanager')
     def test_event_mail_schedule_fail_global_no_registrations(self):
         """ Be sure no registrations = no crash in composer """
-        cron = self.env.ref("event.event_mail_scheduler").sudo()
         before_scheduler = self.test_event.event_mail_ids.filtered(lambda s: s.interval_type == "before_event")
 
         self.test_event.registration_ids.unlink()
