@@ -77,7 +77,7 @@ test("set the label of the select from the active select item and be updated on 
     expect(".o-overlay-item [data-attribute-action-value='b']").not.toHaveCount();
     await contains(".o-snippets-top-actions .fa-undo").click();
     expect(".we-bg-options-container .dropdown").toHaveText("A");
-    await contains(".o-snippets-top-actions .fa-repeat").click();
+    await contains(".o-snippets-top-actions .fa-arrow-rotate-right").click();
     expect(".we-bg-options-container .dropdown").toHaveText("B");
 });
 test("consider the priority of the select item", async () => {

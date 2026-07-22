@@ -152,7 +152,7 @@ test("Change gallery restore the container to the cloned equivalent image", asyn
 
     await contains(".o-snippets-top-actions .fa-undo").click();
     expectOptionContainerToInclude(queryOne(":iframe img[data-index='1']"));
-    await contains(".o-snippets-top-actions .fa-repeat").click();
+    await contains(".o-snippets-top-actions .fa-arrow-rotate-right").click();
     expectOptionContainerToInclude(queryOne(":iframe img[data-index='1']"));
 });
 

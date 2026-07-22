@@ -47,7 +47,7 @@ test("Undo/Redo correctly restores the stored container target", async () => {
 
     await contains(".o-snippets-top-actions .fa-undo").click();
     expect(".options-container").toHaveAttribute("data-container-title", "Target 1");
-    await contains(".o-snippets-top-actions .fa-repeat").click();
+    await contains(".o-snippets-top-actions .fa-arrow-rotate-right").click();
     expect(".options-container").toHaveCount(0);
 });
 
@@ -90,9 +90,9 @@ test("Undo/Redo multiple actions always restores the action container target", a
     expect(".options-container").toHaveAttribute("data-container-title", "Target 1");
     expect(":iframe .test-options-target.test").toHaveCount(0);
     // Redo everything.
-    await contains(".o-snippets-top-actions .fa-repeat").click();
+    await contains(".o-snippets-top-actions .fa-arrow-rotate-right").click();
     expect(".options-container").toHaveAttribute("data-container-title", "Target 1");
-    await contains(".o-snippets-top-actions .fa-repeat").click();
+    await contains(".o-snippets-top-actions .fa-arrow-rotate-right").click();
     expect(".options-container").toHaveAttribute("data-container-title", "Target 2");
     expect(":iframe .test-options-target.test").toHaveCount(2);
 });
@@ -132,7 +132,7 @@ test("Undo/Redo an action that activates another target restores the old one on 
     // Undo everything.
     await contains(".o-snippets-top-actions .fa-undo").click();
     expect(".options-container").toHaveAttribute("data-container-title", "Target 1");
-    await contains(".o-snippets-top-actions .fa-repeat").click();
+    await contains(".o-snippets-top-actions .fa-arrow-rotate-right").click();
     expect(".options-container").toHaveAttribute("data-container-title", "Target 2");
 });
 
@@ -168,7 +168,7 @@ test("Undo/Redo an action that deactivates the containers restores the old one o
     // Undo everything.
     await contains(".o-snippets-top-actions .fa-undo").click();
     expect(".options-container").toHaveAttribute("data-container-title", "Target 1");
-    await contains(".o-snippets-top-actions .fa-repeat").click();
+    await contains(".o-snippets-top-actions .fa-arrow-rotate-right").click();
     expect(".options-container").toHaveCount(0);
     expect("button[data-name='blocks']").toHaveClass("active");
 });

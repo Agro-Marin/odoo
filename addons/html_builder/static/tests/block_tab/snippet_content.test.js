@@ -86,7 +86,7 @@ test("Drag & drop inner content block + undo/redo", async () => {
     });
     expect(contentEl).toHaveInnerHTML(`<div><p>Text</p></div>`);
     expect(".o-website-builder_sidebar .fa-undo").not.toBeEnabled();
-    expect(".o-website-builder_sidebar .fa-repeat").not.toBeEnabled();
+    expect(".o-website-builder_sidebar .fa-arrow-rotate-right").not.toBeEnabled();
 
     await click(".o-website-builder_sidebar .fa-undo");
     const { moveTo, drop } = await contains(
@@ -100,13 +100,13 @@ test("Drag & drop inner content block + undo/redo", async () => {
         `<div>\ufeff<a class="btn btn-primary" href="#" data-snippet="s_button" data-name="Button A">\ufeffButton A\ufeff</a>\ufeff<p>Text</p></div>`
     );
     expect(".o-website-builder_sidebar .fa-undo").toBeEnabled();
-    expect(".o-website-builder_sidebar .fa-repeat").not.toBeEnabled();
+    expect(".o-website-builder_sidebar .fa-arrow-rotate-right").not.toBeEnabled();
 
     await click(".o-website-builder_sidebar .fa-undo");
     await animationFrame();
     expect(contentEl).toHaveInnerHTML(`<div><p>Text</p></div>`);
     expect(".o-website-builder_sidebar .fa-undo").not.toBeEnabled();
-    expect(".o-website-builder_sidebar .fa-repeat").toBeEnabled();
+    expect(".o-website-builder_sidebar .fa-arrow-rotate-right").toBeEnabled();
 });
 
 test("Drag inner content and drop it outside of a dropzone", async () => {

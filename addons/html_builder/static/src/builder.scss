@@ -11,7 +11,7 @@
     height: 46px;
 
     .o_rtl & {
-        .fa-undo, .fa-repeat {
+        .fa-undo, .fa-arrow-rotate-right {
             transform: scaleX(-1);
         }
     }
