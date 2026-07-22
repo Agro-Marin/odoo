@@ -18,5 +18,13 @@ class WebsocketControllerPresence(WebsocketController):
         This is mainly used by Odoo.sh."""
         if "is_websocket_session" not in request.session:
             raise SessionExpiredException
-        request.env["ir.websocket"]._update_mail_presence(int(inactivity_period))
+        # inactivity_period is client-supplied on a public route: coerce
+        # defensively so a non-numeric value degrades to "active" (0) instead of
+        # raising a raw ValueError -> 500, matching the int-coercion hardening on
+        # the other public mail routes.
+        try:
+            inactivity_period = int(inactivity_period)
+        except TypeError, ValueError:
+            inactivity_period = 0
+        request.env["ir.websocket"]._update_mail_presence(inactivity_period)
         return {}

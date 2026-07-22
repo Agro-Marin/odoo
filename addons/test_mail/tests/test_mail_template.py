@@ -251,7 +251,11 @@ class TestMailTemplateLanguages(TestMailTemplateCommon):
     def test_template_send_email_batch(self):
         """ Test 'send_email' on template in batch """
         self.env.invalidate_all()
-        with self.with_user(self.user_employee.login), self.assertQueryCount(25):
+        # 29 (was 25): the fork's message-write / notification / envelope access
+        # enforcement adds a small, constant number of ir_rule evaluations to the
+        # batch send (verified by profiling: no per-record N+1 — the extra
+        # queries do not scale with the batch size).
+        with self.with_user(self.user_employee.login), self.assertQueryCount(29):
             template = self.test_template.with_env(self.env)
             mails_sudo = template.send_mail_batch(self.test_records_batch.ids)
 
@@ -291,8 +295,9 @@ class TestMailTemplateLanguages(TestMailTemplateCommon):
     def test_template_send_email_wreport_batch(self):
         """ Test 'send_email' on template in batch with dynamic reports """
         self.env.invalidate_all()
-        # tm: 233, nightly: +1
-        with self.with_user(self.user_employee.login), self.assertQueryCount(232):
+        # 236 (was 232): same constant access-enforcement overhead as
+        # test_template_send_email_batch, on top of the dynamic-report path.
+        with self.with_user(self.user_employee.login), self.assertQueryCount(236):
             template = self.test_template_wreports.with_env(self.env)
             mails_sudo = template.send_mail_batch(self.test_records_batch.ids)
 

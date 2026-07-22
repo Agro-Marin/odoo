@@ -947,9 +947,7 @@ class MailActivity(models.Model):
                 (
                     "res_id",
                     "in",
-                    DocModel._search(domain or [], offset, limit, DocModel._order)
-                    if is_filtered
-                    else [],
+                    DocModel._search(domain or [], offset, limit, DocModel._order),
                 )
             )
         all_activities = Activity.with_context(active_test=not fetch_done).search(

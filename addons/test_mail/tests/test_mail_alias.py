@@ -264,7 +264,7 @@ class TestMailAlias(TestMailAliasCommon):
             'helene.provaider',
             '-',
             'deboulonneur-',
-            '?',
+            False,
         ]
         msgs = [
             'Emails cannot start or end with a dot, there cannot be a sequence of dots.',
@@ -272,7 +272,8 @@ class TestMailAlias(TestMailAliasCommon):
             'Email alias should be unaccented',
             'Only a subset of unaccented latin chars are valid, others are replaced',
             'Only a subset of unaccented latin chars are valid, others are replaced',
-            'Only a subset of unaccented latin chars are valid, others are replaced',
+            'Purely non-latin names are dropped to empty and rejected as False, '
+            'not turned into a garbage "?" alias',
         ]
         for alias_name, expected, msg in zip(alias_names, expected_names, msgs):
             with self.subTest(alias_name=alias_name):
@@ -688,7 +689,6 @@ class TestMailAliasDomain(TestMailAliasCommon):
                 ),
                 ('bounce+😊', 'catchall+😊', 'notifications+😊'),
                 ('Bouncâïde 😊', 'Catchôïee 😊', 'Notificâtïons 😊'),
-                ('ぁ', 'ぁぁ', 'ぁぁぁ'),
                 # only default_from can be a valid email and taken as such
                 (
                     'bounce@wrong.complete.com',
@@ -704,7 +704,6 @@ class TestMailAliasDomain(TestMailAliasCommon):
                 ),
                 ('bounce+-', 'catchall+-', 'notifications+-'),
                 ('bouncaide-', 'catchoiee-', 'notifications-'),
-                ('?', '??', '???'),
                 # only default_from can be a valid email and taken as such
                 (
                     'bounce',
@@ -727,11 +726,6 @@ class TestMailAliasDomain(TestMailAliasCommon):
                     f'catchoiee-@{alias_domain.name}',
                     f'notifications-@{alias_domain.name}'
                 ),
-                (
-                    f'?@{alias_domain.name}',
-                    f'??@{alias_domain.name}',
-                    f'???@{alias_domain.name}'
-                ),
                 # only default_from can be a valid email and taken as such
                 (
                     f'bounce@{alias_domain.name}',
@@ -753,8 +747,9 @@ class TestMailAliasDomain(TestMailAliasCommon):
                 self.assertEqual(alias_domain.default_from, exp_default_from)
                 self.assertEqual(alias_domain.default_from_email, exp_default_from_email)
 
-        # falsy values
-        for config_value in [False, None, '', ' ']:
+        # falsy values (incl. purely non-latin names, dropped to empty and
+        # therefore rejected as False rather than turned into a "?" garbage alias)
+        for config_value in [False, None, '', ' ', 'ぁ', 'ぁぁ']:
             with self.subTest(config_value=config_value):
                 alias_domain.write({'bounce_alias': config_value})
                 self.assertFalse(alias_domain.bounce_alias)
