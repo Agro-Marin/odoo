@@ -1,10 +1,12 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 from collections import defaultdict
-from itertools import groupby
-from odoo import api, fields, models, _
-from odoo.exceptions import ValidationError
 from datetime import timedelta
+from itertools import groupby
+
 from dateutil.relativedelta import relativedelta
+
+from odoo import _, api, fields, models
+from odoo.exceptions import ValidationError
 
 
 class HrWorkEntryRegenerationWizard(models.TransientModel):
