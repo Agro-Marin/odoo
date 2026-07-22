@@ -1,9 +1,5 @@
-# -*- coding: utf-8 -*-
 
-from collections import Counter, defaultdict
-
-from odoo import models, fields, api
-from odoo.exceptions import ValidationError
+from odoo import api, fields, models
 
 
 class RegistrationEditor(models.TransientModel):
@@ -15,7 +11,7 @@ class RegistrationEditor(models.TransientModel):
 
     @api.model
     def default_get(self, fields):
-        res = super(RegistrationEditor, self).default_get(fields)
+        res = super().default_get(fields)
         if not res.get('sale_order_id'):
             sale_order_id = res.get('sale_order_id', self.env.context.get('active_id'))
             res['sale_order_id'] = sale_order_id
@@ -53,8 +49,7 @@ class RegistrationEditor(models.TransientModel):
                 'phone': so_line.partner_id.phone,
             }] for _count in range(int(so_line.product_uom_qty) - len(registrations))]
         res['event_registration_ids'] = attendee_list
-        res = self._convert_to_write(res)
-        return res
+        return self._convert_to_write(res)
 
     def action_make_registration(self):
         self.ensure_one()
