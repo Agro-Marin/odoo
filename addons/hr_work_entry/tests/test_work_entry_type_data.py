@@ -5,13 +5,14 @@ from odoo.release import version_info
 from odoo.tests import tagged
 from odoo.tests.common import TransactionCase
 
+
 @tagged('-at_install', 'post_install', 'post_install_l10n')
 class TestWorkEntryTypeData(TransactionCase):
 
     def test_ensure_work_entry_type_definition(self):
         # Make sure work entry types are defined in hr_work_entry in master (and not in other modules)
-        # In the case this tests breaks during a forward port, move the work entry type definition
-        # to hr_work_entry and make a upgrade script accordingly.
+        # If this test breaks during a forward port, move the work entry type definition
+        # to hr_work_entry and make an upgrade script accordingly.
         if version_info[3] != 'alpha':
             return
         work_entry_types_xmlids = self.env['hr.work.entry.type'].search([])._get_external_ids()
