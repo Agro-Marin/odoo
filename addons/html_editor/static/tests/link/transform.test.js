@@ -144,8 +144,13 @@ test("transform text url into link and undo it", async () => {
         '<p><a href="https://www.abc.jpg">www.abc.jpg</a>&nbsp;[]</p>',
     );
 
+    // The plugin commits the link creation and the programmatic nbsp as two
+    // separate history steps (see LinkPlugin.onBeforeInput), so the first undo
+    // takes back the space and the second the link itself.
     undo(editor);
-    expect(cleanLinkArtifacts(getContent(el))).toBe("<p>www.abc.jpg&nbsp;[]</p>");
+    expect(cleanLinkArtifacts(getContent(el))).toBe(
+        '<p><a href="https://www.abc.jpg">www.abc.jpg</a>[]</p>',
+    );
 
     undo(editor);
     expect(cleanLinkArtifacts(getContent(el))).toBe("<p>www.abc.jpg[]</p>");

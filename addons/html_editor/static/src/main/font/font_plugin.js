@@ -217,6 +217,11 @@ export class FontPlugin extends Plugin {
                             },
                         );
                         this.updateFontSizeSelectorParams();
+                        // Picking a size leaves focus on the dropdown toggle,
+                        // so the user would keep typing outside the editor.
+                        // Plain toolbar buttons already hand focus back (see
+                        // Toolbar.onButtonClick); dropdown selections must too.
+                        this.dependencies.selection.focusEditable();
                     },
                     onBlur: () => this.dependencies.selection.focusEditable(),
                     document: this.document,
