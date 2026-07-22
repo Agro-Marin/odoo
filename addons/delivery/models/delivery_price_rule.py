@@ -3,7 +3,6 @@
 from odoo import api, fields, models
 from odoo.tools import format_amount
 
-
 VARIABLE_SELECTION = [
     ('weight', "Weight"),
     ('volume', "Volume"),

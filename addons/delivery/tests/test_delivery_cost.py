@@ -314,7 +314,7 @@ class TestDeliveryCost(DeliveryCommon, SaleCommon):
                 'product_id': product.id,
                 'combo_item_id': combo.combo_item_ids.id,
                 'linked_line_id': combo_line.id,
-            }) for product, combo in zip(self.product + weightless_product, combos)],
+            }) for product, combo in zip(self.product + weightless_product, combos, strict=True)],
             Command.create({'product_id': weightless_product.id, 'product_qty': 0}),
             Command.create({'product_id': self.service_product.id}),
             Command.create({'display_type': 'line_section', 'name': "Misc."}),
