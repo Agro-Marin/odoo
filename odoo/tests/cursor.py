@@ -1,3 +1,4 @@
+import contextlib
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
@@ -108,13 +109,19 @@ class TestCursor(BaseCursor):
             finally:
                 self._closed = True
 
-                tos = self._cursors_stack.pop()
-                if tos is not self:
+                # Remove *this* cursor from the stack.  Popping blindly on an
+                # out-of-order close used to evict the still-open top cursor
+                # (which then leaked) while leaving this one in the stack,
+                # corrupting every subsequent close.
+                if self._cursors_stack and self._cursors_stack[-1] is self:
+                    self._cursors_stack.pop()
+                else:
                     _logger.warning(
-                        "Found different un-closed cursor when trying to close %s: %s",
+                        "Out-of-order close: %s is not the top of the cursor stack",
                         self,
-                        tos,
                     )
+                    with contextlib.suppress(ValueError):
+                        self._cursors_stack.remove(self)
                 self._lock.release()
 
     def commit(self) -> None:

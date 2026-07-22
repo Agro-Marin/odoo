@@ -207,6 +207,4 @@ class OdooSuite(TestSuite):
 
     def has_http_case(self) -> bool:
         """Return True if the suite contains at least one HttpCase test."""
-        return self.countTestCases() and any(
-            isinstance(test_case, HttpCase) for test_case in self
-        )
+        return any(isinstance(test_case, HttpCase) for test_case in self)

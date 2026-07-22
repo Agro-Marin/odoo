@@ -5,11 +5,13 @@ import contextlib
 import difflib
 import logging
 import re
+import threading
 from contextlib import contextmanager
 from pathlib import PurePath
 from unittest import SkipTest, skip
 from unittest.mock import patch
 
+from odoo.tests.benchmark import compute_stats
 from odoo.tests.case import TestCase
 from odoo.tests.common import (
     BaseCase,
@@ -18,6 +20,7 @@ from odoo.tests.common import (
     users,
     warmup,
 )
+from odoo.tests.cursor import TestCursor
 from odoo.tests.result import OdooTestResult
 
 _logger = logging.getLogger(__name__)
@@ -577,3 +580,67 @@ class TestRegistryRLock(BaseCase):
         for i in range(5):
             self.assertEqual(lock.count, 5 - i)
             lock.release()
+
+
+class TestCursorStack(TransactionCase):
+    def test_out_of_order_close(self):
+        """Closing a non-top TestCursor must remove *that* cursor, not evict
+        the still-open top of the stack."""
+        lock = threading.RLock()
+        cr1 = self.registry.cursor()
+        cr2 = self.registry.cursor()
+        tc1 = TestCursor(cr1, lock, readonly=False)
+        tc2 = TestCursor(cr2, lock, readonly=False)
+
+        def cleanup():
+            for tc in (tc1, tc2):
+                if not tc._closed:
+                    tc.close()
+            cr1.close()
+            cr2.close()
+
+        self.addCleanup(cleanup)
+
+        with self.assertLogs("odoo.db.cursor", level="WARNING"):
+            tc1.close()  # out of order: tc2 is the top of the stack
+        self.assertNotIn(tc1, TestCursor._cursors_stack)
+        self.assertIn(tc2, TestCursor._cursors_stack)
+        self.assertFalse(tc2._closed)
+
+        tc2.close()  # normal close, no warning
+        self.assertNotIn(tc2, TestCursor._cursors_stack)
+
+
+class TestBenchmarkStats(BaseCase):
+    def test_compute_stats_raw_extremes_joint_trim(self):
+        """min/max report raw extremes; query/DB samples are trimmed jointly
+        with the timing samples (same iterations dropped)."""
+        times = [100.0] * 19 + [10000.0]
+        db_times = [60.0] * 19 + [9990.0]
+        query_counts = [3] * 19 + [50]
+        stats = compute_stats("t", times, query_counts, db_times)
+
+        self.assertEqual(stats.iterations, 20)
+        self.assertEqual(stats.total_samples, 19)  # outlier iteration trimmed
+        self.assertEqual(stats.min_us, 100.0)
+        self.assertEqual(stats.max_us, 10000.0)  # raw, not trimmed, extremes
+        self.assertAlmostEqual(stats.mean_us, 100.0)
+        # the outlier iteration's DB time and query count are dropped with it
+        self.assertAlmostEqual(stats.db_time_us, 60.0)
+        self.assertAlmostEqual(stats.db_ratio, 0.6)
+        self.assertAlmostEqual(stats.query_count_mean, 3.0)
+        self.assertEqual(stats.query_count_max, 50)
+
+    def test_compute_stats_ratio_bounded(self):
+        """With per-iteration db <= wall samples, db_ratio stays <= 1 because
+        both means are computed over the same iteration subset."""
+        times = [100.0] * 9 + [1000.0]
+        db_times = [99.0] * 9 + [999.0]
+        stats = compute_stats("t", times, [1] * 10, db_times)
+        self.assertLessEqual(stats.db_ratio, 1.0)
+        self.assertGreaterEqual(stats.python_time_us, 0.0)
+
+    def test_compute_stats_small_sample_untrimmed(self):
+        stats = compute_stats("t", [1.0, 2.0, 3.0], [1, 1, 1], [0.5, 0.5, 0.5])
+        self.assertEqual(stats.total_samples, 3)
+        self.assertEqual(stats.max_us, 3.0)

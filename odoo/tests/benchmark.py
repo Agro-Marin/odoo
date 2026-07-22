@@ -45,11 +45,24 @@ def remove_outliers(
     data: list[float], percentile_cutoff: float = OUTLIER_PERCENTILE
 ) -> list[float]:
     """Remove outliers outside the given percentile range."""
+    return [data[i] for i in _inlier_indices(data, percentile_cutoff)]
+
+
+def _inlier_indices(
+    data: list[float], percentile_cutoff: float = OUTLIER_PERCENTILE
+) -> list[int]:
+    """Return the indices of ``data`` within the given percentile range.
+
+    Index-based so parallel sample lists (query counts, DB times) can be
+    trimmed *jointly* with the timing list they were measured with —
+    trimming each list on its own percentiles decorrelates them and produces
+    impossible aggregates (DB ratio above 1, negative Python time).
+    """
     if len(data) < 10:
-        return data
+        return list(range(len(data)))
     lower = percentile(data, percentile_cutoff)
     upper = percentile(data, 100 - percentile_cutoff)
-    return [x for x in data if lower <= x <= upper]
+    return [i for i, x in enumerate(data) if lower <= x <= upper]
 
 
 # ---------------------------------------------------------------------------
@@ -184,6 +197,7 @@ class BenchmarkStats:
             f"    Median: {self.median_us:10.1f}\n"
             f"    Min:    {self.min_us:10.1f}    Max: {self.max_us:.1f}\n"
             f"    P5:     {self.p5_us:10.1f}    P95: {self.p95_us:.1f}\n"
+            f"    P25:    {self.p25_us:10.1f}    P75: {self.p75_us:.1f}\n"
             f"    P99:    {self.p99_us:10.1f}\n"
             f"\n"
             f"  QUERIES: {self.query_count_mean:.1f} (min: {self.query_count_min}, max: {self.query_count_max})\n"
@@ -235,12 +249,25 @@ def compute_stats(
     """Compute comprehensive statistics from benchmark timing data.
 
     All input lists must be in **microseconds**.
-    """
-    clean_times = remove_outliers(times_us)
-    clean_db_times = remove_outliers(db_times_us)
 
-    if not clean_times:
-        clean_times = times_us
+    Mean/median/std/percentiles are computed on outlier-trimmed samples;
+    ``min_us``/``max_us`` report the *raw* extremes.  Query counts and DB
+    times are trimmed jointly with the timing samples they belong to (same
+    iterations dropped), keeping ``db_ratio``/``python_time_us`` coherent.
+    """
+    indices = _inlier_indices(times_us) or range(len(times_us))
+    clean_times = [times_us[i] for i in indices]
+    # joint trim only when the lists are parallel per-iteration samples
+    clean_db_times = (
+        [db_times_us[i] for i in indices]
+        if len(db_times_us) == len(times_us)
+        else db_times_us
+    )
+    clean_query_counts = (
+        [query_counts[i] for i in indices]
+        if len(query_counts) == len(times_us)
+        else query_counts
+    )
 
     mean_time = statistics.mean(clean_times)
     std_dev = statistics.stdev(clean_times) if len(clean_times) > 1 else 0
@@ -255,14 +282,16 @@ def compute_stats(
         mean_us=mean_time,
         median_us=statistics.median(clean_times),
         std_dev_us=std_dev,
-        min_us=min(clean_times),
-        max_us=max(clean_times),
+        min_us=min(times_us),
+        max_us=max(times_us),
         p5_us=percentile(clean_times, 5),
         p25_us=percentile(clean_times, 25),
         p75_us=percentile(clean_times, 75),
         p95_us=percentile(clean_times, 95),
         p99_us=percentile(clean_times, 99),
-        query_count_mean=statistics.mean(query_counts) if query_counts else 0,
+        query_count_mean=statistics.mean(clean_query_counts)
+        if clean_query_counts
+        else 0,
         query_count_min=min(query_counts) if query_counts else 0,
         query_count_max=max(query_counts) if query_counts else 0,
         db_time_us=mean_db,
@@ -355,8 +384,9 @@ class PerfTimer:
     def stats(self, name: str = "", *, warmup: int = 0) -> dict:
         """Compute statistics from collected samples.
 
-        Returns a dict with p50/p95/p99/mean/min/max in **nanoseconds**
-        and human-readable ``summary`` string.
+        Returns a dict with p50/p95/p99/mean/min/max in **microseconds**
+        (samples are collected in ns, converted here) and a human-readable
+        ``summary`` string.
         """
         raw = self.samples_ns[warmup:]
         if not raw:

@@ -336,9 +336,10 @@ class Form:
                     model_info["fields"] = {}
                 model_info["fields"].update(value["fields"])
 
-        # pick the first editable subview
+        # pick the first editable subview; mode="form" has no list alternative
         view_type = next(
-            vtype for vtype in node.get("mode", "list").split(",") if vtype != "form"
+            (vtype for vtype in node.get("mode", "list").split(",") if vtype != "form"),
+            "form",
         )
         if not (view_type == "list" and views["list"].get("editable")):
             view_type = "form"
@@ -609,17 +610,19 @@ class Form:
                 else:
                     subview = field_info["edition_view"]
                     value = value.to_commands(
-                        lambda vals, subview=subview, field_info=field_info: self._get_values(
-                            mode,
-                            vals,
-                            subview,
-                            modifiers_values={
-                                "id": False,
-                                **vals,
-                                "parent": Dotter(values),
-                            },
-                            # related o2m don't have a relation_field
-                            parent_link=field_info.get("relation_field"),
+                        lambda vals, subview=subview, field_info=field_info: (
+                            self._get_values(
+                                mode,
+                                vals,
+                                subview,
+                                modifiers_values={
+                                    "id": False,
+                                    **vals,
+                                    "parent": Dotter(values),
+                                },
+                                # related o2m don't have a relation_field
+                                parent_link=field_info.get("relation_field"),
+                            )
                         )
                     )
 

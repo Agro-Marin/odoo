@@ -15,14 +15,14 @@ class TagsSelector:
                                 ^
                                 ([+-]?)                     # operator_re
                                 (\*|\w*)                    # tag_re
-                                (\/[\w\/\.-]+.py)?           # file_re
+                                (\/[\w\/\.-]+\.py)?         # file_re
                                 (?:\/(\w+))?                # module_re
                                 (?::(\w*))?                 # test_class_re
                                 (?:\.(\w*))?                # test_method_re
                                 (?:\[(.*)\])?               # parameters
                                 $""",
         re.VERBOSE,
-    )  # [-][tag][/module][:class][.method][[params]]
+    )  # [-][tag][/file_path.py|/module][:class][.method][[params]]
 
     def __init__(self, spec: str) -> None:
         """Parse the spec to determine tags to include and exclude."""
