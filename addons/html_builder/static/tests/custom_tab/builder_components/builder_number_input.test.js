@@ -355,7 +355,7 @@ describe("operations", () => {
         expect.verifySteps(["customAction 102"]);
         expect(":iframe .test-options-target").toHaveInnerHTML("102");
         expect(".o-snippets-top-actions .fa-undo").not.toBeEnabled();
-        expect(".o-snippets-top-actions .fa-repeat").not.toBeEnabled();
+        expect(".o-snippets-top-actions .fa-arrow-rotate-right").not.toBeEnabled();
     });
     test("should commit changes", async () => {
         addBuilderAction({
@@ -389,7 +389,7 @@ describe("operations", () => {
         await animationFrame();
         expect.verifySteps(["customAction 102"]);
         expect(".o-snippets-top-actions .fa-undo").toBeEnabled();
-        expect(".o-snippets-top-actions .fa-repeat").not.toBeEnabled();
+        expect(".o-snippets-top-actions .fa-arrow-rotate-right").not.toBeEnabled();
     });
     test("should commit changes after an undo", async () => {
         addBuilderAction({

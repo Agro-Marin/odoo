@@ -44,7 +44,7 @@ test("should commit changes", async () => {
     await click(document.body);
     await animationFrame();
     expect(".o-snippets-top-actions .fa-undo").toBeEnabled();
-    expect(".o-snippets-top-actions .fa-repeat").not.toBeEnabled();
+    expect(".o-snippets-top-actions .fa-arrow-rotate-right").not.toBeEnabled();
 });
 
 test("range input should step up or down with arrow keys", async () => {

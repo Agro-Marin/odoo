@@ -172,7 +172,7 @@ test("Reset transform button should appear after transforming image", async () =
     await animationFrame();
     await click("[data-action-id=transformImage]");
     await expectElementCount(".transfo-container", 1);
-    const rotateBtn = queryOne(".transfo-controls .fa-repeat");
+    const rotateBtn = queryOne(".transfo-controls .fa-arrow-rotate-right");
     const btnRect = rotateBtn.getBoundingClientRect(rotateBtn);
     await manuallyDispatchProgrammaticEvent(rotateBtn, "mousedown", {
         clientX: btnRect.left + 5,
