@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 import base64
@@ -60,8 +59,8 @@ class ResConfigSettings(models.TransientModel):
             if config.google_maps_static_api_secret:
                 try:
                     base64.urlsafe_b64decode(config.google_maps_static_api_secret)
-                except binascii.Error:
-                    raise exceptions.UserError(_("Please enter a valid base64 secret"))
+                except binascii.Error as e:
+                    raise exceptions.UserError(_("Please enter a valid base64 secret")) from e
 
     @api.model_create_multi
     def create(self, vals_list):

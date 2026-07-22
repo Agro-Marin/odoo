@@ -1,12 +1,11 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 import base64
 import binascii
 import hmac
+from urllib.parse import urlencode
 
 import requests
-from urllib.parse import urlencode
 
 from odoo import api, fields, models
 
@@ -67,7 +66,7 @@ class ResPartner(models.Model):
         if not GOOGLE_MAPS_STATIC_API_KEY or not GOOGLE_MAPS_STATIC_API_SECRET:
             return None
         # generate signature as per https://developers.google.com/maps/documentation/maps-static/digital-signature#server-side-signing
-        location_string = f"{self.street}, {self.city} {self.zip}, {self.country_id and self.country_id.display_name or ''}"
+        location_string = f"{self.street}, {self.city} {self.zip}, {(self.country_id and self.country_id.display_name) or ''}"
         params = {
             'center': location_string,
             'markers': f'size:mid|{location_string}',

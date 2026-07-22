@@ -6,10 +6,9 @@ from itertools import batched
 from dateutil.relativedelta import relativedelta
 from markupsafe import Markup
 
-from odoo import api, fields, models, modules, tools
+from odoo import api, fields, models, modules
 from odoo.tools.rendering_tools import QWebError
 from odoo.tools.translate import _
-
 
 _logger = logging.getLogger(__name__)
 
@@ -74,9 +73,9 @@ class EventMail(models.Model):
             if scheduler.interval_type == 'after_sub':
                 date, sign = scheduler.event_id.create_date, 1
             elif scheduler.interval_type in ('before_event', 'after_event_start'):
-                date, sign = scheduler.event_id.date_begin, scheduler.interval_type == 'before_event' and -1 or 1
+                date, sign = scheduler.event_id.date_begin, (scheduler.interval_type == 'before_event' and -1) or 1
             else:
-                date, sign = scheduler.event_id.date_end, scheduler.interval_type == 'after_event' and 1 or -1
+                date, sign = scheduler.event_id.date_end, (scheduler.interval_type == 'after_event' and 1) or -1
 
             scheduler.scheduled_date = date.replace(microsecond=0) + _INTERVALS[scheduler.interval_unit](sign * scheduler.interval_nbr) if date else False
 
@@ -165,7 +164,7 @@ class EventMail(models.Model):
             registrations = registrations[:cron_limit]
             self.env.ref('event.event_mail_scheduler')._trigger()
 
-        for registrations_chunk in (self.env["event.registration"].browse(b) for b in batched(registrations.ids, batch_size)):
+        for registrations_chunk in (self.env["event.registration"].browse(b) for b in batched(registrations.ids, batch_size, strict=False)):
             self._execute_event_based_for_registrations(registrations_chunk)
             scheduler_record.last_registration_id = registrations_chunk[-1]
 
@@ -270,7 +269,7 @@ class EventMail(models.Model):
             new_attendee_mails = new_attendee_mails[:cron_limit]
             self.env.ref('event.event_mail_scheduler')._trigger()
 
-        for chunk in (self.env["event.mail.registration"].browse(b) for b in batched(new_attendee_mails.ids, batch_size)):
+        for chunk in (self.env["event.mail.registration"].browse(b) for b in batched(new_attendee_mails.ids, batch_size, strict=False)):
             # filter out canceled / draft, and compare to seats_taken (same heuristic)
             valid_chunk = chunk.filtered(lambda m: m.registration_id.state not in ("draft", "cancel"))
             # scheduled mails for draft / cancel should be removed as they won't be sent
@@ -289,7 +288,7 @@ class EventMail(models.Model):
     def _create_missing_mail_registrations(self, registrations):
         new = self.env["event.mail.registration"]
         for scheduler in self:
-            for _chunk in (self.env["event.registration"].browse(b) for b in batched(registrations.ids, 500)):
+            for _chunk in (self.env["event.registration"].browse(b) for b in batched(registrations.ids, 500, strict=False)):
                 new += self.env['event.mail.registration'].create([{
                     'registration_id': registration.id,
                     'scheduler_id': scheduler.id,
@@ -485,7 +484,7 @@ class EventMail(models.Model):
                 # Prevent a mega prefetch of the registration ids of all the events of all the schedulers
                 self.browse(scheduler.id).execute()
             except Exception as e:
-                _logger.exception(e)
+                _logger.exception("Error while executing event mail scheduler %s", scheduler.id)
                 self.env.invalidate_all()
                 scheduler._warn_error(e)
             else:
