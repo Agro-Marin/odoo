@@ -107,8 +107,12 @@ class LoadMixin(_ModelStubs):
                 )
 
             if xml_id and xml_id not in batch_xml_ids:
-                if xml_id not in self.env:
-                    return
+                # The referenced xid is not pending in the current batch, so
+                # flushing the batch cannot resolve it — skip. (The former
+                # ``xml_id not in self.env`` tested the xid against model *names*
+                # via ``Environment.__contains__``, which only skipped when the
+                # xid did not happen to collide with a model name.)
+                return
             if model and model not in creatable_models:
                 return
 

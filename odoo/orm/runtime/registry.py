@@ -938,10 +938,19 @@ class Registry(
                         )
                 if changes:
                     _logger.debug("Multiprocess signaling check: %s", changes)
-        except psycopg.OperationalError, db.PoolError:
+        except db.PoolError:
+            # Pool capacity exhausted (all connections in use), NOT a dead DB.
+            # Deleting the registry here would turn a transient load spike into a
+            # self-inflicted outage: the next request pays a full module reload
+            # under the global lock, opening yet more connections. Propagate and
+            # let the caller retry once the pool drains.
+            raise
+        except psycopg.OperationalError:
             if cr is None:
-                # We couldn't open a cursor — database likely unreachable
-                # (e.g. dropped). Remove stale registry to prevent repeated hangs.
+                # We opened the cursor ourselves and it failed with a connection
+                # error (not capacity) — the database is likely unreachable
+                # (dropped / refused). Remove the stale registry to prevent
+                # repeated hangs.
                 type(self).delete(self.db_name)
             raise
         return self

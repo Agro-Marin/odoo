@@ -14,7 +14,7 @@ from odoo.tools import (
 from odoo.tools.translate import FIELD_TRANSLATE, _
 
 from . import (
-    fields,  # must be imported after models
+    fields,
     models,
 )
 from .primitives import LOG_ACCESS_COLUMNS
