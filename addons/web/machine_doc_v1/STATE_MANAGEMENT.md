@@ -418,7 +418,7 @@ Global events are defined in `core/events.js` and exported from `@web/core`.
 | `AppEvent.BLOCK` / `UNBLOCK` | `BLOCK` / `UNBLOCK` | env.bus | UI blocking |
 | `AppEvent.ACTIVE_ELEMENT_CHANGED` | `active-element-changed` | env.bus | Dialog focus |
 | `AppEvent.RESIZE` | `resize` | env.bus | Window resize |
-| `RpcEvent.REQUEST` / `RESPONSE` | `RPC:REQUEST` / `RPC:RESPONSE` | rpcBus | RPC lifecycle |
+| `RpcEvent.REQUEST` / `RESPONSE` | `RPC:REQUEST` / `RPC:RESPONSE` | rpcBus | RPC lifecycle. Both carry `{data, url, settings}`; RESPONSE adds `result` (success) or `error` (failure). `url` is on **both** events — it was previously omitted from RESPONSE, so observers could not identify the endpoint of any call whose `params` carry no `model`/`method` (session_info, `/web/action/load`, `get_views`). |
 | `RpcEvent.CLEAR_CACHES` | `CLEAR-CACHES` | rpcBus | Invalidate caches |
 | `RouterEvent.ROUTE_CHANGE` | `ROUTE_CHANGE` | routerBus | URL changed |
 | `SearchModelEvent.UPDATE` | `update` | env.searchModel | Search state changed |

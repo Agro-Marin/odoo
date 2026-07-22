@@ -1127,3 +1127,40 @@ test("Cache: aborting the initiator rejects it (control)", async () => {
     initiator.abort(true);
     await expect(initiator).rejects.toThrow(new ConnectionAbortedError());
 });
+
+test("RPC:RESPONSE carries the url, like RPC:REQUEST", async () => {
+    // Every RESPONSE trigger used to omit ``url``, so an observer could not
+    // identify the endpoint of a call whose params carry no model/method
+    // (session_info, /web/action/load, get_views, ...). The debug RPC log
+    // rendered a literal "undefined" for exactly those.
+    const seen = [];
+    onRpcRequest(({ detail }) => seen.push(["request", detail.url]));
+    onRpcResponse(({ detail }) => seen.push(["response", detail.url]));
+
+    // Success path.
+    mockFetch(() => ({ result: 1 }));
+    await rpc("/web/session/get_session_info");
+    expect(seen).toEqual([
+        ["request", "/web/session/get_session_info"],
+        ["response", "/web/session/get_session_info"],
+    ]);
+
+    // Server-error path.
+    seen.length = 0;
+    mockFetch(() => ({ error: { code: 200, message: "boom", data: {} } }));
+    await rpc("/web/action/load").catch(() => {});
+    expect(seen).toEqual([
+        ["request", "/web/action/load"],
+        ["response", "/web/action/load"],
+    ]);
+
+    // Abort path.
+    seen.length = 0;
+    mockFetch(() => new Promise(() => {}));
+    const prom = rpc("/web/dataset/call_kw/foo/bar");
+    prom.abort(false);
+    expect(seen).toEqual([
+        ["request", "/web/dataset/call_kw/foo/bar"],
+        ["response", "/web/dataset/call_kw/foo/bar"],
+    ]);
+});

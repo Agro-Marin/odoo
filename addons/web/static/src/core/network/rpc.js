@@ -61,9 +61,16 @@ import { isObject, omit } from "@web/core/utils/collections/objects";
  * events fired on ``rpcBus``. Discriminated by the presence of
  * ``result`` (success) vs ``error`` (failure) vs neither (request).
  *
+ * ``url`` is set on BOTH events. It used to be omitted from every RESPONSE
+ * trigger, which left observers unable to identify the endpoint of any call
+ * whose ``params`` carry no ``model``/``method`` — session_info,
+ * ``/web/action/load``, ``get_views``, the observability beacons. The debug
+ * RPC log below is one such consumer: its fallback ``params.method ||
+ * detail.url`` rendered a literal ``"undefined"`` for those calls.
+ *
  * @typedef {{
  *  data: { id: number; jsonrpc: "2.0"; method: "call"; params: Record<string, any> };
- *  url?: string;
+ *  url: string;
  *  settings?: RpcSettings;
  *  result?: any;
  *  error?: NetworkError;
@@ -771,7 +778,7 @@ function _rpcOnce(url, params, settings) {
                 // off", retried on the short default schedule while a generic
                 // non-JSON 500 got the gentle 1000ms floor — inverted vs intent.
                 const error = new ServerOverloadError(url, response.status);
-                rpcBus.trigger(RpcEvent.RESPONSE, { data, settings, error });
+                rpcBus.trigger(RpcEvent.RESPONSE, { data, url, settings, error });
                 settleReject(error);
                 return;
             }
@@ -779,7 +786,7 @@ function _rpcOnce(url, params, settings) {
                 // If the request content size exceeds the limit set by a reverse
                 // proxy (e.g. nginx), it returns an HTTP 413 with a non-JSON body.
                 const error = new RequestEntityTooLargeError();
-                rpcBus.trigger(RpcEvent.RESPONSE, { data, settings, error });
+                rpcBus.trigger(RpcEvent.RESPONSE, { data, url, settings, error });
                 settleReject(error);
                 return;
             }
@@ -797,7 +804,7 @@ function _rpcOnce(url, params, settings) {
                     response.status >= 500
                         ? new ServerOverloadError(url, response.status)
                         : new InvalidResponseError(url, response.status);
-                rpcBus.trigger(RpcEvent.RESPONSE, { data, settings, error });
+                rpcBus.trigger(RpcEvent.RESPONSE, { data, url, settings, error });
                 settleReject(error);
                 return;
             }
@@ -826,7 +833,7 @@ function _rpcOnce(url, params, settings) {
                 // ``isRetryable`` would stop retrying it).
                 if (err?.name === "TimeoutError" || timeoutSignal?.aborted) {
                     const error = new ConnectionTimeoutError(url, settings.timeout);
-                    rpcBus.trigger(RpcEvent.RESPONSE, { data, settings, error });
+                    rpcBus.trigger(RpcEvent.RESPONSE, { data, url, settings, error });
                     settleReject(error);
                     return;
                 }
@@ -839,7 +846,7 @@ function _rpcOnce(url, params, settings) {
                     response.status >= 500
                         ? new ConnectionLostError(url)
                         : new InvalidResponseError(url, response.status);
-                rpcBus.trigger(RpcEvent.RESPONSE, { data, settings, error });
+                rpcBus.trigger(RpcEvent.RESPONSE, { data, url, settings, error });
                 settleReject(error);
                 return;
             }
@@ -863,7 +870,7 @@ function _rpcOnce(url, params, settings) {
                     response.status >= 500
                         ? new ServerOverloadError(url, response.status)
                         : new InvalidResponseError(url, response.status);
-                rpcBus.trigger(RpcEvent.RESPONSE, { data, settings, error });
+                rpcBus.trigger(RpcEvent.RESPONSE, { data, url, settings, error });
                 settleReject(error);
                 return;
             }
@@ -885,6 +892,7 @@ function _rpcOnce(url, params, settings) {
                 }
                 rpcBus.trigger(RpcEvent.RESPONSE, {
                     data,
+                    url,
                     settings,
                     result,
                 });
@@ -893,7 +901,7 @@ function _rpcOnce(url, params, settings) {
             }
             const error = makeErrorFromResponse(parsed.error);
             error.model = data.params.model;
-            rpcBus.trigger(RpcEvent.RESPONSE, { data, settings, error });
+            rpcBus.trigger(RpcEvent.RESPONSE, { data, url, settings, error });
             settleReject(error);
         })
         .catch((err) => {
@@ -910,7 +918,7 @@ function _rpcOnce(url, params, settings) {
             }
             if (err?.name === "TimeoutError" || timeoutSignal?.aborted) {
                 const error = new ConnectionTimeoutError(url, settings.timeout);
-                rpcBus.trigger(RpcEvent.RESPONSE, { data, settings, error });
+                rpcBus.trigger(RpcEvent.RESPONSE, { data, url, settings, error });
                 settleReject(error);
                 return;
             }
@@ -918,12 +926,12 @@ function _rpcOnce(url, params, settings) {
                 // External abort (e.g. parent AbortController forwarded
                 // through AbortSignal.any) — treat as caller-initiated.
                 const error = new ConnectionAbortedError("fetch abort");
-                rpcBus.trigger(RpcEvent.RESPONSE, { data, settings, error });
+                rpcBus.trigger(RpcEvent.RESPONSE, { data, url, settings, error });
                 settleReject(error);
                 return;
             }
             const error = new ConnectionLostError(url);
-            rpcBus.trigger(RpcEvent.RESPONSE, { data, settings, error });
+            rpcBus.trigger(RpcEvent.RESPONSE, { data, url, settings, error });
             settleReject(error);
         });
 
@@ -940,7 +948,7 @@ function _rpcOnce(url, params, settings) {
         aborted = true;
         controller.abort();
         const error = new ConnectionAbortedError("fetch abort");
-        rpcBus.trigger(RpcEvent.RESPONSE, { data, settings, error });
+        rpcBus.trigger(RpcEvent.RESPONSE, { data, url, settings, error });
         if (rejectError) {
             settleReject(error);
         }
