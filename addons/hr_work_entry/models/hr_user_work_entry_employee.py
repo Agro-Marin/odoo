@@ -4,7 +4,7 @@ from odoo import fields, models
 
 
 class HrUserWorkEntryEmployee(models.Model):
-    """ Personnal calendar filter """
+    """Personal calendar filter."""
 
     _name = 'hr.user.work.entry.employee'
     _description = 'Work Entries Employees'
