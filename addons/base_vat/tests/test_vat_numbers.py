@@ -1,9 +1,10 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
-from odoo.tests.common import TransactionCase, tagged
-from odoo.exceptions import ValidationError
 from unittest.mock import patch
 
 import stdnum.eu.vat
+
+from odoo.exceptions import ValidationError
+from odoo.tests.common import TransactionCase, tagged
 
 
 class TestStructure(TransactionCase):

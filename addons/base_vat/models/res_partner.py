@@ -1,16 +1,17 @@
-import logging
 import datetime
+import logging
 import re
 
 import stdnum
 from stdnum import luhn
 from stdnum.eu.vat import check_vies
-from stdnum.exceptions import InvalidComponent, InvalidChecksum, InvalidFormat
+from stdnum.exceptions import InvalidChecksum, InvalidComponent, InvalidFormat
 from stdnum.util import clean
 
-from odoo import api, models, fields
-from odoo.tools import _, LazyTranslate
+from odoo import api, fields, models
 from odoo.exceptions import ValidationError
+from odoo.tools import LazyTranslate, _
+
 from odoo.addons.base.models.res_partner import EU_EXTRA_VAT_CODES
 
 _lt = LazyTranslate(__name__)
@@ -149,14 +150,13 @@ class ResPartner(models.Model):
             if do_eu_check:
                 try:
                     return self._run_vat_checks(self.env['res.country'].search([('code', '=', country_code)], limit=1), vat_prefix + vat_number, partner_name, validation)
-                except ValidationError:
+                except ValidationError as e:
                     msg = self._build_vat_error_message(code_to_check, vat, partner_label)
-                    raise ValidationError(msg + "\n\n" + _('If you are trying to input a European number, this is the expected format: ') + _ref_vat[country_code.lower()])
+                    raise ValidationError(msg + "\n\n" + _('If you are trying to input a European number, this is the expected format: ') + _ref_vat[country_code.lower()]) from e
             if validation == 'error':
                 msg = self._build_vat_error_message(code_to_check, vat, partner_label)
                 raise ValidationError(msg)
-            else:
-                return '', code_to_check
+            return '', code_to_check
         return vat_to_return, code_to_check
 
     def _inverse_vat(self):
@@ -186,7 +186,7 @@ class ResPartner(models.Model):
             company_code = self.env.company.account_fiscal_country_id.code
             partner.perform_vies_validation = (
                 to_check
-                and not to_check[:2].upper() == company_code
+                and to_check[:2].upper() != company_code
                 and self.env.company.vat_check_vies
             )
 
@@ -204,7 +204,14 @@ class ResPartner(models.Model):
             if partner.parent_id and partner.parent_id.vat == partner.vat:
                 partner.vies_valid = partner.parent_id.vies_valid
                 continue
-            from odoo.tools import zeep  # noqa: PLC0415
+            # `odoo.tools.zeep` (upstream's version-pinned Client wrapper) does
+            # not exist in this fork's odoo/tools/ -- confirmed missing, and
+            # depended on by 20+ files across core/enterprise (t24068,
+            # see the dedicated task filed for the framework-level gap).
+            # Only the exception class is needed here (check_vies constructs
+            # its own zeep Client internally via stdnum), so importing the
+            # real installed `zeep` package directly is a safe, local fix.
+            import zeep
             try:
                 vies_valid = check_vies(partner.vat, timeout=10)
                 partner.vies_valid = vies_valid['valid']
@@ -380,16 +387,14 @@ class ResPartner(models.Model):
             # For new TVA numbers, the last digit is a MOD11 checksum digit build with weighting pattern: 5,4,3,2,7,6,5,4
             num = [s for s in match.group(1) if s.isdigit()]        # get the digits only
             factor = (5, 4, 3, 2, 7, 6, 5, 4)
-            csum = sum([int(num[i]) * factor[i] for i in range(8)])
+            csum = sum(int(num[i]) * factor[i] for i in range(8))
             check = (11 - (csum % 11)) % 11
             return check == int(num[8])
         return False
 
 
     def is_valid_ruc_ec(self, vat):
-        if len(vat) in (10, 13) and vat.isdecimal():
-            return True
-        return False
+        return bool(len(vat) in (10, 13) and vat.isdecimal())
 
     def check_vat_ec(self, vat):
         vat = clean(vat, ' -.').upper().strip()
@@ -457,12 +462,12 @@ class ResPartner(models.Model):
         except ValueError:
             return False
 
-        sum = (3 * int(vat[0])) + (2 * int(vat[1])) + \
+        total = (3 * int(vat[0])) + (2 * int(vat[1])) + \
             (7 * int(vat[2])) + (6 * int(vat[3])) + \
             (5 * int(vat[4])) + (4 * int(vat[5])) + \
             (3 * int(vat[6])) + (2 * int(vat[7]))
 
-        check = 11 - (sum % 11)
+        check = 11 - (total % 11)
         if check == 11:
             check = 0
         if check == 10:
@@ -474,7 +479,7 @@ class ResPartner(models.Model):
     def check_vat_pe(self, vat):
         if len(vat) != 11 or not vat.isdigit():
             return False
-        dig_check = 11 - (sum([int('5432765432'[f]) * int(vat[f]) for f in range(0, 10)]) % 11)
+        dig_check = 11 - (sum(int('5432765432'[f]) * int(vat[f]) for f in range(10)) % 11)
         if dig_check == 10:
             dig_check = 0
         elif dig_check == 11:
@@ -544,7 +549,7 @@ class ResPartner(models.Model):
         return self._check_vat_sa_re.match(vat) or False
 
     def check_vat_ua(self, vat):
-        return len(vat[2:] if vat.startswith('UA') else vat) in {8, 10, 12}
+        return len(vat.removeprefix('UA')) in {8, 10, 12}
 
     def check_vat_uy(self, vat):
         """ Taken from python-stdnum's master branch, as the release doesn't handle RUT numbers starting with 22.
@@ -561,7 +566,11 @@ class ResPartner(models.Model):
         def calc_check_digit(number):
             """Calculate the check digit."""
             weights = (4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2)
-            total = sum(int(n) * w for w, n in zip(weights, number))
+            # `number` is the full 12-digit VAT (including the trailing check
+            # digit); only the first 11 digits are weighted here. `zip()` used
+            # to rely on its implicit shortest-iterable truncation for this --
+            # made explicit so `strict=True` can be used safely (t24068).
+            total = sum(int(n) * w for w, n in zip(weights, number[:11], strict=True))
             return str(-total % 11)
 
         vat = compact(vat)
@@ -608,7 +617,7 @@ class ResPartner(models.Model):
             kind_digit = 1
         elif kind == 'e':                 # Foreigner
             kind_digit = 2
-        elif kind == 'c' or kind == 'j':  # Township/Communal Council or Legal entity
+        elif kind in ('c', 'j'):  # Township/Communal Council or Legal entity
             kind_digit = 3
         elif kind == 'p':                 # Passport
             kind_digit = 4
@@ -618,7 +627,7 @@ class ResPartner(models.Model):
         # === Checksum validation ===
         multipliers = [3, 2, 7, 6, 5, 4, 3, 2]
         checksum = kind_digit * 4
-        checksum += sum(map(lambda n, m: int(n) * m, identifier_number, multipliers))
+        checksum += sum(map(lambda n, m: int(n) * m, identifier_number, multipliers, strict=True))
 
         checksum_digit = 11 - checksum % 11
         if checksum_digit > 9:
@@ -775,7 +784,7 @@ class ResPartner(models.Model):
         # For the next steps, we will need to sum the results.
         # For a two-digit product like 20, you would add its digits (2 + 0) to the total sum, so we convert the sums here
         # to strings in order to make it easier later on.
-        products = [str(a * int(b)) for a, b in zip(logic_multiplier, vat)]
+        products = [str(a * int(b)) for a, b in zip(logic_multiplier, vat, strict=True)]
         if vat[6] != '7':
             # If the 7th number is not 7, we simply sum everything and check that the result is divisible by 5.
             checksum = sum(int(d) for d in ''.join(products))
@@ -812,7 +821,7 @@ class ResPartner(models.Model):
         vat_required_valid = super()._get_vat_required_valid(company=company)
         if (
             company and company.country_id and self.with_company(company).perform_vies_validation
-            and ('EU' in company.country_id.country_group_codes or self.country_id and self.country_id.has_foreign_fiscal_position)
+            and ('EU' in company.country_id.country_group_codes or (self.country_id and self.country_id.has_foreign_fiscal_position))
         ):
             vat_required_valid = vat_required_valid and self.vies_valid
         return vat_required_valid
