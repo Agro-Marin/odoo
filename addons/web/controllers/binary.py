@@ -59,6 +59,29 @@ def _int_or_zero(value) -> int:
         return 0
 
 
+def _res_id_or_none(value) -> int | None:
+    """Coerce a query-string record id to ``int``, falling back to ``None``.
+
+    Same hazard ``_int_or_zero`` guards for the dimensions, on the id: both
+    ``/web/image`` and ``/web/content`` are ``auth="public"`` and reach
+    ``_find_record`` through a bare ``id and int(id)``. The routes only trap
+    ``UserError`` (``content_image``) / ``replace_exceptions(UserError, ...)``
+    (``content_common``), so ``?id=abc`` raised an *uncaught* ``ValueError`` —
+    an unauthenticated HTTP 500 plus a full traceback per request (cheap
+    log-flooding, wrong status class, on a route that any visitor can hit).
+
+    ``None`` routes into the exact path an absent id already takes: a
+    placeholder image for ``/web/image``, a 404 for ``/web/content`` — the same
+    outcome as a well-formed but non-existent id (``?id=999999``).
+    """
+    if value is None or value is False or value == "":
+        return None
+    try:
+        return int(value)
+    except TypeError, ValueError:
+        return None
+
+
 def _token_authorized_public(record, field, access_token) -> bool:
     """Whether an access-token-bearing binary response may be shared-cached.
 
@@ -118,7 +141,7 @@ class Binary(http.Controller):
     ) -> Response:
         with replace_exceptions(UserError, by=request.not_found()):
             record = request.env["ir.binary"]._find_record(
-                xmlid, model, id and int(id), access_token, field=field
+                xmlid, model, _res_id_or_none(id), access_token, field=field
             )
             stream = request.env["ir.binary"]._get_stream_from(
                 record, field, filename, filename_field, mimetype
@@ -152,7 +175,7 @@ class Binary(http.Controller):
         self,
         filename: str,
         unique: str = ANY_UNIQUE,
-        nocache: bool = False,
+        nocache: str | bool = False,
         assets_params: dict[str, Any] | None = None,
     ) -> Response:
         """Serve a compiled asset bundle (JS or CSS).
@@ -253,11 +276,19 @@ class Binary(http.Controller):
             "as_attachment": False,
             "content_security_policy": None,
         }
-        if unique and unique != "debug":
+        # ``nocache`` arrives as a raw query-string value, not a Python bool:
+        # a bare truthiness test made ``?nocache=false`` (and ``?nocache=0``)
+        # TRUE, dropping ``max_age`` from every asset bundle response while
+        # leaving ``immutable`` set — emitting the self-contradictory pair
+        # ``Cache-Control: no-cache, immutable``. Coerce with ``str2bool``, as
+        # the sibling ``content_common`` / ``content_image`` routes already do,
+        # and clear ``immutable`` alongside ``max_age`` so the opt-out is
+        # coherent.
+        if str2bool(nocache, False):
+            send_file_kwargs["max_age"] = None
+        elif unique and unique != "debug":
             send_file_kwargs["immutable"] = True
             send_file_kwargs["max_age"] = http.STATIC_CACHE_LONG
-        if nocache:
-            send_file_kwargs["max_age"] = None
 
         return stream.get_response(**send_file_kwargs)
 
@@ -375,7 +406,7 @@ class Binary(http.Controller):
         height = _int_or_zero(height)
         try:
             record = request.env["ir.binary"]._find_record(
-                xmlid, model, id and int(id), access_token, field=field
+                xmlid, model, _res_id_or_none(id), access_token, field=field
             )
             stream = request.env["ir.binary"]._get_image_stream_from(
                 record,
@@ -396,15 +427,17 @@ class Binary(http.Controller):
             # send_file path below already does.
             if str2bool(download, False):
                 raise request.not_found() from exc
-            # Use the ratio of the requested field_name instead of "raw"
-            if (int(width), int(height)) == (0, 0):
+            # Use the ratio of the requested field_name instead of "raw".
+            # ``width``/``height`` are already ints (``_int_or_zero`` above), so
+            # no re-coercion is needed here.
+            if (width, height) == (0, 0):
                 width, height = image_guess_size_from_field_name(field)
             record = request.env.ref("web.image_placeholder").sudo()
             stream = request.env["ir.binary"]._get_image_stream_from(
                 record,
                 "raw",
-                width=int(width),
-                height=int(height),
+                width=width,
+                height=height,
                 crop=crop,
             )
             stream.public = False
