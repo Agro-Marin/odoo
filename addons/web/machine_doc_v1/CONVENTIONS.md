@@ -699,3 +699,54 @@ When refactoring a widget:
     fires `MOVE_RECONCILE_DELAY` (300 ms) after the last reconciled move, so
     local arithmetic can never drift from the server for long. Failed or
     reverted moves must call `cancelRecordMove(recordId)`.
+
+17. **`py_js` matches CPython on `%` formatting, but still has no int/float
+    type** — `core/py_js/`. The evaluator is checked against CPython by a
+    differential corpus; the remaining divergences are worth knowing before
+    you write an expression into a view's `domain=` / `context=`.
+
+    **Tuples are distinguishable now (only where it matters).** Tuples and
+    lists still both evaluate to plain JS arrays — every consumer (`Domain`,
+    the ORM payload builders, ~115 pinned test expectations) depends on that.
+    But a tuple literal additionally carries a non-enumerable `PY_TUPLE`
+    Symbol, and `%` formatting is the one operator that reads it, because
+    CPython's semantics genuinely differ:
+
+    | Expression | CPython | py_js |
+    |---|---|---|
+    | `'%s' % (1, 2)` | `TypeError` | `TypeError` |
+    | `'%s and %s' % (1, 2)` | `"1 and 2"` | `"1 and 2"` |
+    | `'%s' % [1, 2]` | `"[1, 2]"` | `"[1, 2]"` |
+    | `'abc' % 5` | `TypeError` | `TypeError` |
+    | `'abc' % {'a': 1}` | `"abc"` (mappings exempt) | `"abc"` |
+
+    Only `isPyTuple()` can observe the marker: `Array.isArray`,
+    `JSON.stringify`, spread, iteration and deep-equality are untouched. Do
+    not widen its use to equality or `repr` — `(1,2) == [1,2]` is
+    deliberately `true` in py_js, and `Domain` relies on tuple-vs-list being
+    interchangeable.
+
+    **Still divergent — py_js has no int/float distinction.** JS has one
+    number type, so anything whose Python output depends on int-vs-float
+    renders as an int:
+
+    | Expression | CPython | py_js |
+    |---|---|---|
+    | `str(1.0)` / `'%s' % 1.0` | `'1.0'` | `'1'` |
+    | `float(1)` | `1.0` | `1` |
+    | `1e3` | `1000.0` | `1000` |
+    | `6/3` | `2.0` | `2` |
+
+    Fixing this requires a boxed float type through the parser, interpreter
+    and every consumer — do not paper over it in one function. Avoid
+    `str()`/`%s` on a float in any expression that is evaluated on BOTH
+    sides (a view domain compared against a server-computed string).
+
+    **Unsupported constructs raise loudly** (a wrong *value* never silently
+    reaches the server): slicing (`x[1:]`, `x[::-1]`), list comprehensions,
+    the set operators `|` / `&`, `str.find/index/count`, `dict.keys()`, the
+    builtins `sum` / `sorted` / `any` / `all` / `list`, and the `strftime`
+    directives `%j` / `%y`. None currently appear in any `domain=` /
+    `context=` attribute across `odoo`, `enterprise`, `agromarin` or
+    `design-themes` — but adding one would work server-side and break the
+    client, so extend `py_js` first if you need it.
