@@ -31,7 +31,7 @@ class SaleOrder(models.Model):
 
     def _compute_amount_total_without_delivery(self):
         self.ensure_one()
-        delivery_cost = sum([l.price_total for l in self.line_ids if l.is_delivery])
+        delivery_cost = sum(l.price_total for l in self.line_ids if l.is_delivery)
         return self.amount_total - delivery_cost
 
     @api.depends('line_ids')
