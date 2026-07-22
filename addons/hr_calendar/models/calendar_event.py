@@ -3,7 +3,6 @@ from dateutil.relativedelta import relativedelta
 from pytz import UTC
 
 from odoo import api, models
-
 from odoo.libs.intervals import Intervals
 from odoo.tools.date_utils import localized, sum_intervals
 
@@ -59,7 +58,7 @@ class CalendarEvent(models.Model):
                     event.start.replace(hour=0, minute=0, second=0, tzinfo=UTC) + relativedelta(days=i),
                     event.start.replace(hour=23, minute=59, second=59, tzinfo=UTC) + relativedelta(days=i),
                     self.env['resource.calendar']
-                )]) & global_interval) for i in range(0, (event.stop_date - event.start_date).days + 1)):
+                )]) & global_interval) for i in range((event.stop_date - event.start_date).days + 1)):
                     interval_by_event[event] = Intervals([])
                 else:
                     interval_by_event[event] = allday_event_interval & global_interval
