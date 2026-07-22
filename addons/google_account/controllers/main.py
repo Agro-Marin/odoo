@@ -1,7 +1,7 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 import json
+
 from werkzeug.exceptions import BadRequest
 
 from odoo import http
@@ -17,7 +17,7 @@ class GoogleAuth(http.Controller):
         service = state.get('s')
         url_return = state.get('f')
         if (not service or (kw.get('code') and not url_return)):
-            raise BadRequest()
+            raise BadRequest
 
         if kw.get('code'):
             base_url = request.httprequest.url_root.strip('/') or request.env.user.get_base_url()
