@@ -1166,6 +1166,24 @@ class TestCommand(BaseCase):
                     cmd.rename(mock.Mock(source=name, target="tgt", force=True))
                 with self.assertRaises(SystemExit, msg=f"duplicate onto {name}"):
                     cmd.duplicate(mock.Mock(source="src", target=name, force=True))
+            # dump is read-only: refuse only the PG system databases (never
+            # Odoo databases). The configured db_template stays dumpable —
+            # a seed template may be a legitimate Odoo database, and dumping
+            # it is how it gets backed up.
+            for name in ("postgres", "template0", "template1"):
+                with self.assertRaises(SystemExit, msg=f"dump {name} not refused"):
+                    cmd.dump(mock.Mock(database=name))
+            if config["db_template"] not in dbmod.SYSTEM_DBS:
+                with mock.patch.object(dbmod, "dump_db") as dump_mock:
+                    cmd.dump(
+                        mock.Mock(
+                            database=config["db_template"],
+                            dump_path="-",
+                            dump_format="zip",
+                            filestore=True,
+                        )
+                    )
+                dump_mock.assert_called_once()
         drop_mock.assert_not_called()
         create_mock.assert_not_called()
         rename_mock.assert_not_called()
