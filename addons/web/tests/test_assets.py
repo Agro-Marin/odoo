@@ -41,7 +41,17 @@ class TestAssetsGenerateTimeCommon(odoo.tests.TransactionCase):
         }
 
         for bundle_name in bundles:
-            with mute_logger("odoo.addons.base.models.assetsbundle"):
+            # Two loggers can fire here: the legacy classic pipeline logs under
+            # "odoo.addons.base.models.assetsbundle", while the asset event bus
+            # (``get_asset_logger``) logs under "odoo.assets.bundle" — the latter
+            # emits one ERROR per module-syntax file when an ESM-only bundle
+            # (e.g. web.assets_backend, served only via its ESM parent
+            # web.assets_web) is force-generated standalone here. This test only
+            # measures timing, so both must be muted; naming just the first let
+            # ~1880 spurious ERRORs leak per run.
+            with mute_logger(
+                "odoo.addons.base.models.assetsbundle", "odoo.assets.bundle"
+            ):
                 for assets_type in "css", "js":
                     try:
                         start_t = time.time()

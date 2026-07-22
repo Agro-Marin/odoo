@@ -211,8 +211,11 @@ test("web client is not deadlocked when a view crashes", async () => {
     // open first record in form view: this will crash, no form view shown
     await contains(".o_list_view .o_data_cell").click();
     readOnFirstRecordDef.reject(new Error("not working as intended"));
-    await animationFrame();
-    expect.verifyErrors(["not working as intended"]);
+    // The crash surfaces several async hops later (unhandled rejection ->
+    // error service), which a single animationFrame does not deterministically
+    // cover. Waiting on the error channel keeps the assertion from racing the
+    // propagation — otherwise the error lands in a later test and fails it.
+    await expect.waitForErrors(["not working as intended"]);
 
     expect(".o_list_view").toHaveCount(1, {
         message: "there should still be a list view in dom",
