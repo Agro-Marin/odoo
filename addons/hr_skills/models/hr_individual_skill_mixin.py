@@ -1,9 +1,9 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 from collections import defaultdict
+
 from dateutil.relativedelta import relativedelta
 
 from odoo import api, fields, models
-
 from odoo.exceptions import ValidationError
 from odoo.fields import Domain
 
@@ -15,22 +15,19 @@ class HrIndividualSkillMixin(models.AbstractModel):
     _rec_name = "skill_id"
 
     def _linked_field_name(self):
-        raise NotImplementedError()
+        raise NotImplementedError
 
     def _get_passive_fields(self):
-        """
-        Return additional passive fields to be included during (versioned)skill creation.
+        """Return extra field names to copy onto new (versioned) skills.
 
-        Passive fields are preserved/included when new skill versions are created due to changes in any of the
-        core/active fields (linked_field, skill_id, skill_level_id, skill_type_id),but modifying them DOES NOT
-        trigger new (versioned)skill creation.
-
-        Core/Active fields (linked_field, skill_id, skill_level_id, skill_type_id) are automatically preserved
-        and should NOT be included here.
-
-        :return: List of field names to copy to new skills
+        :return: list of field names to copy to new skills
         :rtype: list[str]
         """
+        # Passive fields are carried over when a new skill version is created
+        # because a core/active field changed (linked_field, skill_id,
+        # skill_level_id, skill_type_id), but editing a passive field does NOT
+        # itself trigger a new version. Core/active fields are preserved
+        # automatically and must NOT be listed here.
         return []
 
     def _can_edit_certification_validity_period(self):
@@ -66,25 +63,24 @@ class HrIndividualSkillMixin(models.AbstractModel):
         'valid_from', 'valid_to', 'skill_id', 'skill_type_id', 'skill_level_id', self._linked_field_name()
     ])
     def _check_not_overlapping_regular_skill(self):
-        """
-        The following is the core functionality and difference for the two models
-        Skills:
-            1. There can only be one active skill for each skill_id, f.ex only one level of English allowed.
-            2. Skills should not be deleted, unless they were created within the last 24 hours. Skills should instead
-                be archived to preserve the history of the skills linked to that particular record.
-            3. Skills should not be written to, instead the previous skill should be archived and a new skill with
-                the new values should be created. This is again to preserve the history of skills on the record.
-        Certifications:
-            1. There can be many certifications with the same skill_id and skill_level as long as the valid_from and
-                valid_to fields are different, e.g. "Odoo:Certified 2025-1-1 to 2025-12-31" can exist alongside
-                "Odoo:Certified 2024-6-1 to 2025-5-31".
-            2. Certifications can be deleted at any point.
-            3. Certifications should not be written to, instead the previous certification should be archived and a new
-                certification with the new values should be created.
-        For both models:
-            1. There should not be multiple records with exactly the same values.
-            2. An Active skill/certification is one with the valid_to field either unset or set to a date in the future
-        """
+        """Forbid overlapping regular skills and duplicate certifications for the same record."""
+        # Core behaviour and difference between the two models:
+        # Skills:
+        #   1. Only one active skill per skill_id (e.g. only one level of English).
+        #   2. Skills are not deleted unless created within the last 24 hours;
+        #      otherwise they are archived to preserve the record's skill history.
+        #   3. Skills are not written to in place: the previous skill is archived
+        #      and a new one with the new values is created, again to keep history.
+        # Certifications:
+        #   1. Many certifications with the same skill_id and skill_level may exist
+        #      as long as valid_from/valid_to differ, e.g. "Odoo:Certified
+        #      2025-1-1 to 2025-12-31" alongside "Odoo:Certified 2024-6-1 to 2025-5-31".
+        #   2. Certifications can be deleted at any point.
+        #   3. Certifications are not written to in place: the previous one is
+        #      archived and a new one with the new values is created.
+        # For both models:
+        #   1. No two records may have exactly the same values.
+        #   2. A record is active when valid_to is unset or set to a future date.
         overlapping_dict = self._get_overlapping_individual_skill([{
                 f"{self._linked_field_name()}": skill_ind[self._linked_field_name()].id,
                 "skill_id": skill_ind.skill_id.id,
@@ -255,17 +251,15 @@ class HrIndividualSkillMixin(models.AbstractModel):
         self.display_warning_message = self.valid_to and self.valid_from and self.valid_to < self.valid_from
 
     def _expire_individual_skills(self):
-        """
-        This function archive all individual skill in self.
-        If the individual skill is not expired (valid_to < today) then valid_to will be set to yesterday if
-        it's possible (not break a constraint)
-        Else the individual skill is delete
+        """Archive or delete every individual skill in ``self``.
 
-        Example:
-        An individual already have the skill English A2 (added one month ago) and we want to delete it
-        output: [[1, id('English A2'), {'valid_to': yesterday}]]
-        @return {List[COMMANDS]} List of WRITE, UNLINK commands
+        :return: list of WRITE and DELETE (x2many) commands
+        :rtype: list
         """
+        # A skill created within the last 24h (valid_from >= yesterday) or already
+        # expired (valid_to <= yesterday) is deleted. Otherwise it is archived by
+        # setting valid_to to yesterday, unless doing so would break a constraint
+        # (overlap), in which case it is deleted instead.
         yesterday = fields.Date.today() - relativedelta(days=1)
         to_remove = self.env[self._name]
         to_archive = self.env[self._name]
@@ -287,34 +281,21 @@ class HrIndividualSkillMixin(models.AbstractModel):
             new_overlapped_skill_ids = []
             for new_skills in overlapping_dict.values():
                 for new_skill in new_skills:
-                    new_overlapped_skill_ids.append(new_skill['id'])
+                    new_overlapped_skill_ids.append(new_skill['id'])  # noqa: PERF401
             changed_to_remove = to_archive.filtered(lambda ind_skill: ind_skill.id in new_overlapped_skill_ids)
             to_archive -= changed_to_remove
             to_remove += changed_to_remove
         return [[2, skill.id] for skill in to_remove] + [[1, skill.id, {'valid_to': yesterday}] for skill in to_archive]
 
     def _create_individual_skills(self, vals_list):
-        """
-        This function transform CREATE commands into CREATE, WRITE and UNLINK commands in order to keep the
-        logs and to follow the constraints
+        """Transform CREATE commands into CREATE, WRITE and DELETE commands.
 
-        Example:
-        An individual already have the skill English A2 (added one month ago) and we want to add the skill English B1
-        This method will transform:
-        {linked_field: id, skill_id: id('English'), skill_level_id: id('B1') skill_type_id: id('Languages')}
-        into
-        [
-            [1, id('English A2'), {'valid_to': yesterday}],
-            [0, 0, {
-                linked_field: id,
-                skill_id: id('English'),
-                skill_level_id: id('B1'),
-                skill_type_id: id('Languages')}
-            ]
-        ]
-        @param {List[vals]} vals_list: list of right leaf of CREATE commands
-        @return {List[COMMANDS]} List of CREATE, WRITE, UNLINK commands
+        :param list vals_list: values dicts from the CREATE commands
+        :return: list of CREATE, WRITE and DELETE (x2many) commands
+        :rtype: list
         """
+        # Archiving the previous skill instead of overwriting it keeps the record
+        # logs/history and keeps the overlap constraints satisfied.
         can_edit_certification_validity_period = self._can_edit_certification_validity_period()
         seen_skills = set()
         skills_to_archive = self.env[self._name]
@@ -405,29 +386,25 @@ class HrIndividualSkillMixin(models.AbstractModel):
                 # Remove duplicate certification
                 if certification_set.get(key):
                     continue
-            else:
-                # Archive existing regular skill if the person already have one with the same skill
-                if existing_skill := existing_skills_grouped.get((individual_skill_id, skill_id)):
-                    skills_to_archive += existing_skill
+            # Archive existing regular skill if the person already have one with the same skill
+            elif existing_skill := existing_skills_grouped.get((individual_skill_id, skill_id)):
+                skills_to_archive += existing_skill
 
             vals_to_return.append(vals)
 
         return skills_to_archive._expire_individual_skills() + [[0, 0, new_create_val] for new_create_val in vals_to_return]
 
     def _write_individual_skills(self, commands):
-        """
-        Transform a list of write commands into a list of create, write and unlink commands according to the logic of
-        how skills should behave. The relevant logic is as follows:
-
-        * If "skill_type_id", "skill_id", "skill_level_id", self._linked_field_name() are not in vals, this method will
-            behave like any standard write method.
-        * Otherwise, the current record is archived, by changing valid_to to yesterday, and a new one is created with
-        values from vals and self, with vals taking priority.
-
+        """Transform WRITE commands into CREATE, WRITE and DELETE commands.
 
         :param commands: list of WRITE commands
-        :return: List of CREATE, WRITE, UNLINK commands
+        :return: list of CREATE, WRITE and DELETE (x2many) commands
+        :rtype: list
         """
+        # If none of skill_type_id, skill_id, skill_level_id or the linked field
+        # is being written, this behaves like a standard write. Otherwise the
+        # current record is archived (valid_to set to yesterday) and a new one is
+        # created from vals merged over self, with vals taking priority.
         self_dict = self.grouped('id')
         result_command = []
         create_vals = []
@@ -445,7 +422,7 @@ class HrIndividualSkillMixin(models.AbstractModel):
             field_type = self._fields[field].type
             if field_type == "many2one":
                 return skill[field].id
-            if field_type == "many2many" or field_type == "one2many":
+            if field_type == "many2many" or field_type == "one2many":  # noqa: PLR1714
                 return skill[field].ids
             return skill[field]
 
@@ -479,30 +456,24 @@ class HrIndividualSkillMixin(models.AbstractModel):
         return result_command + (self - remove_from_expire)._expire_individual_skills() + self.env[self._name]._create_individual_skills(create_vals)
 
     def _get_transformed_commands(self, commands, individuals):
+        """Rewrite ORM commands to honour the skill/certification business rules.
+
+        :param commands: list of CREATE, WRITE and UNLINK commands
+        :param individuals: recordset of the linked field's model
+        :return: list of CREATE, WRITE and UNLINK commands
         """
-        Transform a list of ORM commands to fit with the business constraints and preserve the logic of how skills and
-        certifications should behave. The key behaviors are as follows:
-
-        Skills:
-        1. Only one active skill per `skill_id` is allowed (e.g., one "English" skill per linked_field record).
-
-        Certifications (`is_certification=True`):
-        1. Multiple certifications with the same `skill_id` and `level_id` are allowed if their date ranges differ (e.g.,
-            "Odoo Certified (2024-01-01 → 2024-12-31)" and "Odoo Certified (2024-06-01 → 2025-05-31)" can coexist.)
-
-        Shared Rules:
-        - Updates always create new records (archiving old ones) rather than in-place writes.
-        - No two records can have all their fields identical.
-        - A skill/certification is active if `valid_to` is unset or in the future.
-        - A skill/certification that is not active is considered archived.
-        - A skill/certification is only deleted if valid_from is from the past 24 hours or it is expired.
-
-        :param commands: list of CREATE, WRITE, and UNLINK commands
-        :param individuals: a recordset of linked_field's model
-        :return: List of CREATE, WRITE, and UNLINK commands
-        """
+        # Business rules enforced here:
+        # - Skills: only one active skill per skill_id (e.g. one "English" per record).
+        # - Certifications (is_certification=True): several with the same skill_id
+        #   and skill_level_id may coexist as long as their date ranges differ, e.g.
+        #   "Odoo Certified (2024-01-01 → 2024-12-31)" and "(2024-06-01 → 2025-05-31)".
+        # - Updates always create a new record and archive the old one instead of
+        #   writing in place; no two records may have all fields identical.
+        # - A record is active while valid_to is unset or in the future, archived
+        #   otherwise, and deleted only when valid_from is within the last 24h or it
+        #   is already expired.
         if not commands:
-            return
+            return None
         updated_ids = set()
         updated_commands = []
         created_values = []

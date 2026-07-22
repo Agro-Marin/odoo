@@ -51,12 +51,9 @@ This module introduces skills and resume management for employees.
             'hr_skills/static/src/fields/skills_one2many/*',
             'hr_skills/static/src/fields/**/*',
             'hr_skills/static/src/scss/*.scss',
-            # ``skills_graph.js`` (registers the ``skills_graph`` view type
-            # used by the Skill History report) was orphaned by the ESM
-            # migration when ``web.assets_backend_lazy`` was removed — the
-            # single-file entry below replaced a wildcard that originally
-            # caught both renderer and graph view. Use a wildcard so future
-            # view additions don't repeat the bug.
+            # Wildcard loads every view file, including ``skills_graph.js``
+            # (registers the ``skills_graph`` view type used by the Skill
+            # History report).
             'hr_skills/static/src/views/**/*',
             'hr_skills/static/src/components/**/*',
         ],        'web.assets_unit_tests': [
