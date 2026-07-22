@@ -120,9 +120,9 @@ def run_suite(
     from ..modules import module
 
     module.current_test = True
-
-    results = OdooTestResult(global_report=global_report)
-    suite(results)
-
-    module.current_test = False
+    try:
+        results = OdooTestResult(global_report=global_report)
+        suite(results)
+    finally:
+        module.current_test = False
     return results

@@ -78,7 +78,8 @@ from odoo.tools.password import CryptContext
 from odoo.tools.xml_utils import _validate_xml
 
 import odoo.addons.base
-from . import case, test_cursor
+from . import case
+from .cursor import TestCursor
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Generator, Iterable
@@ -90,6 +91,51 @@ try:
 except ImportError:
     # chrome headless tests will be skipped
     websocket = None
+
+# Public API re-exported as `odoo.tests` (see tests/__init__.py).  Without
+# this, the star-import used to republish every stdlib module imported above
+# (odoo.tests.json, odoo.tests.os, ...).
+# `Command`, `mute_logger` and `patch` are sanctioned convenience re-exports
+# (odoo.fields / odoo.tools / unittest.mock), widely imported from odoo.tests.
+__all__ = [
+    "ADMIN_USER_ID",
+    "DEFAULT_SUCCESS_SIGNAL",
+    "HOST",
+    "TEST_CURSOR_COOKIE_NAME",
+    "Approx",
+    "BaseCase",
+    "BlockedRequest",
+    "ChromeBrowser",
+    "ChromeBrowserException",
+    "Command",
+    "HttpCase",
+    "JsonRpcException",
+    "Like",
+    "Opener",
+    "RecordCapturer",
+    "SingleTransactionCase",
+    "TransactionCase",
+    "Transport",
+    "WhitespaceInsensitive",
+    "can_import",
+    "freeze_time",
+    "get_cache_key_counter",
+    "get_db_name",
+    "loaded_demo_data",
+    "mute_logger",
+    "new_test_user",
+    "no_retry",
+    "patch",
+    "release_test_lock",
+    "save_test_file",
+    "skip_if_dev_mode",
+    "standalone",
+    "standalone_tests",
+    "tagged",
+    "test_xsd",
+    "users",
+    "warmup",
+]
 
 _logger = logging.getLogger(__name__)
 if odoo.cli.COMMAND in ("server", "start") and not config["test_enable"]:
@@ -157,6 +203,8 @@ def get_db_name() -> str:
     # database from XML-RPC).
     if not dbnames and hasattr(threading.current_thread(), "dbname"):
         return threading.current_thread().dbname
+    if not dbnames:
+        sys.exit("No database name found, please provide one with -d/--database")
     if len(dbnames) > 1:
         sys.exit(
             "-d/--database/db_name has multiple database, please provide a single one"
@@ -233,11 +281,23 @@ def standalone(*tags: str) -> Callable[[Callable], Callable]:
 
 
 def test_xsd(url=None, path=None, skip=False):
+    """Decorate a test method returning XML documents to validate them
+    against the XSD at ``url`` or ``path``.
+
+    ``skip`` disables the whole test as *skipped* (pass a reason string).
+    It used to make the test silently pass without running its body, which
+    hid disabled validations from test reports.
+    """
+
     def decorator(func):
+        @wraps(func)
         def wrapped_f(self, *args, **kwargs):
-            if not skip:
-                xmls = func(self, *args, **kwargs)
-                _validate_xml(self.env, url, path, xmls)
+            if skip:
+                raise unittest.SkipTest(
+                    skip if isinstance(skip, str) else "XSD validation disabled"
+                )
+            xmls = func(self, *args, **kwargs)
+            _validate_xml(self.env, url, path, xmls)
 
         return wrapped_f
 
@@ -1030,7 +1090,7 @@ class BaseCase(case.TestCase):
         """
 
         def _patched_cursor(readonly: bool = False):
-            return test_cursor.TestCursor(
+            return TestCursor(
                 cr,
                 _registry_test_lock,
                 readonly and cls._registry_readonly_enabled,
@@ -1331,12 +1391,12 @@ class TransactionCase(BaseCase):
         seed_planner_stats(cls.cr)
 
         def check_cursor_stack():
-            for cursor in test_cursor.TestCursor._cursors_stack:
+            for cursor in TestCursor._cursors_stack:
                 _logger.info(
                     "One cursor was remaining in the TestCursor stack at the end of the test"
                 )
                 cursor._closed = True
-            test_cursor.TestCursor._cursors_stack = []
+            TestCursor._cursors_stack = []
 
         cls.addClassCleanup(check_cursor_stack)
 
@@ -1468,7 +1528,8 @@ class SingleTransactionCase(BaseCase):
         super().__init_subclass__()
         if issubclass(cls, TransactionCase):
             _logger.warning(
-                "%s inherits from both TransactionCase and SingleTransactionCase"
+                "%s inherits from both TransactionCase and SingleTransactionCase",
+                cls.__name__,
             )
 
     @classmethod
@@ -1675,7 +1736,15 @@ class ChromeBrowser:
         )
 
     def stop(self) -> None:
-        """Stop the Chrome browser process and clean up resources."""
+        """Stop the Chrome browser process and clean up resources.
+
+        Idempotent: ``browser_js`` registers it both as an early safety-net
+        cleanup (covering failures during page/session setup) and at its
+        ordering-sensitive happy-path position; the second call is a no-op.
+        """
+        if getattr(self, "_stopped", False):
+            return
+        self._stopped = True
         # method may be called during `_open_websocket`
         if hasattr(self, "ws"):
             try:
@@ -2051,7 +2120,7 @@ class ChromeBrowser:
             )
         except websocket.WebSocketConnectionClosedException:
             pass
-        except BrokenPipeError, ConnectionResetError, OSError:
+        except OSError:  # includes BrokenPipeError / ConnectionResetError
             # this can happen if the browser is closed. Just ignore it.
             _logger.info(
                 "Websocket error while handling request %s",
@@ -2571,7 +2640,9 @@ class Screencaster:
 
 @lru_cache(1)
 def _find_executable():
-    browser_bin_path = os.environ.get("ODOO_BROWSER_BIN")  # used for testing specific Chrome builds
+    browser_bin_path = os.environ.get(
+        "ODOO_BROWSER_BIN"
+    )  # used for testing specific Chrome builds
     if browser_bin_path and pathlib.Path(browser_bin_path).exists():
         return browser_bin_path
     system = platform.system()
@@ -2946,9 +3017,7 @@ class HttpCase(TransactionCase):
             self._logger.info("Setting session cookie in browser")
             # http_only mirrors the server's httponly session_id cookie; JS never
             # reads it, and leaving it JS-visible would pollute HOOT's MockCookie jar.
-            browser.set_cookie(
-                "session_id", session.sid, "/", HOST, http_only=True
-            )
+            browser.set_cookie("session_id", session.sid, "/", HOST, http_only=True)
 
         return session
 
@@ -3043,10 +3112,13 @@ class HttpCase(TransactionCase):
         browser = ChromeBrowser(
             self, headless=not watch, success_signal=success_signal, debug=debug
         )
-        with (
-            self.allow_requests(browser=browser),
-            contextlib.ExitStack() as atexit,
-        ):
+        with contextlib.ExitStack() as atexit:
+            # safety net registered first (thus run last): guarantees Chrome is
+            # stopped and its profile dir removed even when the setup below
+            # (authenticate, cookies, navigate) fails before the happy-path
+            # browser.stop registration; stop() is idempotent
+            atexit.callback(browser.stop)
+            atexit.enter_context(self.allow_requests(browser=browser))
             atexit.callback(self._wait_remaining_requests)
             if "bus.bus" in self.env.registry:
                 from odoo.addons.bus.models.bus import BusBus
@@ -3275,6 +3347,8 @@ def users(*logins: str) -> Callable:
                     user.login: user.id
                     for user in Users.search([("login", "in", list(logins))])
                 }
+                missing = [login for login in logins if login not in user_id]
+                assert not missing, f"No user with login {missing}"
                 for login in logins:
                     with self.subTest(login=login):
                         # switch user and execute func

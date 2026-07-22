@@ -71,3 +71,28 @@ class TestFormCreate(TransactionCase):
         lang_form.name = "a lang name"
         lang_form.code = "a lang code"
         lang_form.save()
+
+    def test_create_o2m_mode_form(self):
+        """A one2many with mode="form" used to crash Form with a bare
+        StopIteration when picking the edition subview."""
+        view = self.env["ir.ui.view"].create(
+            {
+                "name": "partner o2m mode form",
+                "model": "res.partner",
+                "type": "form",
+                "arch": """
+                    <form>
+                        <field name="name"/>
+                        <field name="child_ids" mode="form">
+                            <form><field name="name"/></form>
+                        </field>
+                    </form>
+                """,
+            }
+        )
+        partner_form = Form(self.env["res.partner"], view=view)
+        partner_form.name = "a partner"
+        with partner_form.child_ids.new() as child:
+            child.name = "a child"
+        partner = partner_form.save()
+        self.assertEqual(partner.child_ids.name, "a child")

@@ -246,7 +246,7 @@ def test_uninstall(args: argparse.Namespace) -> None:
 
 
 def test_standalone(args: argparse.Namespace) -> None:
-    """Try to launch standalone scripts tagged with @post_testing."""
+    """Try to launch standalone scripts tagged with @standalone."""
     odoo.service.db._check_faketime_mode(args.database)
     # load the registry once for script discovery
     registry = Registry(args.database)
@@ -287,11 +287,13 @@ if __name__ == "__main__":
     args = parse_args()
 
     config["db_name"] = threading.current_thread().dbname = args.database
-    # handle paths option
+    # handle paths options; --data-dir is meaningful on its own (filestore,
+    # sessions), it must not be silently ignored when --addons-path is absent
+    if args.data_dir:
+        config["data_dir"] = args.data_dir
     if args.addons_path:
         config["addons_path"] = args.addons_path + config["addons_path"]
-        if args.data_dir:
-            config["data_dir"] = args.data_dir
+    if args.addons_path or args.data_dir:
         odoo.modules.module.initialize_sys_path()
 
     init_logger()
@@ -321,4 +323,4 @@ if __name__ == "__main__":
             args.func(args)
     except Exception:
         _logger.exception("%s tests failed", args.func.__name__[5:])
-        exit(1)
+        sys.exit(1)

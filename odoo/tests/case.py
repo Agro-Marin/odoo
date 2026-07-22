@@ -38,7 +38,7 @@ class _Outcome:
         except SkipTest as e:
             self.success = False
             self.result.addSkip(test_case, str(e))
-        except BaseException:  # record any failure; KeyboardInterrupt is re-raised above
+        except BaseException:  # KeyboardInterrupt was re-raised above
             exc_info = sys.exc_info()
             self.success = False
 

@@ -51,11 +51,17 @@ def run_tests(
     if reload_tests:
         _clear_loaded_test_modules()
 
+    # restore in a finally: leaving test_enable set after a failed run would
+    # leave the whole shell session in test mode (test cursors, test dispatch)
+    old_test_tags = odoo.tools.config["test_tags"]
+    old_test_enable = odoo.tools.config["test_enable"]
     odoo.tools.config["test_tags"] = test_tags
     odoo.tools.config["test_enable"] = True
-    report = _run_tests(env.cr.dbname, modules)
-    odoo.tools.config["test_enable"] = None
-    odoo.tools.config["test_tags"] = None
+    try:
+        report = _run_tests(env.cr.dbname, modules)
+    finally:
+        odoo.tools.config["test_enable"] = old_test_enable
+        odoo.tools.config["test_tags"] = old_test_tags
 
     _log_test_report(report)
 

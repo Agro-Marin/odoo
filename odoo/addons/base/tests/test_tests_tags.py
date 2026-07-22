@@ -106,6 +106,31 @@ class TestSetTags(TransactionCase):
 
 @tagged("nodatabase")
 class TestSelector(TransactionCase):
+    def test_selector_file_path_typo_rejected(self):
+        """A malformed .py file spec must be rejected loudly. It used to be
+        accepted (unescaped dot in the regex), then matched no test at all:
+        a typo'd --test-tags run reported 0 tests and exited green."""
+        with self.assertLogs("odoo.tests.tag_selector", level="ERROR") as capture:
+            tags = TagsSelector("standard/odoo/addons/base/tests/test_tests_tags?py")
+        self.assertEqual(set(), tags.include)
+        self.assertEqual(set(), tags.exclude)
+        self.assertIn("Invalid tag", capture.output[0])
+
+        # the well-formed variant still parses as a file filter
+        tags = TagsSelector("standard/odoo/addons/base/tests/test_tests_tags.py")
+        self.assertEqual(
+            {
+                (
+                    "standard",
+                    None,
+                    None,
+                    None,
+                    "/odoo/addons/base/tests/test_tests_tags.py",
+                )
+            },
+            tags.include,
+        )
+
     def test_selector_parser(self):
         """Test the parser part of the TagsSelector class"""
 

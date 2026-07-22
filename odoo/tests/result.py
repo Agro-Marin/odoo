@@ -20,8 +20,10 @@ if TYPE_CHECKING:
 
 __unittest = True
 
+# `or` (not a default) so that an empty-but-set variable, common in CI, does
+# not crash this import with ValueError.
 ODOO_TEST_MAX_FAILED_TESTS = max(
-    1, int(os.environ.get("ODOO_TEST_MAX_FAILED_TESTS", sys.maxsize))
+    1, int(os.environ.get("ODOO_TEST_MAX_FAILED_TESTS") or sys.maxsize)
 )
 
 stats_logger = logging.getLogger("odoo.tests.stats")
@@ -32,9 +34,6 @@ class Stat(NamedTuple):
     queries: int = 0
 
     def __add__(self, other: Stat) -> Stat:
-        if other == 0:
-            return self
-
         if not isinstance(other, Stat):
             return NotImplemented
 
