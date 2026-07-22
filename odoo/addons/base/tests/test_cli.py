@@ -776,6 +776,38 @@ class TestCommand(BaseCase):
         ):
             self.assertEqual(db_filter(dbs, host="localhost"), ["prod"])
 
+    def test_db_filter_strips_system_databases(self):
+        """db_filter is the validation funnel for every request-supplied
+        database name (session cookie, X-Odoo-Database header, ?db= via
+        ensure_db). System databases and the creation template must be
+        stripped in every filter mode — a permissive dbfilter (`.*`) or an
+        explicit db_name listing must not re-expose them."""
+        from odoo.http import db_filter
+
+        dbs = ["postgres", "template0", "template1", config["db_template"], "mydb"]
+        for options in (
+            {"dbfilter": "", "db_name": []},
+            {"dbfilter": ".*", "db_name": []},
+            {"dbfilter": "", "db_name": ["postgres", "mydb"]},
+            {"dbfilter": ".*", "db_name": ["template1", "mydb"]},
+        ):
+            with mock.patch.dict(config.options, options):
+                self.assertEqual(
+                    db_filter(dbs, host="localhost"),
+                    ["mydb"],
+                    msg=f"system dbs not stripped with {options}",
+                )
+
+    def test_registry_refuses_system_databases(self):
+        """The registry is the root choke point: RPC `execute_kw(db, ...)`
+        bypasses db_filter entirely, so Registry construction itself must
+        refuse cluster infrastructure — before opening any connection."""
+        from odoo.modules.registry import Registry
+
+        for name in ("postgres", "template0", "template1", config["db_template"]):
+            with self.assertRaises(ValueError, msg=f"Registry({name!r}) allowed"):
+                Registry(name)
+
     def test_obfuscate_excludes_ir_tables_via_starts_with(self):
         """Source-level guard: get_all_fields must filter ir_* tables via
         starts_with, not LIKE — the latter treats '_' as a wildcard and

@@ -183,6 +183,21 @@ class Registry(
         :param new_db_demo: Whether to install demo data for the new database. If set to ``None``, the value will be
           determined by the ``config['with_demo']``. Defaults to ``None``
         """
+        # Refuse cluster infrastructure outright: with update_module a registry
+        # build would bootstrap Odoo tables into the database (load_modules
+        # initializes), and even a plain load opens connections against it and
+        # caches a broken registry. Every consumer (HTTP dispatch, RPC
+        # `execute_kw(db, ...)` — which bypasses db_filter —, CLI, shell) funnels
+        # through here, making this the root guard; the CLI and http layers
+        # refuse earlier with friendlier errors.
+        # Imported lazily to avoid an orm<->service import cycle.
+        from odoo.service._db_helpers import SYSTEM_DBS
+
+        if db_name in SYSTEM_DBS or db_name == config["db_template"]:
+            raise ValueError(
+                f"Refusing to build a registry over system or template "
+                f"database {db_name!r}"
+            )
         t0 = time.time()
         # Sync the registry-cache capacity from config: the class-level LRU is
         # sized at import time (before config is parsed), so honour an operator
