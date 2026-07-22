@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 import base64
@@ -38,7 +37,7 @@ class MicrosoftOutlookController(http.Controller):
             csrf_token = state['csrf_token']
         except Exception:
             _logger.error('Microsoft Outlook: Wrong state value %r.', state)
-            raise Forbidden()
+            raise Forbidden from None
 
         record_sudo = self._get_outlook_record(model_name, rec_id, csrf_token)
 
@@ -73,16 +72,16 @@ class MicrosoftOutlookController(http.Controller):
         if not isinstance(model, request.env.registry['microsoft.outlook.mixin']):
             # The model must inherits from the "microsoft.outlook.mixin" mixin
             _logger.error('Microsoft Outlook: Wrong model %r.', model_name)
-            raise Forbidden()
+            raise Forbidden
 
         record = model.browse(int(rec_id)).exists().sudo()
         if not record:
             _logger.error('Microsoft Outlook: Record not found.')
-            raise Forbidden()
+            raise Forbidden
 
         if not csrf_token or not consteq(csrf_token, record._get_outlook_csrf_token()):
             _logger.error('Microsoft Outlook: Wrong CSRF token during Outlook authentication.')
-            raise Forbidden()
+            raise Forbidden
 
         return record
 
