@@ -11,8 +11,8 @@ from psycopg import OperationalError
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError, ValidationError
 from odoo.fields import Domain
-from odoo.tools import float_compare
 from odoo.libs.intervals import Intervals
+from odoo.tools import float_compare
 
 
 class HrWorkEntry(models.Model):
@@ -146,10 +146,11 @@ class HrWorkEntry(models.Model):
         return undefined_type or conflict or outside_calendar or already_validated_days
 
     def _mark_conflicting_work_entries(self, start, stop):
-        """
-        Set `state` to `conflict` for work entries where, for the same employee and day,
-        the total duration exceeds 24 hours.
-        Return True if such entries are found.
+        """Mark as `conflict` the work entries where, for the same employee and
+        day, the total duration is non-positive or exceeds 24 hours.
+
+        :return: whether any conflicting entry was found
+        :rtype: bool
         """
         self.flush_model(['date', 'duration', 'employee_id', 'active'])
         query = """
@@ -182,10 +183,11 @@ class HrWorkEntry(models.Model):
         return self.filtered(lambda w: w.work_entry_type_id.is_leave and w.state not in ('validated', 'cancelled'))
 
     def _mark_leaves_outside_schedule(self):
-        """
-        Check leave work entries in `self` which are completely outside
-        the contract's theoretical calendar schedule. Mark them as conflicting.
-        :return: leave work entries completely outside the contract's calendar
+        """Mark as `conflict` the leave work entries in `self` that fall entirely
+        outside the version's theoretical calendar schedule.
+
+        :return: whether any entry was marked as conflicting
+        :rtype: bool
         """
         work_entries = self._get_leaves_entries_outside_schedule()
         entries_by_calendar = defaultdict(lambda: self.env['hr.work.entry'])
@@ -243,7 +245,7 @@ class HrWorkEntry(models.Model):
         company_by_employee_id = {}
         for vals in vals_list:
             if (
-                not 'amount_rate' in vals
+                'amount_rate' not in vals
                 and (work_entry_type_id := vals.get('work_entry_type_id'))
             ):
                 work_entry_type = self.env['hr.work.entry.type'].browse(work_entry_type_id)
@@ -271,7 +273,7 @@ class HrWorkEntry(models.Model):
             vals['state'] = 'draft' if vals['active'] else 'cancelled'
 
         employee_ids = self.employee_id.ids
-        if 'employee_id' in vals and vals['employee_id']:
+        if vals.get('employee_id'):
             employee_ids += [vals['employee_id']]
         with self._error_checking(skip=skip_check, employee_ids=employee_ids):
             return super().write(vals)
