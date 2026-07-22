@@ -80,7 +80,7 @@ def get_existing_attachment(IrAttachment, vals):
 class HTML_Editor(http.Controller):
 
     def _get_shape_svg(self, module, *segments):
-        shape_path = opj(module, 'static', *segments)
+        shape_path = opj(module, 'static', *segments)  # noqa: PTH118 - path contained by file_open()'s is_relative_to check
         try:
             with file_open(shape_path, 'r', filter_ext=('.svg',)) as file:
                 return file.read()

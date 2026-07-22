@@ -2,9 +2,9 @@
 
 from urllib.parse import quote
 
-from odoo import api, models, fields
-from odoo.tools.image import base64_to_image
+from odoo import api, fields, models
 from odoo.exceptions import UserError
+from odoo.tools.image import base64_to_image
 
 SUPPORTED_IMAGE_MIMETYPES = {
     'image/gif': '.gif',

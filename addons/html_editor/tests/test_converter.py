@@ -7,6 +7,7 @@ from lxml.builder import E
 
 from odoo.tests import common
 from odoo.tests.common import BaseCase
+
 from odoo.addons.html_editor.models.ir_qweb_fields import html_to_text
 
 

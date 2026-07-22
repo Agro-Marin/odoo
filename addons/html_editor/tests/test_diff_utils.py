@@ -1,12 +1,12 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 import odoo.tests
-
 from odoo.tests.common import BaseCase
+
 from odoo.addons.html_editor.models.diff_utils import (
-    generate_patch,
-    generate_comparison,
     apply_patch,
+    generate_comparison,
+    generate_patch,
 )
 
 
@@ -136,9 +136,7 @@ class TestPatchUtils(BaseCase):
             "<p>foo</p><p>boz</p><p>buz</p>",
             "<p>buz</p>",
         ]
-        patches = []
-        for i in range(len(contents) - 1):
-            patches.append(generate_patch(contents[i + 1], contents[i]))
+        patches = [generate_patch(contents[i + 1], contents[i]) for i in range(len(contents) - 1)]
 
         patches.reverse()
         reconstruct_content = contents[-1]

@@ -3,6 +3,7 @@
 import re
 
 from odoo.tests import common, tagged
+
 from odoo.addons.html_editor import tools
 
 

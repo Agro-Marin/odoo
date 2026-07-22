@@ -14,6 +14,7 @@ import logging
 import re
 from datetime import datetime
 from pathlib import Path
+from urllib.parse import parse_qs, urlsplit
 
 import babel
 import pytz
@@ -21,13 +22,12 @@ import requests
 from lxml import etree, html
 from markupsafe import Markup, escape_silent
 from PIL import Image as I
-from urllib.parse import parse_qs, urlsplit
 
-from odoo import _, api, models, fields
+from odoo import _, api, fields, models
 from odoo.exceptions import UserError, ValidationError
 from odoo.tools import posix_to_ldml
 from odoo.tools.json import scriptsafe as json_safe
-from odoo.tools.misc import file_open, get_lang, babel_locale_parse
+from odoo.tools.misc import babel_locale_parse, file_open, get_lang
 
 REMOTE_CONNECTION_TIMEOUT = 2.5
 
@@ -270,14 +270,14 @@ class IrQwebFieldMany2one(models.AbstractModel):
         if allow_reset and not many2one_id:
             # Reset the id of the many2one
             Model.browse(record_id).write({field_name: False})
-            return None
+            return
 
         record = many2one_id and M2O.browse(many2one_id)
         if record and record.exists():
             # save the new id of the many2one
             Model.browse(record_id).write({field_name: many2one_id})
 
-        return None
+        return
 
 
 class IrQwebFieldContact(models.AbstractModel):
@@ -378,8 +378,8 @@ class IrQwebFieldDatetime(models.AbstractModel):
         try:
             datetime_format = f'{lg.date_format} {lg.time_format}'
             dt = datetime.strptime(value, datetime_format)
-        except ValueError:
-            raise ValidationError(_("The datetime %(value)s does not match the format %(format)s", value=value, format=datetime_format))
+        except ValueError as err:
+            raise ValidationError(_("The datetime %(value)s does not match the format %(format)s", value=value, format=datetime_format)) from err
 
         # convert back from user's timezone to UTC
         tz_name = element.attrib.get('data-oe-original-tz') or self.env.context.get('tz') or self.env.user.tz
@@ -389,7 +389,7 @@ class IrQwebFieldDatetime(models.AbstractModel):
                 utc = pytz.utc
 
                 dt = user_tz.localize(dt).astimezone(utc)
-            except Exception:  # noqa: BLE001
+            except Exception:
                 _logger.warning(
                     "Failed to convert the value for a field of the model"
                     " %s back from the user's timezone (%s) to UTC",
@@ -527,7 +527,7 @@ class IrQwebFieldImage(models.AbstractModel):
                 image.load()
                 f.seek(0)
                 return base64.b64encode(f.read())
-        except Exception:  # noqa: BLE001
+        except Exception:
             _logger.exception("Failed to load local image %r", url)
             return None
 
@@ -550,7 +550,7 @@ class IrQwebFieldImage(models.AbstractModel):
             image.load()
         # We're catching all exceptions because Pillow's exceptions are
         # directly inheriting from Exception.
-        except Exception:  # noqa: BLE001
+        except Exception:
             _logger.warning("Failed to load remote image %r", url, exc_info=True)
             return None
 

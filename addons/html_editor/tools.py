@@ -3,10 +3,10 @@
 import contextlib
 import logging
 import re
-import requests
-
-from markupsafe import Markup
 from urllib.parse import parse_qs, urlencode, urlparse
+
+import requests
+from markupsafe import Markup
 
 from odoo import _
 from odoo.exceptions import ValidationError
@@ -73,7 +73,7 @@ def get_video_url_data(video_url, autoplay=False, loop=False,
         start_from = "0"
     if platform == 'youtube':
         params['rel'] = 0
-        params['autoplay'] = autoplay and 1 or 0
+        params['autoplay'] = (autoplay and 1) or 0
         if start_from:
             params["start"] = start_from.rstrip("s")
         if autoplay:
@@ -94,7 +94,7 @@ def get_video_url_data(video_url, autoplay=False, loop=False,
         yt_extra = platform_match[1] or ''
         embed_url = f"//www.youtube{yt_extra}.com/embed/{video_id}?{urlencode(params)}"
     elif platform == 'vimeo':
-        params['autoplay'] = autoplay and 1 or 0
+        params['autoplay'] = (autoplay and 1) or 0
         # Always enable "do not track" parameter.
         params['dnt'] = 1
         if autoplay:
