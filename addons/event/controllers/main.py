@@ -1,11 +1,11 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 import json
+
 from werkzeug.exceptions import NotFound
 
-from odoo import http, _
-from odoo.http import Controller, request, route, content_disposition
+from odoo import _, http
+from odoo.http import Controller, content_disposition, request, route
 from odoo.tools import consteq, format_datetime
 
 
@@ -19,7 +19,7 @@ class EventController(Controller):
         event = event.with_context(lang=lang)
         slot_id = int(kwargs['slot_id']) if kwargs.get('slot_id') else False
         files = event._get_ics_file(slot=request.env['event.slot'].sudo().browse(slot_id))
-        if not event.id in files:
+        if event.id not in files:
             return NotFound()
         content = files[event.id]
         return request.make_response(content, [
@@ -43,13 +43,13 @@ class EventController(Controller):
         """
         registration_ids = json.loads(registration_ids or '[]')
         if not event_id or not tickets_hash or not registration_ids:
-            raise NotFound()
+            raise NotFound
 
         # We sudo the event in case of invitations sent before publishing it.
         event_sudo = request.env['event.event'].browse(event_id).exists().sudo()
         hash_truth = event_sudo and event_sudo._get_tickets_access_hash(registration_ids)
         if not hash_truth or not consteq(tickets_hash, hash_truth):
-            raise NotFound()
+            raise NotFound
 
         event_registrations_sudo = event_sudo.registration_ids.filtered(lambda reg: reg.id in registration_ids)
         report_name_prefix = _("Ticket") if responsive_html else _("Badges") if badge_mode else _("Tickets")

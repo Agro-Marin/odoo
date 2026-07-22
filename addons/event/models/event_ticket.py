@@ -1,6 +1,6 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-from odoo import api, fields, models, _
+from odoo import _, api, fields, models
 from odoo.exceptions import UserError
 from odoo.tools.misc import formatLang
 
@@ -157,6 +157,7 @@ class EventEventTicket(models.Model):
                     count=formatLang(self.env, ticket.seats_available, digits=0),
                 )
             ticket.display_name = name
+        return None
 
     def _get_current_limit_per_order(self, event_slot=False, event=False):
         """ Compute the maximum possible number of tickets for an order, taking
@@ -169,7 +170,7 @@ class EventEventTicket(models.Model):
         else:
             return {False: event_slot.seats_available if event_slot else (event.seats_available if event.seats_limited else event.EVENT_MAX_TICKETS)}
         availabilities = {}
-        for ticket, seats_available in zip(self, slots_seats_available):
+        for ticket, seats_available in zip(self, slots_seats_available, strict=True):
             if not seats_available:  # "No limit"
                 seats_available = ticket.limit_max_per_order or ticket.event_id.EVENT_MAX_TICKETS
             else:
