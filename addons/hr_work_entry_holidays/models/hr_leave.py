@@ -1,6 +1,7 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-from datetime import datetime, time
+from datetime import date, datetime, time
+
 from dateutil.relativedelta import relativedelta
 
 from odoo import api, fields, models
@@ -16,7 +17,7 @@ class HrLeave(models.Model):
     _inherit = 'hr.leave'
 
     def _prepare_resource_leave_vals(self):
-        vals = super(HrLeave, self)._prepare_resource_leave_vals()
+        vals = super()._prepare_resource_leave_vals()
         vals['work_entry_type_id'] = self.holiday_status_id.work_entry_type_id.id
         return vals
 
@@ -91,15 +92,15 @@ class HrLeave(models.Model):
             return True
         skip_check = not bool({'employee_id', 'state', 'request_date_from', 'request_date_to'} & vals.keys())
         employee_ids = self.employee_id.ids
-        if 'employee_id' in vals and vals['employee_id']:
+        if vals.get('employee_id'):
             employee_ids += [vals['employee_id']]
         # We check a whole day before and after the interval of the earliest
         # request_date_from and latest request_date_end because date_{from,to}
         # can lie in this range due to time zone reasons.
         # (We can't use date_from and date_to as they are not yet computed at
         # this point.)
-        start_dates = self.filtered('request_date_from').mapped('request_date_from') + [fields.Date.to_date(vals.get('request_date_from', False)) or datetime.max.date()]
-        stop_dates = self.filtered('request_date_to').mapped('request_date_to') + [fields.Date.to_date(vals.get('request_date_to', False)) or datetime.min.date()]
+        start_dates = self.filtered('request_date_from').mapped('request_date_from') + [fields.Date.to_date(vals.get('request_date_from', False)) or date.max]
+        stop_dates = self.filtered('request_date_to').mapped('request_date_to') + [fields.Date.to_date(vals.get('request_date_to', False)) or date.min]
         start = datetime.combine(min(start_dates) - relativedelta(days=1), time.min)
         stop = datetime.combine(max(stop_dates) + relativedelta(days=1), time.max)
         with self.env['hr.work.entry']._error_checking(start=start, stop=stop, skip=skip_check, employee_ids=employee_ids):
@@ -115,8 +116,8 @@ class HrLeave(models.Model):
         # this point.)
         start_dates = [fields.Date.to_date(v.get('request_date_from')) for v in vals_list if v.get('request_date_from')]
         stop_dates = [fields.Date.to_date(v.get('request_date_to')) for v in vals_list if v.get('request_date_to')]
-        start = datetime.combine(min(start_dates, default=datetime.max.date()) - relativedelta(days=1), time.min)
-        stop = datetime.combine(max(stop_dates, default=datetime.min.date()) + relativedelta(days=1), time.max)
+        start = datetime.combine(min(start_dates, default=date.max) - relativedelta(days=1), time.min)
+        stop = datetime.combine(max(stop_dates, default=date.min) + relativedelta(days=1), time.max)
         with self.env['hr.work.entry']._error_checking(start=start, stop=stop, employee_ids=employee_ids):
             return super().create(vals_list)
 
