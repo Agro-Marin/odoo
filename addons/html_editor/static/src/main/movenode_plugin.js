@@ -72,7 +72,7 @@ export class MoveNodePlugin extends Plugin {
         // This container contains the differents widgets.
         this.widgetContainer =
             this.dependencies.localOverlay.makeLocalOverlay("oe-widgets-container");
-        // This container contains the jquery helper element.
+        // This container contains the drag helper element.
         this.dragHelperContainer = this.dependencies.localOverlay.makeLocalOverlay(
             "oe-movenode-helper-container",
         );

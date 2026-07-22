@@ -12,19 +12,6 @@ import { isValidTargetForDomListener, Plugin } from "../plugin.js";
  * @property {boolean} [global]
  *
  * @typedef {Shortcut[]} shortcuts
- *
- * Example:
- *
- *     resources = {
- *         // See UserCommand
- *         user_commands: [
- *             { id: "myCommands", run: myCommandFunction },
- *         ],
- *         // See Shortcut
- *         shortcuts: [
- *             { hotkey: "control+shift+q", commandId: "myCommands" },
- *         ],
- *     }
  */
 
 /**

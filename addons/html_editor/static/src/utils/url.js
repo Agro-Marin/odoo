@@ -5,11 +5,12 @@ import { session } from "@web/session";
 const ODOO_DOMAIN_REGEX = new RegExp(`^https?://${session.db}\\.odoo\\.com(/.*)?$`);
 
 /**
- * Checks if the given URL contains the specified hostname and returns a reconstructed URL if it does.
+ * If the given URL's hostname is one of the allowed hostnames, returns the URL
+ * rebuilt as https://<hostname><pathname>; otherwise returns false.
  *
- * @param {string} url - The URL to be checked
- * @param {Array} hostname - The hostname to be included in the modified URL
- * @return {string|boolean} The modified URL with the specified hostname included, or false if the URL does not meet the conditions
+ * @param {string} url - The URL to check
+ * @param {string[]} hostnameList - The list of allowed hostnames
+ * @return {string|boolean} The rebuilt URL, or false if the hostname is not allowed
  */
 export function checkURL(url, hostnameList) {
     if (url) {
