@@ -1,7 +1,8 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-from odoo.addons.mail.tests.common import mail_new_test_user
 from odoo.tests.common import TransactionCase
+
+from odoo.addons.mail.tests.common import mail_new_test_user
 
 
 class TestHrSkillsSlides(TransactionCase):
@@ -41,9 +42,7 @@ class TestHrSkillsSlides(TransactionCase):
         })
 
     def test_add_resume_line_after_complete(self):
-        """
-        Ensure that a resume line is added after that a eLearning course has been completed.
-        """
+        """Ensure a resume line is added after an eLearning course is completed."""
         self.channel.sudo()._action_add_members(self.user.partner_id)
         self.env['slide.slide.partner'].create([{
             'channel_id': self.channel.id,
@@ -57,9 +56,7 @@ class TestHrSkillsSlides(TransactionCase):
         self.assertEqual(resume_line.course_url, self.channel.website_absolute_url)
 
     def test_remove_resume_line_no_readd(self):
-        """
-        Ensure that a eLearning resume line that is removed is not re-added when the course changes.
-        """
+        """Ensure a removed eLearning resume line is not re-added when the course changes."""
         self.channel.sudo()._action_add_members(self.user.partner_id)
         channel_partner = self.env['slide.slide.partner'].create([{
             'channel_id': self.channel.id,
