@@ -37,12 +37,15 @@ class UnitOfWork:
         self,
         cache: FieldCache,
         engine: ComputeEngine,
-        max_iterations: int = 10,
+        max_iterations: int = 1000,
     ) -> None:
         """Bind to *cache* and *engine* with a convergence iteration cap.
 
-        :param max_iterations: maximum passes a loop runs before reporting
-            non-convergence.
+        :param max_iterations: safety backstop on the number of passes, for
+            pathological cycles that evade the per-pass progress check (which
+            aborts a genuine stall immediately).  A large value so that a
+            long-but-converging compute/flush cascade is not misreported as a
+            circular dependency.
         """
         self.cache = cache
         self.engine = engine
@@ -169,12 +172,14 @@ class UnitOfWork:
                 result.stalled_fields = []
                 break
 
-            # NOTE: no per-iteration stall snapshot here. ``stalled_fields`` is
-            # determined solely by the exit paths (break = converged -> []; the
-            # ``else`` = exhausted -> computed from ``pending``), so a mid-loop
-            # ``recompute_snapshot``/``check_convergence`` only allocated a
-            # frozenset whose result was always overwritten. The convergence
-            # helpers remain (unit-tested) for a future real stall-detection.
+            # No per-iteration progress snapshot: a count-based check
+            # (``recompute_snapshot``/``check_convergence``) cannot tell a stall
+            # from real progress when a pass computes a field on some records
+            # while scheduling it on others (same field, same count, different
+            # ids) — aborting there would drop computations.  ``max_iterations``
+            # is a large backstop; a genuine cycle is caught there rather than
+            # risk a false stall.  The helpers remain (unit-tested) for a future
+            # id-level stall detector.
 
             # Sort by topological priority: dependencies (lower value) compute
             # first, so their results are cached when dependents run.
@@ -236,9 +241,10 @@ class UnitOfWork:
                 result.stalled_fields = []
                 break
 
-            # NOTE: no per-iteration flush-progress snapshot here — as in
-            # run_recompute_loop, ``stalled_fields`` is set only by the exit
-            # paths, so mid-loop bookkeeping was always overwritten.
+            # No per-iteration flush-progress snapshot (see run_recompute_loop):
+            # a converging flush can re-dirty the same field on different records
+            # via modified(), so a label/count-based check would false-stall.
+            # ``max_iterations`` is the large backstop for a genuine flush cycle.
 
             # Flush all dirty models
             flush_fn(model_names)

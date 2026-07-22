@@ -4,7 +4,7 @@ from datetime import timedelta
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError, ValidationError
 from odoo.fields import Command, Domain
-from odoo.orm.primitives import MAGIC_COLUMNS
+from odoo.models import MAGIC_COLUMNS
 from odoo.tools import SQL, format_list
 
 

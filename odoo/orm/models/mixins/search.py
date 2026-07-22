@@ -492,11 +492,13 @@ class SearchMixin(_ModelStubs):
             query.order = self._order_to_sql(order, query)
 
         # In RPC, None is not available; False is used instead to mean "no limit"
-        # Note: True is kept for backward-compatibility (treated as 1)
         if limit is not None and limit is not False:
-            query.limit = limit
+            # ``True`` is a legacy alias for 1.  Coerce it: passing the bool
+            # straight through binds ``LIMIT true``, which PostgreSQL rejects
+            # (``argument of LIMIT must be type bigint, not type boolean``).
+            query.limit = 1 if limit is True else limit
         if offset is not None:
-            query.offset = offset
+            query.offset = 1 if offset is True else offset
 
         prof.stop()
         if prof.debug:

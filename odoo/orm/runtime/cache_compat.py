@@ -246,8 +246,22 @@ class Cache:
             field._invalidate_cache(env, ids)
 
     def clear(self):
-        """Invalidate the cache and its dirty flags."""
-        self.transaction.core.clear_cache()
+        """Invalidate the cache and its dirty flags.
+
+        ``core.clear_cache()`` empties the underlying ``FieldCache`` (data +
+        dirty + patches) but leaves each environment's ``_field_cache_memo``
+        pointing at the now-detached per-field dicts, so a subsequent read
+        serves a stale value and a subsequent write flushes into a dict the
+        cache no longer knows about (``RuntimeError`` at flush).  Purge the
+        memos too, keeping the two in sync — mirroring ``Transaction.clear()``
+        without discarding pending computes (this is the recordset-level cache
+        API, not a full transaction reset).
+        """
+        txn = self.transaction
+        txn.core.clear_cache()
+        for env in txn.envs:
+            with contextlib.suppress(AttributeError):
+                del env._field_cache_memo
 
     def check(self, env) -> None:
         """Check the consistency of the cache for the given environment."""

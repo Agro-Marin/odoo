@@ -28,7 +28,12 @@ if typing.TYPE_CHECKING:
 
 _logger = logging.getLogger("odoo.api")
 
-MAX_FIXPOINT_ITERATIONS = 10
+# Safety backstop on flush/recompute passes.  The loops terminate on a genuine
+# stall (an unchanged pending/dirty set between passes, see UnitOfWork) rather
+# than on this count; it only bounds pathological alternating cycles that evade
+# the progress check.  Large so a long-but-converging cascade of computes that
+# write other fields is not misreported as a circular dependency.
+MAX_FIXPOINT_ITERATIONS = 1000
 
 
 class Transaction:
