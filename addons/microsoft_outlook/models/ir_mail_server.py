@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 import base64
@@ -71,7 +70,7 @@ class IrMail_Server(models.Model):
         if self.smtp_authentication == 'outlook':
             self.from_filter = self.smtp_user
 
-    def _smtp_login__(self, connection, smtp_user, smtp_password):  # noqa: PLW3201
+    def _smtp_login__(self, connection, smtp_user, smtp_password):
         if len(self) == 1 and self.smtp_authentication == 'outlook':
             auth_string = self._generate_outlook_oauth2_string(smtp_user)
             oauth_param = base64.b64encode(auth_string.encode()).decode()
