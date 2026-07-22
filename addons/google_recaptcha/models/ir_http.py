@@ -1,6 +1,5 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
-import logging
+import logging  # noqa: I001
 import requests
 
 from odoo import api, models, _
@@ -37,7 +36,7 @@ class IrHttp(models.AbstractModel):
     def _verify_request_recaptcha_token(self, action):
         """ Verify the recaptcha token for the current request.
             If no recaptcha private key is set the recaptcha verification
-            is considered inactive and this method will return True.
+            is considered inactive and this method returns without raising.
         """
         super()._verify_request_recaptcha_token(action)
         config_params = request.env['ir.config_parameter'].sudo()
@@ -51,7 +50,7 @@ class IrHttp(models.AbstractModel):
             return
         if recaptcha_result == 'wrong_secret':
             raise ValidationError(_("The reCaptcha private key is invalid."))
-        elif recaptcha_result == 'wrong_token':
+        elif recaptcha_result == 'wrong_token':  # noqa: RET506
             raise ValidationError(_("The reCaptcha token is invalid."))
         elif recaptcha_result == 'timeout':
             raise UserError(_("Your request has timed out, please retry."))
