@@ -30,8 +30,15 @@ export class ResPartner extends Record {
             }
             if (this._triggerPresenceSubscription) {
                 this.store.env.services.bus_service.addChannel(this.presenceChannel);
+                this.previousPresencechannel = this.presenceChannel;
+            } else {
+                // Only remember a channel we actually subscribed to. Recording
+                // `presenceChannel` unconditionally made the *next* update
+                // release a claim this record never took: at best a
+                // "deleteChannel without a matching addChannel" warning, at
+                // worst stealing another consumer's claim on the same channel.
+                this.previousPresencechannel = undefined;
             }
-            this.previousPresencechannel = this.presenceChannel;
         },
     });
     /** @type {string} */

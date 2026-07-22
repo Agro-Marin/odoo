@@ -52,8 +52,13 @@ export class MailGuest extends Record {
             }
             if (this._triggerPresenceSubscription) {
                 this.store.env.services.bus_service.addChannel(this.presenceChannel);
+                this.previousPresencechannel = this.presenceChannel;
+            } else {
+                // Only remember a channel we actually subscribed to — see the
+                // same guard on res.partner: an unconditional record makes the
+                // next update release a claim this record never took.
+                this.previousPresencechannel = undefined;
             }
-            this.previousPresencechannel = this.presenceChannel;
         },
     });
     /** @type {string} */
