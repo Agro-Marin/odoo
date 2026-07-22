@@ -1,15 +1,16 @@
-import pytz
 from datetime import datetime
+
+import pytz
 
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError, ValidationError
-from odoo.tools.date_utils import float_to_time
 from odoo.tools import (
     format_date,
     format_datetime,
-    formatLang,
     format_time,
+    formatLang,
 )
+from odoo.tools.date_utils import float_to_time
 
 
 class EventSlot(models.Model):

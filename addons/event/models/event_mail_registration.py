@@ -1,9 +1,8 @@
 import logging
 
 from odoo import api, fields, models
-from odoo.addons.event.models.event_mail import _INTERVALS
-from odoo.exceptions import MissingError
 
+from odoo.addons.event.models.event_mail import _INTERVALS
 
 _logger = logging.getLogger(__name__)
 

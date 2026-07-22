@@ -1,4 +1,5 @@
 from odoo import api, fields, models
+
 from odoo.addons.base.models.res_partner import _tz_get
 
 

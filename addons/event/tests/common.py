@@ -152,14 +152,13 @@ class EventCase(common.TransactionCase):
     def _create_registrations(cls, event, reg_count):
         # create some registrations
         create_date = fields.Datetime.now()
-        registrations = cls.env['event.registration'].create([{
+        return cls.env['event.registration'].create([{
             'create_date': create_date,
             'event_id': event.id,
             'name': f'Test Registration {idx}',
             'email': f'_test_reg_{idx}@example.com',
             'phone': f'04560000{idx}{idx}',
-        } for idx in range(0, reg_count)])
-        return registrations
+        } for idx in range(reg_count)])
 
     @classmethod
     def _create_registrations_for_slot_and_ticket(cls, event, slot, ticket, count, **add_values):
@@ -172,7 +171,7 @@ class EventCase(common.TransactionCase):
                     'event_ticket_id': ticket.id if ticket else False,
                     'name': f'{slot.id if slot else "NoSlot"}.{ticket.id if ticket else "NoTicket"}',
                 }, **add_values
-            ) for idx in range(0, count)
+            ) for idx in range(count)
         ])
 
     @classmethod
@@ -230,7 +229,7 @@ class EventCase(common.TransactionCase):
 
     def assertSchedulerCronTriggers(self, capture, call_at_list):
         self.assertEqual(len(capture.records), len(call_at_list))
-        for record, call_at in zip(capture.records, call_at_list):
+        for record, call_at in zip(capture.records, call_at_list, strict=True):
             self.assertEqual(record.call_at, call_at.replace(microsecond=0))
             self.assertEqual(record.cron_id, self.env.ref('event.event_mail_scheduler'))
 

@@ -1,22 +1,22 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 from datetime import date, datetime, timedelta
+
 from freezegun import freeze_time
 
-from odoo import Command
-from odoo.addons.event.tests.common import EventCase
-from odoo import exceptions
+from odoo import Command, exceptions
 from odoo.fields import Datetime as FieldsDatetime
-from odoo.tests import Form, users, tagged
+from odoo.tests import Form, tagged, users
 from odoo.tools import mute_logger
+
+from odoo.addons.event.tests.common import EventCase
 
 
 class TestEventInternalsCommon(EventCase):
 
     @classmethod
     def setUpClass(cls):
-        super(TestEventInternalsCommon, cls).setUpClass()
+        super().setUpClass()
 
         cls.event_type_complex = cls.env['event.type'].create({
             'name': 'Update Type',
@@ -128,7 +128,7 @@ class TestEventData(TestEventInternalsCommon):
         self.assertEqual(event.event_mail_ids, self.env['event.mail'])
         self.assertEqual(event.event_ticket_ids, self.env['event.event.ticket'])
 
-        registration = self._create_registrations(event, 1)
+        self._create_registrations(event, 1)
 
         # ------------------------------------------------------------
         # FILL SYNC TEST
@@ -217,14 +217,14 @@ class TestEventData(TestEventInternalsCommon):
         # verify that mail is linked to the registration
         self.assertEqual(
             set(mail.mapped('mail_registration_ids.registration_id.id')),
-            set([registration.id])
+            {registration.id}
         )
         # start test scenario
         event_form = Form(event)
         # verify that mail is linked to the event in the form
         self.assertEqual(
-            set(map(lambda m: m.get('id', None), event_form.event_mail_ids._records)),
-            set([mail.id])
+            {m.get('id', None) for m in event_form.event_mail_ids._records},
+            {mail.id}
         )
         # switch to an event_type with a mail template which should be computed
         event_form.event_type_id = event_type_mails
@@ -242,8 +242,8 @@ class TestEventData(TestEventInternalsCommon):
         event_form.event_type_id = event_type_default
         # verify that the mail linked to the registration was kept, and the other removed
         self.assertEqual(
-            set(map(lambda m: m.get('id', None), event_form.event_mail_ids._records)),
-            set([mail.id])
+            {m.get('id', None) for m in event_form.event_mail_ids._records},
+            {mail.id}
         )
 
     @users('user_eventmanager')
@@ -362,22 +362,22 @@ class TestEventData(TestEventInternalsCommon):
         event_form = Form(event)
         # verify that the ticket is linked to the event in the form
         self.assertEqual(
-            set(map(lambda m: m.get('name', None), event_form.event_ticket_ids._records)),
-            set(['Registration Ticket'])
+            {m.get('name', None) for m in event_form.event_ticket_ids._records},
+            {'Registration Ticket'}
         )
         # switch to an event_type with a ticket template which should be computed
         event_form.event_type_id = event_type_tickets
         # verify that both tickets are computed
         self.assertEqual(
-            set(map(lambda m: m.get('name', None), event_form.event_ticket_ids._records)),
-            set(['Registration Ticket', 'Default Ticket'])
+            {m.get('name', None) for m in event_form.event_ticket_ids._records},
+            {'Registration Ticket', 'Default Ticket'}
         )
         # switch back to an event_type without default tickets
         event_form.event_type_id = event_type_default
         # verify that the ticket linked to the registration was kept, and the other removed
         self.assertEqual(
-            set(map(lambda m: m.get('name', None), event_form.event_ticket_ids._records)),
-            set(['Registration Ticket'])
+            {m.get('name', None) for m in event_form.event_ticket_ids._records},
+            {'Registration Ticket'}
         )
 
     @users('user_eventmanager')
@@ -974,7 +974,7 @@ class TestEventRegistrationPhone(EventCase):
             '+917200000000',  # IN on event
             '+917200000088',  # already formatted
         ]
-        for (partner_id, phone), exp_phone in zip(sources, expected):
+        for (partner_id, phone), exp_phone in zip(sources, expected, strict=True):
             with self.subTest(partner_id=partner_id, phone=phone):
                 create_vals = {
                     'event_id': event.id,
@@ -995,7 +995,7 @@ class TestEventRegistrationPhone(EventCase):
             '7200000000',  # BE on company -> cannot format IN
             '+917200000088',  # already formatted
         ]
-        for (partner_id, phone), exp_phone in zip(sources, expected):
+        for (partner_id, phone), exp_phone in zip(sources, expected, strict=True):
             with self.subTest(partner_id=partner_id, phone=phone):
                 create_vals = {
                     'event_id': event.id,
