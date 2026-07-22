@@ -564,6 +564,11 @@ test("clickbot show rpc error when an error dialog is detected", async () => {
                 },
             },
         },
+        // ``RpcEvent.RESPONSE`` carries the request url alongside ``data`` /
+        // ``settings``, exactly as ``RpcEvent.REQUEST`` does, so a response
+        // observer can identify the endpoint even for calls whose params carry
+        // no model/method (session_info, /web/action/load, get_views, ...).
+        url: "/web/dataset/call_kw/foo/web_search_read",
         settings: { silent: false, cache: false, retry: false, dedup: false },
         error: {
             name: "RPC_ERROR",
