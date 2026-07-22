@@ -42,7 +42,7 @@ import { FontSizeSelector } from "./font_size_selector.js";
 /** @typedef {import("plugins").TranslatedString} TranslatedString */
 
 /**
- * @typedef {((insertedNode: Node) => insertedNode)[]} before_insert_within_pre_processors
+ * @typedef {((insertedNode: Node) => Node)[]} before_insert_within_pre_processors
  * @typedef {{ name: TranslatedString; tagName: string; extraClass?: string; }[]} font_items
  */
 
@@ -602,7 +602,7 @@ export class FontPlugin extends Plugin {
      * into a base container, regardless of its position in the editable.
      */
     handleDeleteBackward({ startContainer, startOffset, endContainer, endOffset }) {
-        // Detect if cursor is at the start of the editable (collapsed range).
+        // Detect whether the range is collapsed (a caret, not a selection).
         const rangeIsCollapsed =
             startContainer === endContainer && startOffset === endOffset;
         const closestHandledElement = closestElement(endContainer, handledElemSelector);
