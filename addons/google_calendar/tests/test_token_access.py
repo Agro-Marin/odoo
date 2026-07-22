@@ -1,8 +1,8 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-from odoo import fields, Command
-from odoo.exceptions import AccessError
+from odoo import Command, fields
 from odoo.tests.common import TransactionCase
+
 
 class TestTokenAccess(TransactionCase):
 
@@ -46,7 +46,7 @@ class TestTokenAccess(TransactionCase):
         )
 
     def test_normal_user_should_not_be_able_to_reset_other_user_tokens(self):
-        user1, user2 = self.users
+        _user1, _user2 = self.users
         # Skip test: the access error will not be raised anymore since the access rules were deleted.
         # with self.assertRaises(AccessError):
         #     user2.with_user(user1).res_users_settings_id._set_auth_tokens(False, False, 0)
