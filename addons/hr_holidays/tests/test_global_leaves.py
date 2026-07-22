@@ -1,13 +1,15 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 from datetime import date, datetime, timedelta
-from odoo.addons.hr_holidays.tests.common import TestHrHolidaysCommon
-from odoo.addons.mail.tests.common import mail_new_test_user
-from odoo.exceptions import ValidationError
+
 from freezegun import freeze_time
 
+from odoo.exceptions import ValidationError
 from odoo.tests import tagged
+
+from odoo.addons.hr_holidays.tests.common import TestHrHolidaysCommon
+from odoo.addons.mail.tests.common import mail_new_test_user
+
 
 @tagged('global_leaves')
 class TestGlobalLeaves(TestHrHolidaysCommon):
@@ -242,7 +244,7 @@ class TestGlobalLeaves(TestHrHolidaysCommon):
         })
         partially_covered_leave.action_approve()
 
-        global_leave = self.env['resource.calendar.leaves'].with_user(self.env.user).create({
+        self.env['resource.calendar.leaves'].with_user(self.env.user).create({
             'name': 'Public holiday',
             'date_from': "2024-12-04 06:00:00",
             'date_to': "2024-12-04 23:00:00",

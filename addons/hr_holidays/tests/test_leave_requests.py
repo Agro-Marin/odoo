@@ -1,17 +1,19 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-from datetime import datetime, date, timedelta
 import time
+from datetime import date, datetime, timedelta
+
 from dateutil.relativedelta import relativedelta
 from freezegun import freeze_time
 from pytz import timezone
 
-from odoo import fields, Command
+from odoo import Command, fields
 from odoo.exceptions import AccessError, UserError, ValidationError
-from odoo.tools import date_utils, mute_logger
 from odoo.tests import Form, tagged, users
+from odoo.tools import date_utils, mute_logger
 
 from odoo.addons.hr_holidays.tests.common import TestHrHolidaysCommon
+
 
 @tagged('leave_requests')
 class TestLeaveRequests(TestHrHolidaysCommon):
@@ -33,7 +35,7 @@ class TestLeaveRequests(TestHrHolidaysCommon):
 
     @classmethod
     def setUpClass(cls):
-        super(TestLeaveRequests, cls).setUpClass()
+        super().setUpClass()
 
         # Make sure we have the rights to create, validate and delete the leaves, leave types and allocations
         LeaveType = cls.env['hr.leave.type'].with_user(cls.user_hrmanager_id).with_context(tracking_disable=True)
@@ -1266,7 +1268,7 @@ class TestLeaveRequests(TestHrHolidaysCommon):
             self.assertFalse(employee.filtered_domain([('is_absent', '=', False)]))
             self.assertEqual(employee.filtered_domain([('is_absent', '=', True)]), employee)
 
-            raise RuntimeError()
+            raise RuntimeError
 
         for leave_validation_type in types:
             with self.assertRaises(RuntimeError):
@@ -1689,7 +1691,7 @@ class TestLeaveRequests(TestHrHolidaysCommon):
             for data in leave_data
         ])
         expected_days_list = [0, 1, 3, 0, 1]
-        for leave, expected_days, data in zip(leaves, expected_days_list, leave_data):
+        for leave, expected_days, data in zip(leaves, expected_days_list, leave_data, strict=False):
             self.assertEqual(
                 leave.number_of_days,
                 expected_days,

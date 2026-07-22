@@ -1,9 +1,10 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 from datetime import date
+
 from odoo import api, fields, models
-from odoo.fields import Domain
 from odoo.exceptions import ValidationError
+from odoo.fields import Domain
 
 
 class HrVersion(models.Model):
@@ -30,7 +31,7 @@ class HrVersion(models.Model):
         leaves_state = {}
         created_versions = self.env['hr.version']
         for vals in vals_list:
-            if not 'employee_id' in vals or not 'resource_calendar_id' in vals:
+            if 'employee_id' not in vals or 'resource_calendar_id' not in vals:
                 created_versions |= super().create(vals)
                 continue
             leaves = self._get_leaves_from_vals(vals)
@@ -54,14 +55,14 @@ class HrVersion(models.Model):
         try:
             if all_new_leave_vals:
                 self._create_all_new_leave(all_new_leave_origin, all_new_leave_vals)
-        except ValidationError:
+        except ValidationError as e:
             # In case a validation error is thrown due to holiday creation with the new resource calendar (which can
             # increase their duration), we catch this error to display a more meaningful error message.
             raise ValidationError(
                 self.env._("Changing the contract on this employee changes their working schedule in a period "
                            "they already took leaves. Changing this working schedule changes the duration of "
                            "these leaves in such a way the employee no longer has the required allocation for "
-                           "them. Please review these leaves and/or allocations before changing the contract."))
+                           "them. Please review these leaves and/or allocations before changing the contract.")) from e
         return created_versions
 
     def write(self, vals):
@@ -88,13 +89,13 @@ class HrVersion(models.Model):
                             all_new_leave_origin, all_new_leave_vals, overlapping_contracts, leave, leaves_state)
                 if all_new_leave_vals:
                     self._create_all_new_leave(all_new_leave_origin, all_new_leave_vals)
-            except ValidationError:
+            except ValidationError as e:
                 # In case a validation error is thrown due to holiday creation with the new resource calendar (which can
                 # increase their duration), we catch this error to display a more meaningful error message.
                 raise ValidationError(self.env._("Changing the contract on this employee changes their working schedule in a period "
                                         "they already took leaves. Changing this working schedule changes the duration of "
                                         "these leaves in such a way the employee no longer has the required allocation for "
-                                        "them. Please review these leaves and/or allocations before changing the contract."))
+                                        "them. Please review these leaves and/or allocations before changing the contract.")) from e
         return super(HrVersion, self - specific_contracts).write(vals)
 
     def _get_leaves(self, extra_domain=None):

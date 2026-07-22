@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 from datetime import date, datetime
@@ -14,7 +13,7 @@ class TestCompanyLeave(TransactionCase):
 
     @classmethod
     def setUpClass(cls):
-        super(TestCompanyLeave, cls).setUpClass()
+        super().setUpClass()
         cls.company = cls.env['res.company'].create({'name': 'A company'})
         cls.company.resource_calendar_id.tz = "Europe/Brussels"
 
@@ -45,7 +44,7 @@ class TestCompanyLeave(TransactionCase):
         # Add a company leave on the second day.
         # Check that leave is split into 2.
 
-        leave = self.env['hr.leave'].create({
+        self.env['hr.leave'].create({
             'name': 'Hol11',
             'employee_id': self.employee.id,
             'holiday_status_id': self.paid_time_off.id,

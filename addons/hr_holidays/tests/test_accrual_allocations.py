@@ -1,13 +1,13 @@
 import datetime
-from freezegun import freeze_time
 from datetime import date
+
 from dateutil.relativedelta import relativedelta
+from freezegun import freeze_time
 from psycopg import IntegrityError
 
 from odoo import Command
-from odoo.exceptions import UserError
-from odoo.tests import tagged, Form
-from odoo.exceptions import ValidationError
+from odoo.exceptions import UserError, ValidationError
+from odoo.tests import Form, tagged
 from odoo.tools import mute_logger
 
 from odoo.addons.hr_holidays.tests.common import TestHrHolidaysCommon
@@ -17,7 +17,7 @@ from odoo.addons.hr_holidays.tests.common import TestHrHolidaysCommon
 class TestAccrualAllocations(TestHrHolidaysCommon):
     @classmethod
     def setUpClass(cls):
-        super(TestAccrualAllocations, cls).setUpClass()
+        super().setUpClass()
         cls.leave_type = cls.env['hr.leave.type'].create({
             'name': 'Paid Time Off',
             'time_type': 'leave',
@@ -2540,7 +2540,6 @@ class TestAccrualAllocations(TestHrHolidaysCommon):
                 f.date_from = '2024-02-01'
                 f.name = "Accrual allocation for employee"
 
-            allocation = f.record
 
             first_result = get_remaining_leaves(2024, 2, 21)
             self.assertEqual(get_remaining_leaves(2024, 2, 21), first_result, "Function return result should persist")

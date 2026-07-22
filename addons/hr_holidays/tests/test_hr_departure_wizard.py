@@ -2,6 +2,7 @@
 from datetime import date, timedelta
 
 from odoo import Command
+
 from odoo.addons.hr_holidays.tests.common import TestHrHolidaysCommon
 
 
