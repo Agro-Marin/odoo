@@ -27,6 +27,20 @@ def _to_record_id(value):
         raise NotFound from None
 
 
+def _to_record_ids_strict(values):
+    """Coerce a client-supplied list of record ids to ``int``, or raise ``NotFound``.
+
+    Unlike ``_to_record_ids`` this never drops an entry. Use it wherever the
+    position of an id carries meaning -- ``attachment_ids`` is zipped
+    ``strict=True`` against ``attachment_tokens`` in
+    ``ir.attachment._has_attachments_ownership``, so silently skipping a
+    malformed id would slide every later attachment onto its neighbour's
+    ownership token. Rejecting the whole call is both safer and more honest:
+    the caller sent something that is not an id list.
+    """
+    return [_to_record_id(value) for value in values or []]
+
+
 def _to_record_ids(values, limit=None):
     """Coerce a client-supplied list of record ids to a list of ``int``.
 
@@ -265,8 +279,13 @@ class ThreadController(http.Controller):
     def read_subscription_data(self, follower_id):
         """Return the document's message subtypes and which of them are followed."""
         # limited to internal, who can read all followers
-        follower = request.env["mail.followers"].browse(follower_id)
+        follower = request.env["mail.followers"].browse(_to_record_id(follower_id))
         follower.check_access("read")
+        # 'mail.followers.res_model' carries no integrity check by design (see
+        # the model docstring), so it can outlive the model it names. Answer 404
+        # rather than dereferencing it into a KeyError.
+        if follower.res_model not in request.env:
+            raise NotFound
         record = request.env[follower.res_model].browse(follower.res_id)
         record.check_access("read")
         # find current model subtypes, add them to a dictionary
@@ -316,7 +335,9 @@ class ThreadController(http.Controller):
             if key in thread._get_allowed_message_params()
         }
         if (attachment_ids := post_data.get("attachment_ids")) is not None:
-            attachments = request.env["ir.attachment"].browse(map(int, attachment_ids))
+            attachments = request.env["ir.attachment"].browse(
+                _to_record_ids_strict(attachment_ids)
+            )
             if not attachments._has_attachments_ownership(
                 post_data.get("attachment_tokens")
             ):
@@ -339,7 +360,9 @@ class ThreadController(http.Controller):
             or partner_emails is not None
             or role_ids is not None
         ):
-            partners = request.env["res.partner"].browse(map(int, partner_ids or []))
+            partners = request.env["res.partner"].browse(
+                _to_record_ids_strict(partner_ids)
+            )
             if partner_emails:
                 partners |= thread._partner_find_from_emails_single(
                     partner_emails,
@@ -352,7 +375,10 @@ class ThreadController(http.Controller):
                 partners |= (
                     request.env["res.users"]
                     .sudo()
-                    .search_fetch([("role_ids", "in", role_ids)], ["partner_id"])
+                    .search_fetch(
+                        [("role_ids", "in", _to_record_ids_strict(role_ids))],
+                        ["partner_id"],
+                    )
                     .partner_id
                 )
             res["partner_ids"] = partners.filtered(
