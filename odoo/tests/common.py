@@ -132,6 +132,16 @@ IGNORED_MSGS = re.compile(
     r"""
     failed\ to\ fetch  # base error
   | connectionlosterror:  # conversion by offlineFailToFetchErrorHandler
+    # ``ConnectionLostError`` subclasses (web/static/src/core/network/rpc.js).
+    # Each overrides ``this.name``, so the bare ``connectionlosterror:`` above
+    # never matches their serialized form even though they ARE connection-lost
+    # errors -- rpc.js extends the base class precisely so existing handling
+    # keeps matching. Tearing the HTTP server down under an in-flight fetch
+    # truncates the body, which rpc.js classifies as InvalidResponseError
+    # ("empty 200, truncated proxy body"); that surfaced as a spurious ERROR
+    # on every mail discuss tour run.
+  | serveroverloaderror:
+  | invalidresponseerror:
   | assetsloadingerror:  # lazy loaded bundle
 """,
     flags=re.VERBOSE | re.IGNORECASE,
