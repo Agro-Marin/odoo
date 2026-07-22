@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 from werkzeug.exceptions import NotFound
@@ -19,5 +18,5 @@ class LinkTracker(http.Controller):
             )
         redirect_url = request.env['link.tracker'].get_url_from_code(code)
         if not redirect_url:
-            raise NotFound()
+            raise NotFound
         return request.redirect(redirect_url, code=301, local=False)

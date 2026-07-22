@@ -1,16 +1,16 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 import re
 from html import unescape
+from urllib.parse import urlsplit
 
 import lxml
 import markupsafe
-from urllib.parse import urlsplit
 
-from odoo import api, models, tools
+from odoo import api, models
+from odoo.tools.mail import TEXT_URL_REGEX, URL_SKIP_PROTOCOL_REGEX, is_html_empty
+
 from odoo.addons.link_tracker.tools.html import find_links_with_urls_and_labels
-from odoo.tools.mail import is_html_empty, URL_SKIP_PROTOCOL_REGEX, TEXT_URL_REGEX
 
 
 class MailRenderMixin(models.AbstractModel):
@@ -52,7 +52,7 @@ class MailRenderMixin(models.AbstractModel):
         links_trackers = self.env['link.tracker'].search_or_create([
             dict(link_tracker_vals, **url_and_label) for url_and_label in urls_and_labels
         ])
-        for node, link_tracker in zip(link_nodes, links_trackers):
+        for node, link_tracker in zip(link_nodes, links_trackers, strict=True):
             node.set("href", link_tracker.short_url)
 
         new_html = lxml.html.tostring(root_node, encoding="unicode", method="xml")
@@ -75,7 +75,7 @@ class MailRenderMixin(models.AbstractModel):
         unsubscribe_schema = base_url + '/sms/'
         for original_url in set(re.findall(TEXT_URL_REGEX, content)):
             # don't shorten already-shortened links or links towards unsubscribe page
-            if original_url.startswith(shortened_schema) or original_url.startswith(unsubscribe_schema):
+            if original_url.startswith((shortened_schema, unsubscribe_schema)):
                 continue
             # support blacklist items in path, like /u/
             parsed = urlsplit(original_url, scheme='http')
