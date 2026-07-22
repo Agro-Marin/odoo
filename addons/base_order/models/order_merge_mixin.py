@@ -156,7 +156,17 @@ class OrderMergeMixin(models.AbstractModel):
 
         Identical in sale.order and purchase.order.
 
-        :returns: ``(product_id, product_uom_id, analytic_distribution, discount)``
+        Includes ``price_unit``/``tax_ids`` so two lines are only
+        consolidated when they are truly financially equivalent: merging
+        (``_merge_order_line``) sums quantity but does not reconcile a
+        unit-price or tax mismatch (it silently takes ``min(price_unit, ...)``
+        and drops the losing line's taxes) — without these in the key, two
+        lines sharing product/UoM/analytics/discount but priced or taxed
+        differently used to merge into one line worth neither source amount,
+        with a tax obligation silently vanishing (t24068, HIGH).
+
+        :returns: ``(product_id, product_uom_id, analytic_distribution,
+            discount, price_unit, tax_ids)``
         """
         return (
             line.product_id.id,
@@ -165,6 +175,8 @@ class OrderMergeMixin(models.AbstractModel):
             if line.analytic_distribution
             else frozenset(),
             line.discount,
+            line.price_unit,
+            frozenset(line.tax_ids.ids),
         )
 
     def _merge_lines(self, target, sources, line_index):
@@ -220,8 +232,6 @@ class OrderMergeMixin(models.AbstractModel):
         Duck-typed: returns ``True`` if ``date_planned`` doesn't exist
         (base sale/purchase without stock module).  When the field
         exists, matches within ``DATE_MATCH_THRESHOLD_SECONDS`` (24h).
-
-        Purchase may override for stricter date handling.
         """
         # Intentional optional-module guard (NOT removable composition-defense):
         # purchase.order.line always has ``date_planned``, but sale.order.line

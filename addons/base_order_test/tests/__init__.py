@@ -4,5 +4,6 @@ from . import test_invoice
 from . import test_line_fields
 from . import test_line_pricing
 from . import test_mail
+from . import test_merge
 from . import test_smoke
 from . import test_write_validation
