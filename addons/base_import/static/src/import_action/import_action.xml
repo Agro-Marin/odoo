@@ -6,18 +6,18 @@
                 <t t-set-slot="control-panel-create-button">
                     <t t-if="isPreviewing">
                         <t t-if="!state.isTested">
-                            <button type="button" class="btn btn-primary" t-on-click="() => this.handleImport(true)">Test</button>
-                            <button t-if="!state.isPaused" type="button" class="btn btn-secondary" t-on-click="() => this.handleImport(false)">Import</button>
-                            <button t-else="" type="button" class="btn btn-secondary" t-on-click="() => this.handleImport(false)">Resume</button>
+                            <button type="button" class="btn btn-primary" t-att-disabled="state.isImporting" t-on-click="() => this.handleImport(true)">Test</button>
+                            <button t-if="!state.isPaused" type="button" class="btn btn-secondary" t-att-disabled="state.isImporting" t-on-click="() => this.handleImport(false)">Import</button>
+                            <button t-else="" type="button" class="btn btn-secondary" t-att-disabled="state.isImporting" t-on-click="() => this.handleImport(false)">Resume</button>
                         </t>
                         <t t-else="">
-                            <button t-if="!state.isPaused" type="button" class="btn btn-primary" t-on-click="() => this.handleImport(false)">Import</button>
-                            <button t-else="" type="button" class="btn btn-primary" t-on-click="() => this.handleImport(false)">Resume</button>
-                            <button type="button" class="btn btn-secondary" t-on-click="() => this.handleImport(true)">Test</button>
+                            <button t-if="!state.isPaused" type="button" class="btn btn-primary" t-att-disabled="state.isImporting" t-on-click="() => this.handleImport(false)">Import</button>
+                            <button t-else="" type="button" class="btn btn-primary" t-att-disabled="state.isImporting" t-on-click="() => this.handleImport(false)">Resume</button>
+                            <button type="button" class="btn btn-secondary" t-att-disabled="state.isImporting" t-on-click="() => this.handleImport(true)">Test</button>
                         </t>
                     </t>
                     <FileInput
-                        acceptedFileExtensions="'.csv, .xls, .xlsx, .xlsm, .ods'"
+                        acceptedFileExtensions="acceptedFileExtensions"
                         onUpload.bind="(data, files) => this.handleFilesUpload(files)"
                         resId="model.id"
                         resModel="this.resModel"

@@ -21,7 +21,11 @@ export class ImportDataSidepanel extends Component {
     };
 
     get fileName() {
-        return this.props.filename.split(".")[0];
+        // Split on the LAST dot (mirrors `fileExtension`'s `.pop()` below): a
+        // name with an earlier dot, e.g. "2024.orders.csv", used to display
+        // as just "2024", silently dropping ".orders" (t24068 tests-finding #10).
+        const lastDot = this.props.filename.lastIndexOf(".");
+        return lastDot === -1 ? this.props.filename : this.props.filename.slice(0, lastDot);
     }
 
     get fileExtension() {

@@ -16,11 +16,19 @@
 # further altered locally
 
 from odf import opendocument
-from odf.table import Table, TableRow, TableCell
+from odf.table import Table, TableCell, TableRow
 from odf.text import P
 
+# `numbercolumnsrepeated`/`numbercolumnsspanned` are ODS XML attributes fully
+# controlled by the uploaded file's author. Without a cap, a crafted cell
+# declaring e.g. numbercolumnsrepeated="999999999" makes `readSheet` build a
+# near-billion-element list (`arrCells.extend([textContent] * repeat)` below)
+# and OOM-crash the worker (t24068 F1). 16384 matches Excel's own max column
+# count — generous for any real spreadsheet, well short of a DoS.
+MAX_CELL_REPEAT = 16384
 
-class ODSReader(object):
+
+class ODSReader:
 
     # loads the file
     def __init__(self, file=None, content=None, clonespannedcolumns=None):
@@ -58,9 +66,10 @@ class ODSReader(object):
                     # clone spanned cells
                     if self.clonespannedcolumns is not None and spanned > 1:
                         repeat = spanned
+                repeat = min(int(repeat), MAX_CELL_REPEAT)
 
                 ps = cell.getElementsByType(P)
-                textContent = u""
+                textContent = ""
 
                 # for each text/text:span node
                 for p in ps:
@@ -68,10 +77,10 @@ class ODSReader(object):
                         if n.nodeType == 1 and n.tagName == "text:span":
                             for c in n.childNodes:
                                 if c.nodeType == 3:
-                                    textContent = u'{}{}'.format(textContent, n.data)
+                                    textContent = f'{textContent}{n.data}'
 
                         if n.nodeType == 3:
-                            textContent = u'{}{}'.format(textContent, n.data)
+                            textContent = f'{textContent}{n.data}'
 
                 if not textContent.startswith("#"):  # ignore comments cells
                     arrCells.extend([textContent] * int(repeat))
@@ -88,6 +97,3 @@ class ODSReader(object):
     # returns a sheet as an array (rows) of arrays (columns)
     def getSheet(self, name):
         return self.SHEETS[name]
-
-    def getFirstSheet(self):
-        return next(iter(self.SHEETS.values()))

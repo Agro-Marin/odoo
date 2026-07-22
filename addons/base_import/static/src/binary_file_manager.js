@@ -1,4 +1,5 @@
 /** @odoo-module native */
+import { _t } from "@web/core/l10n/translation";
 import { Mutex } from "@web/core/utils/concurrency";
 import { checkFileSize } from "@web/core/utils/files";
 
@@ -26,10 +27,15 @@ export class BinaryFileManager {
             // Remove data:image/*;base64,
             data = data.split(",")[1];
         }
-        const dataSize = data.length;
-        if (!checkFileSize(dataSize, this.notificationService)) {
+        // Check against the real byte size (`file.size`), not the base64-encoded
+        // string length used below for batch-size accounting: base64 inflates
+        // size by ~1.33x, so comparing `data.length` to the byte-denominated
+        // `session.max_file_upload_size` used to reject valid files between
+        // ~75% and 100% of the real limit (t24068 F5).
+        if (!checkFileSize(file.size, this.notificationService)) {
             return;
         }
+        const dataSize = data.length;
 
         if (this.getCurrentSize() + dataSize >= this.maxBatchSize) {
             await this.mutex.exec(async () => await this._send());
@@ -71,6 +77,19 @@ export class BinaryFileManager {
             });
         } catch (error) {
             console.error(error);
+            // The record import itself already reported success by this point
+            // (this batch runs after `execute_import`); without this, an image/
+            // attachment upload failure was completely silent to the user
+            // (t24068 F3-frontend). Every caller still ignores the returned
+            // `{error}` today (see the ledger for the fuller "annotate the
+            // import summary" follow-up) — this notification is the one
+            // user-visible signal in the meantime.
+            this.notificationService.add(
+                _t("Some binary/attachment fields could not be uploaded: %(error)s", {
+                    error: error.message || error,
+                }),
+                { type: "danger" }
+            );
             return { error };
         }
         return res;
