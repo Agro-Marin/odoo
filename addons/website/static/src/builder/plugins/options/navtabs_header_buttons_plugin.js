@@ -4,6 +4,7 @@ import { Plugin } from "@html_editor/plugin";
 import { registry } from "@web/core/registry";
 import { uniqueId } from "@web/core/utils/functions";
 
+import { getBootstrapComponent } from "../bootstrap_realm.js";
 import { NavTabsHeaderMiddleButtons } from "./navtabs_header_buttons.js";
 
 const tabsSectionSelector = "section.s_tabs, section.s_tabs_images";
@@ -43,7 +44,11 @@ class NavTabsOptionPlugin extends Plugin {
     }
 
     showTab(navLinkEl, paneEl) {
-        this.window.Tab.getOrCreateInstance(navLinkEl).show();
+        // Must come from the edited document's realm — see `bootstrap_realm`.
+        const Tab = getBootstrapComponent(this.window, "Tab");
+        if (Tab) {
+            Tab.getOrCreateInstance(navLinkEl).show();
+        }
         // Immediately show the pane so the history remains consistent.
         paneEl.classList.add("show");
     }
