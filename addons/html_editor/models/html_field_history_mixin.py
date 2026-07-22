@@ -1,7 +1,7 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-from odoo import api, fields, models
-from odoo.exceptions import ValidationError
+from odoo import _, api, fields, models
+from odoo.exceptions import UserError, ValidationError
 
 from .diff_utils import apply_patch, generate_comparison, generate_patch, generate_unified_diff
 
@@ -111,6 +111,24 @@ class HtmlFieldHistoryMixin(models.AbstractModel):
 
         return write_result
 
+    def _check_versioned_field(self, field_name):
+        """Validate a client-supplied field name.
+
+        The ``html_field_history_get_*`` methods are reachable over RPC, so
+        ``field_name`` is fully attacker-controlled. Without this check an
+        unknown name raised a bare ``KeyError`` (HTTP 500 + traceback) and a
+        non-versioned name would have reached ``self[field_name]``.
+
+        :param str field_name: the name of the field
+        :raise UserError: if the field is not versioned on this model
+        """
+        if field_name not in self._get_versioned_fields():
+            raise UserError(_(
+                'Field "%(field)s" is not versioned on model "%(model)s".',
+                field=field_name,
+                model=self._name,
+            ))
+
     def html_field_history_get_content_at_revision(self, field_name, revision_id):
         """Get the requested field content restored at the revision_id.
 
@@ -120,9 +138,10 @@ class HtmlFieldHistoryMixin(models.AbstractModel):
         :return: string: the restored content
         """
         self.ensure_one()
+        self._check_versioned_field(field_name)
         revisions = [
             i
-            for i in self.html_field_history[field_name]
+            for i in (self.html_field_history or {}).get(field_name) or []
             if i["revision_id"] >= revision_id
         ]
 
@@ -143,6 +162,7 @@ class HtmlFieldHistoryMixin(models.AbstractModel):
         :return: string: the comparison
         """
         self.ensure_one()
+        self._check_versioned_field(field_name)
         restored_content = self.html_field_history_get_content_at_revision(
             field_name, revision_id
         )
@@ -160,6 +180,7 @@ class HtmlFieldHistoryMixin(models.AbstractModel):
         :return: string: the unified diff
         """
         self.ensure_one()
+        self._check_versioned_field(field_name)
         restored_content = self.html_field_history_get_content_at_revision(
             field_name, revision_id
         )
