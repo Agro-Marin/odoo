@@ -1318,7 +1318,6 @@ class MailMessage(models.Model):
         return Store().add(self, {"starred": self.starred}).get_result()
 
     @api.model
-    @api.model
     def _clamp_fetch_limit(self, limit):
         """Coerce a caller-supplied page size to a bounded integer."""
         try:
@@ -2009,16 +2008,28 @@ class MailMessage(models.Model):
         return message_id
 
     def _is_thread_message(self, vals=False, thread=None):
-        """Tool method to compute thread validity in notification methods."""
+        """Tool method to compute thread validity in notification methods.
+
+        Resolve ``model``/``res_id`` lazily: ``self`` may be a multi-record set
+        (e.g. the create-access check runs this per row over the whole batch,
+        passing each row's ``vals``), so ``self.model``/``self.res_id`` must only
+        be touched when ``vals``/``thread`` do not already provide the value —
+        otherwise a ``.get(key, self.model)`` default would eagerly dereference a
+        non-singleton ``self`` and raise ``Expected singleton``.
+        """
         vals = vals or {}
-        res_model = vals.get("model", thread._name if thread else self.model)
-        res_id = (
-            vals["res_id"]
-            if "res_id" in vals
-            else thread.ids[0]
-            if thread and thread.ids
-            else self.res_id
-        )
+        if "model" in vals:
+            res_model = vals["model"]
+        elif thread:
+            res_model = thread._name
+        else:
+            res_model = self.model
+        if "res_id" in vals:
+            res_id = vals["res_id"]
+        elif thread and thread.ids:
+            res_id = thread.ids[0]
+        else:
+            res_id = self.res_id
         return bool(res_id) if (res_model and res_model != "mail.thread") else False
 
     def _is_thread_message_visible(self, vals=False, thread=None):
@@ -2026,7 +2037,11 @@ class MailMessage(models.Model):
         notification that is recipient-specific. Used mainly for ACL purpose."""
         is_thread = self._is_thread_message(vals=vals, thread=thread)
         if is_thread:
-            message_type = (vals or {}).get("message_type") or self.message_type
+            # lazy self access: see _is_thread_message — self may be non-singleton
+            if vals and "message_type" in vals:
+                message_type = vals["message_type"]
+            else:
+                message_type = self.message_type
             return is_thread and message_type != "user_notification"
         return is_thread
 
