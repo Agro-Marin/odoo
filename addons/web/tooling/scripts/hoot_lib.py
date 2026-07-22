@@ -576,9 +576,15 @@ class RunResult:
     failed_tests: list[str] = field(default_factory=list)
     wall: float = 0.0
     error: str | None = None
-    # True when tests executed and none failed, but HOOT's final summary line
-    # was never captured — typically a browser-teardown timeout truncates it.
-    # The run is inconclusive, not a genuine test failure.
+    # True when HOOT's final summary line was never captured, i.e. the run did
+    # NOT complete: a wall-clock timeout cut it off mid-suite, the browser hung
+    # during teardown, or Chrome died. Whatever counts were recovered are a
+    # PREFIX of the suite — every test after the cut never ran and is invisible.
+    #
+    # This flag is about COMPLETION, deliberately independent of OUTCOME
+    # (``failed``). It used to be set only when no failures had been collected,
+    # so a truncated run that happened to contain failures was reported as an
+    # ordinary complete FAIL — hiding both the truncation and the unrun tests.
     incomplete: bool = False
 
 
@@ -683,7 +689,12 @@ def run_suites(
     if not summary_seen and (passed_seen or result.failed_tests):
         result.passed = passed_seen
         result.failed = len(result.failed_tests)
-        if not result.ok and not result.failed_tests:
+        # No summary line means the run never reached HOOT's end-of-suite
+        # report, so the recovered counts are only a prefix. Flag that
+        # unconditionally — gating it on "no failures collected" (the previous
+        # behaviour) made a truncated run with failures indistinguishable from a
+        # complete one, silently dropping every test that never got to run.
+        if not result.ok:
             result.incomplete = True
     if result.error and not result.ok:
         result.ok = False

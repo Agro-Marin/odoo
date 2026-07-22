@@ -100,7 +100,7 @@ def _report(result: H.RunResult) -> None:
             f"PASS  {header}  "
             f"({result.passed} passed, {result.wall:.1f}s)", C_GREEN))
         return
-    if result.incomplete:
+    if result.incomplete and not result.failed:
         # Every executed test passed but HOOT's summary never arrived (usually a
         # browser-teardown timeout). Not a test failure — flag it, don't fail.
         print(_color(
@@ -109,6 +109,25 @@ def _report(result: H.RunResult) -> None:
             f"teardown timeout, {result.wall:.1f}s)", C_YEL))
         if result.error:
             print(_color(f"  note: {result.error}", C_DIM))
+        return
+    if result.incomplete:
+        # Truncated AND failing: the counts below are a prefix of the suite, so
+        # the failure list is "what we got to", never "all there is". Say so —
+        # reporting this as a plain FAIL hid the unrun remainder.
+        print(_color(
+            f"FAIL  {header}  "
+            f"({result.failed} failed / {result.passed} passed, "
+            f"RUN TRUNCATED — remaining tests never ran, {result.wall:.1f}s)",
+            C_RED))
+        print(_color(
+            "  note: counts are a prefix; re-run with a larger --timeout or in "
+            "smaller suite groups for a complete result.", C_YEL))
+        if result.error:
+            print(_color(f"  error: {result.error}", C_YEL))
+        for name in result.failed_tests[:50]:
+            print(_color(f"  - {name}", C_RED))
+        if len(result.failed_tests) > 50:
+            print(_color(f"  ... and {len(result.failed_tests) - 50} more", C_RED))
         return
     print(_color(
         f"FAIL  {header}  "
@@ -286,8 +305,13 @@ def main() -> int:
 
     result = _run_once(suites, state, args)
     _report(result)
-    # `incomplete` = all executed tests passed but the summary was truncated
-    # (teardown timeout); not a failure, so don't exit non-zero.
+    if result.failed:
+        # Real failures are a failure whether or not the run was truncated.
+        # Previously ``incomplete`` short-circuited to 0, so a truncated run
+        # that HAD collected failures could still exit successfully.
+        return 1
+    # `incomplete` with no failures = every executed test passed but the summary
+    # was truncated (teardown timeout); not a failure, so don't exit non-zero.
     return 0 if (result.ok or result.incomplete) else 1
 
 
