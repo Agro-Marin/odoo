@@ -4744,10 +4744,20 @@ class MailThread(models.AbstractModel):
         emails = self.env["mail.mail"].sudo()
 
         # loop on groups (customer, portal, user,  ... + model specific like group_sale_salesman)
-        gen_batch_size = (
-            int(self.env["ir.config_parameter"].sudo().get_param("mail.batch_size"))
-            or 50
-        )  # be sure to not have 0, as otherwise no iteration is done
+        raw_batch_size = (
+            self.env["ir.config_parameter"].sudo().get_param("mail.batch_size")
+        )
+        try:
+            # be sure to not have 0, as otherwise no iteration is done
+            gen_batch_size = int(raw_batch_size) or 50
+        except TypeError, ValueError:
+            # a misconfigured (non-integer) ICP must not break every notification
+            _logger.warning(
+                "ir.config_parameter 'mail.batch_size' is not an integer (%r); "
+                "falling back to 50.",
+                raw_batch_size,
+            )
+            gen_batch_size = 50
         notif_create_values = []
         for (
             _lang,
@@ -4834,11 +4844,21 @@ class MailThread(models.AbstractModel):
         #      to prevent sending email during a simple update of the database
         #      using the command-line.
         if force_send := self.env.context.get("mail_notify_force_send", force_send):
-            force_send_limit = int(
+            raw_force_limit = (
                 self.env["ir.config_parameter"]
                 .sudo()
                 .get_param("mail.mail.force.send.limit", 100)
             )
+            try:
+                force_send_limit = int(raw_force_limit)
+            except TypeError, ValueError:
+                # a misconfigured (non-integer) ICP must not break every notification
+                _logger.warning(
+                    "ir.config_parameter 'mail.mail.force.send.limit' is not an "
+                    "integer (%r); falling back to 100.",
+                    raw_force_limit,
+                )
+                force_send_limit = 100
             force_send = len(emails) < force_send_limit
         if force_send:
             # unless asked specifically, send emails after the transaction to
