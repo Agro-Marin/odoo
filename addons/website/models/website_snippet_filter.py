@@ -73,21 +73,29 @@ class WebsiteSnippetFilter(models.Model):
 
     def _render(
         self,
-        template_key,
-        limit,
+        template_key=None,
+        limit=None,
         search_domain=None,
         with_sample=False,
         res_model=None,
         res_id=None,
         **custom_template_data,
     ):
-        """Renders the website dynamic snippet items"""
+        """Renders the website dynamic snippet items
+
+        Every argument reaches this method straight from an unauthenticated
+        JSON-RPC caller (``/website/snippet/filters``), so nothing here may
+        assume a well-formed payload: a missing or malformed argument must
+        produce the same empty result as any other guard below, never an
+        exception. ``template_key`` and ``limit`` therefore default to ``None``
+        rather than being required positionals — omitting them used to raise
+        ``TypeError`` and a bad ``template_key`` used to raise ``ValueError``,
+        both of which surfaced as an unauthenticated traceback.
+        """
         self and self.ensure_one()
 
-        if ".dynamic_filter_template_" not in template_key:
-            raise ValueError(
-                _("You can only use template prefixed by dynamic_filter_template_ ")
-            )
+        if not template_key or ".dynamic_filter_template_" not in template_key:
+            return []
         if search_domain is None:
             search_domain = []
 
@@ -126,21 +134,51 @@ class WebsiteSnippetFilter(models.Model):
             for el in list(html.fromstring("<root>%s</root>" % str(content)))
         ]
 
+    @staticmethod
+    def _coerce_positive_int(value):
+        """Return ``value`` as a positive int, or ``None`` if it isn't one.
+
+        JSON-RPC delivers whatever the caller typed, so ``limit``/``res_id`` can
+        arrive as a string, a float, a bool or a list. Feeding those to ``min()``
+        or to a domain leaf raises deep inside the ORM; normalise once instead.
+        """
+        if isinstance(value, bool) or not isinstance(value, (int, str, float)):
+            return None
+        try:
+            value = int(value)
+        except TypeError, ValueError:
+            return None
+        return value if value > 0 else None
+
     def _prepare_values(self, limit=None, search_domain=None, **options):
         """Gets the data and returns it the right format for render."""
         self and self.ensure_one()
 
-        model_name = options.get("res_model") or self.filter_id.sudo().model_id
-        res_id = options.get("res_id")
+        # ``res_model`` / ``res_id`` / ``limit`` are client-supplied on the
+        # public route. A saved filter's model is NOT negotiable: letting
+        # ``res_model`` win here ran the designer's domain, sort and context
+        # against a model of the visitor's choosing (a filter bound to
+        # ``res.country`` would happily return ``res.lang`` records), and an
+        # unknown model name reached ``self.env[...]`` as an unauthenticated
+        # ``KeyError``. ``res_model`` only selects the model for the
+        # single-record lookup, which is the flow that has no filter to take it
+        # from.
+        model_name = self.filter_id.sudo().model_id or options.get("res_model")
+        res_id = self._coerce_positive_int(options.get("res_id"))
         # The "limit" field is there to prevent loading an arbitrary number of
         # records asked by the client side. This here makes sure you can always
         # load at least 16 records as it is what the editor allows.
         max_limit = max(self.limit, 16)
+        limit = self._coerce_positive_int(limit)
         limit = (limit and min(limit, max_limit)) or max_limit
         single_record_filter = limit == 1 and model_name and res_id
 
         # Either a multi-record filter is provided, or a single record is specified.
         if self.filter_id or single_record_filter:
+            # Checked here and not earlier: the ``action_server_id`` branch below
+            # has no model of its own and must stay reachable.
+            if model_name not in self.env:
+                return []
             model = self.env[model_name]
             filter_sudo = self.filter_id.sudo()
             if single_record_filter:
@@ -225,18 +263,22 @@ class WebsiteSnippetFilter(models.Model):
 
         @return Tuple containing the field name and the field type
         """
-        field_name, _, field_widget = field_name.partition(":")
-        if not field_widget:
-            field = model._fields.get(field_name)
-            if field:
-                field_type = field.type
-            elif "image" in field_name:
-                field_type = "image"
-            elif "price" in field_name:
-                field_type = "monetary"
-            else:
-                field_type = "text"
-        return field_name, field_widget or field_type
+        # Not `_` for the separator: that name is the module-level translation
+        # function, and rebinding it here would make any `_()` added to this
+        # method blow up with "str object is not callable".
+        field_name, _sep, field_widget = field_name.partition(":")
+        if field_widget:
+            return field_name, field_widget
+        field = model._fields.get(field_name)
+        if field:
+            field_type = field.type
+        elif "image" in field_name:
+            field_type = "image"
+        elif "price" in field_name:
+            field_type = "monetary"
+        else:
+            field_type = "text"
+        return field_name, field_type
 
     def _get_filter_meta_data(self, model):
         """
@@ -248,7 +290,16 @@ class WebsiteSnippetFilter(models.Model):
         field_names = self.field_names or self.with_context(
             model=model._name
         ).default_get(["field_names"]).get("field_names")
-        for field_name in field_names.split(","):
+        for field_name in (field_names or "").split(","):
+            # Skip blanks and trim surrounding space. `field_names` defaults to
+            # "" — and `default_get` returns "" on the filter-less single-record
+            # path — so a bare split yields one empty name, which ends up as
+            # `record[""]` and raises KeyError on a public, unauthenticated
+            # route. `_check_field_names` only guards *stored* values, and it
+            # does not strip, so " email" would fail the same way.
+            field_name = field_name.strip()
+            if not field_name:
+                continue
             field_name, field_widget = self._get_field_name_and_type(model, field_name)
             meta_data[field_name] = field_widget
         return meta_data
