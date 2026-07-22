@@ -862,6 +862,13 @@ class MailMessage(models.Model):
                 message.get("model")
                 and message.get("res_id")
                 and message.get("message_type") != "user_notification"
+                # 'model' is a free-form Char with no foreign key: a name that
+                # is no longer in the registry cannot be resolved to a document,
+                # so it cannot grant access to the message either. Leaving it
+                # out of the grouping keeps the message in messages_to_check --
+                # i.e. forbidden, which is the safe direction — instead of
+                # raising KeyError out of an access check.
+                and message["model"] in self.env
             ):
                 model_docid_msgids[message["model"]][message["res_id"]].append(mid)
         for model, docid_msgids in model_docid_msgids.items():
@@ -939,9 +946,13 @@ class MailMessage(models.Model):
         if not message:
             return message
 
-        # sanity check on kwargs
+        # sanity check on kwargs. 'model' is a free-form Char with no foreign
+        # key and no constraint, so it can name a model that is no longer in the
+        # registry; fall back to the generic mixin rather than raising KeyError
+        # out of an access check.
+        message_model = message.sudo().model
         allowed_params = self.env[
-            message.sudo().model or "mail.thread"
+            message_model if message_model in self.env else "mail.thread"
         ]._get_allowed_access_params()
         if invalid := (set((kwargs or {}).keys()) - allowed_params):
             _logger.warning("Invalid parameters to _get_with_access: %s", invalid)
@@ -959,7 +970,9 @@ class MailMessage(models.Model):
         elif message.sudo(False).has_access(mode):
             return message
 
-        if message.model and message.res_id:
+        # An unknown model cannot grant access: fall through to the empty
+        # recordset below (deny) instead of raising.
+        if message.model and message.res_id and message.model in self.env:
             thread_su = self.env[message.model].browse(message.res_id).sudo()
             access_mode = thread_su._mail_get_operation_for_mail_message_operation(
                 mode
@@ -1741,7 +1754,11 @@ class MailMessage(models.Model):
                     self.env[follower.res_model].browse(follower.res_id),
                     follower.partner_id,
                 ): follower
+                # 'mail.followers.res_model' carries no integrity check by
+                # design (see the model docstring), so skip rows naming a model
+                # that is gone rather than raising mid-serialization.
                 for follower in followers
+                if follower.res_model in self.env
             }
         record_fields = [
             # sudo: mail.thread - if mentionned in a non accessible thread, name is allowed
