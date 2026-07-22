@@ -3,7 +3,7 @@ from unittest.mock import patch
 
 from odoo.fields import Command, Domain
 from odoo.tests import tagged
-from odoo.tests.common import TransactionCase
+from odoo.tests.common import TransactionCase, skip_if_dev_mode
 from odoo.tools import mute_logger
 
 from odoo.addons.base.tests.common import SavepointCaseWithUserDemo
@@ -2446,6 +2446,7 @@ class TestQueries(TransactionCase):
 
     @mute_logger("odoo.models.unlink")
     def test_access_rules(self):
+        skip_if_dev_mode("xml")  # ir.rule domain ormcache
         Model = self.env["res.users"].with_user(self.env.ref("base.user_admin"))
         self.env["ir.rule"].search([]).unlink()
         self.env["ir.rule"].create(
@@ -2481,6 +2482,7 @@ class TestQueries(TransactionCase):
 
     @mute_logger("odoo.models.unlink")
     def test_access_rules_active_test(self):
+        skip_if_dev_mode("xml")  # ir.rule domain ormcache
         PartnerCateg = self.env["res.partner.category"]
 
         model_id = self.env["ir.model"]._get("res.partner.category").id
@@ -2588,6 +2590,7 @@ class TestQueries(TransactionCase):
         )
 
     def test_access_rules_active_test_neg(self):
+        skip_if_dev_mode("xml")  # ir.rule domain ormcache
         Model = self.env["res.partner"].with_user(self.env.ref("base.user_admin"))
         self.env["ir.rule"].search([]).unlink()
         self.env["ir.rule"].create(
