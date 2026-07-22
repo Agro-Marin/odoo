@@ -35,7 +35,7 @@ class HrApplicant(models.Model):
     def action_send_survey(self):
         self.ensure_one()
 
-        # if an applicant does not already has associated partner_id create it
+        # if an applicant does not already have an associated partner_id, create it
         if not self.partner_id:
             if not self.partner_name:
                 raise UserError(_('Please provide an applicant name.'))
