@@ -39,10 +39,8 @@ class MailMessageSchedule(models.Model):
 
     @api.model
     def _send_notifications_cron(self):
-        batch_size = int(
-            self.env["ir.config_parameter"]
-            .sudo()
-            .get_param("mail.scheduled_notification.batch.size", 500)
+        batch_size = self.env["ir.config_parameter"]._get_int_param(
+            "mail.scheduled_notification.batch.size", 500
         )
         # limit + 1: detect whether a follow-up run is needed without a count()
         messages_scheduled = self.env["mail.message.schedule"].search(
