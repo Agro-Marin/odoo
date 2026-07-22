@@ -1,5 +1,5 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
-from odoo import api, models, fields
+from odoo import api, fields, models
 
 
 class EventEventTicket(models.Model):
@@ -23,7 +23,7 @@ class EventEventTicket(models.Model):
     def _compute_price_reduce_taxinc(self):
         for event in self:
             # sudo necessary here since the field is most probably accessed through the website
-            tax_ids = event.product_id.taxes_id.filtered(lambda r: r.company_id == event.event_id.company_id)
+            tax_ids = event.product_id.taxes_id.filtered(lambda r: r.company_id == event.event_id.company_id)  # noqa: B023 - filtered() is invoked eagerly within this same loop iteration, not deferred
             taxes = tax_ids.compute_all(event.price_reduce, event.event_id.company_id.currency_id, 1.0, product=event.product_id)
             event.price_reduce_taxinc = taxes['total_included']
 
@@ -31,7 +31,7 @@ class EventEventTicket(models.Model):
     def _compute_price_incl(self):
         for event in self:
             if event.product_id and event.price:
-                tax_ids = event.product_id.taxes_id.filtered(lambda r: r.company_id == event.event_id.company_id)
+                tax_ids = event.product_id.taxes_id.filtered(lambda r: r.company_id == event.event_id.company_id)  # noqa: B023 - same eager invocation
                 taxes = tax_ids.compute_all(event.price, event.currency_id, 1.0, product=event.product_id)
                 event.price_incl = taxes['total_included']
             else:
