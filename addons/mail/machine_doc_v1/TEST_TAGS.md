@@ -21,6 +21,9 @@ filter (`-u mail`) alone, not by a topic tag.
 | `mail_hardening_v6` (14 classes) | `test_mail_hardening_v6.py` | Fork security/hardening regression suite v6 |
 | `mail_hardening_v7` (4) | `test_mail_hardening_v7.py` | Hardening v7 |
 | `mail_hardening_v8` (1) | `test_mail_hardening_v8.py` | Hardening v8 |
+| `mail_hardening_v9` (7) | `test_mail_hardening_v9.py` | Hardening v9 |
+| `mail_hardening_v10` (3) | `test_mail_hardening_v10.py` | Hardening v10 |
+| `mail_hardening_v11` (3) | `test_mail_hardening_v11.py` | Hardening v11: `/mail/data` fetch-param isolation, dynamic-model-name guards, controller id coercion, inbox fan-out cost |
 | `mail_controller` (7) | `test_mock_server_contract.py`, `discuss/test_*_controller.py` (message, reaction, binary, message_update, thread, attachment) | HTTP controller ↔ store-payload contract |
 | `mail_store_contract` | `test_mock_server_contract.py` | The JS-store ↔ server payload shape contract |
 | `mail_tools` | `test_mail_tools.py`, `test_res_users.py`, `test_res_partner.py` | Email parsing/normalization helpers |
@@ -43,7 +46,7 @@ filter (`-u mail`) alone, not by a topic tag.
 > `_v5.py` and `test_mail_audit_v6.py` / `_v6b.py` carry only `("post_install",
 > "-at_install")`. They are the AgroMarin fork's own regression suites (upstream is the
 > baseline, not the ceiling — see the fork memory) and run under the module filter, not a
-> topic tag. `_v6`/`_v7`/`_v8` DID get dedicated tags; the earlier ones did not.
+> topic tag. `_v6` onwards (`_v6`…`_v11`) DID get dedicated tags; the earlier ones did not.
 
 ### Base test classes (`tests/common.py`)
 

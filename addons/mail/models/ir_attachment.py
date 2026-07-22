@@ -63,6 +63,12 @@ class IrAttachment(models.Model):
             return
 
         for model, attachments in todo.grouped("res_model").items():
+            if model not in self.env:
+                # 'res_model' is a free-form Char: it can name a model that is
+                # no longer in the registry. Skip that group like the
+                # non-threaded one below instead of raising KeyError and taking
+                # the whole batch down with it.
+                continue
             related_records = self.env[model].browse(attachments.mapped("res_id"))
             if not hasattr(related_records, "_message_set_main_attachment_id"):
                 # skip this model group only; a mixed-model batch must still
