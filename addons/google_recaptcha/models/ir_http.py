@@ -37,7 +37,7 @@ class IrHttp(models.AbstractModel):
     def _verify_request_recaptcha_token(self, action):
         """ Verify the recaptcha token for the current request.
             If no recaptcha private key is set the recaptcha verification
-            is considered inactive and this method will return True.
+            is considered inactive and this method returns without raising.
         """
         super()._verify_request_recaptcha_token(action)
         config_params = request.env['ir.config_parameter'].sudo()
