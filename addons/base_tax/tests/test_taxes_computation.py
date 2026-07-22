@@ -28,11 +28,19 @@ class TestBaseTaxComputation(TransactionCase):
         # A tax needs a (non-null) country and tax group; base_tax ships neither,
         # so seed them explicitly to keep the tests deterministic in both the
         # standalone and account-installed environments.
-        cls.country = cls.env.ref("base.us")
+        # Derive the country from the company (US only as fallback) and pin it
+        # on the group explicitly: hardcoding base.us broke on databases whose
+        # company already has a country (the group defaults to it and the
+        # country-consistency constraint rejects the mismatch).
+        cls.country = cls.company.country_id or cls.env.ref("base.us")
         if not cls.company.country_id:
             cls.company.country_id = cls.country
         cls.tax_group = cls.env["account.tax.group"].create(
-            {"name": "base_tax test group", "company_id": cls.company.id}
+            {
+                "name": "base_tax test group",
+                "company_id": cls.company.id,
+                "country_id": cls.country.id,
+            }
         )
         cls.currency = cls.company.currency_id
         cls.account_installed = (
