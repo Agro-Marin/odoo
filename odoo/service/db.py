@@ -33,6 +33,7 @@ from odoo.tools.misc import exec_pg_environ, find_pg_tool
 from ._db_helpers import (
     DBNAME_MAX_LENGTH,
     DBNAME_PATTERN,
+    SYSTEM_DBS,
     DatabaseExists,
     _drop_conn,
     check_db_management_enabled,
@@ -58,6 +59,7 @@ _logger = logging.getLogger(__name__)
 __all__ = (
     "DBNAME_MAX_LENGTH",
     "DBNAME_PATTERN",
+    "SYSTEM_DBS",
     "DatabaseExists",
     # Underscore-prefixed but deliberately exported: the ungated, no-allowlist
     # DROP/DUPLICATE/RENAME primitives for callers with their own trust boundary

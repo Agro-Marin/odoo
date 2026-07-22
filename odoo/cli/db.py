@@ -15,12 +15,14 @@ import requests
 from ..db import db_connect
 from ..modules.neutralize import neutralize_database
 from ..service.db import (
+    SYSTEM_DBS,
     _drop_database,
     _duplicate_database,
     _rename_database,
     dump_db,
     exp_create_database,
     exp_db_exist,
+    list_dbs,
     restore_db,
 )
 from ..tools import config
@@ -52,6 +54,20 @@ class Db(Command):
         ("--db_sslmode",),
     )
 
+    # Help text per long flag, rendered in `db --help` and every subcommand's
+    # help. Keyed by the long form (`flags[-1]`), like _connection_dest_flags.
+    _CONNECTION_HELP = {
+        "--config": "use a specific configuration file",
+        "--data-dir": "directory where to store Odoo data",
+        "--addons-path": "comma-separated list of addons directories",
+        "--db_user": "database user",
+        "--db_password": "database password",
+        "--pg_path": "directory holding the PostgreSQL client binaries",
+        "--db_host": "database server host",
+        "--db_port": "database server port",
+        "--db_sslmode": "SSL mode for the database connection",
+    }
+
     @classmethod
     def _add_connection_flags(
         cls, p: argparse.ArgumentParser, *, on_subparser: bool = False
@@ -67,10 +83,11 @@ class Db(Command):
             (``db -c cfg drop mydb`` loses ``-c``). SUPPRESS leaves it unset.
         """
         for flags in cls._CONNECTION_FLAGS:
+            help_text = cls._CONNECTION_HELP.get(flags[-1])
             if on_subparser:
-                p.add_argument(*flags, default=argparse.SUPPRESS)
+                p.add_argument(*flags, default=argparse.SUPPRESS, help=help_text)
             else:
-                p.add_argument(*flags)
+                p.add_argument(*flags, help=help_text)
 
     @classmethod
     def _connection_dest_flags(cls) -> dict[str, str]:
@@ -90,7 +107,10 @@ class Db(Command):
         self.parser.print_help(sys.stderr)
         sys.exit(2)
 
-    def run(self, cmdargs: list[str]) -> None:
+    def __init__(self) -> None:
+        # Parser built eagerly, like `module` and `i18n` — the other
+        # subcommand-style commands; `run` only parses and dispatches.
+        super().__init__()
         parser = self.parser
         self._add_connection_flags(parser)
         parser.set_defaults(func=self._exit_missing_subcommand)
@@ -277,12 +297,24 @@ class Db(Command):
         drop.set_defaults(func=self.drop)
         drop.add_argument("database", help="database to delete")
 
+        # LIST ----------------------------------
+
+        list_parser = subs.add_parser(
+            "list",
+            help="List databases visible to this Odoo instance",
+            description="Lists the databases this instance can see, one per "
+            "line — the same set the database-manager UI shows, so db_name "
+            "and dbfilter from the config constrain the result.",
+        )
+        list_parser.set_defaults(func=self.list)
+
         # Accept connection flags after the subcommand too; SUPPRESS keeps an
         # absent one from overwriting a value passed before it.
-        for sub in (init, load, dump, duplicate, rename, drop):
+        for sub in (init, load, dump, duplicate, rename, drop, list_parser):
             self._add_connection_flags(sub, on_subparser=True)
 
-        args = parser.parse_args(cmdargs)
+    def run(self, cmdargs: list[str]) -> None:
+        args = self.parser.parse_args(cmdargs)
 
         # Rebuild config flags from the namespace via the dest->flag map;
         # subcommand-specific keys aren't in the map, so they're skipped.
@@ -370,8 +402,14 @@ class Db(Command):
         if args.dump_path == "-":
             dump_db(args.database, sys.stdout.buffer, args.dump_format, args.filestore)
         else:
-            with Path(args.dump_path).open("wb") as f:
-                dump_db(args.database, f, args.dump_format, args.filestore)
+            try:
+                with Path(args.dump_path).open("wb") as f:
+                    dump_db(args.database, f, args.dump_format, args.filestore)
+            except BaseException:
+                # A truncated file is indistinguishable from a valid dump by
+                # name; remove it so a failed run can't be restored by mistake.
+                Path(args.dump_path).unlink(missing_ok=True)
+                raise
 
     def duplicate(self, args: argparse.Namespace) -> None:
         self._check_target_free(args.target, force=args.force)
@@ -385,6 +423,8 @@ class Db(Command):
         )
 
     def rename(self, args: argparse.Namespace) -> None:
+        # Renaming a system database away is as destructive as dropping it.
+        self._check_not_protected(args.source)
         self._check_target_free(args.target, force=args.force)
         self._check_source_exists(args.source)
         self._drop_if_exists(args.target)
@@ -395,11 +435,34 @@ class Db(Command):
                 neutralize_database(cr)
 
     def drop(self, args: argparse.Namespace) -> None:
+        self._check_not_protected(args.database)
         # _drop_database, not exp_drop: same reasoning as _drop_if_exists
         # below — this CLI is local trusted tooling, not the RPC surface
         # exp_drop's exposed-databases allowlist exists to gate.
         if not _drop_database(args.database):
             sys.exit(f"Database {args.database} does not exist.")
+
+    def list(self, _args: argparse.Namespace) -> None:
+        # force=True: run() sets list_db anyway; this is local trusted tooling.
+        for db_name in list_dbs(force=True):
+            print(db_name)
+
+    @staticmethod
+    def _protected_dbs() -> frozenset[str]:
+        """Databases this CLI refuses to create over, drop, or rename away:
+        the PostgreSQL system databases plus the configured creation template
+        (dropping it would break every future database creation)."""
+        return SYSTEM_DBS | {config["db_template"]}
+
+    def _check_not_protected(self, db_name: str) -> None:
+        """Abort when ``db_name`` is a system/template database.
+
+        PostgreSQL itself refuses to drop template databases, but with a raw
+        traceback — and it happily drops ``postgres``, taking the maintenance
+        DB every client tool connects to by default.
+        """
+        if db_name in self._protected_dbs():
+            sys.exit(f"Refusing to touch system or template database {db_name}.")
 
     def _check_target_free(self, target: str, *, force: bool) -> None:
         """Abort unless ``target`` may be (re)created.
@@ -408,6 +471,7 @@ class Db(Command):
         accepted but not dropped — the caller drops it only after validating
         its inputs, so a doomed run never destroys the database first.
         """
+        self._check_not_protected(target)
         if not force and exp_db_exist(target):
             sys.exit(
                 f"Target database {target} exists, aborting.\n\n"
@@ -428,5 +492,6 @@ class Db(Command):
         point, which the exposed-databases allowlist gate exists to protect.
         Same reasoning applies to ``drop()`` above.
         """
+        self._check_not_protected(target)
         if exp_db_exist(target):
             _drop_database(target)

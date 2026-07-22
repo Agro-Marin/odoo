@@ -26,6 +26,13 @@ if TYPE_CHECKING:
 _logger = logging.getLogger("odoo.service.db")
 
 
+# PostgreSQL cluster-infrastructure databases.  Never valid as an Odoo
+# database: ``postgres`` is the maintenance DB every tool connects to (and PG
+# will happily drop it), ``template0``/``template1`` seed ``CREATE DATABASE``.
+# Consumed by the CLI (``odoo-bin db``/``start``) to refuse creating over or
+# dropping them.
+SYSTEM_DBS = frozenset({"postgres", "template0", "template1"})
+
 # Enforced by the HTTP controller and service layer alike.  First char
 # alphanumeric; the rest may add _ . - (``*`` so a single-char name is valid).
 DBNAME_PATTERN = r"^[a-zA-Z0-9][a-zA-Z0-9_.-]*\Z"
@@ -54,9 +61,7 @@ def validate_db_name(name: str) -> None:
     huge string) is rejected in O(1) rather than walked O(n) by the regex.
     """
     if len(name) > DBNAME_MAX_LENGTH:
-        raise ValueError(
-            _DBNAME_TOO_LONG_MSG.format(name=name, length=len(name))
-        )
+        raise ValueError(_DBNAME_TOO_LONG_MSG.format(name=name, length=len(name)))
     if not re.match(DBNAME_PATTERN, name):
         raise ValueError(_DBNAME_ERROR_MSG.format(name=name))
 

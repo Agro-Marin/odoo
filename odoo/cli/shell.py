@@ -1,4 +1,5 @@
 import code
+import importlib.util
 import logging
 import os
 import signal
@@ -62,6 +63,25 @@ class Shell(Command):
     """Start odoo in an interactive shell"""
 
     supported_shells = ("ipython", "ptpython", "bpython", "python")
+    # Importable module per REPL, for availability probing. `python` is the
+    # stdlib fallback, always available.
+    _REPL_MODULES = {"ipython": "IPython", "ptpython": "ptpython", "bpython": "bpython"}
+
+    @classmethod
+    def _repl_available(cls, shell: str) -> bool:
+        """True when ``shell``'s implementation module is importable.
+
+        Probing with ``find_spec`` (instead of catching ImportError around the
+        REPL launch) distinguishes "not installed" from "installed but broken":
+        the latter now surfaces as a warning instead of a silent fallback.
+        """
+        module = cls._REPL_MODULES.get(shell)
+        if module is None:
+            return True  # the stdlib console
+        try:
+            return importlib.util.find_spec(module) is not None
+        except ImportError, ValueError:
+            return False
 
     def init(self, args: list[str]) -> None:
         parser = self.parser
@@ -112,10 +132,7 @@ class Shell(Command):
             shells_to_try = self.supported_shells
 
         for shell in shells_to_try:
-            try:
-                shell_func = getattr(self, shell)
-                return shell_func(local_vars, pythonstartup)
-            except ImportError:
+            if not self._repl_available(shell):
                 # Surface the fallback when the user explicitly requested this
                 # shell; otherwise the switch to python is silent and confusing.
                 if shell == preferred_interface:
@@ -123,7 +140,13 @@ class Shell(Command):
                         "Requested shell %r is not installed; falling back.",
                         preferred_interface,
                     )
+                continue
+            try:
+                shell_func = getattr(self, shell)
+                return shell_func(local_vars, pythonstartup)
             except Exception:
+                # Includes ImportError from inside an *installed* REPL (broken
+                # plugin/extension): a real error, not "not installed".
                 _logger.warning("Could not start '%s' shell.", shell)
                 _logger.debug("Shell error:", exc_info=True)
         return None

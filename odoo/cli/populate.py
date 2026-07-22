@@ -38,6 +38,11 @@ def _parse_model_factors(
         # argparse's parser.error never returns; guard the fall-through for
         # callbacks that do (tests, programmatic use).
         return {}
+    if any(f < 1 for f in opt_factors):
+        # A factor of N *copies* the data N times; 0/negative would silently
+        # populate nothing while the command still reports success.
+        error(f"--factors must all be >= 1, got {factors!r}")
+        return {}
     model_names = models.split(",")
     if len(opt_factors) > len(model_names):
         _logger.warning(

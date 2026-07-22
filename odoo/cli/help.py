@@ -33,9 +33,16 @@ class Help(Command):
 
         padding = max((len(cmd_name) for cmd_name in commands), default=0) + 2
         # First docstring line only: a multi-line docstring on an addon
-        # command would otherwise break the table layout.
+        # command would otherwise break the table layout. Fall back to the
+        # `description` attribute for (addon) commands without a docstring.
         name_desc = [
-            (cmd_name, (cmd.__doc__ or "").strip().partition("\n")[0].strip())
+            (
+                cmd_name,
+                (cmd.__doc__ or cmd.description or "")
+                .strip()
+                .partition("\n")[0]
+                .strip(),
+            )
             for cmd_name, cmd in sorted(commands.items())
         ]
         command_list = "\n".join(

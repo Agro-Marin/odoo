@@ -205,6 +205,13 @@ class I18n(DatabaseCommand):
             language = self._get_languages(env, [parsed_args.language])
             if not language:
                 self.import_parser.error("No valid language has been provided")
+            if len(language) > 1:
+                # e.g. an iso_code shared by several active languages;
+                # `language.code` below requires a singleton.
+                self.import_parser.error(
+                    f"-l {parsed_args.language!r} matches several languages "
+                    f"({', '.join(language.mapped('code'))}); use the full code"
+                )
             for path in paths:
                 with path.open("rb") as infile:
                     translation_importer.load(

@@ -2,7 +2,7 @@ import sys
 
 from odoo.tools import cloc, config
 
-from . import Command, get_single_database
+from . import Command, build_config_args, get_single_database
 
 
 class Cloc(Command):
@@ -31,15 +31,34 @@ class Cloc(Command):
         self.parser.add_argument(
             "--path", "-p", action="append", help="File or directory path"
         )
+        # Declared (not just forwarded via unknown args) so they show up in
+        # --help; both only matter in database mode.
+        self.parser.add_argument(
+            "-c", "--config", dest="config", help="use a specific configuration file"
+        )
+        self.parser.add_argument(
+            "-D",
+            "--data-dir",
+            dest="data_dir",
+            help="directory where to store Odoo data",
+        )
         self.parser.add_argument("--verbose", "-v", action="count", default=0)
-        opt, unknown = self.parser.parse_known_args(args + ["--no-http"])
+        opt, unknown = self.parser.parse_known_args(args)
         if not opt.database and not opt.path:
             self.parser.print_help(sys.stderr)
             sys.exit(2)
 
         c = cloc.Cloc()
         if opt.database:
-            config.parse_config(["-d", opt.database] + unknown, setup_logging=True)
+            # build_config_args adds --no-http; remaining unknown args (e.g.
+            # --addons-path) are forwarded to the config parser, which
+            # rejects genuine typos.
+            if opt.data_dir:
+                unknown = ["-D", opt.data_dir, *unknown]
+            config.parse_config(
+                build_config_args(opt.config, db_name=opt.database, extra_args=unknown),
+                setup_logging=True,
+            )
             db_name = get_single_database(
                 config["db_name"],
                 error_handler=self.parser.error,

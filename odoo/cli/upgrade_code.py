@@ -165,6 +165,12 @@ class FileManager:
             file=sys.stderr,
         )
 
+    def clear_progress(self) -> None:
+        """Erase the progress line, so the last `\\r`-terminated render isn't
+        left under the subsequent stdout output (or the shell prompt)."""
+        if self._show_progress:
+            print("\033[K", end="", file=sys.stderr, flush=True)
+
 
 def get_upgrade_code_scripts(
     from_version: tuple[int, ...], to_version: tuple[int, ...]
@@ -219,6 +225,7 @@ def migrate(
         file_manager.print_progress(0)  # 0%
         module.upgrade(file_manager)
         file_manager.print_progress(len(file_manager))  # 100%
+    file_manager.clear_progress()
 
     for file in file_manager:
         if file.dirty:

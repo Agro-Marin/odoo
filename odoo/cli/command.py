@@ -54,6 +54,12 @@ def get_single_database(
 ) -> str | None:
     """Validate and return the single configured database name.
 
+    Refuses the PostgreSQL system databases and the configured creation
+    template: opening a registry on one of them would initialize Odoo tables
+    inside it (``load_modules`` bootstraps any uninitialized database),
+    corrupting cluster infrastructure. Every caller parses the config before
+    calling, so ``config['db_template']`` is resolved.
+
     :param db_names: candidate names, typically ``config['db_name']``
     :param allow_none: return None instead of erroring when none is given
     :param error_handler: called with the message on failure; defaults to
@@ -78,7 +84,16 @@ def get_single_database(
         )
         return None
 
-    return db_names[0]
+    db_name = db_names[0]
+    # Lazy import: odoo.service pulls psycopg and the api layer; the
+    # dispatcher must stay cheap to start (same policy as odoo_env below).
+    from odoo.service._db_helpers import SYSTEM_DBS
+
+    if db_name in SYSTEM_DBS or db_name == config["db_template"]:
+        error_handler(f"Refusing to use system or template database {db_name}.")
+        return None
+
+    return db_name
 
 
 @contextlib.contextmanager
