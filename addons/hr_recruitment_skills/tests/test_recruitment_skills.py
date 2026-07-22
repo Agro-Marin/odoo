@@ -76,8 +76,8 @@ class TestRecruitmentSkills(TransactionCase):
 
     def test_access_error_on_adding_applicant(self):
         """
-        Test that adding an applicant to a talent pool via the wizard
-        fails with AccessError if the user lacks read access on Employees.
+        Test that adding an applicant to a talent pool via the wizard succeeds
+        for a user with only Recruitment access, without raising an AccessError.
         """
         # Create a fresh applicant never added to any pool
         new_applicant = self.env["hr.applicant"].create({
@@ -180,7 +180,7 @@ class TestRecruitmentSkills(TransactionCase):
 
     def test_add_skill_to_applicant_with_talent_without_skill(self):
         """
-        Verify one-way skill synchronization between an applicant its linked talent.
+        Verify one-way skill synchronization between an applicant and its linked talent.
 
         This test ensures that when a skill is added on an applicant, the same skill is also added or updated on the talent.
         In this test the skill does not exist on the talent prior to adding it to the applicant.
@@ -220,7 +220,7 @@ class TestRecruitmentSkills(TransactionCase):
 
     def test_add_skill_to_applicant_with_talent_with_skill(self):
         """
-        Verify one-way skill synchronization between an applicant its linked talent.
+        Verify one-way skill synchronization between an applicant and its linked talent.
 
         This test ensures that when a skill is added on an applicant, the same skill is also added or updated on the talent.
         In this test the skill exists on the talent prior to adding it to the applicant.
@@ -265,7 +265,7 @@ class TestRecruitmentSkills(TransactionCase):
 
     def test_update_skill_on_applicant_with_talent_without_skill(self):
         """
-        Verify one-way skill synchronization between an applicant its linked talent.
+        Verify one-way skill synchronization between an applicant and its linked talent.
 
         This test ensures that when a skill is updated on an applicant, the same skill is also added or updated on the talent.
         In this test the skill does not exist on the talent prior to updating it to the applicant.
@@ -311,7 +311,7 @@ class TestRecruitmentSkills(TransactionCase):
 
     def test_update_skill_on_applicant_with_talent_with_skill(self):
         """
-        Verify one-way skill synchronization between an applicant its linked talent.
+        Verify one-way skill synchronization between an applicant and its linked talent.
 
         This test ensures that when a skill is updated on an applicant, the same skill is also added or updated on the talent.
         In this test the skill exists on the talent prior to updating it to the applicant.
@@ -355,7 +355,7 @@ class TestRecruitmentSkills(TransactionCase):
 
     def test_delete_skill_on_applicant_with_talent_without_skill(self):
         """
-        Verify one-way skill synchronization between an applicant its linked talent.
+        Verify one-way skill synchronization between an applicant and its linked talent.
 
         This test ensures that when a skill is deleted on an applicant, the same skill is also deleted on the talent.
         In this test the skill does not exist on the talent prior to deleting it on the applicant.
@@ -387,7 +387,7 @@ class TestRecruitmentSkills(TransactionCase):
 
     def test_delete_skill_on_applicant_with_talent_with_skill(self):
         """
-        Verify one-way skill synchronization between an applicant its linked talent.
+        Verify one-way skill synchronization between an applicant and its linked talent.
 
         This test ensures that when a skill is deleted on an applicant, the same skill is also deleted on the talent.
         In this test the skill exists on the talent prior to deleting it on the applicant.
@@ -417,7 +417,7 @@ class TestRecruitmentSkills(TransactionCase):
 
     def test_adding_a_skill_on_a_talent_does_not_affect_applicants(self):
         """
-        Verify one-way skill synchronization between an applicant its linked talent.
+        Verify one-way skill synchronization between an applicant and its linked talent.
 
         This test ensures that when a skill is added on a talent, the linked applicants are unaffected.
         """
@@ -443,11 +443,10 @@ class TestRecruitmentSkills(TransactionCase):
 
         self.assertFalse(self.t_applicant.applicant_skill_ids, "The applicant should not have any skills")
         self.assertEqual(expected_talent, talent_skill, f"The talent should have the following skill: {talent_skill}")
-        return
 
     def test_updating_a_skill_on_a_talent_does_not_affect_applicants(self):
         """
-        Verify one-way skill synchronization between an applicant its linked talent.
+        Verify one-way skill synchronization between an applicant and its linked talent.
 
         This test ensures that when a skill is updated on a talent, the linked applicants are unaffected.
         """
@@ -489,7 +488,7 @@ class TestRecruitmentSkills(TransactionCase):
 
     def test_removing_a_skill_on_a_talent_does_not_affect_applicants(self):
         """
-        Verify one-way skill synchronization between an applicant its linked talent.
+        Verify one-way skill synchronization between an applicant and its linked talent.
 
         This test ensures that when a skill is deleted on a talent, the linked applicants are unaffected.
         """
