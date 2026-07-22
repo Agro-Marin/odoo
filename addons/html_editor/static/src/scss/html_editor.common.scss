@@ -447,7 +447,7 @@ ul.oe_menu_editor {
     .pr#{$name} { padding-right: $size * 1px !important; }
 }
 
-// Generate all margins
+// Generate all spacings
 @include o-spacing-all;
 
 // Underline

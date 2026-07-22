@@ -16,7 +16,7 @@ import { setupEditor } from "./editor.js";
  * @property { import("@html_editor/core/history_plugin").HistoryStep[] } steps
  * @property { Editor } editor
  * @property { import("@html_editor/others/collaboration/collaboration_plugin").CollaborationPlugin } collaborationPlugin
- * @property { import("@html_editor/plugin").HistoryPlugin } historyPlugin
+ * @property { import("@html_editor/core/history_plugin").HistoryPlugin } historyPlugin
  *
  * @typedef { Object } MultiEditorSpec
  * @property { string[] } peerIds
@@ -47,10 +47,10 @@ function historyMissingParentSteps(peerInfos, peerInfo, { step, fromStepId }) {
 }
 
 /**
- * Setup a editor with multiple peers
+ * Setup an editor with multiple peers.
  *
  * @param { MultiEditorSpec } spec
- * @returns { Promise<void> }
+ * @returns { Promise<Record<string, PeerInfo>> }
  */
 export const setupMultiEditor = async (spec) => {
     /** @type { Record<string, PeerInfo> } */
@@ -113,7 +113,7 @@ export const setupMultiEditor = async (spec) => {
 
     // Init the editors
 
-    // From now, any any step from a peer must have a different ID.
+    // From now, any step from a peer must have a different ID.
     let concurrentNextId = 1;
     for (const { historyPlugin } of peerInfosList) {
         historyPlugin.generateId = () => "fake_concurrent_id_" + concurrentNextId++;
@@ -286,7 +286,8 @@ const inScopeTraversal = createDOMPathGenerator(DIRECTIONS.RIGHT, { inScope: tru
 
 /**
  * @param {Node} rootElement
- * @returns {Record<string, EditorSelection>}
+ * @param {string} peerId
+ * @returns {EditorSelection}
  */
 function parseMultipleTextualSelection(rootElement, peerId) {
     /** @type { EditorSelection } */
