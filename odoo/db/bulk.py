@@ -73,9 +73,7 @@ if TYPE_CHECKING:
         def _record_sql_log(
             self, query_type: str, table: str | None, delay: float
         ) -> None: ...
-        def _get_column_types(
-            self, table: str, columns: list[str]
-        ) -> list[str]: ...
+        def _get_column_types(self, table: str, columns: list[str]) -> list[str]: ...
         def _resolve_id_sequence(self, table: str) -> str: ...
 
 
@@ -301,10 +299,15 @@ class _BulkAccessMixin:
         # resolve hook presence once and skip both when none are installed.
         have_hooks = getattr(self._thread, "query_hooks", None)
         start = real_time() if have_hooks else 0.0  # t0 (monotonic) times the COPY
+        # Resolve _obj outside the logged try (see Cursor.execute): on a closed
+        # cursor the attribute access raises InterfaceError, and inside the try
+        # it would first be logged as a spurious ERROR — and the error handler
+        # itself would re-raise on ``copy_stmt.as_string(self._obj)``.
+        obj = self._obj
         t0 = monotonic()
         row_count = 0
         try:
-            with self._obj.copy(copy_stmt) as copy:
+            with obj.copy(copy_stmt) as copy:
                 if col_types:
                     copy.set_types(col_types)
                 for row in rows:

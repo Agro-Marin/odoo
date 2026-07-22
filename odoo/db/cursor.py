@@ -28,7 +28,7 @@ from .metrics import _MetricsMixin
 from .pool import ConnectionPool
 from .savepoint import Savepoint, _FlushingSavepoint
 from .schema_cache import schema_cache
-from .utils import categorize_query, is_maintenance_db
+from .utils import categorize_query
 
 if TYPE_CHECKING:
     from odoo.orm.runtime import Transaction
@@ -504,9 +504,13 @@ class Cursor(_BulkAccessMixin, _MetricsMixin, BaseCursor):
         # wall-clock could step back under NTP and make ``delay`` negative.
         hooks = getattr(self._thread, "query_hooks", None)
         start = real_time() if hooks else 0.0
+        # Resolve _obj BEFORE the logged try: on a closed cursor the attribute
+        # access raises InterfaceError via __getattr__, and inside the try it
+        # would be logged as a spurious ERROR-level "bad query" first.
+        obj = self._obj
         t0 = monotonic()
         try:
-            self._obj.execute(query, params)
+            obj.execute(query, params)
         except Exception as e:
             if log_exceptions:
                 _log_sql_error(e, query)
@@ -617,9 +621,12 @@ class Cursor(_BulkAccessMixin, _MetricsMixin, BaseCursor):
         # single-read-of-query_hooks rationale.
         hooks = getattr(self._thread, "query_hooks", None)
         start = real_time() if hooks else 0.0
+        # See execute(): resolve _obj outside the logged try so a closed
+        # cursor raises cleanly instead of logging a spurious ERROR first.
+        obj = self._obj
         t0 = monotonic()
         try:
-            self._obj.executemany(query, params_seq, returning=returning)
+            obj.executemany(query, params_seq, returning=returning)
         except Exception as e:
             if log_exceptions:
                 _log_sql_error(e, query)
@@ -678,36 +685,38 @@ class Cursor(_BulkAccessMixin, _MetricsMixin, BaseCursor):
     def _close(self) -> None:
         # No ``if not self._obj`` guard: _close() is only reached via
         # close()/__del__ (both gated on ``_closed``), so _obj is always live.
-        self.cache.clear()
-
-        # advanced stats only at logging.DEBUG level
-        self.print_log()
-
-        self._obj.close()
-
-        # Mark closed BEFORE deleting _obj: otherwise a delegated attribute
-        # access (e.g. from a rollback hook) would recurse in __getattr__.
-        self._closed = True
-
-        # Free the cursor eagerly: cursors aren't GC'd promptly (browse records
-        # hold references), and a shortage can overload the server.
-        del self._obj
-
-        # Return the connection to the pool.  give_back() MUST run even if
-        # rollback() fails, or the connection and its semaphore slot leak.
-        # Never keep connections to system/template databases: an idle one
-        # blocks CREATE DATABASE (see utils.is_maintenance_db, which the pool
-        # also consults to suppress minconn warming for these).
-        keep_in_pool = not is_maintenance_db(self.dbname)
+        #
+        # The outer try/finally guarantees give_back() runs even if the
+        # bookkeeping above it raises — otherwise the connection and its
+        # semaphore permit leak, and the pool wedges under load.
         try:
-            # Guard-free: _closed is already True here, and the connection is
-            # still owned (give_back runs in the finally below).
-            self._do_rollback()
-        except Exception:
-            _logger.debug("Failed to rollback on cursor close", exc_info=True)
-            keep_in_pool = False
+            self.cache.clear()
+
+            # advanced stats only at logging.DEBUG level
+            self.print_log()
+
+            self._obj.close()
         finally:
-            self.__pool.give_back(self._cnx, keep_in_pool=keep_in_pool)
+            # Mark closed BEFORE deleting _obj: otherwise a delegated attribute
+            # access (e.g. from a rollback hook) would recurse in __getattr__.
+            self._closed = True
+
+            # Free the cursor eagerly: cursors aren't GC'd promptly (browse
+            # records hold references), and a shortage can overload the server.
+            del self._obj
+
+            # Maintenance databases need no special-casing here: the pool
+            # never pools them at all (see ConnectionPool._borrow_direct).
+            keep_in_pool = True
+            try:
+                # Guard-free: _closed is already True here, and the connection
+                # is still owned (give_back runs in the finally below).
+                self._do_rollback()
+            except Exception:
+                _logger.debug("Failed to rollback on cursor close", exc_info=True)
+                keep_in_pool = False
+            finally:
+                self.__pool.give_back(self._cnx, keep_in_pool=keep_in_pool)
 
     def commit(self) -> None:
         """Perform an SQL `COMMIT`"""

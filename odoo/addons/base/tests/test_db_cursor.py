@@ -1664,7 +1664,9 @@ class TestPoolSemaphoreAccounting(BaseCase):
         self.assertIn(conn._odoo_pool, pool._pools.values())
         pool.give_back(conn)
         self.assertEqual(pool._pool_sem._value, 2)
-        self.assertIsNone(getattr(conn, "_odoo_pool", "sentinel"))
+        # give_back CLAIMS the marker with an atomic dict.pop — after return
+        # the attribute is absent, not set to None (double-release safety).
+        self.assertNotIn("_odoo_pool", conn.__dict__)
 
     def test_double_give_back_does_not_over_release(self):
         pool = ConnectionPool(maxconn=2)
@@ -3227,12 +3229,21 @@ class TestVersionGateInBorrow(BaseCase):
         self.assertNotIn("raise PoolError", src)
 
     def test_borrow_checks_server_version(self):
-        # The gate lives in _validate_borrowed_conn (the #2 borrow decomposition),
-        # which borrow() calls on every checkout — still on the borrow path, not
-        # in the configure callback.  Pin both: the gate's logic and its call.
-        gate_src = inspect.getsource(ConnectionPool._validate_borrowed_conn)
+        # The gate lives in _check_min_server_version, shared by BOTH borrow
+        # paths: _validate_borrowed_conn (pooled) and _borrow_direct
+        # (maintenance databases) — still on the borrow path, not in the
+        # configure callback.  Pin the gate's logic and its two call sites.
+        gate_src = inspect.getsource(ConnectionPool._check_min_server_version)
         self.assertIn("server_version", gate_src)
         self.assertIn("MIN_PG_VERSION", gate_src)
+        self.assertIn(
+            "_check_min_server_version",
+            inspect.getsource(ConnectionPool._validate_borrowed_conn),
+        )
+        self.assertIn(
+            "_check_min_server_version",
+            inspect.getsource(ConnectionPool._borrow_direct),
+        )
         borrow_src = inspect.getsource(ConnectionPool.borrow)
         self.assertIn("_validate_borrowed_conn", borrow_src)
 
@@ -3905,35 +3916,63 @@ class TestPoolMinconn(BaseCase):
         with self.assertRaises(ValueError):
             ConnectionPool(maxconn=4, minconn=-1)
 
-    def test_minconn_suppressed_for_maintenance_databases(self):
-        """minconn must not warm connections to postgres/template databases.
+    def test_maintenance_databases_are_never_pooled(self):
+        """postgres/template connections bypass psycopg_pool entirely.
 
-        psycopg_pool maintains min_size by reconnecting after every discard, so
-        the cursor-close discard (keep_in_pool=False) alone cannot keep those
-        databases connection-free — and an idle connection to a template makes
-        ``CREATE DATABASE ... TEMPLATE`` fail with "source database is being
-        accessed by other users".
+        A per-DSN pool can never keep a maintenance database connection-free:
+        psycopg_pool replaces every discarded connection to hold its count
+        (regardless of ``min_size``), and the idle replacement blocks
+        ``CREATE DATABASE ... TEMPLATE`` with "source database is being
+        accessed by other users".  So ``borrow`` must not create a pool at all
+        (no worker threads, no replacement race) and ``give_back`` must close
+        the connection outright.
         """
         pool = ConnectionPool(maxconn=4, minconn=2)
-        created = {}
-        real_pool_cls = pool_module._PsycopgPool
-
-        def capture(conninfo, **kw):
-            created["min_size"] = kw.get("min_size")
-            return real_pool_cls(conninfo, **kw)
-
         _, info = connection_info_for("postgres")
-        with patch.object(pool_module, "_PsycopgPool", side_effect=capture):
-            try:
-                conn = pool.borrow(info)
-                pool.give_back(conn, keep_in_pool=False)
-            finally:
-                pool.close_all()
-        self.assertEqual(
-            created.get("min_size"),
-            0,
-            "per-DSN pool for 'postgres' must be created with min_size=0",
-        )
+        try:
+            conn = pool.borrow(info)
+            self.assertEqual(
+                pool._pools, {}, "no per-DSN pool may exist for 'postgres'"
+            )
+            self.assertFalse(conn.closed)
+            # Outstanding direct connections are tracked (repr/exhaustion
+            # messages) and get the server-side escaped-connection net.
+            self.assertEqual(pool._direct_out, 1)
+            self.assertEqual(
+                conn.execute("SHOW idle_session_timeout").fetchone()[0], "15min"
+            )
+            conn.rollback()
+            pool.give_back(conn)
+            self.assertTrue(
+                conn.closed, "maintenance-db connection must close on give_back"
+            )
+            self.assertEqual(pool._direct_out, 0)
+            # The semaphore permit was released: maxconn borrows succeed again.
+            conns = [pool.borrow(info) for _ in range(4)]
+            for c in conns:
+                pool.give_back(c)
+        finally:
+            pool.close_all()
+
+    def test_maintenance_db_double_give_back_is_noop(self):
+        """A second give_back of a direct connection must not double-release
+        the semaphore permit (the ``_odoo_pool`` marker is cleared first)."""
+        pool = ConnectionPool(maxconn=2)
+        _, info = connection_info_for("postgres")
+        try:
+            conn = pool.borrow(info)
+            pool.give_back(conn)
+            pool.give_back(conn)  # marker cleared -> no-op branch
+            a = pool.borrow(info)
+            b = pool.borrow(info)
+            # a third borrow must still hit the (2-permit) budget
+            pool._borrow_timeout = 0.2
+            with self.assertRaises(PoolError):
+                pool.borrow(info)
+            pool.give_back(a)
+            pool.give_back(b)
+        finally:
+            pool.close_all()
 
 
 class TestPoolSessionGucOptions(BaseCase):
@@ -3987,6 +4026,26 @@ class TestPoolSessionGucOptions(BaseCase):
         opts = created["kwargs"]["options"]
         self.assertIn("statement_timeout=5000", opts)
         self.assertIn("jit=off", opts)
+
+    def test_pgoptions_env_used_as_fallback(self):
+        # libpq would honour PGOPTIONS on its own, but Odoo passes an explicit
+        # ``options`` kwarg which overrides the env wholesale — so the env
+        # value must be folded in (lowest precedence).
+        with patch.dict(os.environ, {"PGOPTIONS": "-c search_path=envpath"}):
+            created = self._created_pool_args({"dbname": "db"})
+        opts = created["kwargs"]["options"]
+        self.assertIn("search_path=envpath", opts)
+        self.assertIn("jit=off", opts)
+
+    def test_pgoptions_env_loses_to_explicit_options(self):
+        # An explicit kwarg (or URI ?options=) is more specific than the env.
+        with patch.dict(os.environ, {"PGOPTIONS": "-c search_path=envpath"}):
+            created = self._created_pool_args(
+                {"dbname": "db", "options": "-c statement_timeout=5000"}
+            )
+        opts = created["kwargs"]["options"]
+        self.assertIn("statement_timeout=5000", opts)
+        self.assertNotIn("envpath", opts)
 
     def test_idle_session_timeout_default_unchanged(self):
         """Default max_idle (600s) keeps the historical 15-minute server net."""

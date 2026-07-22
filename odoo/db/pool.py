@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import contextlib
 import logging
+import os
 import threading
 from time import monotonic
 from typing import TYPE_CHECKING
@@ -106,6 +107,38 @@ _LAST_BORROW_ATTR = "_odoo_last_borrow"
 # normal retry anyway.
 _PROBE_CONNECT_TIMEOUT = 5
 
+# ``_odoo_pool`` marker for connections opened OUTSIDE any psycopg_pool (see
+# ``_borrow_direct``).  A unique sentinel, not None: an absent marker means
+# "not borrowed / already returned" in ``give_back``'s accounting.
+_DIRECT_CONNECTION = object()
+
+# Server-side idle timeout for direct maintenance-database connections
+# (``_borrow_direct``).  They live for one request, so this is purely a safety
+# net for a connection that escapes give_back (e.g. a raw ``borrow()`` caller
+# leaking it) — an idle session parked on a template blocks
+# ``CREATE DATABASE ... TEMPLATE`` until it dies.  Matches the pooled path's
+# 900s floor.  idle_session_timeout only fires BETWEEN queries of an idle
+# session, never during a long-running statement (CREATE/DROP DATABASE).
+_DIRECT_IDLE_SESSION_TIMEOUT_MS = 900 * 1000
+
+
+def _base_conn_options(conninfo: str, kwargs: dict) -> str:
+    """Resolve the libpq ``options`` GUC string Odoo should extend.
+
+    Precedence (most specific wins): an explicit ``options`` kwarg, then GUCs
+    embedded in the URI/conninfo string (psycopg gives per-key precedence to
+    kwargs, so setting ours without folding the URI's in would silently drop
+    the operator's, e.g. ``?options=-csearch_path%3D...``), then the operator's
+    ``PGOPTIONS`` environment variable — which libpq would honour on its own
+    were we not about to pass an explicit kwarg that overrides it wholesale.
+    """
+    options = kwargs.get("options", "")
+    if not options and conninfo:
+        options = _expand_conninfo(conninfo).get("options", "")
+    if not options:
+        options = os.environ.get("PGOPTIONS", "")
+    return options
+
 
 class PoolError(Exception):
     """Connection pool error."""
@@ -182,6 +215,11 @@ class ConnectionPool:
         # Last monotonic time the give_back idle reaper swept; 0.0 lets the first
         # eligible give_back sweep immediately (see _maybe_reap_idle_pools).
         self._last_reap_check = 0.0
+        # Outstanding direct (never-pooled) maintenance-db connections — see
+        # _borrow_direct.  They draw _pool_sem permits but are invisible to the
+        # per-DSN psycopg_pool stats, so repr/exhaustion messages read this.
+        # Guarded by self._lock (the direct path is never hot).
+        self._direct_out = 0
 
     def __repr__(self) -> str:
         # Snapshot the pools atomically (``list()`` holds the GIL throughout) so
@@ -197,9 +235,12 @@ class ConnectionPool:
             available += stats.get("pool_available", 0)
         used = total - available
         mode = "read-only" if self._readonly else "read/write"
+        # Direct maintenance-db connections hold permits but appear in no
+        # per-DSN pool's stats; count them so used/limit adds up.
+        direct = self._direct_out
         return (
             f"ConnectionPool({mode};used={used}/total={total}"
-            f"/limit={self._maxconn};dbs={len(pools)})"
+            f"/limit={self._maxconn};dbs={len(pools)};direct={direct})"
         )
 
     @property
@@ -370,13 +411,8 @@ class ConnectionPool:
         #   pay a probe failure + reconnect.
         # jit/work_mem are hardcoded, not configurable: tuned for Odoo's
         # profile; override via postgresql.conf if needed.
-        options = kwargs.get("options", "")
-        if not options and conninfo:
-            # A URI's ``?options=...`` GUCs live inside the conninfo string, and
-            # psycopg gives per-key precedence to kwargs — so setting ours
-            # without folding the URI's in would silently drop the operator's
-            # (e.g. a ?options=-csearch_path%3D... on the URI).
-            options = _expand_conninfo(conninfo).get("options", "")
+        # kwarg > URI ?options= > PGOPTIONS env — see _base_conn_options.
+        options = _base_conn_options(conninfo, kwargs)
         idle_session_ms = max(900, int(self._max_idle * 1.5)) * 1000
         kwargs["options"] = (
             f"{options} -c jit=off -c work_mem=16MB"
@@ -395,19 +431,14 @@ class ConnectionPool:
                 self._note_pool_activity(pool)
                 return pool
 
-            # Never warm connections to system/template databases: psycopg_pool
-            # maintains min_size by reconnecting after every discard, so the
-            # cursor-close discard (Cursor._close keep_in_pool=False) alone
-            # cannot keep them connection-free — and an idle connection to a
-            # template blocks CREATE DATABASE ... TEMPLATE outright.
-            min_size = self._minconn
-            if min_size and is_maintenance_db(dict(key).get("database", "")):
-                min_size = 0
+            # Maintenance databases never reach this point — ``borrow`` routes
+            # them through ``_borrow_direct`` (no per-DSN pool at all), so no
+            # min_size suppression is needed here.
             pool = _PsycopgPool(
                 conninfo,
                 connection_class=psycopg.Connection,
                 kwargs=kwargs,
-                min_size=min_size,
+                min_size=self._minconn,
                 max_size=self._maxconn,
                 max_lifetime=self._max_lifetime,
                 max_idle=self._max_idle,
@@ -563,6 +594,8 @@ class ConnectionPool:
         :meth:`give_back`.  The two helpers it calls
         (:meth:`_getconn_with_retry`, :meth:`_validate_borrowed_conn`) never
         touch the semaphore, so the permit can neither leak nor double-release.
+        (Maintenance databases short-circuit into :meth:`_borrow_direct`, which
+        keeps the same permit discipline for its never-pooled connections.)
 
         :param dict connection_info: dict of psql connection keywords
         :param key: optional pre-normalized routing key.  ``Connection``
@@ -572,13 +605,23 @@ class ConnectionPool:
         """
         if key is None:
             key = _normalize_dsn_key(connection_info)
+        # System/template databases bypass psycopg_pool entirely: a pooled
+        # connection there can never be kept discard-clean (psycopg_pool
+        # replaces every discarded connection to hold its count, regardless of
+        # min_size), and one idle connection to a template blocks
+        # ``CREATE DATABASE ... TEMPLATE``.  ``connection_info`` carries
+        # ``dbname`` on the keyword path; only a URI DSN needs the key lookup.
+        dbname = connection_info.get("dbname") or dict(key).get("database", "")
+        if is_maintenance_db(dbname):
+            return self._borrow_direct(connection_info)
         pool = self._get_or_create_pool(key, connection_info)
 
         deadline = monotonic() + self._borrow_timeout
         if not self._pool_sem.acquire(timeout=self._borrow_timeout):
             raise PoolError(
                 f"Could not acquire connection: pool limit ({self._maxconn}) reached, "
-                f"all connections are in use across {len(self._pools)} database(s)"
+                f"all connections are in use across {len(self._pools)} database(s) "
+                f"(+{self._direct_out} direct maintenance connection(s))"
             )
         try:
             conn, pool = self._getconn_with_retry(pool, key, connection_info, deadline)
@@ -587,6 +630,88 @@ class ConnectionPool:
             self._pool_sem.release()
             raise
         return conn
+
+    def _borrow_direct(self, connection_info: dict) -> psycopg.Connection:
+        """Open a dedicated, never-pooled connection to a maintenance database.
+
+        ``postgres``/template databases must be connection-free the moment no
+        cursor is open on them, or ``CREATE DATABASE`` / ``DROP DATABASE``
+        against them fails with "being accessed by other users".  A psycopg_pool
+        cannot guarantee that: it replaces every discarded connection to keep
+        its connection count, so the old discard-on-close approach left an idle
+        replacement parked on the database (verified: it blocks
+        ``CREATE DATABASE ... TEMPLATE`` until the idle-pool reaper fires).
+
+        The connection still draws a ``_pool_sem`` permit (the budget is
+        per-instance, not per-DSN) and is tagged ``_DIRECT_CONNECTION`` so
+        :meth:`give_back` closes it instead of returning it anywhere.
+        ``keep_in_pool`` is irrelevant on this path — the connection is always
+        closed on return.
+
+        Deliberately skipped versus the pooled path: the OLTP session GUCs
+        ``jit``/``work_mem`` (pointless for short-lived catalog work) and the
+        pre-flight probe (a direct connect already fails fast with the precise
+        error).  ``idle_session_timeout`` IS applied — it is the server-side
+        net that reclaims an escaped connection, and an idle session parked on
+        a template blocks ``CREATE DATABASE ... TEMPLATE``.  Outstanding
+        direct connections are counted in ``_direct_out`` (repr/exhaustion
+        messages); the per-DSN ``get_stats()`` never sees them.
+        """
+        kwargs = dict(connection_info)
+        conninfo = kwargs.pop("dsn", "")
+        kwargs["autocommit"] = False
+        # Fold operator GUCs (kwarg > URI > PGOPTIONS) exactly like the pooled
+        # path, then add the escaped-connection net.
+        options = _base_conn_options(conninfo, kwargs)
+        kwargs["options"] = (
+            f"{options} -c idle_session_timeout={_DIRECT_IDLE_SESSION_TIMEOUT_MS}"
+        ).strip()
+        if not self._pool_sem.acquire(timeout=self._borrow_timeout):
+            raise PoolError(
+                f"Could not acquire connection: pool limit ({self._maxconn}) "
+                f"reached, all connections are in use across "
+                f"{len(self._pools)} database(s) "
+                f"(+{self._direct_out} direct maintenance connection(s))"
+            )
+        try:
+            # A connect failure surfaces verbatim (e.g. InvalidCatalogName) —
+            # same contract as the pooled path's _getconn_with_retry.  The
+            # libpq connect_timeout from _HEALTH_PARAMS (10s) bounds the wait.
+            conn = psycopg.connect(conninfo, **kwargs)
+        except BaseException:
+            self._pool_sem.release()
+            raise
+        try:
+            # Same per-connection setup a pooled connection gets from the
+            # psycopg_pool ``configure`` callback (type adapters, prepare
+            # tuning) plus the version gate.
+            _configure_connection(conn)
+            self._check_min_server_version(conn)
+            conn._odoo_pool = _DIRECT_CONNECTION
+        except BaseException:
+            with contextlib.suppress(Exception):
+                conn.close()
+            self._pool_sem.release()
+            raise
+        with self._lock:
+            self._direct_out += 1
+        return conn
+
+    @staticmethod
+    def _check_min_server_version(conn: psycopg.Connection) -> None:
+        """Raise :class:`PoolError` when the server is below ``MIN_PG_VERSION``.
+
+        ``server_version`` is client-side (no round-trip).  Shared by the
+        pooled (:meth:`_validate_borrowed_conn`) and direct
+        (:meth:`_borrow_direct`) borrow paths.
+        """
+        sv = conn.info.server_version
+        if sv < MIN_PG_VERSION * 10000:
+            raise PoolError(
+                f"PostgreSQL {sv // 10000}.{sv % 10000} is below the "
+                f"minimum required {MIN_PG_VERSION}.0. Please upgrade "
+                f"to PostgreSQL {MIN_PG_VERSION} or later."
+            )
 
     def _getconn_with_retry(
         self,
@@ -663,16 +788,10 @@ class ConnectionPool:
         touches the semaphore.
         """
         try:
-            # Minimum-version gate (server_version is client-side, no round-trip).
-            # Here rather than in _configure_connection so the caller gets the real
-            # message, not a generic borrow-timeout PoolTimeout.
-            sv = conn.info.server_version
-            if sv < MIN_PG_VERSION * 10000:
-                raise PoolError(
-                    f"PostgreSQL {sv // 10000}.{sv % 10000} is below the "
-                    f"minimum required {MIN_PG_VERSION}.0. Please upgrade "
-                    f"to PostgreSQL {MIN_PG_VERSION} or later."
-                )
+            # Minimum-version gate.  Here rather than in _configure_connection
+            # so the caller gets the real message, not a generic borrow-timeout
+            # PoolTimeout.
+            self._check_min_server_version(conn)
             # Gate on the level: conn.info + backend_pid are eager and this runs on
             # every cursor creation, so pay nothing when DEBUG is off.
             if _logger_conn.isEnabledFor(logging.DEBUG):
@@ -710,8 +829,11 @@ class ConnectionPool:
             else:
                 self._debug("Give back dead connection %r", connection)
         # Use the Odoo-owned marker set by borrow() (not psycopg_pool's private
-        # ``conn._pool``) to find the pool and know a permit is held.
-        pool = getattr(connection, "_odoo_pool", None)
+        # ``conn._pool``) to find the pool and know a permit is held.  A single
+        # ``dict.pop`` CLAIMS the marker atomically (one C-level op under the
+        # GIL), so two concurrent give_backs of the same connection cannot both
+        # see it and double-release the permit — getattr-then-clear could.
+        pool = connection.__dict__.pop("_odoo_pool", None)
         if pool is None:
             # Never borrowed or already given back: no permit is held, so
             # releasing would over-increment the bounded semaphore.  The marker
@@ -720,10 +842,18 @@ class ConnectionPool:
             if not connection.closed:
                 connection.close()
             return
+        if pool is _DIRECT_CONNECTION:
+            # Maintenance-database connection (see _borrow_direct): always
+            # closed, never pooled — the database must be connection-free the
+            # moment the cursor is gone.  The pop above already claimed the
+            # marker, so a second give_back hits the no-op branch.
+            with contextlib.suppress(Exception):
+                connection.close()
+            with self._lock:
+                self._direct_out -= 1
+            self._pool_sem.release()
+            return
 
-        # Clear the marker BEFORE releasing so a second give_back() hits the
-        # no-op branch above instead of releasing the permit twice.
-        connection._odoo_pool = None
         # Returning a connection is activity: mark the pool fresh so neither the
         # reap sweep below nor a later one treats a just-used pool as idle.
         # Without this, a connection held longer than reap_idle_ttl and then
