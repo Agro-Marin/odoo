@@ -114,3 +114,85 @@ class TestSnippetFilterSecurity(TransactionCase):
             search_domain=[("name", "ilike", "PUBLIC")],
             res_model="res.partner",
         )
+
+    def test_client_res_model_cannot_override_the_filter_model(self):
+        """A saved filter's model is not negotiable by the caller.
+
+        ``res_model`` is client-supplied on the public route. Letting it win ran
+        the designer's domain / sort / context against a model of the visitor's
+        choosing — a filter over ``res.partner`` would happily return
+        ``res.lang`` rows.
+        """
+        result = self.snippet_filter._prepare_values(
+            limit=16, search_domain=[], res_model="res.lang"
+        )
+        self.assertTrue(result, "The filter's own model must still be queried.")
+        names = {row["name"] for row in result}
+        self.assertIn("PUBLIC_MEMBER", names)
+        self.assertNotIn(
+            "English (US)", names, "res.lang records must never leak through."
+        )
+
+    def test_unknown_res_model_does_not_raise(self):
+        """An unknown model name used to reach ``self.env[...]`` as a KeyError,
+        i.e. an unauthenticated traceback on a public route."""
+        no_filter = self.env["website.snippet.filter"]
+        self.assertEqual(
+            no_filter._prepare_values(
+                limit=1, search_domain=[], res_model="not.a.model", res_id=1
+            ),
+            [],
+        )
+
+    def test_filterless_single_record_does_not_crash_on_blank_field_names(self):
+        """The filter-less single-record path has no ``field_names``.
+
+        It falls back to the field's ``""`` default, and a bare ``split(",")``
+        then yields one empty name that reaches ``record[""]`` — an
+        unauthenticated ``KeyError`` on a public route.
+        """
+        no_filter = self.env["website.snippet.filter"]
+        result = no_filter._prepare_values(
+            limit=1,
+            search_domain=[],
+            res_model="res.partner",
+            res_id=self.published.id,
+        )
+        self.assertEqual(len(result), 1)
+        self.assertNotIn("", result[0], "A blank field name must be skipped.")
+
+    def test_blank_and_padded_field_names_are_skipped_or_trimmed(self):
+        Partner = self.env["res.partner"]
+        Filter = self.env["website.snippet.filter"]
+        self.snippet_filter.invalidate_recordset()
+        meta = self.snippet_filter._get_filter_meta_data(Partner)
+        self.assertEqual(list(meta), ["name", "email", "phone"])
+        self.assertEqual(list(Filter._get_filter_meta_data(Partner)), [])
+
+    def test_render_tolerates_a_malformed_public_payload(self):
+        """Every ``_render`` argument comes straight from an unauthenticated
+        JSON-RPC caller, so a missing/garbage one must yield [] rather than a
+        ``TypeError``/``ValueError`` 500."""
+        self.assertEqual(self.snippet_filter._render(), [])
+        self.assertEqual(self.snippet_filter._render(template_key=None, limit=4), [])
+        self.assertEqual(
+            self.snippet_filter._render(template_key="website.not_a_filter_template"),
+            [],
+        )
+
+    def test_limit_and_res_id_are_coerced(self):
+        """JSON-RPC delivers whatever the caller typed; non-integers must not
+        blow up inside ``min()`` or a domain leaf."""
+        Filter = self.env["website.snippet.filter"]
+        self.assertIsNone(Filter._coerce_positive_int("abc"))
+        self.assertIsNone(Filter._coerce_positive_int(None))
+        self.assertIsNone(Filter._coerce_positive_int(True))
+        self.assertIsNone(Filter._coerce_positive_int([1]))
+        self.assertIsNone(Filter._coerce_positive_int(0))
+        self.assertIsNone(Filter._coerce_positive_int(-3))
+        self.assertEqual(Filter._coerce_positive_int("7"), 7)
+        self.assertEqual(Filter._coerce_positive_int(7.9), 7)
+        # A string limit used to raise TypeError in min(limit, max_limit).
+        self.assertTrue(
+            self.snippet_filter._prepare_values(limit="2", search_domain=[])
+        )
