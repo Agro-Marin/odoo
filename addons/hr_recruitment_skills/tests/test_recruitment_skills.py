@@ -34,6 +34,21 @@ class TestRecruitmentSkills(TransactionCase):
             }
         )
 
+    def test_matching_score_zero_total_no_div_error(self):
+        """A job requiring only 0-progress skills with no expected degree must not
+        crash applicant_matching_score with ZeroDivisionError (job_total == 0)."""
+        self.t_job.write({
+            "job_skill_ids": [Command.create({
+                "skill_type_id": self.t_skill_type.id,
+                "skill_id": self.t_skill_1.id,
+                "skill_level_id": self.t_skill_level_1.id,  # level_progress = 0
+            })],
+        })
+        score = self.t_job.with_context(
+            active_applicant_id=self.t_applicant.id
+        ).applicant_matching_score
+        self.assertEqual(score, 0)
+
     def test_add_a_skill_to_applicant(self):
         """
         Test that adding a skill to an applicant works
@@ -443,7 +458,6 @@ class TestRecruitmentSkills(TransactionCase):
 
         self.assertFalse(self.t_applicant.applicant_skill_ids, "The applicant should not have any skills")
         self.assertEqual(expected_talent, talent_skill, f"The talent should have the following skill: {talent_skill}")
-        return
 
     def test_updating_a_skill_on_a_talent_does_not_affect_applicants(self):
         """

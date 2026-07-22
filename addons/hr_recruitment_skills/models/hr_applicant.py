@@ -2,7 +2,7 @@
 
 from ast import literal_eval
 
-from odoo import fields, models, Command, api
+from odoo import Command, api, fields, models
 
 
 class HrApplicant(models.Model):
@@ -59,7 +59,7 @@ class HrApplicant(models.Model):
             job_skill_map = {js.skill_id: js.level_progress for js in job_skills}
 
             matching_applicant_skills = applicant.current_applicant_skill_ids.filtered(
-                lambda a: a.skill_id in job_skill_map,
+                lambda a, job_skill_map=job_skill_map: a.skill_id in job_skill_map,
             )
             applicant_degree = applicant.type_id.score * 100 if job_degree > 1 else 0
             applicant_total = (
@@ -78,14 +78,12 @@ class HrApplicant(models.Model):
     def _get_employee_create_vals(self):
         vals = super()._get_employee_create_vals()
         vals["employee_skill_ids"] = [
-            (
-                0,
-                0,
+            Command.create(
                 {
                     "skill_id": applicant_skill.skill_id.id,
                     "skill_level_id": applicant_skill.skill_level_id.id,
                     "skill_type_id": applicant_skill.skill_type_id.id,
-                },
+                }
             )
             for applicant_skill in self.applicant_skill_ids
         ]
