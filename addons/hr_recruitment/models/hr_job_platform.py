@@ -22,10 +22,9 @@ class HrJobPlatform(models.Model):
     @api.model_create_multi
     def create(self, vals_list):
         for vals in vals_list:
-            if vals['email']:
+            if vals.get('email'):
                 vals['email'] = email_normalize(vals['email']) or vals['email']
-        platforms = super().create(vals_list)
-        return platforms
+        return super().create(vals_list)
 
     def write(self, vals):
         if vals.get('email'):

@@ -1,16 +1,15 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 import re
-
-from markupsafe import Markup
 from collections import defaultdict
 from datetime import datetime
+
+from markupsafe import Markup
 
 from odoo import api, fields, models, tools
 from odoo.exceptions import UserError, ValidationError
 from odoo.fields import Domain
 from odoo.tools import SQL, clean_context
 from odoo.tools.translate import _
-
 
 AVAILABLE_PRIORITIES = [
     ('0', 'Normal'),
@@ -23,7 +22,7 @@ AVAILABLE_PRIORITIES = [
 class HrApplicant(models.Model):
     _name = 'hr.applicant'
     _description = "Applicant"
-    _order = "priority desc, id desc"
+    _order = "sequence"
     _inherit = ['mail.thread.cc',
                'mail.thread.main.attachment',
                'mail.thread.blacklist',
@@ -36,7 +35,6 @@ class HrApplicant(models.Model):
     _mailing_enabled = True
     _primary_email = 'email_from'
     _track_duration_field = 'stage_id'
-    _order = "sequence"
 
     sequence = fields.Integer(string='Sequence', index=True, default=10)
     active = fields.Boolean("Active", default=True, help="If the active field is set to false, it will allow you to hide the case without removing it.", index=True)
@@ -611,7 +609,7 @@ class HrApplicant(models.Model):
         if not self.env.context.get("no_copy_in_partner_name"):
             vals_list = [
                 dict(vals, partner_name=self.env._("%s (copy)", applicant.partner_name))
-                for applicant, vals in zip(self, vals_list)
+                for applicant, vals in zip(self, vals_list, strict=True)
             ]
         return vals_list
 
@@ -930,6 +928,7 @@ class HrApplicant(models.Model):
             return super()._compute_display_name()
         for applicant in self:
             applicant.display_name = applicant.partner_name
+        return None
 
     @api.model
     def message_new(self, msg_dict, custom_values=None):
@@ -1069,7 +1068,7 @@ class HrApplicant(models.Model):
 
     def reset_applicant(self):
         """ Reinsert the applicant into the recruitment pipe in the first stage"""
-        default_stage = dict()
+        default_stage = {}
         for job_id in self.mapped('job_id'):
             default_stage[job_id.id] = self.env['hr.recruitment.stage'].search(
                 [

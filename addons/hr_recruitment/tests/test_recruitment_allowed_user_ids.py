@@ -1,4 +1,4 @@
-from odoo.tests import tagged, TransactionCase
+from odoo.tests import TransactionCase, tagged
 
 
 @tagged('recruitment_allowed_user_ids')
