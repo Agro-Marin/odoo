@@ -1,10 +1,11 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 from datetime import datetime, timedelta
+
 from odoo import fields
-from odoo.addons.sms.tests.common import SMSCommon
 from odoo.tests import tagged
+
+from odoo.addons.sms.tests.common import SMSCommon
 
 
 @tagged('sms')
@@ -12,7 +13,7 @@ class TestCalendarSms(SMSCommon):
 
     @classmethod
     def setUpClass(cls):
-        super(TestCalendarSms, cls).setUpClass()
+        super().setUpClass()
 
         now = fields.Datetime.now()
 
