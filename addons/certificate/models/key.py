@@ -8,9 +8,8 @@ from cryptography.hazmat.primitives.serialization import Encoding
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError
 
-
 STR_TO_HASH = {
-    'sha1': hashes.SHA1(),
+    'sha1': hashes.SHA1(),  # noqa: S303 - kept for interoperability: signing/verification against legacy consumers still requiring SHA1 (e.g. government e-invoicing endpoints); this is a caller-selected option, not a hardcoded default
     'sha256': hashes.SHA256(),
 }
 
@@ -288,8 +287,8 @@ class CertificateKey(models.Model):
 
         try:
             private_key = serialization.load_pem_private_key(base64.b64decode(pem_key), pwd or None)
-        except ValueError:
-            raise UserError(_("The private key could not be loaded."))
+        except ValueError as exc:
+            raise UserError(_("The private key could not be loaded.")) from exc
 
         match private_key:
             case ec.EllipticCurvePrivateKey():
@@ -328,8 +327,8 @@ class CertificateKey(models.Model):
 
         try:
             public_key = serialization.load_pem_public_key(base64.b64decode(pem_key))
-        except ValueError:
-            raise UserError(_("The public key could not be loaded."))
+        except ValueError as exc:
+            raise UserError(_("The public key could not be loaded.")) from exc
 
         match public_key:
             case ec.EllipticCurvePublicKey():
@@ -387,8 +386,8 @@ class CertificateKey(models.Model):
 
         try:
             public_key = serialization.load_pem_public_key(base64.b64decode(pem_key))
-        except ValueError:
-            raise UserError(_("The public key could not be loaded."))
+        except ValueError as exc:
+            raise UserError(_("The public key could not be loaded.")) from exc
 
         if isinstance(public_key, ec.EllipticCurvePublicKey):
             e = public_key.public_numbers().x
