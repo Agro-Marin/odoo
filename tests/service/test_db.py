@@ -891,6 +891,100 @@ class TestRestoreDbZipSlip:
         )
         assert "escapes the extraction directory" in src
 
+    @pytest.fixture()
+    def malicious_zip(self):
+        """Factory: a zip whose second member has an attacker-chosen name."""
+        made = []
+
+        def _make(escaping_name: str) -> str:
+            fd = tempfile.NamedTemporaryFile(suffix=".zip", delete=False)
+            with zipfile.ZipFile(fd, "w") as zf:
+                zf.writestr("dump.sql", "SELECT 1;")
+                zf.writestr(escaping_name, b"payload")
+            fd.close()
+            made.append(fd.name)
+            return fd.name
+
+        yield _make
+        for path in made:
+            os.unlink(path)
+
+    @pytest.mark.parametrize(
+        "escaping_name",
+        [
+            "../evil.sql",
+            "../../etc/cron.d/pwn",
+            "filestore/../../../tmp/escape",
+            "/abs/evil",
+        ],
+    )
+    def test_escaping_member_is_refused_behaviorally(
+        self, db_mod, bypass_db_mgmt, malicious_zip, escaping_name
+    ):
+        """A real archive member that escapes the extraction dir must raise —
+        not merely have a matching string in the source.  Reaches the actual
+        namelist() check; ``_create_empty_database`` is stubbed so the guard
+        is exercised before any DB/psql work, and ``_drop_database`` records
+        that the half-built DB is rolled back."""
+        with patch.object(db_mod, "exp_db_exist", return_value=False), \
+             patch.object(db_mod, "_create_empty_database"), \
+             patch.object(db_mod, "_drop_database") as mock_drop, \
+             patch("odoo.service.db.subprocess.run") as mock_run:
+            with pytest.raises(RuntimeError, match="escapes the extraction directory"):
+                db_mod.restore_db("newdb", malicious_zip(escaping_name))
+            # The guard must fire BEFORE psql is ever spawned.
+            mock_run.assert_not_called()
+        # And the empty DB created up front is rolled back.
+        mock_drop.assert_called_once_with("newdb")
+
+
+# ---------------------------------------------------------------------------
+# exp_restore — whitespace-tolerant base64 streaming decoder
+# ---------------------------------------------------------------------------
+
+
+class TestExpRestoreBase64Decoder:
+    """``exp_restore`` decodes a base64 body in fixed chunks, tolerating
+    whitespace at any offset (76-col line wraps, leading/trailing blanks).
+
+    Regression: chunk boundaries landing mid-4-char group on a wrapped body
+    used to corrupt or crash the decode.  These tests capture the bytes written
+    to the temp file (via a stubbed ``restore_db``) and assert an exact
+    round-trip — the decoder is the only logic under test, so no DB is needed.
+    """
+
+    @staticmethod
+    def _decode_via_exp_restore(db_mod, b64_text: str) -> bytes:
+        captured = {}
+
+        def _capture(db, dump_file, copy=False, neutralize_database=False):
+            with open(dump_file, "rb") as fh:
+                captured["bytes"] = fh.read()
+
+        with patch.object(db_mod, "restore_db", side_effect=_capture):
+            db_mod.exp_restore("dummy", b64_text)
+        return captured["bytes"]
+
+    @pytest.mark.parametrize("size", [0, 1, 2, 3, 4, 5, 100, 8192, 8193, 12000])
+    def test_clean_base64_round_trips(self, db_mod, bypass_db_mgmt, size):
+        import base64
+
+        payload = bytes((i * 7 + 3) % 256 for i in range(size))
+        b64 = base64.b64encode(payload).decode("ascii")
+        assert self._decode_via_exp_restore(db_mod, b64) == payload
+
+    def test_wrapped_and_padded_whitespace_round_trips(self, db_mod, bypass_db_mgmt):
+        """Whitespace injected mid-stream (incl. across the 8192-char chunk
+        boundary) and around the body must not corrupt the decoded bytes."""
+        import base64
+
+        payload = bytes((i * 13) % 256 for i in range(10000))
+        b64 = base64.b64encode(payload).decode("ascii")
+        # MIME-style 76-col wrapping plus stray tabs/CR and leading/trailing blanks.
+        wrapped = "\n".join(b64[i : i + 76] for i in range(0, len(b64), 76))
+        wrapped = "  \r\n" + wrapped.replace("A", "A\t", 1) + "\n\n  "
+        assert self._decode_via_exp_restore(db_mod, wrapped) == payload
+
 
 # ---------------------------------------------------------------------------
 # exp_dump — chunked base64 encoding

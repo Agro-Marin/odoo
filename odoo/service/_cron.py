@@ -76,12 +76,27 @@ def drain_cron_notifies(
 def order_notified_first(notified: Iterable[str], all_dbs: Iterable[str]) -> list[str]:
     """Order ``all_dbs`` so notified databases come first, preserving order.
 
+    Each served database appears exactly once: notified-and-served first (in
+    notified order), then the remaining served databases (in original order).
     Notified databases not served by this instance are dropped (a stray NOTIFY
-    cannot inject work for an unknown DB); the rest follow in original order.
+    cannot inject work for an unknown DB).
+
+    De-duplicates both inputs by first occurrence, so a database listed twice —
+    whether in ``notified`` or ``all_dbs`` — is still processed only once per
+    cron pass.  Today's callers pass de-duplicated ``OrderedSet``s, so this is a
+    correct-by-construction guard, not a behavior change for them.
     """
     all_list = list(all_dbs)
     all_set = set(all_list)
     notified_set = set(notified)
-    return [db for db in notified if db in all_set] + [
-        db for db in all_list if db not in notified_set
-    ]
+    emitted: set[str] = set()
+    result: list[str] = []
+    for db in notified:  # notified-and-served, notified order, de-duplicated
+        if db in all_set and db not in emitted:
+            emitted.add(db)
+            result.append(db)
+    for db in all_list:  # remaining served dbs, original order, de-duplicated
+        if db not in notified_set and db not in emitted:
+            emitted.add(db)
+            result.append(db)
+    return result
