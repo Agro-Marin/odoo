@@ -10,6 +10,12 @@ import {
     setupWebsiteBuilder,
 } from "./website_helpers.js";
 
+// Default palette's `o-color-1`, i.e. `$o-enterprise-color` in
+// web/static/src/scss/primary_variables.scss. Kept in one place so the next
+// brand-colour change is a one-line update instead of four stale literals
+// (this test still asserted the pre-19.0 #714B67).
+const THEME_COLOR_1 = "#A855F7";
+
 defineWebsiteModels();
 
 test("Should set a shape on an image", async () => {
@@ -54,10 +60,12 @@ test("Should set a shape on an image", async () => {
         "data-file-name",
         "s_text_image.svg",
     );
-    expect(":iframe .test-options-target img").toHaveAttribute(
-        "data-shape-colors",
-        ";;;;",
-    );
+    // `geo_shuriken` themes none of its five colour slots, and a shape with no
+    // themed colour deliberately carries no `data-shape-colors` at all: the
+    // plugin deletes an all-empty value (`resetShapeDataset`), refuses to write
+    // one (`addShapeColorAttribute`), and `MISSING_SHAPE_COLOR_SELECTORS` counts
+    // `";;;;"` as missing. Asserting the literal `";;;;"` contradicted all three.
+    expect(":iframe .test-options-target img").not.toHaveAttribute("data-shape-colors");
 });
 
 test("Should set a shape on a GIF", async () => {
@@ -137,7 +145,7 @@ test("Should change the shape color of an image", async () => {
 
     expect(`[data-label="Colors"] .o_we_color_preview:nth-child(1)`).toHaveAttribute(
         "style",
-        `background-color: #714B67`,
+        `background-color: ${THEME_COLOR_1}`,
     );
     expect(`[data-label="Colors"] .o_we_color_preview:nth-child(2)`).toHaveAttribute(
         "style",
@@ -158,7 +166,7 @@ test("Should change the shape color of an image", async () => {
     );
     expect(`:iframe .test-options-target img`).toHaveAttribute(
         "data-shape-colors",
-        "#714B67;#F0CDA8;#F6F5F4;;#1B1319",
+        `${THEME_COLOR_1};#F0CDA8;#F6F5F4;;#1B1319`,
     );
 
     await contains(`[data-label="Colors"] .o_we_color_preview:nth-child(1)`).click();
@@ -195,7 +203,7 @@ test("Should change the shape color of an image with a class color", async () =>
 
     expect(`[data-label="Colors"] .o_we_color_preview:nth-child(1)`).toHaveAttribute(
         "style",
-        `background-color: #714B67`,
+        `background-color: ${THEME_COLOR_1}`,
     );
     expect(`[data-label="Colors"] .o_we_color_preview:nth-child(2)`).toHaveAttribute(
         "style",
@@ -216,7 +224,7 @@ test("Should change the shape color of an image with a class color", async () =>
     );
     expect(`:iframe .test-options-target img`).toHaveAttribute(
         "data-shape-colors",
-        "#714B67;#F0CDA8;#F6F5F4;;#1B1319",
+        `${THEME_COLOR_1};#F0CDA8;#F6F5F4;;#1B1319`,
     );
 
     await contains(`[data-label="Colors"] .o_we_color_preview:nth-child(1)`).click();

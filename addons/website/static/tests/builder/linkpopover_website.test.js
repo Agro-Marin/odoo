@@ -246,11 +246,12 @@ test("link redirection should not be prefixed when the current page is not a web
             expect.step("website page url prefixed");
             expect(url.pathname.startsWith("/@")).toBe(true);
         },
-        location: {
-            // simulating being on a non-website page (eg. backend) by using /odoo/ URL
-            href: browser.location.origin + "/odoo/contactus",
-            hostname: browser.location.hostname,
-        },
+        // Simulate being on a non-website page (eg. backend) with a /odoo/ URL.
+        // A real `URL` rather than a two-field literal: the click path also
+        // reads other members of `location` (pathname, protocol, ...) and the
+        // partial stub blew up with "Cannot read properties of undefined
+        // (reading 'startsWith')" before the assertion below was ever reached.
+        location: new URL(browser.location.origin + "/odoo/contactus"),
     });
     onRpc("/html_editor/link_preview_internal", () => ({}));
     onRpc("/contactus", () => ({}));

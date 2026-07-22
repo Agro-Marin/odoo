@@ -1,4 +1,4 @@
-import { describe, expect, test } from "@odoo/hoot";
+import { beforeEach, describe, expect, test } from "@odoo/hoot";
 import {
     animationFrame,
     clear,
@@ -12,9 +12,22 @@ import {
     setupInteractionWhiteList,
     startInteractions,
 } from "@web/../tests/public/helpers";
-import { contains, onRpc } from "@web/../tests/web_test_helpers";
+import { contains, defineWebModels, onRpc } from "@web/../tests/web_test_helpers";
 
 setupInteractionWhiteList(["website.form", "website.post_link"]);
+
+// Every form below carries `data-pre-fill="true"`, and `website.form`'s
+// `willStart` unconditionally reads `res.users` for a logged-in user. The
+// public-interaction harness only seeds `ir.http` by default, so without this
+// the read fails with "Cannot find a definition for model res.users" and the
+// interaction never starts.
+//
+// Registered through `beforeEach` rather than at module scope on purpose: at
+// module scope the underlying `before()` hook lands outside this file's suite
+// and seeds the models for every other `@website/interactions` suite too,
+// which breaks the ones asserting on an empty server (anchor_slide, animation,
+// bottom_fixed_element, ...).
+beforeEach(defineWebModels);
 
 describe.current.tags("interaction_dev");
 

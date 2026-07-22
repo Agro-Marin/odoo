@@ -448,13 +448,22 @@ class TestQwebProcessAtt(TransactionCase):
     def test_process_att_url_crap(self):
         with MockRequest(self.env, website=self.website):
             match = http.root.get_db_router.return_value.bind.return_value.match
-            # #{fragment} is stripped from URL when testing route
+            # Only the path routes: both the `#fragment` and the `?query` are
+            # stripped before the routing table is consulted. That is a
+            # correctness requirement, not cosmetics -- `ir.http.url_rewrite`
+            # is ormcache'd on the path alone (cache="routing.rewrites"), so a
+            # query string reaching the router would let one URL's result be
+            # served for every other query string on the same path.
+            match.reset_mock()
             self._test_att("/x#y?z", {"href": "/x#y?z"})
-            match.assert_called_with("/x", method="POST", query_args=None)
+            match.assert_called_once_with("/x", method="POST")
 
-            match.reset_calls()
-            self._test_att("/x?y#z", {"href": "/x?y#z"})
-            match.assert_called_with("/x", method="POST", query_args="y")
+            # A *different* path: re-using "/x" would be answered by the
+            # `url_rewrite` cache populated above without consulting the
+            # router, making the assertion vacuous.
+            match.reset_mock()
+            self._test_att("/y?a#b", {"href": "/y?a#b"})
+            match.assert_called_once_with("/y", method="POST")
 
 
 @tagged("-at_install", "post_install")

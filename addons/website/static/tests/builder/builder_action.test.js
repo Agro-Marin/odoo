@@ -176,7 +176,12 @@ describe("BuilderMany2One: exit editor when previewing", () => {
 
         await setupWebsiteBuilder(`<div class="test-options-target">Homepage</div>`);
         await contains(":iframe .test-options-target").click();
-        await contains(".btn.o-dropdown").click();
+        // Scope to the builder sidebar. Unlike the `html_builder` harness this
+        // test was adapted from, `setupWebsiteBuilder` mounts a full WebClient,
+        // whose navbar contributes a second `.btn.o-dropdown` (the "New"
+        // content systray toggle). `contains()` clicks the *first* match, so an
+        // unscoped selector opened the systray dropdown instead of this option.
+        await contains(".o_customize_tab .btn.o-dropdown").click();
         await waitFor(".o-dropdown-item:contains(First)");
         await animationFrame();
         expect(":iframe .test-options-target").toHaveText("First", {
