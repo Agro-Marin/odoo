@@ -8,7 +8,7 @@ from lxml import etree
 
 from odoo.exceptions import MissingError, UserError
 from odoo.tests import tagged
-from odoo.tests.common import TransactionCase
+from odoo.tests.common import TransactionCase, skip_if_dev_mode
 from odoo.tools import file_open, misc, mute_logger
 from odoo.tools.json import scriptsafe as json_scriptsafe
 from odoo.tools.rendering_tools import QWebError
@@ -2245,6 +2245,7 @@ class TestQWebBasic(TransactionCase):
             self.env["ir.qweb"]._render(-9999)
 
     def test_error_message_9(self):
+        skip_if_dev_mode("qweb")
         target = self.env["ir.ui.view"].create(
             {
                 "name": "test",
@@ -2295,6 +2296,7 @@ class TestQWebBasic(TransactionCase):
             )
 
     def test_error_message_10(self):
+        skip_if_dev_mode("qweb")
         a = self.env["ir.ui.view"].create(
             {
                 "name": "test",
@@ -2341,6 +2343,7 @@ class TestQWebBasic(TransactionCase):
             self.env["ir.qweb"]._render(t.id)
 
     def test_error_message_11(self):
+        skip_if_dev_mode("qweb")
         v = self.env["ir.ui.view"].create(
             {
                 "name": "test",
@@ -2949,6 +2952,7 @@ class TestQWebBasic(TransactionCase):
         same ``module/templates/x.xml`` twice must not re-read, re-parse and
         re-codegen the file (they used to bypass the templates cache entirely,
         hitting the full pipeline per render, e.g. in report loops)."""
+        skip_if_dev_mode("xml")
         qweb = self.env["ir.qweb"]
         path = "base/tests/file_template/templates/file_template.xml"
         first = qweb._compile(path)

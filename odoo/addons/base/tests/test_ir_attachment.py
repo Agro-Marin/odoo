@@ -10,6 +10,7 @@ from PIL import Image
 
 from odoo.api import SUPERUSER_ID
 from odoo.exceptions import AccessError, UserError, ValidationError
+from odoo.tests.common import skip_if_dev_mode
 from odoo.tools import mute_logger
 from odoo.tools.image import image_to_base64
 
@@ -1197,6 +1198,7 @@ class TestPermissions(TransactionCaseWithUserDemo):
         e.g. `groups="base.group_system"` on the field,
         the attachment can't be read either.
         """
+        skip_if_dev_mode("xml")  # ir.rule domain ormcache
         # check that the information can be read out of the box
         main_partner = self.env.ref("base.main_partner")
         self.assertTrue(main_partner.image_128)
