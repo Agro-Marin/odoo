@@ -1,7 +1,7 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 from odoo import Command
-from odoo.tests import tagged, HttpCase
+from odoo.tests import HttpCase, tagged
 from odoo.tools import SQL
 
 from odoo.addons.product.tests.test_product_attribute_value_config import (
@@ -87,14 +87,16 @@ class TestWebsiteSaleProductFilters(WebsiteSaleCommon, TestProductAttributeValue
             cls.computer_case + cls.monitor + cls.computer + cls.windows_pc + cls.mac + generics
         )
 
-        # Archive all products not relevant to the test suite, bypassing ORM constraints
+        # Archive all products not relevant to the test suite, bypassing ORM
+        # constraints. Run one execute() per table: psycopg3 forbids multiple
+        # statements in a single prepared execute (this used to join both
+        # UPDATEs with '; '), unlike psycopg2.
         cls.env.invalidate_all()
-        cls.env.cr.execute(SQL('; ').join(
-            SQL(
+        for recs in (cls.product_tmpls.product_variant_ids, cls.product_tmpls):
+            cls.env.cr.execute(SQL(
                 'UPDATE %s SET active = false WHERE id != ALL(%s)',
                 SQL.identifier(recs._table), list(recs._ids),
-            ) for recs in (cls.product_tmpls.product_variant_ids, cls.product_tmpls)
-        ))
+            ))
 
     def test_latest_sold_filter(self):
         """Check the latest sold filter after selling 1 computer and 3 different cases.
