@@ -273,7 +273,9 @@ class Deploy(Command):
                 args.db,
                 force=args.force,
             )
-            print(result)
+            # The upload endpoint may return an empty body on success; a blank
+            # line reads as "something went wrong", so say it plainly.
+            print(result or "Module deployed successfully.")
         except Exception as e:
             # Keep the full traceback at DEBUG: a programming error would
             # otherwise surface only as a bare "ERROR: <msg>" with no stack.

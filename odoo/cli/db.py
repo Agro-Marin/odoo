@@ -396,6 +396,13 @@ class Db(Command):
             )
 
     def dump(self, args: argparse.Namespace) -> None:
+        # Read-only, so refuse only the PG system databases — they are never
+        # Odoo databases, and dump_db would only fail later with a raw
+        # traceback (no ir_* tables). The configured db_template is allowed,
+        # unlike in the destructive subcommands: a seed template may be a
+        # legitimate Odoo database, and dumping it is how it gets backed up.
+        if args.database in SYSTEM_DBS:
+            sys.exit(f"Refusing to touch system database {args.database}.")
         # Fail fast with a clean message instead of dump_db's raw traceback on
         # a missing database; this is a single catalog round-trip.
         self._check_source_exists(args.database)
