@@ -3,6 +3,7 @@ from pprint import pformat
 from unittest.mock import patch
 
 from odoo import http
+from odoo.http import routing as http_routing
 from odoo.tests import TransactionCase, tagged
 
 _logger = logging.getLogger(__name__)
@@ -10,7 +11,6 @@ _logger = logging.getLogger(__name__)
 
 @tagged("post_install", "-at_install")
 class RoutesLinter(TransactionCase):
-
     def test_routes_definition(self):
         """Forbid redefinition of same-value attributes in an inherited route.
 
@@ -18,9 +18,12 @@ class RoutesLinter(TransactionCase):
         investigate unexpected behavior.
         """
         _check_and_complete_route_definition = http._check_and_complete_route_definition
+        checked = 0
 
         def extended_check(controller_cls, submethod, merged_routing):
             """Wrap route checker to detect redundant routing attribute overrides."""
+            nonlocal checked
+            checked += 1
             if "type" in merged_routing:
                 # merged_routing contains non default 'type' value
                 # => current method is an inherited route.
@@ -37,7 +40,9 @@ class RoutesLinter(TransactionCase):
                         pformat(useless_overrides),
                     )
 
-            _check_and_complete_route_definition(
+            # The wrapped hook RETURNS the effective fragment the merge
+            # consumes; forward it or every route would merge empty.
+            return _check_and_complete_route_definition(
                 controller_cls, submethod, merged_routing
             )
 
@@ -50,6 +55,25 @@ class RoutesLinter(TransactionCase):
             )
             .mapped("name")
         )
-        with patch("odoo.http._check_and_complete_route_definition", extended_check):
+        # Patch the CONSUMING namespace (``odoo.http.routing``), not the
+        # ``odoo.http`` re-export: ``_generate_routing_rules`` resolves the
+        # hook from its own module, so patching the re-export intercepts
+        # nothing — this linter was silently checking zero routes that way
+        # after the http.py -> package split.
+        with patch(
+            "odoo.http.routing._check_and_complete_route_definition", extended_check
+        ):
             for _ in http._generate_routing_rules(installed_modules, nodb_only=False):
                 pass
+        # Guard against the patch point going dead again: a base install
+        # always declares routes, so the wrapper must have run.
+        self.assertGreater(checked, 0, "route-linter hook was never invoked")
+
+    def test_reexported_hook_is_the_routing_one(self):
+        """The ``odoo.http`` re-export must stay the same object as the
+        consumed ``odoo.http.routing`` binding, so importing either name for a
+        wrap-then-patch (of the routing namespace) sees the same function."""
+        self.assertIs(
+            http._check_and_complete_route_definition,
+            http_routing._check_and_complete_route_definition,
+        )

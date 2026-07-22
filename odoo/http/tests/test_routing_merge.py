@@ -108,6 +108,50 @@ def test_plain_user_route_persists_session():
     assert routing["save_session"] is True
 
 
+def test_merge_never_mutates_declared_fragments():
+    """Regression: the merge used to write its ``type``/``readonly`` corrections
+    back into ``original_routing``, leaking one build's context into every later
+    build (maps are rebuilt per database with different module sets)."""
+
+    class Parent(Controller):
+        @route("/m", type="http", auth="user")
+        def x(self):
+            return None
+
+    Parent.__module__ = "odoo.addons.ma.controllers"
+
+    class Child(Parent):
+        @route(type="jsonrpc", readonly=True)  # both conflict with the parent
+        def x(self):
+            return super().x()
+
+    Child.__module__ = "odoo.addons.mb.controllers"
+
+    parent_decl = dict(Parent.__dict__["x"].original_routing)
+    child_decl = dict(Child.__dict__["x"].original_routing)
+
+    for routing in _merge(("ma", Parent), ("mb", Child)).values():
+        assert routing["type"] == "http"  # conflicting override loses
+        assert routing["readonly"] is False  # conflicting flip forced RW
+
+    # The declarations survive the merge untouched...
+    assert dict(Parent.__dict__["x"].original_routing) == parent_decl
+    assert dict(Child.__dict__["x"].original_routing) == child_decl
+    assert child_decl["type"] == "jsonrpc"
+    assert child_decl["readonly"] is True
+    # ...while the resolved type is stamped on the wrapper function itself,
+    # where route_wrapper reads it at dispatch time (deterministic, so
+    # re-stamping across builds is idempotent).
+    assert Parent.__dict__["x"]._merged_route_type == "http"
+    assert Child.__dict__["x"]._merged_route_type == "http"
+
+    # ...so a rebuild replays identically (order-independent outcome).
+    for routing in _merge(("ma", Parent), ("mb", Child)).values():
+        assert routing["type"] == "http"
+        assert routing["readonly"] is False
+    assert dict(Child.__dict__["x"].original_routing) == child_decl
+
+
 def test_options_added_to_methods_allow_list():
     from odoo.http.routing import rule_routing_kwargs
 

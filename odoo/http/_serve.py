@@ -248,14 +248,24 @@ class _RequestServeMixin:
                         exc_info=True,
                     )
                     threading.current_thread().cursor_mode = "ro->rw"
-                    # The RO attempt already consumed uploaded file streams (now
-                    # at EOF); rewind them so the RW retry re-reads the body
-                    # instead of an empty upload (as ``retrying`` does).
+                    # ``ReadOnlySqlTransaction`` is a psycopg ``InternalError``,
+                    # NOT one of ``retrying``'s handled classes (IntegrityError /
+                    # OperationalError / ConcurrencyError) — so retrying performed
+                    # NONE of its failure-path preparation for it (no rollback, no
+                    # session re-fetch, no upload rewind). This clause is the only
+                    # replay preparation; both steps below are required, not
+                    # belt-and-braces. The aborted RO cursor needs no explicit
+                    # rollback: it is closed below and the pool resets the
+                    # connection on return.
+                    #
+                    # The RO attempt consumed uploaded file streams (now at EOF);
+                    # rewind them so the RW retry re-reads the body instead of an
+                    # empty upload.
                     self._rewind_input_files(exc)
                     # The aborted RO attempt may have mutated the in-memory
                     # session (e.g. a handler that set session.uid/context before
                     # its first write); re-fetch it so the RW replay starts from
-                    # persisted state, matching retrying()'s per-attempt refresh.
+                    # persisted state.
                     self.session = self._get_session_and_dbname()[0]
                 except Exception as exc:
                     # ``_update_served_exception`` attaches ``error_response`` to

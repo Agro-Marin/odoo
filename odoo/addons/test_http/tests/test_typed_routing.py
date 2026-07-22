@@ -124,8 +124,11 @@ class TestTypedParams(BaseCase):
             pass
 
         merged = {"auth": "user", "methods": None, "routes": []}
-        _check_and_complete_route_definition(FakeController, parent, merged)
-        merged.update(parent.original_routing)
+        # The hook returns the effective fragment (it no longer mutates
+        # ``original_routing``); merge from the return value like the caller.
+        merged.update(
+            _check_and_complete_route_definition(FakeController, parent, merged)
+        )
         with self.assertLogs("odoo.http.routing", level="WARNING") as capture:
             _check_and_complete_route_definition(FakeController, child, merged)
         self.assertIn("without restating typed=True", capture.output[0])

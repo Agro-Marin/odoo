@@ -39,6 +39,12 @@ _session_identifier_re = re.compile(rf"^[A-Za-z0-9_-]{{{STORED_SESSION_BYTES}}}$
 # doesn't grow unbounded. Eviction is LRU by ``last_activity``.
 _TRACE_MAX_ENTRIES = 50
 
+# How stale a loaded session file's mtime may get before ``get`` bumps it (one
+# day). ``vacuum`` reaps by mtime, but a session that is read on every request
+# and never modified (anonymous browsing after its one CSRF-mint save) is never
+# rewritten — without the bump it would be deleted while actively in use.
+_MTIME_REFRESH_INTERVAL = 24 * 60 * 60
+
 
 class FilesystemSessionStore(sessions.FilesystemSessionStore):
     """Place where to load and save session objects."""
@@ -55,6 +61,19 @@ class FilesystemSessionStore(sessions.FilesystemSessionStore):
             with contextlib.suppress(OSError):
                 dirname.mkdir(mode=0o0700)
         super().save(session)
+
+    def get(self, sid: str) -> Session:
+        session = super().get(sid)
+        if not session.is_new:
+            # Loaded from disk: refresh a stale mtime so ``vacuum`` measures
+            # inactivity, not time-since-last-write (see
+            # :data:`_MTIME_REFRESH_INTERVAL`). At most one touch per interval
+            # per session; the extra ``stat`` is negligible next to the read.
+            with contextlib.suppress(OSError):
+                path = Path(self.get_session_filename(session.sid))
+                if path.stat().st_mtime < time.time() - _MTIME_REFRESH_INTERVAL:
+                    os.utime(path)
+        return session
 
     def delete_old_sessions(self, session: Session) -> None:
         if "gc_previous_sessions" in session:
@@ -152,6 +171,14 @@ class FilesystemSessionStore(sessions.FilesystemSessionStore):
         # cannot have survived to this fork, so no flat glob / ``get()``
         # migration is kept.
         for path in base_path.glob("*/*"):
+            with contextlib.suppress(OSError):
+                st = path.stat()
+                if S_ISREG(st.st_mode) and st.st_mtime < threshold:
+                    path.unlink()
+        # Atomic-write temp files orphaned by a crash mid-``save`` land in the
+        # store root (``mkstemp(dir=self.path)``) and are invisible to the
+        # ``*/*`` glob above; reap them past the same threshold.
+        for path in base_path.glob(f"*{sessions._fs_transaction_suffix}"):
             with contextlib.suppress(OSError):
                 st = path.stat()
                 if S_ISREG(st.st_mode) and st.st_mtime < threshold:

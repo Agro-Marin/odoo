@@ -108,6 +108,39 @@ def test_vacuum_operates_on_own_path(store, tmp_path):
     assert not fn.exists()
 
 
+def test_vacuum_reaps_orphaned_tmp_files(store, tmp_path):
+    from odoo.libs._vendor.sessions import _fs_transaction_suffix
+
+    orphan = tmp_path / f"tmpabc123{_fs_transaction_suffix}"
+    orphan.write_bytes(b"{}")
+    import os
+
+    old = time.time() - 10 * 24 * 3600
+    os.utime(orphan, (old, old))
+    fresh = tmp_path / f"tmpdef456{_fs_transaction_suffix}"
+    fresh.write_bytes(b"{}")
+    store.vacuum(max_lifetime=7 * 24 * 3600)
+    assert not orphan.exists()  # crash orphan past the threshold: reaped
+    assert fresh.exists()  # an in-flight save's tmp file is left alone
+
+
+def test_get_refreshes_stale_mtime(store):
+    """An actively-read but never-modified session must not age into vacuum's
+    threshold: loading it bumps a stale mtime (at most once per interval)."""
+    import os
+
+    s = _anon(store)
+    fn = pathlib.Path(store.get_session_filename(s.sid))
+    old = time.time() - 2 * 24 * 3600
+    os.utime(fn, (old, old))
+    store.get(s.sid)
+    assert fn.stat().st_mtime > time.time() - 60  # bumped to ~now
+    # A fresh mtime is left untouched (no write amplification).
+    before = fn.stat().st_mtime
+    store.get(s.sid)
+    assert fn.stat().st_mtime == before
+
+
 def test_coerce_session_value_rejects_non_json():
     import datetime
 

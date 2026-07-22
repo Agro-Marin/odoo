@@ -231,9 +231,16 @@ def route(route: str | Iterable[str] | None = None, **routing: Any) -> Callable:
                 params_ok = coerce_params(params_ok, param_specs)
 
             result = endpoint(controller_self, *args, **params_ok)
-            if (
-                routing["type"] == "http"
-            ):  # _generate_routing_rules() ensures type is set
+            # The route's type decides whether the result is coerced into a
+            # Response. A fragment may omit ``type`` (inheriting it), so read
+            # the merged type stamped on this wrapper by
+            # ``_check_and_complete_route_definition`` during the map build;
+            # before any build (a direct call in tests) fall back to the
+            # fragment's own declaration.
+            route_type = getattr(route_wrapper, "_merged_route_type", None) or (
+                routing.get("type", "http")
+            )
+            if route_type == "http":
                 # Pass ``fname`` so ``Response.load``'s misuse diagnostics name
                 # the offending endpoint instead of the literal "<function>".
                 return Response.load(result, fname)
@@ -369,9 +376,9 @@ def _generate_routing_rules(
                 # merged controller (``type(name, ...)`` above).
                 defining_cls = cls
 
-                _check_and_complete_route_definition(cls, submethod, merged_routing)
-
-                merged_routing.update(submethod.original_routing)
+                merged_routing.update(
+                    _check_and_complete_route_definition(cls, submethod, merged_routing)
+                )
 
             if not merged_routing["routes"]:
                 owner = defining_cls if defining_cls is not None else type(ctrl)
@@ -411,43 +418,68 @@ def _generate_routing_rules(
 
 def _check_and_complete_route_definition(
     controller_cls: type, submethod: Any, merged_routing: dict[str, Any]
-) -> None:
-    """Verify and complete the route definition.
+) -> dict[str, Any]:
+    """Return ``submethod``'s effective routing contribution for the merge.
 
-    **Mutates** ``submethod.original_routing`` in place to fill inferred
-    ``type`` / ``readonly`` keys (hence ``_complete_``) so later ancestor passes
-    see the completed dict. Also warns when an override changes the routing type
-    or read/write mode.
+    Starts from a copy of ``submethod.original_routing`` and corrects on the
+    copy the keys an override may not change (a conflicting ``type`` keeps the
+    original; a boolean ``readonly`` flip forces read/write), warning on each
+    conflict. ``merged_routing`` carries the walk state (``type`` / ``readonly``
+    are filled via ``setdefault``); the caller applies the returned fragment
+    with ``merged_routing.update(...)``.
+
+    The declared ``original_routing`` is NEVER mutated. The pre-split code
+    wrote the corrections back into it, which leaked one build's merge context
+    into every later build — routing maps are rebuilt per database with
+    different installed-module sets, so a later build merged against
+    contaminated declarations — and made the conflict warnings one-shot per
+    process. Corrections now replay from pristine declarations on every build
+    (order-independent), and a genuine misconfiguration warns on each map build.
+
+    Patch point: the ``odoo.http`` re-export of this name is for importing
+    only — ``_generate_routing_rules`` resolves it from THIS module's
+    namespace, so wrappers must patch
+    ``odoo.http.routing._check_and_complete_route_definition`` and return the
+    inner call's fragment (see ``test_lint.tests.test_routes``).
 
     :param submethod: route method
     :param dict merged_routing: accumulated routing values
+    :returns: the corrected copy of ``submethod.original_routing``
     """
-    default_type = submethod.original_routing.get("type", "http")
-    routing_type = merged_routing.setdefault("type", default_type)
-    if submethod.original_routing.get("type") not in (None, routing_type):
+    fragment = dict(submethod.original_routing)
+
+    routing_type = merged_routing.setdefault("type", fragment.get("type", "http"))
+    if fragment.get("type") not in (None, routing_type):
         _logger.warning(
             "The endpoint %s changes the route type, using the original type: %r.",
             f"{controller_cls.__module__}.{controller_cls.__name__}.{submethod.__name__}",
             routing_type,
         )
-    submethod.original_routing["type"] = routing_type
+    fragment["type"] = routing_type
+    # Stamp the resolved type on the wrapper FUNCTION (not the declaration
+    # dict): ``route_wrapper`` needs it at dispatch time to decide Response
+    # coercion, including for mid-chain wrappers reached via ``super()`` calls.
+    # The value depends only on the fixed class hierarchy (first-declared type
+    # wins), so re-stamping on every build writes the same value — no
+    # cross-build contamination, unlike the ``readonly`` correction below.
+    submethod._merged_route_type = routing_type
 
     # Param coercion (``typed=True``) is compiled into each wrapper AT DECORATION
     # TIME from its own ``@route`` arguments — it cannot be inherited through the
     # routing merge. An override that forgets to restate ``typed=True`` therefore
     # silently loses coercion while the merged routing (and the OpenAPI document)
     # still advertise it; warn so the divergence is visible.
-    if merged_routing.get("typed") and "typed" not in submethod.original_routing:
+    if merged_routing.get("typed") and "typed" not in fragment:
         _logger.warning(
             "The endpoint %s overrides a typed=True route without restating "
             "typed=True; parameter coercion is DISABLED for this override.",
             f"{controller_cls.__module__}.{controller_cls.__name__}.{submethod.__name__}",
         )
 
-    default_auth = submethod.original_routing.get("auth", merged_routing["auth"])
-    default_mode = submethod.original_routing.get("readonly", default_auth == "none")
+    default_auth = fragment.get("auth", merged_routing["auth"])
+    default_mode = fragment.get("readonly", default_auth == "none")
     parent_readonly = merged_routing.setdefault("readonly", default_mode)
-    child_readonly = submethod.original_routing.get("readonly")
+    child_readonly = fragment.get("readonly")
     if child_readonly not in (None, parent_readonly) and not callable(child_readonly):
         _logger.warning(
             "The endpoint %s made the route %s although its parent was defined as %s. Setting the route read/write.",
@@ -455,4 +487,5 @@ def _check_and_complete_route_definition(
             "readonly" if child_readonly else "read/write",
             "readonly" if parent_readonly else "read/write",
         )
-        submethod.original_routing["readonly"] = False
+        fragment["readonly"] = False
+    return fragment
