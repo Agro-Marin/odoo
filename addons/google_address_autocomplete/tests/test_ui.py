@@ -1,14 +1,13 @@
-# -*- encoding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 import json
+
+from odoo.tests import HttpCase, patch, tagged
 from odoo.tools import mute_logger
 
+from .mock_google_places import make_mock_google_route
 from odoo.addons.google_address_autocomplete.controllers.google_address_autocomplete import (
     AutoCompleteController,
 )
-from .mock_google_places import make_mock_google_route
-
-from odoo.tests import patch, HttpCase, tagged
 
 CONTROLLER_PATH = "odoo.addons.google_address_autocomplete.controllers.google_address_autocomplete.AutoCompleteController"
 MOCK_GOOGLE_ID = "aHR0cHM6Ly93d3cueW91dHViZS5jb20vd2F0Y2g/dj1kUXc0dzlXZ1hjUQ=="
@@ -200,6 +199,7 @@ class TestUI(HttpCase):
                     },
                     "status": "OK",
                 }
+            return None
 
         self.patch(
             AutoCompleteController,

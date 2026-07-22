@@ -79,8 +79,7 @@ class AutoCompleteController(http.Controller):
             .replace(standard_address.get('zip', ''), '') \
             .replace(standard_address.get('street', ''), '') \
             .replace(standard_address.get('city', ''), '')
-        guessed_house_number = guessed_house_number.split(',')[0].strip()
-        return guessed_house_number
+        return guessed_house_number.split(',')[0].strip()
 
     def _perform_place_search(self, partial_address, api_key=None, session_id=None, language_code=None, country_code=None):
         minimal_input_size = int(request.env['ir.config_parameter'].sudo().get_param('google_address_autocomplete.minimal_partial_address_size', '5'))
@@ -202,7 +201,7 @@ class AutoCompleteController(http.Controller):
     def _autocomplete_address_full(self, address, session_id=None, google_place_id=None, use_employees_key=None, **kwargs):
         try:
             api_key = self._get_api_key(use_employees_key)
-        except AssertionError:
-            raise AccessError(_("You don't have access to the full autocomplete feature."))
+        except AssertionError as e:
+            raise AccessError(_("You don't have access to the full autocomplete feature.")) from e
         return self._perform_complete_place_search(address, google_place_id=google_place_id,
                                                    session_id=session_id, api_key=api_key, **kwargs)
