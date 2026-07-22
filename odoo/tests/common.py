@@ -154,6 +154,26 @@ def get_db_name() -> str:
     return dbnames[0]
 
 
+def skip_if_dev_mode(*flags: str) -> None:
+    """Skip the running test when ``--dev`` disables what it asserts.
+
+    Several caches are deliberately switched off in dev mode so edits are
+    picked up live: the QWeb template-compile and ir.rule domain ormcaches key
+    on ``"xml" not in config["dev_mode"]``, and QWeb error messages gain the
+    generated source when ``"qweb"`` is set. A test pinning the *cached*
+    behaviour is therefore meaningless on a dev-mode server — it must skip
+    with a reason, not fail with a confusing diff, which is what a developer
+    running the suite against their own ``--dev=xml,qweb`` server used to get.
+
+    :param flags: ``--dev`` flags that invalidate the assertion (e.g. ``xml``).
+    """
+    dev_mode = config["dev_mode"]
+    if active := [flag for flag in flags if flag in dev_mode]:
+        raise unittest.SkipTest(
+            f"--dev={','.join(active)} disables the behaviour under test"
+        )
+
+
 standalone_tests = defaultdict(list)
 
 
