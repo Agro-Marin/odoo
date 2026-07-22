@@ -2,7 +2,7 @@
 
 from random import randint
 
-from odoo import _, api, fields, models, Command
+from odoo import Command, _, api, fields, models
 from odoo.exceptions import ValidationError
 
 
@@ -69,5 +69,5 @@ class HrSkillType(models.Model):
                 "color": 0,
                 "skill_ids": [Command.create({"name": skill.name}) for skill in skill_type.skill_ids],
             }
-            for skill_type, vals in zip(self, vals_list)
+            for skill_type, vals in zip(self, vals_list, strict=True)
         ]

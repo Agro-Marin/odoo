@@ -3,11 +3,12 @@
 
 import binascii
 import json
+from unittest.mock import patch
 
 import odoo.tests
 from odoo.tests.common import HttpCase, new_test_user
 from odoo.tools.json import scriptsafe as json_safe
-from unittest.mock import patch
+
 from odoo.addons.mail.tools import link_preview
 
 

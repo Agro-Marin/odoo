@@ -32,7 +32,7 @@ class HrJob(models.Model):
 
     def _search_current_job_skill_ids(self, operator, value):
         if operator not in ('in', 'not in', 'any'):
-            raise NotImplementedError()
+            raise NotImplementedError
         job_skill_ids = []
         domain = Domain.OR([
             Domain('valid_to', '=', False),

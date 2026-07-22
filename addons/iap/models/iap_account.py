@@ -6,12 +6,13 @@ import secrets
 import uuid
 from urllib.parse import urlencode
 
-from odoo import api, fields, models, _
-from odoo.addons.iap.tools import iap_tools
+from odoo import _, api, fields, models
 from odoo.exceptions import AccessError, UserError
+from odoo.libs.web.urls import urljoin as url_join
 from odoo.modules import module
 from odoo.tools import get_lang
-from odoo.libs.web.urls import urljoin as url_join
+
+from odoo.addons.iap.tools import iap_tools
 
 _logger = logging.getLogger(__name__)
 
@@ -83,7 +84,7 @@ class IapAccount(models.Model):
                 try:
                     iap_tools.iap_jsonrpc(url=url, params=data)
                 except AccessError as e:
-                    _logger.warning("Update of the warning email configuration has failed: %s", str(e))
+                    _logger.warning("Update of the warning email configuration has failed: %s", e)
         return res
 
     def _get_account_information_from_iap(self):
@@ -103,12 +104,12 @@ class IapAccount(models.Model):
         try:
             accounts_information = iap_tools.iap_jsonrpc(url=url, params=params)
         except AccessError as e:
-            _logger.warning("Fetch of the IAP accounts information has failed: %s", str(e))
+            _logger.warning("Fetch of the IAP accounts information has failed: %s", e)
             return
 
         for token, information in accounts_information.items():
             information.pop('link_to_service_page', None)
-            accounts = self.filtered(lambda acc: secrets.compare_digest(acc.sudo().account_token, token))
+            accounts = self.filtered(lambda acc, token=token: secrets.compare_digest(acc.sudo().account_token, token))
 
             for account in accounts:
                 # Default rounding of 4 decimal places to avoid large decimals
@@ -260,7 +261,7 @@ class IapAccount(models.Model):
             try:
                 credit = iap_tools.iap_jsonrpc(url=url, params=params)
             except AccessError as e:
-                _logger.info('Get credit error : %s', str(e))
+                _logger.info('Get credit error : %s', e)
                 credit = -1
 
         return credit

@@ -1,7 +1,6 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-from odoo import api, fields, models, _
+from odoo import api, fields, models
 
 
 class HrSkillLevel(models.Model):
@@ -35,7 +34,7 @@ class HrSkillLevel(models.Model):
         skill_levels = super().create(vals_list)
         for level in skill_levels:
             if level.default_level:
-                level.skill_type_id.skill_level_ids.filtered(lambda r: r.id != level.id).default_level = False
+                level.skill_type_id.skill_level_ids.filtered(lambda r, level=level: r.id != level.id).default_level = False
         return skill_levels
 
     def write(self, vals):

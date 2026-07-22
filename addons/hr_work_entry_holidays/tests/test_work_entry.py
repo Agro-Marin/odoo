@@ -1,12 +1,14 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-from datetime import datetime, date
-from dateutil.relativedelta import relativedelta
+from datetime import date, datetime
+
 import pytz
+from dateutil.relativedelta import relativedelta
 
 from odoo.exceptions import ValidationError
-from odoo.tests.common import tagged
 from odoo.fields import Date
+from odoo.tests.common import tagged
+
 from odoo.addons.hr_work_entry_holidays.tests.common import TestWorkEntryHolidaysBase
 from odoo.addons.mail.tests.common import mail_new_test_user
 
@@ -15,7 +17,7 @@ from odoo.addons.mail.tests.common import mail_new_test_user
 class TestWorkeEntryHolidaysWorkEntry(TestWorkEntryHolidaysBase):
     @classmethod
     def setUpClass(cls):
-        super(TestWorkeEntryHolidaysWorkEntry, cls).setUpClass()
+        super().setUpClass()
         cls.tz = pytz.timezone(cls.richard_emp.tz)
         cls.start = datetime(2015, 11, 1, 1, 0, 0)
         cls.end = datetime(2015, 11, 30, 23, 59, 59)

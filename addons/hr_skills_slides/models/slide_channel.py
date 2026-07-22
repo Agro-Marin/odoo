@@ -2,7 +2,7 @@
 
 from markupsafe import Markup
 
-from odoo import fields, models, _
+from odoo import _, fields, models
 from odoo.tools import html2plaintext
 
 
@@ -99,7 +99,7 @@ class SlideChannel(models.Model):
     def _message_employee_chatter(self, msg, partners):
         for partner in partners:
             employee = partner.user_ids.sudo().filtered(
-                lambda u: u.employee_id and (not partner.company_id or u.employee_id.company_id == partner.company_id)
+                lambda u, partner=partner: u.employee_id and (not partner.company_id or u.employee_id.company_id == partner.company_id)
             ).employee_id
 
             if employee:

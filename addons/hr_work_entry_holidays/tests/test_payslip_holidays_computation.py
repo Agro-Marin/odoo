@@ -1,7 +1,6 @@
-# # -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-from datetime import datetime, date
+from datetime import date, datetime
 
 from odoo.addons.hr_work_entry_holidays.tests.common import TestWorkEntryHolidaysBase
 

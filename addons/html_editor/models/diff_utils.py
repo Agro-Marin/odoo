@@ -1,10 +1,9 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 import re
-
 from difflib import SequenceMatcher, unified_diff
-from bs4 import BeautifulSoup
 
+from bs4 import BeautifulSoup
 
 # ------------------------------------------------------------
 # Patch and comparison functions
@@ -21,11 +20,11 @@ PATCH_OPERATION_ADD = "+"
 PATCH_OPERATION_REMOVE = "-"
 PATCH_OPERATION_REPLACE = "R"
 
-PATCH_OPERATIONS = dict(
-    insert=PATCH_OPERATION_ADD,
-    delete=PATCH_OPERATION_REMOVE,
-    replace=PATCH_OPERATION_REPLACE,
-)
+PATCH_OPERATIONS = {
+    "insert": PATCH_OPERATION_ADD,
+    "delete": PATCH_OPERATION_REMOVE,
+    "replace": PATCH_OPERATION_REPLACE,
+}
 
 HTML_ATTRIBUTES_TO_REMOVE = ["data-last-history-steps"]
 HTML_TAG_ISOLATION_REGEX = r"^([^>]*>)(.*)$"
@@ -286,8 +285,7 @@ def _patch_generator(new_content, old_content):
             for tag, _, _, j1, j2 in group:
                 if tag not in {"delete", "equal"}:
                     patch_operation = PATCH_OPERATIONS[tag] + patch_operation
-                    for line in old_content_lines[j1:j2]:
-                        patch_content_line.append(line)
+                    patch_content_line.extend(old_content_lines[j1:j2])
 
         if patch_content_line:
             patch_content = LINE_SEPARATOR + LINE_SEPARATOR.join(
