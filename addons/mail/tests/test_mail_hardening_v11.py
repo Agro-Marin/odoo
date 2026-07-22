@@ -39,6 +39,7 @@ from odoo.tools import mute_logger
 
 from odoo.addons.base.tests.common import HttpCase
 from odoo.addons.mail.tests.common import MailCommon, mail_new_test_user
+from odoo.addons.mail.tools.discuss import Store
 
 
 @tagged("-at_install", "post_install", "mail_hardening_v11")
@@ -462,3 +463,88 @@ class TestRtcSessionIdCoercionV11(MailCommon):
             outdated.ids,
             "a numeric string must still resolve to its session",
         )
+
+
+@tagged("-at_install", "post_install", "mail_hardening_v11")
+class TestStaleModelNameGuardsV11(MailCommon):
+    """``mail.message.model`` and ``mail.followers.res_model`` are free-form
+    Chars with no foreign key and no constraint. Every ``env[...]`` fed from
+    them must degrade rather than raise -- and an access check must degrade
+    *closed*."""
+
+    def _stale_message(self):
+        message = self.env["mail.message"].create(
+            {
+                "model": "res.partner",
+                "res_id": self.env.user.partner_id.id,
+                "message_type": "comment",
+                "body": "v11 stale",
+            }
+        )
+        message.write({"model": "v11.gone.model"})
+        self.env.flush_all()
+        return message
+
+    def test_get_with_access_denies_on_unknown_model(self):
+        """Checked as a plain internal user: the superuser short-circuits on
+        ``has_access`` long before the thread-derived branch this guards."""
+        message = self._stale_message()
+        user = mail_new_test_user(
+            self.env, login="v11_stale_reader", groups="base.group_user"
+        )
+        found = (
+            self.env["mail.message"]
+            .with_user(user)
+            ._get_with_access(message.id, mode="read")
+        )
+        self.assertFalse(
+            found,
+            "a message naming a dead model must be denied, not raise KeyError",
+        )
+
+    def test_store_serialization_survives_unknown_model(self):
+        """``mail.followers._to_store_defaults`` asks for ``Store.One("thread",
+        as_thread=True)``, which resolves ``res_model`` through ``env[...]``."""
+        partner = self.env["res.partner"].create({"name": "v11 stale thread"})
+        follower = self.env["mail.followers"].create(
+            {
+                "res_model": "res.partner",
+                "res_id": partner.id,
+                "partner_id": self.env.user.partner_id.id,
+            }
+        )
+        follower.write({"res_model": "v11.gone.model"})
+        self.env.flush_all()
+        result = Store().add(follower.sudo()).get_result()
+        self.assertIn(
+            "mail.followers",
+            result,
+            "serializing a follower on a dead model must not raise",
+        )
+
+    def test_follower_on_unknown_model_is_skipped(self):
+        """``mail.message._to_store(add_followers=True)`` maps followers through
+        ``env[follower.res_model]``."""
+        user = mail_new_test_user(
+            self.env, login="v11_stale_fol_user", groups="base.group_user"
+        )
+        record = self.env["res.partner"].create({"name": "v11 stale fol rec"})
+        message = record.message_post(
+            body="v11", message_type="comment", subtype_xmlid="mail.mt_comment"
+        )
+        follower = self.env["mail.followers"].create(
+            {
+                "res_model": "res.partner",
+                "res_id": record.id,
+                "partner_id": user.partner_id.id,
+            }
+        )
+        follower.write({"res_model": "v11.gone.model"})
+        self.env.flush_all()
+        # must not raise while mapping followers during serialization
+        result = (
+            Store(bus_channel=user)
+            .add(message.sudo(), add_followers=True, followers=follower)
+            .get_result()
+        )
+        self.assertIn("mail.message", result)

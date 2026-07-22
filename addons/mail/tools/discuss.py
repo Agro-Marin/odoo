@@ -464,8 +464,14 @@ class Store:
                     "res_model" if "res_model" in record._fields else "model"
                 )
                 if self.field_name == "thread" and "thread" not in record._fields:
-                    if (res_model := record[res_model_field]) and (
-                        res_id := record["res_id"]
+                    if (
+                        (res_model := record[res_model_field])
+                        and (res_id := record["res_id"])
+                        # 'model' / 'res_model' are free-form Chars here
+                        # (mail.message, mail.followers, ir.attachment): a name
+                        # that is no longer in the registry must leave the
+                        # thread unresolved, not raise out of serialization.
+                        and res_model in record.env
                     ):
                         target = record.env[res_model].browse(res_id)
             return self._copy_with_records(target, calling_record=record)
