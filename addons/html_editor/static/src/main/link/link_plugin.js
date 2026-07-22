@@ -300,6 +300,20 @@ export class LinkPlugin extends Plugin {
             ".o_prevent_link_editor a",
         ],
         legit_empty_link_predicates: (linkEl) => linkEl.hasAttribute("data-mimetype"),
+        // A link is never split: pressing Enter inside one inserts a <br> and
+        // keeps a single anchor, rather than producing two separate links to
+        // the same href (which the user never asked for and cannot easily undo).
+        // Dropped by the by-hand upstream port in 3655b4ba25d, which brought the
+        // covering test over without this predicate.
+        unsplittable_node_predicates: (node) => node.nodeName === "A",
+        // When the selection fully covers a link, we consider that the link is
+        // selected. Also dropped by the by-hand port: the consumer
+        // (selection_plugin) and the sibling list/table registrations survived,
+        // so only links stopped reporting themselves as fully selected.
+        fully_selected_node_predicates: (node, selection) =>
+            node.nodeName === "A" &&
+            !node.classList.contains("btn") &&
+            cleanZWChars(selection.textContent()) === cleanZWChars(node.innerText),
 
         /** Handlers */
         beforeinput_handlers: withSequence(5, this.onBeforeInput.bind(this)),
@@ -318,6 +332,10 @@ export class LinkPlugin extends Plugin {
         split_element_block_overrides: this.handleSplitBlock.bind(this),
         insert_line_break_element_overrides: this.handleInsertLineBreak.bind(this),
         delete_image_overrides: this.deleteImageLink.bind(this),
+        delete_backward_overrides: withSequence(
+            15,
+            this.handleDeleteBackward.bind(this),
+        ),
         double_click_overrides: this.doubleClickLinkOverrides.bind(this),
         triple_click_overrides: this.tripleClickButtonOverrides.bind(this),
 
@@ -1370,6 +1388,46 @@ export class LinkPlugin extends Plugin {
             edge === "start" ? leftPos(targetNode) : rightPos(targetNode);
         const blockToSplit = targetNode;
         splitOrLineBreakCallback({ ...params, targetNode, targetOffset, blockToSplit });
+        return true;
+    }
+
+    /**
+     * Backspacing from just after a button-link lands the caret on the FEFF
+     * that isolates the button, where a plain delete would eat the isolation
+     * character instead of entering the button. Move the caret inside the
+     * button (before its inner FEFF) so the next keystroke types into it.
+     *
+     * Ported from upstream together with its ``delete_backward_overrides``
+     * registration; the by-hand port in 3655b4ba25d brought the covering test
+     * across but neither the handler nor its registration.
+     *
+     * @returns {true|undefined} true when the deletion was handled here
+     */
+    handleDeleteBackward({ startContainer, startOffset, endContainer, endOffset }) {
+        // Detect if selection is around FEFF after the end edge of a button.
+        if (startContainer !== endContainer || startOffset !== 0 || endOffset !== 1) {
+            return;
+        }
+        if (
+            startContainer.nodeType !== Node.TEXT_NODE ||
+            startContainer.textContent !== "﻿"
+        ) {
+            return;
+        }
+        const previousSibling = startContainer.previousSibling;
+        // We must ensure that previous sibling is an element node before
+        // calling `matches` (text nodes do not implement this method).
+        if (
+            previousSibling?.nodeType !== Node.ELEMENT_NODE ||
+            !previousSibling.matches("a.btn")
+        ) {
+            return;
+        }
+        // Move before inner FEFF of the button.
+        this.dependencies.selection.setSelection({
+            anchorNode: previousSibling,
+            anchorOffset: previousSibling.childNodes.length - 1,
+        });
         return true;
     }
 

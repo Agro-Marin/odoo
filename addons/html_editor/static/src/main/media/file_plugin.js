@@ -14,7 +14,7 @@ import { DISABLED_NAMESPACE } from "../toolbar/toolbar_plugin.js";
 
 export class FilePlugin extends Plugin {
     static id = "file";
-    static dependencies = ["dom", "history", "selection"];
+    static dependencies = ["clipboard", "dom", "history", "selection"];
     static defaultConfig = {
         allowFile: true,
     };
@@ -63,6 +63,21 @@ export class FilePlugin extends Plugin {
         is_node_editable_predicates: (node) => {
             if (node?.nodeName === "SPAN" && node.classList.contains("o_file_box")) {
                 return false;
+            }
+        },
+
+        /** Overrides */
+        // A file box holds a rendered attachment, not rich content: pasting
+        // HTML into it would inject markup the box cannot represent, so paste
+        // as plain text instead. Dropped by the by-hand upstream port together
+        // with the "clipboard" dependency it needs — the consumer
+        // (clipboard_plugin) survived, so only file boxes stopped overriding.
+        paste_overrides: (selection, clipboardData) => {
+            if (closestElement(selection.anchorNode, ".o_file_box")) {
+                this.dependencies.clipboard.pasteText(
+                    clipboardData.getData("text/plain"),
+                );
+                return true;
             }
         },
     };
