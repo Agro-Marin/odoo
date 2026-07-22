@@ -303,13 +303,9 @@ export class LinkPlugin extends Plugin {
         // A link is never split: pressing Enter inside one inserts a <br> and
         // keeps a single anchor, rather than producing two separate links to
         // the same href (which the user never asked for and cannot easily undo).
-        // Dropped by the by-hand upstream port in 3655b4ba25d, which brought the
-        // covering test over without this predicate.
         unsplittable_node_predicates: (node) => node.nodeName === "A",
         // When the selection fully covers a link, we consider that the link is
-        // selected. Also dropped by the by-hand port: the consumer
-        // (selection_plugin) and the sibling list/table registrations survived,
-        // so only links stopped reporting themselves as fully selected.
+        // selected.
         fully_selected_node_predicates: (node, selection) =>
             node.nodeName === "A" &&
             !node.classList.contains("btn") &&
@@ -496,10 +492,7 @@ export class LinkPlugin extends Plugin {
         // returns `true` to force-allow a link on a figure, while inline code
         // and code blocks return `false` to veto one. ``checkPredicates``
         // applies the framework convention (a `false` vetoes, `undefined`
-        // abstains, all-abstain => undefined). The previous
-        // ``.some((p) => p())`` only ever saw the allow-overrides and silently
-        // dropped every veto, so ctrl+k still offered "Create link" inside
-        // inline code / a code block.
+        // abstains, all-abstain => undefined).
         const fromPredicates = this.checkPredicates(
             "link_compatible_selection_predicates",
         );
@@ -936,7 +929,6 @@ export class LinkPlugin extends Plugin {
      * extend the given link element to include all content from the given selection
      *
      * @param {HTMLLinkElement} linkElement
-     * @return {boolean}
      */
     extendLinkToSelection(linkElement) {
         this.dependencies.split.splitSelection();
@@ -959,7 +951,7 @@ export class LinkPlugin extends Plugin {
     }
 
     /**
-     * Remove the link from the collapsed selection
+     * Remove the given link, unwrapping its contents.
      */
     removeLinkInDocument(link = this.linkInDocument) {
         if (!link.parentElement.isContentEditable || this.isUnremovable(link)) {
@@ -992,7 +984,7 @@ export class LinkPlugin extends Plugin {
     removeLinkFromSelection() {
         const selection = this.dependencies.split.splitSelection();
 
-        // If not, unlink only the part(s) of the link(s) that are selected:
+        // Unlink only the part(s) of the link(s) that are selected:
         // `<a>a[b</a>c<a>d</a>e<a>f]g</a>` => `<a>a</a>[bcdef]<a>g</a>`.
         let { anchorNode, focusNode } = selection;
         let anchorOffset, focusOffset;
@@ -1259,7 +1251,7 @@ export class LinkPlugin extends Plugin {
     }
 
     /**
-     * Inserts a link in the editor. Called after pressing space or (shif +) enter.
+     * Inserts a link in the editor. Called after pressing space or (shift +) enter.
      * Performs a regex check to determine if the url has correct syntax.
      */
     handleAutomaticLinkInsertion() {
@@ -1396,10 +1388,6 @@ export class LinkPlugin extends Plugin {
      * that isolates the button, where a plain delete would eat the isolation
      * character instead of entering the button. Move the caret inside the
      * button (before its inner FEFF) so the next keystroke types into it.
-     *
-     * Ported from upstream together with its ``delete_backward_overrides``
-     * registration; the by-hand port in 3655b4ba25d brought the covering test
-     * across but neither the handler nor its registration.
      *
      * @returns {true|undefined} true when the deletion was handled here
      */
