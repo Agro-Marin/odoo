@@ -3,6 +3,7 @@
 from unittest import skip
 
 from odoo.exceptions import ValidationError
+
 from odoo.addons.stock.tests.common import TestStockCommon
 
 
