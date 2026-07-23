@@ -2,8 +2,6 @@
 
 import typing
 
-from psycopg import sql as _pg_sql
-
 from odoo.exceptions import UserError
 from odoo.tools import SQL, Query
 
@@ -28,33 +26,6 @@ from odoo.tools.translate import _
 from ....fields.temporal import _get_all_timezones_set
 
 
-def _inline_sql_params(sql: SQL, cr: typing.Any) -> SQL:
-    """Return *sql* with its bound parameters embedded as SQL literals.
-
-    A read_group ``GROUP BY`` key must be byte-identical to its ``SELECT``
-    occurrence, but under this fork's psycopg3 server-side binding each ``%s``
-    renders as a distinct ``$N``.  So a param-bearing field expression — a
-    translated field's language code (``name->>%s``), a company-dependent
-    field's company id and fallback (``COALESCE(col->%s, to_jsonb(%s::t))``) —
-    makes GROUP BY differ from SELECT and PostgreSQL rejects the query
-    (``column ... must appear in the GROUP BY clause``).  Inline the parameters
-    as literals here, only for grouping, leaving the WHERE-clause form (and its
-    prepared-statement reuse) untouched.  psycopg's own adapter quotes the
-    values, so this is injection-safe for arbitrary data (e.g. a fallback that
-    contains a quote or ``%``).
-    """
-    if not sql.params:
-        return sql
-    # Double any ``%`` in a rendered literal: the SQL wrapper treats its code as
-    # a printf format string, so a bare ``%`` (e.g. from a ``"50%"`` fallback)
-    # would otherwise raise or mis-substitute.  It renders back to a single
-    # ``%`` at execution.
-    literals = tuple(
-        _pg_sql.Literal(p).as_string(cr._cnx).replace("%", "%%") for p in sql.params
-    )
-    return SQL(sql.code % literals)
-
-
 def _safe_sql_str_literal(value: str) -> str:
     """Return *value* as a single-quoted SQL string literal.
 
@@ -62,16 +33,18 @@ def _safe_sql_str_literal(value: str) -> str:
     appears in both SELECT and GROUP BY and PG matches them by byte-identical
     text; a bound param gets a distinct ``$N`` each time, so GROUP BY
     validation fails. Callers pass allow-listed values (timezone, granularity);
-    the quote/backslash check is defense-in-depth.
+    the quote/backslash/percent check is defense-in-depth (``%`` because every
+    caller splices the result into a printf-style ``SQL()`` code string, where
+    a stray ``%`` would be parsed as a format directive).
 
     :raises TypeError: when *value* is not a :class:`str`
-    :raises ValueError: when *value* contains ``'`` or ``\\``
+    :raises ValueError: when *value* contains ``'``, ``\\`` or ``%``
     """
     if not isinstance(value, str):
         raise TypeError(
             f"_safe_sql_str_literal expects str, got {type(value).__name__}: {value!r}"
         )
-    if "'" in value or "\\" in value:
+    if "'" in value or "\\" in value or "%" in value:
         raise ValueError(
             f"_safe_sql_str_literal: {value!r} contains characters unsafe "
             f"for direct embedding into a SQL string literal"
@@ -286,7 +259,9 @@ class _ReadGroupSQLMixin(_ModelStubs):
         # The grouping key is reused verbatim in SELECT / GROUP BY / ORDER BY and
         # PostgreSQL matches them by text, so any bound parameter (translated or
         # company-dependent field) must be inlined to keep them identical.
-        return _inline_sql_params(sql_expr, self.env.cr)
+        # inlined() preserves the wrapper's to_flush metadata — dropping it
+        # would let execute_query skip flushing dirty grouped fields.
+        return sql_expr.inlined(self.env.cr)
 
     def _read_group_groupby_temporal(
         self,

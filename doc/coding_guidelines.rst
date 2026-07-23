@@ -2787,6 +2787,24 @@ These are security-critical, but the full rules live in **§2.7 Error Handling**
 * **No information disclosure**: never ``raise UserError(str(e))``. Log the
   traceback (``exc_info=True``\ ) and show a generic ``self.env._(...)`` message.
 
+10.8 Constraint Methods Run Privileged
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+**Deliberate fork deviation from upstream:** ``@api.constrains`` methods run as
+``sudo()`` by default (like stored computed fields — see
+``BaseModel._validate_fields``). Consequences:
+
+* Reads inside a constraint do **not** raise ``AccessError``, and any write the
+  constraint performs executes privileged — hold constraint bodies to the same
+  §10.2 discipline as explicit ``sudo()`` code (validate; never write
+  user-controlled payloads).
+* Opt back into user-aware validation with ``@api.constrains(..., sudo=False)``
+  when the check must see the current user's ACL/record-rule view.
+* Callable ``@api.constrains`` specs (``@api.constrains(lambda self: ...)``)
+  are resolved **once per registry class** and memoized — an env-dependent
+  callable (context- or user-sensitive field list) is frozen at its first
+  evaluation.
+
 10.9 Configuration and Secrets
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 

@@ -5832,6 +5832,27 @@ class TestComputeQueries(TransactionCase):
         )
         self.assertEqual(record.foo, "has one child")
 
+    def test_x2many_computed_inverse_pending_recompute(self):
+        """Commands written on a stored computed-with-inverse x2many apply on
+        top of the recomputed value: write() must run the field's pending
+        recompute before its batched pre-read, otherwise the fetched stale DB
+        relation becomes the baseline and mark_dirty discards the pending
+        computation without ever running it.
+        """
+        record = self.env["test_orm.compute.inverse"].create({"foo": "x"})
+        self.env.flush_all()
+
+        # leave the recompute of child_ids (depends on foo) pending
+        record.write({"foo": "has one child"})
+        # then write a command on child_ids while the recompute is pending
+        record.write({"child_ids": [Command.create({"foo": "extra"})]})
+        self.env.flush_all()
+        self.env.invalidate_all()
+        self.assertEqual(
+            sorted(record.child_ids.mapped("foo")),
+            ["child", "extra"],
+        )
+
     def test_multi_create(self):
         model = self.env["test_orm.foo"]
         model.create({})
@@ -6627,3 +6648,65 @@ class TestReferenceBatchValidation(TransactionCase):
 
         record.reference = f"res.partner,{2**31 - 1}"
         self.assertFalse(record.reference)
+
+
+class TestUpdateDbNotNull(TransactionCase):
+    """A bad Python default must not cancel the NOT NULL constraint.
+
+    ``update_db_notnull`` derives a SQL DEFAULT from the field's Python
+    default.  It used to pass the raw value straight to ``ALTER ... SET
+    DEFAULT`` and register both ALTERs under one post_constraint savepoint, so
+    a type-mismatched default (e.g. a str default on an int column) failed the
+    DEFAULT and rolled back the NOT NULL with it — silently leaving a required
+    column nullable.  The default is now converted via ``convert_to_column``
+    (skipped on failure) and both ALTERs run under separate keys.
+    """
+
+    def _column_state(self, model, field):
+        self.env.cr.execute(
+            "SELECT is_nullable, column_default"
+            " FROM information_schema.columns"
+            " WHERE table_name = %s AND column_name = %s",
+            (model._table, field.name),
+        )
+        return self.env.cr.fetchone()
+
+    def _apply_notnull(self, default):
+        from odoo.tools import sql as tools_sql
+
+        model = self.env["test_orm.category"]
+        field = model._fields["color"]
+        registry = self.env.registry
+        # keep existing rows valid for SET NOT NULL (transaction-local)
+        self.env.cr.execute(
+            "UPDATE test_orm_category SET color = 0 WHERE color IS NULL"
+        )
+        column = tools_sql.table_columns(self.env.cr, model._table)[field.name]
+        self.assertEqual(column["is_nullable"], "YES", "test premise")
+        with (
+            # required=True triggers the NOT NULL path; the field object is
+            # registry-shared, so both patches must be reverted (patch does)
+            patch.object(field, "required", True),
+            patch.object(field, "default", new=default),
+            # run the deferred post-init callback immediately
+            patch.object(
+                registry, "post_init", new=lambda func, *a, **kw: func(*a, **kw)
+            ),
+            # skip _init_column: its bad-default behaviour is out of scope here
+            patch.object(type(model), "_table_has_rows", return_value=False),
+        ):
+            field.update_db_notnull(model, column)
+        return model, field
+
+    def test_bad_default_cannot_cancel_not_null(self):
+        model, field = self._apply_notnull(lambda m: "not-an-int")
+        is_nullable, column_default = self._column_state(model, field)
+        # the DEFAULT is skipped (unconvertible), but NOT NULL must survive
+        self.assertEqual(is_nullable, "NO")
+        self.assertIsNone(column_default)
+
+    def test_good_default_applies_both(self):
+        model, field = self._apply_notnull(lambda m: 7)
+        is_nullable, column_default = self._column_state(model, field)
+        self.assertEqual(is_nullable, "NO")
+        self.assertEqual(column_default, "7")
