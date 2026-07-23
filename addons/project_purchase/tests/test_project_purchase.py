@@ -2,7 +2,9 @@
 
 from odoo import Command
 
-from odoo.addons.project_purchase.tests.test_project_profitability import TestProjectPurchaseProfitability
+from odoo.addons.project_purchase.tests.test_project_profitability import (
+    TestProjectPurchaseProfitability,
+)
 
 
 class TestProjectPurchase(TestProjectPurchaseProfitability):
