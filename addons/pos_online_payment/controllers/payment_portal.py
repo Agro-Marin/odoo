@@ -1,11 +1,11 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 from urllib.parse import urlencode as url_encode
 
 from odoo import _, http, tools
+from odoo.exceptions import AccessError, UserError, ValidationError
 from odoo.http import request
-from odoo.exceptions import AccessError, ValidationError, UserError
+
 from odoo.addons.payment.controllers import portal as payment_portal
 
 
@@ -15,9 +15,9 @@ class PaymentPortal(payment_portal.PaymentPortal):
         try:
             order_sudo = self._document_check_access(
                 'pos.order', pos_order_id, access_token)
-        except:
+        except Exception:
             raise AccessError(
-                _("The provided order or access token is invalid."))
+                _("The provided order or access token is invalid.")) from None
 
         if order_sudo.state == "cancel":
             raise ValidationError(_("The order has been cancelled."))
@@ -231,9 +231,8 @@ class PaymentPortal(payment_portal.PaymentPortal):
                 providers_sudo.ids, partner_sudo.id)
             if payment_option_id not in tokens_sudo.ids:
                 raise UserError(_("The payment token is invalid."))
-        else:
-            if kwargs.get('provider_id') not in providers_sudo.ids:
-                raise UserError(_("The payment provider is invalid."))
+        elif kwargs.get('provider_id') not in providers_sudo.ids:
+            raise UserError(_("The payment provider is invalid."))
 
         kwargs['reference_prefix'] = None  # Computed with pos_order_id
         kwargs.pop('pos_order_id', None) # _create_transaction kwargs keys must be different than custom_create_values keys
