@@ -20,6 +20,8 @@ from __future__ import annotations
 import logging
 import typing
 
+from psycopg.types.json import Json, Jsonb
+
 from odoo.exceptions import LockError
 from odoo.tools import Query, partition
 
@@ -32,6 +34,45 @@ if typing.TYPE_CHECKING:
     from ..models.base import BaseModel
 
 _logger = logging.getLogger("odoo.orm.backend")
+
+
+def _unwrap_json(value: typing.Any) -> typing.Any:
+    """Return the plain Python object behind a psycopg JSON adapter.
+
+    ``convert_to_column_insert`` / ``get_column_update`` wrap translated,
+    company-dependent, and Json-typed values in :class:`psycopg.types.json.Json`
+    (an *adapter* that psycopg serializes on the wire, meaningless to Python
+    code).  A real ``jsonb`` column read returns the parsed object (a plain
+    dict), so the in-memory store must hold the unwrapped ``value.obj`` —
+    otherwise a fetch after ``invalidate_all()`` would hand ``convert_to_cache``
+    a ``Json({'en_US': 'Hello'})`` wrapper instead of the dict.
+    """
+    if isinstance(value, (Json, Jsonb)):
+        return value.obj
+    return value
+
+
+def _column_read_value(field: Field, value: typing.Any, env) -> typing.Any:
+    """Project a stored column value the way the SQL ``SELECT`` term would.
+
+    Most fields select the raw column, but translated fields select
+    ``COALESCE(col->>lang, ..., col->>'en_US')`` (see ``Char.to_sql``), so the
+    stored ``{lang: value}`` dict must be reduced to the scalar for the env's
+    language before it is handed to ``convert_to_cache`` — exactly what the
+    fetched SQL row would contain.  (With ``prefetch_langs`` the SQL selects
+    the full jsonb dict, so the dict passes through unchanged.)
+    """
+    if (
+        field.translate
+        and isinstance(value, dict)
+        and not env.context.get("prefetch_langs")
+    ):
+        for lang in field.get_translation_fallback_langs(env):
+            scalar = value.get(lang)
+            if scalar is not None:
+                return scalar
+        return None
+    return value
 
 
 @typing.runtime_checkable
@@ -111,6 +152,33 @@ class StorageBackend(typing.Protocol):
         Attachment: BaseModel,
     ) -> tuple[BaseModel, BaseModel]: ...
 
+    def read_m2m_pairs(
+        self,
+        model: BaseModel,
+        relation: str,
+        column1: str,
+        column2: str,
+        ids: typing.Collection[int],
+    ) -> list[tuple[int, int]]: ...
+
+    def link_m2m_pairs(
+        self,
+        model: BaseModel,
+        relation: str,
+        column1: str,
+        column2: str,
+        pairs: typing.Iterable[tuple[int, int]],
+    ) -> None: ...
+
+    def unlink_m2m_pairs(
+        self,
+        model: BaseModel,
+        relation: str,
+        column1: str,
+        column2: str,
+        pairs: typing.Iterable[tuple[int, int]],
+    ) -> None: ...
+
 
 class InMemoryBackend:
     """CRUD against an in-memory :class:`DictBackend` instead of PostgreSQL.
@@ -148,7 +216,10 @@ class InMemoryBackend:
 
         Values are converted exactly as the SQL ``INSERT`` path does (via
         ``convert_to_column_insert``); missing columns default to ``None``, the
-        in-memory equivalent of SQL ``NULL``.
+        in-memory equivalent of SQL ``NULL``.  psycopg ``Json`` adapters
+        (translated / company-dependent / Json fields) are unwrapped at this
+        storage boundary so a later fetch returns the parsed dict, exactly like
+        a real ``jsonb`` column read (see :func:`_unwrap_json`).
         """
         row_dicts: list[dict[str, typing.Any]] = []
         new_ids: list[int] = []
@@ -157,8 +228,8 @@ class InMemoryBackend:
             row_dict: dict[str, typing.Any] = {"id": new_id}
             for fname, field in zip(columns, col_fields, strict=True):
                 if fname in stored:
-                    row_dict[fname] = field.convert_to_column_insert(
-                        stored[fname], model, stored
+                    row_dict[fname] = _unwrap_json(
+                        field.convert_to_column_insert(stored[fname], model, stored)
                     )
                 # Missing columns default to None (same as SQL NULL)
             row_dicts.append(row_dict)
@@ -172,11 +243,42 @@ class InMemoryBackend:
     ) -> None:
         """Apply an UPDATE-equivalent for a group of records sharing ``fnames``.
 
-        Plain values are stored as-is, skipping the JSONB merge the SQL path
-        does for translated / company-dependent fields (enough for business
-        tests, which is the only context this backend runs in).
+        Values arrive in SQL-parameter shape (``get_column_update``); psycopg
+        ``Json`` adapters are unwrapped so the stored shape is always the plain
+        parsed object, consistent with :meth:`create_rows` and with what a real
+        ``jsonb`` column read returns.
+
+        Translated (``translate is True``) values are *partial* ``{lang: value}``
+        dicts; mirror the SQL path's merge
+        (``COALESCE(col, {'en_US': first(new)}) || new``) against the currently
+        stored dict.  Company-dependent values get the same merge minus the
+        fallback-pruning JOIN against ``ir.default`` (the pruned entries equal
+        the fallback, so reads are unaffected; only the stored shape diverges).
         """
-        updates = [(row[0], dict(zip(fnames, row[1:], strict=True))) for row in rows]
+        fields_map = model._fields
+        updates = []
+        for row in rows:
+            id_ = row[0]
+            values: dict[str, typing.Any] = {}
+            for fname, value in zip(fnames, row[1:], strict=True):
+                value = _unwrap_json(value)
+                field = fields_map.get(fname)
+                if (
+                    value is not None
+                    and field is not None
+                    and (field.translate is True or field.company_dependent)
+                    and isinstance(value, dict)
+                ):
+                    old_row = self.storage.get_row(model._table, id_)
+                    old = old_row.get(fname) if old_row else None
+                    if field.translate is True and not isinstance(old, dict):
+                        # SQL: COALESCE(col, jsonb_build_object('en_US',
+                        # jsonb_path_query_first(new, '$.*')))
+                        old = {"en_US": next(iter(value.values()))}
+                    if isinstance(old, dict):
+                        value = {**old, **value}
+                values[fname] = value
+            updates.append((id_, values))
         self.storage.upsert_rows(model._table, updates)
 
     # -- read ---------------------------------------------------------------
@@ -230,7 +332,7 @@ class InMemoryBackend:
                 row = self.storage.get_row(model._table, record_id)
                 if row is not None:
                     for field in column_fields:
-                        value = row.get(field.name)
+                        value = _column_read_value(field, row.get(field.name), env)
                         fc = field_caches[field]
                         fc.setdefault(
                             record_id,
@@ -307,7 +409,8 @@ class InMemoryBackend:
             for record_id in all_ids:
                 row = rows.get(record_id)
                 if row is not None and fname in row:
-                    field_cache[record_id] = convert(row[fname], sentinel)
+                    value = _column_read_value(field, row[fname], env)
+                    field_cache[record_id] = convert(value, sentinel)
 
         if not domain.is_true():
             matching = all_records.filtered_domain(domain)
@@ -391,3 +494,100 @@ class InMemoryBackend:
         """
         self.storage.delete_rows(model._table, list(sub_ids))
         return Data.browse(), Attachment.browse()
+
+    # -- many2many relation tables -------------------------------------------
+    #
+    # Relation pairs are stored in the shared :class:`DictBackend` as rows
+    # ``{column1: id1, column2: id2}`` under the relation-table name, keyed by
+    # a synthetic auto-increment row id (pairs have no ``id`` column in SQL
+    # either).  Because rows are keyed by *column name*, the two inverse
+    # Many2many fields of one relation (which swap ``column1``/``column2``)
+    # read and write the very same store, exactly like the single physical
+    # table in PostgreSQL.  Iteration order is dict insertion order — the
+    # closest in-memory analogue to the SQL table's physical order; the read
+    # path re-orders by the comodel query anyway (see ``Many2many.read``).
+    #
+    # Known divergence from SQL: deleting a record does NOT cascade-delete its
+    # relation rows (no foreign keys in memory).  Stale pairs are harmless:
+    # reads filter both sides — ``column1`` by the requested record ids,
+    # ``column2`` by the comodel query, which only returns live rows — and
+    # ids are never reused (monotonic sequences).
+
+    def _m2m_rows(self, relation: str):
+        """Yield ``(row_id, row_dict)`` for every pair row, insertion-ordered."""
+        for row_id in self.storage.table_ids(relation):
+            row = self.storage.get_row(relation, row_id)
+            if row is not None:
+                yield row_id, row
+
+    def read_m2m_pairs(
+        self,
+        model: BaseModel,
+        relation: str,
+        column1: str,
+        column2: str,
+        ids: typing.Collection[int],
+    ) -> list[tuple[int, int]]:
+        """Return the ``(column1, column2)`` pairs whose first id is in ``ids``.
+
+        In-memory replacement for the relation-table half of the SQL read
+        (``WHERE column1 = ANY(ids)``).  The other half — the JOIN against the
+        comodel table that drops dead ids, applies the comodel domain, and
+        orders by the comodel query — stays in ``Many2many.read``, which
+        filters/orders these raw pairs against its backend-served comodel query.
+        """
+        wanted = set(ids)
+        return [
+            (row[column1], row[column2])
+            for _row_id, row in self._m2m_rows(relation)
+            if row.get(column1) in wanted
+        ]
+
+    def link_m2m_pairs(
+        self,
+        model: BaseModel,
+        relation: str,
+        column1: str,
+        column2: str,
+        pairs: typing.Iterable[tuple[int, int]],
+    ) -> None:
+        """Add relation pairs, skipping ones already present.
+
+        Equivalent of ``INSERT INTO rel (col1, col2) VALUES ... ON CONFLICT DO
+        NOTHING`` (including duplicates *within* ``pairs``).
+        """
+        existing = {
+            (row.get(column1), row.get(column2))
+            for _row_id, row in self._m2m_rows(relation)
+        }
+        to_insert = []
+        for pair in pairs:
+            pair = tuple(pair)
+            if pair not in existing:
+                existing.add(pair)
+                to_insert.append(pair)
+        if to_insert:
+            self.storage.insert_rows(relation, [column1, column2], to_insert)
+
+    def unlink_m2m_pairs(
+        self,
+        model: BaseModel,
+        relation: str,
+        column1: str,
+        column2: str,
+        pairs: typing.Iterable[tuple[int, int]],
+    ) -> None:
+        """Remove exactly the given relation pairs; absent pairs are no-ops.
+
+        Equivalent of the SQL ``DELETE FROM rel WHERE (col1 = ANY(xs) AND col2
+        = ANY(ys)) OR ...`` — whose cartesian groups are built so their union
+        is exactly the pair set, so deleting the literal pairs matches it.
+        """
+        doomed = {tuple(pair) for pair in pairs}
+        row_ids = [
+            row_id
+            for row_id, row in self._m2m_rows(relation)
+            if (row.get(column1), row.get(column2)) in doomed
+        ]
+        if row_ids:
+            self.storage.delete_rows(relation, row_ids)

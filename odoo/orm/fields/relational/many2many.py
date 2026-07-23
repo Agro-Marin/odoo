@@ -262,25 +262,40 @@ class Many2many(_RelationalMulti):
                 records.env._("Failed to read field %s", self) + "\n" + str(e)
             ) from e
 
-        # join with many2many relation table
-        sql_id1 = SQL.identifier(self.relation, self.column1)
-        sql_id2 = SQL.identifier(self.relation, self.column2)
-        query.add_join(
-            "JOIN",
-            self.relation,
-            None,
-            SQL(
-                "%s = %s",
-                sql_id2,
-                SQL.identifier(comodel._table, "id"),
-            ),
-        )
-        query.add_where(SQL("%s = ANY(%s)", sql_id1, list(records.ids)))
-
         # retrieve pairs (record, line) and group by record
         group = defaultdict(list)
-        for id1, id2 in records.env.execute_query(query.select(sql_id1, sql_id2)):
-            group[id1].append(id2)
+        if (backend := records.env.backend) is not None:
+            # In-memory tier: raw pairs come from the backend's pair store; the
+            # (backend-served) comodel query above replaces the SQL JOIN — it
+            # drops dead/filtered corecord ids and dictates the ordering.
+            position = {
+                id2: index for index, id2 in enumerate(query.get_result_ids())
+            }
+            pairs = backend.read_m2m_pairs(
+                records, self.relation, self.column1, self.column2, records.ids
+            )
+            for id1, id2 in pairs:
+                if id2 in position:
+                    group[id1].append(id2)
+            for ids2 in group.values():
+                ids2.sort(key=position.__getitem__)
+        else:
+            # join with many2many relation table
+            sql_id1 = SQL.identifier(self.relation, self.column1)
+            sql_id2 = SQL.identifier(self.relation, self.column2)
+            query.add_join(
+                "JOIN",
+                self.relation,
+                None,
+                SQL(
+                    "%s = %s",
+                    sql_id2,
+                    SQL.identifier(comodel._table, "id"),
+                ),
+            )
+            query.add_where(SQL("%s = ANY(%s)", sql_id1, list(records.ids)))
+            for id1, id2 in records.env.execute_query(query.select(sql_id1, sql_id2)):
+                group[id1].append(id2)
 
         # filter using record rules
         if filter_access and group:
@@ -327,15 +342,20 @@ class Many2many(_RelationalMulti):
         ]
         if pairs:
             if store:
-                records.env.cr.execute(
-                    SQL(
-                        "INSERT INTO %s (%s, %s) VALUES %s ON CONFLICT DO NOTHING",
-                        SQL.identifier(self.relation),
-                        SQL.identifier(self.column1),
-                        SQL.identifier(self.column2),
-                        SQL(", ").join(pairs),
+                if (backend := records.env.backend) is not None:
+                    backend.link_m2m_pairs(
+                        records, self.relation, self.column1, self.column2, pairs
                     )
-                )
+                else:
+                    records.env.cr.execute(
+                        SQL(
+                            "INSERT INTO %s (%s, %s) VALUES %s ON CONFLICT DO NOTHING",
+                            SQL.identifier(self.relation),
+                            SQL.identifier(self.column1),
+                            SQL.identifier(self.column2),
+                            SQL(", ").join(pairs),
+                        )
+                    )
 
             # update the cache of inverse fields. OrderedSet (not set) keeps the
             # inverse cache deterministic, matching the real-record path.
@@ -373,30 +393,35 @@ class Many2many(_RelationalMulti):
                 modified_corecord_ids.add(y)
 
             if store:
-                # express pairs as the union of cartesian products:
-                #    pairs = [(1, 11), (1, 12), (1, 13), (2, 11), (2, 12), (2, 14)]
-                # -> y_to_xs = {11: {1, 2}, 12: {1, 2}, 13: {1}, 14: {2}}
-                # -> xs_to_ys = {{1, 2}: {11, 12}, {2}: {14}, {1}: {13}}
-                xs_to_ys = defaultdict(set)
-                for y, xs in y_to_xs.items():
-                    xs_to_ys[frozenset(xs)].add(y)
-                # delete the rows where (id1 IN xs AND id2 IN ys) OR ...
-                records.env.cr.execute(
-                    SQL(
-                        "DELETE FROM %s WHERE %s",
-                        SQL.identifier(self.relation),
-                        SQL(" OR ").join(
-                            SQL(
-                                "%s = ANY(%s) AND %s = ANY(%s)",
-                                SQL.identifier(self.column1),
-                                list(xs),
-                                SQL.identifier(self.column2),
-                                list(ys),
-                            )
-                            for xs, ys in xs_to_ys.items()
-                        ),
+                if (backend := records.env.backend) is not None:
+                    backend.unlink_m2m_pairs(
+                        records, self.relation, self.column1, self.column2, pairs
                     )
-                )
+                else:
+                    # express pairs as the union of cartesian products:
+                    #    pairs = [(1, 11), (1, 12), (1, 13), (2, 11), (2, 12), (2, 14)]
+                    # -> y_to_xs = {11: {1, 2}, 12: {1, 2}, 13: {1}, 14: {2}}
+                    # -> xs_to_ys = {{1, 2}: {11, 12}, {2}: {14}, {1}: {13}}
+                    xs_to_ys = defaultdict(set)
+                    for y, xs in y_to_xs.items():
+                        xs_to_ys[frozenset(xs)].add(y)
+                    # delete the rows where (id1 IN xs AND id2 IN ys) OR ...
+                    records.env.cr.execute(
+                        SQL(
+                            "DELETE FROM %s WHERE %s",
+                            SQL.identifier(self.relation),
+                            SQL(" OR ").join(
+                                SQL(
+                                    "%s = ANY(%s) AND %s = ANY(%s)",
+                                    SQL.identifier(self.column1),
+                                    list(xs),
+                                    SQL.identifier(self.column2),
+                                    list(ys),
+                                )
+                                for xs, ys in xs_to_ys.items()
+                            ),
+                        )
+                    )
 
             # update the cache of inverse fields
             for invf in records.pool.field_inverses[self]:

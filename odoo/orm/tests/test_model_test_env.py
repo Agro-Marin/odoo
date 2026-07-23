@@ -24,8 +24,12 @@ Coverage:
 
 import pytest
 
-from odoo import api, fields, models
-from odoo.orm.model_test_env import InMemorySqlNotSupported, model_test_env
+from odoo import Command, api, fields, models
+from odoo.orm.model_test_env import (
+    InMemorySqlNotSupported,
+    ModelRegistry,
+    model_test_env,
+)
 
 # All synthetic models share one module so the harness auto-discovers parents
 # and extensions together; names are distinct so they never collide.
@@ -124,6 +128,46 @@ class HLine(models.Model):
     def _compute_subtotal(self):
         for line in self:
             line.subtotal = line.price * line.qty
+
+
+# The three models below disable _log_access: their tests write() after an
+# invalidate_all(), and the write_uid Many2one (degraded: res.users is not in
+# the model set) then crashes in mark_dirty -> _update_inverses on the cache
+# miss.  A pre-existing harness limitation, orthogonal to what these models
+# exercise (m2m relation store, translated columns).
+
+
+class HTag(models.Model):
+    # Stored Many2many with implicit relation schema, plus an `active` field so
+    # the active_test read semantics of the m2m paths can be exercised.
+    _name = "h.tag"
+    _module = _MOD
+    _description = "Harness Tag"
+    _log_access = False
+
+    name = fields.Char()
+    active = fields.Boolean(default=True)
+    post_ids = fields.Many2many("h.post")
+
+
+class HPost(models.Model):
+    _name = "h.post"
+    _module = _MOD
+    _description = "Harness Post"
+    _log_access = False
+
+    name = fields.Char()
+    tag_ids = fields.Many2many("h.tag")
+
+
+class HBook(models.Model):
+    # Translated field: the column value is a {lang: value} jsonb dict.
+    _name = "h.book"
+    _module = _MOD
+    _description = "Harness Book"
+    _log_access = False
+
+    title = fields.Char(translate=True)
 
 
 # ---------------------------------------------------------------------------
@@ -341,3 +385,198 @@ def test_dict_cursor_api_fails_loud_for_tuple_fixture():
         env.cr.execute("SELECT 0")
         assert env.cr.dictfetchall() == []
         assert env.cr.dictfetchone() is None
+
+
+# ---------------------------------------------------------------------------
+# Stored Many2many through the in-memory backend (no relation-table SQL)
+# ---------------------------------------------------------------------------
+
+
+def _fresh(env, records):
+    """Flush pending writes and drop the cache, forcing re-reads from storage."""
+    env.flush_all()
+    env.invalidate_all()
+    return records
+
+
+def test_m2m_model_set_builds():
+    # Regression: ModelRegistry.many2many_relations was a Collector (immutable
+    # tuple buckets), so Many2many.setup_nonrelated crashed with AttributeError
+    # ("tuple has no attribute add") and no m2m model set could even build.
+    with model_test_env(HPost) as env:
+        assert "h.post" in env.registry and "h.tag" in env.registry
+        key = next(iter(env.registry.many2many_relations))
+        assert key[0] == "h_post_h_tag_rel"
+
+
+def test_m2m_create_set_roundtrips_through_backend():
+    with model_test_env(HPost) as env:
+        t1 = env["h.tag"].create({"name": "t1"})
+        t2 = env["h.tag"].create({"name": "t2"})
+        post = env["h.post"].create(
+            {"name": "p", "tag_ids": [Command.set([t1.id, t2.id])]}
+        )
+        _fresh(env, post)
+        # a fresh read goes storage -> backend.read_m2m_pairs (no SQL)
+        assert post.tag_ids._ids == (t1.id, t2.id)
+        # inverse field reads the same pair store with swapped columns
+        assert t1.post_ids._ids == (post.id,)
+
+
+def test_m2m_link_unlink_commands():
+    with model_test_env(HPost) as env:
+        t1 = env["h.tag"].create({"name": "t1"})
+        t2 = env["h.tag"].create({"name": "t2"})
+        post = env["h.post"].create({"name": "p"})
+        post.write({"tag_ids": [Command.link(t1.id), Command.link(t2.id)]})
+        _fresh(env, post)
+        assert post.tag_ids._ids == (t1.id, t2.id)
+        post.write({"tag_ids": [Command.unlink(t1.id)]})
+        _fresh(env, post)
+        assert post.tag_ids._ids == (t2.id,)
+        # re-linking an existing pair is the ON CONFLICT DO NOTHING case
+        post.write({"tag_ids": [Command.link(t2.id), Command.link(t1.id)]})
+        _fresh(env, post)
+        assert post.tag_ids._ids == (t1.id, t2.id)
+
+
+def test_m2m_read_orders_by_comodel_order():
+    # The SQL read orders pairs by the comodel query (comodel._order, here
+    # "id"); the backend path must match regardless of link order.
+    with model_test_env(HPost) as env:
+        tags = env["h.tag"].create([{"name": n} for n in ("a", "b", "c")])
+        post = env["h.post"].create(
+            {"name": "p", "tag_ids": [Command.set([tags[2].id, tags[0].id])]}
+        )
+        _fresh(env, post)
+        assert post.tag_ids._ids == (tags[0].id, tags[2].id)
+
+
+def test_m2m_active_test_semantics():
+    with model_test_env(HPost) as env:
+        t1 = env["h.tag"].create({"name": "t1"})
+        t2 = env["h.tag"].create({"name": "t2"})
+        post = env["h.post"].create(
+            {"name": "p", "tag_ids": [Command.set([t1.id, t2.id])]}
+        )
+        t2.active = False
+        _fresh(env, post)
+        # default context: archived corecords are filtered out on read
+        assert post.tag_ids._ids == (t1.id,)
+        # active_test=False: the archived link is still there
+        both = post.with_context(active_test=False).tag_ids
+        assert both._ids == (t1.id, t2.id)
+        # SET must be able to drop the archived link too (write_real reads the
+        # old relation with active_test=False to build the delta)
+        post.write({"tag_ids": [Command.set([t1.id])]})
+        _fresh(env, post)
+        assert post.with_context(active_test=False).tag_ids._ids == (t1.id,)
+        # and the pair really left the store, not just the cache
+        assert env.cr.storage.row_count("h_post_h_tag_rel") == 1
+
+
+def test_m2m_clear_command_empties_relation():
+    with model_test_env(HPost) as env:
+        t1 = env["h.tag"].create({"name": "t1"})
+        post = env["h.post"].create({"name": "p", "tag_ids": [Command.link(t1.id)]})
+        post.write({"tag_ids": [Command.clear()]})
+        _fresh(env, post)
+        assert not post.tag_ids
+        assert env.cr.storage.row_count("h_post_h_tag_rel") == 0
+
+
+# ---------------------------------------------------------------------------
+# Translated fields: stored shape must be the plain dict (regression M6)
+# ---------------------------------------------------------------------------
+
+
+def test_translated_field_reads_back_after_invalidate():
+    # The in-memory backend used to store convert_to_column_insert output
+    # verbatim -- a psycopg Json adapter -- so after invalidate_all() the field
+    # read back as Json({'en_US': 'Hello'}) instead of 'Hello'.
+    with model_test_env(HBook) as env:
+        book = env["h.book"].create({"title": "Hello"})
+        _fresh(env, book)
+        assert book.title == "Hello"
+        found = env["h.book"].search([("title", "=", "Hello")])
+        assert found._ids == (book.id,)
+        # the stored column value is the parsed jsonb shape, as on PostgreSQL
+        stored = env.cr.storage.get_row("h_book", book.id)["title"]
+        assert stored == {"en_US": "Hello"}
+
+
+def test_translated_field_update_path_merges_and_unwraps():
+    # Same regression through update_rows (write -> flush), which must also
+    # apply the SQL path's jsonb merge against the stored dict.
+    with model_test_env(HBook) as env:
+        book = env["h.book"].create({"title": "Hello"})
+        _fresh(env, book)
+        book.title = "World"
+        _fresh(env, book)
+        assert book.title == "World"
+        stored = env.cr.storage.get_row("h_book", book.id)["title"]
+        assert isinstance(stored, dict)
+        assert stored["en_US"] == "World"
+
+
+# ---------------------------------------------------------------------------
+# commit() / rollback(): no silent no-ops (previous finding #8)
+# ---------------------------------------------------------------------------
+
+
+def test_commit_flushes_and_runs_postcommit_hooks():
+    with model_test_env(HWidget) as env:
+        fired = []
+        env.cr.postcommit.add(lambda: fired.append("post"))
+        rec = env["h.widget"].create({"name": "A"})
+        rec.qty = 7  # dirty in cache only
+        env.cr.commit()
+        assert fired == ["post"]
+        # commit ran flush: the dirty write reached storage
+        assert env.cr.storage.get_row("h_widget", rec.id)["qty"] == 7
+        # and the transaction was cleared, mirroring the production cursor
+        assert not env.cr.precommit
+        # records remain readable after commit (re-fetched from storage)
+        assert rec.qty == 7
+
+
+def test_rollback_fails_loud():
+    # No snapshot exists to restore, and a silent no-op would diverge from
+    # production ROLLBACK -- the harness raises instead.
+    with model_test_env(HWidget) as env:
+        env["h.widget"].create({"name": "A"})
+        with pytest.raises(InMemorySqlNotSupported):
+            env.cr.rollback()
+
+
+# ---------------------------------------------------------------------------
+# ModelRegistry gaps (previous finding #14)
+# ---------------------------------------------------------------------------
+
+
+def test_clear_cache_honors_names():
+    with model_test_env(HWidget) as env:
+        caches = env.registry._Registry__caches
+        caches["default"]["k"] = 1
+        caches["templates.cached_values"]["k"] = 1
+        caches["assets"]["k"] = 1
+        env.registry.clear_cache()  # defaults to the "default" group
+        assert not caches["default"]
+        # "templates.cached_values" is in the "default" group (production map)
+        assert not caches["templates.cached_values"]
+        # ...but unrelated caches survive (the old code wiped everything)
+        assert caches["assets"] == {"k": 1}
+        env.registry.clear_cache("assets")
+        assert not caches["assets"]
+        # dotted composite names are rejected exactly like production
+        with pytest.raises(ValueError):
+            env.registry.clear_cache("templates.cached_values")
+
+
+def test_discard_fields_works_without_attributeerror():
+    # ModelRegistry inherits @locked _discard_fields; it used to lack the
+    # _lock attribute the decorator acquires.
+    registry = ModelRegistry([HWidget])
+    field = registry["h.widget"]._fields["total"]
+    registry._discard_fields([field])  # must not raise
+    assert field not in registry.field_depends
