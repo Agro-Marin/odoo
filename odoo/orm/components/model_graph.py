@@ -364,13 +364,47 @@ class ModelGraph:
         # merged before recursing into them, matching the previous traversal's
         # emission order exactly (relevant when ``_concat_paths`` cancellation
         # routes a descendant back onto an ancestor's path).
+        #
+        # Memoization: without it the walk is O(2**depth) on diamond-shaped
+        # dependency DAGs (A -> {B, C} -> D re-expands D once per incoming
+        # path), because the per-path ``root_set`` dedups *emission* but not
+        # *recursion*.  A repeated call with an identical ``(field, prefix)``
+        # key re-merges exactly the same targets under exactly the same full
+        # paths (both are functions of ``field``/``prefix``/``triggers`` only)
+        # and re-recurses identically — a strict no-op on ``collected`` — so it
+        # can be skipped, PROVIDED the cycle guard cannot interfere: the skip
+        # is valid only when no field the memoized expansion ever reached
+        # (``visited``) sits on the *current* ancestor path (``seen``), since
+        # such a field would have been pruned this time around.  ``visited``
+        # is prefix-independent (prefixes shape emitted paths, never the
+        # recursion structure), so it is memoized per field.  Expansions that
+        # were themselves pruned against an ancestor *outside* their own
+        # subtree are context-dependent and never memoized (``clean=False``);
+        # cyclic clusters therefore degrade to the plain traversal, while
+        # acyclic graphs — the pathological case — collapse to one expansion
+        # per distinct ``(field, prefix)`` pair.
         collected: dict[tuple, tuple[list, set]] = {}
         seen: set = set()
+        expanded: set[tuple] = set()  # cleanly-expanded (field, prefix) keys
+        visited_memo: dict[Any, frozenset] = {}  # field -> fields it reaches
 
-        def collect(field: Any, prefix: tuple) -> None:
-            if field in seen or field not in triggers:
-                return
+        def collect(field: Any, prefix: tuple) -> frozenset | None:
+            """Expand *field* under *prefix*.
+
+            Returns the frozenset of fields the expansion recursed into when
+            it was *clean* (pruned only inside its own subtree), or ``None``
+            when it was pruned against an outer ancestor (context-dependent,
+            not reusable).
+            """
+            if (field, prefix) in expanded:
+                visited = visited_memo[field]
+                if visited.isdisjoint(seen):
+                    # Identical emissions already merged, identical recursion
+                    # already performed, no cycle-guard interference: skip.
+                    return visited
             seen.add(field)
+            visited = {field}
+            clean = True
             for path, targets in triggers[field].items():
                 full_path = _concat_paths(prefix, path)
                 entry = collected.get(full_path)
@@ -383,8 +417,27 @@ class ModelGraph:
                         root_set.add(target)
                         root_list.append(target)
                 for target in targets:
-                    collect(target, full_path)
+                    if target in seen:
+                        # Pruned. Inside this subtree (== in ``visited``, e.g.
+                        # a self-loop) the prune is intrinsic and clean;
+                        # against an outer ancestor it is context-dependent.
+                        if target not in visited:
+                            clean = False
+                        continue
+                    if target not in triggers:
+                        continue
+                    sub_visited = collect(target, full_path)
+                    if sub_visited is None:
+                        clean = False
+                    else:
+                        visited |= sub_visited
             seen.discard(field)
+            if clean:
+                result = frozenset(visited)
+                visited_memo[field] = result
+                expanded.add((field, prefix))
+                return result
+            return None
 
         collect(field, ())
 

@@ -205,14 +205,37 @@ class TestOrmCoreCompute(unittest.TestCase):
         # each call returns a fresh, independent scheduler
         self.assertIsNot(sched, self.core.new_scheduler())
 
-    def test_new_scheduler_cycle_aware_seeds_pending(self) -> None:
+    def test_new_scheduler_seeds_marked_from_live_pending_in_both_modes(self) -> None:
+        """Both scheduler modes prune against the engine's LIVE pending map.
+
+        Ids already pending from earlier modified() calls in the transaction
+        must never be re-traversed, whether the scheduler batches (default) or
+        schedules inline — the seed is the live map itself, not a snapshot.
+        """
         self.core.schedule(self.f1, [1, 2])
-        aware = self.core.new_scheduler(cycle_aware=True)
-        plain = self.core.new_scheduler(cycle_aware=False)
-        # cycle_aware reads the engine's live pending map (cycle detection);
-        # plain starts with nothing marked.
-        self.assertEqual(aware._marked.get(self.f1), {1, 2})
-        self.assertEqual(dict(plain._marked), {})
+        batch = self.core.new_scheduler()
+        inline = self.core.new_scheduler(inline=True)
+        for sched in (batch, inline):
+            self.assertIs(sched._marked, self.core.engine.pending)
+            self.assertEqual(sched._marked.get(self.f1), {1, 2})
+        # live, not a copy: later scheduling is visible to existing schedulers
+        self.core.schedule(self.f2, [3])
+        self.assertEqual(batch._marked.get(self.f2), {3})
+
+    def test_new_scheduler_inline_flag(self) -> None:
+        # Only the inline scheduler pushes entries into the engine's pending.
+        self.assertFalse(self.core.new_scheduler()._inline)
+        self.assertTrue(self.core.new_scheduler(inline=True)._inline)
+
+    def test_new_scheduler_propagates_engine_set_factory(self) -> None:
+        """to_recompute uses the engine's pending-set factory (determinism)."""
+
+        class TrackingSet(set):
+            pass
+
+        core = OrmCore(engine=ComputeEngine(pending_factory=TrackingSet))
+        sched = core.new_scheduler()
+        self.assertIsInstance(sched.to_recompute["field"], TrackingSet)
 
 
 class TestOrmCoreLifecycle(unittest.TestCase):

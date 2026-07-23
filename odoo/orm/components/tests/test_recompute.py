@@ -324,6 +324,150 @@ class TestProtectionWithRecursive(unittest.TestCase):
         self.assertEqual(recursive_ids, frozenset({2, 3}))
 
 
+class _SpyEngine(ComputeEngine):
+    """ComputeEngine recording every ``schedule`` call (field, ids-as-given)."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.schedule_calls: list[tuple] = []
+
+    def schedule(self, field, ids) -> None:
+        ids = list(ids)
+        self.schedule_calls.append((field, list(ids)))
+        super().schedule(field, ids)
+
+
+class TestInlineScheduling(unittest.TestCase):
+    """schedule_inline=True pushes per-entry deltas into the engine's pending."""
+
+    def test_batch_mode_never_touches_engine_pending(self) -> None:
+        engine = _SpyEngine()
+        field = _MockField("total", stored_computed=True)
+
+        scheduler = RecomputeScheduler(engine)
+        scheduler.process_entry(field, {1, 2})
+
+        self.assertEqual(engine.schedule_calls, [])
+        self.assertFalse(engine.has_pending_field(field))
+
+    def test_inline_schedules_each_entry(self) -> None:
+        engine = _SpyEngine()
+        field = _MockField("total", stored_computed=True)
+
+        scheduler = RecomputeScheduler(engine, schedule_inline=True)
+        scheduler.process_entry(field, {1, 2})
+        scheduler.process_entry(field, {3})
+
+        self.assertEqual(engine.pending_ids(field), {1, 2, 3})
+        self.assertEqual(scheduler.to_recompute[field], {1, 2, 3})
+
+    def test_inline_schedules_delta_not_cumulative(self) -> None:
+        """Each entry schedules only its own ids, never the accumulated set.
+
+        Regression guard for the O(k*n) re-scheduling of the full
+        ``to_recompute[field]`` set per entry, which also re-pended ids that a
+        mid-traversal inline compute had already drained.
+        """
+        engine = _SpyEngine()
+        field = _MockField("total", stored_computed=True)
+
+        scheduler = RecomputeScheduler(engine, schedule_inline=True)
+        scheduler.process_entry(field, {1, 2})
+        # a mid-traversal inline compute drains the first batch
+        engine.mark_done(field, [1, 2])
+        scheduler.process_entry(field, {3, 4})
+
+        self.assertEqual(
+            [set(ids) for _f, ids in engine.schedule_calls],
+            [{1, 2}, {3, 4}],
+        )
+        # drained ids are NOT re-pended by the later, unrelated entry
+        self.assertEqual(engine.pending_ids(field), {3, 4})
+
+    def test_inline_skips_protected_and_invalidate_entries(self) -> None:
+        engine = _SpyEngine()
+        engine.push_protection()
+        stored = _MockField("total", stored_computed=True)
+        non_stored = _MockField("display", stored_computed=False)
+        engine.protect(stored, frozenset({1}))
+
+        scheduler = RecomputeScheduler(engine, schedule_inline=True)
+        scheduler.process_entry(stored, {1, 2})
+        scheduler.process_entry(non_stored, {5})
+
+        # only the unprotected stored id reaches the engine
+        self.assertEqual(engine.pending_ids(stored), {2})
+        self.assertFalse(engine.has_pending_field(non_stored))
+
+    def test_live_pending_seed_prevents_retraversal(self) -> None:
+        """Ids already pending in the engine (from an earlier modified() call)
+        are neither re-traversed nor re-accumulated when ``marked`` is the
+        engine's live pending map — a second traversal only expands new ids.
+        """
+        engine = _SpyEngine()
+        field = _MockField("parent_total", stored_computed=True, recursive=True)
+        # earlier modified() call left ids pending
+        engine.schedule(field, [1, 2])
+        engine.schedule_calls.clear()
+
+        scheduler = RecomputeScheduler(
+            engine, marked=engine.pending, schedule_inline=True
+        )
+        recursive_ids = scheduler.process_entry(field, {1, 2, 3})
+
+        # only the genuinely new id is traversed further and scheduled
+        self.assertEqual(recursive_ids, frozenset({3}))
+        self.assertEqual(scheduler.to_recompute[field], {3})
+        self.assertEqual(engine.schedule_calls, [(field, [3])])
+        self.assertEqual(engine.pending_ids(field), {1, 2, 3})
+
+        # a fully-known second traversal is a complete no-op
+        engine.schedule_calls.clear()
+        recursive_ids = scheduler.process_entry(field, {1, 2, 3})
+        self.assertEqual(recursive_ids, frozenset())
+        self.assertEqual(engine.schedule_calls, [])
+
+
+class TestDeterministicOrder(unittest.TestCase):
+    """Ids flow into the engine's pending map in insertion order when both
+    the scheduler and the engine use an order-preserving set factory."""
+
+    def test_insertion_order_preserved_end_to_end(self) -> None:
+        from odoo.tools import OrderedSet
+
+        engine = ComputeEngine(pending_factory=OrderedSet)
+        field = _MockField("total", stored_computed=True)
+        scheduler = RecomputeScheduler(
+            engine, schedule_inline=True, set_factory=OrderedSet
+        )
+
+        scheduler.process_entry(field, OrderedSet([7, 3, 9]))
+        scheduler.process_entry(field, OrderedSet([1, 8]))
+
+        self.assertEqual(list(scheduler.to_recompute[field]), [7, 3, 9, 1, 8])
+        self.assertEqual(list(engine.pending_ids(field)), [7, 3, 9, 1, 8])
+
+    def test_order_survives_protection_subtraction(self) -> None:
+        from odoo.tools import OrderedSet
+
+        engine = ComputeEngine(pending_factory=OrderedSet)
+        engine.push_protection()
+        field = _MockField("total", stored_computed=True)
+        engine.protect(field, frozenset({3}))
+        scheduler = RecomputeScheduler(
+            engine, schedule_inline=True, set_factory=OrderedSet
+        )
+
+        scheduler.process_entry(field, OrderedSet([7, 3, 9, 1]))
+
+        self.assertEqual(list(engine.pending_ids(field)), [7, 9, 1])
+
+    def test_default_factory_is_plain_set(self) -> None:
+        engine = ComputeEngine()
+        scheduler = RecomputeScheduler(engine)
+        self.assertIs(type(scheduler.to_recompute["x"]), set)
+
+
 class TestRepr(unittest.TestCase):
     """Repr includes summary counts."""
 

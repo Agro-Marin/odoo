@@ -17,7 +17,15 @@ if TYPE_CHECKING:
 
 @dataclass(slots=True)
 class LoopResult:
-    """Outcome of a convergence loop: iterations, converged flag, stalled fields."""
+    """Outcome of a convergence loop: iterations, converged flag, stalled fields.
+
+    ``iterations`` counts the passes that performed any work — i.e. invoked
+    the injected ``recompute_fn`` / ``flush_fn`` at least once, fully or
+    partially (a pass aborted mid-way by a stall still counts). A final pass
+    that finds nothing pending/dirty and merely detects convergence is *not*
+    counted; when the loop exhausts its budget, ``iterations`` equals
+    ``max_iterations``. Both loops apply this convention.
+    """
 
     iterations: int = 0
     converged: bool = True
@@ -153,6 +161,8 @@ class UnitOfWork:
         :param recompute_fn: called as ``recompute_fn(field)``; expected to
             update the cache and call ``engine.mark_done()``.
         :return: :class:`LoopResult` with iteration count and convergence info.
+            ``iterations`` follows the :class:`LoopResult` convention: passes
+            that called ``recompute_fn`` count; the final empty pass does not.
         """
         result = LoopResult()
         # Resolve the order source once per loop. A callable (wired by
@@ -165,6 +175,7 @@ class UnitOfWork:
         for iteration in range(self.max_iterations):
             fields = self.engine.pending_real_fields()
             if not fields:
+                # This pass did no work — count only the prior working passes.
                 result.iterations = iteration
                 result.converged = True
                 # Converged: discard any stall recorded on a prior iteration so
@@ -216,7 +227,10 @@ class UnitOfWork:
         :param recompute_fn: called as ``recompute_fn(field)`` for each field.
         :param flush_fn: called as ``flush_fn(model_names)`` with the models to
             flush.
-        :return: :class:`LoopResult`.
+        :return: :class:`LoopResult`.  ``iterations`` follows the
+            :class:`LoopResult` convention: a pass counts when it recomputed
+            or flushed anything (including a pass cut short by a recompute
+            stall); a final pass that finds neither is not counted.
         """
         result = LoopResult()
 
@@ -225,7 +239,8 @@ class UnitOfWork:
             recompute_result = self.run_recompute_loop(recompute_fn)
             if not recompute_result.converged:
                 # Computes must settle before flushing: break immediately on
-                # recompute non-convergence.
+                # recompute non-convergence.  This pass partially executed
+                # (the inner loop ran recompute_fn), so it counts.
                 result.iterations = iteration + 1
                 result.converged = False
                 result.stalled_fields = recompute_result.stalled_fields
@@ -234,7 +249,11 @@ class UnitOfWork:
             # Collect dirty models
             model_names = self.dirty_models()
             if not model_names:
-                result.iterations = iteration
+                # Nothing to flush: this pass counts only if its inner
+                # recompute loop actually ran computations.
+                result.iterations = iteration + (
+                    1 if recompute_result.iterations else 0
+                )
                 result.converged = True
                 # Converged: discard any stall recorded on a prior iteration so
                 # the result is not internally inconsistent (converged + stalled).

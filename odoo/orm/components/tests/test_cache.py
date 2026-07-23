@@ -208,6 +208,36 @@ class TestFieldCacheInvalidation(unittest.TestCase):
         self.cache.invalidate_field("nonexistent")
         self.cache.invalidate_field("nonexistent", [1])
 
+    def test_invalidate_field_specific_ids_context_dependent(self) -> None:
+        # Context-dependent fields (translate=True, company_dependent) store
+        # ``{cache_key_tuple: {id: value}}``.  The per-id branch must scrub
+        # the ids inside every cache_key sub-dict (it used to silently no-op
+        # on this shape), mirroring ``invalidate_all``'s tuple detection.
+        cache = FieldCache()
+        cache._data["G"][("en_US",)] = {1: "one_en", 2: "two_en"}
+        cache._data["G"][("es_MX",)] = {1: "one_es", 3: "three_es"}
+        cache.invalidate_field("G", [1])
+        self.assertEqual(cache._data["G"][("en_US",)], {2: "two_en"})
+        self.assertEqual(cache._data["G"][("es_MX",)], {3: "three_es"})
+
+    def test_invalidate_field_context_dependent_drops_emptied_cache_key(self) -> None:
+        cache = FieldCache()
+        cache._data["G"][("en_US",)] = {1: "one_en"}
+        cache._data["G"][("es_MX",)] = {1: "one_es", 2: "two_es"}
+        cache.invalidate_field("G", [1])
+        # the fully-scrubbed cache_key entry is removed, the other trimmed
+        self.assertNotIn(("en_US",), cache._data["G"])
+        self.assertEqual(cache._data["G"][("es_MX",)], {2: "two_es"})
+
+    def test_invalidate_field_flat_dict_valued_stays_flat(self) -> None:
+        # Flat fields with dict VALUES (Json, Properties) must not be treated
+        # as context-dependent: shape detection keys on tuple KEYS only.
+        cache = FieldCache()
+        cache._data["json_f"] = {1: {"k": "v1"}, 2: {"k": "v2"}}
+        cache.invalidate_field("json_f", [1])
+        self.assertFalse(cache.has_value("json_f", 1))
+        self.assertEqual(cache.get_value("json_f", 2), {"k": "v2"})
+
     def test_invalidate_all(self) -> None:
         self.cache.invalidate_all()
         self.assertFalse(self.cache.has_value("name", 1))
