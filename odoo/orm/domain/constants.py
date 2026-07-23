@@ -49,6 +49,12 @@ STANDARD_CONDITION_OPERATORS: Final[frozenset[str]] = frozenset(
   - `=ilike` case-insensitive with `unaccent` comparison to a string
   - `like`, `ilike` behave like the preceding methods, but add wildcards
     around the value
+  - an empty pattern is rewritten before either consumer sees it
+    (``_optimize_like_str``): ``like ''`` becomes TRUE — *including* NULL rows,
+    unlike SQL ``LIKE '%%'`` which excludes them — and ``not like ''`` becomes
+    FALSE — *excluding* NULL rows, an exception to negative operators otherwise
+    matching unset values; SQL and predicate consumers agree because both see
+    the rewritten form
 """
 
 CONDITION_OPERATORS: set[str] = set(

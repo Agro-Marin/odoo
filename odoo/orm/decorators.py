@@ -220,6 +220,14 @@ def onchange(*args: str) -> Decorator:
         `#2693 <https://github.com/odoo/odoo/issues/2693>`_.
 
     """
+    # Fail fast at decoration time (mirrors constrains()/depends()): a list
+    # argument (``api.onchange(["a", "b"])``) was stored as ``(["a", "b"],)``,
+    # which the class build merely log-warned about — and the onchange then
+    # silently never fired. There is no callable form to preserve here.
+    if not all(isinstance(arg, str) for arg in args):
+        raise TypeError(
+            f"onchange() arguments must be field-name strings, got {args!r}"
+        )
     return attrsetter("_onchange", args)
 
 
@@ -317,6 +325,14 @@ def depends_context(*args: str) -> Decorator:
     * `uid` (current user id and superuser flag),
     * `active_test` (value in env.context or value in field.context).
     """
+    # Fail fast at decoration time (mirrors constrains()/depends()): context
+    # keys are always strings — every in-tree usage passes plain str keys — and
+    # a non-string argument (e.g. ``depends_context(42)`` or a list) only
+    # surfaced far away, during cache-key construction.
+    if not all(isinstance(arg, str) for arg in args):
+        raise TypeError(
+            f"depends_context() arguments must be context-key strings, got {args!r}"
+        )
     return attrsetter("_depends_context", args)
 
 

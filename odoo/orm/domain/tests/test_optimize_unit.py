@@ -12,6 +12,7 @@ production.
 Every expected value below was captured from the live optimizer, not assumed.
 """
 
+import types
 import unittest
 from datetime import date, datetime
 from unittest.mock import patch
@@ -28,6 +29,7 @@ from odoo.orm.domain.ast import (
     DomainCondition,
     OptimizationLevel,
 )
+from odoo.orm.primitives import NewId
 from odoo.tools import OrderedSet
 
 _UNSET = object()  # sentinel: "falsy_value not passed" vs. explicit None
@@ -383,10 +385,6 @@ class TestOptimizeModelScoping(unittest.TestCase):
         self.assertIs(node.optimize(int_model), node)
 
 
-if __name__ == "__main__":
-    unittest.main()
-
-
 class TestBooleanSearchableTautology(unittest.TestCase):
     """`searchable_bool in [True, False]` must collapse to TRUE before the
     field's search method is invoked (upstream 7a67274e138)."""
@@ -503,9 +501,7 @@ class TestDatetimeEqualityGranularity(unittest.TestCase):
         # 'today' stays a string at BASIC (transaction-independent), resolves
         # to a *date* at DYNAMIC (its date-ness is deliberately preserved), and
         # the re-run BASIC pass must then apply whole-day granularity
-        with patch.object(
-            optimizations, "resolve_date", return_value=date(2024, 1, 5)
-        ):
+        with patch.object(optimizations, "resolve_date", return_value=date(2024, 1, 5)):
             self.assertEqual(
                 list(Domain("dt", "=", "today").optimize_full(_StubModel())),
                 [
@@ -519,7 +515,9 @@ class TestDatetimeEqualityGranularity(unittest.TestCase):
         # '=' d -> [d, d+1d) must complement '<' d -> < d and '>' d -> >= d+1d:
         # every instant satisfies exactly one of the three
         d = date(2024, 1, 1)
-        self.assertEqual(_opt(Domain("dt", "<", d)), [("dt", "<", datetime(2024, 1, 1))])
+        self.assertEqual(
+            _opt(Domain("dt", "<", d)), [("dt", "<", datetime(2024, 1, 1))]
+        )
         self.assertEqual(
             _opt(Domain("dt", ">", d)), [("dt", ">=", datetime(2024, 1, 2))]
         )
@@ -532,9 +530,7 @@ class TestRelativePassSkipsWithoutStrings(unittest.TestCase):
 
     def test_datetime_set_without_strings_is_same_object(self):
         condition = DomainCondition("dt", "in", OrderedSet([datetime(2024, 1, 1)]))
-        result = optimizations._optimize_type_datetime_relative(
-            condition, _StubModel()
-        )
+        result = optimizations._optimize_type_datetime_relative(condition, _StubModel())
         self.assertIs(result, condition)
 
     def test_date_set_without_strings_is_same_object(self):
@@ -546,9 +542,7 @@ class TestRelativePassSkipsWithoutStrings(unittest.TestCase):
         condition = DomainCondition(
             "dt", "in", OrderedSet(["today", datetime(2024, 3, 4, 5, 6, 7)])
         )
-        with patch.object(
-            optimizations, "resolve_date", return_value=date(2024, 1, 5)
-        ):
+        with patch.object(optimizations, "resolve_date", return_value=date(2024, 1, 5)):
             result = optimizations._optimize_type_datetime_relative(
                 condition, _StubModel()
             )
@@ -627,8 +621,12 @@ class TestMergedSetCanonicalOrder(unittest.TestCase):
 
     def test_or_union_is_value_sorted(self):
         canonical = [("a", "in", [1, 2, 3])]
-        self.assertEqual(_opt(Domain("a", "in", [3, 1]) | Domain("a", "in", [2])), canonical)
-        self.assertEqual(_opt(Domain("a", "in", [2]) | Domain("a", "in", [3, 1])), canonical)
+        self.assertEqual(
+            _opt(Domain("a", "in", [3, 1]) | Domain("a", "in", [2])), canonical
+        )
+        self.assertEqual(
+            _opt(Domain("a", "in", [2]) | Domain("a", "in", [3, 1])), canonical
+        )
 
     def test_and_intersection_is_value_sorted(self):
         self.assertEqual(
@@ -662,3 +660,154 @@ class TestMergedSetCanonicalOrder(unittest.TestCase):
         d2 = (other & sub([2, 1])).optimize(model)
         self.assertEqual(d1, d2)
         self.assertEqual(list(d1), list(d2))
+
+
+class _HierarchyStubModel(_StubModel):
+    """Extends the stub with the hooks ``_operator_hierarchy`` touches for an
+    ``id``-keyed hierarchy: identity ``sudo``/``with_context``, a parent field
+    name, and a ``search`` that only ever runs with an empty seed here."""
+
+    _parent_name = "rel"
+    _parent_store = False
+    ids: list = []
+
+    def __init__(self):
+        super().__init__()
+        self._fields["id"] = _StubField("id")
+
+    def sudo(self):
+        return self
+
+    def with_context(self, **kwargs):
+        return self
+
+    def search(self, domain, order=None):
+        return self  # .ids == [] — only reached with an empty seed
+
+
+class TestHierarchyBooleanValues(unittest.TestCase):
+    """child_of/parent_of with boolean values must fail (True) or collapse
+    (False) *cleanly* at optimization time.
+
+    Regression: ``bool`` is an ``int`` subclass, so ``True`` passed the
+    scalar-int wrap and ``[True]``/``[False]`` passed the int partition,
+    reaching SQL as ``parent_id IN (true)`` — a psycopg UndefinedFunction
+    surfacing as an opaque RPC 500."""
+
+    def test_scalar_true_raises_clean_value_error(self):
+        for op in ("child_of", "parent_of"):
+            with self.assertRaisesRegex(ValueError, "not a valid hierarchy value"):
+                optimizations._operator_hierarchy(
+                    DomainCondition("id", op, True), _HierarchyStubModel()
+                )
+
+    def test_scalar_false_collapses_to_false_domain(self):
+        # pre-existing behaviour, locked in: False means "not set" → no seed
+        for op in ("child_of", "parent_of"):
+            result = optimizations._operator_hierarchy(
+                DomainCondition("id", op, False), _HierarchyStubModel()
+            )
+            self.assertIs(result, Domain.FALSE)
+
+    def test_collection_true_raises_clean_value_error(self):
+        with self.assertRaisesRegex(ValueError, "not a valid hierarchy value"):
+            optimizations._operator_hierarchy(
+                DomainCondition("id", "child_of", [True, 3]), _HierarchyStubModel()
+            )
+
+    def test_collection_false_is_dropped(self):
+        # [False] strips to an empty seed → FALSE, mirroring the scalar case
+        result = optimizations._operator_hierarchy(
+            DomainCondition("id", "child_of", [False]), _HierarchyStubModel()
+        )
+        self.assertIs(result, Domain.FALSE)
+
+
+class TestInRequiredPredicateSafety(unittest.TestCase):
+    """``_optimize_in_required`` strips False from required NOT NULL fields —
+    valid only for persisted bindings.  The stripped node must keep the
+    pre-strip condition reachable (``_predicate_fallback``) because the FULL
+    stamp outlives the binding it was computed against (e.g. a cached
+    record-rule domain later evaluated over ``new()`` records)."""
+
+    def _model(self, ids):
+        model = _StubModel()
+        field = _StubField("rel", "many2one", relational=True, comodel="m")
+        field.required = True  # falsy_value is None for many2one
+        model._fields["rel"] = field
+        model._ids = ids
+        model.env.registry = types.SimpleNamespace(not_null_fields={field})
+        return model
+
+    def test_persisted_binding_strips_and_keeps_fallback(self):
+        condition = DomainCondition("rel", "in", OrderedSet([False, 5]))
+        result = optimizations._optimize_in_required(condition, self._model((1, 2)))
+        self.assertIsNot(result, condition)
+        self.assertEqual(list(result.value), [5])
+        self.assertIs(result._predicate_fallback, condition)
+
+    def test_unbound_model_strips_vacuously(self):
+        # all(()) is True: the unbound model of a plain search — fine for SQL
+        # over persisted rows, hence the fallback still attached for predicates
+        condition = DomainCondition("rel", "in", OrderedSet([False, 5]))
+        result = optimizations._optimize_in_required(condition, self._model(()))
+        self.assertEqual(list(result.value), [5])
+        self.assertIs(result._predicate_fallback, condition)
+
+    def test_newid_binding_disables_the_strip(self):
+        # NewId is always falsy (origin-carrying or not): the binding-time gate
+        condition = DomainCondition("rel", "in", OrderedSet([False, 5]))
+        for new_id in (NewId(), NewId(origin=7)):
+            result = optimizations._optimize_in_required(
+                condition, self._model((1, new_id))
+            )
+            self.assertIs(result, condition)
+
+    def test_not_required_field_is_untouched(self):
+        condition = DomainCondition("rel", "in", OrderedSet([False, 5]))
+        model = self._model((1, 2))
+        model._fields["rel"].required = False
+        model.env.registry.not_null_fields = set()
+        self.assertIs(optimizations._optimize_in_required(condition, model), condition)
+
+
+class TestBasicPassesSkipNoOpRebuild(unittest.TestCase):
+    """The BASIC boolean/datetime passes return the *same node* when the
+    conversion changes nothing, instead of allocating an identical condition
+    on every BASIC fixpoint pass (the DYNAMIC relative-date passes were
+    already fixed this way, cf. ``TestRelativePassSkipsWithoutStrings``)."""
+
+    def test_boolean_all_bool_values_is_same_object(self):
+        for values in ([True], [True, False]):
+            condition = DomainCondition("ok", "in", OrderedSet(values))
+            result = optimizations._optimize_boolean_in(condition, _StubModel())
+            self.assertIs(result, condition)
+
+    def test_boolean_single_false_still_normalizes(self):
+        condition = DomainCondition("ok", "in", OrderedSet([False]))
+        result = optimizations._optimize_boolean_in(condition, _StubModel())
+        self.assertIsNot(result, condition)
+        self.assertEqual(result.operator, "not in")
+        self.assertEqual(list(result.value), [True])
+
+    def test_boolean_coercion_still_rebuilds(self):
+        condition = DomainCondition("ok", "in", OrderedSet([1, "false"]))
+        result = optimizations._optimize_boolean_in(condition, _StubModel())
+        self.assertIsNot(result, condition)
+        self.assertEqual(set(result.value), {True, False})
+
+    def test_datetime_scalar_already_converted_is_same_object(self):
+        condition = DomainCondition("dt", ">=", datetime(2024, 1, 1))
+        result = optimizations._optimize_type_datetime(condition, _StubModel())
+        self.assertIs(result, condition)
+
+    def test_datetime_set_without_datetimes_is_same_object(self):
+        condition = DomainCondition("dt", "in", OrderedSet([False]))
+        result = optimizations._optimize_type_datetime(condition, _StubModel())
+        self.assertIs(result, condition)
+
+    def test_datetime_conversion_still_rebuilds(self):
+        condition = DomainCondition("dt", ">", date(2024, 1, 1))
+        result = optimizations._optimize_type_datetime(condition, _StubModel())
+        self.assertIsNot(result, condition)
+        self.assertEqual((result.operator, result.value), (">=", datetime(2024, 1, 2)))
