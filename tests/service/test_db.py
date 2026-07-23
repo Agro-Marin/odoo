@@ -187,7 +187,7 @@ class TestRestoreDbSubprocessFailure:
                 db_mod.restore_db("newdb", zip_dump)
 
         mock_create.assert_called_once_with(
-            "newdb", template="template0", force_unaccent=True
+            "newdb", template="template0", force_unaccent=True, setup_if_exists=False
         )
 
 
@@ -2174,3 +2174,141 @@ class TestRetryTerminateThenDdl:
         assert run.call_count == db_mod._DROP_DATABASE_MAX_RETRIES
         # No backoff after the last attempt: MAX runs, MAX-1 sleeps.
         assert sleep.call_count == db_mod._DROP_DATABASE_MAX_RETRIES - 1
+
+
+# ---------------------------------------------------------------------------
+# restore_db — dump.sql psql meta-command scanner (RCE hardening)
+# ---------------------------------------------------------------------------
+
+
+class TestDumpSqlMetaCommandScanner:
+    """``psql -f`` interprets backslash meta-commands, and the restored
+    ``dump.sql`` is attacker-controlled, so the scanner must reject anything
+    ``psql`` would execute (``\\!`` shell, ``\\i``/``\\o``/``\\copy`` files,
+    ``\\gexec``, ``\\connect``) while never flagging content that ``psql`` treats
+    as data/text (COPY blocks, string literals, dollar-quoted bodies, comments).
+    """
+
+    # -- must be caught: commands psql would interpret --
+    @pytest.mark.parametrize("sql", [
+        "\\! touch /tmp/pwn\n",                       # whole-line shell
+        "SELECT 1;\\! id\n",                          # same-line after ';'
+        "SELECT 1;\n\\i /etc/passwd\n",               # include a file
+        "SELECT 1 \\gexec\n",                         # run query output as SQL
+        "\\connect postgres\n",                       # switch connection/host
+        "\\o /tmp/out\nSELECT 1;\n",                  # redirect output to a file
+        "COPY t FROM stdin;\n1\ta\n\\.\n\\! id\n",    # command AFTER a COPY block
+    ])
+    def test_flags_interpreted_meta_commands(self, db_mod, sql):
+        assert db_mod._find_disallowed_psql_meta_command(sql) is not None
+
+    # -- must NOT be caught: content psql treats as data/text --
+    @pytest.mark.parametrize("sql", [
+        "SELECT 1;\n",
+        "\\restrict TOK\nSELECT 1;\n\\unrestrict TOK\n",           # pg_dump wrapper
+        "COPY t FROM stdin;\n1\tdata\\x\\.more\n\\.\nSELECT 1;\n",  # backslashes IN copy data
+        "CREATE FUNCTION f() AS $$ BEGIN RETURN 'x; \\y'; END; $$ LANGUAGE plpgsql;\n",
+        "SELECT E'a\\nb\\\\c';\n",                                  # escape string
+        "-- a comment with \\! and \\i\nSELECT 1;\n",              # line comment
+        "/* block \\! comment ; \\i */\nSELECT 1;\n",             # block comment
+        "SELECT 'literal ; \\! not a command';\n",                # single-quoted literal
+    ])
+    def test_allows_data_and_pg_dump_commands(self, db_mod, sql):
+        assert db_mod._find_disallowed_psql_meta_command(sql) is None
+
+    def test_assert_dump_sql_safe_raises_on_evil_file(self, db_mod):
+        with tempfile.NamedTemporaryFile(
+            "w", suffix=".sql", delete=False
+        ) as f:
+            f.write("\\! touch /tmp/pwn\nSELECT 1;\n")
+            path = f.name
+        try:
+            with pytest.raises(RuntimeError, match="Refusing to restore"):
+                db_mod._assert_dump_sql_safe(path)
+        finally:
+            os.unlink(path)
+
+    def test_assert_dump_sql_safe_passes_clean_file(self, db_mod):
+        with tempfile.NamedTemporaryFile(
+            "w", suffix=".sql", delete=False
+        ) as f:
+            f.write("\\restrict TOK\nCREATE TABLE t (id int);\n\\unrestrict TOK\n")
+            path = f.name
+        try:
+            db_mod._assert_dump_sql_safe(path)  # must not raise
+        finally:
+            os.unlink(path)
+
+
+# ---------------------------------------------------------------------------
+# database_identifier — '%' escaping
+# ---------------------------------------------------------------------------
+
+
+class TestDatabaseIdentifierPercent:
+    """``database_identifier`` feeds a ``SQL`` template whose ``code`` is
+    ``%``-formatted, so a literal ``%`` (legal in a PG identifier, reachable via
+    ``db_template``) must be doubled or ``SQL.__init__`` raises ``TypeError``."""
+
+    def test_percent_in_identifier_does_not_raise(self, db_mod):
+        cr = MagicMock()
+        cr.connection = None  # psycopg Identifier.as_string accepts None
+        sql = db_mod.database_identifier(cr, "weird%name")
+        # Rendering the SQL template (``code % params``) must yield a single '%'.
+        assert (sql.code % sql.params) == '"weird%name"'
+
+
+# ---------------------------------------------------------------------------
+# _create_empty_database — db_template validation & already-exists gate
+# ---------------------------------------------------------------------------
+
+
+class TestCreateEmptyDatabaseHardening:
+    def _mock_pg(self, db_mod, *, create_raises=None):
+        """Patch ``odoo.db.db_connect`` and return (patch_cm, connect_mock, cr).
+
+        ``_create_empty_database`` opens the maintenance cursor via
+        ``closing(db.cursor())`` — which yields ``db.cursor()`` directly — so the
+        cursor mock is the ``cursor.return_value`` itself (not an ``__enter__``).
+        """
+        import odoo.db  # noqa: PLC0415
+
+        cr = MagicMock()
+        cr.connection = MagicMock()
+        if create_raises is not None:
+            cr.execute.side_effect = create_raises
+        conn = MagicMock()
+        conn.cursor.return_value = cr
+        return patch.object(odoo.db, "db_connect", return_value=conn), conn, cr
+
+    def test_rejects_malformed_db_template(self, db_mod, bypass_db_mgmt):
+        """A ``%``-bearing (malformed) template fails fast with a clear
+        ``ValueError`` rather than a cryptic error deep in CREATE DATABASE."""
+        cm, _conn, _cr = self._mock_pg(db_mod)
+        with cm:
+            with pytest.raises(ValueError, match="Invalid database name"):
+                db_mod._create_empty_database("newdb", template="bad%name")
+
+    def test_setup_if_exists_false_skips_setup_on_collision(
+        self, db_mod, bypass_db_mgmt
+    ):
+        """On a name collision with ``setup_if_exists=False`` (strict
+        create/restore), ``DatabaseExists`` is raised WITHOUT connecting to the
+        pre-existing DB to run extensions/GRANT on it."""
+        import psycopg  # noqa: PLC0415
+        from odoo.tools import SQL  # noqa: PLC0415
+
+        cm, _conn, _cr = self._mock_pg(
+            db_mod, create_raises=psycopg.errors.DuplicateDatabase("exists")
+        )
+        # ``database_identifier`` quoting is covered separately; stub it so the
+        # mock connection needn't satisfy psycopg's real ``as_string`` context.
+        with cm as db_connect_mock, patch.object(
+            db_mod, "database_identifier", return_value=SQL("x")
+        ):
+            with pytest.raises(db_mod.DatabaseExists):
+                db_mod._create_empty_database(
+                    "taken", template="template0", setup_if_exists=False
+                )
+        # Only the maintenance DB was touched — never db_connect("taken").
+        assert db_connect_mock.call_args_list == [call("postgres")]

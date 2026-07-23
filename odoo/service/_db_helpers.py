@@ -79,9 +79,15 @@ def database_identifier(cr: BaseCursor, name: str) -> SQL:
     """Quote a database identifier.
 
     Use instead of ``SQL.identifier`` to accept all kinds of identifiers.
+
+    The quoted identifier goes into ``SQL``'s ``code``, which is a
+    ``%``-format template (``SQL.__init__`` asserts via ``code % ()``), so a
+    literal ``%`` in the name — legal in a PostgreSQL identifier, and reachable
+    via ``config['db_template']`` — must be doubled or it raises ``TypeError:
+    not enough arguments for format string``.
     """
     name = psycopg_sql.Identifier(name).as_string(cr.connection)
-    return SQL(name)
+    return SQL(name.replace("%", "%%"))
 
 
 def check_db_management_enabled(func: Callable, /) -> Callable:
@@ -102,7 +108,8 @@ def check_db_management_enabled(func: Callable, /) -> Callable:
 def check_super(passwd: str) -> Literal[True]:
     """Verify the master admin password or raise ``AccessDenied``.
 
-    ``verify_admin_password`` compares in constant time (``hmac.compare_digest``).
+    ``verify_admin_password`` checks via passlib's ``crypt_context.verify_and_update``
+    (a timing-safe hash comparison that also transparently rehashes a stale hash).
     Returns ``Literal[True]`` because the only non-raising path returns ``True``
     — a ``bool`` annotation would invite an unreachable ``if not check_super()``.
     """

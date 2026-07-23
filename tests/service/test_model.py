@@ -1013,6 +1013,14 @@ class TestDispatchValidation:
                 "execute", ["db", True, "pw", "res.partner", "read", [1]]
             )
 
+    def test_float_uid_rejected_before_registry(self, mod):
+        # int(1.9) == 1 would silently truncate a float uid to admin; require an
+        # exact int, like the bool guard above.  Fires before Registry(db).
+        with pytest.raises(TypeError):
+            mod.dispatch(
+                "execute", ["db", 1.9, "pw", "res.partner", "read", [1]]
+            )
+
     def test_empty_password_raises_accessdenied(self, mod):
         from odoo.exceptions import AccessDenied  # noqa: PLC0415
 

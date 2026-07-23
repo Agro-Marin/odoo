@@ -24,9 +24,11 @@ import time
 from typing import Any
 
 import psutil
+import psycopg
 import werkzeug.serving
 
 from odoo import db
+from odoo.db import PoolError
 from odoo.modules.registry import Registry
 from odoo.tools import OrderedSet, config
 from odoo.tools.cache import log_ormcache_stats
@@ -256,6 +258,10 @@ class ThreadedServer(CommonServer):
                         thread.start_time = None
             return RECYCLE_MAX_AGE
 
+        # Consecutive failed (re)connects; drives the exponential backoff so a
+        # sustained PG outage doesn't flood the log or hammer PG.  Reset after
+        # any full cron cycle completes.  Mirrors ``WorkerCron``'s policy.
+        reconnect_attempts = 0
         while True:
             try:
                 conn = db.db_connect("postgres")
@@ -264,6 +270,7 @@ class ThreadedServer(CommonServer):
                 # No explicit ``connection.close()``: ``"postgres"`` is never
                 # pooled, so closing the cursor already discards the connection
                 # — the recycle we want.
+                reconnect_attempts = 0
                 if reason == RECYCLE_CONN_LOST:
                     cron_logger.warning("Postgres connection lost, reconnecting...")
                 else:
@@ -273,12 +280,31 @@ class ThreadedServer(CommonServer):
                     )
             except SystemExit:
                 raise
+            except (psycopg.OperationalError, PoolError) as exc:
+                # PG unreachable (outage, restart, failover): expected and
+                # transient.  WARN — not CRITICAL — and back off exponentially so
+                # a multi-minute outage produces a handful of warnings, not a
+                # 12/min CRITICAL flood that trips pagers keyed on CRITICAL.
+                reconnect_attempts += 1
+                backoff = min(2**reconnect_attempts, SLEEP_INTERVAL)
+                cron_logger.warning(
+                    "Postgres unavailable (attempt %d): %s; retrying in %ds",
+                    reconnect_attempts,
+                    exc,
+                    backoff,
+                )
+                time.sleep(backoff)
             except BaseException:
+                # Genuinely unexpected: keep CRITICAL, but still back off so a
+                # persistent fault can't spin the log either.
+                reconnect_attempts += 1
+                backoff = min(2**reconnect_attempts, SLEEP_INTERVAL)
                 cron_logger.critical(
-                    "Uncaught error in main loop, retrying in 5s...",
+                    "Uncaught error in cron main loop; retrying in %ds...",
+                    backoff,
                     exc_info=True,
                 )
-                time.sleep(5)
+                time.sleep(backoff)
 
     def cron_spawn(self) -> None:
         """Start ``max_cron_threads`` daemon threads, each running ``cron_thread``."""
@@ -353,8 +379,6 @@ class ThreadedServer(CommonServer):
                 "Hit CTRL-C again or send a second signal to force the shutdown."
             )
 
-        stop_time = time.monotonic()
-
         if self.httpd:
             # ``shutdown()`` stops the accept loop; werkzeug's ``serve_forever``
             # then closes the listen socket itself (its ``finally`` calls
@@ -362,6 +386,13 @@ class ThreadedServer(CommonServer):
             self.httpd.shutdown()
 
         super().stop()
+
+        # Start the 1s grace clock HERE, not before ``httpd.shutdown()`` /
+        # ``super().stop()``: those can burn most of a second (werkzeug's
+        # shutdown poll, the on-stop hooks' pool/bus teardown), which would leave
+        # application non-daemon threads zero join time despite the docstring's
+        # "up to one second".
+        stop_time = time.monotonic()
 
         # Join non-daemon threads before exit, busy-waiting so a second signal
         # can still force shutdown (``Thread.join`` masks signals).
@@ -398,37 +429,48 @@ class ThreadedServer(CommonServer):
 
         A first SIGINT or SIGTERM starts a graceful shutdown; a second forces
         an immediate exit.
+
+        The whole body runs under one ``try/except KeyboardInterrupt`` with
+        ``stop()`` in a ``finally``: this server raises ``KeyboardInterrupt``
+        from its signal handler, so a quit signal (INT/TERM/HUP) arriving during
+        ``preload_registries`` — common under ``--dev=reload`` when a file is
+        saved mid-startup — or during the drain must still route into the normal
+        shutdown, run the on-stop hooks, and (for SIGHUP, which also set
+        ``server_phoenix``) let ``lifecycle.start`` re-exec.  A bare escape would
+        skip cleanup and silently downgrade a reload to a crash.
         """
-        with Registry._lock:
-            self.start(stop=stop)
-            rc = preload_registries(preload)
-
-        if stop:
-            if config["test_enable"]:
-                from odoo.tests.result import _logger as logger
-
-                with Registry.registries._lock:
-                    # ``db_name`` not ``db``: avoid shadowing the module-level
-                    # ``from odoo import db`` in scope here.
-                    for db_name, registry in Registry.registries.items():
-                        report = registry._assertion_report
-                        log = (
-                            logger.error
-                            if not report.wasSuccessful()
-                            else (
-                                logger.warning if not report.testsRun else logger.info
-                            )
-                        )
-                        log("%s when loading database %r", report, db_name)
-            self.stop()
-            return rc
-
-        self.cron_spawn()
-        self.job_spawn()
-
-        # Wait for a first signal to be handled. (time.sleep will be interrupted
-        # by the signal handler)
+        rc: int | None = None
         try:
+            with Registry._lock:
+                self.start(stop=stop)
+                rc = preload_registries(preload)
+
+            if stop:
+                if config["test_enable"]:
+                    from odoo.tests.result import _logger as logger
+
+                    with Registry.registries._lock:
+                        # ``db_name`` not ``db``: avoid shadowing the module-level
+                        # ``from odoo import db`` in scope here.
+                        for db_name, registry in Registry.registries.items():
+                            report = registry._assertion_report
+                            log = (
+                                logger.error
+                                if not report.wasSuccessful()
+                                else (
+                                    logger.warning
+                                    if not report.testsRun
+                                    else logger.info
+                                )
+                            )
+                            log("%s when loading database %r", report, db_name)
+                return rc
+
+            self.cron_spawn()
+            self.job_spawn()
+
+            # Wait for a first signal to be handled. (time.sleep will be
+            # interrupted by the signal handler)
             while self.quit_signals_received == 0:
                 self.process_limit()
                 if self.limit_reached_time:
@@ -457,9 +499,9 @@ class ThreadedServer(CommonServer):
                     time.sleep(LIMIT_MONITOR_INTERVAL_S)
         except KeyboardInterrupt:
             pass
-
-        self.stop()
-        return None
+        finally:
+            self.stop()
+        return rc if stop else None
 
     def _has_other_http_requests(self) -> bool:
         """Return True if a non-limit-exceeding HTTP request is in flight.
@@ -547,31 +589,37 @@ class EventServer(CommonServer):
                 name="odoo.service.evented.watchdog",
             ).start()
 
-        self.httpd = werkzeug.serving.make_server(
-            self.interface,
-            self.port,
-            self.app,
-            threaded=True,
-            request_handler=RequestHandler,
-        )
-        self.logger.info(
-            "Evented/WebSocket service running on %s:%s",
-            self.interface,
-            self.port,
-        )
         try:
+            # ``make_server`` (binds ``gevent_port``) and the readiness log are
+            # INSIDE the try: the quit handlers and the watchdog thread are
+            # already installed above, so a SIGTERM (or a parent-change kill)
+            # landing here would otherwise raise ``KeyboardInterrupt`` past
+            # ``start()`` — an unhandled traceback that ``_note_worker_exit``
+            # counts as a young crash, arming the shared respawn backoff.
+            self.httpd = werkzeug.serving.make_server(
+                self.interface,
+                self.port,
+                self.app,
+                threaded=True,
+                request_handler=RequestHandler,
+            )
+            self.logger.info(
+                "Evented/WebSocket service running on %s:%s",
+                self.interface,
+                self.port,
+            )
             self.httpd.serve_forever()
         except SystemExit:
             raise
         except KeyboardInterrupt:
             # A SIGINT/SIGTERM (``_quit_signal_handler``) that lands in the
-            # window BEFORE the loop is entered: werkzeug's ``serve_forever``
-            # swallows any KeyboardInterrupt raised inside it (and closes the
-            # listen socket in its ``finally``), returning normally instead —
-            # so both graceful paths fall through to the log below.  Without
-            # this arm, the pre-loop window would fall to ``except
-            # BaseException``: CRITICAL + ``exit(1)`` on a routine stop
-            # (restart flapping, false alerts).
+            # window BEFORE (or during ``make_server``, before) the loop is
+            # entered: werkzeug's ``serve_forever`` swallows any
+            # KeyboardInterrupt raised inside it (and closes the listen socket in
+            # its ``finally``), returning normally instead — so both graceful
+            # paths fall through to the log below.  Without this arm, the
+            # pre-loop window would fall to ``except BaseException``: CRITICAL +
+            # ``exit(1)`` on a routine stop (restart flapping, false alerts).
             pass
         except BaseException as exc:
             self.logger.critical("Uncaught error in main loop", exc_info=True)

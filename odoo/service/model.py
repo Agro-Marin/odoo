@@ -168,13 +168,12 @@ def dispatch(dispatch_method: str, params: Sequence) -> typing.Any:
             f"(db, uid, passwd, model, method); got {len(params)}."
         )
     db, uid, passwd, model, model_method, *args = params
-    # Reject bool ``uid``: ``int(True) == 1`` would bind it to admin (user-id 1).
-    # The credential check still applies (not an escalation), but pin the type.
-    if isinstance(uid, bool):
-        raise TypeError(
-            f"uid must be an integer, not bool (got {uid!r})"
-        )
-    uid = int(uid)
+    # Require an exact int for ``uid``.  ``bool`` is an int subclass
+    # (``int(True) == 1`` → admin), and a float would silently truncate
+    # (``int(1.9) == 1``); the credential check still applies (not an
+    # escalation), but a truncating/aliasing uid has no legitimate use.
+    if not isinstance(uid, int) or isinstance(uid, bool):
+        raise TypeError(f"uid must be an integer (got {uid!r})")
     if not passwd:
         raise AccessDenied
     # access checked once we open a cursor
