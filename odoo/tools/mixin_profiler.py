@@ -141,6 +141,16 @@ def profile_methods(model_name, method_names, registry=None):
                 wrapped = _wrap_method(model_name, method_name, original)
                 wrapped._profiled = True
                 wrapped._original = original
+                # Registry model classes usually inherit their methods from the
+                # model *definition* classes in their MRO; setattr below shadows
+                # that resolution with an own-__dict__ attribute.  Remember
+                # whether the name already was an own attribute so
+                # unprofile_methods() can restore the exact previous state:
+                # putting the original function back as an own attribute would
+                # permanently shadow the definition class, breaking later
+                # patching of it (e.g. the supported
+                # ``patch.object(DefinitionClass, "create")`` test idiom).
+                wrapped._original_was_own_attr = method_name in model_class.__dict__
                 setattr(model_class, method_name, wrapped)
                 _logger.info("Profiling enabled for %s.%s", model_name, method_name)
 
@@ -224,9 +234,22 @@ def unprofile_methods(model_name, method_names, registry=None):
         return
 
     for method_name in method_names:
-        method = getattr(model_class, method_name, None)
-        if method and hasattr(method, "_original"):
-            setattr(model_class, method_name, method._original)
+        # Own-dict read, NOT getattr: a child registry class (e.g.
+        # ir.actions.server) can inherit its parent's wrapper through the MRO;
+        # acting on an inherited wrapper here would pin the *parent's* original
+        # method onto the child class — a shadow that never existed.  Inherited
+        # wrappers are undone when their owning model is unprofiled.
+        method = model_class.__dict__.get(method_name)
+        if method is not None and hasattr(method, "_original"):
+            if getattr(method, "_original_was_own_attr", True):
+                setattr(model_class, method_name, method._original)
+            else:
+                # The wrapper shadowed a method inherited through the MRO
+                # (normally from a model definition class): remove the shadow
+                # instead of pinning a copy of the original onto the registry
+                # class, so attribute resolution — and any later monkey-patch
+                # of the definition class — works again.
+                delattr(model_class, method_name)
 
 
 @contextmanager
