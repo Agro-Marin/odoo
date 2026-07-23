@@ -385,6 +385,22 @@ class StockMove(models.Model):
         lots_to_recompute = set()
         fifo_qty_processed = defaultdict(float)
 
+        # Pre-scan manual valuations for the whole batch in one query: manual
+        # `product.value` overrides are rare, so this lets `_get_manual_value`
+        # skip its per-move search for every move that has none (the vast
+        # majority) instead of one query per move. The map holds an entry for
+        # every scanned move (False = no manual value), so a move absent from
+        # the map is treated as "unknown" and still searched.
+        if self:
+            present = {
+                move.id
+                for (move,) in self.env["product.value"]
+                .sudo()
+                ._read_group([("move_id", "in", self.ids)], ["move_id"])
+            }
+            prescan = {mid: mid in present for mid in self.ids}
+            self = self.with_context(_manual_value_prescan=prescan)
+
         for company, moves in self.grouped("company_id").items():
             extra_value_by_product = defaultdict(float)
             extra_qty_by_product = defaultdict(float)
@@ -571,6 +587,14 @@ class StockMove(models.Model):
 
     def _get_manual_value(self, quantity, at_date=None):
         valuation_data = dict(VALUATION_DICT)
+        # Fast path: when `_set_value` pre-scanned the batch and this move has
+        # no manual `product.value`, skip the per-move search. Only valid with
+        # no `at_date` filter (the scan ignores dates) and only for scanned
+        # moves (`prescan.get` is None for moves outside the scan).
+        if not at_date:
+            prescan = self.env.context.get("_manual_value_prescan")
+            if prescan is not None and prescan.get(self.id) is False:
+                return valuation_data
         domain = Domain([("move_id", "=", self.id)])
         if at_date:
             domain &= Domain([("date", "<=", at_date)])
