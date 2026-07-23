@@ -268,7 +268,16 @@ class Form:
                 related_field = options.get("start_date_field") or options.get(
                     "end_date_field"
                 )
-                daterange_field_names[related_field] = field_name
+                if related_field:
+                    daterange_field_names[related_field] = field_name
+                else:
+                    # a None key would silently grow a bogus `None` field in
+                    # the view's fields/modifiers maps
+                    _logger.warning(
+                        "daterange widget on field %r has neither"
+                        " start_date_field nor end_date_field option",
+                        field_name,
+                    )
 
             # determine subview to use for edition
             if field_info["type"] == "one2many":

@@ -1083,12 +1083,15 @@ class Screencaster:
         self.directory = pathlib.Path(directory, get_db_name(), "screencasts")
         ts = datetime.now()
         self.frames_dir = self.directory / f"frames-{ts:%Y%m%dT%H%M%S.%f}"
-        self.frames_dir.mkdir(parents=True, exist_ok=True)
         self.frames = []
 
     def start(self) -> None:
         """Start the Chrome screencast."""
         self._logger.info("Starting screencast")
+        # created here, not in __init__: every ChromeBrowser instantiates a
+        # Screencaster when screencasts are configured, but most never start
+        # one — eager creation littered empty frames-* directories
+        self.frames_dir.mkdir(parents=True, exist_ok=True)
         self.browser._websocket_send("Page.startScreencast")
 
     def __call__(self, sessionId: str, data: str, metadata: dict) -> None:

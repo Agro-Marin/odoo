@@ -131,6 +131,18 @@ class TestSelector(TransactionCase):
             tags.include,
         )
 
+    def test_selector_negated_parameter_registers_not_excludes(self):
+        """`-tag[param]` attaches a negated parameter to matching tests; the
+        `-` binds to the parameter, NOT the tag — the test itself must stay
+        selected (via the implicit `standard` include base)."""
+        tags = TagsSelector("-standard[foo]")
+        self.assertEqual(set(), tags.exclude)
+        self.assertEqual({("standard", None, None, None, None)}, tags.include)
+        self.assertEqual(
+            [(("standard", None, None, None, None), ("-", "foo"))],
+            list(tags.parameters),
+        )
+
     def test_selector_parser(self):
         """Test the parser part of the TagsSelector class"""
 

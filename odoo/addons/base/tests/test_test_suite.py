@@ -612,6 +612,33 @@ class TestCursorStack(TransactionCase):
         tc2.close()  # normal close, no warning
         self.assertNotIn(tc2, TestCursor._cursors_stack)
 
+    def test_readonly_nesting_enforced_lazily(self):
+        """A read/write cursor may open under a readonly one only until the
+        readonly cursor has actually started its transaction (its savepoint
+        is created lazily on first execute); afterwards it must be refused."""
+        lock = threading.RLock()
+        cr_ro = self.registry.cursor()
+        cr_rw = self.registry.cursor()
+        tc_ro = TestCursor(cr_ro, lock, readonly=True)
+
+        def cleanup():
+            if not tc_ro._closed:
+                tc_ro.close()
+            cr_ro.close()
+            cr_rw.close()
+
+        self.addCleanup(cleanup)
+
+        # untouched readonly cursor (no savepoint yet): rw open is allowed
+        tc_rw = TestCursor(cr_rw, lock, readonly=False)
+        tc_rw.close()
+
+        tc_ro.execute("SELECT 1")  # starts the readonly transaction
+        with self.assertRaisesRegex(Exception, "read/write test cursor"):
+            TestCursor(cr_rw, lock, readonly=False)
+        # the refused cursor must not have entered the stack or kept the lock
+        self.assertEqual([tc_ro], TestCursor._cursors_stack)
+
 
 class TestBenchmarkStats(BaseCase):
     def test_compute_stats_raw_extremes_joint_trim(self):
