@@ -18,6 +18,7 @@ from . import webclient
 from . import action
 from . import binary
 from . import observability
+from . import openapi
 from . import profiling
 from . import report
 from . import utils
