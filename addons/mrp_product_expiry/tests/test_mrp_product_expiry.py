@@ -1,10 +1,10 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 from datetime import datetime, timedelta
-from odoo.addons.stock.tests.common import TestStockCommon
+
 from odoo.tests import Form
-from odoo.exceptions import UserError
+
+from odoo.addons.stock.tests.common import TestStockCommon
 
 
 class TestStockLot(TestStockCommon):
