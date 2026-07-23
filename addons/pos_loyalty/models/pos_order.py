@@ -1,10 +1,10 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-from collections import defaultdict
-from odoo import _, models
-from odoo.tools import float_compare
 import base64
+from collections import defaultdict
+
+from odoo import Command, _, models
+from odoo.tools import float_compare
 
 
 class PosOrder(models.Model):
@@ -81,7 +81,8 @@ class PosOrder(models.Model):
 
         It will also return the points of all concerned coupons to be updated in the cache.
         """
-        get_partner_id = lambda partner_id: partner_id and self.env['res.partner'].browse(partner_id).exists() and partner_id or False
+        def get_partner_id(partner_id):
+            return (partner_id and self.env['res.partner'].browse(partner_id).exists() and partner_id) or False
         # Keys are stringified when using rpc
         coupon_data = {int(k): v for k, v in coupon_data.items()}
 
@@ -90,7 +91,7 @@ class PosOrder(models.Model):
         self._process_existing_gift_cards(coupon_data)
 
         # Map negative id to newly created ids.
-        coupon_new_id_map = {k: k for k in coupon_data.keys() if k > 0}
+        coupon_new_id_map = {k: k for k in coupon_data if k > 0}
 
         # Create the coupons that were awarded by the order.
         coupons_to_create = {k: v for k, v in coupon_data.items() if k < 0}
@@ -99,16 +100,15 @@ class PosOrder(models.Model):
             'partner_id': get_partner_id(p.get('partner_id', self.partner_id.id)),
             'code': p.get('code') or p.get('barcode') or self.env['loyalty.card']._generate_code(),
             'points': 0,
-            'expiration_date': p.get('date_to', False),
             'source_pos_order_id': self.id,
-            'expiration_date': p.get('expiration_date')
+            'expiration_date': p.get('expiration_date'),
         } for p in coupons_to_create.values()]
 
         # Pos users don't have the create permission
         new_coupons = self.env['loyalty.card'].with_context(action_no_send_mail=True).sudo().create(coupon_create_vals)
 
         # Map the newly created coupons
-        for old_id, new_id in zip(coupons_to_create.keys(), new_coupons):
+        for old_id, new_id in zip(coupons_to_create.keys(), new_coupons, strict=False):
             coupon_new_id_map[new_id.id] = old_id
 
         # We need a sudo here because this can trigger `_compute_order_count` that require access to `sale.order.line`
@@ -143,7 +143,7 @@ class PosOrder(models.Model):
                 'order_id': self.id,
                 'card_id': coupon_id,
                 'spent': -coupon_vals['points'] if coupon_vals['points'] < 0 else 0,
-                'won': coupon_vals['points'] if coupon_vals['points'] > 0 else 0,
+                'won': max(0, coupon_vals['points']),
             }
             for coupon_id, coupon_vals in coupon_data.items()
         ]
@@ -230,7 +230,7 @@ class PosOrder(models.Model):
                         'order_id': self.id,
                         'description': _('Onsite %s', self.display_name),
                         'used': -coupon_vals['points'] if coupon_vals['points'] < 0 else 0,
-                        'issued': coupon_vals['points'] if coupon_vals['points'] > 0 else 0,
+                        'issued': max(0, coupon_vals['points']),
                     })
 
                 if updated:
@@ -271,7 +271,7 @@ class PosOrder(models.Model):
             coupon_data.pop(item)
 
     def _get_fields_for_order_line(self):
-        fields = super(PosOrder, self)._get_fields_for_order_line()
+        fields = super()._get_fields_for_order_line()
         fields.extend(['is_reward_line', 'reward_id', 'coupon_id', 'reward_identifier_code', 'points_cost'])
         return fields
 
@@ -284,7 +284,7 @@ class PosOrder(models.Model):
                                                           ('program_id', 'in', gift_card_programs.ids)])
             if gift_cards:
                 for program in gift_card_programs:
-                    filtered_gift_cards = gift_cards.filtered(lambda gc: gc.program_id == program)
+                    filtered_gift_cards = gift_cards.filtered(lambda gc: gc.program_id == program)  # noqa: B023 (lambda consumed eagerly by filtered() in-loop)
                     if filtered_gift_cards:
                         action_report = program.pos_report_print_id
                         report = action_report._render_qweb_pdf(action_report.report_name, filtered_gift_cards.ids)
@@ -298,6 +298,6 @@ class PosOrder(models.Model):
                             'res_id': self.ids[0],
                             'mimetype': 'application/x-pdf'
                         })
-                        attachment += [(4, gift_card_pdf.id)]
+                        attachment += [Command.link(gift_card_pdf.id)]
 
         return attachment
