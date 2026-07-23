@@ -377,7 +377,7 @@ def route(route: str | Iterable[str] | None = None, **routing: Any) -> Callable:
 
 
 def _generate_routing_rules(
-    modules: list[str], nodb_only: bool, converters: dict | None = None
+    modules: list[str], nodb_only: bool
 ) -> Generator[tuple[str, Any]]:
     """
     Two-fold algorithm used to (1) determine which method in the

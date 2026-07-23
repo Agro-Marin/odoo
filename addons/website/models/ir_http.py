@@ -139,9 +139,9 @@ class IrHttp(models.AbstractModel):
             x.url_from: x for x in self.env["website.rewrite"].sudo().search(domain)
         }
 
-    def _generate_routing_rules(self, modules, converters):
+    def _generate_routing_rules(self, modules):
         if not request:
-            yield from super()._generate_routing_rules(modules, converters)
+            yield from super()._generate_routing_rules(modules)
             return
         # Derive the website from :meth:`_routing_map_key`, the SAME source
         # ``routing_map`` memoizes on. Reading ``request.website_routing``
@@ -157,7 +157,7 @@ class IrHttp(models.AbstractModel):
             self, website_id, cache_value=len(rewrites)
         )
 
-        for url, endpoint in super()._generate_routing_rules(modules, converters):
+        for url, endpoint in super()._generate_routing_rules(modules):
             if url in rewrites:
                 rewrite = rewrites[url]
                 url_to = rewrite.url_to
