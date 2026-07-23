@@ -19,7 +19,7 @@ class AccountMoveLine(models.Model):
                 # We're also assuming that the downpayment line will have the same price_subtotal & tax_ids as the record.
                 pos_downpayment_moves = related_sol.filtered("is_downpayment").pos_order_line_ids.order_id.account_move
                 downpayment_lines |= pos_downpayment_moves.invoice_line_ids.filtered(
-                    lambda r: float_compare(r.price_subtotal, -record.price_subtotal, precision_rounding=rounding) == 0
+                    lambda r, record=record, rounding=rounding: float_compare(r.price_subtotal, -record.price_subtotal, precision_rounding=rounding) == 0
                     and r.tax_ids == record.tax_ids,
                 )
 
@@ -30,7 +30,7 @@ class AccountMoveLine(models.Model):
                 sale_orders = related_posl.sale_order_origin_id
                 candidate_moves = sale_orders.pos_order_line_ids.order_id.account_move.filtered(lambda r: r._is_downpayment())
                 applicable_lines = candidate_moves.invoice_line_ids.filtered(
-                    lambda line: float_compare(line.price_subtotal, -record.price_subtotal, precision_rounding=rounding) == 0
+                    lambda line, record=record, rounding=rounding: float_compare(line.price_subtotal, -record.price_subtotal, precision_rounding=rounding) == 0
                     and line.tax_ids == record.tax_ids,
                 )
 
@@ -38,7 +38,7 @@ class AccountMoveLine(models.Model):
                     # In the case there are multiple downpayment lines with the same tax & total we'll
                     # pair them up as per their ids and get the downpayment line paired with the record.
                     move_lines = record.move_id.invoice_line_ids
-                    lines_dict = dict(zip(move_lines.sorted('id'), applicable_lines.sorted('id')))
+                    lines_dict = dict(zip(move_lines.sorted('id'), applicable_lines.sorted('id'), strict=False))
                     downpayment_lines |= lines_dict.get(record)
                 else:
                     downpayment_lines |= applicable_lines

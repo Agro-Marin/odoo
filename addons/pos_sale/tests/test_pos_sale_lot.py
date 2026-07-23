@@ -2,6 +2,7 @@
 
 import odoo
 from odoo import fields
+
 from odoo.addons.point_of_sale.tests.common import CommonPosTest
 
 
