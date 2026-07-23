@@ -32,6 +32,7 @@ from odoo.tools.misc import get_flag, topological_sort
 from odoo.tools.sql import column_exists
 from odoo.tools.translate import (
     TranslationImporter,
+    code_translations,
     get_datafile_translation_path,
     get_po_paths,
 )
@@ -1472,6 +1473,10 @@ class IrModuleModule(models.Model):
         for module_name in module_names:
             if not Manifest.for_addon(module_name, display_warning=False):
                 continue
+            # the PO files are being (re)loaded; drop any cached python/web code
+            # translations for this module so the new terms are served without a
+            # process restart
+            code_translations.clear(module_name)
             for lang in langs:
                 for po_path in get_po_paths(module_name, lang):
                     _logger.info(

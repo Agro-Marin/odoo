@@ -61,6 +61,7 @@ from . import test_report_paperformat_audit
 from . import test_menu
 from . import test_mimetypes
 from . import test_misc
+from . import test_mixin_profiler
 from . import test_module
 from . import test_module_graph
 from . import test_module_migration
@@ -102,6 +103,7 @@ from . import test_tests_tags
 from . import test_transactions
 from . import test_form_create
 from . import test_cloc
+from . import test_populate
 from . import test_profiler
 from . import test_pdf
 from . import test_neutralize

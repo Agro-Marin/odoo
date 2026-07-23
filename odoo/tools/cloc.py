@@ -139,9 +139,11 @@ class Cloc:
         if not exclude:
             exclude = set()
         for i in filter(None, exclude_list):
-            assert ".." not in i, (
-                f"Invalid exclusion path {i!r}: '..' is not allowed. Use a normalized path."
-            )
+            if ".." in i:
+                raise ValueError(
+                    f"Invalid exclusion path {i!r}: '..' is not allowed. "
+                    "Use a normalized path."
+                )
             exclude.update(str(p) for p in Path(path).glob(i))
 
         module_name = Path(path).name
@@ -280,11 +282,16 @@ class Cloc:
         uploaded_file = {r[0]: (r[1], r[2]) for r in env.cr.fetchall()}
         for attach in env["ir.attachment"].browse(uploaded_file.keys()):
             module_name = uploaded_file[attach.id][0]
+            # a DB-stored attachment matching the name filter may have no url
+            # (url is False); Path(False) would raise TypeError and abort cloc.
+            if not attach.url:
+                continue
             ext = Path(attach.url).suffix.lower()
             if ext not in VALID_EXTENSION:
                 continue
 
-            if len(attach.datas) > MAX_FILE_SIZE:
+            # compare raw byte size, not base64 length, against the threshold
+            if attach.file_size > MAX_FILE_SIZE:
                 self.book(module_name, attach.url, (-1, "Max file size exceeded"))
                 continue
 

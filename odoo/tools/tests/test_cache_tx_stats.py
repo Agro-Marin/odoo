@@ -9,6 +9,7 @@ a stub model supplies the ``pool``/``env`` the lookup closure reads — no datab
 import unittest
 from collections import defaultdict
 
+from odoo.libs.lru import LRU
 from odoo.tools import cache as cache_mod
 from odoo.tools.cache import ormcache
 
@@ -29,8 +30,9 @@ class _Pool:
     def __init__(self):
         # the closure reads the name-mangled ``pool._Registry__caches``; assign
         # the literal name via __dict__ (a plain attribute here would mangle to
-        # ``_Pool__caches``).
-        self.__dict__["_Registry__caches"] = defaultdict(dict)
+        # ``_Pool__caches``). Real caches are LRU stores (the lookup reads their
+        # ``.generation``), so mirror that here rather than using a plain dict.
+        self.__dict__["_Registry__caches"] = defaultdict(lambda: LRU(1000))
 
 
 class _Model:

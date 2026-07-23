@@ -2,6 +2,7 @@
 File path and open operations for Odoo addons.
 """
 
+import functools
 import os
 import sys
 import tempfile
@@ -22,6 +23,18 @@ else:
     # introspection tools can resolve the annotation; type checkers still
     # see the real class via the branch above.
     Environment = typing.Any
+
+
+@functools.lru_cache(maxsize=256)
+def _resolve_parent(addons_dir: str) -> tuple[Path, Path]:
+    """Return the normalized and resolved forms of an addons-root directory.
+
+    Addons roots (and the temporary directories registered by
+    `file_open_temporary_directory`) are stable for the lifetime of the
+    process, so their resolution can be cached safely.
+    """
+    parent_path = Path(os.path.normcase(os.path.normpath(addons_dir)))
+    return parent_path, parent_path.resolve()
 
 
 def file_path(
@@ -80,20 +93,22 @@ def file_path(
         addons_paths = [*odoo.addons.__path__, root_path, *temporary_paths]
 
     for addons_dir in addons_paths:
-        parent_path = Path(os.path.normcase(os.path.normpath(addons_dir)))
+        parent_path, resolved_parent = _resolve_parent(addons_dir)
         if is_abs:
             fpath = normalized
         else:
             fpath = parent_path / normalized
-        fpath_str = str(fpath)
-        # Resolve both paths to eliminate '..' segments before checking
-        # containment — unresolved '..' can escape the parent directory.
-        if fpath.resolve().is_relative_to(parent_path.resolve()) and (
+        # Resolve both paths to eliminate '..' segments and symlinks before
+        # checking containment — unresolved '..' can escape the parent
+        # directory.  Return the resolved spelling as well, so callers get a
+        # single canonical path per file.
+        resolved_fpath = fpath.resolve()
+        if resolved_fpath.is_relative_to(resolved_parent) and (
             # we check existence when asked or we have multiple paths to check
             # (there is one possibility for absolute paths)
             (not check_exists and (is_abs or len(addons_paths) == 1)) or fpath.exists()
         ):
-            return fpath_str
+            return str(resolved_fpath)
 
     raise FileNotFoundError("File not found: " + file_path)
 

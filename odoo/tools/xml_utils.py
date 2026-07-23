@@ -40,7 +40,9 @@ class odoo_resolver(etree.Resolver):
     def resolve(self, url: str, id: object, context: object) -> object:
         """Search url in ``ir.attachment`` and return the resolved content."""
         attachment_name = f"{self.prefix}.{url}" if self.prefix else url
-        attachment = self.env["ir.attachment"].search([("name", "=", attachment_name)])
+        attachment = self.env["ir.attachment"].search(
+            [("name", "=", attachment_name)], limit=1
+        )
         if attachment:
             return self.resolve_string(attachment.raw, context)
         return None
@@ -62,9 +64,13 @@ def _validate_xml(env: object, url: str | None, path: str | None, xmls: object) 
     if not isinstance(xmls, list):
         xmls = [xmls]
 
-    for xml in xmls:
-        validate_xml_from_attachment(env, xml, xsd_attachment.name)
-    xsd_attachment.unlink()
+    # The XSD attachment is a temporary artifact of this validation: make sure
+    # it is removed even when a validation raises.
+    try:
+        for xml in xmls:
+            validate_xml_from_attachment(env, xml, xsd_attachment.name)
+    finally:
+        xsd_attachment.unlink()
 
 
 def _check_with_xsd(
@@ -93,7 +99,10 @@ def _check_with_xsd(
             tree_or_str,
             parser=etree.XMLParser(resolve_entities=False, no_network=True),
         )
-    parser = etree.XMLParser()
+    # Harden the schema parser like the document parser above: XSDs may come
+    # from attachments, so entity resolution and network access stay disabled
+    # (the custom resolver below still serves imports from ir.attachment).
+    parser = etree.XMLParser(resolve_entities=False, no_network=True)
     if env:
         parser.resolvers.add(odoo_resolver(env, prefix))
         if isinstance(stream, str) and stream.endswith(".xsd"):
@@ -204,14 +213,10 @@ def load_xsd_files_from_url(
         _logger.info("Fetching file/archive from given URL: %s", url)
         response = requests.get(url, timeout=request_max_timeout)
         response.raise_for_status()
-    except requests.exceptions.HTTPError as error:
-        _logger.warning("HTTP error: %s with the given URL: %s", error, url)
-        return False
-    except requests.exceptions.ConnectionError as error:
-        _logger.warning("Connection error: %s with the given URL: %s", error, url)
-        return False
-    except requests.exceptions.Timeout as error:
-        _logger.warning("Request timeout: %s with the given URL: %s", error, url)
+    except requests.exceptions.RequestException as error:
+        # Catch the whole requests hierarchy (HTTP errors, connection errors,
+        # timeouts, invalid URLs, ...) to honor the "False on error" contract.
+        _logger.warning("Request error: %s with the given URL: %s", error, url)
         return False
 
     content = response.content

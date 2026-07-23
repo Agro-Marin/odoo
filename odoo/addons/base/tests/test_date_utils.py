@@ -283,6 +283,12 @@ class TestDateUtils(TransactionCase):
         self.assertEqual(parse("=5H"), datetime(2024, 1, 5, 4))
         self.assertEqual(parse("-55M"), datetime(2024, 1, 5, 12, 10))
 
+        # A 'today' start promoted to a datetime by a time term carries the
+        # user's wall-clock time; it must be localized to UTC like 'now', not
+        # left naive (which downstream would read as already-UTC).
+        self.assertEqual(parse("today =5H"), datetime(2024, 1, 5, 4))
+        self.assertEqual(parse("today =5H"), parse("=5H"))
+
         self.assertEqual(parse("today"), date(2024, 1, 5))
         with freeze_time("2024-01-04 23:05:00"):
             self.assertEqual(parse("today"), date(2024, 1, 5))

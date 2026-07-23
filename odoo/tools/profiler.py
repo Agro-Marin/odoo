@@ -152,7 +152,13 @@ class Collector:
             self.profiler.entry_count_limit
             and self.profiler.counter >= self.profiler.entry_count_limit
         ):
-            self.profiler.end()
+            # Only the profiled thread may finalize: ending from a sampler
+            # thread would record that thread's cpu time as ``cpu_duration``
+            # and mutate ``query_hooks`` the profiled thread may be iterating.
+            # Other threads simply stop contributing entries; the owner ends
+            # the profiler in ``__exit__``.
+            if threading.current_thread() is self.profiler.init_thread:
+                self.profiler.end()
             return
         self.profiler.counter += 1
         self.add(entry=entry, frame=frame)
@@ -224,9 +230,12 @@ class SQLCollector(Collector):
         )
 
     def summary(self) -> str:
-        total_time = sum(entry["time"] for entry in self._entries) or 1
+        # Same guard as the base class: after ``entries`` post-processing,
+        # ``_entries`` is None and the data lives in ``processed_entries``.
+        entries = self.processed_entries if self._processed else self._entries
+        total_time = sum(entry["time"] for entry in entries) or 1
         sql_entries = ""
-        for entry in self._entries:
+        for entry in entries:
             sql_entries += f"\n{'-' * 100}'\n'{entry['time']}  {'*' * int(entry['time'] / total_time * 100)}'\n'{entry['full_query']}"
         return super().summary() + sql_entries
 
@@ -287,7 +296,7 @@ class PeriodicCollector(_BasePeriodicCollector):
         """Add an entry (dict) to this collector."""
         if self.last_frame:
             duration = real_time() - self._last_time
-            if duration > self.frame_interval * 10 and self.last_frame:
+            if duration > self.frame_interval * 10:
                 # Slept >10 intervals, typically a C call that didn't release
                 # the GIL: the call falls between two frames and is wrongly
                 # attributed to the last one. Flag it explicitly.
@@ -299,7 +308,9 @@ class PeriodicCollector(_BasePeriodicCollector):
                         "",
                     )
                 )
-            self.last_frame = None  # skip duplicate detection on the next frame
+                # Skip duplicate detection on the next frame only: the frame
+                # after a freeze must be recorded even if identical.
+                self.last_frame = None
         self._last_time = real_time()
 
         frame = frame or get_current_frame(self.profiler.init_thread)
@@ -318,9 +329,20 @@ class MemoryCollector(_BasePeriodicCollector):
     _store = "others"
     _min_interval = 0.01
     _default_interval = 1
+    _lock_acquired = False
 
     def start(self):
-        _lock.acquire()
+        # tracemalloc is process-global: only one memory collector may run at a
+        # time. Fail the collector (with a log) instead of blocking forever —
+        # a nested/concurrent memory profile would otherwise deadlock or have
+        # its tracing torn down by the other profiler's stop().
+        self._lock_acquired = _lock.acquire(timeout=5)
+        if not self._lock_acquired:
+            _logger.warning(
+                "Memory collector not started: another memory collector is "
+                "already active in this process"
+            )
+            return
         tracemalloc.start()
         super().start()
 
@@ -334,9 +356,15 @@ class MemoryCollector(_BasePeriodicCollector):
         )
 
     def stop(self):
+        if not self._lock_acquired:
+            return
         super().stop()
-        _lock.release()
+        # Stop tracing before releasing the lock: tracemalloc is process-global,
+        # so releasing first would let a new collector start() and then have its
+        # tracing killed by this stop().
         tracemalloc.stop()
+        _lock.release()
+        self._lock_acquired = False
 
     def post_process(self):
         for i, entry in enumerate(self._entries):
@@ -667,6 +695,7 @@ class Profiler:
             self.params.get("entry_count_limit", 0)
         )  # the limit could be set using a smarter way
         self.done: bool = False
+        self._end_lock: threading.Lock = threading.Lock()
         self.exit_stack: ExitStack = ExitStack()
         self.counter: int = 0
 
@@ -730,9 +759,10 @@ class Profiler:
         self.end()
 
     def end(self) -> None:
-        if self.done:
-            return
-        self.done = True
+        with self._end_lock:
+            if self.done:
+                return
+            self.done = True
         try:
             for collector in self.collectors:
                 collector.stop()
@@ -788,7 +818,13 @@ class Profiler:
             _logger.exception("Could not save profile in database")
         finally:
             self.exit_stack.close()
-            if self.params:
+            # Only delete the thread attribute if it is still ours: a nested
+            # profiler with its own params overwrites and deletes the shared
+            # attribute, and a blind ``del`` here would then raise.
+            if (
+                self.params
+                and getattr(self.init_thread, "profiler_params", None) is self.params
+            ):
                 del self.init_thread.profiler_params
             if self.log:
                 _logger.info(self.summary())

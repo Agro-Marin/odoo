@@ -68,6 +68,17 @@ _COUNTERS: defaultdict[tuple[str, Callable], ormcache_counter] = defaultdict(
 """Statistic counters, mapping (dbname, method) to counter."""
 
 
+def prune_counters(db_name: str) -> None:
+    """Drop the ormcache stat counters for a deleted database.
+
+    ``_COUNTERS`` is keyed by ``(db_name, method)`` and would otherwise grow
+    unbounded on a process that creates and drops many databases. Called from
+    ``Registry.delete``.
+    """
+    for cache_key in [k for k in _COUNTERS if k[0] == db_name]:
+        del _COUNTERS[cache_key]
+
+
 # Per-transaction hit/miss statistics toggle.
 #
 # Raw hit/miss/error counters, cache sizes and generation time are always
@@ -199,13 +210,22 @@ class ormcache:
                 except TypeError:
                     _warn("cache lookup error on %r", key, exc_info=True)
                     counter.err += 1
-                    counter.tx_err += tx_first
+                    # the error is the event to count; ``tx_first`` is still
+                    # False here because the raising line runs before it is set.
+                    counter.tx_err += 1
                     return _method(*args, **kwargs)
 
+            # Snapshot the clear-generation before computing: if the cache is
+            # cleared (invalidated) while ``_method`` runs, storing the value
+            # would re-cache pre-invalidation data that survives until the next
+            # unrelated clear. Skip the store in that case; the value returned
+            # to this caller is still correct, it is just not cached.
+            generation = d.generation
             start = _monotonic()
             value = _method(*args, **kwargs)
             counter.gen_time += _monotonic() - start
-            d[key] = value
+            if d.generation == generation:
+                d[key] = value
             return value
 
         lookup.__cache__ = self  # type: ignore[attr-defined]
@@ -397,7 +417,9 @@ def log_ormcache_stats(
                 log_msgs.append(f"Database {dbname or '<no_db>'}:")
                 log_msgs.extend(
                     f" * {cache_name}: {entries}/{count}{' (' if cache_total_size else ''}{cache_total_size}{' bytes)' if cache_total_size else ''}"
-                    for cache_name, entries, count, cache_total_size in cache_usage[dbname]
+                    for cache_name, entries, count, cache_total_size in cache_usage[
+                        dbname
+                    ]
                 )
                 log_msgs.append("Details:")
 
@@ -440,7 +462,10 @@ def log_ormcache_stats(
                 _logger_state = "wait"
 
     show_size = False
-    if sig == signal.SIGUSR1:
+    # ``None`` is the manual entry point (e.g. from the odoo shell); treat it
+    # like SIGUSR1 so a direct call actually logs instead of leaving the state
+    # machine stuck in "run" (which would make every later signal abort).
+    if sig in (None, signal.SIGUSR1):
         threading.Thread(
             target=_log_ormcache_stats, name="odoo.signal.log_ormcache_stats"
         ).start()
@@ -450,7 +475,11 @@ def log_ormcache_stats(
             target=_log_ormcache_stats,
             name="odoo.signal.log_ormcache_stats_with_size",
         ).start()
-
+    else:
+        # Unknown signal: no worker thread will run its ``finally`` to reset the
+        # state, so reset it here or the feature bricks until process restart.
+        with _logger_lock:
+            _logger_state = "wait"
 
 
 def get_cache_size(

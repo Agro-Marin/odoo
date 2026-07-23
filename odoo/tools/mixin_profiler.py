@@ -145,6 +145,57 @@ def profile_methods(model_name, method_names, registry=None):
                 _logger.info("Profiling enabled for %s.%s", model_name, method_name)
 
 
+_DEFAULT_MODULE_METHODS = (
+    "create",
+    "write",
+    "read",
+    "unlink",
+    "search",
+    "search_read",
+    "web_read",
+    "web_search_read",
+    "_compute_display_name",
+)
+
+
+def profile_module(env, module_name, method_names=None, extra_by_model=None):
+    """Enable profiling on the models introduced by ``module_name``.
+
+    Discovers every model whose definition is owned by ``module_name`` (via its
+    ``ir.model`` xml-ids) and wraps a default set of CRUD/read methods, so
+    profiling a whole business module is a single call; the caller then runs
+    representative operations under :func:`profiling_enabled` and reads
+    :func:`get_profile_report`.
+
+    :param env: an environment bound to the target registry
+    :param module_name: technical module name (e.g. ``stock``)
+    :param method_names: methods to profile on every discovered model
+        (defaults to :data:`_DEFAULT_MODULE_METHODS`)
+    :param extra_by_model: optional ``{model_name: [extra_methods]}`` to also
+        wrap module-specific hot methods (e.g. ``action_confirm``)
+    :return: the list of profiled model names
+    """
+    method_names = list(method_names or _DEFAULT_MODULE_METHODS)
+    extra_by_model = extra_by_model or {}
+
+    imd = env["ir.model.data"].search(
+        [("module", "=", module_name), ("model", "=", "ir.model")]
+    )
+    model_names = env["ir.model"].browse(imd.mapped("res_id")).mapped("model")
+
+    profiled = []
+    for model_name in model_names:
+        if model_name not in env:
+            continue
+        methods = method_names + list(extra_by_model.get(model_name, ()))
+        profile_methods(model_name, methods, registry=env.registry)
+        profiled.append(model_name)
+    _logger.info(
+        "Profiling %d models of module %s", len(profiled), module_name
+    )
+    return profiled
+
+
 def unprofile_methods(model_name, method_names, registry=None):
     """Remove profiling from methods."""
     if registry is None:

@@ -292,6 +292,24 @@ _SAFE_OPCODES = (
                 "POP_ITER",  # replaces END_FOR for iterator cleanup
                 "LOAD_FAST_BORROW_LOAD_FAST_BORROW",  # compound load optimization
                 "LOAD_COMMON_CONSTANT",  # loads common constants (None, NotImplemented, etc.)
+                # emitted by try/except+finally combinations; same jump as the
+                # allowed JUMP_BACKWARD minus the interrupt check
+                "JUMP_BACKWARD_NO_INTERRUPT",
+                # ``yield from`` / generator delegation plumbing — no new
+                # capability beyond the already-allowed generators
+                "SEND",
+                "END_SEND",
+                "CLEANUP_THROW",
+                "GET_YIELD_FROM_ITER",
+                # closures: cell creation and dereferencing are memory-safe and
+                # grant no capability; without them any nested function that
+                # captures an enclosing local is rejected
+                "MAKE_CELL",
+                "COPY_FREE_VARS",
+                "LOAD_CLOSURE",
+                "LOAD_DEREF",
+                "STORE_DEREF",
+                "DELETE_DEREF",
             ]
         )
     )
@@ -603,7 +621,9 @@ Pre-wrapped modules are provided as attributes of `odoo.tools.safe_eval`.
         return
     seen.add(obj_id)
     if isinstance(value, dict):
-        for v in value.values():
+        # keys too: a module used as a dict key is reachable via list(d)
+        for k, v in value.items():
+            _check_module(k, seen)
             _check_module(v, seen)
     elif isinstance(value, (list, tuple, set, frozenset)):
         for v in value:
