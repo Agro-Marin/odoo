@@ -222,12 +222,8 @@ class Binary(Field[bytes | typing.Literal[False]]):
             super().mark_dirty(records, value)
             return
 
-        # discard recomputation of self on records
-        records.env.remove_to_compute(self, records)
-
-        # update the cache, discarding records that are not modified
-        cache_value = self.convert_to_cache(value, records)
-        records = self._filter_not_equal(records, cache_value)
+        # prologue: cancel pending recompute, convert, drop unmodified records
+        records, cache_value = self._mark_dirty_prologue(records, value)
         if not records:
             return
         if self.store:
@@ -365,10 +361,15 @@ class Image(Binary):
             raise
 
         super().mark_dirty(records, new_value)
-        cache_value = self.convert_to_cache(
-            value if self.related else new_value, records
-        )
-        self._update_cache(records, cache_value, dirty=True)
+        if self.related:
+            # keep the unprocessed image in cache so the inverse method gets
+            # the original (same reason as create()); resized afterwards by
+            # _inverse_related
+            cache_value = self.convert_to_cache(value, records)
+            self._update_cache(records, cache_value, dirty=True)
+        # non-related: super() already cached the processed value and marked
+        # only the actually-modified records dirty; re-caching here would
+        # re-mark ALL records and emit no-op UPDATEs for column-stored images
 
     @override
     def _inverse_related(self, records: BaseModel) -> None:

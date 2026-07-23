@@ -194,6 +194,10 @@ class Date(BaseDate[date]):
             if isinstance(value, datetime):
                 return value.date()
             return value
+        if not isinstance(value, str):
+            # a dict/list would raise an opaque KeyError(slice) below; callers
+            # (e.g. _search_display_name) rely on a typed conversion error
+            raise TypeError(f"expected str or date, got {value!r}")
         value = value[:DATE_LENGTH]
         # fromisoformat (C-level) is ~44x faster than strptime for ISO dates, but
         # it rejects non-zero-padded components (e.g. "2020-9-30") that the legacy

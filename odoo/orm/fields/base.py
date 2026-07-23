@@ -137,7 +137,9 @@ def determine(
         if not needle.__name__.startswith("__"):
             return needle(*args)
     elif callable(needle):
-        if not needle.__name__.startswith("__"):
+        # getattr: callables without __name__ (e.g. functools.partial) are
+        # plain callables, not dunder methods to reject
+        if not getattr(needle, "__name__", "").startswith("__"):
             return needle(records, *args)
 
     msg = "Determination requires a callable or method name"
@@ -922,15 +924,28 @@ class Field[T](_FieldDescriptionMixin, _FieldConvertMixin, _FieldSqlMixin):
 
     # Company-dependent fields
 
-    def get_company_dependent_fallback(self, records: BaseModel) -> typing.Any:
-        assert self.company_dependent
-        fallback = (
+    def _company_dependent_fallback_raw(self, records: BaseModel) -> typing.Any:
+        """Raw ``ir.default`` fallback for ``self`` on ``records``'s company.
+
+        Single authority for the fallback lookup: always resolved as the
+        SUPERUSER so that the write-side dedup (``convert_to_column_insert``),
+        the read-side COALESCE (:meth:`get_company_dependent_fallback`) and the
+        flush-side fallbacks (``ir.default._get_field_column_fallbacks``) all
+        agree.  Resolving with the current user instead would let a user-scoped
+        default alias a value to NULL that every reader then resolves to the
+        global default.
+        """
+        return (
             records.env["ir.default"]
             .with_user(SUPERUSER_ID)
             .with_company(records.env.company)
             ._get_model_defaults(records._name)
             .get(self.name)
         )
+
+    def get_company_dependent_fallback(self, records: BaseModel) -> typing.Any:
+        assert self.company_dependent
+        fallback = self._company_dependent_fallback_raw(records)
         fallback = self.convert_to_cache(fallback, records, validate=False)
         return self.convert_to_record(fallback, records)
 
@@ -1230,8 +1245,29 @@ class Field[T](_FieldDescriptionMixin, _FieldConvertMixin, _FieldSqlMixin):
 
         This is the field-level counterpart of :meth:`BaseModel.write`.
 
+        Overrides MUST start by calling :meth:`_mark_dirty_prologue` (or
+        delegate to ``super().mark_dirty()``): skipping it leaves a pending
+        recomputation alive, which later silently overwrites the explicit
+        write (enforced by ``test_mark_dirty_prologue``).
+
         :param records: recordset to update
         :param value: a value in any format
+        """
+        records, cache_value = self._mark_dirty_prologue(records, value)
+        if not records:
+            return
+
+        # update the cache
+        self._update_cache(records, cache_value, dirty=True)
+
+    def _mark_dirty_prologue(
+        self, records: BaseModel, value: typing.Any
+    ) -> tuple[BaseModel, typing.Any]:
+        """Shared entry sequence of every ``mark_dirty`` implementation:
+        cancel the pending recomputation of ``self`` on ``records`` (an
+        explicit write always wins over a scheduled compute), convert the
+        value to cache format, and narrow ``records`` to those actually
+        modified.  Returns ``(records, cache_value)``.
         """
         # discard recomputation of self on records
         records.env.remove_to_compute(self, records)
@@ -1239,11 +1275,7 @@ class Field[T](_FieldDescriptionMixin, _FieldConvertMixin, _FieldSqlMixin):
         # discard the records that are not modified
         cache_value = self.convert_to_cache(value, records)
         records = self._filter_not_equal(records, cache_value)
-        if not records:
-            return
-
-        # update the cache
-        self._update_cache(records, cache_value, dirty=True)
+        return records, cache_value
 
     # Cache management methods
 
@@ -1854,7 +1886,14 @@ class Field[T](_FieldDescriptionMixin, _FieldConvertMixin, _FieldSqlMixin):
         _debug = _orm_compute.isEnabledFor(logging.DEBUG)
         if _debug:
             _t0 = time.perf_counter()
-            _count = len(records)
+            # snapshot: the batches computed below are expanded from the
+            # pending set (up to PREFETCH_MAX per batch), not from `records`,
+            # so measure consumed pending ids rather than len(records)
+            _pending_before = len(to_compute_ids)
+
+            def _count():
+                remaining = records.env._core.pending_ids(self)
+                return _pending_before - len(remaining or ())
 
         def apply_except_missing(func, records):
             """Apply `func` on `records`, ignoring non-existent records."""
@@ -1888,7 +1927,7 @@ class Field[T](_FieldDescriptionMixin, _FieldConvertMixin, _FieldSqlMixin):
                     (time.perf_counter() - _t0) * 1000,
                     self.model_name,
                     self.name,
-                    _count,
+                    _count(),
                 )
             return
 
@@ -1909,7 +1948,7 @@ class Field[T](_FieldDescriptionMixin, _FieldConvertMixin, _FieldSqlMixin):
                 (time.perf_counter() - _t0) * 1000,
                 self.model_name,
                 self.name,
-                _count,
+                _count(),
             )
 
     def compute_value(self, records: BaseModel) -> None:

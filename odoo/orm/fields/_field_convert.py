@@ -83,9 +83,10 @@ class _FieldConvertMixin(_FieldStubs):
             return PsycopgJson({"en_US": value, record.env.lang or "en_US": value})
         if not self.company_dependent:
             return value
-        fallback = (
-            record.env["ir.default"]._get_model_defaults(record._name).get(self.name)
-        )
+        # superuser fallback (shared helper): the dedup must compare against
+        # the same fallback the read paths COALESCE to, or a user-scoped
+        # ir.default makes the inserted value read back as the global default
+        fallback = self._company_dependent_fallback_raw(record)
         if value == self.convert_to_column(fallback, record):
             return None
         return PsycopgJson({record.env.company.id: self._to_json_value(value)})
