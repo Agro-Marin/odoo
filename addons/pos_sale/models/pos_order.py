@@ -1,8 +1,7 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
+# ruff: noqa: B023  -- every lambda below is consumed eagerly by filtered()/mapped()/grouped() (or a def called) within its loop iteration, so the loop-var binding is correct; B023 is a systematic false positive in this bridge file.
 
-from odoo import api, fields, models, _
-from odoo.tools import float_compare, float_is_zero, format_date
+from odoo import _, api, fields, models
 
 
 class PosOrder(models.Model):
@@ -18,7 +17,7 @@ class PosOrder(models.Model):
 
     @api.model
     def _complete_values_from_session(self, session, values):
-        values = super(PosOrder, self)._complete_values_from_session(session, values)
+        values = super()._complete_values_from_session(session, values)
         values['crm_team_id'] = values['crm_team_id'] if values.get('crm_team_id') else session.config_id.crm_team_id.id
         return values
 
@@ -29,7 +28,7 @@ class PosOrder(models.Model):
             order.currency_rate = self.env['res.currency']._get_conversion_rate(order.company_id.currency_id, order.currency_id, order.company_id, date_order.date())
 
     def _prepare_invoice_vals(self):
-        invoice_vals = super(PosOrder, self)._prepare_invoice_vals()
+        invoice_vals = super()._prepare_invoice_vals()
         invoice_vals['team_id'] = self.crm_team_id.id
         sale_orders = self.lines.mapped('sale_order_origin_id')
         if sale_orders:
@@ -102,7 +101,7 @@ class PosOrder(models.Model):
                 so_line_stock_move_ids = so_line.move_ids.reference_ids.move_ids
                 for stock_move in so_line.move_ids:
                     picking = stock_move.picking_id
-                    if not picking.state in ['waiting', 'confirmed', 'assigned']:
+                    if picking.state not in ['waiting', 'confirmed', 'assigned']:
                         continue
 
                     def get_expected_qty_to_ship_later():
@@ -148,7 +147,7 @@ class PosOrder(models.Model):
         }
 
     def _get_fields_for_order_line(self):
-        fields = super(PosOrder, self)._get_fields_for_order_line()
+        fields = super()._get_fields_for_order_line()
         fields.extend([
             'sale_order_origin_id',
             'down_payment_details',

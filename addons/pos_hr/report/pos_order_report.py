@@ -1,8 +1,4 @@
-# -*- coding: utf-8 -*-
-
-from functools import partial
-
-from odoo import models, fields
+from odoo import fields, models
 
 
 class ReportPosOrder(models.Model):

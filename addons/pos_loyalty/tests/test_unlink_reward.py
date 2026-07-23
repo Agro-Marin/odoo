@@ -1,7 +1,8 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-from odoo.addons.pos_loyalty.tests.common import CommonPosLoyaltyTest
 from odoo.tests.common import tagged
+
+from odoo.addons.pos_loyalty.tests.common import CommonPosLoyaltyTest
 
 
 @tagged('-at_install', 'post_install')

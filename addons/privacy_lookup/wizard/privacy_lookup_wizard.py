@@ -1,9 +1,8 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 from collections import defaultdict
 
-from odoo import api, fields, models, tools, _
+from odoo import _, api, fields, models, tools
 from odoo.exceptions import UserError
 from odoo.tools import SQL
 
@@ -283,7 +282,7 @@ class PrivacyLookupWizardLine(models.TransientModel):
             if not record.exists():
                 continue
             name = record.display_name
-            line.res_name = name if name else f'{line.res_model_id.name}/{line.res_id}'
+            line.res_name = name or f'{line.res_model_id.name}/{line.res_id}'
 
     @api.onchange('is_active')
     def _onchange_is_active(self):

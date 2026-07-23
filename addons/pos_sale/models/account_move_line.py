@@ -1,3 +1,4 @@
+# ruff: noqa: B023  -- both lambdas below are consumed eagerly by filtered() within the `for record in self` loop, so the loop-var binding is correct; B023 is a false positive here.
 from odoo import models
 from odoo.tools import float_compare
 
@@ -38,7 +39,7 @@ class AccountMoveLine(models.Model):
                     # In the case there are multiple downpayment lines with the same tax & total we'll
                     # pair them up as per their ids and get the downpayment line paired with the record.
                     move_lines = record.move_id.invoice_line_ids
-                    lines_dict = dict(zip(move_lines.sorted('id'), applicable_lines.sorted('id')))
+                    lines_dict = dict(zip(move_lines.sorted('id'), applicable_lines.sorted('id'), strict=False))
                     downpayment_lines |= lines_dict.get(record)
                 else:
                     downpayment_lines |= applicable_lines

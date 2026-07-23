@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 from odoo import models
@@ -28,7 +27,7 @@ class MailMessage(models.Model):
         Note: rating information combine both statistics (see 'rating_get_stats'
         if available on model) and rating / publication information. """
         vals_list = super()._portal_message_format(properties_names, options=options)
-        if not 'rating' in properties_names:
+        if 'rating' not in properties_names:
             return vals_list
 
         related_rating = self.env['rating.rating'].sudo().search_read(
@@ -40,7 +39,7 @@ class MailMessage(models.Model):
             for rating in related_rating
         }
 
-        for message, values in zip(self, vals_list):
+        for message, values in zip(self, vals_list, strict=True):
             values["rating_id"] = message_to_rating.get(message.id, {})
 
             record = self.env[message.model].browse(message.res_id)

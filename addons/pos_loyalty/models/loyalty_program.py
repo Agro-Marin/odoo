@@ -55,19 +55,18 @@ class LoyaltyProgram(models.Model):
                         mail_template=mail_template_label,
                         report=pos_report_print_label,
                     ))
+                if not program.communication_plan_ids:
+                    program.communication_plan_ids = self.env['loyalty.mail'].create({
+                        'program_id': program.id,
+                        'trigger': 'create',
+                        'mail_template_id': program.mail_template_id.id,
+                        'pos_report_print_id': program.pos_report_print_id.id,
+                    })
                 else:
-                    if not program.communication_plan_ids:
-                        program.communication_plan_ids = self.env['loyalty.mail'].create({
-                            'program_id': program.id,
-                            'trigger': 'create',
-                            'mail_template_id': program.mail_template_id.id,
-                            'pos_report_print_id': program.pos_report_print_id.id,
-                        })
-                    else:
-                        program.communication_plan_ids.write({
-                            'trigger': 'create',
-                            'pos_report_print_id': program.pos_report_print_id.id,
-                        })
+                    program.communication_plan_ids.write({
+                        'trigger': 'create',
+                        'pos_report_print_id': program.pos_report_print_id.id,
+                    })
 
     @api.depends('pos_ok')
     def _compute_pos_config_ids(self):
