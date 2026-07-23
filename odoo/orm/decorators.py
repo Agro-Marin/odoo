@@ -231,19 +231,19 @@ def onchange(*args: str) -> Decorator:
     return attrsetter("_onchange", args)
 
 
+def _check_depends_id(deps) -> None:
+    """Reject ``id`` in a depends spec (raises NotImplementedError if present)."""
+    for arg in deps:
+        if "id" in arg.split("."):
+            raise NotImplementedError("Compute method cannot depend on field 'id'.")
+
+
 @typing.overload
 def depends(func: Callable[[BaseModel], Collection[str]], /) -> Decorator: ...
 
 
 @typing.overload
 def depends(*args: str) -> Decorator: ...
-
-
-def _check_depends_id(deps) -> None:
-    """Reject ``id`` in a depends spec (raises NotImplementedError if present)."""
-    for arg in deps:
-        if "id" in arg.split("."):
-            raise NotImplementedError("Compute method cannot depend on field 'id'.")
 
 
 def depends(*args) -> Decorator:

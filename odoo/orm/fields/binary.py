@@ -17,6 +17,7 @@ from .base import Field
 if typing.TYPE_CHECKING:
     from odoo.tools import Query
 
+    from .._typing import ModelLike
     from ..models import BaseModel
 
 # Binary data is returned as memoryview by psycopg.
@@ -134,7 +135,7 @@ class Binary(Field[bytes | typing.Literal[False]]):
         return False if value is None else value
 
     @override
-    def compute_value(self, records: BaseModel) -> None:
+    def compute_value(self, records: ModelLike) -> None:
         bin_size_name = "bin_size_" + self.name
         if records.env.context.get("bin_size") or records.env.context.get(
             bin_size_name

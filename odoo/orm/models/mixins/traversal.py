@@ -141,7 +141,7 @@ class TraversalMixin(_ModelStubs):
             # it is a no-op.  Iterate records (not raw _ids) to preserve the
             # prefetch group so __get__ batch-fetches on a cache miss.
             if can_scan_identity(field):
-                _none_val = field.convert_to_record(None, records[:1])
+                _none_val: typing.Any = field.convert_to_record(None, records[:1])
                 result, miss_indices = _batch_cache_get(
                     field_cache, records._ids, PENDING, _none_val
                 )
@@ -283,7 +283,7 @@ class TraversalMixin(_ModelStubs):
                 collator = defaultdict(list)
                 # Identity-convert: skip convert_to_record where it is a no-op.
                 if can_scan_identity(field):
-                    _none_val = field.convert_to_record(None, self[:1])
+                    _none_val: typing.Any = field.convert_to_record(None, self[:1])
                     ids = self._ids
                     results, miss_indices = _batch_cache_get(
                         field_cache, ids, PENDING, _none_val
@@ -630,6 +630,13 @@ class TraversalMixin(_ModelStubs):
         # direct recursive SQL query with cycle detection for performance
         self.flush_model([field_name])
         if field.type == "many2many":
+            # a many2many always has its relation table resolved after setup;
+            # the assertion only narrows ``str | None`` for the type checker
+            assert (
+                field.relation is not None
+                and field.column1 is not None
+                and field.column2 is not None
+            )
             relation = field.relation
             column1 = field.column1
             column2 = field.column2

@@ -90,8 +90,8 @@ class LoadMixin(_ModelStubs):
                 if field_name in (None, "id", ".id"):
                     break
 
-                if isinstance(model_fields.get(field_name), One2many):
-                    comodel = model_fields[field_name].comodel_name
+                if isinstance(o2m_field := model_fields.get(field_name), One2many):
+                    comodel = o2m_field.comodel_name
                     creatable_models.add(comodel)
                     model_fields = self.env[comodel]._fields
 
@@ -287,18 +287,24 @@ class LoadMixin(_ModelStubs):
         """
         fields = self._fields
 
+        # ``fname0 := fnames[0]`` may be None (unmatched columns); ``None in
+        # fields`` was always False, so the explicit None checks are equivalent.
         get_o2m_values = itemgetter_tuple(
             [
                 index
                 for index, fnames in enumerate(field_paths)
-                if fnames[0] in fields and fields[fnames[0]].type == "one2many"
+                if (fname0 := fnames[0]) is not None
+                and fname0 in fields
+                and fields[fname0].type == "one2many"
             ]
         )
         get_nono2m_values = itemgetter_tuple(
             [
                 index
                 for index, fnames in enumerate(field_paths)
-                if fnames[0] not in fields or fields[fnames[0]].type != "one2many"
+                if (fname0 := fnames[0]) is None
+                or fname0 not in fields
+                or fields[fname0].type != "one2many"
             ]
         )
 
@@ -365,7 +371,9 @@ class LoadMixin(_ModelStubs):
             record_span = list(itertools.chain([row], record_span))
 
             for relfield, *__ in field_paths:
-                if not is_relational(relfield):
+                # (None is never in relational_fnames, so the explicit None
+                # check is equivalent; it only narrows ``str | None``)
+                if relfield is None or not is_relational(relfield):
                     continue
 
                 if relfield not in property_definitions:

@@ -160,7 +160,10 @@ class BaseModel(
         * If :attr:`._name` is set, name(s) of parent models to inherit from
         * If :attr:`._name` is unset, name of a single model to extend in-place
     """
-    _inherits: frozendict[str, str] = frozendict()
+    # dict, not frozendict: the class-level default is a frozendict, but model
+    # definitions provide plain dict literals and registration
+    # (_init_model_class_attributes) also assigns a plain merged dict.
+    _inherits: dict[str, str] = frozendict()
     """dictionary {'parent_model': 'm2o_field'} mapping the _name of the parent business
     objects to the names of the corresponding foreign key fields to use::
 

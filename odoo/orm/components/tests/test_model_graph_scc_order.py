@@ -110,7 +110,7 @@ class TestSeededFuzzProperties(unittest.TestCase):
             pool = fields + others
 
             g = ModelGraph()
-            edges = []
+            edges: list[tuple[MockField, MockField]] = []
             for _ in range(rng.randint(1, 24)):
                 dep = rng.choice(pool)
                 targets = rng.sample(pool, rng.randint(1, 3))

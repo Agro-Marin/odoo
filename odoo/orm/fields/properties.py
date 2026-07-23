@@ -23,6 +23,7 @@ from .base import Field, _logger
 if typing.TYPE_CHECKING:
     from odoo.tools import Query
 
+    from .._typing import ModelLike
     from ..models import BaseModel
 
 NoneType = type(None)
@@ -217,7 +218,7 @@ class Properties(Field):
     def convert_to_read_multi(
         self,
         values: list[typing.Any],
-        records: BaseModel,
+        records: ModelLike,
         use_display_name: bool = True,
     ) -> list[typing.Any]:
         if not records:
@@ -450,9 +451,12 @@ class Properties(Field):
         return properties_list_values
 
     def _get_properties_definition(
-        self, record: BaseModel
+        self, record: ModelLike
     ) -> list[dict[str, typing.Any]] | None:
         """Return the properties definition of the given record."""
+        # definition_record is always resolved for a set-up Properties field;
+        # the assertion only narrows the optional type for the type checker
+        assert self.definition_record is not None
         container = record[self.definition_record]
         if container:
             return container.sudo()[self.definition_record_field]
@@ -788,7 +792,7 @@ class Properties(Field):
         self,
         field_sql: SQL,
         property_name: str,
-        model: BaseModel,
+        model: ModelLike,
         alias: str,
         query: Query,
     ) -> SQL:

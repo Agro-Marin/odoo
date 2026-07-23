@@ -16,7 +16,7 @@ from ...primitives import NO_ACCESS
 from ._model_stubs import _ModelStubs
 
 if typing.TYPE_CHECKING:
-    from collections.abc import Callable
+    from collections.abc import Callable, Collection
 
     from ...fields import Field
 
@@ -288,11 +288,11 @@ class AccessMixin(_ModelStubs):
             return Domain("company_id", "in", unquote(f"{companies} + [False]"))
         return Domain("company_id", "in", to_record_ids(companies) + [False])
 
-    def _check_company(self, fnames: list[str] | None = None) -> None:
+    def _check_company(self, fnames: Collection[str] | None = None) -> None:
         """Check the companies of the values of the given field names.
 
         :param fnames: names of relational fields to check
-        :type fnames: list[str] | None
+        :type fnames: Collection[str] | None
         :raises UserError: if the `company_id` of the value of any field is not
             in `[False, self.company_id]` (or `self` if
             :class:`~odoo.addons.base.models.res_company`).

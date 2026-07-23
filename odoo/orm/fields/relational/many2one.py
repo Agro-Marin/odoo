@@ -17,7 +17,7 @@ from ..base import IR_MODELS, Field
 from ._base import _Relational
 
 if typing.TYPE_CHECKING:
-
+    from ..._typing import ModelLike
     from ...models import BaseModel
 
     OnDelete = typing.Literal["cascade", "set null", "restrict"]
@@ -518,7 +518,7 @@ class Many2one(_Relational):
             )
         return sql
 
-    def join(self, model: BaseModel, alias: str, query: Query) -> tuple[BaseModel, str]:
+    def join(self, model: ModelLike, alias: str, query: Query) -> tuple[BaseModel, str]:
         """Add a LEFT JOIN to ``query`` by following field ``self``,
         and return the joined table's corresponding model and alias.
         """
