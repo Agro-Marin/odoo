@@ -1,13 +1,14 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 import logging
+
 import werkzeug
 
 from odoo import http
 from odoo.http import request
-from odoo.tools.translate import _
 from odoo.tools.misc import get_lang
+from odoo.tools.translate import _
+
 from odoo.addons.rating.models.rating_data import (
     RATING_HAPPY_VALUE,
     RATING_NEUTRAL_VALUE,
@@ -90,9 +91,9 @@ class Rating(http.Controller):
     def _get_rating_and_record(self, token):
         rating_sudo = request.env['rating.rating'].sudo().search([('access_token', '=', token)])
         if not rating_sudo:
-            raise werkzeug.exceptions.NotFound()
+            raise werkzeug.exceptions.NotFound
 
         record_sudo = request.env[rating_sudo.res_model].sudo().browse(rating_sudo.res_id)
         if not record_sudo.exists():
-            raise werkzeug.exceptions.NotFound()
+            raise werkzeug.exceptions.NotFound
         return rating_sudo, record_sudo

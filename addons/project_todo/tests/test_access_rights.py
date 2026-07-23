@@ -1,6 +1,8 @@
-from odoo.tests.common import users
 from odoo.exceptions import AccessError
+from odoo.tests.common import users
+
 from odoo.addons.project.tests.test_access_rights import TestAccessRights
+
 
 class TestAccessRightsTodo(TestAccessRights):
     @classmethod

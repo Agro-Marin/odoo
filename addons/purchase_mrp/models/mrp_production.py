@@ -1,6 +1,6 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-from odoo import api, Command, fields, models, _
+from odoo import Command, _, api, fields, models
 
 
 class MrpProduction(models.Model):
@@ -37,7 +37,7 @@ class MrpProduction(models.Model):
         return action
 
     def _get_document_iterate_key(self, move_raw_id):
-        iterate_key = super(MrpProduction, self)._get_document_iterate_key(move_raw_id)
+        iterate_key = super()._get_document_iterate_key(move_raw_id)
         if not iterate_key and move_raw_id.created_purchase_line_ids:
             iterate_key = 'created_purchase_line_ids'
         return iterate_key

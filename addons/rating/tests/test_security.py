@@ -1,10 +1,10 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-from odoo.addons.mail.tests.common import mail_new_test_user
 from odoo.exceptions import AccessError
-from odoo.tests import tagged, common, new_test_user
+from odoo.tests import common, tagged
 from odoo.tools import mute_logger
+
+from odoo.addons.mail.tests.common import mail_new_test_user
 
 
 @tagged('security')
@@ -12,7 +12,7 @@ class TestAccessRating(common.TransactionCase):
 
     @classmethod
     def setUpClass(cls):
-        super(TestAccessRating, cls).setUpClass()
+        super().setUpClass()
 
         cls.user_manager_partner = mail_new_test_user(
             cls.env, name='Jean Admin', login='user_mana', email='admin@example.com',
@@ -71,6 +71,6 @@ class TestAccessRating(common.TransactionCase):
                 'feedback': 'You should not pass!'
             })
         with self.assertRaises(AccessError):
-            ratting.with_user(self.user_public).write({ 
+            ratting.with_user(self.user_public).write({
                 'feedback': 'You should not pass!'
             })

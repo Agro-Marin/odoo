@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 
 from . import rating
 from . import rating_data

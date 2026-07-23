@@ -1,13 +1,13 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 from datetime import timedelta
 from unittest import skip
 
-from odoo.tests import Form, TransactionCase, tagged
-from odoo.addons.account.tests.common import AccountTestInvoicingCommon
 from odoo import fields
 from odoo.fields import Command
+from odoo.tests import Form, tagged
+
+from odoo.addons.account.tests.common import AccountTestInvoicingCommon
 
 
 @tagged('post_install', '-at_install')
@@ -157,7 +157,7 @@ class TestPurchaseMrpFlow(AccountTestInvoicingCommon):
                 product_id: qty
             }
         """
-        moves_to_process = moves.filtered(lambda m: m.product_id in quantities_to_process.keys())
+        moves_to_process = moves.filtered(lambda m: m.product_id in quantities_to_process)
         for move in moves_to_process:
             move.quantity = quantities_to_process[move.product_id]
             move.picked = True
@@ -169,7 +169,7 @@ class TestPurchaseMrpFlow(AccountTestInvoicingCommon):
                 ...
             }
         """
-        moves_to_process = moves.filtered(lambda m: m.product_id in quantities_to_process.keys())
+        moves_to_process = moves.filtered(lambda m: m.product_id in quantities_to_process)
         for move in moves_to_process:
             self.assertEqual(move.product_uom_qty, quantities_to_process[move.product_id])
 
