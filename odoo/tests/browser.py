@@ -453,7 +453,10 @@ class ChromeBrowser:
         tries = 0
         failure_info = None
         message = None
-        while timeout > 0:
+        # deadline on the clock, not on summed sleep()s: each requests.get may
+        # itself take up to 3s, which the old accounting ignored
+        deadline = time.monotonic() + timeout
+        while time.monotonic() < deadline:
             if self.chrome.poll() is not None:
                 message = "Chrome crashed at startup"
                 break
@@ -461,6 +464,7 @@ class ChromeBrowser:
                 r = requests.get(url, timeout=3)
                 if r.ok:
                     return r.json()
+                message = f"Chrome debugger answered with HTTP {r.status_code}"
             except requests.ConnectionError as e:
                 failure_info = str(e)
                 message = "Connection Error while trying to connect to Chrome debugger"
@@ -472,7 +476,6 @@ class ChromeBrowser:
                 break
 
             time.sleep(delay)
-            timeout -= delay
             delay = delay * 1.5
             tries += 1
         self._logger.error("%s after %s tries", message, tries)
