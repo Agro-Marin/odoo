@@ -11,7 +11,6 @@ for the conversion lambdas. Pure source scan -- no import, no database.
 """
 
 import pathlib
-import re
 
 _FIELDS_DIR = pathlib.Path(__file__).resolve().parent.parent / "fields"
 
@@ -23,7 +22,7 @@ _ALLOWED = {_CANONICAL.format(rec="record"), _CANONICAL.format(rec="records")}
 # ACL semantics change (and change ALL sites together).
 _EXPECTED_SITES = {
     ("base.py", 3),
-    ("textual.py", 1),
+    ("textual.py", 2),  # BaseString.__get__ + Html.__get__ (en_US fallback path)
     ("relational/many2one.py", 1),
     ("relational/_base.py", 1),
 }

@@ -49,7 +49,10 @@ class _FieldStubs:
         inherited_field: typing.Any
         _column_type: tuple[str, str] | None
 
-        # Shared Field method the convert/sql mixins call through ``self``. Real
-        # implementation owns the cache-shape predicate (see "The cache shape,
-        # owned in one place" in base.py); declared here so siblings reuse it.
+        # Shared Field methods the convert/sql mixins call through ``self``. Real
+        # implementations own the cache-shape predicate and the company-dependent
+        # fallback authority (see base.py); declared here so siblings reuse them.
         def _is_context_dependent(self, env: Environment) -> bool: ...
+        def _company_dependent_fallback_raw(
+            self, records: typing.Any
+        ) -> typing.Any: ...

@@ -30,6 +30,15 @@ from odoo.tools.translate import html_translate
 from ..primitives import COLLECTION_TYPES, SQL_OPERATORS
 from .base import Field, _logger
 
+# The en_US sub-cache key for translate=True fields.  Hard-coding the 1-tuple
+# assumes the field's cache key is exactly ``(lang,)`` — guaranteed because a
+# translate=True field's depends_context is forced to ``('lang',)``:
+# company_dependent+translate is rejected at setup, stored translated fields
+# with extra context deps are refused (see get_depends), and both users of this
+# constant are guarded by ``not self.compute``.  Keep every en_US-fallback
+# cache access on this single name so the assumption lives in one place.
+_EN_US_KEY = ("en_US",)
+
 if typing.TYPE_CHECKING:
     from collections.abc import Callable, Iterable, MutableMapping
 
@@ -90,24 +99,42 @@ class BaseString(Field[str | typing.Literal[False]]):
             return False if value is None else value
         # Non-stored fields and origin-less new records have no DB row: fall
         # back to en_US instead of hitting it.
-        if self.translate is True and not (
+        if self._needs_translate_fallback(record_id):
+            fb_val = self._scalar_translate_fallback(env, record_id)
+            if fb_val is not SENTINEL:
+                return False if fb_val is None else fb_val
+        return super().__get__(record, owner)
+
+    def _needs_translate_fallback(self, record_id: typing.Any) -> bool:
+        """Whether reads of ``record_id`` must use the en_US fallback: only
+        ``translate=True`` fields on records with no DB row to fetch from
+        (non-stored, or origin-less new records)."""
+        return self.translate is True and not (
             self.compute
             or (self.store and (record_id or getattr(record_id, "origin", None)))
-        ):
-            # A freshly derived env (with_context/sudo) may not have warmed the
-            # per-env memo read by the scalar fast path above. Check the
-            # per-language cache first, so a value already stored for the current
-            # language isn't shadowed by the en_US fallback.
-            cur_val = self._get_cache(env).get(record_id, SENTINEL)
-            if cur_val is not SENTINEL:
-                return False if cur_val is None else cur_val
-            field_data = env._core.get_field_data(self)
-            fb_cache = field_data.get(("en_US",))
-            if fb_cache is not None:
-                fb_val = fb_cache.get(record_id, SENTINEL)
-                if fb_val is not SENTINEL:
-                    return False if fb_val is None else fb_val
-        return super().__get__(record, owner)
+        )
+
+    def _scalar_translate_fallback(
+        self, env: Environment, record_id: typing.Any
+    ) -> typing.Any:
+        """Cache read with en_US fallback for a no-DB-row translated record.
+
+        A freshly derived env (with_context/sudo) may not have warmed the
+        per-env memo read by the scalar fast path, so check the current
+        language's sub-cache first (a value already stored for it must not be
+        shadowed by the fallback), then the en_US sub-cache.  Returns the raw
+        cache value, or ``SENTINEL`` on a full miss.
+
+        Shared by :meth:`BaseString.__get__` and :meth:`Html.__get__` — the
+        two descriptors that serve translated values without a DB fetch.
+        """
+        cur_val = self._get_cache(env).get(record_id, SENTINEL)
+        if cur_val is not SENTINEL:
+            return cur_val
+        fb_cache = env._core.get_field_data(self).get(_EN_US_KEY)
+        if fb_cache is not None:
+            return fb_cache.get(record_id, SENTINEL)
+        return SENTINEL
 
     _related_translate = property(attrgetter("translate"))
 
@@ -484,7 +511,9 @@ class BaseString(Field[str | typing.Literal[False]]):
             if not self.compute and not any(
                 id_ or getattr(id_, "origin", None) for id_ in records._ids
             ):
-                en_cache = records.env._core.get_field_data(self).setdefault(("en_US",), {})
+                en_cache = records.env._core.get_field_data(self).setdefault(
+                    _EN_US_KEY, {}
+                )
                 for id_ in records._ids:
                     en_cache.setdefault(id_, cache_value)
             return
@@ -511,8 +540,9 @@ class BaseString(Field[str | typing.Literal[False]]):
                 self._invalidate_cache(records.env, records._ids)
             super().mark_dirty(records, value)
             return
-        cache_value = self.convert_to_cache(value, records)
-        records = self._filter_not_equal(records, cache_value)
+        # prologue cancels the pending recomputation: without it, a scheduled
+        # compute would silently overwrite this explicit write at flush time
+        records, cache_value = self._mark_dirty_prologue(records, value)
         if not records:
             return
         dirty_ids = records.env._core.get_dirty(self) or ()
@@ -919,10 +949,27 @@ class Html(BaseString):
     _column_type = ("text", "text")
 
     if not typing.TYPE_CHECKING:
-        # Bypass BaseString.__get__: convert_to_record wraps values in Markup(),
-        # whereas the BaseString shortcut would return raw strings. The type
-        # checker inherits BaseString.__get__ (same value type).
-        __get__ = Field.__get__
+
+        def __get__(self, record, owner=None):
+            # Bypass BaseString.__get__'s scalar shortcut: convert_to_record
+            # wraps values in Markup(), the shortcut would return raw strings.
+            # But keep BaseString's en_US fallback for translate=True records
+            # with no DB row (non-stored / origin-less new) — e.g.
+            # Html(translate=True, sanitize="email_outgoing") on
+            # mail.template.body_html; without it, a non-en read of a new
+            # record returns False and poisons the language sub-cache.
+            if record is None or len(record._ids) != 1:
+                return Field.__get__(self, record, owner)
+            record_id = record._ids[0]
+            if not self._needs_translate_fallback(record_id):
+                return Field.__get__(self, record, owner)
+            env = record.env
+            if not (not self.groups or env.su or record._has_field_access(self, "read")):
+                record._check_field_access(self, "read")
+            fb_val = self._scalar_translate_fallback(env, record_id)
+            if fb_val is not SENTINEL:
+                return self.convert_to_record(fb_val, record)
+            return Field.__get__(self, record, owner)
 
     sanitize: bool = True  # whether value must be sanitized
     sanitize_overridable: bool = False  # whether the sanitation can be bypassed by the users part of the `base.group_sanitize_override` group
