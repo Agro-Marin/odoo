@@ -2,8 +2,9 @@ from unittest import skip
 
 from odoo.exceptions import UserError
 from odoo.fields import Command, Date, Datetime
-from odoo.tools import float_is_zero, mute_logger
 from odoo.tests import Form, tagged
+from odoo.tools import float_is_zero, mute_logger
+
 from odoo.addons.stock_account.tests.common import TestStockValuationCommon
 
 
@@ -335,7 +336,7 @@ class TestAngloSaxonValuationPurchaseMRP(TestStockValuationCommon):
                     'product_qty': 2,
                     'price_unit': price_unit
                 })],
-            } for prod_id, price_unit in zip(product_ids, price_units)])
+            } for prod_id, price_unit in zip(product_ids, price_units, strict=False)])
             purchase_orders.action_confirm()
             purchase_orders.picking_ids.move_ids.quantity = 2
             purchase_orders.picking_ids.button_validate()
@@ -531,7 +532,7 @@ class TestAngloSaxonValuationPurchaseMRP(TestStockValuationCommon):
             0.0, 3.3333333333333, 3.3333333333333, 3.3333333333333, 10.0, 10.0, 10.0, 15.0, 15.0, 15.0, 15.0,  # receipt 2
             3.3333333333333,  # receipt 2 backorder
         ]
-        for actual, expected in zip(cost_share_values, expected_cost_share):
+        for actual, expected in zip(cost_share_values, expected_cost_share, strict=False):
             self.assertAlmostEqual(actual, expected)
 
         expected_values = [

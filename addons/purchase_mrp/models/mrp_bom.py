@@ -1,6 +1,6 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-from odoo import api, fields, models, _
+from odoo import _, api, fields, models
 from odoo.exceptions import UserError
 from odoo.tools import float_is_zero, float_round
 
@@ -17,7 +17,7 @@ class MrpBom(models.Model):
             if any(bl.cost_share < 0 for bl in bom.bom_line_ids):
                 raise UserError(_("Components cost share have to be positive or equals to zero."))
             for product in bom.product_tmpl_id.product_variant_ids:
-                total_variant_cost_share = sum(bom.bom_line_ids.filtered(lambda bl: not bl._skip_bom_line(product) and not bl.product_uom_id.is_zero(bl.product_qty)).mapped('cost_share'))
+                total_variant_cost_share = sum(bom.bom_line_ids.filtered(lambda bl: not bl._skip_bom_line(product) and not bl.product_uom_id.is_zero(bl.product_qty)).mapped('cost_share'))  # noqa: B023 (lambda consumed eagerly by filtered() in-loop)
                 if float_round(total_variant_cost_share, precision_digits=2) not in [0, 100]:
                     raise UserError(_("The total cost share for a BoM's component have to be 100"))
         return res
@@ -72,5 +72,4 @@ class MrpBomLine(models.Model):
             return 100.0
         self.ensure_one()
         parent_cost_share = next((vals.get('bom_cost_share', 100.0) for bom, vals in reversed(boms_done) if bom == self.bom_id), 100)
-        line_cost_share = parent_cost_share * self.with_context(bom_variant_id=product)._get_cost_share()
-        return line_cost_share
+        return parent_cost_share * self.with_context(bom_variant_id=product)._get_cost_share()
