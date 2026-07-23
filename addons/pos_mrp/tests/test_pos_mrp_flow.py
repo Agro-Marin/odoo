@@ -1,9 +1,9 @@
 from unittest import skip
 
 import odoo
+from odoo import Command, fields
 
 from odoo.addons.pos_mrp.tests.common import CommonPosMrpTest
-from odoo import Command, fields
 
 
 @odoo.tests.tagged('post_install', '-at_install')
