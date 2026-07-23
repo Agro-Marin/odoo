@@ -85,8 +85,21 @@ def constrains(*args, sudo: bool = True) -> Decorator:
     One may also pass a single function as argument.  In that case, the field
     names are given by calling the function with a model instance.
     """
+    # Fail fast at decoration time: a wrong spec stored silently here either
+    # drops arguments (callable + extras) or crashes much later, at trigger
+    # registration/consumption, with an opaque unhashable-type error (list arg).
     if args and callable(args[0]):
+        if len(args) > 1:
+            raise TypeError(
+                "constrains() takes either a single callable or field-name "
+                f"strings, not both (extra arguments {args[1:]!r} would be "
+                "silently ignored)"
+            )
         args = args[0]
+    elif not all(isinstance(arg, str) for arg in args):
+        raise TypeError(
+            f"constrains() arguments must be field-name strings, got {args!r}"
+        )
 
     def decorator(method: C) -> C:
         method._constrains = args
@@ -247,7 +260,16 @@ def depends(*args) -> Decorator:
     return value is re-validated on every invocation (the deps are recomputed
     each call; there is no memoization).
     """
+    # Fail fast at decoration time (mirrors constrains()): callable + extra
+    # arguments would silently drop the extras, and a non-string argument
+    # (e.g. a list) only crashed later with an unrelated error.
     if args and callable(args[0]):
+        if len(args) > 1:
+            raise TypeError(
+                "depends() takes either a single callable or field-name "
+                f"strings, not both (extra arguments {args[1:]!r} would be "
+                "silently ignored)"
+            )
         original = args[0]
 
         @wraps(original)
@@ -258,6 +280,11 @@ def depends(*args) -> Decorator:
 
         args = _depends_callable
     else:
+        if not all(isinstance(arg, str) for arg in args):
+            raise TypeError(
+                "depends() arguments must be dot-separated field-name "
+                f"strings, got {args!r}"
+            )
         _check_depends_id(args)
     return attrsetter("_depends", args)
 

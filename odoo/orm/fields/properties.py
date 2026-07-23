@@ -751,6 +751,8 @@ class Properties(Field):
 
             if not value and definition["type"] in RELATIONAL_PROPERTY_TYPES:
                 return record.env.get(definition.get("comodel"))
+            # falsy non-relational values (incl. numeric 0 / 0.0 preserved by
+            # Property.__getitem__) propagate as-is — do not collapse to False
             return value
 
         return get_property
@@ -766,7 +768,16 @@ class Properties(Field):
         elif (
             operator == "in"
             and isinstance(value, COLLECTION_TYPES)
-            and hasattr(getter(records.browse()), "_ids")
+            # Probe relational-ness on a record that can actually carry a
+            # definition: on an empty recordset ``_get_properties_definition``
+            # returns None, so the getter yields False (never a recordset) and
+            # the branch would be dead — m2o/m2m 'in' conditions then fell
+            # through to the scalar comparison and filtered_domain diverged
+            # from search().  For a non-empty record the getter returns a
+            # recordset for relational properties even when the value is unset.
+            # ``records[:1]`` is empty for empty ``records``; the fallthrough
+            # then filters nothing anyway.
+            and hasattr(getter(records[:1]), "_ids")
         ):
             domain = Domain("id", "in", value).optimize(records)
         if domain is not None:
@@ -811,9 +822,13 @@ class Properties(Field):
                 check_null_op_false = "!=" if operator == "in" else "="
                 value = []
                 operator = "in" if operator == "not in" else "not in"
-            elif False in value:
+            elif any(v is False for v in value):
+                # identity check: ``False in value`` also matches a numeric 0
+                # (0 == False), which silently turned ``in [0]`` into an
+                # unset-value check and made search() diverge from record
+                # reads / filtered_domain (which preserve numeric 0)
                 check_null_op_false = "=" if operator == "in" else "!="
-                value = [v for v in value if v]
+                value = [v for v in value if v is not False]
             else:
                 value = list(value)
                 check_null_op_false = None
@@ -1010,7 +1025,14 @@ class Property(abc.Mapping):
                 tag[1] for tag in prop.get("tags") if tag[0] in prop["value"]
             )
 
-        return prop.get("value") or False
+        # Mirror the write-side collapse in ``_list_to_dict``: falsy scalars
+        # normalise to False, EXCEPT numeric 0 / 0.0 which are real stored
+        # values.  Collapsing them to False made record-level reads (and thus
+        # ``filtered_domain``) diverge from SQL comparisons such as ``>= 0``.
+        value = prop.get("value")
+        if prop.get("type") not in ("integer", "float") or value != 0:
+            value = value or False
+        return value
 
     def __hash__(self) -> int:
         # Normalise list values (many2many/tags property values are lists of

@@ -3,7 +3,7 @@ from collections import defaultdict
 from operator import attrgetter
 from typing import override
 
-from odoo.tools import OrderedSet, unique
+from odoo.tools import SQL, OrderedSet, unique
 from odoo.tools.sql import pg_varchar
 
 from .._recordset import is_recordset
@@ -13,6 +13,18 @@ from .selection import Selection
 
 if typing.TYPE_CHECKING:
     from ..models import BaseModel
+
+# ``env.cr.cache`` key of the transaction-scoped memo of reference targets
+# verified by a given Reference field, as ``{(model, name): {(res_model,
+# res_id), ...}}`` — one set of verified pairs per field.  Keying per field
+# (not one global set) matters: a memoized pair also implies the target model
+# passed *that field's* selection check, so the memo can be consulted before
+# ``get_values`` without letting one field's selection leak into another's.
+# ``cr.cache`` is transaction-local and cleared on commit/rollback/savepoint
+# rollback, so a rolled-back target cannot leak a stale "exists" verdict into
+# later transactions.  Only positive results are memoized: a missing target
+# may be created later in the same transaction, so negatives are re-checked.
+REFERENCE_VERIFIED_CACHE_KEY = "reference.verified_pairs"
 
 
 class Reference(Selection):
@@ -60,20 +72,113 @@ class Reference(Selection):
                     res_id_int = int(res_id)
                 except ValueError:
                     res_id_int = None
-                if res_id_int is not None and (
-                    not validate or res_model in self.get_values(record.env)
-                ):
+                if res_id_int is not None:
                     if not validate:
-                        # validate=False (bulk/import) trusts input, skipping the
-                        # per-record existence query.
+                        # validate=False (bulk/import) trusts input, skipping
+                        # selection lookup and existence query alike.
                         return value
-                    if record.env[res_model].browse(res_id_int).exists():
+                    # Memo first: a pair this field verified earlier in the
+                    # transaction already passed both the selection check and
+                    # the existence check — skip re-running ``get_values``
+                    # (which may execute its selection callable, e.g. an
+                    # ir.model search, per call) and the existence query.
+                    memo = self._verified_pairs(record.env)
+                    if (res_model, res_id_int) in memo:
                         return value
-                    else:
+                    if res_model in self.get_values(record.env):
+                        if self._reference_exists(
+                            record, res_model, res_id_int, memo
+                        ):
+                            return value
                         return None
         elif not value:
             return None
         raise ValueError(f"Wrong value for {self}: {value!r}")
+
+    def _verified_pairs(self, env) -> set[tuple[str, int]]:
+        """Return this field's transaction-scoped set of verified
+        ``(res_model, res_id)`` pairs (see :data:`REFERENCE_VERIFIED_CACHE_KEY`)."""
+        per_field = env.cr.cache.setdefault(REFERENCE_VERIFIED_CACHE_KEY, {})
+        return per_field.setdefault((self.model_name, self.name), set())
+
+    def _reference_exists(
+        self,
+        record: BaseModel,
+        res_model: str,
+        res_id: int,
+        memo: set[tuple[str, int]],
+    ) -> bool:
+        """Return whether the ``res_model,res_id`` target exists, with batching.
+
+        The naive per-value ``browse(res_id).exists()`` issues one SELECT per
+        converted value, which is O(n) on batch create (``_populate_create_cache``
+        converts one ``(record, value)`` pair at a time and offers no batch
+        hook).  Two layers keep this O(1) per batch instead:
+
+        1. ``memo``, the field's transaction-scoped set of verified pairs
+           (:meth:`_verified_pairs`, consulted by ``convert_to_cache`` before
+           even the selection lookup), so repeated values — within a batch or
+           across calls in the same transaction — are checked once;
+        2. on a memo miss during batch-create cache population (singleton
+           ``record`` whose prefetch set spans the just-INSERTed batch), the
+           sibling rows' column values are fetched in one SELECT and validated
+           together, one ``exists()`` query per referenced model, seeding the
+           memo for the rest of the batch.
+
+        Net cost for a create batch of N distinct references: one column fetch
+        plus one existence query per distinct target model (plus a single
+        selection lookup), instead of N of each.  Single-record paths keep
+        their single query.
+        """
+        env = record.env
+        if (res_model, res_id) in memo:
+            return True
+
+        # candidate targets to validate: always the requested pair...
+        ids_per_model: dict[str, set[int]] = {res_model: {res_id}}
+
+        # ...plus, on the batch-create path, the sibling rows' values.  The
+        # batch rows are already INSERTed when the cache is populated, so one
+        # SELECT over the prefetch ids recovers the whole batch's references.
+        # Gated to a singleton record with a wider prefetch set (the
+        # batch-create shape) so plain multi-record writes — where the column
+        # still holds pre-write values — do not pay the extra query.
+        prefetch_ids = [id_ for id_ in record._prefetch_ids if isinstance(id_, int)]
+        if (
+            len(record._ids) == 1
+            and len(prefetch_ids) > 1
+            and self.store
+            and self.column_type
+            and env.backend is None  # in-memory test backend: no raw SQL
+        ):
+            env.cr.execute(
+                SQL(
+                    "SELECT DISTINCT %(column)s FROM %(table)s"
+                    " WHERE id = ANY(%(ids)s) AND %(column)s IS NOT NULL",
+                    column=SQL.identifier(self.name),
+                    table=SQL.identifier(env[self.model_name]._table),
+                    ids=prefetch_ids,
+                )
+            )
+            valid_models = None
+            for (sibling,) in env.cr.fetchall():
+                model, sep, id_str = sibling.partition(",")
+                try:
+                    sibling_id = int(id_str)
+                except ValueError:
+                    continue
+                if not sep or not model or (model, sibling_id) in memo:
+                    continue
+                if valid_models is None:
+                    valid_models = set(self.get_values(env))
+                if model in valid_models and model in env.registry:
+                    ids_per_model.setdefault(model, set()).add(sibling_id)
+
+        for model, ids in ids_per_model.items():
+            existing = env[model].browse(ids).exists()  # one query per model
+            memo.update((model, id_) for id_ in existing._ids)
+
+        return (res_model, res_id) in memo
 
     @override
     def convert_to_record(
