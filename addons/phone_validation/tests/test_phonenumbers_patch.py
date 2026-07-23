@@ -1,13 +1,15 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-from typing import NamedTuple, Iterable
+from collections.abc import Iterable
+from typing import NamedTuple
+
 try:
     import phonenumbers
 except ImportError:
     phonenumbers = None
 
 from odoo.tests.common import BaseCase
+
 
 class TestPhonenumbersPatch(BaseCase):
 

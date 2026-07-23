@@ -1,7 +1,7 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 from odoo import api, exceptions, models
+
 from odoo.addons.phone_validation.tools import phone_validation
 
 
@@ -77,7 +77,9 @@ class Base(models.AbstractModel):
             # always have a number as input
             self.ensure_one()
             fnames = self._phone_get_number_fields() if not fname else [fname]
-            number = next((self[fname] for fname in fnames if fname in self and self[fname]), False)
+            # Keep `fname in self and self[fname]`: `self` is a recordset (field-membership `in`
+            # + `self[fname]` access), NOT a dict — RUF019's self.get(fname) rewrite would crash.
+            number = next((self[fname] for fname in fnames if fname in self and self[fname]), False)  # noqa: RUF019
         if not number:
             return False
 

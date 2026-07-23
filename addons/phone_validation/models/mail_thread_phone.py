@@ -1,9 +1,8 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 import re
 
-from odoo import api, fields, models, _
+from odoo import _, api, fields, models
 from odoo.exceptions import AccessError, UserError
 from odoo.fields import Domain
 from odoo.tools import create_index, make_identifier
@@ -16,7 +15,7 @@ class MailThreadPhone(models.AbstractModel):
 
       * compute a sanitized phone number based on _phone_get_number_fields.
         It takes first sanitized value, trying each field returned by the
-        method (see ``BaseModel._phone_get_number_fields()´´ for more details
+        method (see ``BaseModel._phone_get_number_fields()`` for more details
         about the usage of this method);
       * compute blacklist state of records. It is based on phone.blacklist
         model and give an easy-to-use field and API to manipulate blacklisted
@@ -98,7 +97,7 @@ class MailThreadPhone(models.AbstractModel):
 
         sql_operator = {'=like': 'LIKE', '=ilike': 'ILIKE'}.get(operator, operator)
 
-        if value.startswith('+') or value.startswith('00'):
+        if value.startswith(('+', '00')):
             if operator in Domain.NEGATIVE_OPERATORS:
                 # searching on +32485112233 should also finds 0032485112233 (and vice versa)
                 # we therefore remove it from input value and search for both of them in db
