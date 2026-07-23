@@ -1,7 +1,7 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 from odoo import fields, models
-from odoo.tools import float_round, groupby
+from odoo.tools import float_round
 
 
 class ProductTemplate(models.Model):
@@ -16,10 +16,10 @@ class ProductTemplate(models.Model):
         else:
             ProductCategory = self.env['product.category']
             production_account = (
-                self.valuation == 'real_time'
+                (self.valuation == 'real_time'
                 and ProductCategory._fields['property_stock_account_production_cost_id'].get_company_dependent_fallback(
                     ProductCategory
-                )
+                ))
                 or self.env['account.account']
             )
         accounts['production'] = production_account
@@ -28,12 +28,12 @@ class ProductTemplate(models.Model):
     def action_bom_cost(self):
         templates = self.filtered(lambda t: t.product_variant_count == 1 and t.bom_count > 0)
         if templates:
-            return templates.mapped('product_variant_id').action_bom_cost()
+            templates.mapped('product_variant_id').action_bom_cost()
 
     def button_bom_cost(self):
         templates = self.filtered(lambda t: t.product_variant_count == 1 and t.bom_count > 0)
         if templates:
-            return templates.mapped('product_variant_id').button_bom_cost()
+            templates.mapped('product_variant_id').button_bom_cost()
 
 
 class ProductProduct(models.Model):

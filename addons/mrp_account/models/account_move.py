@@ -1,8 +1,8 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-from odoo import api, fields, models, _
-
 from collections import defaultdict
+
+from odoo import _, api, fields, models
 
 
 class AccountMove(models.Model):
@@ -16,7 +16,7 @@ class AccountMove(models.Model):
 
     def copy(self, default=None):
         records = super().copy(default)
-        for record, source in zip(records.sudo(), self.sudo()):
+        for record, source in zip(records.sudo(), self.sudo(), strict=True):
             record.wip_production_ids = source.wip_production_ids
         return records
 
@@ -59,7 +59,7 @@ class AccountMoveLine(models.Model):
             if bom_kit:
                 invoiced_qty = product.uom_id._compute_quantity(qty, bom_kit.product_uom_id, round=False)
                 factor = invoiced_qty / bom_kit.product_qty
-                dummy, bom_sub_lines = bom_kit.explode(product, factor)
+                _dummy, bom_sub_lines = bom_kit.explode(product, factor)
                 for bom_line, bom_line_data in bom_sub_lines:
                     qties[bom_line.product_id] += bom_line.product_uom_id._compute_quantity(bom_line_data['qty'], bom_line.product_id.uom_id)
             else:

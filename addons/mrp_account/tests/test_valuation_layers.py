@@ -1,8 +1,9 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 """ Implementation of "INVENTORY VALUATION TESTS (With valuation layers)" spreadsheet. """
 
-from odoo.addons.mrp_account.tests.common import TestBomPriceCommon
 from odoo.tests import Form
+
+from odoo.addons.mrp_account.tests.common import TestBomPriceCommon
 
 PRICE = 718.75 - 100  # total price minus glass
 

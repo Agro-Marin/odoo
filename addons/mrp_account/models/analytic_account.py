@@ -1,7 +1,6 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-from odoo import api, fields, models, _
+from odoo import _, api, fields, models
 
 
 class AccountAnalyticAccount(models.Model):
@@ -62,7 +61,7 @@ class AccountAnalyticAccount(models.Model):
 
     def action_view_workorder(self):
         self.ensure_one()
-        result = {
+        return {
             "type": "ir.actions.act_window",
             "res_model": "mrp.workorder",
             "domain": [['id', 'in', (self.workcenter_ids.order_ids | self.production_ids.workorder_ids).ids]],
@@ -70,7 +69,6 @@ class AccountAnalyticAccount(models.Model):
             "name": _("Work Orders"),
             'view_mode': 'list',
         }
-        return result
 
 
 class AccountAnalyticLine(models.Model):
