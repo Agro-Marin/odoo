@@ -146,6 +146,18 @@ class _FieldAccessTestMixin:
         misses = self.batch_cache_fill({}, (), [], "name", PENDING, False)
         self.assertEqual(misses, [])
 
+    # --- length-mismatch robustness (both impls must reject, not read OOB) ---
+
+    def test_fill_length_mismatch_raises(self) -> None:
+        # results shorter than ids: the Rust path read out of bounds (segfault);
+        # both implementations must raise ValueError instead.
+        with self.assertRaises(ValueError):
+            self.batch_cache_fill({}, (1, 2, 3), [{"id": 1}], "name", PENDING, False)
+
+    def test_group_ids_length_mismatch_raises(self) -> None:
+        with self.assertRaises(ValueError):
+            self.batch_group_ids((1, 2, 3, 4, 5), ["a"])
+
     # --- batch_cache_get ---
 
     def test_batch_get_all_hit(self) -> None:

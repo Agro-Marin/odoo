@@ -142,15 +142,36 @@ class lazy:
     def _value(self) -> Any:
         if self._func is not None:
             value = self._func(*self._args, **self._kwargs)
-            object.__setattr__(self, "_func", None)
+            # Publish the result before clearing ``_func``: ``_func is None`` is
+            # the "already evaluated" flag, so ``_cached_value`` must be set
+            # first or a concurrent reader (or a reader that raced in during
+            # evaluation) sees the flag flipped while the slot is still unset.
+            object.__setattr__(self, "_cached_value", value)
             object.__setattr__(self, "_args", None)
             object.__setattr__(self, "_kwargs", None)
-            object.__setattr__(self, "_cached_value", value)
+            object.__setattr__(self, "_func", None)
         return self._cached_value
 
     def __getattr__(self, name: str) -> Any:
         """Delegate attribute access to the evaluated value."""
+        # Own slots are looked up via __getattribute__; reaching __getattr__ for
+        # one means it is genuinely unset (e.g. ``_cached_value`` before the
+        # first evaluation, or during unpickling before __init__ runs).  Raise
+        # immediately instead of delegating to ``self._value``, which would read
+        # the same unset slot and recurse forever (copy/pickle hit this).
+        if name in lazy.__slots__:
+            raise AttributeError(name)
         return getattr(self._value, name)
+
+    def __reduce__(self) -> tuple[Any, tuple[Any]]:
+        """Pickle/copy the evaluated value rather than the callable + args.
+
+        The callable and its arguments are frequently unpicklable, and routing
+        pickle's protocol lookups through ``__getattr__`` would force-evaluate
+        (or recurse).  Reconstruct a pre-evaluated ``lazy`` so the proxy type
+        survives a round-trip.
+        """
+        return (_reconstruct_lazy, (self._value,))
 
     def __setattr__(self, name: str, value: Any) -> None:
         """Delegate attribute assignment to the evaluated value."""
@@ -236,6 +257,10 @@ class lazy:
         """Return an iterator over the evaluated value."""
         return iter(self._value)
 
+    def __next__(self) -> Any:
+        """Return the next item when the evaluated value is an iterator."""
+        return next(self._value)
+
     def __reversed__(self) -> Any:
         """Return a reverse iterator over the evaluated value."""
         return reversed(self._value)
@@ -276,9 +301,11 @@ class lazy:
         """Return ``divmod(self._value, other)``."""
         return self._value.__divmod__(other)
 
-    def __pow__(self, other: Any) -> Any:
-        """Return ``self._value ** other``."""
-        return self._value.__pow__(other)
+    def __pow__(self, other: Any, modulo: Any = None) -> Any:
+        """Return ``self._value ** other`` (or the 3-arg ``pow`` with ``modulo``)."""
+        if modulo is None:
+            return self._value**other
+        return pow(self._value, other, modulo)
 
     def __lshift__(self, other: Any) -> Any:
         """Return ``self._value << other``."""
@@ -440,9 +467,9 @@ class lazy:
         """Return the evaluated value as an index ``int``."""
         return self._value.__index__()
 
-    def __round__(self) -> Any:
-        """Return the rounded evaluated value."""
-        return self._value.__round__()
+    def __round__(self, ndigits: Any = None) -> Any:
+        """Return the evaluated value rounded to ``ndigits`` (``round(x, n)``)."""
+        return round(self._value, ndigits)
 
     def __trunc__(self) -> Any:
         """Return the truncated evaluated value."""
@@ -493,3 +520,13 @@ class lazy:
     ) -> Any:
         """Exit the evaluated value's async context manager."""
         return self._value.__aexit__(exc_type, exc_value, traceback)
+
+
+def _reconstruct_lazy(value: Any) -> lazy:
+    """Rebuild an already-evaluated :class:`lazy` (used by ``lazy.__reduce__``)."""
+    obj = lazy.__new__(lazy)
+    object.__setattr__(obj, "_func", None)
+    object.__setattr__(obj, "_args", None)
+    object.__setattr__(obj, "_kwargs", None)
+    object.__setattr__(obj, "_cached_value", value)
+    return obj

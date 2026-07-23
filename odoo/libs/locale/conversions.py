@@ -66,6 +66,7 @@ POSIX_TO_LDML = {
     #'c': '',
     "d": "dd",
     "-d": "d",
+    "e": "d",  # day of month, space-padded in POSIX; LDML has no space-pad, use 'd'
     "H": "HH",
     "I": "hh",
     "j": "DDD",
@@ -128,7 +129,15 @@ def posix_to_ldml(fmt: str, locale: babel.Locale) -> str:
                 if minus:
                     c = "-" + c
                     minus = False
-                buf.append(POSIX_TO_LDML[c])
+                try:
+                    buf.append(POSIX_TO_LDML[c])
+                except KeyError:
+                    # ``fmt`` comes from user-editable res.lang date/time formats;
+                    # surface the offending directive instead of a bare KeyError
+                    # that reads as an internal crash during date rendering.
+                    raise ValueError(
+                        f"Unsupported strftime directive '%{c}' in format {fmt!r}"
+                    ) from None
             pc = False
         elif c == "%":
             pc = True

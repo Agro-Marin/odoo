@@ -103,10 +103,17 @@ def check_barcode_encoding(barcode: str, encoding: str) -> bool:
         "upca": 12,
         "sscc": 18,
     }
-    barcode_size = barcode_sizes[encoding]
-    return (
+    barcode_size = barcode_sizes.get(encoding)
+    if barcode_size is None:
+        # Unknown symbology: it cannot satisfy this encoding's check-digit rule.
+        return False
+    # Length/emptiness first: guards the ``barcode[0]``/``barcode[-1]`` indexing
+    # below against an empty or short value (an empty EAN field reaches here from
+    # ir_actions_report's barcode widget).
+    if len(barcode) != barcode_size:
+        return False
+    return bool(
         (encoding != "ean13" or barcode[0] != "0")
-        and len(barcode) == barcode_size
         and re.match(r"^\d+$", barcode)
         and get_barcode_check_digit(barcode) == int(barcode[-1])
     )

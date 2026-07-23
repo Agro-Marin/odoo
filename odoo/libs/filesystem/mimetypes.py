@@ -77,8 +77,13 @@ def _check_open_container_format(data: bytes) -> str | bool:
             return False
 
         # The content of this file shall be the ASCII encoded MIME media type
-        # associated with the document.
-        marcel = z.read("mimetype").decode("ascii")
+        # associated with the document.  Read a bounded prefix rather than the
+        # whole member: a crafted "mimetype" entry can inflate to hundreds of MB
+        # (a 122 KB zip reached ~130 MB RSS).  Read 256 bytes: a valid type is
+        # shorter, and reading the 256th still trips the ``< 256`` length gate
+        # below, so an over-long member is rejected exactly as before.
+        with z.open("mimetype") as mimetype_file:
+            marcel = mimetype_file.read(256).decode("ascii")
         # check that it's not too long (RFC6838 § 4.2 restricts type and
         # subtype to 127 characters each + separator, strongly recommends
         # limiting them to 64 but does not require it) and that it looks a lot

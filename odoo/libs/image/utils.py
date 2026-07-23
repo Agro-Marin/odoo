@@ -158,13 +158,17 @@ class ImageProcess:
             # the resulting image.
             self.original_format = (self.image.format or "").upper()
 
-            self.image = image_fix_orientation(self.image)
-
+            # Enforce the resolution cap *before* fixing orientation: EXIF
+            # transpose fully decodes and rotates the pixel buffer, so checking
+            # afterwards let an oversized image with an orientation tag be
+            # decompressed and copied before being rejected.
             w, h = self.image.size
             if verify_resolution and w * h > IMAGE_MAX_RESOLUTION:
                 raise ImageTooLargeError(
                     f"Too large image (above {IMAGE_MAX_RESOLUTION / 1e6}Mpx), reduce the image size."
                 )
+
+            self.image = image_fix_orientation(self.image)
 
     def image_quality(self, quality: int = 0, output_format: str = "") -> bytes | bool:
         """Return the image resulting from all processing operations applied so far.
