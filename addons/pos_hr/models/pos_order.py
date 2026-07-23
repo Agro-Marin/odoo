@@ -1,6 +1,6 @@
-# -*- coding: utf-8 -*-
-from odoo import models, fields, api, _
 from markupsafe import Markup
+
+from odoo import _, api, fields, models
 
 
 class PosOrder(models.Model):

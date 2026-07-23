@@ -1,6 +1,5 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
-from odoo import fields, models, api, _
+from odoo import _, api, fields, models
 from odoo.tools import plaintext2html
 
 
@@ -28,16 +27,16 @@ class PosSession(models.Model):
     def post_close_register_message(self):
         if author_id := self._get_message_author():
             self.message_post(body=plaintext2html(_('Closed Register')), author_id=author_id.id)
-        else:
-            return super().post_close_register_message()
+            return None
+        return super().post_close_register_message()
 
     def _get_message_author(self):
         if not self.employee_id:
             return None
-        
+
         if related_partners := self.employee_id._get_related_partners():
             return related_partners[0]
-        
+
         return self.user_id.partner_id
 
     def _aggregate_payments_amounts_by_employee(self, all_payments):
@@ -76,7 +75,7 @@ class PosSession(models.Model):
         default_cash_payment_method_id = cash_payment_method_ids[0] if cash_payment_method_ids else None
         default_cash_payments = payments.filtered(lambda p: p.payment_method_id == default_cash_payment_method_id) if default_cash_payment_method_id else self.env['pos.payment']
         non_cash_payment_method_ids = self.payment_method_ids - default_cash_payment_method_id if default_cash_payment_method_id else self.payment_method_ids
-        non_cash_payments_grouped_by_method_id = {pm.id: orders.payment_ids.filtered(lambda p: p.payment_method_id == pm) for pm in non_cash_payment_method_ids}
+        non_cash_payments_grouped_by_method_id = {pm.id: orders.payment_ids.filtered(lambda p: p.payment_method_id == pm) for pm in non_cash_payment_method_ids}  # noqa: B023 (lambda consumed eagerly by filtered() within the comprehension)
 
         data['default_cash_details']['amount_per_employee'] = self._aggregate_payments_amounts_by_employee(default_cash_payments)
         for payment_method in data['non_cash_payment_methods']:

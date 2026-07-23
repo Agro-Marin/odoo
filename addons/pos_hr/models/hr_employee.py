@@ -1,9 +1,8 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 import hashlib
 
-from odoo import api, models, _
+from odoo import _, api, models
 from odoo.exceptions import UserError
 
 
@@ -73,7 +72,7 @@ class HrEmployee(models.Model):
         if configs_with_all_employees or configs_with_specific_employees:
             error_msg = _("You cannot delete an employee that may be used in an active PoS session, close the session(s) first: \n")
             for employee in self:
-                config_ids = configs_with_all_employees | configs_with_specific_employees.filtered(lambda c: employee in c.basic_employee_ids)
+                config_ids = configs_with_all_employees | configs_with_specific_employees.filtered(lambda c: employee in c.basic_employee_ids)  # noqa: B023 (lambda consumed eagerly by filtered() in-loop)
                 if config_ids:
                     error_msg += _("Employee: %(employee)s - PoS Config(s): %(config_list)s \n", employee=employee.name, config_list=config_ids.mapped("name"))
 
