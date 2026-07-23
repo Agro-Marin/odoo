@@ -60,8 +60,6 @@ if typing.TYPE_CHECKING:
     )
     from ...models import BaseModel
 
-    OnDelete = typing.Literal["cascade", "set null", "restrict"]
-
 
 class _Relational(Field["BaseModel"]):
     """Abstract class for relational fields."""
@@ -591,7 +589,10 @@ class _RelationalMulti(_Relational):
                 value = [Command.set(tuple(value))]
             if not isinstance(value, list):
                 raise ValueError(f"Wrong value for {self}: {value}")
-            normalized.append((recs, value))
+            if value:
+                # an empty command list is a guaranteed no-op: dropping it here
+                # avoids the old-relation read that write_real would perform
+                normalized.append((recs, value))
 
         if not normalized:
             return
