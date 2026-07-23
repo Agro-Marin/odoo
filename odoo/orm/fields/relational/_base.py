@@ -589,17 +589,21 @@ class _RelationalMulti(_Relational):
                 value = [Command.set(tuple(value))]
             if not isinstance(value, list):
                 raise ValueError(f"Wrong value for {self}: {value}")
-            if value:
-                # an empty command list is a guaranteed no-op: dropping it here
-                # avoids the old-relation read that write_real would perform
-                normalized.append((recs, value))
+            normalized.append((recs, value))
 
         if not normalized:
             return
 
         record_ids = {rid for recs, cs in normalized for rid in recs._ids}
         if all(record_ids):
-            self.write_real(normalized, create)
+            # for REAL records an empty command list is a guaranteed no-op
+            # (the DB is the source of truth): drop it to skip the
+            # old-relation read write_real would perform. New records must
+            # keep it — their cache IS the value, and even an empty SET has
+            # to seed the cache entry (a compute assigning [] on a NewId
+            # would otherwise "fail to assign").
+            if normalized := [(recs, cmds) for recs, cmds in normalized if cmds]:
+                self.write_real(normalized, create)
         else:
             assert not any(record_ids), (
                 f"{normalized} contains a mix of real and new records. It is not supported."
