@@ -394,7 +394,14 @@ class HttpCase(TransactionCase):
         #
         # An alternative would be to set the cookie to None (unsetting it
         # completely) or clear-ing session.cookies.
-        self.opener.close()  # the replaced session would only be GC-reclaimed
+        #
+        # Close the opener being replaced so its socket isn't leaked — but only if
+        # one exists: authenticate() also runs from setUpClass (``cls.authenticate
+        # (cls, ...)``), before setUp() has created the first opener. Mirror the
+        # ``getattr(self, "session", None)`` guard used at the top of this method.
+        old_opener = getattr(self, "opener", None)
+        if old_opener is not None:
+            old_opener.close()  # the replaced session would only be GC-reclaimed
         self.opener = Opener(self)
         self.opener.cookies.set("session_id", session.sid, domain=HOST)
         if browser:
