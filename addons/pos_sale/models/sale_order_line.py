@@ -100,10 +100,10 @@ class SaleOrderLine(models.Model):
             )
             # Add POS quantities to invoiced quantity
             sale_line.qty_invoiced += sum(
-                [
+                (
                     self._convert_qty(sale_line, pos_line.qty, "p2s")
                     for pos_line in pos_lines
-                ],
+                ),
                 0,
             )
             # Add POS amounts to invoiced amounts
@@ -151,7 +151,7 @@ class SaleOrderLine(models.Model):
                 item = sale_line.read(field_names, load=False)[0]
                 if sale_line.product_id.tracking != "none":
                     move_lines = sale_line.move_ids.move_line_ids.filtered(
-                        lambda ml: ml.product_id.id == sale_line.product_id.id
+                        lambda ml: ml.product_id.id == sale_line.product_id.id  # noqa: B023 (lambda consumed eagerly by filtered() in-loop)
                     )
                     item["lot_names"] = move_lines.lot_id.mapped("name")
                     item["lot_qty_by_name"] = {
@@ -197,8 +197,9 @@ class SaleOrderLine(models.Model):
         sale_line_uom = sale_line.product_uom_id
         if direction == "s2p":
             return sale_line_uom._compute_quantity(qty, product_uom_id, False)
-        elif direction == "p2s":
+        if direction == "p2s":
             return product_uom_id._compute_quantity(qty, sale_line_uom, False)
+        raise ValueError(f"Unknown conversion direction: {direction!r}")
 
     def unlink(self):
         # do not delete downpayment lines created from pos
