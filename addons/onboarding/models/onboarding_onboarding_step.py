@@ -1,9 +1,9 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-from odoo import _, api, Command, fields, models
-from odoo.addons.onboarding.models.onboarding_progress import ONBOARDING_PROGRESS_STATES
+from odoo import Command, _, api, fields, models
 from odoo.exceptions import ValidationError
+
+from odoo.addons.onboarding.models.onboarding_progress import ONBOARDING_PROGRESS_STATES
 
 
 class OnboardingOnboardingStep(models.Model):
@@ -55,7 +55,7 @@ class OnboardingOnboardingStep(models.Model):
         for step in self:
             if step in existing_progress_steps.step_id:
                 current_progress_step_id = existing_progress_steps.filtered(
-                    lambda progress_step: progress_step.step_id == step)
+                    lambda progress_step, step=step: progress_step.step_id == step)
                 step.current_progress_step_id = current_progress_step_id
                 step.current_step_state = current_progress_step_id.step_state
             else:
@@ -126,7 +126,7 @@ class OnboardingOnboardingStep(models.Model):
                 'progress_ids': [
                     Command.link(onboarding_progress_record.id)
                     for onboarding_progress_record
-                    in onboarding_progress_records.filtered(lambda p: step_id in p.onboarding_id.step_ids)],
+                    in onboarding_progress_records.filtered(lambda p, step_id=step_id: step_id in p.onboarding_id.step_ids)],
                 'company_id': self.env.company.id if step_id.is_per_company else False,
             } for step_id in self
         ]
