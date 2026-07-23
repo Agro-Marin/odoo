@@ -141,6 +141,31 @@ def test_get_refreshes_stale_mtime(store):
     assert fn.stat().st_mtime == before
 
 
+def test_corrupt_session_file_is_discarded_and_renewed(store):
+    """Regression: a corrupt session file kept its sid with empty data forever —
+    an all-defaults session is "not modified", so the file was never rewritten,
+    and every later request re-parsed the same corrupt bytes."""
+    s = _anon(store)
+    fn = pathlib.Path(store.get_session_filename(s.sid))
+    fn.write_bytes(b"{corrupt json!!")
+    renewed = store.get(s.sid)
+    assert renewed.is_new
+    assert renewed.sid != s.sid
+    assert not fn.exists()  # the corrupt file is gone, not lingering
+
+
+def test_non_dict_session_payload_is_treated_as_corrupt(store):
+    """A session file holding JSON ``null``/list crashed ``Session.__init__``
+    (``dict(None)``) into a 500 on every request with that cookie."""
+    for payload in (b"null", b"[1, 2]", b'"str"'):
+        s = _anon(store)
+        fn = pathlib.Path(store.get_session_filename(s.sid))
+        fn.write_bytes(payload)
+        renewed = store.get(s.sid)
+        assert renewed.is_new and renewed.sid != s.sid
+        assert not fn.exists()
+
+
 def test_coerce_session_value_rejects_non_json():
     import datetime
 

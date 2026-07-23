@@ -88,6 +88,38 @@ def test_float_rejects_non_finite():
             coerce_params({"x": bad}, _spec(ep))
 
 
+@pytest.mark.parametrize("bad", ["1_000", "١٢", "٥", "1 "])
+def test_int_rejects_python_only_number_spellings(bad):
+    """Python's ``int()`` accepts digit-group underscores and non-ASCII digits;
+    a JSON/HTTP integer never is either, so a typed route must 400 them instead
+    of silently parsing ``1_000`` as 1000 or an Arabic-Indic digit as its value."""
+
+    def ep(self, n: int): ...
+
+    with pytest.raises(BadRequest):
+        coerce_params({"n": bad}, _spec(ep))
+
+
+@pytest.mark.parametrize("bad", ["1_000.5", "٥.٥", "1_0e3"])
+def test_float_rejects_python_only_number_spellings(bad):
+    def ep(self, x: float): ...
+
+    with pytest.raises(BadRequest):
+        coerce_params({"x": bad}, _spec(ep))
+
+
+def test_number_coercion_still_tolerates_surrounding_whitespace():
+    """Only the two Python-isms (``_`` / non-ASCII) are refused; ordinary
+    whitespace around an ASCII number stays tolerated as before."""
+
+    def ep(self, n: int, x: float): ...
+
+    assert coerce_params({"n": "  42 ", "x": " 3.14 "}, _spec(ep)) == {
+        "n": 42,
+        "x": 3.14,
+    }
+
+
 @pytest.mark.parametrize(
     "value",
     [

@@ -169,6 +169,8 @@ from .controller import Controller
 
 # Routing
 from .routing import (
+    FasterRule,
+    LazyCompiledBuilder,
     route,
     rule_routing_kwargs,
     _generate_routing_rules,
@@ -261,6 +263,8 @@ __all__ = [
     "Controller",
     # Dispatchers
     "Dispatcher",
+    # Routing rules
+    "FasterRule",
     # Session
     "FilesystemSessionStore",
     # Wrappers
@@ -273,6 +277,7 @@ __all__ = [
     "HttpExtension",
     "Json2Dispatcher",
     "JsonRPCDispatcher",
+    "LazyCompiledBuilder",
     # Registry
     "Registry",
     # Exceptions

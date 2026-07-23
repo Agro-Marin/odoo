@@ -149,6 +149,23 @@ def _to_bool(name: str, value: Any) -> bool:
     raise BadRequest(f"parameter {name!r} must be a boolean")
 
 
+def _reject_non_json_number(name: str, value: Any, kind: str) -> None:
+    """Guard ``int``/``float`` string coercion against Python-only number spellings.
+
+    Python's ``int()``/``float()`` accept two things a JSON/HTTP number never is:
+    digit-group underscores (``"1_000"`` -> ``1000``) and non-ASCII digits (an
+    Arabic-Indic digit string -> its ASCII value). A typed route promises a clean
+    ``400`` for a value that isn't the declared type; silently parsing those leaks
+    Python's literal grammar into the request contract, so a client bug (or a
+    probe) that sends ``1_000`` reads as ``1000`` instead of being rejected. JSON
+    numbers are ASCII ``[-]?[0-9]+(...)`` -- reject any string that isn't.
+    Surrounding whitespace stays tolerated (``int()``/``float()`` strip it); only
+    these two Python-isms are refused.
+    """
+    if isinstance(value, str) and ("_" in value or not value.isascii()):
+        raise BadRequest(f"parameter {name!r} must be {kind}")
+
+
 def _coerce_scalar(name: str, value: Any, target: type) -> Any:
     if target is str:
         if isinstance(value, str):
@@ -174,6 +191,7 @@ def _coerce_scalar(name: str, value: Any, target: type) -> Any:
         # clients serialize 3 as 3.0) are accepted.
         if isinstance(value, float) and not value.is_integer():
             raise BadRequest(f"parameter {name!r} must be an integer")
+        _reject_non_json_number(name, value, "an integer")
         try:
             return int(value)
         except TypeError, ValueError:
@@ -181,6 +199,7 @@ def _coerce_scalar(name: str, value: Any, target: type) -> Any:
     if target is float:
         if isinstance(value, bool):
             raise BadRequest(f"parameter {name!r} must be a number")
+        _reject_non_json_number(name, value, "a number")
         try:
             result = float(value)
         except TypeError, ValueError:

@@ -102,6 +102,48 @@ def test_typed_jsonrpc_documents_request_body():
     assert body["required"] == ["n"]
 
 
+def test_path_param_not_duplicated_as_query_param():
+    """Regression: a path param that is ALSO annotated on the handler (the usual
+    way to coerce it) was emitted twice — once ``in: path``, once a spurious
+    ``in: query`` telling clients to pass a URL value in the query string."""
+
+    def handler(self, ident: int, q: str | None = None):
+        """Get item."""
+
+    route = _route(
+        "/item/<int:ident>",
+        methods=frozenset({"GET"}),
+        routing={"type": "http", "auth": "public", "typed": True},
+        handler=handler,
+    )
+    op = build_openapi([route])["paths"]["/item/{ident}"]["get"]
+    ident_params = [p for p in op["parameters"] if p["name"] == "ident"]
+    assert len(ident_params) == 1
+    assert ident_params[0]["in"] == "path"
+    # the genuine query param still shows up
+    assert {p["name"] for p in op["parameters"]} == {"ident", "q"}
+
+
+def test_path_param_not_duplicated_in_request_body():
+    """Same leak on the body side: a json2/jsonrpc path param must not appear as
+    a request-body property — it comes from the URL, not the JSON payload."""
+
+    def handler(self, ident: int, name: str):
+        """Create."""
+
+    route = _route(
+        "/item/<int:ident>",
+        methods=frozenset({"POST"}),
+        routing={"type": "json2", "auth": "bearer", "typed": True},
+        handler=handler,
+    )
+    op = build_openapi([route])["paths"]["/item/{ident}"]["post"]
+    body = op["requestBody"]["content"]["application/json"]["schema"]
+    assert set(body["properties"]) == {"name"}  # ident excluded
+    assert body["required"] == ["name"]
+    assert [p["name"] for p in op["parameters"] if p["in"] == "path"] == ["ident"]
+
+
 def test_typed_only_filters_untyped_routes():
     typed = _route(
         "/typed",

@@ -18,7 +18,13 @@ import odoo
 from odoo import api, http, models, tools
 from odoo.api import SUPERUSER_ID
 from odoo.exceptions import AccessDenied
-from odoo.http import SAFE_HTTP_METHODS, Response, request, rule_routing_kwargs
+from odoo.http import (
+    SAFE_HTTP_METHODS,
+    FasterRule,
+    Response,
+    request,
+    rule_routing_kwargs,
+)
 from odoo.libs.constants import EXTENSION_TO_WEB_MIMETYPES
 from odoo.libs.json import OPT_SORT_KEYS
 from odoo.libs.json import dumps_bytes as json_dumps_bytes
@@ -81,40 +87,10 @@ class SignedIntConverter(NumberConverter):
     num_convert = int
 
 
-class LazyCompiledBuilder:
-    def __init__(
-        self,
-        rule: werkzeug.routing.Rule,
-        _compile_builder: Any,
-        append_unknown: bool,
-    ) -> None:
-        self.rule = rule
-        self._callable = None
-        self._compile_builder = _compile_builder
-        self._append_unknown = append_unknown
-
-    def __get__(self, *args: Any) -> LazyCompiledBuilder:
-        # Rule.compile binds the result via _compile_builder(...).__get__(self, None),
-        # so the builder must be a descriptor; returning self here keeps this lazy
-        # wrapper alive through that binding.
-        return self
-
-    def __call__(self, *args: Any, **kwargs: Any) -> Any:
-        if self._callable is None:
-            self._callable = self._compile_builder(self._append_unknown).__get__(
-                self.rule, None
-            )
-            del self.rule
-            del self._compile_builder
-            del self._append_unknown
-        return self._callable(*args, **kwargs)
-
-
-class FasterRule(werkzeug.routing.Rule):
-    """Make ``_compile_builder`` lazy: it dominates routing-map generation but rules are rarely built."""
-
-    def _compile_builder(self, append_unknown: bool = True) -> LazyCompiledBuilder:
-        return LazyCompiledBuilder(self, super()._compile_builder, append_unknown)
+# ``FasterRule`` / ``LazyCompiledBuilder`` moved to ``odoo.http.routing`` (imported
+# above) so both routing maps — the nodb map in ``Application.nodb_routing_map`` and
+# the per-database map in :meth:`IrHttp.routing_map` — share the lazy-builder
+# optimization instead of the nodb map paying full compilation up front.
 
 
 class IrHttp(models.AbstractModel):

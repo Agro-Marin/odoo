@@ -208,7 +208,7 @@ class _Response(werkzeug.wrappers.Response):
         self.set_default(template, qcontext, uid)
 
     @classmethod
-    def load(cls, result: Any, fname: str = "<function>") -> _Response:
+    def load(cls, result: Any, fname: str = "<function>") -> Response:
         """
         Convert the return value of an endpoint into a Response.
 
@@ -230,9 +230,14 @@ class _Response(werkzeug.wrappers.Response):
             raise result
 
         if isinstance(result, werkzeug.wrappers.Response):
+            # Wrap in the facade like every other branch: a raw ``_Response``
+            # fails ``isinstance(x, Response)`` (ProxyMeta has no
+            # ``__instancecheck__``), so a facade-typed check downstream —
+            # e.g. ``Json2Dispatcher.dispatch`` deciding pass-through vs
+            # re-serialization — would silently misroute it.
             response = cls.force_type(result)
             response.set_default()
-            return response
+            return Response(response)
 
         if isinstance(result, (bytes, str, type(None))):
             return Response(result)
@@ -440,7 +445,10 @@ class Response(Proxy):
             elif isinstance(arg, _Response):
                 response = arg
             elif isinstance(arg, werkzeug.wrappers.Response):
-                response = _Response.load(arg)
+                # Build the wrapped ``_Response`` directly — ``load`` now
+                # returns the facade, which must not be nested inside another.
+                response = _Response.force_type(arg)
+                response.set_default()
         if response is not None and kwargs:
             # Wrapping an existing response: constructor kwargs (``status=``,
             # ``headers=`` …) would be silently dropped, since the wrapped object

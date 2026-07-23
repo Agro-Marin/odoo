@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import functools
 import inspect
 import logging
@@ -5,6 +7,8 @@ import warnings
 from collections.abc import Callable, Generator, Iterable
 from types import MappingProxyType
 from typing import Any
+
+import werkzeug.routing
 
 from odoo.tools import unique
 from odoo.tools.misc import submap
@@ -16,6 +20,52 @@ from .dispatcher import _dispatchers
 from .wrappers import Response
 
 _logger = logging.getLogger(__name__)
+
+
+class LazyCompiledBuilder:
+    """Defer a werkzeug ``Rule``'s URL-builder compilation until first ``url_for``.
+
+    ``Rule.compile`` builds both a matcher and a builder; the builder
+    (:meth:`werkzeug.routing.Rule._compile_builder`) dominates routing-map
+    construction, yet most rules are only ever *matched* (inbound dispatch),
+    never *built* (``url_for``). This descriptor stands in for the compiled
+    builder and materialises it on the first call, so map construction pays only
+    for the matcher.
+    """
+
+    def __init__(
+        self,
+        rule: werkzeug.routing.Rule,
+        _compile_builder: Any,
+        append_unknown: bool,
+    ) -> None:
+        self.rule = rule
+        self._callable = None
+        self._compile_builder = _compile_builder
+        self._append_unknown = append_unknown
+
+    def __get__(self, *args: Any) -> LazyCompiledBuilder:
+        # Rule.compile binds the result via _compile_builder(...).__get__(self, None),
+        # so the builder must be a descriptor; returning self here keeps this lazy
+        # wrapper alive through that binding.
+        return self
+
+    def __call__(self, *args: Any, **kwargs: Any) -> Any:
+        if self._callable is None:
+            self._callable = self._compile_builder(self._append_unknown).__get__(
+                self.rule, None
+            )
+            del self.rule
+            del self._compile_builder
+            del self._append_unknown
+        return self._callable(*args, **kwargs)
+
+
+class FasterRule(werkzeug.routing.Rule):
+    """Make ``_compile_builder`` lazy: it dominates routing-map generation but rules are rarely built."""
+
+    def _compile_builder(self, append_unknown: bool = True) -> LazyCompiledBuilder:
+        return LazyCompiledBuilder(self, super()._compile_builder, append_unknown)
 
 
 def rule_routing_kwargs(endpoint: Callable) -> dict[str, Any]:
