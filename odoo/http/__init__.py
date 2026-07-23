@@ -135,6 +135,7 @@ from .constants import (
     STATIC_CACHE_LONG,
     STORED_SESSION_BYTES,
     get_default_session,
+    register_session_rotation_excluded_paths,
 )
 
 # Session internals (for tests)
@@ -171,6 +172,7 @@ from .controller import Controller
 from .routing import (
     FasterRule,
     LazyCompiledBuilder,
+    register_routing_parameters,
     route,
     rule_routing_kwargs,
     _generate_routing_rules,
@@ -309,6 +311,8 @@ __all__ = [
     "get_session_max_inactivity",
     "is_cors_preflight",
     "maxminddb",
+    "register_routing_parameters",
+    "register_session_rotation_excluded_paths",
     "request",
     "rewind_uploaded_files",
     "root",

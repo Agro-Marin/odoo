@@ -176,16 +176,21 @@ class _RequestServeMixin:
             psycopg.OperationalError,
             psycopg.ProgrammingError,
         ) as e:
+            db_absent = None
             try:
                 # If DB no longer exists, clean up stale registry to prevent
                 # repeated 30s hangs on subsequent requests.
                 from odoo.db import close_db
                 from odoo.service.db import list_dbs
 
-                if self.db not in list_dbs(force=True):
+                db_absent = self.db not in list_dbs(force=True)
+                if db_absent:
                     Registry.delete(self.db)
                     close_db(self.db)
             except Exception:
+                # ``db_absent`` stays ``None``: the catalog itself is
+                # unreachable, so the recovery path treats the outage as
+                # transient (see :class:`RegistryError`).
                 _logger.debug(
                     "Stale-registry cleanup after RegistryError failed",
                     exc_info=True,
@@ -195,7 +200,9 @@ class _RequestServeMixin:
                 # between cursor-open and that return cannot leak the connection.
                 if cr is not None:
                     cr.close()
-            raise RegistryError(f"Cannot get registry {self.db}") from e
+            err = RegistryError(f"Cannot get registry {self.db}")
+            err.db_absent = db_absent
+            raise err from e
 
     def _serve_db(self) -> Response:
         """Load the ORM and use it to process the request."""
