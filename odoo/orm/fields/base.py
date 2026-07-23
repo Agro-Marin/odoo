@@ -1070,7 +1070,7 @@ class Field[T](_FieldDescriptionMixin, _FieldConvertMixin, _FieldSqlMixin):
     # Update database schema
 
     def update_db(
-        self, model: BaseModel, columns: dict[str, dict[str, typing.Any]]
+        self, model: ModelLike, columns: dict[str, dict[str, typing.Any]]
     ) -> bool:
         """Update the database schema to implement this field.
 
@@ -1112,7 +1112,7 @@ class Field[T](_FieldDescriptionMixin, _FieldConvertMixin, _FieldSqlMixin):
 
         return not column
 
-    def update_db_column(self, model: BaseModel, column: dict[str, typing.Any]) -> None:
+    def update_db_column(self, model: ModelLike, column: dict[str, typing.Any]) -> None:
         """Create/update the column corresponding to ``self``.
 
         :param model: an instance of the field's model
@@ -1132,12 +1132,12 @@ class Field[T](_FieldDescriptionMixin, _FieldConvertMixin, _FieldSqlMixin):
             return
         self._convert_db_column(model, column)
 
-    def _convert_db_column(self, model: BaseModel, column: dict[str, typing.Any]):
+    def _convert_db_column(self, model: ModelLike, column: dict[str, typing.Any]):
         """Convert the given database column to the type of the field."""
         sql.convert_column(model.env.cr, model._table, self.name, self.column_type[1])
 
     def update_db_notnull(
-        self, model: BaseModel, column: dict[str, typing.Any]
+        self, model: ModelLike, column: dict[str, typing.Any]
     ) -> None:
         """Add or remove the NOT NULL constraint on ``self``.
 
@@ -1234,7 +1234,7 @@ class Field[T](_FieldDescriptionMixin, _FieldConvertMixin, _FieldSqlMixin):
         elif not self.required and has_notnull:
             sql.drop_not_null(model.env.cr, model._table, self.name)
 
-    def update_db_related(self, model: BaseModel) -> None:
+    def update_db_related(self, model: ModelLike) -> None:
         """Compute a stored related field directly in SQL."""
         comodel = model.env[self.related_field.model_name]
         join_field, comodel_field = self._related_names
@@ -1391,7 +1391,7 @@ class Field[T](_FieldDescriptionMixin, _FieldConvertMixin, _FieldSqlMixin):
             self, context_dependent=self._is_context_dependent(env)
         )
 
-    def _cache_missing_ids(self, records: BaseModel) -> Iterator[IdType]:
+    def _cache_missing_ids(self, records: ModelLike) -> Iterator[IdType]:
         """Generator of ids that have no value in cache.
 
         Records with :data:`PENDING` (stored computed fields awaiting
@@ -1465,7 +1465,7 @@ class Field[T](_FieldDescriptionMixin, _FieldConvertMixin, _FieldSqlMixin):
         )
 
     def _update_cache(
-        self, records: BaseModel, cache_value: typing.Any, dirty: bool = False
+        self, records: ModelLike, cache_value: typing.Any, dirty: bool = False
     ) -> None:
         """Update the value in the cache for the given records, and optionally
         make the field dirty for those records (for stored column fields only).

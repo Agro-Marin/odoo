@@ -363,7 +363,7 @@ class _RelationalMulti(_Relational):
 
     @override
     def _update_cache(
-        self, records: BaseModel, cache_value: typing.Any, dirty: bool = False
+        self, records: ModelLike, cache_value: typing.Any, dirty: bool = False
     ) -> None:
         field_patches = records.env._core.get_patches(self)
         # Take the per-record path only when some of *records* actually carry a
@@ -382,7 +382,7 @@ class _RelationalMulti(_Relational):
 
     @override
     def convert_to_cache(
-        self, value: typing.Any, record: BaseModel, validate: bool = True
+        self, value: typing.Any, record: ModelLike, validate: bool = True
     ) -> tuple[int | NewId, ...]:
         # cache format: tuple(ids)
         if is_recordset(value):
@@ -470,7 +470,7 @@ class _RelationalMulti(_Relational):
 
     @override
     def convert_to_record(
-        self, value: tuple[int | NewId, ...], record: BaseModel
+        self, value: tuple[int | NewId, ...], record: ModelLike
     ) -> BaseModel:
         return self._make_corecords(record.env, value, PrefetchX2many(record, self))
 
@@ -483,13 +483,13 @@ class _RelationalMulti(_Relational):
 
     @override
     def convert_to_read(
-        self, value: BaseModel, record: BaseModel, use_display_name: bool = True
+        self, value: BaseModel, record: ModelLike, use_display_name: bool = True
     ) -> list[int]:
         return value.ids
 
     @override
     def convert_to_write(
-        self, value: typing.Any, record: BaseModel
+        self, value: typing.Any, record: ModelLike
     ) -> list[CommandValue] | typing.Literal[False]:
         if isinstance(value, tuple):
             # a tuple of ids, this is the cache format
@@ -546,12 +546,12 @@ class _RelationalMulti(_Relational):
         raise ValueError(f"Wrong value for {self}: {value}")
 
     @override
-    def convert_to_export(self, value: BaseModel, record: BaseModel) -> str:
+    def convert_to_export(self, value: BaseModel, record: ModelLike) -> str:
         return ",".join(value.mapped("display_name")) if value else ""
 
     @override
     def convert_to_display_name(
-        self, value: BaseModel, record: BaseModel
+        self, value: BaseModel, record: ModelLike
     ) -> str | typing.Literal[False]:
         raise NotImplementedError
 
@@ -766,7 +766,7 @@ class PrefetchX2many(Reversible):
 
     __slots__ = ("field", "record")
 
-    def __init__(self, record: BaseModel, field: _RelationalMulti) -> None:
+    def __init__(self, record: ModelLike, field: _RelationalMulti) -> None:
         self.record = record
         self.field = field
 

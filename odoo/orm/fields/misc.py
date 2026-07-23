@@ -15,6 +15,7 @@ from .base import Field, _make_scalar_get
 if typing.TYPE_CHECKING:
     from odoo.tools import Query
 
+    from .._typing import ModelLike
     from ..models import BaseModel
 
 
@@ -33,7 +34,7 @@ class Boolean(Field[bool]):
     def convert_to_column(
         self,
         value: typing.Any,
-        record: BaseModel,
+        record: ModelLike,
         values: dict[str, typing.Any] | None = None,
         validate: bool = True,
     ) -> bool:
@@ -41,12 +42,12 @@ class Boolean(Field[bool]):
 
     @override
     def convert_to_cache(
-        self, value: typing.Any, record: BaseModel, validate: bool = True
+        self, value: typing.Any, record: ModelLike, validate: bool = True
     ) -> bool:
         return bool(value)
 
     @override
-    def convert_to_export(self, value: typing.Any, record: BaseModel) -> bool:
+    def convert_to_export(self, value: typing.Any, record: ModelLike) -> bool:
         return bool(value)
 
     def _condition_to_sql(
@@ -95,13 +96,13 @@ class Json(Field):
     _column_type = ("jsonb", "jsonb")
 
     @override
-    def convert_to_record(self, value: typing.Any, record: BaseModel) -> typing.Any:
+    def convert_to_record(self, value: typing.Any, record: ModelLike) -> typing.Any:
         """Return a copy of the value"""
         return False if value is None else fast_clone(value)
 
     @override
     def convert_to_cache(
-        self, value: typing.Any, record: BaseModel, validate: bool = True
+        self, value: typing.Any, record: ModelLike, validate: bool = True
     ) -> typing.Any:
         if not value:
             # Normalize all falsy values (None, False, {}, []) to None;
@@ -113,7 +114,7 @@ class Json(Field):
     def convert_to_column(
         self,
         value: typing.Any,
-        record: BaseModel,
+        record: ModelLike,
         values: dict[str, typing.Any] | None = None,
         validate: bool = True,
     ) -> typing.Any:
@@ -124,7 +125,7 @@ class Json(Field):
         return PsycopgJson(value)
 
     @override
-    def convert_to_export(self, value: typing.Any, record: BaseModel) -> str:
+    def convert_to_export(self, value: typing.Any, record: ModelLike) -> str:
         if not value:
             return ""
         # default=orjson_default (as in convert_to_cache) lets non-native types
@@ -148,7 +149,7 @@ class Id(Field[IdType | typing.Literal[False]]):
     readonly = True
     prefetch = False
 
-    def update_db(self, model: BaseModel, columns: dict[str, typing.Any]) -> None:
+    def update_db(self, model: ModelLike, columns: dict[str, typing.Any]) -> None:
         pass  # this column is created with the table
 
     @typing.overload
@@ -185,13 +186,13 @@ class Id(Field[IdType | typing.Literal[False]]):
     def convert_to_column(
         self,
         value: typing.Any,
-        record: BaseModel,
+        record: ModelLike,
         values: dict[str, typing.Any] | None = None,
         validate: bool = True,
     ) -> typing.Any:
         return value
 
-    def to_sql(self, model: BaseModel, alias: str) -> SQL:
+    def to_sql(self, model: ModelLike, alias: str) -> SQL:
         # do not flush; id is never flushed, just return the identifier
         assert self.store, "id field must be stored"
         return SQL.identifier(alias, self.name)

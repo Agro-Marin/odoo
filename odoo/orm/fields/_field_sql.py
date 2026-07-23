@@ -52,7 +52,7 @@ IN_TO_ANY_THRESHOLD = 100
 class _FieldSqlMixin(_FieldStubs):
     """SQL and domain-condition generation for a field."""
 
-    def to_sql(self, model: BaseModel, alias: str) -> SQL:
+    def to_sql(self, model: ModelLike, alias: str) -> SQL:
         """Return an :class:`SQL` object that represents the value of the given
         field from the given table alias.
 

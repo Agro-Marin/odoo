@@ -60,17 +60,17 @@ def test_constrains_callable_plus_extra_args_raises():
         return ["a"]
 
     with pytest.raises(TypeError, match="silently ignored"):
-        api.constrains(names, "extra")
+        api.constrains(names, "extra")  # type: ignore[call-overload]
 
 
 def test_constrains_list_arg_raises():
     with pytest.raises(TypeError, match="field-name strings"):
-        api.constrains(["a", "b"])
+        api.constrains(["a", "b"])  # type: ignore[call-overload]
 
 
 def test_constrains_non_string_arg_raises():
     with pytest.raises(TypeError, match="field-name strings"):
-        api.constrains("a", 42)
+        api.constrains("a", 42)  # type: ignore[call-overload]
 
 
 # ---------------------------------------------------------------------------
@@ -104,17 +104,17 @@ def test_depends_callable_plus_extra_args_raises():
         return ["a"]
 
     with pytest.raises(TypeError, match="silently ignored"):
-        api.depends(deps, "extra")
+        api.depends(deps, "extra")  # type: ignore[call-overload]
 
 
 def test_depends_list_arg_raises():
     with pytest.raises(TypeError, match="field-name strings"):
-        api.depends(["a"])
+        api.depends(["a"])  # type: ignore[call-overload]
 
 
 def test_depends_non_string_arg_raises():
     with pytest.raises(TypeError, match="field-name strings"):
-        api.depends("a", None)
+        api.depends("a", None)  # type: ignore[call-overload]
 
 
 def test_depends_still_rejects_id():
@@ -138,12 +138,12 @@ def test_onchange_strings_still_work():
 def test_onchange_list_arg_raises():
     # was stored as (["a", "b"],) and the onchange silently never fired
     with pytest.raises(TypeError, match="field-name strings"):
-        api.onchange(["a", "b"])
+        api.onchange(["a", "b"])  # type: ignore[arg-type]
 
 
 def test_onchange_non_string_arg_raises():
     with pytest.raises(TypeError, match="field-name strings"):
-        api.onchange("a", 42)
+        api.onchange("a", 42)  # type: ignore[arg-type]
 
 
 # ---------------------------------------------------------------------------
@@ -161,10 +161,10 @@ def test_depends_context_strings_still_work():
 
 def test_depends_context_list_arg_raises():
     with pytest.raises(TypeError, match="context-key strings"):
-        api.depends_context(["company"])
+        api.depends_context(["company"])  # type: ignore[arg-type]
 
 
 def test_depends_context_non_string_arg_raises():
     # depends_context(42) used to surface only at cache-key construction
     with pytest.raises(TypeError, match="context-key strings"):
-        api.depends_context(42)
+        api.depends_context(42)  # type: ignore[arg-type]

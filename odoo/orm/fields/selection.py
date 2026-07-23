@@ -10,7 +10,7 @@ from .base import Field, _logger, _make_scalar_get, determine, resolve_mro
 if typing.TYPE_CHECKING:
     from collections.abc import Callable
 
-    from .._typing import BaseModel
+    from .._typing import BaseModel, ModelLike
     from ..runtime import Environment
 
     SelectValue = tuple[str, str]  # (value, string)
@@ -277,7 +277,7 @@ class Selection(Field[str | typing.Literal[False]]):
     def convert_to_column(
         self,
         value: typing.Any,
-        record: BaseModel,
+        record: ModelLike,
         values: dict | None = None,
         validate: bool = True,
     ) -> typing.Any:
@@ -287,7 +287,7 @@ class Selection(Field[str | typing.Literal[False]]):
 
     @override
     def convert_to_cache(
-        self, value: typing.Any, record: BaseModel, validate: bool = True
+        self, value: typing.Any, record: ModelLike, validate: bool = True
     ) -> str | None:
         if not validate or self._selection is None:
             return value or None
@@ -298,7 +298,7 @@ class Selection(Field[str | typing.Literal[False]]):
         raise ValueError(f"Wrong value for {self}: {value!r}")
 
     @override
-    def convert_to_export(self, value: typing.Any, record: BaseModel) -> str:
+    def convert_to_export(self, value: typing.Any, record: ModelLike) -> str:
         for item in self._description_selection(record.env):
             if item[0] == value:
                 return item[1]
