@@ -6,6 +6,10 @@
 - The deprecated ``read_group()`` must not crash when ``groupby=[]`` while the
   context carries a dict ``fill_temporal``, and must ignore unknown
   ``fill_temporal`` keys instead of raising ``TypeError`` on ``**``-unpacking.
+- The empty-query shortcut of ``_read_group`` must accept a *virtual* groupby
+  spec (one with no backing field, resolved by a ``_read_group_groupby``
+  override) the same way the non-empty path does, while still rejecting a
+  genuinely unknown spec with ``ValueError``.
 
 Tier-2 suite: real ``import odoo``, no database.
 """
@@ -17,6 +21,7 @@ import pytest
 from odoo import fields, models
 from odoo.orm.model_test_env import model_test_env
 from odoo.orm.models.mixins.read_group.sql import _ReadGroupSQLMixin
+from odoo.tools import SQL
 
 _MOD = "test_read_group_guards"
 
@@ -42,6 +47,23 @@ class ReadGroupThing(models.Model):
         # __domain normalization.
         for row in rows_dict:
             row["__domain"] = list(row["__domain"])
+
+
+class ReadGroupVirtual(models.Model):
+    _name = "read.group.virtual"
+    _module = _MOD
+    _description = "read_group virtual groupby model"
+
+    name = fields.Char()
+
+    def _read_group_groupby(self, alias, groupby_spec, query):
+        # A virtual groupby with no backing field, resolved entirely here --
+        # the pattern account_followup uses for 'followup_overdue'.
+        if groupby_spec == "is_named":
+            return SQL(
+                "%s IS NOT NULL", self._field_to_sql(self._table, "name", query)
+            )
+        return super()._read_group_groupby(alias, groupby_spec, query)
 
 
 @pytest.mark.parametrize(
@@ -95,3 +117,23 @@ def test_read_group_fill_temporal_unknown_keys_ignored():
             # no data: the empty-query shortcut still runs the fill branch
             rows = model.read_group([], ["__count"], ["adate:month"])
         assert rows == []
+
+
+def test_read_group_empty_path_accepts_virtual_groupby():
+    """Empty-query shortcut must accept a virtual groupby resolved by a
+    ``_read_group_groupby`` override (regression: was rejected as
+    ``Invalid field`` by the parallel spec validator)."""
+    with model_test_env(ReadGroupVirtual) as env:
+        model = env["read.group.virtual"]
+        # ('id', 'in', []) is a contradiction => empty query => shortcut path.
+        rows = model._read_group([("id", "in", [])], ["is_named"], ["__count"])
+        assert rows == []
+
+
+def test_read_group_empty_path_rejects_unknown_groupby():
+    """The shortcut must still raise for a genuinely unknown spec, so
+    invalid-spec detection does not depend on whether data matched."""
+    with model_test_env(ReadGroupVirtual) as env:
+        model = env["read.group.virtual"]
+        with pytest.raises(ValueError, match="Invalid field 'nope'"):
+            model._read_group([("id", "in", [])], ["nope"], ["__count"])
