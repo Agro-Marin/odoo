@@ -1,4 +1,5 @@
 from odoo.fields import Domain
+
 from odoo.addons.portal.controllers import portal_thread
 
 
