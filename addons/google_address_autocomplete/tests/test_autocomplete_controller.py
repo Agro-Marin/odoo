@@ -1,0 +1,244 @@
+"""Python-side tests for the AutoCompleteController parsing logic.
+
+The pre-existing UI suite (test_ui.py) is bound to the demo environment
+(admin/admin credentials, demo-database record ids, a browser tour) and
+cannot run on production-clone databases. These tests pin the same
+business behavior — translating Google Places payloads into standard
+address fields — directly on the controller, with the HTTP layer mocked.
+"""
+
+from contextlib import contextmanager
+from unittest.mock import patch
+
+from odoo.tests import TransactionCase, tagged
+
+from odoo.addons.google_address_autocomplete.controllers.google_address_autocomplete import (
+    AutoCompleteController,
+)
+
+CONTROLLER_MODULE = (
+    "odoo.addons.google_address_autocomplete.controllers.google_address_autocomplete"
+)
+
+
+@tagged("post_install", "-at_install")
+class TestAutocompleteControllerParsing(TransactionCase):
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.controller = AutoCompleteController()
+        cls.us = cls.env.ref("base.us")
+        cls.us_state = cls.env["res.country.state"].search(
+            [("country_id", "=", cls.us.id)], limit=1
+        )
+
+    @contextmanager
+    def _mock_request(self):
+        """Patch the module-level ``request`` with a stub exposing our env."""
+        test_env = self.env
+
+        class _RequestStub:
+            env = test_env
+
+        with patch(f"{CONTROLLER_MODULE}.request", _RequestStub()):
+            yield
+
+    def _complete_search(self, payload, address="9 rue de Bourlottes, Ramillies"):
+        with (
+            self._mock_request(),
+            patch.object(
+                AutoCompleteController,
+                "_call_google_route",
+                lambda _controller, _route, _params: payload,
+            ),
+        ):
+            return self.controller._perform_complete_place_search(
+                address, api_key="key", google_place_id="place"
+            )
+
+    # ------------------------------------------------------------------
+    # _translate_google_to_standard
+    # ------------------------------------------------------------------
+    def test_translate_resolves_country_and_state(self):
+        """Country resolves by code and the state binds to that country."""
+        if not self.us_state:
+            self.skipTest("no US states in this database")
+        fields = [
+            {"type": "country", "short_name": "us", "long_name": "ignored"},
+            {
+                "type": "administrative_area_level_1",
+                "short_name": self.us_state.code,
+                "long_name": self.us_state.name,
+            },
+        ]
+        with self._mock_request():
+            data = self.controller._translate_google_to_standard(fields)
+        self.assertEqual(data["country"], [self.us.id, self.us.name])
+        self.assertEqual(data["state"], [self.us_state.id, self.us_state.name])
+
+    def test_translate_state_before_country_is_skipped(self):
+        """A state field arriving before any country cannot be resolved."""
+        fields = [
+            {
+                "type": "administrative_area_level_1",
+                "short_name": "XX",
+                "long_name": "Somewhere",
+            }
+        ]
+        with self._mock_request():
+            data = self.controller._translate_google_to_standard(fields)
+        self.assertNotIn("state", data)
+        # The same google field also feeds 'city' as fallback.
+        self.assertEqual(data["city"], "Somewhere")
+
+    def test_translate_first_assignment_wins(self):
+        """Once a standard field has a value, later google fields keep out."""
+        fields = [
+            {"type": "locality", "short_name": "R", "long_name": "Ramillies"},
+            {
+                "type": "administrative_area_level_2",
+                "short_name": "BW",
+                "long_name": "Brabant",
+            },
+        ]
+        with self._mock_request():
+            data = self.controller._translate_google_to_standard(fields)
+        self.assertEqual(data["city"], "Ramillies")
+
+    # ------------------------------------------------------------------
+    # _guess_number_from_input
+    # ------------------------------------------------------------------
+    def test_guess_number_strips_known_address_parts(self):
+        """The house number is recovered from the raw input."""
+        guessed = self.controller._guess_number_from_input(
+            "9 rue de Bourlottes, 1367 Ramillies",
+            {"street": "rue de Bourlottes", "city": "Ramillies", "zip": "1367"},
+        )
+        self.assertEqual(guessed, "9")
+
+    # ------------------------------------------------------------------
+    # _perform_place_search
+    # ------------------------------------------------------------------
+    def test_place_search_short_input_returns_empty(self):
+        """Inputs at or below the minimal size never hit the API (boundary)."""
+        with self._mock_request():
+            res = self.controller._perform_place_search(
+                "abc", api_key="key", session_id="sess"
+            )
+        self.assertEqual(res, {"results": [], "session_id": "sess"})
+
+    def test_place_search_maps_predictions(self):
+        """Google predictions map to formatted_address/google_place_id pairs."""
+        payload = {
+            "predictions": [
+                {"description": "Paris, France", "place_id": "PARIS"},
+                {"description": "Paris, TX, USA", "place_id": "PARIS_TX"},
+            ]
+        }
+        with (
+            self._mock_request(),
+            patch.object(
+                AutoCompleteController,
+                "_call_google_route",
+                lambda _controller, _route, _params: payload,
+            ),
+        ):
+            res = self.controller._perform_place_search(
+                "Paris, somewhere", api_key="key", session_id="sess"
+            )
+        self.assertEqual(
+            res["results"],
+            [
+                {"formatted_address": "Paris, France", "google_place_id": "PARIS"},
+                {"formatted_address": "Paris, TX, USA", "google_place_id": "PARIS_TX"},
+            ],
+        )
+        self.assertEqual(res["session_id"], "sess")
+
+    def test_place_search_timeout_returns_empty(self):
+        """A google-side timeout degrades to an empty result set (boundary)."""
+
+        def _raise_timeout(_controller, _route, _params):
+            raise TimeoutError("google is down")
+
+        with (
+            self._mock_request(),
+            patch.object(AutoCompleteController, "_call_google_route", _raise_timeout),
+        ):
+            res = self.controller._perform_place_search(
+                "Paris, somewhere", api_key="key", session_id="sess"
+            )
+        self.assertEqual(res, {"results": [], "session_id": "sess"})
+
+    # ------------------------------------------------------------------
+    # _perform_complete_place_search
+    # ------------------------------------------------------------------
+    def test_complete_search_full_payload(self):
+        """A full details payload lands in the standard address fields."""
+        res = self._complete_search(
+            {
+                "result": {
+                    "adr_address": (
+                        '<span class="street-address">9 rue de Bourlottes</span>,'
+                        " <span>1367 Ramillies</span>"
+                    ),
+                    "address_components": [
+                        {
+                            "long_name": "9",
+                            "short_name": "9",
+                            "types": ["street_number"],
+                        },
+                        {
+                            "long_name": "rue de Bourlottes",
+                            "short_name": "r. B.",
+                            "types": ["route"],
+                        },
+                        {
+                            "long_name": "Ramillies",
+                            "short_name": "R",
+                            "types": ["locality", "political"],
+                        },
+                        {
+                            "long_name": "1367",
+                            "short_name": "1367",
+                            "types": ["postal_code"],
+                        },
+                    ],
+                },
+                "status": "OK",
+            }
+        )
+        self.assertEqual(res["number"], "9")
+        self.assertEqual(res["street"], "rue de Bourlottes")
+        self.assertEqual(res["city"], "Ramillies")
+        self.assertEqual(res["zip"], "1367")
+        self.assertEqual(res["formatted_street_number"], "9 rue de Bourlottes")
+
+    def test_complete_search_missing_number_is_guessed(self):
+        """Without a street_number component the number comes from the input."""
+        res = self._complete_search(
+            {
+                "result": {
+                    "adr_address": "",
+                    "address_components": [
+                        {
+                            "long_name": "rue de Bourlottes",
+                            "short_name": "r. B.",
+                            "types": ["route"],
+                        },
+                        {
+                            "long_name": "Ramillies",
+                            "short_name": "R",
+                            "types": ["locality"],
+                        },
+                    ],
+                },
+                "status": "OK",
+            }
+        )
+        self.assertEqual(res["number"], "9")
+        self.assertEqual(res["formatted_street_number"], "9 rue de Bourlottes")
+
+    def test_complete_search_malformed_payload_returns_none(self):
+        """A payload without result/address_components degrades gracefully."""
+        self.assertEqual(self._complete_search({"status": "OK"}), {"address": None})

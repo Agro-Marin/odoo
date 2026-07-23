@@ -6,3 +6,5 @@ from . import test_stock_landed_costs_lots
 from . import test_stock_landed_costs_purchase
 from . import test_stock_landed_costs_rounding
 from . import test_stockvaluationlayer
+from . import test_landed_cost_validation
+from . import test_landed_cost_split

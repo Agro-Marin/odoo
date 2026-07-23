@@ -29,7 +29,7 @@ class TestPDFQuoteBuilder(SaleManagementCommon):
 
         cls.QuotationDocumentController = QuotationDocumentController()
 
-        cls.sale_order.validity_date = '2020-11-04'
+        cls.sale_order.date_validity = '2020-11-04'
         cls.sale_order.partner_id.tz = 'Europe/Brussels'
         cls.env['product.document'].search([]).action_archive()
         cls.env['quotation.document'].search([]).action_archive()
@@ -89,8 +89,8 @@ class TestPDFQuoteBuilder(SaleManagementCommon):
         new_form_fields = FormField.create([
             new_form_field(name="boolean_test", path='locked'),
             new_form_field(name="char_test", path='name'),
-            new_form_field(name="date_test", path='validity_date'),
-            new_form_field(name="datetime_test", path='commitment_date'),
+            new_form_field(name="date_test", path='date_validity'),
+            new_form_field(name="datetime_test", path='date_commitment'),
             new_form_field(name="float_test", path='prepayment_percent'),
             new_form_field(name="integer_test", path='company_id.color'),
             new_form_field(name="selection_test", path='state'),
@@ -121,7 +121,7 @@ class TestPDFQuoteBuilder(SaleManagementCommon):
             self.assertEqual(result, expected_value)
 
     def test_dynamic_fields_mapping_for_product_document(self):
-        self.sale_order.commitment_date = '2121-12-21 12:21:12'
+        self.sale_order.date_commitment = '2121-12-21 12:21:12'
         sol_1, sol_2 = self.sale_order.line_ids
         sol_1.update({
             'sequence': 0,
@@ -135,8 +135,8 @@ class TestPDFQuoteBuilder(SaleManagementCommon):
         new_form_fields = self.env['sale.pdf.form.field'].create([
             new_form_field(name="boolean_test", path='order_id.locked'),
             new_form_field(name="char_test", path='order_id.name'),
-            new_form_field(name="date_test", path='order_id.validity_date'),
-            new_form_field(name="datetime_test", path='order_id.commitment_date'),
+            new_form_field(name="date_test", path='order_id.date_validity'),
+            new_form_field(name="datetime_test", path='order_id.date_commitment'),
             new_form_field(name="float_test", path='discount'),
             new_form_field(name="integer_test", path='sequence'),
             new_form_field(name="selection_test", path='order_id.state'),
