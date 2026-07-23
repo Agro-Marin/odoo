@@ -9,15 +9,18 @@ from odoo.exceptions import AccessError, ValidationError
 
 # Validation patterns
 
-regex_alphanumeric = re.compile(r"^[a-z0-9_]+$")
+# All three anchor with \Z, not $: in Python, $ also matches before a single
+# trailing newline, so "name\n" would validate — the same trap
+# check_method_name below defends against explicitly.
+regex_alphanumeric = re.compile(r"^[a-z0-9_]+\Z")
 # First segment must start with a letter/underscore (it prefixes the generated
 # SQL table name); later segments may start with a digit since they join via
 # ``_`` (e.g. ``l10n_us.1099_box`` → table ``l10n_us_1099_box``). This rejects
 # ``"1invalid"`` and empty segments (``"."``, ``"res..partner"``).
-regex_object_name = re.compile(r"^[a-z_][a-z0-9_]*(\.[a-z0-9_]+)*$")
+regex_object_name = re.compile(r"^[a-z_][a-z0-9_]*(\.[a-z0-9_]+)*\Z")
 # Lowercase only — PostgreSQL folds unquoted identifiers to lowercase, so
 # ``MyTable`` and ``mytable`` would silently collide.
-regex_pg_name = re.compile(r"^[a-z_][a-z0-9_$]*$")
+regex_pg_name = re.compile(r"^[a-z_][a-z0-9_$]*\Z")
 
 # Manual (custom / Studio) fields and models are created at runtime rather than
 # declared in Python, and are conventionally prefixed with ``x_`` so the ORM can
