@@ -25,7 +25,14 @@ real implementation, keeping it a valid override.
 import typing
 
 if typing.TYPE_CHECKING:
-    from collections.abc import Callable, Collection, Iterable, Iterator, Reversible
+    from collections.abc import (
+        Callable,
+        Collection,
+        Iterable,
+        Iterator,
+        Mapping,
+        Reversible,
+    )
     from typing import Self
 
     from odoo.tools import SQL, Query
@@ -51,7 +58,8 @@ class _ModelStubs:
 
         # Registry / model metadata set during registration.
         pool: typing.Any
-        _fields: dict
+        # Read-only view: BaseModel exposes _fields as a MappingProxyType.
+        _fields: Mapping[str, Field]
         _name: str
         _table: str
         id: int

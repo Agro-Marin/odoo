@@ -138,7 +138,12 @@ class CacheMixin(_ModelStubs):
         if fnames is None:
             fields = self._fields.values()
         else:
-            fields = [self._fields[fname] for fname in fnames]
+            try:
+                fields = [self._fields[fname] for fname in fnames]
+            except KeyError as e:
+                raise ValueError(
+                    f"Invalid field {e.args[0]!r} on model {self._name!r}"
+                ) from e
 
         env = self.env
         field_inverses = self.pool.field_inverses

@@ -135,9 +135,21 @@ class WriteMixin(_ModelStubs):
         # based writes (add/remove/update), so their current value must be in
         # cache before the field is protected from recomputation. fetch() (vs
         # self[fname] per field) populates all records at once without
-        # triggering ensure_one().
+        # triggering ensure_one() — but unlike the per-field read it neither
+        # runs pending recomputes (a stored computed x2many pending from an
+        # earlier write would be silently discarded: fetch caches the stale DB
+        # relation, then mark_dirty's remove_to_compute drops the pending
+        # computation without running it) nor populates non-stored fields
+        # (whose baseline must be computed now, before this write's other
+        # fields are marked dirty).  Handle both explicitly.
         if x2m_inverse_fnames:
+            self._recompute_recordset(x2m_inverse_fnames)
             self.fetch(x2m_inverse_fnames)
+            for fname in x2m_inverse_fnames:
+                field = self._fields[fname]
+                if not field.store:
+                    # Union __get__ computes the whole recordset in one batch.
+                    field.__get__(self)
 
         # force the computation of fields that are computed with some assigned
         # fields, but are not assigned themselves

@@ -715,10 +715,12 @@ class TestWebReadGroup(common.TransactionCase):
         self.env.invalidate_all()
 
         # One query for the _read_group
+        # One query per progressbar-filtered group to recompute its aggregates
+        # under the progressbar_domain (two groups here)
         # One query get records of the first column
         # One query get records of the second column
         # One query to read all records opened
-        with self.assertQueryCount(4):
+        with self.assertQueryCount(6):
             self.assertEqual(
                 Model.web_read_group(
                     domain=[],
@@ -729,19 +731,24 @@ class TestWebReadGroup(common.TransactionCase):
                     unfold_read_specification=read_spec,
                     unfold_read_default_limit=80,
                 ),
+                # Aggregate contract for progress-bar-filtered groups: the
+                # displayed aggregates describe the FILTERED record set shown
+                # in __records (value:sum 1 and 5, not the whole-group 6 and
+                # 9), while __count stays UNFILTERED (3, not 1) — it feeds the
+                # "Other" bar remainder and the group pager total.
                 {
                     "groups": [
                         {
                             "key": 1,
                             "__extra_domain": [("key", "=", 1)],
-                            "value:sum": 6,
+                            "value:sum": 1,
                             "__count": 3,
                             "__records": records[0].web_read(read_spec),
                         },
                         {
                             "key": 2,
                             "__extra_domain": [("key", "=", 2)],
-                            "value:sum": 9,
+                            "value:sum": 5,
                             "__count": 3,
                             "__records": records[5].web_read(read_spec),
                         },

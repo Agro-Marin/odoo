@@ -23,27 +23,13 @@ from ..._recordset import is_recordset
 from ..._typing import DomainType
 from ...domain import Domain
 from ...parsing import regex_order
+from ._cache_scan import can_scan_identity, can_scan_sorted, can_scan_truthy
 from ._model_stubs import _ModelStubs
 
 if typing.TYPE_CHECKING:
     from collections.abc import Callable
 
 T = typing.TypeVar("T")
-
-# Field types where convert_to_record(value, rec) is identity for non-None
-# values, so mapped() can skip singleton creation and method dispatch.
-_MAPPED_IDENTITY_TYPES = frozenset(
-    {
-        "boolean",
-        "date",
-        "datetime",
-        "selection",
-        "integer",
-        "float",
-        "monetary",
-    }
-)
-_MAPPED_CHAR_TEXT = frozenset({"char", "text"})
 
 
 @functools.total_ordering
@@ -154,9 +140,7 @@ class TraversalMixin(_ModelStubs):
             # Identity-convert: skip convert_to_record for scalar types where
             # it is a no-op.  Iterate records (not raw _ids) to preserve the
             # prefetch group so __get__ batch-fetches on a cache miss.
-            if field.type in _MAPPED_IDENTITY_TYPES or (
-                field.type in _MAPPED_CHAR_TEXT and not callable(field.translate)
-            ):
+            if can_scan_identity(field):
                 _none_val = field.convert_to_record(None, records[:1])
                 result, miss_indices = _batch_cache_get(
                     field_cache, records._ids, PENDING, _none_val
@@ -229,13 +213,12 @@ class TraversalMixin(_ModelStubs):
             # Falls back to __get__ for missed indices (list(self) preserves
             # prefetch groups).
             field = self._fields[func]
-            if callable(getattr(field, "translate", None)):
-                # Per-term-translated fields cache ``{lang: value}`` dicts the
-                # C cache scanner cannot read; resolve per record via __get__.
+            if not can_scan_truthy(field):
+                # Raw cache truthiness would lie here (a new record's many2one
+                # caches a falsy NewId; per-term-translated fields cache
+                # ``{lang: value}`` dicts); resolve per record via __get__.
                 _field_get = field.__get__
-                return self.browse(
-                    rec._ids[0] for rec in self if _field_get(rec)
-                )
+                return self.browse(rec._ids[0] for rec in self if _field_get(rec))
             field.ensure_access(self[0:1])
             field.ensure_computed(self)
             field_cache = field._get_cache(self.env)
@@ -299,9 +282,7 @@ class TraversalMixin(_ModelStubs):
                 _field_get = field.__get__
                 collator = defaultdict(list)
                 # Identity-convert: skip convert_to_record where it is a no-op.
-                if field.type in _MAPPED_IDENTITY_TYPES or (
-                    field.type in _MAPPED_CHAR_TEXT and not callable(field.translate)
-                ):
+                if can_scan_identity(field):
                     _none_val = field.convert_to_record(None, self[:1])
                     ids = self._ids
                     results, miss_indices = _batch_cache_get(
@@ -432,22 +413,6 @@ class TraversalMixin(_ModelStubs):
                     field.ensure_access(first)
                     field.ensure_computed(self)
 
-    # Field types eligible for ID-based sort: non-relational, non-boolean
-    # scalars whose cache value is directly comparable.  Boolean is excluded
-    # because it sorts via expression_getter (not raw cache access).
-    _SORTABLE_SCALAR_TYPES = frozenset(
-        {
-            "char",
-            "text",
-            "integer",
-            "float",
-            "monetary",
-            "date",
-            "datetime",
-            "selection",
-        }
-    )
-
     def _sorted_by_ids(self, order: str, reverse: bool) -> tuple | None:
         """Try to sort ``self._ids`` directly from cache values.
 
@@ -461,7 +426,6 @@ class TraversalMixin(_ModelStubs):
         _SENTINEL = SENTINEL
         _PENDING = PENDING
         _fields = self._fields
-        _SORTABLE = self._SORTABLE_SCALAR_TYPES
         ids = self._ids
         env = self.env
         n = len(ids)
@@ -476,12 +440,7 @@ class TraversalMixin(_ModelStubs):
             if match["property"]:
                 return None
             field = _fields.get(field_name)
-            if field is None or field.type not in _SORTABLE:
-                return None
-            if callable(getattr(field, "translate", None)):
-                # Per-term-translated fields cache ``{lang: value}`` dicts (a
-                # LangProxyDict), not plain scalars; the Rust cache sorter needs
-                # scalar dict values. Same exclusion as mapped()/grouped().
+            if field is None or not can_scan_sorted(field):
                 return None
             desc = (match["direction"] or "").upper() == "DESC"
             nulls_raw = (match["nulls"] or "").upper()
