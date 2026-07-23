@@ -73,11 +73,15 @@ class Environment(Mapping[str, "BaseModel"]):
             raise TypeError(
                 f"Environment(cr=...) expected BaseCursor, got {type(cr).__name__}"
             )
-        # bool is an int subclass, so True == 1 == SUPERUSER_ID; reject it
-        # explicitly to avoid silently elevating to superuser below.
-        if isinstance(uid, bool):
+        # uid=None stays legal: anonymous dispatch builds an environment before
+        # authentication resolves a user (LOAD-BEARING — do not reject it).
+        # Anything else must be a real int; bool is an int subclass whose
+        # True == 1 == SUPERUSER_ID, so reject it explicitly to avoid silently
+        # elevating to superuser below.
+        if uid is not None and (not isinstance(uid, int) or isinstance(uid, bool)):
             raise TypeError(
-                f"Environment(uid=...) expected int, got bool ({uid!r})"
+                f"Environment(uid=...) expected int or None, "
+                f"got {type(uid).__name__} ({uid!r})"
             )
         if uid == SUPERUSER_ID:
             su = True

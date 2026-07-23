@@ -177,10 +177,21 @@ class _RegistryFieldsMixin(_RegistryStubs):
             for field in Model._fields.values():
                 try:
                     dependencies = list(field.resolve_depends(self))
-                except Exception:
-                    # dependencies of custom fields may not exist; ignore that case
+                except Exception as e:
+                    # dependencies of custom fields may not exist; ignore that
+                    # case, but log it — a silently dropped dependency chain on
+                    # a manual (e.g. Studio) field means its dependents never
+                    # recompute, which is otherwise undiagnosable.
                     if not field.base_field.manual:
                         raise
+                    _logger.info(
+                        "Could not resolve dependencies of manual field %s.%s; "
+                        "ignoring them (%s: %s)",
+                        field.model_name,
+                        field.name,
+                        type(e).__name__,
+                        e,
+                    )
                 else:
                     for dependency in dependencies:
                         *path, dep_field = dependency

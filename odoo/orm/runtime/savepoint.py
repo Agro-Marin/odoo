@@ -19,24 +19,26 @@ from odoo.tools import reset_cached_properties
 class _OrmFlushingSavepoint(_FlushingSavepoint):
     """:class:`_FlushingSavepoint` that also restores ORM state on rollback.
 
-    Snapshots ``default_env`` and ``registry_sequence`` on creation; on rollback
-    restores ``default_env`` and either resets the transaction (if the registry
-    was reloaded inside the savepoint) or clears the cache and resets each
+    Snapshots ``default_env`` on creation; on rollback restores it and either
+    resets the transaction (if the registry was reloaded inside the savepoint —
+    detected by object identity against ``Registry.registries``, see
+    :meth:`_restore_orm_state`) or clears the cache and resets each
     environment's cached properties.
     """
 
-    __slots__ = ("_saved_default_env", "_saved_registry")
+    __slots__ = ("_saved_default_env",)
 
     # This subclass DOES restore ORM cache/env on rollback (see the hooks below),
     # so ``BaseCursor.savepoint`` accepts it for transaction-bearing cursors.
     _restores_orm_state = True
 
     def _save_orm_state(self, cr: BaseCursor) -> None:
-        # default_env and the registry identity are the only durable state; cache
-        # / compute state is ephemeral (clear() handles it).
+        # default_env is the only durable state to snapshot; cache / compute
+        # state is ephemeral (clear() handles it), and a registry reload is
+        # detected at restore time by identity against the live
+        # ``Registry.registries`` — nothing to save for it.
         txn = cr.transaction
         self._saved_default_env = txn.default_env if txn else None
-        self._saved_registry = txn.registry if txn else None
 
     def _restore_orm_state(self, cr: BaseCursor) -> None:
         # Only called by the base class when a transaction is attached.
