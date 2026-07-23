@@ -34,6 +34,7 @@ from .ast import (
     DomainNary,
     DomainOr,
     OptimizationLevel,
+    _nary_value_tiebreak,
 )
 from .constants import (
     CONDITION_OPERATORS,
@@ -539,13 +540,18 @@ def _optimize_type_date(condition, model):
 @field_type_optimization(["date"], level=OptimizationLevel.DYNAMIC_VALUES)
 def _optimize_type_date_relative(condition, model):
     operator = condition.operator
+    value = condition.value
     if (
         operator not in ("in", "not in", ">", "<", "<=", ">=")
         or "." in condition.field_expr
-        or not isinstance(condition.value, (str, OrderedSet))
+        or not isinstance(value, (str, OrderedSet))
+        # nothing to resolve when the set holds no relative-date strings:
+        # skip the rebuild and keep the node (avoids allocating an identical
+        # condition on every DYNAMIC pass, cf. _optimize_relational_name_search)
+        or (isinstance(value, OrderedSet) and not any(isinstance(v, str) for v in value))
     ):
         return condition
-    value = _value_to_date(condition.value, model.env)
+    value = _value_to_date(value, model.env)
     return DomainCondition(condition.field_expr, operator, value)
 
 
@@ -618,7 +624,20 @@ def _optimize_type_datetime(condition, model):
     operator = condition.operator
     if operator not in ("in", "not in", ">", "<", "<=", ">=") or "." in field_expr:
         return condition
-    value, is_date = _value_to_datetime(condition.value, model.env, iso_only=True)
+    value = condition.value
+    if isinstance(value, COLLECTION_TYPES):
+        # Convert element by element, keeping WHICH converted values came from
+        # dates: the equality rewrite below must match those at whole-day
+        # granularity ('dt = date' means "any moment of that day"), while
+        # plain datetimes match at whole-second granularity.  The aggregate
+        # flag returned by _value_to_datetime on a collection cannot express a
+        # mixed [date, datetime] set.
+        pairs = [_value_to_datetime(v, model.env, iso_only=True) for v in value]
+        value = OrderedSet(v for v, _is_date in pairs)
+        dates = {v for v, is_date in pairs if is_date}
+        is_date = False  # inequality below only handles scalar values
+    else:
+        value, is_date = _value_to_datetime(value, model.env, iso_only=True)
 
     # Handle inequality
     if operator[0] in ("<", ">"):
@@ -645,17 +664,32 @@ def _optimize_type_datetime(condition, model):
                 return DomainCondition(field_expr, "!=", False)
             operator = "<"
 
-    # Handle equality: compare to the whole second
+    # Handle equality: compare to the whole second, or to the whole day for
+    # values given as dates.  This mirrors the inequality granularity above so
+    # the rewrites partition the axis exactly: for a date d, '=' -> [d, d+1d)
+    # while '<' -> < d and '>' -> >= d+1d (and analogously per second for
+    # datetimes) — every instant matches exactly one of <, =, >.
     if (
         operator in ("in", "not in")
         and isinstance(value, COLLECTION_TYPES)
         and any(isinstance(v, datetime) for v in value)
     ):
-        delta = timedelta(seconds=1)
+
+        def equality_range(v: datetime) -> Domain:
+            start = v.replace(microsecond=0)
+            delta = timedelta(days=1) if v in dates else timedelta(seconds=1)
+            try:
+                end = start + delta
+            except OverflowError:
+                # end of range above datetime.max: unbounded upwards
+                return DomainCondition(field_expr, ">=", start)
+            return DomainCondition(field_expr, ">=", start) & DomainCondition(
+                field_expr, "<", end
+            )
+
         domain = DomainOr.apply(
             (
-                DomainCondition(field_expr, ">=", v.replace(microsecond=0))
-                & DomainCondition(field_expr, "<", v.replace(microsecond=0) + delta)
+                equality_range(v)
                 if isinstance(v, datetime)
                 else DomainCondition(field_expr, "=", v)
             )
@@ -671,10 +705,15 @@ def _optimize_type_datetime(condition, model):
 @field_type_optimization(["datetime"], level=OptimizationLevel.DYNAMIC_VALUES)
 def _optimize_type_datetime_relative(condition, model):
     operator = condition.operator
+    value = condition.value
     if (
         operator not in ("in", "not in", ">", "<", "<=", ">=")
         or "." in condition.field_expr
-        or not isinstance(condition.value, (str, OrderedSet))
+        or not isinstance(value, (str, OrderedSet))
+        # nothing to resolve when the set holds no relative-date strings:
+        # skip the rebuild and keep the node (avoids allocating an identical
+        # condition on every DYNAMIC pass, cf. _optimize_relational_name_search)
+        or (isinstance(value, OrderedSet) and not any(isinstance(v, str) for v in value))
     ):
         return condition
     env = model.env
@@ -689,7 +728,6 @@ def _optimize_type_datetime_relative(condition, model):
     def _resolve(v):
         return resolve_date(v, env) if isinstance(v, str) else v
 
-    value = condition.value
     if isinstance(value, OrderedSet):
         resolved = OrderedSet(_resolve(v) for v in value)
     else:
@@ -928,6 +966,17 @@ def _merge_set_conditions(
 
     E.g. ``a in {1} or a in {2}`` -> ``a in {1, 2}``;
     ``a in {1, 2} and a not in {2, 5}`` -> ``a in {1}``.
+
+    The merged set is emitted in canonical element order (the
+    :func:`~odoo.orm.domain.ast._nary_value_tiebreak` ranking): the element
+    order of an OrderedSet does not change the SQL of the flat leaf itself
+    (single bound parameter), but it leaks into the ordering of *sibling
+    subtrees* through the repr-based ``_nary_subtree_tiebreak``, so without
+    sorting, two semantically identical domains written in different leaf order
+    optimized to different (``!=``) trees with different SQL text.  Only merged
+    sets are canonicalized here; unmerged user-supplied sets keep their order
+    (it is semantically irrelevant, and rewriting them would churn every
+    domain).
     """
     assert all(isinstance(cond.value, OrderedSet) for cond in conditions)
 
@@ -935,25 +984,20 @@ def _merge_set_conditions(
     in_sets = [c.value for c in conditions if c.operator == "in"]
     not_in_sets = [c.value for c in conditions if c.operator == "not in"]
 
+    def merged(operator: str, values: OrderedSet) -> list[DomainCondition]:
+        values = OrderedSet(sorted(values, key=_nary_value_tiebreak))
+        return [DomainCondition(conditions[0].field_expr, operator, values)]
+
     # combine the sets
-    field_expr = conditions[0].field_expr
     if cls.OPERATOR == "&":
         if in_sets:
-            return [
-                DomainCondition(
-                    field_expr, "in", intersection(in_sets) - union(not_in_sets)
-                )
-            ]
+            return merged("in", intersection(in_sets) - union(not_in_sets))
         else:
-            return [DomainCondition(field_expr, "not in", union(not_in_sets))]
+            return merged("not in", union(not_in_sets))
     elif not_in_sets:
-        return [
-            DomainCondition(
-                field_expr, "not in", intersection(not_in_sets) - union(in_sets)
-            )
-        ]
+        return merged("not in", intersection(not_in_sets) - union(in_sets))
     else:
-        return [DomainCondition(field_expr, "in", union(in_sets))]
+        return merged("in", union(in_sets))
 
 
 def intersection(sets: list[OrderedSet[typing.Any]]) -> OrderedSet[typing.Any]:

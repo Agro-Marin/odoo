@@ -13,12 +13,22 @@ Every expected value below was captured from the live optimizer, not assumed.
 """
 
 import unittest
+from datetime import date, datetime
+from unittest.mock import patch
+
+from odoo.libs.datetime import utc
 
 # Importing registers all optimization passes onto ``_OPTIMIZATIONS_FOR``.
 # Required because the stubbed ``odoo.orm.domain.__init__`` never runs (it is the
 # real package's ``__init__`` that normally pulls ``optimizations`` in).
-import odoo.orm.domain.optimizations  # noqa: F401  (side-effect import)
-from odoo.orm.domain.ast import Domain, OptimizationLevel
+from odoo.orm.domain import optimizations
+from odoo.orm.domain.ast import (
+    MAX_DOMAIN_NESTING,
+    Domain,
+    DomainCondition,
+    OptimizationLevel,
+)
+from odoo.tools import OrderedSet
 
 _UNSET = object()  # sentinel: "falsy_value not passed" vs. explicit None
 
@@ -70,6 +80,20 @@ class _StubField:
         self.search = search
 
 
+class _StubEnv:
+    """Environment stand-in for the two attributes the optimizer reads:
+    ``env.tz`` (date -> naive-UTC datetime conversion) and ``env[comodel]``
+    (descending into ``any`` sub-domains)."""
+
+    tz = utc  # == the optimizer's ``utc``: dates convert to naive midnight
+
+    def __init__(self, model):
+        self._model = model
+
+    def __getitem__(self, model_name):
+        return self._model
+
+
 class _StubModel:
     """Ten-line stand-in for a recordset: just ``_name`` and ``_fields``."""
 
@@ -82,7 +106,11 @@ class _StubModel:
             "c": _StubField("c"),
             "name": _StubField("name", "char"),
             "ok": _StubField("ok", "boolean"),
+            "d": _StubField("d", "date"),
+            "dt": _StubField("dt", "datetime"),
+            "rel": _StubField("rel", "many2one", relational=True, comodel="m"),
         }
+        self.env = _StubEnv(self)
 
 
 def _opt(domain):
@@ -390,3 +418,247 @@ class TestBooleanSearchableTautology(unittest.TestCase):
         # A genuine single-valued query still delegates to the search method.
         self.assertEqual(calls, [("in", [True])])
         self.assertEqual(list(result), [("a", "in", [1])])
+
+
+class TestDatetimeEqualityGranularity(unittest.TestCase):
+    """'=' on a datetime field matches per element granularity: a datetime
+    value covers its whole second, a date value covers its whole *day*.
+
+    Regression: the equality rewrite used ``timedelta(seconds=1)``
+    unconditionally, so ``dt = date(2024, 1, 1)`` (and ``dt = 'today'`` once
+    the DYNAMIC pass resolved it to a date) matched only ``[00:00:00,
+    00:00:01)`` — e.g. ``search_count([('create_date', '=', 'today')])``
+    returned 0.  The whole-second/whole-day windows mirror the inequality
+    granularity so '=', '<' and '>' partition the axis exactly.
+    """
+
+    def test_eq_datetime_expands_to_whole_second(self):
+        self.assertEqual(
+            _opt(Domain("dt", "=", datetime(2024, 1, 1, 10, 30, 15, 123456))),
+            [
+                "&",
+                ("dt", "<", datetime(2024, 1, 1, 10, 30, 16)),
+                ("dt", ">=", datetime(2024, 1, 1, 10, 30, 15)),
+            ],
+        )
+
+    def test_eq_date_expands_to_whole_day(self):
+        self.assertEqual(
+            _opt(Domain("dt", "=", date(2024, 1, 1))),
+            [
+                "&",
+                ("dt", "<", datetime(2024, 1, 2)),
+                ("dt", ">=", datetime(2024, 1, 1)),
+            ],
+        )
+
+    def test_eq_iso_date_string_expands_to_whole_day(self):
+        self.assertEqual(
+            _opt(Domain("dt", "=", "2024-01-01")),
+            [
+                "&",
+                ("dt", "<", datetime(2024, 1, 2)),
+                ("dt", ">=", datetime(2024, 1, 1)),
+            ],
+        )
+
+    def test_neq_date_is_whole_day_complement(self):
+        # complement of [d, d+1day), plus the NULL branch from negation
+        self.assertEqual(
+            _opt(Domain("dt", "!=", date(2024, 1, 1))),
+            [
+                "|",
+                "|",
+                ("dt", "in", [False]),
+                ("dt", "<", datetime(2024, 1, 1)),
+                ("dt", ">=", datetime(2024, 1, 2)),
+            ],
+        )
+
+    def test_in_mixed_date_and_datetime_granularities(self):
+        # one whole-day window for the date, one whole-second window for the
+        # datetime, in a single 'in' collection
+        self.assertEqual(
+            _opt(Domain("dt", "in", [date(2024, 1, 1), datetime(2024, 3, 4, 5, 6, 7)])),
+            [
+                "|",
+                "&",
+                ("dt", "<", datetime(2024, 1, 2)),
+                ("dt", ">=", datetime(2024, 1, 1)),
+                "&",
+                ("dt", "<", datetime(2024, 3, 4, 5, 6, 8)),
+                ("dt", ">=", datetime(2024, 3, 4, 5, 6, 7)),
+            ],
+        )
+
+    def test_eq_max_date_has_no_upper_bound(self):
+        # date.max + 1 day overflows datetime: the window degrades to a
+        # one-sided range instead of raising OverflowError
+        self.assertEqual(
+            _opt(Domain("dt", "=", date(9999, 12, 31))),
+            [("dt", ">=", datetime(9999, 12, 31))],
+        )
+
+    def test_eq_today_resolves_to_whole_day(self):
+        # 'today' stays a string at BASIC (transaction-independent), resolves
+        # to a *date* at DYNAMIC (its date-ness is deliberately preserved), and
+        # the re-run BASIC pass must then apply whole-day granularity
+        with patch.object(
+            optimizations, "resolve_date", return_value=date(2024, 1, 5)
+        ):
+            self.assertEqual(
+                list(Domain("dt", "=", "today").optimize_full(_StubModel())),
+                [
+                    "&",
+                    ("dt", "<", datetime(2024, 1, 6)),
+                    ("dt", ">=", datetime(2024, 1, 5)),
+                ],
+            )
+
+    def test_eq_lt_gt_date_partition_the_axis(self):
+        # '=' d -> [d, d+1d) must complement '<' d -> < d and '>' d -> >= d+1d:
+        # every instant satisfies exactly one of the three
+        d = date(2024, 1, 1)
+        self.assertEqual(_opt(Domain("dt", "<", d)), [("dt", "<", datetime(2024, 1, 1))])
+        self.assertEqual(
+            _opt(Domain("dt", ">", d)), [("dt", ">=", datetime(2024, 1, 2))]
+        )
+
+
+class TestRelativePassSkipsWithoutStrings(unittest.TestCase):
+    """The DYNAMIC relative-date passes return the *same node* when the value
+    set holds nothing to resolve, instead of allocating an identical condition
+    on every pass (mirrors ``_optimize_relational_name_search``)."""
+
+    def test_datetime_set_without_strings_is_same_object(self):
+        condition = DomainCondition("dt", "in", OrderedSet([datetime(2024, 1, 1)]))
+        result = optimizations._optimize_type_datetime_relative(
+            condition, _StubModel()
+        )
+        self.assertIs(result, condition)
+
+    def test_date_set_without_strings_is_same_object(self):
+        condition = DomainCondition("d", "in", OrderedSet([date(2024, 1, 1)]))
+        result = optimizations._optimize_type_date_relative(condition, _StubModel())
+        self.assertIs(result, condition)
+
+    def test_set_with_string_still_resolves(self):
+        condition = DomainCondition(
+            "dt", "in", OrderedSet(["today", datetime(2024, 3, 4, 5, 6, 7)])
+        )
+        with patch.object(
+            optimizations, "resolve_date", return_value=date(2024, 1, 5)
+        ):
+            result = optimizations._optimize_type_datetime_relative(
+                condition, _StubModel()
+            )
+        self.assertIsNot(result, condition)
+        # the string resolves to its *date* object (date-ness preserved for the
+        # BASIC re-run); non-string elements pass through untouched
+        self.assertEqual(
+            list(result.value), [date(2024, 1, 5), datetime(2024, 3, 4, 5, 6, 7)]
+        )
+
+
+class TestSubdomainNestingGuardCaseInsensitive(unittest.TestCase):
+    """The parse-time ``any`` nesting guard must match operators
+    case-insensitively, exactly like the parser (which lowercases them later in
+    ``DomainCondition.checked``): a raw uppercase "ANY" level used to slip past
+    the guard and RecursionError at evaluation time."""
+
+    @staticmethod
+    def _nested_any(depth, op):
+        subdomain = [("a", "=", 1)]
+        for _ in range(depth):
+            subdomain = [("rel", op, subdomain)]
+        return subdomain
+
+    def _assert_rejected_at_parse(self, op):
+        # top level lowercase (no DeprecationWarning); the *inner* raw levels
+        # carry the operator under test and are only seen by the guard's scan
+        with self.assertRaisesRegex(ValueError, "nesting too deep"):
+            Domain("rel", "any", self._nested_any(MAX_DOMAIN_NESTING + 10, op))
+
+    def test_lowercase_any_deep_chain_rejected(self):
+        self._assert_rejected_at_parse("any")
+
+    def test_uppercase_any_deep_chain_rejected(self):
+        self._assert_rejected_at_parse("ANY")
+
+    def test_uppercase_not_any_deep_chain_rejected(self):
+        self._assert_rejected_at_parse("NOT ANY")
+
+
+class TestDeepDomainSurfacesValueError(unittest.TestCase):
+    """Entry points that optimize internally (``validate``, condition
+    ``_as_predicate``) must surface a stack-exhausting domain as the same
+    catchable ``ValueError`` as ``optimize``/``optimize_full`` — not as an
+    opaque ``RecursionError`` (reachable from ir.rule's constraint via
+    ``validate`` and from ``filtered_domain`` via ``_as_predicate``)."""
+
+    def test_validate_surfaces_value_error(self):
+        # operator-built (&/|) domains never pass through the parse-time
+        # nesting guard, so a deep alternating chain reaches _optimize intact
+        domain = Domain("a", "=", 1)
+        for _ in range(2000):
+            domain = (domain & Domain("a", "=", 2)) | Domain("a", "=", 3)
+        with self.assertRaisesRegex(ValueError, "nesting too deep"):
+            domain.validate(_StubModel())
+
+    def test_as_predicate_surfaces_value_error(self):
+        # Domain-valued 'any' conditions skip the raw-list nesting guard in
+        # ``checked()``, so a deep chain is constructible and only recurses
+        # when optimized — here from the _as_predicate entry point
+        domain = Domain("a", "=", 1)
+        for _ in range(5000):
+            domain = Domain("rel", "any", domain)
+        with self.assertRaisesRegex(ValueError, "nesting too deep"):
+            domain._as_predicate(_StubModel())
+
+
+class TestMergedSetCanonicalOrder(unittest.TestCase):
+    """Merged in/not-in sets are emitted in canonical element order.
+
+    The element order of the set does not change the flat leaf's SQL (single
+    bound parameter), but it leaks into sibling-subtree ordering through the
+    repr-based ``_nary_subtree_tiebreak``, making semantically identical
+    domains optimize to ``!=`` trees with different SQL text.  Unmerged sets
+    keep the caller's order (no churn)."""
+
+    def test_or_union_is_value_sorted(self):
+        canonical = [("a", "in", [1, 2, 3])]
+        self.assertEqual(_opt(Domain("a", "in", [3, 1]) | Domain("a", "in", [2])), canonical)
+        self.assertEqual(_opt(Domain("a", "in", [2]) | Domain("a", "in", [3, 1])), canonical)
+
+    def test_and_intersection_is_value_sorted(self):
+        self.assertEqual(
+            _opt(Domain("a", "in", [2, 1, 3]) & Domain("a", "in", [3, 1, 2])),
+            [("a", "in", [1, 2, 3])],
+        )
+
+    def test_and_not_in_union_is_value_sorted(self):
+        self.assertEqual(
+            _opt(Domain("a", "not in", [5, 4]) & Domain("a", "not in", [6])),
+            [("a", "not in", [4, 5, 6])],
+        )
+
+    def test_unmerged_set_keeps_caller_order(self):
+        # a single (unmerged) set is semantically order-free; leave it alone
+        self.assertEqual(_opt(Domain("a", "in", [3, 1])), [("a", "in", [3, 1])])
+
+    def test_confluence_across_sibling_subtrees(self):
+        # permutations of the same leaves must optimize to ``==`` Domains with
+        # identically-ordered nested sibling subtrees (same SQL text)
+        model = _StubModel()
+
+        def sub(values):
+            domain = Domain("ok", "=", True)
+            for v in values:
+                domain |= Domain("a", "in", [v])
+            return domain
+
+        other = Domain("b", "in", [7]) | Domain("name", "like", "z")
+        d1 = (sub([1, 2]) & other).optimize(model)
+        d2 = (other & sub([2, 1])).optimize(model)
+        self.assertEqual(d1, d2)
+        self.assertEqual(list(d1), list(d2))
