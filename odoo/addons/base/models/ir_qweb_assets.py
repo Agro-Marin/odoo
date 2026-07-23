@@ -1130,11 +1130,21 @@ class IrQweb(models.AbstractModel):
                     child_bundles = self._get_dynamic_child_bundles(
                         bundle, assets_params, debug_assets=False
                     )
+                    # Specs the PARENT itself ships. A module that appears in
+                    # both the parent and a dynamic child is owned by the parent
+                    # (the parent registers it); it must NOT be
+                    # externalised/stub-aliased here, or the parent would import
+                    # its OWN module through the ``odoo.loader.modules.get()``
+                    # bridge — which is empty until the parent's
+                    # ``registerNativeModules`` runs at end-of-bundle, so an
+                    # eval-time use (``class X extends GraphModel``) sees
+                    # ``undefined``. Only child-EXCLUSIVE specs are lazy.
+                    _parent_specs = {a.module_path for a in asset_bundle.native_modules}
                     _child_specs = {
                         asset.module_path
                         for child_ab in child_bundles
                         for asset in child_ab.native_modules
-                    }
+                    } - _parent_specs
                     # A secondary/test bundle (``web.assets_tests``) must not
                     # inline the core singletons it shares with its parent app
                     # bundle — alias them to shims reading ``odoo.loader.modules``
