@@ -1,5 +1,5 @@
 """Auto-generated file, do not edit by hand. BR metadata"""
-from ..phonemetadata import NumberFormat, PhoneNumberDesc, PhoneMetadata
+from ..phonemetadata import NumberFormat, PhoneMetadata, PhoneNumberDesc
 
 PHONE_METADATA_BR = PhoneMetadata(id='BR', country_code=55, international_prefix='00(?:1[245]|2[1-35]|31|4[13]|[56]5|99)',
     general_desc=PhoneNumberDesc(national_number_pattern='(?:[1-46-9]\\d\\d|5(?:[0-46-9]\\d|5[0-46-9]))\\d{8}|[1-9]\\d{9}|[3589]\\d{8}|[34]\\d{7}', possible_length=(8, 9, 10, 11)),

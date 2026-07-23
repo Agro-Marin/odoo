@@ -1,14 +1,13 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
+
+import logging
 
 from odoo.exceptions import UserError
 from odoo.tools import LazyTranslate
 
-import logging
-
 _lt = LazyTranslate(__name__, default_lang='en_US')  # TODO pass env to functions and remove _lt
 _logger = logging.getLogger(__name__)
-_phonenumbers_lib_warning = False
+_phonenumbers_lib_warning = [False]  # single-element list: mutated in-place to avoid a module `global`
 
 
 try:
@@ -42,13 +41,13 @@ try:
                     try:
                         phone_nbr = phone_parse(f'+{number.removeprefix("00")}', country_code)
                     except UserError:
-                        raise UserError(_lt('Impossible number %s: too many digits.', number))
+                        raise UserError(_lt('Impossible number %s: too many digits.', number)) from None
                 # people may enter 33... instead of +33...
                 elif not number.startswith('+'):
                     try:
                         phone_nbr = phone_parse(f'+{number}', country_code)
                     except UserError:
-                        raise UserError(_lt('Impossible number %s: too many digits.', number))
+                        raise UserError(_lt('Impossible number %s: too many digits.', number)) from None
                 else:
                     raise UserError(_lt('Impossible number %s: too many digits.', number))
             else:
@@ -115,13 +114,12 @@ except ImportError:
         return False
 
     def phone_format(number, country_code, country_phone_code, force_format='INTERNATIONAL', raise_exception=True):
-        global _phonenumbers_lib_warning
-        if not _phonenumbers_lib_warning:
+        if not _phonenumbers_lib_warning[0]:
             _logger.info(
                 "The `phonenumbers` Python module is not installed, contact numbers will not be "
                 "verified. Please install the `phonenumbers` Python module."
             )
-            _phonenumbers_lib_warning = True
+            _phonenumbers_lib_warning[0] = True
         return number
 
     def phone_get_country_code_for_number(number):

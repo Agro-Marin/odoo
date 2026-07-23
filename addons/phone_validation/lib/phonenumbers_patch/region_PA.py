@@ -1,5 +1,5 @@
 """Auto-generated file, do not edit by hand. PA metadata"""
-from ..phonemetadata import NumberFormat, PhoneNumberDesc, PhoneMetadata
+from ..phonemetadata import NumberFormat, PhoneMetadata, PhoneNumberDesc
 
 PHONE_METADATA_PA = PhoneMetadata(id='PA', country_code=507, international_prefix='00',
     general_desc=PhoneNumberDesc(national_number_pattern='(?:00800|8\\d{3})\\d{6}|[68]\\d{7}|[1-57-9]\\d{6}', possible_length=(7, 8, 10, 11)),
