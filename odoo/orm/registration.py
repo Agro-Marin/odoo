@@ -539,10 +539,19 @@ def _add_inherited_fields(model_cls: type[BaseModel]):
         return
 
     # When two _inherits parents share a field name, the last in iteration
-    # order wins; warn so accidental collisions surface in the logs.
+    # order wins; warn so accidental collisions surface in the logs.  Only
+    # names that will actually be inherited can collide: fields already
+    # defined on the model itself (including the magic fields id,
+    # display_name, create_uid/date, write_uid/date that every parent also
+    # carries) are never inherited, so they are filtered out *before*
+    # collision tracking — otherwise every model with two _inherits parents
+    # would log six spurious magic-field warnings.
     to_inherit: dict[str, tuple[str, Field]] = {}
     for parent_model_name, parent_fname in model_cls._inherits.items():
         for name, field in model_cls.pool[parent_model_name]._fields.items():
+            if name in model_cls._fields:
+                # redefined locally: never inherited, not a collision
+                continue
             if (existing := to_inherit.get(name)) is not None:
                 _logger.warning(
                     "Model %r inherits field %r from both %r and %r; "
@@ -555,27 +564,27 @@ def _add_inherited_fields(model_cls: type[BaseModel]):
                 )
             to_inherit[name] = (parent_fname, field)
 
-    # add inherited fields that are not redefined locally
+    # add the inherited fields (none of them is redefined locally: names
+    # present in model_cls._fields were filtered out above)
     for name, (parent_fname, field) in to_inherit.items():
-        if name not in model_cls._fields:
-            # inherited fields are implemented as related fields, with the
-            # following specific properties:
-            #  - reading inherited fields should not bypass access rights
-            #  - copy inherited fields iff their original field is copied
-            field_cls = type(field)
-            add_field(
-                model_cls,
-                name,
-                field_cls(
-                    inherited=True,
-                    inherited_field=field,
-                    related=f"{parent_fname}.{name}",
-                    related_sudo=False,
-                    copy=field.copy,
-                    readonly=field.readonly,
-                    export_string_translation=field.export_string_translation,
-                ),
-            )
+        # inherited fields are implemented as related fields, with the
+        # following specific properties:
+        #  - reading inherited fields should not bypass access rights
+        #  - copy inherited fields iff their original field is copied
+        field_cls = type(field)
+        add_field(
+            model_cls,
+            name,
+            field_cls(
+                inherited=True,
+                inherited_field=field,
+                related=f"{parent_fname}.{name}",
+                related_sudo=False,
+                copy=field.copy,
+                readonly=field.readonly,
+                export_string_translation=field.export_string_translation,
+            ),
+        )
 
 
 def _setup_fields(model_cls: type[BaseModel], env: Environment):
