@@ -86,7 +86,7 @@ class ReadGroupMixin(_ReadGroupSQLMixin, _ReadGroupFormatMixin, _ReadGroupFillMi
         result = [[] for __ in grouping_sets]
         if query.is_empty():
             self._check_read_group_spec_access(
-                itertools.chain.from_iterable(grouping_sets), aggregates
+                itertools.chain.from_iterable(grouping_sets), aggregates, query
             )
             return result
 
@@ -382,7 +382,7 @@ class ReadGroupMixin(_ReadGroupSQLMixin, _ReadGroupFormatMixin, _ReadGroupFillMi
         """
         query = self._search(domain)
         if query.is_empty():
-            self._check_read_group_spec_access(groupby, aggregates)
+            self._check_read_group_spec_access(groupby, aggregates, query)
             if not groupby:
                 if having:
                     empty_query = Query(self.env, self._table, self._table_sql)
@@ -466,15 +466,18 @@ class ReadGroupMixin(_ReadGroupSQLMixin, _ReadGroupFormatMixin, _ReadGroupFillMi
         return False
 
     @api.model
-    def _check_read_group_spec_access(self, groupby, aggregates) -> None:
-        """Validate groupby/aggregate specs and check field read access,
-        without building SQL.
+    def _check_read_group_spec_access(self, groupby, aggregates, query) -> None:
+        """Validate groupby/aggregate specs and check field read access.
 
         Mirrors the field-level checks of :meth:`_read_group_groupby` and
         :meth:`_read_group_select`; used on the empty-query shortcut of
         :meth:`_read_group` / :meth:`_read_grouping_sets` so field-level
         :class:`~odoo.exceptions.AccessError` (and invalid-spec errors) do not
         depend on whether the domain matched records.
+
+        :param query: the (empty) query of the shortcut; passed through to a
+            :meth:`_read_group_groupby` override so a virtual groupby spec can
+            be resolved. Any SQL built for validation is discarded.
         """
         for spec in groupby:
             model = self
@@ -482,9 +485,13 @@ class ReadGroupMixin(_ReadGroupSQLMixin, _ReadGroupFormatMixin, _ReadGroupFillMi
             while True:
                 fname, seq_fnames, granularity = parse_read_group_spec(sub_spec)
                 if fname not in model._fields:
-                    raise ValueError(
-                        f"Invalid field {fname!r} on model {model._name!r}"
-                    )
+                    # May still be a virtual groupby claimed by a
+                    # _read_group_groupby override (e.g. account_followup's
+                    # 'followup_overdue'), so defer to that resolver instead of
+                    # rejecting here: it raises ValueError for genuinely unknown
+                    # specs and runs its own field-level read-access checks.
+                    model._read_group_groupby(model._table, sub_spec, query)
+                    break
                 field = model._fields[fname]
                 if seq_fnames and field.type != "properties":
                     if field.type != "many2one":
