@@ -596,13 +596,16 @@ class _RelationalMulti(_Relational):
 
         record_ids = {rid for recs, cs in normalized for rid in recs._ids}
         if all(record_ids):
-            # for REAL records an empty command list is a guaranteed no-op
-            # (the DB is the source of truth): drop it to skip the
-            # old-relation read write_real would perform. New records must
-            # keep it — their cache IS the value, and even an empty SET has
-            # to seed the cache entry (a compute assigning [] on a NewId
-            # would otherwise "fail to assign").
-            if normalized := [(recs, cmds) for recs, cmds in normalized if cmds]:
+            # For a REAL record backed by a STORED field an empty command list
+            # is a guaranteed no-op (the DB is the source of truth): drop it to
+            # skip the old-relation read write_real would perform. But a
+            # NON-STORED field's value lives only in cache, so — exactly like a
+            # new record — an empty assignment must still reach write_real to
+            # seed the cache entry, otherwise a compute assigning [] on a saved
+            # record would "fail to assign".
+            if self.store:
+                normalized = [(recs, cmds) for recs, cmds in normalized if cmds]
+            if normalized:
                 self.write_real(normalized, create)
         else:
             assert not any(record_ids), (
