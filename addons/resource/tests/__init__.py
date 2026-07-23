@@ -9,3 +9,4 @@ from . import test_resource_hardening
 from . import test_resource_audit_fixes
 from . import test_resource_second_pass
 from . import test_calendar_attendance
+from . import test_resource_resource_crud
