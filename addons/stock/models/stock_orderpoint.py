@@ -1620,7 +1620,9 @@ class StockWarehouseOrderpoint(models.Model):
             self.replenishment_uom_id
             or self._get_replenishment_multiple_alternative(qty_to_order)
         )
-        if replenishment_multiple:
+        if replenishment_multiple and self.product_id.uom_id._has_common_reference(
+            replenishment_multiple
+        ):
             # Round UP so the ordered qty fully covers the shortage (use DOWN instead if
             # overshooting product_max_qty must be avoided).
             qty_to_order = self.product_id.uom_id._compute_quantity(

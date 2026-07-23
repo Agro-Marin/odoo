@@ -1153,13 +1153,19 @@ class StockMove(models.Model):
     @api.depends("product_uom_qty", "product_uom_id", "packaging_uom_id")
     def _compute_quantity_packaging_uom(self):
         for move in self:
-            if move.packaging_uom_id:
+            packaging_uom = move.packaging_uom_id
+            if not packaging_uom:
+                move.quantity_packaging_uom = 0.0
+            elif move.product_uom_id._has_common_reference(packaging_uom):
                 move.quantity_packaging_uom = move.product_uom_id._compute_quantity(
                     move.product_uom_qty,
-                    move.packaging_uom_id,
+                    packaging_uom,
                 )
             else:
-                move.quantity_packaging_uom = 0.0
+                # Legacy/import packaging UoM that shares no reference unit with
+                # the product UoM: degrade to the product quantity instead of
+                # raising and blocking the whole flush.
+                move.quantity_packaging_uom = move.product_uom_qty
 
     @api.depends(
         "has_tracking",
