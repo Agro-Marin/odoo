@@ -169,21 +169,32 @@ class _FieldConvertMixin(_FieldStubs):
         # Company-dependent: collect values from all company contexts into JSONB
         values = {}
         flat_value = SENTINEL
+        found = False
         for ctx_key, cache in field_cache.items():
             if not isinstance(cache, dict):
                 # Stale flat entry (see the translate-is-True branch above):
                 # keep a non-None one as a fallback so a value surviving only in
                 # a flat entry is not flushed as NULL. The is-not-None guard also
                 # avoids 'NoneType has no attribute get'.
-                if ctx_key == record_id and cache is not None:
-                    flat_value = cache
+                if ctx_key == record_id:
+                    found = True
+                    if cache is not None:
+                        flat_value = cache
                 continue
-            if (
-                value := cache.get(record_id, SENTINEL)
-            ) is not SENTINEL and value is not PENDING:
-                values[ctx_key[0]] = self._to_json_value(
-                    self.convert_to_column(value, record)
-                )
+            if (value := cache.get(record_id, SENTINEL)) is not SENTINEL:
+                found = True
+                if value is not PENDING:
+                    values[ctx_key[0]] = self._to_json_value(
+                        self.convert_to_column(value, record)
+                    )
+        if not found:
+            # Total miss: no sub-cache (nor flat entry) knows the record at
+            # all.  Raise KeyError like the other branches — _flush wraps it
+            # into a diagnostic RuntimeError (see mixins/recompute.py);
+            # returning None here would silently flush SQL NULL.  (A record
+            # that IS known but whose values all match the fallback still
+            # returns None below — that NULL is the legitimate storage form.)
+            raise KeyError(record_id)
         if not values and flat_value is not SENTINEL:
             # Only a stale flat entry held a value: preserve it under the current
             # company rather than overwriting the column with NULL.
