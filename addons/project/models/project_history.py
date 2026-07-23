@@ -5,7 +5,7 @@ is the strongest antidote to the planning fallacy. Kahneman: the 'outside
 view' corrects systematic optimism bias.
 """
 
-from odoo import api, fields, models
+from odoo import Command, api, fields, models
 
 
 class ProjectHistory(models.Model):
@@ -171,7 +171,7 @@ class ProjectHistory(models.Model):
                 "actual_hours": actual_hours,
                 "task_count": len(tasks),
                 "team_size": len(assignees),
-                "tag_ids": [(6, 0, project.tag_ids.ids)],
+                "tag_ids": [Command.set(project.tag_ids.ids)],
                 "avg_lead_time": avg_lt,
                 "avg_cycle_time": avg_ct,
                 "deadline_compliance_pct": dl_pct,
