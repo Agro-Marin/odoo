@@ -5,7 +5,6 @@ from odoo import _, models
 from odoo.addons.payment.logging import get_payment_logger
 from odoo.addons.payment_custom.controllers.main import CustomController
 
-
 _logger = get_payment_logger(__name__)
 
 
@@ -62,6 +61,7 @@ class PaymentTransaction(models.Model):
             "Validated custom payment for transaction %s: set as pending.", self.reference
         )
         self._set_pending()
+        return None
 
     def _log_received_message(self):
         """ Override of `payment` to remove custom providers from the recordset.
