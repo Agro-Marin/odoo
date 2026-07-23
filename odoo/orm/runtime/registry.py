@@ -71,6 +71,13 @@ _CACHES_BY_KEY = {
 
 _REPLICA_RETRY_TIME = 20 * 60  # 20 minutes
 
+# Inter-process signaling tables: ``orm_signaling_registry`` signals a full
+# registry reload; each ``orm_signaling_<cache>`` signals invalidation of the
+# corresponding cache group (see setup_signaling / get_sequences).
+_SIGNALING_TABLES = tuple(
+    f"orm_signaling_{cache_name}" for cache_name in ["registry", *_CACHES_BY_KEY]
+)
+
 
 class _RegistryCaches:
     """Owns a registry's ormcache LRU stores and their bulk-clear logic.
@@ -137,6 +144,15 @@ class Registry(
         # the fork's other converted contract checks in this module.
         if not db_name:
             raise ValueError("Missing database name")
+        # Lock-free fast path: `_lock` is class-global, so taking it serializes
+        # requests across ALL databases — a request for db A would wait behind a
+        # full registry build for db B. LRU reads are documented lock-free, and
+        # `ready` only becomes True after `new()` finished building (registries
+        # are published *before* loading, with ready=False, so an in-flight
+        # build never short-circuits here and still waits on the locked path).
+        reg = cls.registries.get(db_name)
+        if reg is not None and reg.ready:
+            return reg
         with cls._lock:
             try:
                 return cls.registries[db_name]
@@ -263,7 +279,12 @@ class Registry(
                 exit_stack.close()
         except Exception:
             _logger.error("Failed to load registry")
-            del cls.registries[db_name]  # pylint: disable=unsupported-delete-operation
+            # membership-guarded delete: a NESTED Registry.new (uninstall reload
+            # path, odoo/modules/loading.py) that failed already removed the key
+            # on its way out; an unguarded `del` here would then raise KeyError
+            # and mask the real exception (left only in __context__). `delete`
+            # is @locked but the RLock is reentrant.
+            cls.delete(db_name)
             raise
 
         del registry._reinit_modules
@@ -764,13 +785,18 @@ class Registry(
     def clear_cache(self, *cache_names: str) -> None:
         """Clear the ``tools.ormcache`` caches in the given ``cache_names`` subset."""
         cache_names = cache_names or ("default",)
-        # raise (not assert) — under python -O an invalid composite name like
-        # "templates.cached_values" would slip through and produce a less
-        # helpful KeyError on the ``_CACHES_BY_KEY[cache_name]`` lookup below.
+        # raise (not assert) — under python -O an invalid name (a typo, or a
+        # composite sub-cache like "templates.cached_values" which is not a
+        # clearable group) would slip through and produce a less helpful
+        # KeyError on the ``_CACHES_BY_KEY[cache_name]`` lookup mid-loop.
+        # Validate everything up front so a bad name clears nothing.
         for cache_name in cache_names:
-            if "." in cache_name:
+            if cache_name not in _CACHES_BY_KEY:
                 raise ValueError(
-                    f"clear_cache: invalid cache name {cache_name!r} (no dots allowed)"
+                    f"clear_cache: invalid cache name {cache_name!r} — only "
+                    f"composite group names can be cleared (sub-cache names "
+                    f"like 'templates.cached_values' cannot); valid names: "
+                    f"{', '.join(sorted(_CACHES_BY_KEY))}"
                 )
         for cache_name in cache_names:
             self._clear_cache_group(cache_name)
@@ -817,16 +843,10 @@ class Registry(
     def setup_signaling(self) -> None:
         """Setup the inter-process signaling on this registry."""
         with self.cursor() as cr:
-            # `orm_signaling_registry` signals registry reload; each
-            # `orm_signaling_<cache>` signals cache invalidation.
-            signaling_tables = tuple(
-                f"orm_signaling_{cache_name}"
-                for cache_name in ["registry", *_CACHES_BY_KEY]
-            )
-            existing_sig_tables = tuple(sql.existing_tables(cr, signaling_tables))
+            existing_sig_tables = tuple(sql.existing_tables(cr, _SIGNALING_TABLES))
             # insert-only tables, not sequences: sequences don't replicate
             # https://www.postgresql.org/docs/current/logical-replication-restrictions.html
-            for table_name in signaling_tables:
+            for table_name in _SIGNALING_TABLES:
                 if table_name not in existing_sig_tables:
                     cr.execute(
                         SQL(
@@ -852,14 +872,10 @@ class Registry(
             )
 
     def get_sequences(self, cr: BaseCursor) -> tuple[int, dict[str, int]]:
-        signaling_tables = tuple(
-            f"orm_signaling_{cache_name}"
-            for cache_name in ["registry", *_CACHES_BY_KEY]
-        )
         signaling_selects = SQL(", ").join(
             [
                 SQL("( SELECT max(id) FROM %s)", SQL.identifier(signaling_table))
-                for signaling_table in signaling_tables
+                for signaling_table in _SIGNALING_TABLES
             ]
         )
         cr.execute(SQL("SELECT %s", signaling_selects))
@@ -886,51 +902,94 @@ class Registry(
                 assert cr is not None
                 db_registry_sequence, db_cache_sequences = self.get_sequences(cr)
                 changes = ""
+                # Comparisons below are strictly monotonic (`>`), not `!=`: with
+                # db_replica_host configured this cursor may read a LAGGING
+                # replica, while signal_changes() optimistically bumped the
+                # local sequences right after writing the primary. A db value
+                # *smaller* than the local one therefore means replication lag,
+                # not a change — reloading (or regressing a stored sequence to
+                # the stale value) would trigger spurious full reloads / cache
+                # clears on every request until the replica catches up.
+                #
                 # Check if the model registry must be reloaded
-                if self.registry_sequence != db_registry_sequence:
+                if db_registry_sequence > self.registry_sequence:
                     _logger.info(
                         "Reloading the model registry after database signaling."
                     )
-                    # another worker changed the schema. this worker's idle
-                    # pooled connections hold stale auto-prepared statements
-                    # (re-execute fails "cached plan must not change result
-                    # type") and stale binary-COPY schema caches (which do NOT
-                    # self-heal). drain_all() in load_modules() ran only in the
-                    # upgrading worker, so drain here to get fresh connections.
-                    from odoo.db import drain_db
-
                     old_sequence = self.registry_sequence
-                    drain_db(self.db_name)
-                    self = Registry.new(self.db_name)
-                    # Registry.new() -> setup_signaling() already set
-                    # registry_sequence from a fresh DB read, which is at least
-                    # as new as the db_registry_sequence read at the top of this
-                    # method. Do NOT overwrite it with that staler value: under a
-                    # concurrent schema bump landing during the rebuild it would
-                    # regress the sequence and force a redundant reload next
-                    # request.
+                    # Another thread of this process may have finished the
+                    # rebuild already: Registry.new() is @locked and publishes
+                    # the fresh registry in `registries` before returning. If a
+                    # published registry is already at least as new as the db
+                    # read, adopt it instead of paying a redundant full rebuild.
+                    published = Registry.registries.get(self.db_name)
+                    if (
+                        published is not None
+                        and published is not self
+                        and published.ready
+                        and published.registry_sequence >= db_registry_sequence
+                    ):
+                        self = published
+                    else:
+                        # another worker changed the schema. this worker's idle
+                        # pooled connections hold stale auto-prepared statements
+                        # (re-execute fails "cached plan must not change result
+                        # type") and stale binary-COPY schema caches (which do
+                        # NOT self-heal). drain_all() in load_modules() ran only
+                        # in the upgrading worker, so drain here to get fresh
+                        # connections.
+                        from odoo.db import drain_db
+
+                        drain_db(self.db_name)
+                        self = Registry.new(self.db_name)
+                        # Registry.new() -> setup_signaling() already set
+                        # registry_sequence from a fresh DB read, which is at
+                        # least as new as the db_registry_sequence read at the
+                        # top of this method. Do NOT overwrite it with that
+                        # staler value: under a concurrent schema bump landing
+                        # during the rebuild it would regress the sequence and
+                        # force a redundant reload next request.
                     if _logger.isEnabledFor(logging.DEBUG):
                         changes += (
                             f"[Registry - {old_sequence} -> {self.registry_sequence}]"
                         )
                 # Check if the model caches must be invalidated.
                 else:
+                    if db_registry_sequence < self.registry_sequence:
+                        _logger.debug(
+                            "Ignoring stale registry signaling read "
+                            "(db %s < local %s), likely replica lag",
+                            db_registry_sequence,
+                            self.registry_sequence,
+                        )
                     invalidated = []
                     for (
                         cache_name,
                         cache_sequence,
                     ) in self.cache_sequences.items():
                         expected_sequence = db_cache_sequences[cache_name]
-                        if cache_sequence != expected_sequence:
+                        if expected_sequence > cache_sequence:
                             for cache in _CACHES_BY_KEY[
                                 cache_name
                             ]:  # don't call clear_cache to avoid signal loop
                                 if cache not in invalidated:
                                     invalidated.append(cache)
                                     self._caches.lrus[cache].clear()
+                            # monotonic: only ever advance the stored sequence;
+                            # assigning a smaller (lagging) value would make the
+                            # next non-lagging read look like a change and clear
+                            # the caches a second time for nothing.
                             self.cache_sequences[cache_name] = expected_sequence
                             if _logger.isEnabledFor(logging.DEBUG):
                                 changes += f"[Cache {cache_name} - {cache_sequence} -> {expected_sequence}]"
+                        elif expected_sequence < cache_sequence:
+                            _logger.debug(
+                                "Ignoring stale cache signaling read for %s "
+                                "(db %s < local %s), likely replica lag",
+                                cache_name,
+                                expected_sequence,
+                                cache_sequence,
+                            )
                     if invalidated:
                         _logger.info(
                             "Invalidating caches after database signaling: %s",
@@ -967,9 +1026,12 @@ class Registry(
             _logger.info("Registry changed, signaling through the database")
             with self.cursor() as cr:
                 cr.execute("INSERT INTO orm_signaling_registry DEFAULT VALUES")
-                # if another process updated the registry concurrently this
-                # becomes out-of-date, and the next check_signaling() detects it
-                # and triggers a reload; otherwise it equals cr.fetchone()[0].
+                # optimistic local bump (no read-back): if another process
+                # updated the registry concurrently the db value moves further
+                # ahead and the next check_signaling() (strictly monotonic,
+                # db > local) detects it and triggers a reload; a replica read
+                # lagging behind this bump is ignored there, not treated as a
+                # change.
                 self.registry_sequence += 1
 
         # no need to notify cache invalidation in case of registry invalidation,
@@ -987,9 +1049,11 @@ class Registry(
                             SQL.identifier(f"orm_signaling_{cache_name}"),
                         )
                     )
-                    # if another process updated the cache concurrently this
-                    # becomes out-of-date, and the next check_signaling() detects
-                    # it and invalidates; otherwise it equals cr.fetchone()[0].
+                    # optimistic local bump (no read-back): if another process
+                    # updated the cache concurrently the db value moves further
+                    # ahead and the next check_signaling() (strictly monotonic,
+                    # db > local) detects it and invalidates; a replica read
+                    # lagging behind this bump is ignored there.
                     self.cache_sequences[cache_name] += 1
 
         self.registry_invalidated = False

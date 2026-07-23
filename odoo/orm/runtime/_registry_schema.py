@@ -109,13 +109,18 @@ class _RegistrySchemaMixin(_RegistryStubs):
         if not expected:
             return
 
-        # retrieve existing indexes with their table and access method, scoped
-        # to the current schema (a same-named index in another schema is not
-        # ours). The access method lets us detect an index whose kind no longer
-        # matches the field (e.g. btree left behind after index='trigram').
+        # retrieve existing indexes with their table, access method and
+        # predicate presence, scoped to the current schema (a same-named index
+        # in another schema is not ours). The access method lets us detect an
+        # index whose kind no longer matches the field (e.g. btree left behind
+        # after index='trigram'); the predicate presence distinguishes a plain
+        # btree from the partial `WHERE ... IS NOT NULL` one emitted for
+        # index='btree_not_null' (both use the btree access method, so the
+        # method alone cannot tell them apart).
         cr.execute(
             """
-            SELECT idx.relname, tbl.relname, am.amname
+            SELECT idx.relname, tbl.relname, am.amname,
+                   ix.indpred IS NOT NULL AS has_predicate
               FROM pg_index ix
               JOIN pg_class idx ON idx.oid = ix.indexrelid
               JOIN pg_class tbl ON tbl.oid = ix.indrelid
@@ -126,20 +131,19 @@ class _RegistrySchemaMixin(_RegistryStubs):
             [[row[0] for row in expected]],
         )
         existing = {
-            indexname: (tablename, method)
-            for indexname, tablename, method in cr.fetchall()
+            indexname: (tablename, method, has_predicate)
+            for indexname, tablename, method, has_predicate in cr.fetchall()
         }
 
         for indexname, tablename, field in expected:
             index = field.index
-            assert index in (
-                "btree",
-                "btree_not_null",
-                "trigram",
-                True,
-                False,
-                None,
-            )
+            # raise (not assert): validates module-author `index=` input, so it
+            # must hold under python -O too.
+            if index not in ("btree", "btree_not_null", "trigram", True, False, None):
+                raise ValueError(
+                    f"Invalid index value {index!r} on {field}; allowed values: "
+                    f"'btree', 'btree_not_null', 'trigram', True, False, None"
+                )
 
             if index and field.translate and index != "trigram":
                 _schema.warning(
@@ -154,10 +158,19 @@ class _RegistrySchemaMixin(_RegistryStubs):
                 or (index == "trigram" and self.has_trigram)
             )
             if indexname in existing:
-                # the index already exists; rebuild it only when its access
-                # method is stale (the field changed its index kind)
+                # the index already exists; rebuild it only when it no longer
+                # matches the field: stale access method (the field changed its
+                # index kind) or stale predicate presence (a 'btree' <->
+                # 'btree_not_null' change keeps the btree method but adds or
+                # drops the partial `WHERE ... IS NOT NULL` clause — including
+                # the company_dependent variant)
                 expected_method = "gin" if index == "trigram" else "btree"
-                stale = existing[indexname][1] != expected_method
+                expected_predicate = index == "btree_not_null"
+                _table, actual_method, actual_predicate = existing[indexname]
+                stale = (
+                    actual_method != expected_method
+                    or bool(actual_predicate) != expected_predicate
+                )
                 will_index = will_index and stale
             else:
                 stale = False
@@ -215,7 +228,10 @@ class _RegistrySchemaMixin(_RegistryStubs):
                 except psycopg.OperationalError:
                     _schema.error("Unable to add index %r for %s", indexname, self)
 
-            elif not index and tablename == existing.get(indexname, (None, None))[0]:
+            elif (
+                not index
+                and tablename == existing.get(indexname, (None, None, None))[0]
+            ):
                 _schema.info(
                     "Keep unexpected index %s on table %s", indexname, tablename
                 )
