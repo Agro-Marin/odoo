@@ -4,7 +4,6 @@ import collections
 import contextlib
 import inspect
 import logging
-import os
 import re
 import sys
 import time
@@ -13,6 +12,7 @@ from typing import TYPE_CHECKING, Any, NamedTuple
 
 from .. import db
 from . import case
+from .utils import env_int
 
 if TYPE_CHECKING:
     import types
@@ -20,11 +20,12 @@ if TYPE_CHECKING:
 
 __unittest = True
 
-# `or` (not a default) so that an empty-but-set variable, common in CI, does
-# not crash this import with ValueError.
-ODOO_TEST_MAX_FAILED_TESTS = max(
-    1, int(os.environ.get("ODOO_TEST_MAX_FAILED_TESTS") or sys.maxsize)
-)
+# `env_int` so that an empty-but-set variable, common in CI, does not crash
+# this import with ValueError.  A non-positive value (like unset) means "no
+# limit": halting after zero failures is meaningless, and the old `max(1, 0)`
+# silently turned 0 into "halt after the first failure".
+_max_failed = env_int("ODOO_TEST_MAX_FAILED_TESTS", 0)
+ODOO_TEST_MAX_FAILED_TESTS = _max_failed if _max_failed > 0 else sys.maxsize
 
 stats_logger = logging.getLogger("odoo.tests.stats")
 
@@ -117,7 +118,10 @@ class OdooTestResult:
 
     def startTest(self, test: case.TestCase) -> None:
         """Called when the given test is about to be run."""
-        self.testsRun += 1
+        if not self._soft_fail:
+            # soft (non-final) retry attempts re-enter here; counting them
+            # inflated "of N tests" beyond the number of logical tests
+            self.testsRun += 1
         self.log(
             logging.INFO,
             "Starting %s ...",
@@ -341,19 +345,22 @@ class OdooTestResult:
         queries_before = db.sql_counter
         time_start = time.monotonic()
 
-        yield
-
-        self.stats[test_id] += Stat(
-            time=time.monotonic() - time_start,
-            queries=db.sql_counter - queries_before,
-        )
+        try:
+            yield
+        finally:
+            # record even when the wrapped setup/teardown raises: a failing
+            # setUpClass otherwise vanished from the stats report
+            self.stats[test_id] += Stat(
+                time=time.monotonic() - time_start,
+                queries=db.sql_counter - queries_before,
+            )
 
     def logError(self, flavour: str, test: case.TestCase, error: tuple) -> None:
         err = self._exc_info_to_string(error, test)
         caller_infos = self.getErrorCallerInfo(error, test)
-        self.log(
-            logging.INFO, "=" * 70, test=test, caller_infos=caller_infos
-        )  # keep this as info !!!!!!
+        # INFO on purpose: the separator line must never itself register as
+        # an error (log-based tooling counts ERROR records)
+        self.log(logging.INFO, "=" * 70, test=test, caller_infos=caller_infos)
         self.log(
             logging.ERROR,
             "%s: %s\n%s",
@@ -387,15 +394,9 @@ class OdooTestResult:
         file_tb = None
         filename = inspect.getfile(type(test))
 
-        # Note: since _ErrorCatcher was introduced, we could always take the
-        # last frame, keeping the check on the test method for safety.
-        # Fallbacking on file for cleanup file shoud always be correct to a
-        # minimal working version would be
-        #
-        #   infos_tb = error_traceback
-        #   while infos_tb.tb_next()
-        #       infos_tb = infos_tb.tb_next()
-        #
+        # Prefer the deepest frame inside the test method (or setUp/tearDown),
+        # falling back to the deepest frame in the test's file (covers errors
+        # raised from cleanups/helpers defined in the same module).
         while error_traceback:
             code = error_traceback.tb_frame.f_code
             if code.co_name in (test._testMethodName, "setUp", "tearDown"):

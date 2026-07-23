@@ -21,6 +21,7 @@ import re
 import shutil
 import signal
 import subprocess
+import sys
 import tempfile
 import threading
 import time
@@ -151,8 +152,6 @@ class ChromeBrowser:
         else:
             self.sigxcpu_handler = None
 
-        test_case.browser_size = test_case.browser_size.replace("x", ",")
-
         self.chrome, self.devtools_port = self._chrome_start(
             user_data_dir=self.user_data_dir,
             touch_enabled=test_case.touch_enabled,
@@ -209,17 +208,20 @@ class ChromeBrowser:
         self._websocket_send(
             "Emulation.setFocusEmulationEnabled", params={"enabled": True}
         )
-        emulated_device = {
-            "mobile": False,
-            "width": None,
-            "height": None,
-            "deviceScaleFactor": 1,
-        }
-        emulated_device["width"], emulated_device["height"] = [
-            int(size) for size in test_case.browser_size.split(",")
-        ]
+        # both "1366x768" and "1366,768" occur in the wild: the old code
+        # normalized by *mutating* test_case.browser_size, so tests were
+        # written against either form — accept both, mutate nothing
+        width, height = (
+            int(size) for size in re.split(r"[x,]", test_case.browser_size)
+        )
         self._websocket_request(
-            "Emulation.setDeviceMetricsOverride", params=emulated_device
+            "Emulation.setDeviceMetricsOverride",
+            params={
+                "mobile": False,
+                "width": width,
+                "height": height,
+                "deviceScaleFactor": 1,
+            },
         )
 
     def signal_handler(self, sig: int, frame: Any) -> None:
@@ -227,7 +229,9 @@ class ChromeBrowser:
         if sig == signal.SIGXCPU:
             _logger.info("CPU time limit reached, stopping Chrome and shutting down")
             self.stop()
-            exit()
+            # sys.exit, not the site-provided exit() builtin: same SystemExit
+            # semantics, but always available (python -S, frozen builds)
+            sys.exit()
 
     def throttle(self, factor: int | None) -> None:
         if not factor:
@@ -577,17 +581,28 @@ class ChromeBrowser:
                 )
 
     def _websocket_request(
-        self, method: str, *, params: dict | None = None, timeout: float = 10.0
+        self, method: str, *, params: dict | None = None, timeout: float | None = None
     ) -> Any:
+        """Send a CDP command and wait for its response.
+
+        ``timeout`` is **wall-clock** seconds; the default (None -> 10s) is
+        scaled by the CPU-throttling factor.  Callers converting a logical
+        budget to wall-clock time must apply ``throttling_factor`` themselves,
+        exactly once — the old signature scaled every value passed in, so
+        pre-scaled budgets from ``_wait_ready``/``_wait_code_ok`` were
+        multiplied by the factor *squared*.
+        """
         assert threading.get_ident() != self._receiver.ident, (
             "_websocket_request must not be called from the consumer thread"
         )
         if not hasattr(self, "ws"):
             return None
 
+        if timeout is None:
+            timeout = 10.0 * self.throttling_factor
         f = self._websocket_send(method, params=params, with_future=True)
         try:
-            return f.result(timeout=timeout * self.throttling_factor)
+            return f.result(timeout=timeout)
         except concurrent.futures.TimeoutError:
             raise TimeoutError(f"{method}({params or ''})") from None
 
@@ -837,7 +852,7 @@ which leads to stray network requests and inconsistencies."""
         self._websocket_request("Network.deleteCookies", params=params)
 
     def _wait_ready(self, ready_code: str | None = None, timeout: int = 60) -> bool:
-        timeout *= self.throttling_factor
+        timeout *= self.throttling_factor  # wall-clock budget, scaled once
         ready_code = ready_code or "document.readyState === 'complete'"
         self._logger.info('Evaluate ready code "%s"', ready_code)
         start_time = time.time()
@@ -863,14 +878,24 @@ which leads to stray network requests and inconsistencies."""
                 if exc:
                     raise exc from None
                 result = "cancelled"
+            except TimeoutError:
+                # a ready code that is itself a never-resolving promise blocks
+                # the evaluate for the remaining budget; honour the documented
+                # bool contract instead of letting the TimeoutError escape
+                result = "evaluate timeout"
+                continue
 
             if result == {"type": "boolean", "value": True}:
-                time_to_ready = time.time() - start_time
                 if taken > 2:
                     self._logger.info(
-                        "The ready code tooks too much time : %s", time_to_ready
+                        "The ready code took too much time: %.2fs",
+                        time.time() - start_time,
                     )
                 return True
+
+            # not ready yet: without this pause the loop hammers the CDP
+            # socket with thousands of evaluate round-trips per second
+            time.sleep(0.05)
 
         exc = self._result.done() and self._result.exception()
         if exc:
@@ -882,27 +907,41 @@ which leads to stray network requests and inconsistencies."""
     def _wait_code_ok(
         self, code: str, timeout: float, error_checker: Callable | None = None
     ) -> None:
-        timeout *= self.throttling_factor
+        timeout *= self.throttling_factor  # wall-clock budget, scaled once
         self.error_checker = error_checker
         self._logger.info('Evaluate test code "%s"', code)
         start = time.time()
-        res = self._websocket_request(
-            "Runtime.evaluate",
-            params={
-                "expression": code,
-                "awaitPromise": True,
-            },
-            timeout=timeout,
-        )["result"]
+        try:
+            res = self._websocket_request(
+                "Runtime.evaluate",
+                params={
+                    "expression": code,
+                    "awaitPromise": True,
+                },
+                timeout=timeout,
+            )["result"]
+        except TimeoutError as evaluate_timeout:
+            # the code itself outlived the budget (its promise never
+            # resolved).  Capture diagnostics and raise the browser exception
+            # like any other timeout — a bare TimeoutError used to escape
+            # browser_js's handler, failing the test without a screenshot.
+            self.take_screenshot()
+            self.screencaster.save()
+            raise ChromeBrowserException(
+                "Script timeout exceeded"
+            ) from evaluate_timeout
         if res.get("subtype") == "error":
             raise ChromeBrowserException("Running code returned an error: %s" % res)
 
         err = ChromeBrowserException("failed")
         try:
-            # if the runcode was a promise which took some time to execute,
-            # discount that from the timeout
+            # wait for the success signal/failure on the budget *remaining*
+            # after the evaluate phase.  `time.time() - start + timeout` — the
+            # sign flipped from the intended `start + timeout - time.time()` —
+            # granted elapsed+timeout more, so a hung run blocked for the
+            # evaluate duration twice over on top of the configured timeout.
             if (
-                self._result.result(time.time() - start + timeout)
+                self._result.result(max(0.0, start + timeout - time.time()))
                 and not self.had_failure
             ):
                 return
@@ -926,7 +965,9 @@ which leads to stray network requests and inconsistencies."""
         """Navigate the browser to the given URL."""
         self._logger.info('Navigating to: "%s"', url)
         nav_result = self._websocket_request(
-            "Page.navigate", params={"url": url}, timeout=20.0
+            "Page.navigate",
+            params={"url": url},
+            timeout=20.0 * self.throttling_factor,
         )
         self._logger.info("Navigation result: %s", nav_result)
         if wait_stop:
@@ -1079,9 +1120,14 @@ class Screencaster:
         if self.stopped:
             return
         self.browser._websocket_send("Page.stopScreencast")
-        # Wait for frames just in case, ideally we'd wait for the Browse.close
-        # event or something but that doesn't exist.
-        time.sleep(5)
+        # Wait for in-flight frames; there is no CDP event marking the last
+        # one, so poll for quiescence (no new frame for 0.5s) instead of the
+        # old flat 5s sleep, which taxed every failing screencasted test.
+        deadline = time.time() + 5
+        frame_count = -1
+        while time.time() < deadline and len(self.frames) != frame_count:
+            frame_count = len(self.frames)
+            time.sleep(0.5)
         self.stopped = True
         if not self.frames:
             self._logger.debug("No screencast frames to encode")

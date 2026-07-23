@@ -1,13 +1,17 @@
 import logging
 import threading
-from unittest.mock import patch
+import time
+from unittest.mock import Mock, patch
 
 import requests
+from werkzeug.exceptions import BadRequest
 
+import odoo.http
 from odoo.http import Controller, request, route
 from odoo.tests.common import (
     TEST_CURSOR_COOKIE_NAME,
     ChromeBrowser,
+    ChromeBrowserException,
     HttpCase,
     Like,
     tagged,
@@ -100,6 +104,46 @@ class TestRunbotLog(HttpCase):
 
 
 @tagged("-at_install", "post_install")
+class TestAllowRequests(HttpCase):
+    def test_allow_all_requests_flag_scoped(self):
+        """all_requests=True must not outlive its context: a leaked flag
+        silently disables the stale-request cookie protection for the rest
+        of the test."""
+        self.assertFalse(self.http_request_allow_all)
+        with self.allow_requests(all_requests=True):
+            self.assertTrue(self.http_request_allow_all)
+        self.assertFalse(self.http_request_allow_all)
+
+    def test_allow_all_requests_flag_restored_after_xmlrpc(self):
+        """Transport passes all_requests=True; the flag used to leak."""
+        self.assertFalse(self.http_request_allow_all)
+        self.xmlrpc_common.version()
+        self.assertFalse(self.http_request_allow_all)
+
+    def test_cookieless_request_refused_after_xmlrpc(self):
+        """End to end: a request without the test-cursor cookie must still be
+        refused (400) after an XML-RPC call earlier in the same test."""
+        self.xmlrpc_common.version()
+        with self.allow_requests():
+            response = requests.get(
+                self.base_url() + "/odoo/tests/no/such/route",
+                timeout=30,
+                allow_redirects=False,
+            )
+        self.assertEqual(response.status_code, 400)
+
+    def test_cookie_guard_unit(self):
+        """assertCanOpenTestCursor: cookie-less request -> BadRequest, unless
+        the allow-all flag is up."""
+        fake_request = Mock(cookies={}, httprequest=Mock(path="/probe"))
+        with patch.object(odoo.http, "request", fake_request):
+            with self.assertRaises(BadRequest):
+                self.assertCanOpenTestCursor()
+            with patch.object(self, "http_request_allow_all", True):
+                self.assertCanOpenTestCursor()  # must not raise
+
+
+@tagged("-at_install", "post_install")
 class TestChromeBrowser(HttpCase):
     def setUp(self):
         super().setUp()
@@ -121,6 +165,61 @@ class TestChromeBrowser(HttpCase):
         code = "setTimeout(() => console.log('test successful'), 2000); setInterval(() => document.body.innerText = (new Date()).getTime(), 100);"
         self.browser._wait_code_ok(code, 10)
         self.browser.screencaster.save()
+
+    def test_wait_ready_pending_promise_returns_false(self):
+        """A never-resolving ready promise must yield False within the
+        budget — the evaluate-phase TimeoutError must not escape (bool
+        contract)."""
+        self.browser.navigate_to("about:blank")
+        self.browser._wait_ready()
+        start = time.monotonic()
+        with patch.object(ChromeBrowser, "take_screenshot", return_value=None):
+            ok = self.browser._wait_ready("new Promise(() => {})", timeout=1)
+        self.assertFalse(ok)
+        self.assertLess(time.monotonic() - start, 10)
+
+    def test_wait_ready_throttling_applied_once(self):
+        """The wall-clock budget is timeout*factor — the factor used to be
+        applied a second time inside _websocket_request (factor squared)."""
+        self.browser.navigate_to("about:blank")
+        self.browser._wait_ready()
+        self.browser.throttling_factor = 3  # budgets only; Chrome untouched
+        try:
+            start = time.monotonic()
+            with patch.object(ChromeBrowser, "take_screenshot", return_value=None):
+                ok = self.browser._wait_ready("new Promise(() => {})", timeout=1)
+            elapsed = time.monotonic() - start
+        finally:
+            self.browser.throttling_factor = 1
+        self.assertFalse(ok)
+        self.assertGreater(elapsed, 2.5)  # single application: ~3s
+        self.assertLess(elapsed, 7)  # squared application was ~9s
+
+    def test_wait_code_ok_wraps_evaluate_timeout(self):
+        """Code whose promise outlives the budget must raise
+        ChromeBrowserException (screenshot taken), not a bare TimeoutError
+        that bypasses browser_js's error handling."""
+        self.browser.navigate_to("about:blank")
+        self.browser._wait_ready()
+        with patch.object(ChromeBrowser, "take_screenshot", return_value=None):
+            with self.assertRaises(ChromeBrowserException):
+                self.browser._wait_code_ok("new Promise(() => {})", timeout=1)
+
+    def test_wait_code_ok_budget_not_extended(self):
+        """The post-evaluate wait consumes the *remaining* budget: evaluate
+        eats ~2s of a 3s budget, so the call must fail ~3s in — the flipped
+        formula used to grant elapsed+timeout more (~7s total)."""
+        self.browser.navigate_to("about:blank")
+        self.browser._wait_ready()
+        start = time.monotonic()
+        with patch.object(ChromeBrowser, "take_screenshot", return_value=None):
+            with self.assertRaises(ChromeBrowserException):
+                self.browser._wait_code_ok(
+                    "new Promise(r => setTimeout(r, 2000))", timeout=3
+                )
+        elapsed = time.monotonic() - start
+        self.assertGreater(elapsed, 2.5)
+        self.assertLess(elapsed, 5.5)
 
 
 @tagged("-at_install", "post_install")

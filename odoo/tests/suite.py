@@ -16,7 +16,7 @@ from unittest import BaseTestSuite, TestCase, util
 import odoo
 
 from . import case
-from .common import HttpCase
+from .http import HttpCase
 from .result import OdooTestResult, stats_logger
 
 __unittest = True

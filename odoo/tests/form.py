@@ -867,10 +867,15 @@ class X2MValue(collections.abc.Sequence):
     __hash__ = None
 
     def __init__(self, iterable_of_vals: Any = ()) -> None:
-        """Initialise from an iterable of value dicts, keyed by their ``id``."""
+        """Initialise from an iterable of value dicts, keyed by their ``id``.
+
+        The initially given ids are recorded in ``_given`` so that
+        :meth:`to_commands` can derive link/unlink/delete commands.
+        """
         self._data: dict[Any, UpdateDict] = {
             vals["id"]: UpdateDict(vals) for vals in iterable_of_vals
         }
+        self._given: list = list(self._data)
 
     def __repr__(self) -> str:
         """Return a string representation of the internal data dict."""
@@ -932,18 +937,17 @@ class X2MValue(collections.abc.Sequence):
         """Return all value dicts as a list."""
         return list(self._data.values())
 
-
-class O2MValue(X2MValue):
-    """The value of a one2many field, tracking the original set for generating ORM commands."""
-
-    def __init__(self, iterable_of_vals: Any = ()) -> None:
-        """Initialise, recording the initially given ids for command generation."""
-        super().__init__(iterable_of_vals)
-        self._given: list = list(self._data)
-
-    def to_commands(
-        self, convert_values: Callable[[UpdateDict], Any] = lambda vals: vals
+    def _to_commands(
+        self,
+        convert_values: Callable[[UpdateDict], Any],
+        removal_command: Callable[[Any], Any],
     ) -> list:
+        """Derive ORM commands from the current state vs the given ids.
+
+        Virtual (unsaved) records become CREATE, ids added since load become
+        LINK, changed records become UPDATE, and ids removed since load
+        become ``removal_command`` (delete for o2m, unlink for m2m).
+        """
         given = set(self._given)
         result = []
         for id_, vals in self._data.items():
@@ -955,55 +959,33 @@ class O2MValue(X2MValue):
             if vals._changed:
                 result.append(Command.update(id_, convert_values(vals)))
         result.extend(
-            Command.delete(id_) for id_ in self._given if id_ not in self._data
+            removal_command(id_) for id_ in self._given if id_ not in self._data
         )
         return result
+
+
+class O2MValue(X2MValue):
+    """The value of a one2many field, tracking the original set for generating ORM commands."""
+
+    def to_commands(
+        self, convert_values: Callable[[UpdateDict], Any] = lambda vals: vals
+    ) -> list:
+        return self._to_commands(convert_values, Command.delete)
 
 
 class M2MValue(X2MValue):
     """The value of a many2many field, tracking the original set for generating ORM commands."""
 
-    def __init__(self, iterable_of_vals: Any = ()) -> None:
-        """Initialise, recording the initially given ids for command generation."""
-        super().__init__(iterable_of_vals)
-        self._given: list = list(self._data)
+    @staticmethod
+    def _convert_changed(vals: UpdateDict) -> dict:
+        """Serialise a record's changed values, recursing into nested x2m."""
+        return {
+            key: val.to_commands() if isinstance(val, X2MValue) else val
+            for key, val in vals.changed_items()
+        }
 
     def to_commands(self) -> list:
-        given = set(self._given)
-        result = []
-        for id_, vals in self._data.items():
-            if isinstance(id_, str) and id_.startswith("virtual_"):
-                result.append(
-                    (
-                        Command.CREATE,
-                        id_,
-                        {
-                            key: (
-                                val.to_commands() if isinstance(val, X2MValue) else val
-                            )
-                            for key, val in vals.changed_items()
-                        },
-                    )
-                )
-                continue
-            if id_ not in given:
-                result.append(Command.link(id_))
-            if vals._changed:
-                result.append(
-                    Command.update(
-                        id_,
-                        {
-                            key: (
-                                val.to_commands() if isinstance(val, X2MValue) else val
-                            )
-                            for key, val in vals.changed_items()
-                        },
-                    )
-                )
-        result.extend(
-            Command.unlink(id_) for id_ in self._given if id_ not in self._data
-        )
-        return result
+        return self._to_commands(self._convert_changed, Command.unlink)
 
 
 class X2MProxy:

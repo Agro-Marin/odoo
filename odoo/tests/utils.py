@@ -6,6 +6,7 @@ have to import the (much heavier) ``common`` at runtime.
 """
 
 import logging
+import os
 import pathlib
 import re
 import sys
@@ -18,6 +19,19 @@ _logger = logging.getLogger(__name__)
 
 # The odoo library is supposed already configured.
 HOST = "127.0.0.1"
+
+
+def env_int(varname: str, default: int) -> int:
+    """Parse an integer environment variable, tolerating empty-but-set values.
+
+    CI environments commonly export variables with an empty value; a bare
+    ``int(os.environ.get(var, "0"))`` then dies with ``ValueError`` — at import
+    time when the result feeds a class attribute, taking the whole framework
+    down with it.  Unset and empty both mean ``default``; anything else must
+    parse as an int.
+    """
+    raw = os.environ.get(varname, "")
+    return int(raw) if raw.strip() else default
 
 
 def get_db_name() -> str:

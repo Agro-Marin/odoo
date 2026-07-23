@@ -4,6 +4,7 @@
 import contextlib
 import difflib
 import logging
+import os
 import re
 import threading
 from contextlib import contextmanager
@@ -22,6 +23,7 @@ from odoo.tests.common import (
 )
 from odoo.tests.cursor import TestCursor
 from odoo.tests.result import OdooTestResult
+from odoo.tests.utils import env_int
 
 _logger = logging.getLogger(__name__)
 
@@ -644,3 +646,16 @@ class TestBenchmarkStats(BaseCase):
         stats = compute_stats("t", [1.0, 2.0, 3.0], [1, 1, 1], [0.5, 0.5, 0.5])
         self.assertEqual(stats.total_samples, 3)
         self.assertEqual(stats.max_us, 3.0)
+
+
+class TestEnvInt(BaseCase):
+    def test_env_int(self):
+        """Unset, empty and whitespace-only values (CI commonly exports empty
+        vars) fall back to the default instead of dying with ValueError."""
+        var = "ODOO_TEST_ENV_INT_PROBE"
+        self.assertEqual(env_int(var, 3), 3)  # unset
+        for raw, expected in [("", 3), (" ", 3), ("0", 0), ("42", 42), ("-1", -1)]:
+            with self.subTest(raw=raw), patch.dict(os.environ, {var: raw}):
+                self.assertEqual(env_int(var, 3), expected)
+        with patch.dict(os.environ, {var: "nope"}), self.assertRaises(ValueError):
+            env_int(var, 3)
