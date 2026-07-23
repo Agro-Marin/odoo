@@ -162,7 +162,12 @@ def _check_subdomain_nesting(value: object, max_depth: int) -> None:
             for item in node
             if isinstance(item, (list, tuple))
             and len(item) == 3
-            and item[1] in SUBDOMAIN_OPERATORS
+            # match operators case-insensitively, exactly like the parser
+            # (they are lowercased later, in DomainCondition.checked): a raw
+            # "ANY"/"NOT ANY" level must count toward the depth, not slip past
+            # the guard to RecursionError at evaluation time
+            and isinstance(item[1], str)
+            and item[1].lower() in SUBDOMAIN_OPERATORS
             and isinstance(item[2], (list, tuple))
         )
 
@@ -561,8 +566,11 @@ class Domain:
 
     def validate(self, model: BaseModel) -> None:
         """Validate the domain, raising on error."""
-        # full optimization walks every field, validating along the way
-        self._optimize(model, OptimizationLevel.FULL)
+        # full optimization walks every field, validating along the way;
+        # surface a too-deep domain as ValueError (like optimize/optimize_full),
+        # not as a RecursionError — reachable e.g. from ir.rule's constraint
+        with _recursion_error_as_value_error():
+            self._optimize(model, OptimizationLevel.FULL)
 
     def _as_predicate(self, records: M) -> Callable[[M], bool]:
         """Return a predicate testing whether a single record satisfies self.
@@ -653,6 +661,19 @@ class Domain:
             next_level = domain._opt[0].next_level
             previous, domain = domain, domain._optimize_step(model, next_level)
             # bump the level when stable (DomainBool etc. start already at FULL)
+            #
+            # Fresh-node invariant (safety of the in-place path above): a
+            # DYNAMIC/FULL pass whose result depends on transaction state
+            # (clock, user, company, records...) must return a *fresh*,
+            # non-``==`` node at the level where it diverges — never mutate its
+            # input or return an ``==``-equal rewrite.  Only then does the
+            # stamp below stay on the fresh node and the shared/original node
+            # keeps a level *below* the divergent pass, so a retained domain
+            # (e.g. an ormcached ir.rule domain) is re-resolved by the next
+            # transaction instead of freezing a value such as a resolved
+            # 'today'.  A pass returning its input unchanged asserts, by
+            # contract, that its result is transaction-independent for that
+            # node.
             if domain == previous and domain._opt[0] < next_level:
                 object.__setattr__(domain, "_opt", (next_level, model_name))
         return domain
@@ -1351,18 +1372,21 @@ class DomainCondition(Domain):
             return lambda _: False
 
         if self._opt_level < OptimizationLevel.DYNAMIC_VALUES:
-            return self._optimize(
-                records, OptimizationLevel.DYNAMIC_VALUES
-            )._as_predicate(records)
+            # surface a too-deep domain as ValueError (like optimize/
+            # optimize_full), not as a RecursionError — reachable from
+            # Model.filtered_domain on an unoptimized deep domain
+            with _recursion_error_as_value_error():
+                domain = self._optimize(records, OptimizationLevel.DYNAMIC_VALUES)
+            return domain._as_predicate(records)
 
         op = self.operator
         if op in ("child_of", "parent_of"):
             # hierarchy operators need full optimization (parent_path expansion)
             # before becoming a predicate; rare here, so the SQL round-trip is
             # not worth specializing in memory
-            return self._optimize(records, OptimizationLevel.FULL)._as_predicate(
-                records
-            )
+            with _recursion_error_as_value_error():
+                domain = self._optimize(records, OptimizationLevel.FULL)
+            return domain._as_predicate(records)
 
         # raise (not assert): hold the contract under python -O
         if op not in STANDARD_CONDITION_OPERATORS:
