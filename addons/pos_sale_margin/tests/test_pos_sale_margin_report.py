@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 import odoo
 
@@ -9,7 +8,7 @@ from odoo.addons.point_of_sale.tests.common import TestPoSCommon
 class TestPoSSaleMarginReport(TestPoSCommon):
 
     def setUp(self):
-        super(TestPoSSaleMarginReport, self).setUp()
+        super().setUp()
         self.config = self.basic_config
 
     def test_pos_sale_margin_report(self):
