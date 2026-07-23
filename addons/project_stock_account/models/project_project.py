@@ -1,6 +1,6 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-from odoo import models, _lt
+from odoo import _lt, models
 from odoo.fields import Domain
 
 

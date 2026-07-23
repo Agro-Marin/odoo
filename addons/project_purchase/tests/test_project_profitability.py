@@ -3,13 +3,15 @@
 from datetime import datetime, timedelta
 
 from odoo import Command
+from odoo.libs.numbers.float_utils import float_compare
 from odoo.tests import tagged
 from odoo.tools import float_round
 
-from odoo.addons.project.tests.test_project_profitability import TestProjectProfitabilityCommon
-from odoo.addons.purchase.tests.test_purchase_invoice import TestPurchaseToInvoiceCommon
 from odoo.addons.account.tests.common import AccountTestInvoicingCommon
-from odoo.libs.numbers.float_utils import float_compare
+from odoo.addons.project.tests.test_project_profitability import (
+    TestProjectProfitabilityCommon,
+)
+from odoo.addons.purchase.tests.test_purchase_invoice import TestPurchaseToInvoiceCommon
 
 
 @tagged('-at_install', 'post_install')

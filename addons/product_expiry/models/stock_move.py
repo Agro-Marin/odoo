@@ -1,9 +1,9 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 import datetime
-import dateutil.parser as dparser
 from re import findall as re_findall
+
+import dateutil.parser as dparser
 
 from odoo import api, fields, models
 from odoo.tools import get_lang
@@ -61,7 +61,7 @@ class StockMove(models.Model):
             if len(date_data) < 2:  # Not enough data.
                 continue
             value_1, value_2 = date_data[:2]
-            if re_findall('[a-zA-Z]', value_1):
+            if re_findall(r'[a-zA-Z]', value_1):
                 # Assumes the first value is the mounth (written in letters). Don't add any option
                 # as mounth as the first date's value is the default behavior for `dateutil.parse`.
                 break
@@ -69,19 +69,19 @@ class StockMove(models.Model):
             if int(value_1) > 31:
                 options['yearfirst'] = True
                 break
-            elif int(value_1) > 12 and (re_findall('[a-zA-Z]', value_2) or int(value_2) <= 12):
+            if int(value_1) > 12 and (re_findall(r'[a-zA-Z]', value_2) or int(value_2) <= 12):
                 options['dayfirst'] = True
                 break
-            else:  # Too ambiguous, gets the option from the user's lang's date setting.
-                user_lang_format = get_lang(self.env).date_format
-                if re_findall('^%[mbB]', user_lang_format):  # First parameter is for month.
-                    return options
-                elif re_findall('^%[djaA]', user_lang_format):  # First parameter is for day.
-                    options['dayfirst'] = True
-                    break
-                elif re_findall('^%[yY]', user_lang_format):  # First parameter is for year.
-                    options['yearfirst'] = True
-                    break
+            # Too ambiguous, gets the option from the user's lang's date setting.
+            user_lang_format = get_lang(self.env).date_format
+            if re_findall(r'^%[mbB]', user_lang_format):  # First parameter is for month.
+                return options
+            elif re_findall(r'^%[djaA]', user_lang_format):  # First parameter is for day.
+                options['dayfirst'] = True
+                break
+            elif re_findall(r'^%[yY]', user_lang_format):  # First parameter is for year.
+                options['yearfirst'] = True
+                break
         return options
 
     def _update_reserved_quantity(self, need, location_id, lot_id=None, package_id=None, owner_id=None, strict=True):

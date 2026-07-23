@@ -1,8 +1,8 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
+from odoo import Command
 from odoo.tests import tagged
 from odoo.tests.common import TransactionCase
-from odoo import Command
 
 
 @tagged('post_install', '-at_install')

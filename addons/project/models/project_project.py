@@ -2286,7 +2286,7 @@ class ProjectProject(models.Model):
                 not_fav_projects |= project
 
         # Project User has no write access for project.
-        not_fav_projects.write({"favorite_user_ids": [(4, self.env.uid)]})
+        not_fav_projects.write({"favorite_user_ids": [Command.link(self.env.uid)]})
         favorite_projects.write({"favorite_user_ids": [(3, self.env.uid)]})
 
     def action_view_tasks(self) -> dict:

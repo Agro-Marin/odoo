@@ -1,6 +1,6 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-from odoo import models, Command
+from odoo import Command, models
 
 
 class MrpWorkorder(models.Model):
