@@ -59,7 +59,7 @@ class TestMultiCompanyFlows(PaymentHttpCommon):
             if key in route_values:
                 if key == "access_token":
                     continue  # access_token was modified due to the change of partner.
-                elif key == "partner_id":
+                if key == "partner_id":
                     # The partner is replaced by the partner of the user paying.
                     self.assertEqual(val, self.user_company_a.partner_id.id)
                 else:

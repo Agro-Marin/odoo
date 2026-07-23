@@ -1,7 +1,6 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 import logging
-
 from unittest.mock import patch
 
 from lxml import objectify
@@ -228,8 +227,7 @@ class PaymentCommon(BaseCommon):
         :rtype: str
         """
         token_str = "|".join(str(val) for val in values)
-        access_token = hmac_tool(self.env(su=True), "generate_access_token", token_str)
-        return access_token
+        return hmac_tool(self.env(su=True), "generate_access_token", token_str)
 
     def _extract_values_from_html_form(self, html_form):
         """Extract the transaction rendering values from an HTML form.

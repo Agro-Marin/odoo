@@ -490,7 +490,7 @@ class TestPaymentProvider(PaymentCommon):
         ):
             try:
                 self.provider._send_api_request("GET", "/dummy")
-            except Exception as e:  # noqa: BLE001
+            except Exception as e:
                 self.assertNotIsInstance(e, JSONDecodeError)
                 self.assertIsInstance(e, ValidationError)
                 self.assertIn("Cloudflare Error", e.args[0])

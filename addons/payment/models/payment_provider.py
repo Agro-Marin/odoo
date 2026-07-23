@@ -14,7 +14,6 @@ from odoo.addons.payment import utils as payment_utils
 from odoo.addons.payment.const import REPORT_REASONS_MAPPING, SENSITIVE_KEYS
 from odoo.addons.payment.logging import get_payment_logger
 
-
 # Pass the possibly empty set of sensitive keys to the logger in case a provider module extends it.
 _logger = get_payment_logger(__name__, sensitive_keys=SENSITIVE_KEYS)
 
@@ -273,7 +272,7 @@ class PaymentProvider(models.Model):
         :return: None
         """
         for provider in self:
-            if provider.module_id and not provider.module_state == "installed":
+            if provider.module_id and provider.module_state != "installed":
                 provider.color = 4  # blue
             elif provider.state == "disabled":
                 provider.color = 3  # yellow
@@ -351,6 +350,7 @@ class PaymentProvider(models.Model):
                         ),
                     }
                 }
+        return None
 
     @api.onchange("company_id")
     def _onchange_company_block_if_existing_transactions(self):
@@ -551,6 +551,7 @@ class PaymentProvider(models.Model):
                 "type": "ir.actions.client",
                 "tag": "reload",
             }
+        return None
 
     def action_start_onboarding(self, menu_id=None):
         """Start the provider-specific onboarding.
@@ -902,7 +903,7 @@ class PaymentProvider(models.Model):
         except requests.exceptions.ConnectionError, requests.exceptions.Timeout:
             raise ValidationError(
                 _("Could not establish the connection to the payment provider.")
-            )
+            ) from None
 
         # Log the response.
         self._log_response(response, reference=reference)
@@ -917,7 +918,7 @@ class PaymentProvider(models.Model):
                 error_msg = response.text
             raise ValidationError(
                 _("The payment provider rejected the request.\n%s", error_msg)
-            )
+            ) from None
         return self._parse_response_content(response, **kwargs)
 
     def _build_request_url(self, endpoint, **kwargs):
@@ -955,7 +956,7 @@ class PaymentProvider(models.Model):
         :return: The basic HTTP Auth, if any.
         :rtype: tuple
         """
-        return tuple()
+        return ()
 
     def _log_request(self, method, url, payload, *, reference=None):
         """Log the request.
