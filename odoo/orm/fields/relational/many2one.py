@@ -345,7 +345,7 @@ class Many2one(_Relational):
             return
 
         # remove records from the cache of one2many fields of old corecords
-        self._remove_inverses(records, cache_value)
+        self._remove_inverses(records)
 
         # update the cache of self
         self._update_cache(records, cache_value, dirty=True)
@@ -353,7 +353,7 @@ class Many2one(_Relational):
         # update the cache of one2many fields of new corecord
         self._update_inverses(records, cache_value)
 
-    def _remove_inverses(self, records: BaseModel, value: int | NewId | None) -> None:
+    def _remove_inverses(self, records: BaseModel) -> None:
         """Remove ``records`` from the cached o2m inverse fields of ``self``."""
         inverse_fields = records.pool.field_inverses[self]
         if not inverse_fields:

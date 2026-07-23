@@ -27,8 +27,6 @@ if typing.TYPE_CHECKING:
     )
     from ...models import BaseModel
 
-    OnDelete = typing.Literal["cascade", "set null", "restrict"]
-
 
 class One2many(_RelationalMulti):
     """One2many field; the value of such a field is the recordset of all the
@@ -326,7 +324,13 @@ class One2many(_RelationalMulti):
                                 & Domain(inverse, "in", recs.ids)
                                 & Domain("id", "not in", lines.ids)
                             )
-                            unlink(comodel.search(domain))
+                            # a SET/CLEAR must detach archived lines too, so
+                            # neutralize the implicit active_test filter (an
+                            # explicit active condition in the field's own
+                            # domain still applies via get_comodel_domain)
+                            unlink(
+                                comodel.with_context(active_test=False).search(domain)
+                            )
                             lines[inverse] = recs[-1]
 
             flush()
@@ -387,11 +391,21 @@ class One2many(_RelationalMulti):
                         case Command.LINK:
                             browse([command[1]])[inverse] = recs[-1]
                         case Command.CLEAR:
+                            # reset the removed lines' inverse (same path as
+                            # DELETE) before dropping them from self's cache,
+                            # so the pseudo-record graph stays coherent during
+                            # onchange
+                            for record in recs:
+                                if removed := record[self.name]:
+                                    removed[inverse] = False
                             self._update_cache(recs, ())
                         case Command.SET:
                             # assign the given lines to the last record only
-                            self._update_cache(recs, ())
                             last, lines = recs[-1], browse(command[2])
+                            for record in recs:
+                                if removed := record[self.name] - lines:
+                                    removed[inverse] = False
+                            self._update_cache(recs, ())
                             self._update_cache(last, lines._ids)
                             inverse_field._update_cache(lines, last.id)
 
