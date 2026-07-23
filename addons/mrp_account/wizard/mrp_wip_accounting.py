@@ -1,8 +1,9 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 from datetime import datetime, time
+
 from dateutil.relativedelta import relativedelta
 
-from odoo import fields, models, _, api, Command
+from odoo import Command, _, api, fields, models
 from odoo.exceptions import UserError
 
 
@@ -79,7 +80,7 @@ class MrpAccountWipAccounting(models.TransientModel):
         if not date:
             date = datetime.now().replace(hour=23, minute=59, second=59)
         compo_value = sum(
-            ml.quantity_product_uom * (ml.product_id.lot_valuated and ml.lot_id and ml.lot_id.standard_price or ml.product_id.standard_price)
+            ml.quantity_product_uom * ((ml.product_id.lot_valuated and ml.lot_id and ml.lot_id.standard_price) or ml.product_id.standard_price)
             for ml in productions.move_raw_ids.move_line_ids.filtered(lambda ml: ml.picked and ml.quantity and ml.date <= date)
         )
         overhead_value = productions.workorder_ids._cal_cost(date)
