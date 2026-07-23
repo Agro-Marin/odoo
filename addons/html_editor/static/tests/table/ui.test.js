@@ -640,7 +640,6 @@ test("basic delete column operation", async () => {
 
     // delete column
     await click("div[name='delete']");
-    // not sure about selection...
     expect(getContent(el)).toBe(
         unformat(`
         <p data-selection-placeholder=""><br></p>
@@ -689,7 +688,6 @@ test("basic clear column content operation", async () => {
 
     // clear content of the column
     await click("div[name='clear_content']");
-    // not sure about selection...
     expect(getContent(el)).toBe(
         unformat(`
         <p data-selection-placeholder=""><br></p>
@@ -738,7 +736,6 @@ test("basic delete row operation", async () => {
 
     // delete row
     await click("div[name='delete']");
-    // not sure about selection...
     expect(getContent(el)).toBe(
         unformat(`
         <p data-selection-placeholder=""><br></p>
@@ -786,7 +783,6 @@ test("basic clear row content operation", async () => {
 
     // clear content of the row
     await click("div[name='clear_content']");
-    // not sure about selection...
     expect(getContent(el)).toBe(
         unformat(`
         <p data-selection-placeholder=""><br></p>
@@ -1177,7 +1173,7 @@ test("move column left operation", async () => {
     );
     await expectElementCount(".o-we-table-menu", 0);
 
-    // hover on td to show row ui
+    // hover on td to show col ui
     await hover(el.querySelector("td.b"));
     await waitFor("[data-type='column'].o-we-table-menu");
 
@@ -1225,7 +1221,7 @@ test("move column right operation", async () => {
     );
     await expectElementCount(".o-we-table-menu", 0);
 
-    // hover on td to show row ui
+    // hover on td to show col ui
     await hover(el.querySelector("td.a"));
     await waitFor("[data-type='column'].o-we-table-menu");
 

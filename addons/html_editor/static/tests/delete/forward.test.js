@@ -782,7 +782,7 @@ describe("Selection collapsed", () => {
                 const textarea = editor.editable.querySelector("textarea");
                 textarea.focus();
                 textarea.setSelectionRange(selectionStart, selectionStart, "forward");
-                // Trigger native delete backward.
+                // Trigger native delete forward.
                 await editor.document.execCommand("forwardDelete", false, null);
                 // Wait for the input event to resolve so the content is
                 // highlighted and the focus is in the textarea.
