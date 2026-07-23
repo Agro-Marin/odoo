@@ -150,7 +150,8 @@ def resolve_date(value: str, env: Environment) -> date | datetime:
 
     dt: datetime | date = Datetime.now()
     term = terms.pop(0) if terms[0] in ("today", "now") else "now"
-    if term == "today":
+    started_as_date = term == "today"
+    if started_as_date:
         dt = Date.context_today(env["base"], dt)
     else:
         dt = Datetime.context_timestamp(env["base"], dt)
@@ -193,9 +194,23 @@ def resolve_date(value: str, env: Environment) -> date | datetime:
                 # note: '=Nw' is not supported
             dt += relativedelta(**{unit: number})
         except ValueError, TypeError, KeyError:
-            raise ValueError(f"Invalid term {term!r} in expression date: {value!r}") from None
+            raise ValueError(
+                f"Invalid term {term!r} in expression date: {value!r}"
+            ) from None
 
     # always return a naive date
-    if isinstance(dt, datetime) and dt.tzinfo is not None:
-        dt = dt.astimezone(UTC).replace(tzinfo=None)
+    if isinstance(dt, datetime):
+        if dt.tzinfo is not None:
+            dt = dt.astimezone(UTC).replace(tzinfo=None)
+        elif started_as_date:
+            # A 'today' date promoted to a datetime by a time term (e.g.
+            # "today =5H") carries the user's wall-clock time but no tzinfo;
+            # downstream (_value_to_datetime) would treat it as UTC. Localize
+            # it in the user's timezone, then normalize to naive UTC, matching
+            # the tz-aware 'now' path.
+            dt = (
+                dt.replace(tzinfo=env["base"].env.tz)
+                .astimezone(UTC)
+                .replace(tzinfo=None)
+            )
     return dt

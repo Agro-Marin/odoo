@@ -370,6 +370,12 @@ def populate_model(
                 src_fields.append(src)
     # Update char/text fields for existing rows, to allow re-entrance
     if update_fields:
+        _logger.warning(
+            "Renaming existing %s records to keep varied fields unique (%s): "
+            "populate modifies original rows, not only the copies.",
+            model._name,
+            ", ".join(field.name for field in update_fields),
+        )
         query = SQL(
             "UPDATE %(table)s SET (%(src_columns)s) = ROW(%(dest_columns)s)",
             table=SQL.identifier(model._table),
@@ -429,8 +435,8 @@ class Many2manyModelWrapper:
         column2 = field.column2 or field.base_field.column2
         # column1 refers to the model, while column2 refers to the comodel
         self._fields = {
-            field.column1: Many2oneFieldWrapper(self, column1, field.model_name),
-            field.column2: Many2oneFieldWrapper(self, column2, field.comodel_name),
+            column1: Many2oneFieldWrapper(self, column1, field.model_name),
+            column2: Many2oneFieldWrapper(self, column2, field.comodel_name),
         }
 
     def __repr__(self) -> str:
@@ -484,7 +490,12 @@ def populate_models(model_factors: dict[Any, int], separator_code: int) -> None:
 
         # if the model has _inherits, the delegated models need to have been populated before the current one
         for model_name in model_._inherits:
-            process(model_.env[model_name])
+            delegated = model_.env[model_name]
+            # A dependency pulled in this way inherits the factor of the model
+            # that depends on it (see module docstring); without this,
+            # populate_model would KeyError on the delegated model.
+            model_factors.setdefault(delegated, model_factors[model_])
+            process(delegated)
 
         with ctx.ignore_fkey_constraints(model_), ctx.ignore_indexes(model_):
             populate_model(model_, populated, model_factors, separator_code)

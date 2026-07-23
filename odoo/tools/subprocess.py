@@ -13,7 +13,6 @@ import os
 import sys
 import threading
 import traceback
-from itertools import groupby as itergroupby
 
 from odoo.libs.filesystem.which import which
 
@@ -125,12 +124,15 @@ def stripped_sys_argv(*strip_args: str) -> list[str]:
             "--i18n-overwrite",
         }
     )
-    assert all(config.parser.has_option(s) for s in strip_args)
+    unknown = [s for s in strip_args if not config.parser.has_option(s)]
+    if unknown:
+        # not an assert: must also hold when running under `python -O`
+        msg = f"Unknown option(s) to strip: {', '.join(unknown)}"
+        raise ValueError(msg)
     takes_value = {s: config.parser.get_option(s).takes_value() for s in strip_args}
 
-    longs, shorts = [
-        tuple(y) for _, y in itergroupby(strip_args, lambda x: x.startswith("--"))
-    ]
+    longs = tuple(a for a in strip_args if a.startswith("--"))
+    shorts = tuple(a for a in strip_args if not a.startswith("--"))
     longs_eq = tuple(l + "=" for l in longs if takes_value[l])
 
     args = sys.argv[:]

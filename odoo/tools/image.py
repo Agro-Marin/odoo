@@ -11,12 +11,7 @@ For agnostic usage without Odoo dependencies, use odoo.libs.image directly.
 from PIL import Image
 
 from odoo.exceptions import UserError
-from odoo.libs.colors import (
-    get_lightness,
-    get_saturation,
-    hex_to_rgb,
-    rgb_to_hex,
-)
+from odoo.libs.colors import hex_to_rgb
 
 # Re-export everything from libs/image (agnostic versions)
 from odoo.libs.image import (
@@ -24,6 +19,8 @@ from odoo.libs.image import (
     # Constants
     FILETYPE_BASE64_MAGICWORD,
     IMAGE_MAX_RESOLUTION,
+    ImageDecodeError,
+    ImageTooLargeError,
     average_dominant_color,
     image_apply_opt,
     image_data_uri,
@@ -71,18 +68,19 @@ class ImageProcess(_ImageProcessBase):
         """
         try:
             super().__init__(source, verify_resolution)
+        except ImageDecodeError as e:
+            raise UserError(
+                _lt("This file could not be decoded as an image file.")
+            ) from e
+        except ImageTooLargeError as e:
+            raise UserError(
+                _lt(
+                    "Too large image (above %sMpx), reduce the image size.",
+                    str(IMAGE_MAX_RESOLUTION / 1e6),
+                )
+            ) from e
         except ValueError as e:
-            error_msg = str(e)
-            if "could not be decoded" in error_msg:
-                raise UserError(_lt("This file could not be decoded as an image file.")) from e
-            if "Too large image" in error_msg:
-                raise UserError(
-                    _lt(
-                        "Too large image (above %sMpx), reduce the image size.",
-                        str(IMAGE_MAX_RESOLUTION / 1e6),
-                    )
-                ) from e
-            raise UserError(error_msg) from e  # pylint: disable=E8502
+            raise UserError(str(e)) from e  # pylint: disable=E8502
 
 
 def image_process(

@@ -1200,7 +1200,11 @@ class configmanager:
         cls._log = _dangerous_logger.log
 
         for message, args, kwargs in cls._warn_entries:
-            warnings.warn(message, *args, **kwargs, stacklevel=1)
+            # A buffered entry may already carry ``stacklevel`` (e.g. the rcfile
+            # deprecation warnings pass stacklevel=2); use setdefault so we don't
+            # pass it twice and crash the flush with a duplicate-kwarg TypeError.
+            kwargs.setdefault("stacklevel", 1)
+            warnings.warn(message, *args, **kwargs)
         cls._warn_entries.clear()
         cls._warn = warnings.warn
 
@@ -1281,9 +1285,18 @@ class configmanager:
         for option_name, option in self.options_index.items():
             env_name = option.env_name
             if env_name and env_name in environ:
-                self._env_options[option_name] = self.parse(
-                    option_name, environ[env_name]
-                )
+                try:
+                    self._env_options[option_name] = self.parse(
+                        option_name, environ[env_name]
+                    )
+                except (ValueError, optparse.OptionValueError) as exc:
+                    # name the offending variable and option; the raw coercion
+                    # error (e.g. "invalid literal for int()") otherwise gives no
+                    # hint which environment variable is wrong.
+                    raise ValueError(
+                        f"Invalid value for environment variable {env_name} "
+                        f"(option {option_name!r}): {exc}"
+                    ) from exc
         if environ.get("OPENERP_SERVER"):
             self._warn(
                 "Since ages ago, the OPENERP_SERVER environment variable has been replaced by ODOO_RC",
@@ -1685,7 +1698,7 @@ class configmanager:
                             "unknown option %r in the config file at "
                             "%s, option stored as-is, without parsing",
                             name,
-                            self["config"],
+                            rcfile,
                         )
                     self._file_options[name] = value
                     continue
@@ -1702,10 +1715,18 @@ class configmanager:
                         "option %s reads %r in the config file at %s but isn't a boolean option, skip",
                         name,
                         value,
-                        self["config"],
+                        rcfile,
                     )
                     continue
-                self._file_options[name] = self.parse(name, value)
+                try:
+                    self._file_options[name] = self.parse(name, value)
+                except (ValueError, optparse.OptionValueError) as exc:
+                    # name the option and file; the raw coercion error otherwise
+                    # gives no hint which config entry is malformed.
+                    raise ValueError(
+                        f"Invalid value for option {name!r} in the config file "
+                        f"at {rcfile}: {exc}"
+                    ) from exc
         except OSError:
             pass
         except configparser.NoSectionError:
