@@ -21,8 +21,8 @@ class EventEvent(models.Model):
         self.ensure_one()
         slot_tickets = [
             (
-                self.event_slot_ids.filtered(lambda slot: slot.id == slot_id) if slot_id else self.env['event.slot'],
-                self.event_ticket_ids.filtered(lambda ticket: ticket.id == ticket_id) if ticket_id else self.env['event.event.ticket']
+                self.event_slot_ids.filtered(lambda slot, slot_id=slot_id: slot.id == slot_id) if slot_id else self.env['event.slot'],
+                self.event_ticket_ids.filtered(lambda ticket, ticket_id=ticket_id: ticket.id == ticket_id) if ticket_id else self.env['event.event.ticket']
             )
             for slot_id, ticket_id in slot_ticket_ids
         ]
