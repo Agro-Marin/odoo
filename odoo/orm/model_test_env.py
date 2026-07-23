@@ -12,6 +12,7 @@ For the components engine in isolation (``FieldCache`` / ``ComputeEngine`` /
 """
 
 import logging
+import threading
 from collections import defaultdict, deque
 from collections.abc import Iterable, Mapping
 from contextlib import contextmanager, suppress
@@ -29,6 +30,7 @@ from .components.storage import DictBackend
 from .models import AbstractModel
 from .primitives import SUPERUSER_ID
 from .runtime._registry_fields import _RegistryFieldsMixin
+from .runtime.registry import _CACHES_BY_KEY
 from .runtime.transaction import Transaction
 
 if TYPE_CHECKING:
@@ -97,8 +99,10 @@ class InMemoryCursor(BaseCursor):
     ``savepoint()`` / ``flush()`` machinery. :meth:`__init__` pre-builds the
     ``Transaction`` and assigns it to ``self.transaction``, so
     ``Environment.__new__`` skips ``Transaction(Registry(cr.dbname))`` and never
-    opens a connection. Its :class:`DictBackend` ``storage`` makes ORM CRUD
-    dispatch to the in-memory backend instead of generating SQL.
+    opens a connection. Its :class:`DictBackend` ``storage`` makes ORM CRUD —
+    row-level create/write/read/search/unlink *and* the Many2many
+    relation-table reads/links/unlinks — dispatch to the in-memory backend
+    instead of generating SQL, so none of it reaches this cursor.
 
     :param registry: pre-built model registry (e.g. ``self.env.registry``).
     :param fixtures: optional ``{query_string: rows}`` map; ``execute`` looks up
@@ -127,8 +131,9 @@ class InMemoryCursor(BaseCursor):
     def execute(self, query, params=None, log_exceptions: bool = True) -> None:
         """Return a registered fixture for *query*, or fail loud.
 
-        ORM CRUD (create/write/read/search) is served by the in-memory backend
-        and never reaches this cursor, so any query arriving here is raw SQL a
+        ORM CRUD — create/write/read/search/unlink, including the Many2many
+        relation-table operations — is served by the in-memory backend and
+        never reaches this cursor, so any query arriving here is raw SQL a
         model method emitted itself (``read_group``, a custom ``cr.execute``,
         ...).  That SQL cannot run without PostgreSQL; returning an empty result
         silently would hand the test a *false green* — the one failure mode a
@@ -207,7 +212,7 @@ class InMemoryCursor(BaseCursor):
         """
         return datetime.now(UTC).replace(tzinfo=None)
 
-    # Transaction control — no-ops
+    # Transaction control
 
     @contextmanager
     def pipeline(self):
@@ -215,10 +220,44 @@ class InMemoryCursor(BaseCursor):
         yield
 
     def commit(self) -> None:
-        """No-op — InMemoryCursor has no underlying connection to commit."""
+        """Commit the in-memory transaction: flush, clear, run postcommit hooks.
+
+        Mirrors :meth:`odoo.db.Cursor.commit` minus the SQL ``COMMIT`` (storage
+        writes are immediate, so there is nothing to make durable).  A silent
+        no-op here would be a false-green vector: postcommit hooks registered by
+        the code under test would simply never fire.
+        """
+        # Same guard as the production cursor: committing inside a savepoint
+        # corrupts its rollback state.
+        if self._savepoint_depth:
+            raise RuntimeError(
+                "Cannot commit inside a savepoint! "
+                "This would corrupt the savepoint's rollback state."
+            )
+        self.flush()
+        self.clear()  # transaction cache + precommit hooks
+        self._now = None
+        self.prerollback.clear()
+        self.postrollback.clear()
+        self.postcommit.run()
 
     def rollback(self) -> None:
-        """No-op — InMemoryCursor has no underlying connection to roll back."""
+        """Fail loud — the in-memory tier cannot restore a pre-transaction state.
+
+        :class:`DictBackend` writes are applied immediately and it keeps no
+        snapshot to roll back to (its storage shape is private to the storage
+        contract).  Silently doing nothing — while production discards the
+        transaction's writes and runs the prerollback hooks — would hand a test
+        exercising rollback behaviour a false green, so this raises instead.
+        Test rollback semantics against a DB-backed ``TransactionCase``.
+        """
+        raise InMemorySqlNotSupported(
+            "InMemoryCursor (DB-free model_test_env) cannot roll back: storage "
+            "writes are applied immediately and no snapshot exists to restore. "
+            "A silent no-op would diverge from production ROLLBACK (which "
+            "discards the transaction's writes); use a DB-backed "
+            "TransactionCase to test rollback behaviour."
+        )
 
     def close(self) -> None:
         """No-op — there is no connection to close."""
@@ -246,6 +285,12 @@ class ModelRegistry(_RegistryFieldsMixin, Mapping):
     :param db_name: fake database name (default ``":memory:"``).
     """
 
+    # Inherited @locked methods (e.g. _RegistryFieldsMixin._discard_fields)
+    # acquire ``self._lock``; mirror Registry's class-level RLock so they work
+    # instead of raising AttributeError. Cheap, and correct if a test ever does
+    # thread anything.
+    _lock: threading.RLock = threading.RLock()
+
     def __init__(
         self,
         model_defs: Iterable[type[BaseModel]],
@@ -269,7 +314,12 @@ class ModelRegistry(_RegistryFieldsMixin, Mapping):
         self._init_modules = False
         self._database_translated_fields: dict[str, str] = {}
         self._database_company_dependent_fields: dict[str, str] = {}
-        self.many2many_relations: Collector = Collector()
+        # Same shape as Registry.many2many_relations: Many2many.setup_nonrelated
+        # does ``pool.many2many_relations[key].add(...)``, which needs the
+        # mutable OrderedSet buckets (a Collector hands out immutable tuples).
+        self.many2many_relations: defaultdict[
+            tuple[str, str, str], OrderedSet[tuple[str, str]]
+        ] = defaultdict(OrderedSet)
         self.field_setup_dependents: Collector = Collector()
         self.many2one_company_dependents: Collector = Collector()
 
@@ -345,13 +395,23 @@ class ModelRegistry(_RegistryFieldsMixin, Mapping):
         """No-op — change tracking is for multi-process signaling."""
 
     def clear_cache(self, *cache_names: str) -> None:
-        """Clear ormcache entries.  Models call this after CRUD to invalidate
-        cached lookups (e.g. currencies, countries).  In test registries we
-        simply clear the relevant dicts in ``_Registry__caches``."""
-        for _cache_name in cache_names or ("default",):
-            for cache in self._Registry__caches.values():
-                if cache:
-                    cache.clear()
+        """Clear the ormcache dicts for the given composite cache names.
+
+        Mirrors :meth:`Registry.clear_cache` scaled to the harness: each name
+        expands to its group of cache containers via ``_CACHES_BY_KEY`` (so
+        e.g. ``"default"`` also clears ``"templates.cached_values"``), and
+        dotted names are rejected exactly like production.  One divergence: a
+        name outside the production map clears the container of that name —
+        the harness caches are open-ended (``defaultdict``), so a test-model
+        ``@ormcache(cache="custom")`` stays clearable.
+        """
+        for cache_name in cache_names or ("default",):
+            if "." in cache_name:
+                raise ValueError(
+                    f"clear_cache: invalid cache name {cache_name!r} (no dots allowed)"
+                )
+            for container in _CACHES_BY_KEY.get(cache_name, (cache_name,)):
+                self._Registry__caches[container].clear()
 
     def is_an_ordinary_table(self, model) -> bool:
         """Return ``True`` — assume all models have tables in tests."""
@@ -674,7 +734,20 @@ def _seed_fixtures(storage: DictBackend, registry: ModelRegistry) -> None:
                 "login": "admin",
                 "active": True,
                 "company_id": 1,
-                "company_ids": (1,),
                 "partner_id": 1,
             },
         )
+        # Seed user 1 <-> company 1 into the Many2many relation store (the
+        # same {column1, column2} row shape InMemoryBackend.link_m2m_pairs
+        # writes), so ``env.user.company_ids`` resolves.  Skipped when the
+        # field's schema never got set up (e.g. degraded minimal model set).
+        field = registry["res.users"]._fields.get("company_ids")
+        if (
+            field is not None
+            and field.type == "many2many"
+            and field.store
+            and field.relation
+        ):
+            storage.insert_rows(
+                field.relation, [field.column1, field.column2], [(1, 1)]
+            )

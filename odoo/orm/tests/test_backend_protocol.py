@@ -6,8 +6,12 @@ to be implicit: a new persistence op that added a backend method but forgot its
 ``if backend is not None`` dispatch site (or vice-versa) would silently run SQL
 against the in-memory store -- exactly the row-lock gap that shipped. These
 tests pin (a) that ``InMemoryBackend`` implements the whole Protocol, and (b)
-that the Protocol methods and the mixin dispatch sites are the same set, so
-either kind of drift fails here. Pure introspection + source scan -- no database.
+that the Protocol methods and the dispatch sites are the same set, so either
+kind of drift fails here. Pure introspection + source scan -- no database.
+
+Dispatch sites live in the CRUD mixins (row-level ops) and in the field layer
+(``fields/``: the Many2many relation-table ops in ``relational/many2many.py``),
+so both directories are scanned.
 """
 
 import pathlib
@@ -16,7 +20,9 @@ import typing
 
 from odoo.orm.runtime.backend import InMemoryBackend, StorageBackend
 
-_MIXINS_DIR = pathlib.Path(__file__).resolve().parent.parent / "models" / "mixins"
+_ORM_DIR = pathlib.Path(__file__).resolve().parent.parent
+_MIXINS_DIR = _ORM_DIR / "models" / "mixins"
+_DISPATCH_DIRS = (_MIXINS_DIR, _ORM_DIR / "fields")
 
 # Attribute (capability-flag) members: read as attributes, not dispatched as calls.
 _ATTRIBUTE_MEMBERS = {"supports_parent_store", "supports_record_rules"}
@@ -36,20 +42,21 @@ def test_in_memory_backend_implements_the_whole_protocol():
 
 
 def test_every_protocol_method_has_a_dispatch_site():
-    # collect ``backend.<name>(`` and ``<name> := ... .backend`` uses in the mixins
+    # collect ``backend.<name>(`` uses in the mixins and the field layer
     dispatched: set[str] = set()
-    for path in _MIXINS_DIR.rglob("*.py"):
-        text = path.read_text()
-        dispatched.update(re.findall(r"\bbackend\.([a-z_]+)\(", text))
+    for directory in _DISPATCH_DIRS:
+        for path in directory.rglob("*.py"):
+            text = path.read_text()
+            dispatched.update(re.findall(r"\bbackend\.([a-z_0-9]+)\(", text))
     methods = _protocol_methods()
     missing_dispatch = methods - dispatched
     unknown_dispatch = dispatched - methods - _ATTRIBUTE_MEMBERS
     assert not missing_dispatch, (
-        f"StorageBackend methods with no mixin dispatch site (they would run "
+        f"StorageBackend methods with no dispatch site (they would run "
         f"SQL against the in-memory backend): {sorted(missing_dispatch)}"
     )
     assert not unknown_dispatch, (
-        f"mixins dispatch to backend methods not on the Protocol: "
+        f"dispatch to backend methods not on the Protocol: "
         f"{sorted(unknown_dispatch)}"
     )
 
