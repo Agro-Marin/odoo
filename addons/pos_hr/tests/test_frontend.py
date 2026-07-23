@@ -1,7 +1,8 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 from odoo import Command
-from odoo.tests import tagged, new_test_user, users
+from odoo.tests import new_test_user, tagged, users
+
 from odoo.addons.point_of_sale.tests.test_frontend import TestPointOfSaleHttpCommon
 
 
@@ -92,7 +93,7 @@ class TestUi(TestPosHrHttpCommon):
             ]
         })
         self.main_pos_config.update({
-            'advanced_employee_ids': [(6, 0, self.admin.ids)],
+            'advanced_employee_ids': [Command.set(self.admin.ids)],
         })
         self.main_pos_config.with_user(self.pos_admin).open_ui()
         self.start_pos_tour("PosHrTour", login="pos_admin")
@@ -187,7 +188,7 @@ class TestUi(TestPosHrHttpCommon):
             "company_id": self.env.company.id,
         })
         self.main_pos_config.update({
-            'minimal_employee_ids': [(6, 0, minimal_emp.ids)],
+            'minimal_employee_ids': [Command.set(minimal_emp.ids)],
         })
         self.main_pos_config.with_user(self.pos_admin).open_ui()
         current_session = self.main_pos_config.current_session_id
@@ -237,7 +238,7 @@ class TestUi(TestPosHrHttpCommon):
         self.env['pos.config'].create({
             'name': 'My cute pos config',
             'module_pos_hr': True,
-            'advanced_employee_ids': [(6, 0, self.emp2.ids)]
+            'advanced_employee_ids': [Command.set(self.emp2.ids)]
         })
 
     def test_go_backend(self):
