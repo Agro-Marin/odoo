@@ -1,12 +1,14 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 from datetime import datetime
+
 from freezegun import freeze_time
 
 from odoo import Command
+from odoo.tools.misc import get_lang
+
 from odoo.addons.stock.tests.test_generate_serial_numbers import StockGenerateCommon
 from odoo.addons.stock.tests.test_picking_tours import TestStockPickingTour
-from odoo.tools.misc import get_lang
 
 
 class TestStockLot(StockGenerateCommon):
