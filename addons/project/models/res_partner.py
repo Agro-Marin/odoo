@@ -1,6 +1,6 @@
 from typing import Self
 
-from odoo import _, api, fields, models
+from odoo import Command, _, api, fields, models
 from odoo.exceptions import UserError
 from odoo.tools import email_normalize
 
@@ -93,7 +93,7 @@ class ResPartner(models.Model):
                         "login": email_normalize(partner.email),
                         "partner_id": partner.id,
                         "company_id": self.env.company.id,
-                        "company_ids": [(6, 0, self.env.company.ids)],
+                        "company_ids": [Command.set(self.env.company.ids)],
                         "active": True,
                     }
                 )
