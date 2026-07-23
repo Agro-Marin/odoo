@@ -58,3 +58,31 @@ class TestMixinProfiler(TransactionCase):
             list(mp._DEFAULT_MODULE_METHODS),
             self.registry,
         )
+
+    def test_profile_module_skips_abstract_crud(self):
+        # An abstract mixin has no records; wrapping its inherited create only
+        # catches super()-chain pass-throughs and double-counts concrete models.
+        # profile_module must skip the default CRUD on abstract models but still
+        # honour explicitly requested methods.
+        profiled = mp.profile_module(
+            self.env,
+            "base",
+            extra_by_model={"base": ["_compute_display_name"]},
+        )
+        # 'base' is abstract: not wrapped for default CRUD via discovery of a
+        # concrete model, and its own 'create' stays the framework generic
+        Base = self.registry["base"]
+        self.assertTrue(Base._abstract)
+        self.assertFalse(hasattr(Base.create, "_profiled"))
+        # a concrete model discovered by the same module is still wrapped
+        self.assertIn("res.partner", profiled)
+        self.assertTrue(hasattr(self.registry["res.partner"].create, "_profiled"))
+        self.addCleanup(
+            mp.unprofile_methods,
+            "res.partner",
+            list(mp._DEFAULT_MODULE_METHODS),
+            self.registry,
+        )
+        self.addCleanup(
+            mp.unprofile_methods, "base", ["_compute_display_name"], self.registry
+        )

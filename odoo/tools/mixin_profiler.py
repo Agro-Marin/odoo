@@ -174,6 +174,13 @@ def profile_module(env, module_name, method_names=None, extra_by_model=None):
     :param extra_by_model: optional ``{model_name: [extra_methods]}`` to also
         wrap module-specific hot methods (e.g. ``action_confirm``)
     :return: the list of profiled model names
+
+    Abstract models are skipped for the default (record-level) methods: they
+    hold no records, so wrapping their ``create``/``write``/``read``/``search``
+    only catches ``super()``-chain pass-throughs from concrete inheritors and
+    double-counts those models' cost. Methods named explicitly in
+    ``extra_by_model`` are still wrapped on abstract models, so a mixin's own
+    logic (e.g. ``_set_next_sequence``) can be profiled deliberately.
     """
     method_names = list(method_names or _DEFAULT_MODULE_METHODS)
     extra_by_model = extra_by_model or {}
@@ -187,7 +194,13 @@ def profile_module(env, module_name, method_names=None, extra_by_model=None):
     for model_name in model_names:
         if model_name not in env:
             continue
-        methods = method_names + list(extra_by_model.get(model_name, ()))
+        extra = list(extra_by_model.get(model_name, ()))
+        if env[model_name]._abstract:
+            methods = extra  # only explicit methods on abstract mixins
+        else:
+            methods = method_names + extra
+        if not methods:
+            continue
         profile_methods(model_name, methods, registry=env.registry)
         profiled.append(model_name)
     _logger.info(
