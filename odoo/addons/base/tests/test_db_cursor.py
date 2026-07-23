@@ -395,15 +395,19 @@ class TestTestCursor(common.TransactionCase):
         # force the savepoints to be created
         a._check_savepoint()
         b._check_savepoint()
-        # closing `a` should warn that it found un-closed cursor `b`
+        # closing `a` out of order warns, removes only `a`, and leaves the
+        # still-open `b` on the stack (it used to evict `b` instead)
         with self.assertLogs("odoo.db.cursor", level=logging.WARNING) as cm:
             a.close()
         [msg] = cm.output
-        self.assertIn("WARNING:odoo.db.cursor:Found different un-closed cursor", msg)
-        # close `b` to avoid a teardown warning and assert the stack state
-        with self.assertRaises(psycopg.errors.InvalidSavepointSpecification):
-            with self.assertLogs("odoo.db.cursor", level=logging.WARNING) as cm:
+        self.assertIn("WARNING:odoo.db.cursor:Out-of-order close", msg)
+        self.assertIn(b, TestCursor._cursors_stack)
+        # `b`'s savepoint was destroyed by `a`'s rollback past it; closing it
+        # surfaces the SQL error but cleans up without further warnings
+        with self.assertNoLogs("odoo.db.cursor", level=logging.WARNING):
+            with self.assertRaises(psycopg.errors.InvalidSavepointSpecification):
                 b.close()
+        self.assertNotIn(b, TestCursor._cursors_stack)
 
     def test_borrow_connection(self):
         """Pool recycles a returned connection to the next borrower.

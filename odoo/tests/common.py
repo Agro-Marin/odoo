@@ -15,6 +15,7 @@ import logging
 import os
 import pprint
 import re
+import sys
 import threading
 import time
 import traceback
@@ -198,7 +199,9 @@ def release_test_lock() -> Generator[None]:
     finally:
         if not _registry_test_lock.acquire(timeout=60):
             tag = odoo.modules.module.current_test.canonical_tag
-            exit(f"Could not re-acquire the registry lock during {tag}, exiting...")
+            # sys.exit, not the site-provided exit() builtin: same SystemExit
+            # semantics, but always available (python -S, frozen builds)
+            sys.exit(f"Could not re-acquire the registry lock during {tag}, exiting...")
 
 
 def standalone(*tags: str) -> Callable[[Callable], Callable]:
@@ -379,8 +382,8 @@ class BaseCase(case.TestCase):
 
     def __init_subclass__(cls) -> None:
         """Assign default test tags ``standard`` and ``at_install`` to test
-        cases not having them. Also sets a completely unnecessary
-        ``test_module`` attribute.
+        cases not having them. Also sets ``test_module``, which tag
+        selection (``TagsSelector.check``) matches ``/module`` specs against.
         """
         super().__init_subclass__()
         if cls.__module__.startswith("odoo.addons."):
@@ -765,8 +768,12 @@ class BaseCase(case.TestCase):
         self, expected: list[str], flush: bool = True
     ) -> Generator[list[str]]:
         """Check the queries made by the current cursor. ``expected`` is a list
-        of strings representing the expected queries being made. Query strings
-        are matched against each other, ignoring case and whitespaces.
+        of strings representing the expected queries being made.
+
+        Despite the name this is not a subset check: exactly ``len(expected)``
+        queries must run, and ``expected[i]`` must be *contained in* the i-th
+        actual query (ignoring case and whitespace) — use it over
+        :meth:`assertQueries` when only fragments of each query matter.
         """
         actual_queries = []
 
