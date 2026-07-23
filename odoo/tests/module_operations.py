@@ -60,7 +60,10 @@ def cycle(db_name: str, module_id: int, module_name: str) -> None:
 
 def addons_path(value: str) -> Any:
     """Validate and return an addons path value."""
-    return config._check_addons_path(config.options_index["init"], "-i", value)
+    # pass the real option so skip warnings blame --addons-path, not -i
+    return config._check_addons_path(
+        config.options_index["addons_path"], "--addons-path", value
+    )
 
 
 def parse_args() -> argparse.Namespace:
@@ -262,6 +265,7 @@ def test_standalone(args: argparse.Namespace) -> None:
     )
 
     start_time = time.time()
+    failures = 0
     for index, func in enumerate(funcs, start=1):
         with Registry(args.database).cursor() as cr:
             env = odoo.api.Environment(cr, odoo.api.SUPERUSER_ID, {})
@@ -274,6 +278,7 @@ def test_standalone(args: argparse.Namespace) -> None:
             try:
                 func(env)
             except Exception:
+                failures += 1
                 _logger.exception("Standalone script %s failed", func.__name__)
 
     _logger.info(
@@ -281,6 +286,10 @@ def test_standalone(args: argparse.Namespace) -> None:
         len(funcs),
         time.time() - start_time,
     )
+    if failures:
+        # keep running every script, but do not exit 0 when some failed —
+        # callers that only check the return code used to see success
+        sys.exit(1)
 
 
 if __name__ == "__main__":

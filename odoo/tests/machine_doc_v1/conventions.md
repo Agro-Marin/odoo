@@ -15,7 +15,9 @@ Quick battery after touching this package (disposable DB):
 ```
 --test-tags /base:TestTestSuite,/base:TestSelector,/base:TestSetTags,\
 /base:TestCursorStack,/base:TestBenchmarkStats,/base:TestFormCreate,\
-/base:TestHttpCase,/base:TestChromeBrowser,/base:TestRequestRemaining
+/base:TestHttpCase,/base:TestChromeBrowser,/base:TestChromeBrowserOddDimensions,\
+/base:TestRequestRemaining,/base:TestEnvInt,/base:TestAllowRequests,\
++test_retry_success
 ```
 
 ## Tagging rules
@@ -36,7 +38,9 @@ Quick battery after touching this package (disposable DB):
   don't remove.
 - `odoo.tests.common.ChromeBrowser` must remain a valid attribute (mock
   target used by bus/base tests and web tooling), even though the class
-  lives in `browser.py`.
+  lives in `browser.py`.  Likewise `HttpCase`/`Opener`/`Transport`/
+  `JsonRpcException` live in `http.py` but stay re-exported from `common`;
+  `http.browser_js` must keep instantiating via `common.ChromeBrowser`.
 - `test_cursor.py` / `test_module_operations.py` are import shims for old
   upstream paths — external tooling (runbot) may call
   `python -m odoo.tests.test_module_operations`. Keep until proven dead.
@@ -61,6 +65,13 @@ Quick battery after touching this package (disposable DB):
 - `benchmark.compute_stats`: mean/median/percentiles are outlier-trimmed
   (indices trimmed jointly across time/db/query lists); `min_us`/`max_us`
   are raw extremes.
+- Integer env vars (`ODOO_TEST_FAILURE_RETRIES`, `ODOO_TEST_MAX_FAILED_TESTS`,
+  `ODOO_TOUR_DELAY_TO_CHECK_UNDETERMINISMS`, `ODOO_BROWSER_CPU_THROTTLING`)
+  are read via `utils.env_int` — empty-but-set (common in CI) means default,
+  never ValueError.  `ODOO_TEST_MAX_FAILED_TESTS <= 0` means unlimited.
+- `allow_requests(all_requests=True)` restores the flag on exit
+  (patch.object) — a plain assignment leaked it and disabled the cookie
+  guard for the rest of the test.
 - Ruff config marks `F401` unfixable — remove unused imports by hand.
 - Py 3.14 / PEP 758: `except A, B:` (no parens, no `as`) is valid and is
   the enforced style — don't "fix" it back to parenthesized form.

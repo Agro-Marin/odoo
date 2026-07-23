@@ -5,9 +5,9 @@
 ```
 unittest.TestCase
   └─ case.TestCase           (vendored: trimmed run loop, subtests, tb surgery)
-       └─ BaseCase           (tags, retry, HTTP blocking, patch helpers)
-            ├─ TransactionCase        (one class-level tx; savepoint per test)
-            │    └─ HttpCase          (registry test mode + url_open/browser_js)
+       └─ BaseCase           (tags, retry, HTTP blocking, patch helpers)     [common.py]
+            ├─ TransactionCase        (one class-level tx; savepoint per test) [common.py]
+            │    └─ HttpCase          (registry test mode + url_open/browser_js) [http.py]
             └─ SingleTransactionCase  (one tx across all test methods; no savepoints)
 ```
 
@@ -97,8 +97,14 @@ browser_js
   would otherwise leak) and late happy-path (stop browser *before* waiting
   on remaining request threads).
 - `patch("odoo.tests.common.ChromeBrowser")` is a supported mock target:
-  `browser_js` resolves the name through `common`'s module globals, which
-  re-import it from `browser.py`.
+  `browser_js` (now in `http.py`) instantiates via `common.ChromeBrowser`
+  attribute access at call time, so patching `common` keeps working.
+- Wait-loop budgets are wall-clock, scaled **once** by the CPU-throttling
+  factor (`_websocket_request` scales only its own default); `_wait_code_ok`
+  spends the budget *remaining* after the evaluate phase, and an evaluate
+  that outlives the budget raises `ChromeBrowserException` (with screenshot),
+  never a bare `TimeoutError`. `_wait_ready` returns `False` on timeout
+  (bool contract) and sleeps 50ms between polls.
 
 ## Form emulation (`form.py`)
 

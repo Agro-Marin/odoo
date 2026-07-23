@@ -8,4 +8,3 @@ See https://github.com/python/cpython/tree/3.14/Lib/unittest for reference files
 from . import common
 from .common import *
 from .form import Form, O2MProxy, M2MProxy
-from odoo.orm.registration import add_to_registry
