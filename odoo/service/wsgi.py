@@ -150,6 +150,17 @@ class CommonRequestHandler(werkzeug.serving.WSGIRequestHandler):
             # command or request_version also missing on a malformed request
             msg = self.requestline
 
+        # Neutralize control characters before the line reaches a log sink.
+        # Both the decoded request-target (``http.server`` keeps raw C0/C1 bytes
+        # from the request line; ``uri_to_iri`` does not strip them) and the
+        # ``rpc_model_method`` fragment (set from the raw RPC ``method`` param
+        # BEFORE validation, see ``model.execute_cr``) are attacker-controlled,
+        # so an unescaped ESC/CSI byte would render as a live terminal sequence
+        # in an operator's log (spoofed entries, screen-clear).  werkzeug's own
+        # ``log_request`` applies this same table; the fork's override must not
+        # drop it.
+        msg = msg.translate(self._control_char_table)
+
         code = str(code)
 
         # In ESM mode the browser fetches each JS/CSS file individually,

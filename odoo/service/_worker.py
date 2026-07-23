@@ -177,10 +177,14 @@ class Worker:
             r = resource.getrusage(resource.RUSAGE_SELF)
             cpu_time = r.ru_utime + r.ru_stime
             _soft, hard = resource.getrlimit(resource.RLIMIT_CPU)
-            resource.setrlimit(
-                resource.RLIMIT_CPU,
-                (int(cpu_time + limit_time_cpu), hard),
-            )
+            soft = int(cpu_time + limit_time_cpu)
+            # A finite hard cap (container/systemd ``LimitCPU=``) makes ``soft >
+            # hard`` once cumulative CPU nears it; ``setrlimit`` raises
+            # ``ValueError`` on soft > hard, which would surface as a spurious
+            # "Exception occurred, exiting..." crash near the cap.  Clamp instead.
+            if hard != resource.RLIM_INFINITY and soft > hard:
+                soft = hard
+            resource.setrlimit(resource.RLIMIT_CPU, (soft, hard))
 
     def process_work(self) -> None:
         """Process one unit of work. Subclasses override this."""
@@ -249,6 +253,18 @@ class Worker:
                 "Exiting cleanly. request_count: %s, registry count: %s.",
                 self.request_count,
                 len(Registry.registries),
+            )
+        except CpuTimeLimitExceeded:
+            # SIGXCPU fires on the main thread (the runloop daemon blocks it), so
+            # it lands here, interrupting ``t.join()``.  A CPU-limit recycle is an
+            # ENFORCED, expected recycle — the same class as the memory-soft and
+            # max-age recycles, which exit 0 ("Exiting cleanly").  Return cleanly
+            # (exit 0) so ``worker_spawn`` does not log it CRITICAL-with-traceback
+            # nor let ``_note_worker_exit`` treat a young CPU-heavy worker as a
+            # crash and arm the fork-storm respawn backoff.
+            self.logger.warning(
+                "CPU time limit (%ss) exceeded; recycling worker.",
+                config["limit_time_cpu"],
             )
         finally:
             self.stop()
@@ -378,6 +394,14 @@ class WorkerCron(Worker):
     def sleep(self) -> None:
         # Really sleep once all the databases have been processed.
         if not self.db_queue:
+            # While a reconnect is outstanding (PG outage), ``_pg_selector``'s
+            # PG fd is closed and no NOTIFY can arrive, so a full-interval select
+            # would idle up to ~60s ON TOP OF each reconnect backoff, ~doubling
+            # recovery latency.  ``process_work`` already paces the retries via
+            # its exponential backoff, so return promptly and let it try again.
+            if self._reconnect_attempts > 0:
+                return
+
             interval = SLEEP_INTERVAL + self.pid % 10  # chorus effect
 
             # Cap the select to half the watchdog (when set) so a ping always

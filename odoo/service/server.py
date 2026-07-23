@@ -43,6 +43,7 @@ from ._worker import (
     Worker,
     WorkerCron,
     WorkerHTTP,
+    WorkerJob,
 )
 
 # Lifecycle entry points — re-exported so ``cli/shell.py`` (``server.start``),
@@ -79,6 +80,7 @@ __all__ = (  # noqa: RUF022 — grouped by origin (server/worker/wsgi/lifecycle)
     "Worker",
     "WorkerCron",
     "WorkerHTTP",
+    "WorkerJob",
     # WSGI handlers (re-exported from .wsgi)
     "BaseWSGIServerNoBind",
     "CommonRequestHandler",

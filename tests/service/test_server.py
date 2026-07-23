@@ -103,6 +103,7 @@ def prefork_server(srv):
     obj.logger = MagicMock()
     obj.workers = {}
     obj.long_polling_pid = None
+    obj.long_polling_popen = None
     obj.long_polling_spawn_time = 0.0
     # Fork-storm respawn-throttle state (consumed by process_zombie ->
     # _note_worker_exit and process_spawn).
@@ -277,6 +278,61 @@ class TestPreforkServerProcessSignals:
     def test_empty_queue_is_noop(self, prefork_server):
         prefork_server.process_signals()  # must not raise
         assert prefork_server.population == 4
+
+
+# ---------------------------------------------------------------------------
+# PreforkServer.fork_and_reload() — http_enable=False reload guard
+# ---------------------------------------------------------------------------
+
+
+class TestPreforkForkAndReloadNoSocket:
+    """A prefork node with ``http_enable = False`` (dedicated cron/job worker)
+    never creates ``self.socket``.  A SIGHUP reload must not dereference it: the
+    parent branch of ``fork_and_reload`` used to call ``self.socket.fileno()``
+    unconditionally, crashing the master AFTER the fork (SIGTERM-ing every worker
+    mid-job) and stranding the child for the full reload timeout."""
+
+    def test_reload_without_socket_reaches_reexec(self, prefork_server):
+        prefork_server.socket = None  # http_enable=False leaves it None
+        # Capture the environ inside _reexec (patch.dict reverts it on exit).
+        seen = {}
+
+        def fake_reexec(*a, **k):
+            seen["env"] = dict(os.environ)
+            raise SystemExit("reexec-sentinel")
+
+        with (
+            patch("odoo.service._prefork.os.fork", return_value=4242),
+            patch("odoo.service._prefork._reexec", fake_reexec),
+            patch.dict("odoo.service._prefork.os.environ", {}, clear=False),
+        ):
+            with pytest.raises(SystemExit, match="reexec-sentinel"):
+                prefork_server.fork_and_reload()
+        # Reached _reexec with no AttributeError: the socketless path is handled.
+        assert "env" in seen
+        # And no stale fd was advertised to the re-exec'd master.
+        assert "ODOO_HTTP_SOCKET_FD" not in seen["env"]
+
+    def test_reload_with_socket_hands_off_fd(self, prefork_server):
+        """The normal (http_enable=True) path still exports the socket fd."""
+        sock = MagicMock()
+        sock.fileno.return_value = 7
+        prefork_server.socket = sock
+        seen = {}
+
+        def fake_reexec(*a, **k):
+            seen["env"] = dict(os.environ)
+            raise SystemExit
+
+        with (
+            patch("odoo.service._prefork.os.fork", return_value=4242),
+            patch("odoo.service._prefork._reexec", fake_reexec),
+            patch("odoo.service._prefork.fcntl.fcntl", return_value=0),
+            patch.dict("odoo.service._prefork.os.environ", {}, clear=False),
+        ):
+            with pytest.raises(SystemExit):
+                prefork_server.fork_and_reload()
+        assert seen["env"].get("ODOO_HTTP_SOCKET_FD") == "7"
 
 
 # ---------------------------------------------------------------------------
@@ -1108,8 +1164,61 @@ class TestPreforkProcessZombie:
 
 
 # ---------------------------------------------------------------------------
-# PreforkServer respawn throttle (fork-storm guard)
+# PreforkServer.long_polling_popen reconciliation
 # ---------------------------------------------------------------------------
+
+
+class TestLongPollingPopenReconciliation:
+    """The master reaps the evented child via ``waitpid(-1)``/psutil, behind
+    subprocess's back, so the ``Popen`` handle must be reconciled or its
+    ``__del__`` warns "still running" and parks it on ``subprocess._active``."""
+
+    def test_reconcile_sets_returncode_and_clears_ref(self, prefork_server):
+        popen = MagicMock()
+        popen.returncode = None
+        prefork_server.long_polling_popen = popen
+        prefork_server._reconcile_long_polling_popen(0)
+        assert popen.returncode == 0
+        assert prefork_server.long_polling_popen is None
+
+    def test_reconcile_uses_sigkill_sentinel_when_code_unknown(self, prefork_server):
+        popen = MagicMock()
+        popen.returncode = None
+        prefork_server.long_polling_popen = popen
+        prefork_server._reconcile_long_polling_popen(None)
+        assert popen.returncode == -signal.SIGKILL
+
+    def test_reconcile_is_noop_without_a_handle(self, prefork_server):
+        prefork_server.long_polling_popen = None
+        prefork_server._reconcile_long_polling_popen(0)  # must not raise
+
+    def test_note_worker_exit_reconciles_the_handle(self, prefork_server):
+        popen = MagicMock()
+        popen.returncode = None
+        prefork_server.long_polling_pid = 9999
+        prefork_server.long_polling_popen = popen
+        prefork_server.long_polling_spawn_time = time.monotonic()
+        prefork_server._note_worker_exit(9999, 0)  # clean recycle, exit 0
+        assert popen.returncode == 0
+        assert prefork_server.long_polling_popen is None
+
+    def test_real_popen_no_resourcewarning_after_reconcile(self, prefork_server):
+        """Behavioral: a real reaped Popen must not warn once reconciled."""
+        import gc  # noqa: PLC0415
+        import subprocess  # noqa: PLC0415
+        import sys  # noqa: PLC0415
+        import warnings  # noqa: PLC0415
+
+        popen = subprocess.Popen([sys.executable, "-c", "pass"])
+        _pid, status = os.waitpid(popen.pid, 0)  # reap behind subprocess's back
+        prefork_server.long_polling_popen = popen
+        prefork_server._reconcile_long_polling_popen(
+            os.waitstatus_to_exitcode(status)
+        )
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", ResourceWarning)
+            del popen
+            gc.collect()  # must not raise ResourceWarning
 
 
 class TestPreforkRespawnBackoff:
@@ -1627,6 +1736,57 @@ class TestCommonRequestHandlerLogRequestNoTTY:
         h.log_request(200, 0)
         logged_msg = str(h.log.call_args)
         assert "GARBAGE_LINE" in logged_msg
+
+
+class TestCommonRequestHandlerLogRequestControlChars:
+    """``log_request()`` MUST neutralize control characters before logging.
+
+    Both the decoded request path and the ``rpc_model_method`` fragment (set
+    from the raw RPC ``method`` param, before validation) are attacker-controlled;
+    an unescaped ESC/CSI byte would render as a live terminal sequence in an
+    operator's log.  werkzeug's own ``log_request`` applies this translation and
+    the fork's override must not drop it.
+    """
+
+    ESC = "\x1b"
+
+    def _logged_msg(self, handler):
+        # self.log("info", '"%s" %s %s', msg, code, size) -> msg is args[2].
+        return handler.log.call_args.args[2]
+
+    def test_control_chars_in_path_are_escaped(self, log_handler):
+        log_handler.path = f"/web/login{self.ESC}[2Jspoof"
+        log_handler.requestline = "GET /web/login HTTP/1.1"
+        with patch("odoo.service.wsgi._ANSI_ENABLED", False):
+            log_handler.log_request(404, 0)
+        assert self.ESC not in self._logged_msg(log_handler)
+        assert "\\x1b" in self._logged_msg(log_handler)
+
+    def test_control_chars_in_rpc_fragment_are_escaped(self, log_handler):
+        import threading  # noqa: PLC0415
+
+        threading.current_thread().rpc_model_method = (
+            f"res.users.read{self.ESC}[31mINJECT"
+        )
+        try:
+            with patch("odoo.service.wsgi._ANSI_ENABLED", False):
+                log_handler.log_request(200, 0)
+        finally:
+            threading.current_thread().rpc_model_method = ""
+        msg = self._logged_msg(log_handler)
+        assert self.ESC not in msg
+        assert "INJECT" in msg  # payload text kept, only the ESC byte escaped
+
+    def test_control_chars_escaped_in_bad_requestline_fallback(self, srv):
+        import threading  # noqa: PLC0415
+
+        h = object.__new__(srv.CommonRequestHandler)
+        h.requestline = f"GARBAGE{self.ESC}[2K"
+        h.log = MagicMock()
+        threading.current_thread().rpc_model_method = ""
+        with patch("odoo.service.wsgi._ANSI_ENABLED", False):
+            h.log_request(200, 0)
+        assert self.ESC not in h.log.call_args.args[1]
 
 
 # ---------------------------------------------------------------------------
@@ -2638,14 +2798,17 @@ class TestMemoryLogStrings:
             "EventServer.process_limits still uses misleading 'Virtual memory' label"
         )
 
-    def test_memory_info_returns_rss(self, srv):
-        """Belt-and-suspenders: confirm the helper actually returns RSS."""
-        import psutil  # noqa: PLC0415
-        proc = psutil.Process(os.getpid())
-        info = proc.memory_info()
-        assert _helpers.memory_info(proc) == info.rss
-        # And explicitly NOT vms
-        assert _helpers.memory_info(proc) != info.vms or info.vms == info.rss
+    def test_memory_info_returns_rss(self):
+        """Belt-and-suspenders: confirm the helper returns RSS, not VMS.
+
+        A mocked process (rather than a live ``psutil.Process``) so the two
+        reads are identical: a live process's RSS can change between the
+        reference read and the helper's read, which made this assertion flaky.
+        """
+        proc = MagicMock()
+        proc.memory_info.return_value = MagicMock(rss=111, vms=999)
+        assert _helpers.memory_info(proc) == 111  # rss
+        assert _helpers.memory_info(proc) != 999  # not vms
 
 
 # ---------------------------------------------------------------------------
