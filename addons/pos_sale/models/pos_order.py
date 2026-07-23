@@ -1,8 +1,6 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-from odoo import api, fields, models, _
-from odoo.tools import float_compare, float_is_zero, format_date
+from odoo import _, api, fields, models
 
 
 class PosOrder(models.Model):
@@ -18,7 +16,7 @@ class PosOrder(models.Model):
 
     @api.model
     def _complete_values_from_session(self, session, values):
-        values = super(PosOrder, self)._complete_values_from_session(session, values)
+        values = super()._complete_values_from_session(session, values)
         values['crm_team_id'] = values['crm_team_id'] if values.get('crm_team_id') else session.config_id.crm_team_id.id
         return values
 
@@ -29,7 +27,7 @@ class PosOrder(models.Model):
             order.currency_rate = self.env['res.currency']._get_conversion_rate(order.company_id.currency_id, order.currency_id, order.company_id, date_order.date())
 
     def _prepare_invoice_vals(self):
-        invoice_vals = super(PosOrder, self)._prepare_invoice_vals()
+        invoice_vals = super()._prepare_invoice_vals()
         invoice_vals['team_id'] = self.crm_team_id.id
         sale_orders = self.lines.mapped('sale_order_origin_id')
         if sale_orders:
@@ -65,7 +63,7 @@ class PosOrder(models.Model):
         for pos_order in pos_orders:
             # TODO: the way to retrieve the sale order in not consistent... is it a bad code or intended?
             used_pos_lines = pos_order.lines.sale_order_origin_id.line_ids.pos_order_line_ids
-            downpayment_pos_order_lines = pos_order.lines.filtered(lambda line: (
+            downpayment_pos_order_lines = pos_order.lines.filtered(lambda line, used_pos_lines=used_pos_lines, pos_order=pos_order: (
                 line not in used_pos_lines
                 and line.product_id == pos_order.config_id.down_payment_product_id
             ))
@@ -102,10 +100,10 @@ class PosOrder(models.Model):
                 so_line_stock_move_ids = so_line.move_ids.reference_ids.move_ids
                 for stock_move in so_line.move_ids:
                     picking = stock_move.picking_id
-                    if not picking.state in ['waiting', 'confirmed', 'assigned']:
+                    if picking.state not in ['waiting', 'confirmed', 'assigned']:
                         continue
 
-                    def get_expected_qty_to_ship_later():
+                    def get_expected_qty_to_ship_later(so_line=so_line):
                         pos_pickings = so_line.pos_order_line_ids.order_id.picking_ids
                         if pos_pickings and all(pos_picking.state in ['confirmed', 'assigned'] for pos_picking in pos_pickings):
                             return sum((so_line._convert_qty(so_line, pos_line.qty, 'p2s') for pos_line in
@@ -118,7 +116,7 @@ class PosOrder(models.Model):
                         new_qty = 0
                     stock_move.product_uom_qty = so_line.compute_uom_qty(new_qty, stock_move, False)
                     # If the product is delivered with more than one step, we need to update the quantity of the other steps
-                    for move in so_line_stock_move_ids.filtered(lambda m: m.state in ['waiting', 'confirmed', 'assigned'] and m.product_id == stock_move.product_id):
+                    for move in so_line_stock_move_ids.filtered(lambda m, stock_move=stock_move: m.state in ['waiting', 'confirmed', 'assigned'] and m.product_id == stock_move.product_id):
                         move.product_uom_qty = stock_move.product_uom_qty
                         waiting_picking_ids.add(move.picking_id.id)
                     waiting_picking_ids.add(picking.id)
@@ -148,7 +146,7 @@ class PosOrder(models.Model):
         }
 
     def _get_fields_for_order_line(self):
-        fields = super(PosOrder, self)._get_fields_for_order_line()
+        fields = super()._get_fields_for_order_line()
         fields.extend([
             'sale_order_origin_id',
             'down_payment_details',
@@ -211,7 +209,7 @@ class PosOrderLine(models.Model):
 
                 if outgoing_pickings and order_line.order_id.shipping_date:
                     moves = outgoing_pickings.move_ids.filtered(
-                        lambda m: m.state == 'done' and m.product_id == order_line.product_id
+                        lambda m, order_line=order_line: m.state == 'done' and m.product_id == order_line.product_id
                     )
                     qty_left = product_qty_left_to_assign.get(order_line.product_id.id, False)
                     if (qty_left):
