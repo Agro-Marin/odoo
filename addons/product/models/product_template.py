@@ -2,7 +2,7 @@ import itertools
 import logging
 from collections import defaultdict
 
-from odoo import _, api, fields, models, tools
+from odoo import Command, _, api, fields, models, tools
 from odoo.exceptions import UserError, ValidationError
 from odoo.fields import Domain
 from odoo.tools.image import is_image_size_above
@@ -1240,7 +1240,7 @@ class ProductTemplate(models.Model):
         self.ensure_one()
         return {
             "product_tmpl_id": self.id,
-            "product_template_attribute_value_ids": [(6, 0, combination.ids)],
+            "product_template_attribute_value_ids": [Command.set(combination.ids)],
             "active": self.active,
         }
 
