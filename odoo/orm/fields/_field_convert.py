@@ -48,10 +48,16 @@ class _FieldConvertMixin(_FieldStubs):
             return None
         if isinstance(value, str):
             return value
-        elif isinstance(value, bytes):
+        if isinstance(value, bytes):
             return value.decode()
-        else:
+        if isinstance(value, (int, float)):
+            # e.g. integer-keyed Selection values stored in a varchar column
             return str(value)
+        # Anything else (dict, list, recordset, arbitrary object) has no
+        # meaningful textual column form: str() would silently persist a repr
+        # like "{'a': 1}" into the column. Fields with richer column formats
+        # override this method; reaching here with a non-scalar is a bug.
+        raise TypeError(f"Invalid column value for {self}: {value!r}")
 
     @staticmethod
     def _to_json_value(value: typing.Any) -> typing.Any:
@@ -106,6 +112,7 @@ class _FieldConvertMixin(_FieldStubs):
             # (mirrors the company_dependent pattern below).
             langs_dict = {}
             flat_value = SENTINEL
+            found = False
             for cache_key, sub_cache in field_cache.items():
                 if not isinstance(sub_cache, dict):
                     # Stale flat entry ({id: scalar}) written before
@@ -113,13 +120,26 @@ class _FieldConvertMixin(_FieldStubs):
                     # _load_module_terms flush). Keep it as a fallback: a value
                     # surviving ONLY in a flat entry must not flush as SQL NULL
                     # (NotNullViolation on required translatable fields).
-                    if cache_key == record_id and sub_cache is not None:
-                        flat_value = sub_cache
+                    if cache_key == record_id:
+                        found = True
+                        if sub_cache is not None:
+                            flat_value = sub_cache
                     continue
                 if (value := sub_cache.get(record_id, SENTINEL)) is not SENTINEL:
+                    found = True
+                    # cache_key[0] IS the language: BaseString.get_depends
+                    # normalizes 'lang' first in depends_context.  (Stored
+                    # translated fields with EXTRA context deps are warned at
+                    # setup: their same-lang sub-caches collapse last-wins.)
                     lang = cache_key[0]
                     if value is not None:
                         langs_dict[lang] = value
+            if not found:
+                # Total miss: no sub-cache (nor flat entry) knows the record at
+                # all.  Raise KeyError like the fast path below — _flush wraps
+                # it into a diagnostic RuntimeError (see mixins/recompute.py);
+                # returning None here would silently flush SQL NULL instead.
+                raise KeyError(record_id)
             if not langs_dict and flat_value is not SENTINEL:
                 # Only a stale flat entry held a value: preserve it under the
                 # current language rather than overwriting the column with NULL.
@@ -142,9 +162,10 @@ class _FieldConvertMixin(_FieldStubs):
                     if value is PENDING:
                         return PENDING
                     return self.convert_to_column(value, record, validate=False)
-            raise AssertionError(
-                f"Value not in cache for field {self} and id={record_id}"
-            )
+            # Total miss: raise KeyError like the fast path above — _flush
+            # wraps it into a diagnostic RuntimeError (see mixins/recompute.py),
+            # whereas an AssertionError would bypass that handler entirely.
+            raise KeyError(record_id)
         # Company-dependent: collect values from all company contexts into JSONB
         values = {}
         flat_value = SENTINEL

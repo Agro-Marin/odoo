@@ -30,13 +30,13 @@ from odoo.tools.translate import html_translate
 from ..primitives import COLLECTION_TYPES, SQL_OPERATORS
 from .base import Field, _logger
 
-# The en_US sub-cache key for translate=True fields.  Hard-coding the 1-tuple
-# assumes the field's cache key is exactly ``(lang,)`` — guaranteed because a
-# translate=True field's depends_context is forced to ``('lang',)``:
-# company_dependent+translate is rejected at setup, stored translated fields
-# with extra context deps are refused (see get_depends), and both users of this
-# constant are guarded by ``not self.compute``.  Keep every en_US-fallback
-# cache access on this single name so the assumption lives in one place.
+# The en_US sub-cache key for translate=True fields whose depends_context is
+# exactly ``('lang',)`` — the overwhelmingly common case.  Fields with extra
+# context dependencies derive their fallback key through
+# :meth:`BaseString._lang_fallback_cache_key` instead (same key with the lang
+# component — always first, normalized by ``get_depends`` — swapped for
+# "en_US").  Keep every en_US-fallback cache access on that helper so the
+# key-shape assumption lives in one place.
 _EN_US_KEY = ("en_US",)
 
 if typing.TYPE_CHECKING:
@@ -114,6 +114,20 @@ class BaseString(Field[str | typing.Literal[False]]):
             or (self.store and (record_id or getattr(record_id, "origin", None)))
         )
 
+    def _lang_fallback_cache_key(self, env: Environment) -> tuple:
+        """Return the en_US fallback sub-cache key of ``self`` in ``env``.
+
+        The env's own cache key with the language component — always first,
+        normalized by :meth:`get_depends` — replaced by ``"en_US"``.  A field
+        with extra context dependencies thus falls back within the SAME extra
+        context, instead of probing a dead ``("en_US",)`` key that no real
+        cache write ever uses.
+        """
+        cache_key = env.cache_key(self)
+        if len(cache_key) == 1:
+            return _EN_US_KEY
+        return ("en_US", *cache_key[1:])
+
     def _scalar_translate_fallback(
         self, env: Environment, record_id: typing.Any
     ) -> typing.Any:
@@ -131,7 +145,9 @@ class BaseString(Field[str | typing.Literal[False]]):
         cur_val = self._get_cache(env).get(record_id, SENTINEL)
         if cur_val is not SENTINEL:
             return cur_val
-        fb_cache = env._core.get_field_data(self).get(_EN_US_KEY)
+        fb_cache = env._core.get_field_data(self).get(
+            self._lang_fallback_cache_key(env)
+        )
         if fb_cache is not None:
             return fb_cache.get(record_id, SENTINEL)
         return SENTINEL
@@ -153,16 +169,25 @@ class BaseString(Field[str | typing.Literal[False]]):
     def get_depends(self, model: BaseModel) -> tuple[Iterable[str], Iterable[str]]:
         if self.translate is True:
             dep, dep_ctx = super().get_depends(model)
-            if self.store and dep_ctx:
+            # Model translation: the cache layout is one flat {id: value}
+            # sub-dict per (lang + extra context) key.  Extra context deps are
+            # legitimate (e.g. a translated field related through a
+            # depends_context compute, see test_orm.compute.member), but the
+            # language is normalized FIRST in the key so every consumer that
+            # must single out the lang component — the en_US fallback key
+            # derived by :meth:`_lang_fallback_cache_key` and the
+            # ``cache_key[0]`` lang extraction in ``get_column_update`` — can
+            # rely on its position instead of assuming a ``(lang,)`` 1-tuple.
+            extra = tuple(dict.fromkeys(ctx for ctx in dep_ctx if ctx != "lang"))
+            if extra and self.store:
+                # A stored column holds ONE value per language: sub-caches
+                # differing only in the extra context collapse last-wins at
+                # flush, making the stored value ambiguous.
                 _logger.warning(
                     "Translated stored fields (%s) cannot depend on context",
                     self,
                 )
-            # Model translation: add depends_context=('lang',) to route the cache
-            # per language (flat per-lang dicts), stored or not.
-            if "lang" not in dep_ctx:
-                dep_ctx = ("lang",) + tuple(dep_ctx)
-            return dep, dep_ctx
+            return dep, ("lang", *extra)
         if callable(self.translate) and self.store:
             dep, dep_ctx = super().get_depends(model)
             if dep_ctx:
@@ -512,7 +537,7 @@ class BaseString(Field[str | typing.Literal[False]]):
                 id_ or getattr(id_, "origin", None) for id_ in records._ids
             ):
                 en_cache = records.env._core.get_field_data(self).setdefault(
-                    _EN_US_KEY, {}
+                    self._lang_fallback_cache_key(records.env), {}
                 )
                 for id_ in records._ids:
                     en_cache.setdefault(id_, cache_value)
@@ -655,7 +680,13 @@ class BaseString(Field[str | typing.Literal[False]]):
                 for k, v in stored_translations.items()
                 if not k.startswith("_")
             }
-            from_lang_value = old_translations.pop(lang, old_translations["en_US"])
+            # SQL-migrated legacy jsonb rows may lack the "en_US" key entirely;
+            # fall back to any stored value (or the new value itself) instead of
+            # KeyError-ing the whole write.
+            fallback_value = old_translations.get("en_US")
+            if fallback_value is None:
+                fallback_value = next(iter(old_translations.values()), cache_value)
+            from_lang_value = old_translations.pop(lang, fallback_value)
             translation_dictionary = self.get_translation_dictionary(
                 from_lang_value, old_translations
             )

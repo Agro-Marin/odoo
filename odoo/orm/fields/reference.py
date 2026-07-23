@@ -59,10 +59,28 @@ class Reference(Selection):
     ) -> str | None:
         # cache format: str ("model,id") or None
         if is_recordset(value):
-            if not validate or (
-                value._name in self.get_values(record.env) and len(value) <= 1
-            ):
+            # validate=False (bulk/import) trusts input: no selection lookup and
+            # no existence query, same trade as the string branch below.
+            if not validate:
                 return f"{value._name},{value.id}" if value else None
+            if value._name in self.get_values(record.env) and len(value) <= 1:
+                if not value:
+                    return None
+                res_id = value.id
+                if isinstance(res_id, int):
+                    # Same memo + existence check as the string branch: a
+                    # recordset can point at a deleted id just as easily as a
+                    # string can, and skipping the check cached a dangling
+                    # reference. NewIds are exempt (no row to verify yet).
+                    memo = self._verified_pairs(record.env)
+                    if (
+                        value._name,
+                        res_id,
+                    ) not in memo and not self._reference_exists(
+                        record, value._name, res_id, memo
+                    ):
+                        return None
+                return f"{value._name},{res_id}"
         elif isinstance(value, str):
             # parse defensively so malformed RPC input (extra commas, non-numeric
             # id) falls through to the uniform error below.

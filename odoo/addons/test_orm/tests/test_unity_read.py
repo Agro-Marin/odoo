@@ -1,7 +1,6 @@
 from dateutil.relativedelta import relativedelta
 
 from odoo import Command, fields
-from odoo.exceptions import AccessError
 from odoo.tests.common import TransactionCase, new_test_user
 
 
@@ -125,16 +124,28 @@ class TestUnityRead(TransactionCase):
                 },
             )
 
-    def test_read_many2one_throws_if_it_cannot_read_extra_fields(self):
-        with self.assertRaises(AccessError):
-            self.course.with_user(self.only_course_user).web_read(
+    def test_read_many2one_degrades_if_it_cannot_read_extra_fields(self):
+        # Fork policy (web-audit 134645d31b2): a m2o target the user cannot
+        # read degrades to False instead of aborting the WHOLE parent read
+        # with AccessError (upstream raised here).
+        read = self.course.with_user(self.only_course_user).web_read(
+            {
+                "display_name": {},
+                "author_id": {
+                    "fields": {"write_date": {}},
+                },
+            }
+        )
+        self.assertEqual(
+            read,
+            [
                 {
-                    "display_name": {},
-                    "author_id": {
-                        "fields": {"write_date": {}},
-                    },
+                    "id": self.course.id,
+                    "display_name": "introduction to OWL",
+                    "author_id": False,
                 }
-            )
+            ],
+        )
 
     def test_read_many2one_gives_false_if_no_value(self):
         read = self.course_no_author.web_read({"display_name": {}, "author_id": {}})
@@ -167,7 +178,12 @@ class TestUnityRead(TransactionCase):
             ],
         )
 
-    def test_read_many2one_gives_id_name_even_if_you_dont_have_access(self):
+    def test_read_many2one_hides_id_name_if_you_dont_have_access(self):
+        # Fork policy: upstream exposed {"id": ..., "display_name": "ged"} here
+        # via sudo even though the user cannot read the author at all — a
+        # record-rule/ACL name leak. The whole value now degrades to False.
+        # These assertions must keep failing if the sudo leak is reintroduced,
+        # in either web_read() or Many2one.convert_to_read().
         read = self.course.with_user(self.only_course_user).web_read(
             {"display_name": {}, "author_id": {"fields": {"display_name": {}}}}
         )
@@ -177,13 +193,19 @@ class TestUnityRead(TransactionCase):
                 {
                     "id": self.course.id,
                     "display_name": "introduction to OWL",
-                    "author_id": {
-                        "id": self.author.id,
-                        "display_name": "ged",
-                    },
+                    "author_id": False,
                 },
             ],
         )
+        # classic read() (load='_classic_read') follows the same policy...
+        values = self.course.with_user(self.only_course_user).read(["author_id"])
+        self.assertEqual(values[0]["author_id"], False)
+        # ...while load=None still exposes the raw id — it is a column of a
+        # record the user CAN read (mirrors web_read's fields-less branch).
+        values = self.course.with_user(self.only_course_user).read(
+            ["author_id"], load=None
+        )
+        self.assertEqual(values[0]["author_id"], self.author.id)
 
     def test_many2one_respects_context(self):
         read = self.course.web_read(
