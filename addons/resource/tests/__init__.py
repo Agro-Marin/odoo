@@ -7,3 +7,4 @@ from . import test_resource_improvements
 from . import test_resource_cache_freshness
 from . import test_scheduling_archive
 from . import test_resource_tz_robustness
+from . import test_calendar_attendance
