@@ -1,7 +1,7 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 from odoo import api, fields, models
+
 from odoo.addons.onboarding.models.onboarding_progress import ONBOARDING_PROGRESS_STATES
 
 
@@ -124,12 +124,10 @@ class OnboardingOnboarding(models.Model):
 
     def _prepare_rendering_values(self):
         self.ensure_one()
-        values = {
+        return {
             'close_method': self.panel_close_action_name,
             'close_model': 'onboarding.onboarding',
             'steps': self.step_ids,
             'state': self.current_progress_id._get_and_update_onboarding_state(),
             'text_completed': self.text_completed,
         }
-
-        return values
