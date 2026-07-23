@@ -7,6 +7,7 @@ locals plus condition/math builtins.
 import dis
 import functools
 import logging
+import string
 import sys
 import types
 import typing
@@ -98,8 +99,10 @@ _BLACKLIST = set(
             "IMPORT_STAR",
             "IMPORT_NAME",
             "IMPORT_FROM",
-            # could allow replacing or updating core attributes on models & al, setitem
-            # can be used to set field values
+            # setattr/delattr could replace or update core attributes on models
+            # & al, or set field values (rec.field = x). Note STORE_SUBSCR
+            # (item assignment, rec[k] = x) is intentionally NOT blocked: it is
+            # needed to build dict/list results in exec-mode expressions.
             "STORE_ATTR",
             "DELETE_ATTR",
             # no reason to allow this
@@ -344,6 +347,55 @@ def assert_no_dunder_name(code_obj: CodeType, expr: str) -> None:
             raise NameError("Access to forbidden name %r (%r)" % (name, expr))
 
 
+_formatter_parse = string.Formatter().parse
+
+
+def assert_no_dunder_format_field(code_obj: CodeType, expr: str) -> None:
+    """Reject literal ``str.format``/``str.format_map`` templates whose
+    replacement fields navigate dunder attributes or items.
+
+    ``"{0.__class__}".format(x)`` and ``"{0.__globals__[k]}".format_map(d)``
+    reach ``x.__class__`` / a module's globals through the format machinery,
+    which resolves those field names at *runtime*.  They never appear in
+    ``co_names``, so ``assert_no_dunder_name`` cannot see them — a sandbox
+    escape reaching ``object`` and, via any function/recordset in the context,
+    ``__globals__`` (env vars, DB credentials).
+
+    Scope — this is best-effort defence-in-depth, not an airtight barrier:
+    it inspects string *constants*, so it catches the literal exploit (and the
+    constant-folded ``"{0.__" "class__}"`` form), but a format string assembled
+    at runtime (``("{0.%sclass__}" % "__").format(x)``, or one passed in through
+    a context variable) still slips through. Fully closing the hole means
+    blocking the ``format``/``format_map`` methods outright, which cannot be done
+    here: they are public model methods (``res.currency.format``,
+    ``res.lang.format``) that customer templates and server actions call, so a
+    name-level block would break legitimate code. Upstream applies no mitigation
+    at all; this raises the bar for the common case without any false positives.
+
+    Gated on a ``format``/``format_map`` name being present so that ordinary
+    strings containing braces (and model methods also named ``format``) are
+    unaffected: ``getattr`` is not exposed, so ``str.format`` is unreachable
+    without the name appearing in co_names.
+    """
+    if not _FORMAT_METHOD_NAMES.intersection(code_obj.co_names):
+        return
+    for const in code_obj.co_consts:
+        if not isinstance(const, str) or "__" not in const:
+            continue
+        try:
+            fields = [field for _, field, _, _ in _formatter_parse(const) if field]
+        except ValueError:
+            # Not a valid format string; str.format() would raise on it too.
+            continue
+        if any("__" in field for field in fields):
+            raise NameError(
+                "Access to forbidden format field in %r (%r)" % (const, expr)
+            )
+
+
+_FORMAT_METHOD_NAMES = frozenset(("format", "format_map"))
+
+
 def assert_valid_codeobj(
     allowed_codes: set[int], code_obj: CodeType, expr: str
 ) -> None:
@@ -382,11 +434,23 @@ def assert_valid_codeobj(
     # new allowlist silently inherit the old one's "validated" verdicts — a
     # cache-poisoning seam in a sandbox primitive. frozenset() of ~50 opcode ints
     # is negligible next to the dis.get_instructions() it guards.
-    cache_key = (code_obj.co_code, code_obj.co_names, frozenset(allowed_codes))
+    # co_consts is part of the key: two format-string expressions can share an
+    # identical (co_code, co_names) — e.g. "{0.name}".format(x) vs
+    # "{0.__class__}".format(x), whose bytecode and names are the same and which
+    # differ only in the string constant validated by
+    # assert_no_dunder_format_field below. Omitting co_consts would let the
+    # benign one's verdict be reused for the malicious one.
+    cache_key = (
+        code_obj.co_code,
+        code_obj.co_names,
+        code_obj.co_consts,
+        frozenset(allowed_codes),
+    )
     if cacheable and cache_key in _validated_bytecode_cache:
         return
 
     assert_no_dunder_name(code_obj, expr)
+    assert_no_dunder_format_field(code_obj, expr)
 
     # set operations are almost twice as fast as a manual iteration + condition
     # when loading /web according to line_profiler
@@ -718,7 +782,9 @@ dateutil = wrap_module(
     },
 )
 json = wrap_module(__import__("json"), ["loads", "dumps"])
-time = wrap_module(__import__("time"), ["time", "strptime", "strftime", "sleep"])
+# Deliberately omit ``sleep``: no template/action needs it, and exposing it lets
+# a single expression block a worker thread indefinitely (DoS).
+time = wrap_module(__import__("time"), ["time", "strptime", "strftime"])
 # Expose timezone utilities (pytz-compatible interface for server actions)
 from odoo.libs.datetime import tz as _tz_module  # noqa: E402
 

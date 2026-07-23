@@ -619,11 +619,18 @@ def _convert_column(
 def drop_depending_views(cr: Cursor, table: str, column: str) -> None:
     """Drop views depending on a field so the ORM can resize it in-place."""
     for v, k in get_depending_views(cr, table, column):
+        # ``v`` is a relname straight from pg_catalog (trusted), but may be a
+        # non-identifier name (spaces, dots, embedded quotes) on customer/
+        # third-party views — which SQL.identifier would reject with ValueError,
+        # aborting the column resize.  Quote it the way PostgreSQL does
+        # (double every internal quote); safe to splice since the source is the
+        # catalog, not user input.
+        quoted = '"%s"' % v.replace('"', '""')
         cr.execute(
             SQL(
                 "DROP %s IF EXISTS %s CASCADE",
                 SQL("MATERIALIZED VIEW" if k == "m" else "VIEW"),
-                SQL.identifier(v),
+                SQL(quoted),  # pylint: disable=sql-injection
             )
         )
         _schema.debug("Drop view %r", v)
@@ -887,8 +894,17 @@ def fix_foreign_key(
 
 
 def index_exists(cr: Cursor, indexname: str) -> bool:
-    """Return whether the given index exists."""
-    cr.execute(SQL("SELECT 1 FROM pg_indexes WHERE indexname=%s", indexname))
+    """Return whether the given index exists in the current schema."""
+    # Filter by current_schema like every other pg_catalog probe in this file:
+    # without it an identically-named index in another schema (e.g. a postgis
+    # or extension schema) reports as present, and create_index then silently
+    # skips creating the index in the current schema.
+    cr.execute(
+        SQL(
+            "SELECT 1 FROM pg_indexes WHERE indexname=%s AND schemaname=current_schema",
+            indexname,
+        )
+    )
     return bool(cr.rowcount)
 
 
